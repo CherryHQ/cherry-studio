@@ -6,6 +6,9 @@ import { toast } from '@renderer/services/toast'
 
 import { useChannels } from '../useChannels'
 
+const ipcRequest = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest } }))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
@@ -31,6 +34,7 @@ describe('useChannels', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
+    ipcRequest.mockReset()
   })
 
   describe('channels list', () => {
@@ -57,13 +61,26 @@ describe('useChannels', () => {
       expect(result.current.channels).toEqual(mockChannels)
       expect(result.current.isLoading).toBe(false)
     })
+
+    it('refetches channels when another window publishes a channel projection change', () => {
+      const refetch = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [], refetch })
+      renderHook(() => useChannels())
+
+      act(() => {
+        MockUseDataApiUtils.emitDataChange([
+          { endpoint: '/agent-channels', kind: 'projection', entityIds: ['channel-detached'] }
+        ])
+      })
+
+      expect(refetch).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('createChannel', () => {
-    it('calls the mutation trigger with the provided data', async () => {
+    it('sends channel creation through IpcApi', async () => {
       const newChannel = { id: 'ch-new', type: 'telegram', name: 'New Bot' }
-      const mockTrigger = vi.fn().mockResolvedValue(newChannel)
-      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-channels', mockTrigger)
+      ipcRequest.mockResolvedValue(newChannel)
       MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
@@ -76,13 +93,12 @@ describe('useChannels', () => {
       }
       const created = await act(async () => result.current.createChannel(channelData))
 
-      expect(mockTrigger).toHaveBeenCalledWith({ body: channelData })
+      expect(ipcRequest).toHaveBeenCalledWith('channel.create', channelData)
       expect(created).toEqual(newChannel)
     })
 
     it('toasts an error and returns null when trigger throws', async () => {
-      const mockTrigger = vi.fn().mockRejectedValue(new Error('create failed'))
-      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-channels', mockTrigger)
+      ipcRequest.mockRejectedValue(new Error('create failed'))
       MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
@@ -102,25 +118,23 @@ describe('useChannels', () => {
   })
 
   describe('updateChannel', () => {
-    it('calls the mutation trigger with the provided id and updates', async () => {
+    it('sends channel updates through IpcApi', async () => {
       const updatedChannel = { id: 'ch-1', type: 'telegram', name: 'Updated Bot' }
-      const mockTrigger = vi.fn().mockResolvedValue(updatedChannel)
-      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-channels/:channelId', mockTrigger)
+      ipcRequest.mockResolvedValue(updatedChannel)
       MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
       const updated = await act(async () => result.current.updateChannel('ch-1', { name: 'Updated Bot' }))
 
-      expect(mockTrigger).toHaveBeenCalledWith({
-        params: { channelId: 'ch-1' },
-        body: { name: 'Updated Bot' }
+      expect(ipcRequest).toHaveBeenCalledWith('channel.update', {
+        channelId: 'ch-1',
+        updates: { name: 'Updated Bot' }
       })
       expect(updated).toEqual(updatedChannel)
     })
 
     it('toasts an error and returns null when trigger throws', async () => {
-      const mockTrigger = vi.fn().mockRejectedValue(new Error('update failed'))
-      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-channels/:channelId', mockTrigger)
+      ipcRequest.mockRejectedValue(new Error('update failed'))
       MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
@@ -132,20 +146,18 @@ describe('useChannels', () => {
   })
 
   describe('deleteChannel', () => {
-    it('calls the mutation trigger with the provided id', async () => {
-      const mockTrigger = vi.fn().mockResolvedValue(undefined)
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-channels/:channelId', mockTrigger)
+    it('sends channel deletion through IpcApi', async () => {
+      ipcRequest.mockResolvedValue(undefined)
       MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
       await act(async () => result.current.deleteChannel('ch-1'))
 
-      expect(mockTrigger).toHaveBeenCalledWith({ params: { channelId: 'ch-1' } })
+      expect(ipcRequest).toHaveBeenCalledWith('channel.delete', { channelId: 'ch-1' })
     })
 
     it('toasts an error when trigger throws', async () => {
-      const mockTrigger = vi.fn().mockRejectedValue(new Error('delete failed'))
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-channels/:channelId', mockTrigger)
+      ipcRequest.mockRejectedValue(new Error('delete failed'))
       MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())

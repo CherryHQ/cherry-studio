@@ -27,6 +27,8 @@ import { MockMainPreferenceServiceExport } from './PreferenceService'
 /** Minimal MainWindowService mock for tests that access application.get('MainWindowService') */
 const mockMainWindowService = {
   getMainWindow: vi.fn(() => null),
+  openWebsite: vi.fn(async () => undefined),
+  openBrowserTab: vi.fn(),
   showMainWindow: vi.fn(),
   toggleMainWindow: vi.fn(),
   quoteToMainWindow: vi.fn()
@@ -123,6 +125,11 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
       }
       return undefined
     }
+    // Mirror real ServiceContainer semantics: resolve without creating, and
+    // return undefined (never throw) for an unregistered service.
+    getInstance(name: string) {
+      return name in serviceInstances ? serviceInstances[name as keyof typeof serviceInstances] : undefined
+    }
     has(name: string) {
       return name in serviceInstances
     }
@@ -134,6 +141,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
   return {
     get: vi.fn((name: string) => container.get(name)),
     getOptional: vi.fn((name: string) => container.getOptional(name)),
+    getExisting: vi.fn((name: string) => container.getInstance(name)),
     getContainer: vi.fn(() => container),
     // Deterministic stub for path lookups — returns "/mock/<key>" (or
     // "/mock/<key>/<filename>") so tests that instantiate services with

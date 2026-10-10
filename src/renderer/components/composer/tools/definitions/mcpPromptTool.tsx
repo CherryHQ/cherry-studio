@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import { ComposerPanelSymbol, prepareComposerQuickPanelSearch } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
@@ -47,6 +47,7 @@ export function flattenMcpPromptMessages(result: unknown): string {
 const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }) => {
   const { actions, assistant, launcher, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
+  const rootPanelVisible = isVisible && symbol === ComposerPanelSymbol.Root
   const [dataRequested, setDataRequested] = useState(false)
   const [prompts, setPrompts] = useState<McpPrompt[]>([])
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false)
@@ -60,11 +61,16 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   // lands, and neither the insert nor the toast may run against a dead runtime.
   const isMountedRef = useRef(true)
   const selectionGenerationRef = useRef(0)
+  const requestIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     isMountedRef.current = true
     return () => {
       isMountedRef.current = false
+      if (requestIdRef.current)
+        void ipcApi
+          .request('mcp.request.cancel', { requestId: requestIdRef.current })
+          .catch((error) => logger.debug('MCP prompt cancellation failed', { error }))
     }
   }, [])
 
@@ -93,7 +99,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       if (cancelled) return
       setPrompts(
         results.flatMap((result, index) => {
-          if (result.status === 'fulfilled') return (result.value as McpPrompt[] | undefined) ?? []
+          if (result.status === 'fulfilled') return result.value ?? []
           logger.warn('Failed to list MCP prompts', { serverId: servers[index].id, error: result.reason })
           return []
         })
@@ -122,8 +128,16 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   const fetchAndInsert = useCallback(
     async (prompt: McpPrompt, args: Record<string, string> | undefined, options?: QuickPanelCallBackOptions) => {
       const generation = ++selectionGenerationRef.current
+      if (requestIdRef.current)
+        void ipcApi
+          .request('mcp.request.cancel', { requestId: requestIdRef.current })
+          .catch((error) => logger.debug('MCP prompt cancellation failed', { error }))
+      const requestId = crypto.randomUUID()
+      requestIdRef.current = requestId
       try {
         const result = await ipcApi.request('mcp.server.get_prompt', {
+          requestId,
+          topicId: session?.sessionId,
           serverId: prompt.serverId,
           name: prompt.name,
           args
@@ -143,9 +157,11 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
         logger.error('Failed to get MCP prompt', error as Error, { serverId: prompt.serverId, name: prompt.name })
         toast.error(formatErrorMessageWithPrefix(error, t('chat.input.mcp_prompts.insert_failed')))
         return false
+      } finally {
+        if (requestIdRef.current === requestId) requestIdRef.current = undefined
       }
     },
-    [insertPromptText, t]
+    [insertPromptText, t, session?.sessionId]
   )
 
   const handleSelect = useCallback(
@@ -218,15 +234,15 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       label: t('chat.input.mcp_prompts.title'),
       description: t('chat.input.mcp_prompts.description'),
       icon: <McpLogo aria-hidden />,
-      action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      rootSearchItems: items,
+      action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
         setDataRequested(true)
         quickPanel.open({
           title: t('chat.input.mcp_prompts.title'),
           list: items,
           symbol: ComposerPanelSymbol.McpPrompts,
           parentPanel,
-          queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo })
         })
       }
     }),
@@ -239,6 +255,10 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
     if (!isVisible || symbol !== ComposerPanelSymbol.McpPrompts) return
     updateList(items)
   }, [isVisible, items, symbol, updateList])
+
+  useEffect(() => {
+    if (rootPanelVisible) setDataRequested(true)
+  }, [rootPanelVisible])
 
   return (
     <McpPromptArgumentDialog

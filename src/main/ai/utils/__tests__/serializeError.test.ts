@@ -4,6 +4,35 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  describe('unknown thrown values', () => {
+    it('serializes only the safe message from a structured provider event', () => {
+      const result = serializeError({
+        type: 'error',
+        sequence_number: 2,
+        error: {
+          code: 'credit_balance_exhausted',
+          message: 'You have no credits remaining.'
+        },
+        apiKey: 'object-secret',
+        prompt: 'private prompt'
+      })
+
+      expect(result).toEqual({
+        name: null,
+        message: 'You have no credits remaining.',
+        stack: null
+      })
+      expect(JSON.stringify(result)).not.toMatch(/object-secret|private prompt/)
+    })
+
+    it('drops an opaque object instead of stringifying it', () => {
+      const result = serializeError({ apiKey: 'object-secret', nested: { token: 'nested-secret' } })
+
+      expect(result).toEqual({ name: null, message: null, stack: null })
+      expect(JSON.stringify(result)).not.toMatch(/object-secret|nested-secret|\[object Object\]/)
+    })
+  })
+
   it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {
     const error = new APICallError({
       message: 'Rate limit exceeded',

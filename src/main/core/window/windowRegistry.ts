@@ -2,6 +2,9 @@ import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { type WindowOptions, WindowType, type WindowTypeMetadata } from '@main/core/window/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
+// Matches the renderer's sub-window title bar (TITLE_BAR_HEIGHT_PX = 37.5px), rounded down to whole DIPs.
+const SUB_WINDOW_TITLE_BAR_HEIGHT = 37
+
 /**
  * Default window configuration.
  * Base configuration applied to all windows unless overridden by the type-specific config.
@@ -74,11 +77,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
           titleBarOverlay: { height: 42 }
         },
         win: {
-          // Frameless + renderer-drawn WindowControls (mirrors SubWindow). Windows is
-          // always frameless; backgroundMaterial stays runtime-computed → args.options.
-          frame: false
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { height: 44 }
         }
-        // linux: frame honors `app.use_system_title_bar` preference, icon is nativeImage
+        // linux: WCO vs system frame honors `app.use_system_title_bar`, icon is nativeImage
         //        → both injected via args.options
       },
       webPreferences: {
@@ -150,15 +152,19 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         devTools: true
       },
       platformOverrides: {
-        // macOS keeps the native frame with window-controls overlay; Windows and
-        // Linux are frameless (the in-window tab bar renders its own controls).
+        // macOS and Linux get system window controls via the window-controls overlay;
+        // Windows is frameless (the in-window tab bar renders its own controls).
         mac: {
           titleBarStyle: 'hidden',
           titleBarOverlay: { height: 42 }, // WCO height (macOS)
           trafficLightPosition: { x: 13, y: 13 }
         },
         win: { frame: false },
-        linux: { frame: false }
+        linux: {
+          titleBarStyle: 'hidden',
+          // Matches the tab bar's #tab-row; colors follow the theme via CdpBrowserController.
+          titleBarOverlay: { height: 42 }
+        }
       }
     },
     behavior: {
@@ -223,11 +229,15 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
           titleBarOverlay: { height: 42 }
         },
         win: {
-          frame: false
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { height: SUB_WINDOW_TITLE_BAR_HEIGHT }
           // backgroundColor is theme-dependent → injected via args.options (non-mac only)
         },
         linux: {
-          frame: false
+          // WCO regardless of `app.use_system_title_bar`: pooled standbys are created from
+          // these static options only. Overlay colors follow the theme via SubWindowService.
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { height: SUB_WINDOW_TITLE_BAR_HEIGHT }
           // icon is a nativeImage (required for Wayland task switcher) → injected via args.options
         }
       },
@@ -254,6 +264,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     //   - backgroundColor / darkTheme (theme snapshot at create time)
     //   - icon (Linux-only nativeImage; see SubWindowService.linuxIcon — mac/Windows omit)
     //   - x / y (only when Tab_Detach payload carries a drop position)
+    //   - zoomFactor (PreferenceService snapshot at open; pre-warmed standbys are
+    //     re-applied at pop — see SubWindowService.createWindow)
     // NOTE: setWindowOpenHandler + will-navigate are registered by WindowManager for
     // every BrowserWindow (see WindowManager.ts:1186-1201). SubWindow inherits both
     // automatically; do NOT attach another setWindowOpenHandler here or in the
@@ -457,6 +469,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       thickFrame: false,
       platformOverrides: {
         mac: {
+          // Native selection-panel binding limits this panel to the invoking Space.
+          type: 'panel',
+          fullscreenable: false,
           titleBarStyle: 'hidden', // [macOS]
           trafficLightPosition: { x: 12, y: 11 } // [macOS]
         }
@@ -476,8 +491,6 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       //   - alwaysOnTop is toggled at runtime by the `selection.pin_action_window`
       //     IpcApi handler via wm.behavior.setAlwaysOnTop; passing no level lets
       //     Electron use its default ('floating' on macOS).
-      //   - setVisibleOnAllWorkspaces's true/false options differ per call in the
-      //     full-screen show sequence; see SelectionService.showActionWindow.
       macShowInDock: false
     },
     // Only restoreFocusOnHide applies — action windows show via the fullscreen-aware

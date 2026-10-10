@@ -195,6 +195,11 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
       }
     ]
   },
+  crawl4ai: {
+    name: 'Crawl4AI',
+    type: 'api',
+    capabilities: [{ feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }]
+  },
   parallel: {
     name: 'Parallel',
     type: 'api',
@@ -204,6 +209,18 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
         requiresApiHost: true,
         requiresApiKey: true,
         apiHost: 'https://api.parallel.ai'
+      }
+    ]
+  },
+  serply: {
+    name: 'Serply',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.serply.io'
       }
     ]
   }

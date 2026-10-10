@@ -215,6 +215,36 @@ describe('UserPopup', () => {
     expect(image).toHaveAttribute('src', avatar)
   })
 
+  it('lets a space be typed inside the name and stores the name without surrounding whitespace', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', '')
+    showUserPopup()
+
+    const input = await screen.findByPlaceholderText('settings.general.user_name.placeholder')
+    await user.type(input, 'John Doe ')
+
+    expect(input).toHaveValue('John Doe ')
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('John Doe')
+  })
+
+  it('follows the stored name until the draft is typed', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Before')
+    showUserPopup()
+    const input = await screen.findByPlaceholderText('settings.general.user_name.placeholder')
+    expect(input).toHaveValue('Before')
+
+    // The mocked hook has no subscription, so re-render through an unrelated interaction.
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'After')
+    fireEvent.click(await screen.findByTestId('popover-trigger'))
+    expect(input).toHaveValue('After')
+
+    await user.type(input, ' X')
+
+    expect(input).toHaveValue('After X')
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('After X')
+  })
+
   it('only customizes avatar picker popover width and padding', async () => {
     showUserPopup()
 

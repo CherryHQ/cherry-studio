@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MINI_APP_GUEST_LIMITS } from '@shared/ipc/schemas/miniAppBridge'
 
-const readText = vi.fn(() => 'from the user')
-const writeText = vi.fn()
+const readText = vi.fn<() => Promise<string>>(async () => 'from the user')
+const writeText = vi.fn<(text: string) => Promise<void>>(async () => {})
 const guest = { isFocused: vi.fn(() => true) }
 vi.mock('electron', () => ({
   clipboard: { readText, writeText },
@@ -74,7 +74,7 @@ describe('cherry.clipboard', () => {
   it('clips a read to the cap instead of refusing it', async () => {
     // The app cannot shrink what someone else put on the clipboard, so an oversized
     // clipboard must still be readable — as much of it as the contract allows.
-    readText.mockReturnValueOnce('y'.repeat(MINI_APP_GUEST_LIMITS.clipboardTextChars + 5))
+    readText.mockResolvedValueOnce('y'.repeat(MINI_APP_GUEST_LIMITS.clipboardTextChars + 5))
 
     const { text } = await clipboardCapability.read(A, SENDER)
     expect(text).toHaveLength(MINI_APP_GUEST_LIMITS.clipboardTextChars)
@@ -98,6 +98,25 @@ describe('cherry.clipboard', () => {
 
     vi.advanceTimersByTime(61_000)
     await expect(clipboardCapability.write(A, { text: 't' }, SENDER)).resolves.toEqual({ ok: true })
+    await expect(clipboardCapability.read(A, SENDER)).resolves.toBeDefined()
+  })
+
+  it('holds the single in-flight slot until the read settles', async () => {
+    vi.advanceTimersByTime(61_000)
+    let finish: (text: string) => void = () => {}
+    readText.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        finish = resolve
+      })
+    )
+
+    const first = clipboardCapability.read(A, SENDER)
+    // maxInFlight is 1. Releasing the slot before the await settles would let an app
+    // fan out unbounded reads of the clipboard between two user actions.
+    await expect(clipboardCapability.read(A, SENDER)).rejects.toThrow(RateLimitedError)
+
+    finish('from the user')
+    await expect(first).resolves.toEqual({ text: 'from the user' })
     await expect(clipboardCapability.read(A, SENDER)).resolves.toBeDefined()
   })
 })

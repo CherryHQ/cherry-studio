@@ -580,32 +580,49 @@ const stream: ReadableStream<UIMessageChunk> = await aiService.streamText({
 timeout it aborts `exec.abortController`, which the upstream request is
 already wired to.
 
-**Step 3 — `pipeStreamLoop` tees the chunk stream.**
+**Step 3 — `pipeStreamLoop` isolates source errors before teeing the stream.**
 
 `pipeStreamLoop` is the shared chunk-pipe primitive (the one
-`AiStreamManager.runExecutionLoop` uses). It `tee()`s the stream into two
-independent branches:
+`AiStreamManager.runExecutionLoop` uses). It forwards the source through a
+`TransformStream` using `pipeTo({ preventAbort: true, preventClose: true })`.
+The forwarding task records upstream errors separately and closes the boundary
+normally when it settles. This preserves already-forwarded chunks in consumer
+queues even when the upstream stream fails. The boundary's readable side is
+then split with `tee()` into two independent branches:
 
 | Branch | Consumer | Purpose |
 |---|---|---|
 | Broadcast | `onChunk(topicId, modelId, chunk)` per chunk | Buffer into `exec.buffer` (ring), fan out to every listener |
 | Accumulator | `readUIMessageStream` | Each yielded snapshot is written to `exec.finalMessage`; at stream end it's the final message |
 
-The accumulator reader is **not** cancelled directly on abort —
-`Agent.stream` honours the same signal upstream and propagates `done`
-through `tee()`, so the accumulator drains naturally. Cancelling the
-accumulator reader directly would race AI SDK's internal
-`controller.close()` and produce an `ERR_INVALID_STATE`
-unhandledRejection.
+Abort and broadcast callback failures stop source forwarding and cancel the
+broadcast reader. The boundary closes normally and the accumulator drains;
+this does not depend on the source closing itself in response to the request
+signal. The SDK output reader is **not** cancelled directly, because that can
+race its internal `controller.close()` and produce an `ERR_INVALID_STATE`
+unhandled rejection. `broadcastCompletedAt` is recorded before accumulator drain.
+
+Provider `error` chunks are captured by broadcast and omitted from the
+accumulator input: the SDK also calls `onError` for those chunks, even though
+they do not interrupt accumulation. SDK parsing failures are recorded separately
+as `accumulationError`; they preserve the last valid snapshot and do not stop
+broadcasting subsequent chunks. They do not repair a malformed chunk sequence
+or recover later content into the persisted message. A run with an accumulation
+failure cannot finish successfully. Existing source/provider errors and user
+cancellation take precedence over this diagnostic.
+
+No synthetic `finish` chunk is needed. On paused/error persistence,
+`finalizeInterruptedParts` terminalizes open text, reasoning, tool and task parts.
 
 **Step 4 — terminal dispatch.**
 
 | Exit path | Handler | Behaviour |
 |---|---|---|
 | Normal end | `onExecutionDone` | `exec.status = 'done'`, finalMessage persisted as `success` |
-| `signal.aborted` + `exec.status === 'aborted'` | `onExecutionPaused` | (Possibly partial) finalMessage persisted as `paused` |
+| `signal.aborted`, without a thrown failure | `onExecutionPaused` | Promote streaming execution to aborted if necessary; persist partial finalMessage as `paused` |
 | `streamErrorText` (in-stream `error` chunk) | `onExecutionError` | Error part folded into finalMessage, persisted as `error` |
-| Pre-stream or broadcast throw | `onExecutionError` | Same — error part folded, persisted |
+| Pre-stream, upstream or broadcast throw | `onExecutionError` | Same — error part folded, persisted |
+| Accumulation failure without another terminal cause | `onExecutionError` | Last valid snapshot persisted as `error`, with failure source `host` and reason `internal` |
 
 ## Write quiesce (pause / drainInFlight)
 
@@ -617,6 +634,11 @@ the contract — `AiStreamManager`, `AgentSessionRuntimeService`, and channel in
 (`ChannelManager` → `ChannelMessageHandler`) — each exposing
 `pause(reason?): Disposable` + `drainInFlight({ timeoutMs }) → { stragglerIds }`
 (empty = clean) + an advisory read-only `listActiveWork()`.
+
+BackupManager delegates Agent-specific participants to `AgentLifecycleService`; its
+`pauseIngress` / `drainIngress` pair covers Channel intake and lifecycle commands,
+and `pauseExecution` covers Delivery and Runtime. Global Stream and Job holds remain
+BackupManager-owned. See [Agent Lifecycle](./agent-lifecycle.md#backup-and-shutdown).
 
 Orchestration order (grandfather-free, per #16850) — the channel step MUST fully complete
 before the AI writers are paused:

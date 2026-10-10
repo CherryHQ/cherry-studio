@@ -1,76 +1,67 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { McpServer } from '@modelcontextprotocol/server'
+import * as z from 'zod'
 
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { CreateMcpServerSchema } from '@shared/data/api/schemas/mcpServers'
+import { McpServerTypeSchema } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('McpServer:McpManager')
 
-const INSTALL_TOOL: Tool = {
-  name: 'install_mcp_server',
-  description:
-    'Register a new MCP server from its connection config and enable it for the current agent. ' +
-    'Call this only when the user explicitly asks to install an MCP server. ' +
-    'This is the one-tool equivalent of manually adding a server in Settings → MCP: you supply the ' +
-    'launch config (command/args/env for stdio, baseUrl/headers for remote) as plain JSON, Cherry ' +
-    'writes it to the server registry and binds it to the current agent. By default the server is ' +
-    'registered but NOT activated; pass activate=true only when the user explicitly asks to enable ' +
-    'it right away, so its tools go live without a restart (otherwise the user enables it later in ' +
-    'Settings → MCP). For stdio servers `command` is required; for sse/streamableHttp `baseUrl` is required. ' +
-    'SECURITY: for stdio servers `command` runs an arbitrary local process with the given `env` ' +
-    '(which may carry API keys and other secrets) — never invent a config yourself; only install a ' +
-    'config the user provided or explicitly confirmed.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      name: {
-        type: 'string',
-        description: 'Unique display name for the server, e.g. "github-mcp".'
-      },
-      type: {
-        type: 'string',
-        enum: ['stdio', 'sse', 'streamableHttp'],
-        description: 'Transport type. stdio runs a local command; sse/streamableHttp connect to a remote baseUrl.'
-      },
-      description: {
-        type: 'string',
-        description: 'What this server provides (shown in Settings → MCP).'
-      },
-      command: {
-        type: 'string',
-        description: 'Executable to launch for stdio servers, e.g. "npx" or an absolute path to a binary.'
-      },
-      args: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Arguments passed to `command` (stdio), e.g. ["-y", "some-mcp-server"].'
-      },
-      env: {
-        type: 'object',
-        additionalProperties: { type: 'string' },
-        description: 'Environment variables for the stdio command, e.g. {"API_KEY": "..."}.'
-      },
-      baseUrl: {
-        type: 'string',
-        description: 'Remote endpoint URL for sse/streamableHttp servers.'
-      },
-      headers: {
-        type: 'object',
-        additionalProperties: { type: 'string' },
-        description: 'Custom request headers for remote servers.'
-      },
-      activate: {
-        type: 'boolean',
-        description:
-          'Set to true only when the user explicitly asks to enable the server immediately — it goes live and its command may start running. Defaults to false: the server is registered but left inactive for the user to enable in Settings → MCP.'
-      }
-    },
-    required: ['name']
-  }
-}
+const INSTALL_TOOL_DESCRIPTION =
+  'Register a new MCP server from its connection config and enable it for the current agent. ' +
+  'Call this only when the user explicitly asks to install an MCP server. ' +
+  'This is the one-tool equivalent of manually adding a server in Settings → MCP: you supply the ' +
+  'launch config (command/args/env for stdio, baseUrl/headers for remote) as plain JSON, Cherry ' +
+  'writes it to the server registry and binds it to the current agent. By default the server is ' +
+  'registered but NOT activated; pass activate=true only when the user explicitly asks to enable ' +
+  'it right away, so its tools go live without a restart (otherwise the user enables it later in ' +
+  'Settings → MCP). For stdio servers `command` is required; for sse/streamableHttp `baseUrl` is required. ' +
+  'SECURITY: for stdio servers `command` runs an arbitrary local process with the given `env` ' +
+  '(which may carry API keys and other secrets) — never invent a config yourself; only install a ' +
+  'config the user provided or explicitly confirmed. When the user names a server but not its ' +
+  'config, resolve it instead of guessing: if the mcp-auto-install server is enabled, call its ' +
+  '`mai_install` with `dryRun: true` and pass the returned command/args here. If that result ' +
+  'lists `requiredEnvVars`, collect each value from the user before calling this tool — the ' +
+  'server cannot start without them.'
+
+const fields = CreateMcpServerSchema.shape
+
+// Field types come from the shared create DTO so tool and renderer validation stay identical.
+const InstallMcpServerInputSchema = z
+  .strictObject({
+    name: fields.name.describe('Unique display name for the server, e.g. "github-mcp".'),
+    type: McpServerTypeSchema.exclude(['inMemory'])
+      .optional()
+      .describe('Transport type. stdio runs a local command; sse/streamableHttp connect to a remote baseUrl.'),
+    description: fields.description.describe('What this server provides (shown in Settings → MCP).'),
+    command: fields.command.describe(
+      'Executable to launch for stdio servers, e.g. "npx" or an absolute path to a binary.'
+    ),
+    args: fields.args.describe('Arguments passed to `command` (stdio), e.g. ["-y", "some-mcp-server"].'),
+    env: fields.env.describe('Environment variables for the stdio command, e.g. {"API_KEY": "..."}.'),
+    baseUrl: fields.baseUrl.describe('Remote endpoint URL for sse/streamableHttp servers.'),
+    headers: fields.headers.describe('Custom request headers for remote servers.'),
+    activate: z
+      .boolean()
+      .optional()
+      .describe(
+        'Set to true only when the user explicitly asks to enable the server immediately — it goes live and its command may start running. Defaults to false: the server is registered but left inactive for the user to enable in Settings → MCP.'
+      )
+  })
+  .superRefine((args, ctx) => {
+    if ((args.type ?? 'stdio') === 'stdio') {
+      if (!args.command)
+        ctx.addIssue({ code: 'custom', message: '`command` is required for a stdio MCP server', path: ['command'] })
+    } else if (!args.baseUrl) {
+      ctx.addIssue({
+        code: 'custom',
+        message: '`baseUrl` is required for an sse/streamableHttp MCP server',
+        path: ['baseUrl']
+      })
+    }
+  })
 
 /**
  * MCP server exposing a single deterministic action: `install_mcp_server`.
@@ -81,8 +72,8 @@ const INSTALL_TOOL: Tool = {
  * which the session runtime subscribes to and reconciles live connections against, so the new server's
  * tools surface on the next re-list without a restart.
  *
- * Mirror of `SkillsServer`: one tool call in the main process instead of a correct multi-step shell or
- * SQL sequence, and validation is delegated to the shared `CreateMcpServerSchema` so the data-layer
+ * Mirror of `createSkillsServer`: one tool call in the main process instead of a correct multi-step shell
+ * or SQL sequence, and field validation reuses the shared `CreateMcpServerSchema` so the data-layer
  * guarantees (name required, unknown fields rejected) are the same here as in the renderer.
  *
  * Security posture: a stdio `command` executes an arbitrary local process with the given `env`, so
@@ -98,143 +89,73 @@ const INSTALL_TOOL: Tool = {
  * read-modify-write the full mcps set, so the last writer wins; SQLite serializes the
  * writes and installs are rare and human-paced, so no locking is added here.
  */
-class McpManagerServer {
-  public mcpServer: McpServer
-  private agentId: string
+export function createMcpManagerServer(agentId: string): McpServer {
+  const server = new McpServer({ name: 'mcp-manager', version: '1.0.0' })
+  server.registerTool(
+    'install_mcp_server',
+    { description: INSTALL_TOOL_DESCRIPTION, inputSchema: InstallMcpServerInputSchema },
+    async ({ activate = false, ...config }) => {
+      const type = config.type ?? 'stdio'
 
-  constructor(agentId: string) {
-    this.agentId = agentId
-    this.mcpServer = new McpServer(
-      {
-        name: 'mcp-manager',
-        version: '1.0.0'
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    )
-    this.setupHandlers()
-  }
+      // Fail before creating anything when the agent is gone — otherwise the row would
+      // need a rollback delete below.
+      const agent = agentService.getAgent(agentId)
+      if (!agent) throw new Error(`Agent not found: ${agentId}`)
 
-  private setupHandlers() {
-    this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [INSTALL_TOOL]
-    }))
+      const now = Date.now()
+      // Activation is gated on explicit user intent: activate=true marks the server
+      // isActive+isTrusted and launches it immediately; otherwise it is registered
+      // in an inactive, untrusted state for the user to enable in Settings → MCP.
+      const created = mcpServerService.create({
+        ...config,
+        type,
+        isActive: activate,
+        installSource: 'ai_assisted',
+        isTrusted: activate,
+        trustedAt: activate ? now : undefined,
+        installedAt: now
+      })
 
-    this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const toolName = request.params.name
-      const args = request.params.arguments ?? {}
-
+      // Bind to the current agent. updateAgent replaces the full mcps set, so append the new id to the
+      // live list; it fires `onAgentUpdated({ mcps })` which reconciles live session connections.
+      // If the bind fails, roll back the created row so no active, unbound orphan server is left behind.
+      const nextMcps = [...(agent.mcps ?? []), created.id]
       try {
-        switch (toolName) {
-          case 'install_mcp_server':
-            return await this.installMcpServer(args)
-          default:
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
-        }
+        const updated = agentService.updateAgent(agentId, { mcps: nextMcps })
+        if (!updated) throw new Error(`Failed to bind MCP server to agent: ${agentId}`)
       } catch (error) {
-        // Preserve the MCP error code when one is thrown, and never stringify a
-        // non-Error into a useless `[object Object]`.
-        const isMcpError = error instanceof McpError
-        const message = isMcpError ? error.message : error instanceof Error ? error.message : JSON.stringify(error)
-        logger.error(`Tool error: ${toolName}`, {
-          agentId: this.agentId,
-          error: message,
-          ...(isMcpError ? { code: error.code } : {})
-        })
-        return {
-          content: [{ type: 'text' as const, text: `${isMcpError ? `[${error.code}] ` : ''}Error: ${message}` }],
-          isError: true
+        try {
+          mcpServerService.delete(created.id)
+        } catch (rollbackError) {
+          logger.error('Rollback failed: orphaned MCP server left after bind failure', {
+            serverId: created.id,
+            error: rollbackError
+          })
         }
+        throw error
       }
-    })
-  }
 
-  private async installMcpServer(args: Record<string, unknown>) {
-    // `activate` is an MCP-layer gate, not a persisted server field — strip it before
-    // delegating to the shared strict schema (which rejects unknown fields). Activating
-    // is an explicit user decision: without activate=true the server is registered but
-    // left inactive and untrusted, the same posture as protocol-triggered installs.
-    const { activate = false, ...rest } = args
-    const shouldActivate = activate === true
+      logger.info('MCP server installed via tool', {
+        agentId,
+        serverId: created.id,
+        name: created.name,
+        type,
+        isActive: activate
+      })
 
-    // Shared data-layer schema: requires `name`, rejects unknown fields, coerces args/env types.
-    // Delegating here keeps tool-level and renderer-level validation identical.
-    const parsed = CreateMcpServerSchema.parse(rest)
+      const status = activate
+        ? 'It is active now; its tools will be picked up by live sessions on the next tool re-list.'
+        : 'It is registered but NOT yet active — the user must enable it in Settings → MCP before its tools can run.'
 
-    const type = parsed.type ?? 'stdio'
-    if (type === 'stdio' && !parsed.command) {
-      throw new McpError(ErrorCode.InvalidParams, '`command` is required for a stdio MCP server')
-    }
-    if (type !== 'stdio' && !parsed.baseUrl) {
-      throw new McpError(ErrorCode.InvalidParams, '`baseUrl` is required for an sse/streamableHttp MCP server')
-    }
-
-    // Fail before creating anything when the agent is gone — otherwise the row would
-    // need a rollback delete below.
-    const agent = agentService.getAgent(this.agentId)
-    if (!agent) {
-      throw new McpError(ErrorCode.InvalidParams, `Agent not found: ${this.agentId}`)
-    }
-
-    const now = Date.now()
-    // Activation is gated on explicit user intent: activate=true marks the server
-    // isActive+isTrusted and launches it immediately; otherwise it is registered
-    // in an inactive, untrusted state for the user to enable in Settings → MCP.
-    const server = mcpServerService.create({
-      ...parsed,
-      type,
-      isActive: shouldActivate,
-      installSource: 'ai_assisted',
-      isTrusted: shouldActivate,
-      trustedAt: shouldActivate ? now : undefined,
-      installedAt: now
-    })
-
-    // Bind to the current agent. updateAgent replaces the full mcps set, so append the new id to the
-    // live list; it fires `onAgentUpdated({ mcps })` which reconciles live session connections.
-    // If the bind fails, roll back the created row so no active, unbound orphan server is left behind.
-    const nextMcps = [...(agent.mcps ?? []), server.id]
-    try {
-      const updated = agentService.updateAgent(this.agentId, { mcps: nextMcps })
-      if (!updated) {
-        throw new McpError(ErrorCode.InternalError, `Failed to bind MCP server to agent: ${this.agentId}`)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `MCP server ${activate ? 'installed and enabled' : 'registered'} for this agent:\n  Name: ${created.name}\n  Type: ${type}\n  Launch: ${type === 'stdio' ? (created.command ?? 'N/A') : (created.baseUrl ?? 'N/A')}\n  ID: ${created.id}\n\n${status} Review or disable it anytime in Settings → MCP.`
+          }
+        ]
       }
-    } catch (error) {
-      try {
-        mcpServerService.delete(server.id)
-      } catch (rollbackError) {
-        logger.error('Rollback failed: orphaned MCP server left after bind failure', {
-          serverId: server.id,
-          error: rollbackError
-        })
-      }
-      throw error
     }
-
-    logger.info('MCP server installed via tool', {
-      agentId: this.agentId,
-      serverId: server.id,
-      name: server.name,
-      type,
-      isActive: shouldActivate
-    })
-
-    const status = shouldActivate
-      ? 'It is active now; its tools will be picked up by live sessions on the next tool re-list.'
-      : 'It is registered but NOT yet active — the user must enable it in Settings → MCP before its tools can run.'
-
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `MCP server ${shouldActivate ? 'installed and enabled' : 'registered'} for this agent:\n  Name: ${server.name}\n  Type: ${type}\n  Launch: ${type === 'stdio' ? (server.command ?? 'N/A') : (server.baseUrl ?? 'N/A')}\n  ID: ${server.id}\n\n${status} Review or disable it anytime in Settings → MCP.`
-        }
-      ]
-    }
-  }
+  )
+  return server
 }
-
-export default McpManagerServer

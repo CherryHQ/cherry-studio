@@ -1,4 +1,5 @@
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Cron } from 'croner'
 import type { TFunction } from 'i18next'
 import {
   ArrowLeft,
@@ -97,7 +98,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import {
   useAllTasks,
@@ -219,6 +220,20 @@ const formatTimes = (hours: string[], minute: string) =>
     .map((hour) => `${hour}:${minute}`)
     .join(',')
 
+function isValidCronExpression(value: string): boolean {
+  const expression = value.trim()
+
+  let cron: Cron | undefined
+  try {
+    cron = new Cron(expression, { paused: true })
+    return cron.nextRun() !== null
+  } catch {
+    return false
+  } finally {
+    cron?.stop()
+  }
+}
+
 export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 'timeoutMinutes'> {
   if (trigger.kind === 'interval') {
     return {
@@ -286,7 +301,7 @@ export function formStateToTrigger(schedule: ScheduleFormState): Trigger | null 
 
   if (schedule.kind === 'cron') {
     const expr = schedule.value.trim()
-    return expr ? { kind: 'cron', expr } : null
+    return isValidCronExpression(expr) ? { kind: 'cron', expr } : null
   }
 
   const times = parseTimes(schedule.value)
@@ -372,7 +387,8 @@ function getTaskStatusLabel(status: string, t: TFunction) {
   const labels: Record<string, string> = {
     active: t('agent.tasks.status.active'),
     paused: t('agent.tasks.status.paused'),
-    completed: t('agent.tasks.status.completed')
+    completed: t('agent.tasks.status.completed'),
+    missed: t('agent.tasks.status.missed')
   }
   return labels[status] ?? status
 }
@@ -385,6 +401,7 @@ function getTaskScheduleStatusIconPresentation(status: ScheduledTaskEntity['stat
         wrapperClassName: 'bg-info-subtle text-info-subtle-foreground',
         iconClassName: 'text-info-subtle-foreground'
       }
+    case 'missed':
     case 'paused':
       return {
         Icon: CalendarFold,
@@ -555,6 +572,14 @@ export const TaskTimeSelect: FC<{
         disabled={disabled}
         options={SCHEDULE_HOURS.map((hour) => ({ value: hour, label: hour }))}
         value={hours}
+        renderValue={(selectedHours) => {
+          const values = Array.isArray(selectedHours) ? selectedHours : []
+          return (
+            <span className={cn('min-w-0 flex-1 truncate text-left', values.length === 0 && 'text-muted-foreground')}>
+              {values.length > 0 ? values.join(', ') : t('agent.tasks.schedule.hours')}
+            </span>
+          )
+        }}
         onChange={(next) => {
           if (Array.isArray(next)) onChange(formatTimes(next, displayMinute))
         }}
@@ -666,6 +691,16 @@ const TaskScheduleControls: FC<{
           if (date) updateValue(date.toISOString())
         }}
       />
+    ) : value.kind === 'cron' ? (
+      <Input
+        className="w-72 max-w-full font-mono"
+        value={value.value}
+        placeholder={t('agent.tasks.schedule.cronPlaceholder')}
+        disabled={disabled}
+        aria-label={t('agent.tasks.schedule.cron')}
+        aria-invalid={invalid || undefined}
+        onChange={(event) => updateValue(event.target.value)}
+      />
     ) : null
 
   return (
@@ -673,12 +708,9 @@ const TaskScheduleControls: FC<{
       <Field data-invalid={invalid || undefined}>
         <FieldLabel htmlFor={`${id}-kind`}>{t('agent.tasks.frequency.label')}</FieldLabel>
         <RowFlex className="flex-wrap items-center gap-3">
-          <Select
-            value={value.kind === 'cron' ? undefined : value.kind}
-            disabled={disabled}
-            onValueChange={(kind) => updateKind(kind as Exclude<ScheduleKind, 'cron'>)}>
+          <Select value={value.kind} disabled={disabled} onValueChange={(kind) => updateKind(kind as ScheduleKind)}>
             <SelectTrigger id={`${id}-kind`} aria-invalid={invalid || undefined}>
-              <SelectValue placeholder={value.kind === 'cron' ? t('agent.tasks.schedule.custom') : undefined} />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -688,12 +720,17 @@ const TaskScheduleControls: FC<{
                 <SelectItem value="weekly">{t('agent.tasks.schedule.weekly')}</SelectItem>
                 <SelectItem value="interval">{t('agent.tasks.schedule.interval')}</SelectItem>
                 <SelectItem value="once">{t('agent.tasks.schedule.once')}</SelectItem>
+                <SelectItem value="cron">{t('agent.tasks.schedule.cron')}</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
           {frequencyControl}
         </RowFlex>
-        <FieldError>{invalid ? t('agent.tasks.schedule.invalid') : undefined}</FieldError>
+        <FieldError>
+          {invalid
+            ? t(value.kind === 'cron' ? 'agent.tasks.schedule.invalidCron' : 'agent.tasks.schedule.invalid')
+            : undefined}
+        </FieldError>
       </Field>
 
       <Field>
@@ -961,7 +998,8 @@ const TaskDetail: FC<{
   const hasUndeliverableChannel = selectedChannels.some((channel) => !channel.hasActiveChatIds)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   const workspaceId = task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
   const workspaceLabel =
@@ -1050,7 +1088,8 @@ const TaskDetail: FC<{
               <ArrowLeft size={16} />
             </Button>
             <span className="min-w-0 break-words">{task.name}</span>
-            {!isCompleted && (
+            {task.status === 'missed' && <Badge variant="secondary">{t('agent.tasks.status.missed')}</Badge>}
+            {!isCompleted && task.status !== 'missed' && (
               <Switch
                 className="ml-1 shrink-0"
                 size="sm"
@@ -1105,11 +1144,11 @@ const TaskDetail: FC<{
             <TabsTrigger value="general">{t('settings.general.title')}</TabsTrigger>
             <TabsTrigger value="history">{t('agent.tasks.logs.label')}</TabsTrigger>
           </TabsList>
-          <TabsContent value="prompt">
+          <TabsContent value="prompt" className="min-w-0">
             <SettingDivider />
-            <Item variant="muted">
-              <ItemContent>
-                <ItemDescription className="line-clamp-none whitespace-pre-wrap break-words">
+            <Item variant="muted" className="min-w-0 max-w-full">
+              <ItemContent className="min-w-0">
+                <ItemDescription className="wrap-anywhere line-clamp-none min-w-0 max-w-full whitespace-pre-wrap">
                   {task.prompt}
                 </ItemDescription>
               </ItemContent>
@@ -1197,7 +1236,8 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
   const wasOpenRef = useRef(false)
   const initialDraftRef = useRef<TaskDraftSnapshot | null>(null)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
@@ -1237,11 +1277,15 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspaces?.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId)
-  const trigger = formStateToTrigger(schedule)
+  const trigger = useMemo(() => formStateToTrigger(schedule), [schedule])
+  const unchangedExistingSchedule =
+    props.task !== undefined &&
+    scheduleInputsEqual(schedule, initialDraftRef.current?.schedule ?? taskToDraftSnapshot(props.task).schedule)
+  const resolvedTrigger = trigger ?? (unchangedExistingSchedule ? props.task?.trigger : null)
 
   const handleSave = useCallback(async () => {
     setSubmitted(true)
-    if (!agentId || !name.trim() || !prompt.trim() || !trigger) return
+    if (!agentId || !name.trim() || !prompt.trim() || !resolvedTrigger) return
 
     setSaving(true)
     try {
@@ -1266,7 +1310,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
         if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
-          const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, trigger)
+          const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, resolvedTrigger)
           if (!triggersEqual(nextTrigger, props.task.trigger)) updates.trigger = nextTrigger
         }
 
@@ -1275,7 +1319,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         saved = await props.onCreate(agentId, {
           name: name.trim(),
           prompt: prompt.trim(),
-          trigger,
+          trigger: resolvedTrigger,
           workspace,
           timeoutMinutes,
           reuseSession,
@@ -1286,7 +1330,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     } finally {
       setSaving(false)
     }
-  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, trigger, workspaceId])
+  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, resolvedTrigger, workspaceId])
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
@@ -1393,7 +1437,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
             <TaskScheduleControls
               value={schedule}
               disabled={saving}
-              invalid={submitted && !trigger}
+              invalid={submitted && !resolvedTrigger}
               onChange={setSchedule}
             />
 
@@ -1688,6 +1732,7 @@ const TasksSettings: FC = () => {
                       <SelectItem value="active">{t('agent.tasks.status.active')}</SelectItem>
                       <SelectItem value="paused">{t('agent.tasks.status.paused')}</SelectItem>
                       <SelectItem value="completed">{t('agent.tasks.status.completed')}</SelectItem>
+                      <SelectItem value="missed">{t('agent.tasks.status.missed')}</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>

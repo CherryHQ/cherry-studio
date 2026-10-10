@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync } from 'fs'
+import { createRequire } from 'node:module'
 import { join, resolve } from 'path'
 
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
@@ -15,9 +17,15 @@ import { parse } from 'yaml'
 import pkg from './package.json'
 import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
+import { piVccBundlePlugin } from './scripts/piVccBundle'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
+import { getSentryBuildContext } from './src/shared/utils/sentry'
+
+const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(import.meta.url)(
+  './native/darwin/build'
+)
 
 type ElectronBuilderConfig = {
   releaseInfo?: {
@@ -45,6 +53,19 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
 
+const SENTRY_UPLOAD_ENV_KEYS = ['SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJECT'] as const
+
+export function resolveSentryBuildSettings(env: NodeJS.ProcessEnv) {
+  const sourceMapUploadEnabled = env.NODE_ENV === 'production' && env.SENTRY_SOURCE_MAP_UPLOAD === 'true'
+  const missingUploadEnv = sourceMapUploadEnabled ? SENTRY_UPLOAD_ENV_KEYS.filter((key) => !env[key]?.trim()) : []
+
+  if (missingUploadEnv.length > 0) {
+    throw new Error(`Sentry production builds require: ${missingUploadEnv.join(', ')}`)
+  }
+
+  return { sourceMapUploadEnabled }
+}
+
 export function resolveRendererEdition(value: string | undefined): AppEdition {
   const edition = value?.trim().toLowerCase() || 'global'
   if (APP_EDITIONS.includes(edition as AppEdition)) return edition as AppEdition
@@ -52,6 +73,27 @@ export function resolveRendererEdition(value: string | undefined): AppEdition {
 }
 
 const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
+const sentryBuildContext = getSentryBuildContext(pkg.name, pkg.version, rendererEdition)
+const { sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
+const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
+const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer') =>
+  sourceMapUploadEnabled
+    ? sentryVitePlugin({
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        org: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+        telemetry: false,
+        release: {
+          name: sentryBuildContext.release,
+          create: false,
+          finalize: false,
+          setCommits: false
+        },
+        sourcemaps: {
+          filesToDeleteAfterUpload: `./out/${outputDirectory}/**/*.map`
+        }
+      })
+    : []
 
 // Bundle/externalize split for the main process: everything in `dependencies` is
 // externalized below (kept in node_modules of the packaged app), and everything
@@ -116,7 +158,21 @@ export const mainResolveAlias = {
 
 export default defineConfig({
   main: {
-    plugins: [chunkExportGuardPlugin(), miniAppThemeAssetPlugin(), ...visualizerPlugin('main')],
+    define: { __APP_EDITION__: JSON.stringify(rendererEdition) },
+    plugins: [
+      {
+        name: 'cherry-selection-panel',
+        buildStart() {
+          this.addWatchFile(selectionPanelSource)
+          buildSelectionPanel()
+        }
+      },
+      chunkExportGuardPlugin(),
+      piVccBundlePlugin(),
+      miniAppThemeAssetPlugin(),
+      ...visualizerPlugin('main'),
+      ...sentrySourceMapPlugins('main')
+    ],
     resolve: { alias: mainResolveAlias },
     build: {
       externalizeDeps: {
@@ -140,27 +196,28 @@ export default defineConfig({
           warn(warning)
         }
       },
-      sourcemap: isDev
+      sourcemap: sentrySourceMap
     },
     optimizeDeps: {
       noDiscovery: isDev
     }
   },
   preload: {
+    plugins: [...sentrySourceMapPlugins('preload')],
     resolve: {
       alias: {
         '@shared': resolve('src/shared')
       }
     },
     build: {
-      sourcemap: isDev,
+      sourcemap: sentrySourceMap,
       rolldownOptions: {
         // Unlike renderer which auto-discovers entries from HTML files,
         // preload requires explicit entry point configuration for multiple scripts
         input: {
           preload: resolve(__dirname, 'src/preload/preload.ts'),
           simplest: resolve(__dirname, 'src/preload/simplest.ts'), // Minimal preload
-          miniApp: resolve(__dirname, 'src/preload/miniApp.ts'), // MiniApp `<webview>` guests
+          webview: resolve(__dirname, 'src/preload/webview.ts'), // Site `<webview>` guests
           miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts') // Local mini app guests (`window.cherry`)
         },
         external: ['electron'],
@@ -189,7 +246,8 @@ export default defineConfig({
       tailwindcss(),
       react(),
       ...(isDev ? [CodeInspectorPlugin({ bundler: 'vite' })] : []), // 只在开发环境下启用 CodeInspectorPlugin
-      ...visualizerPlugin('renderer')
+      ...visualizerPlugin('renderer'),
+      ...sentrySourceMapPlugins('renderer')
     ],
     resolve: {
       alias: {
@@ -204,6 +262,8 @@ export default defineConfig({
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+        '@cherrystudio/file-preview/core': resolve('packages/file-preview/src/core.ts'),
+        '@cherrystudio/file-preview/react': resolve('packages/file-preview/src/react.ts'),
         '@cherrystudio/ui/icons/providers': resolve('packages/ui/src/components/icons/providers'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src'),
@@ -222,6 +282,7 @@ export default defineConfig({
       format: 'es'
     },
     build: {
+      sourcemap: sentrySourceMap,
       target: 'esnext', // for build
       rolldownOptions: {
         input: {

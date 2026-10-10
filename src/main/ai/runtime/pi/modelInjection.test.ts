@@ -1,3 +1,4 @@
+import { normalizeContext } from '@earendil-works/pi-ai'
 import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -343,7 +344,7 @@ describe('buildPiProviderInjection', () => {
   })
 
   it('hands pi header values it resolves back to the literals the user typed', async () => {
-    const { AuthStorage, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
+    const { ModelRuntime, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
     const provider = makeProvider({
       id: 'p',
       defaultChatEndpoint: 'openai-chat-completions',
@@ -359,9 +360,14 @@ describe('buildPiProviderInjection', () => {
     })
     const injection = buildPiProviderInjection(provider, makeModel({ apiModelId: 'm' }), REAL_KEY)
 
-    const authStorage = AuthStorage.inMemory()
-    authStorage.setRuntimeApiKey('p', injection.apiKey)
-    const registry = ModelRegistry.inMemory(authStorage)
+    const { InMemoryCredentialStore } = await import('@earendil-works/pi-ai')
+    const runtime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      refreshOnCreate: false
+    })
+    await runtime.setRuntimeApiKey('p', injection.apiKey)
+    const registry = new ModelRegistry(runtime)
     registry.registerProvider('p', injection.providerConfig)
     const auth = await registry.getApiKeyAndHeaders(registry.find('p', injection.modelId)!)
 
@@ -612,12 +618,17 @@ describe('OpenCode Pi session headers', () => {
   })
 
   it('keeps session and custom header values literal for Pi', async () => {
-    const { AuthStorage, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
+    const { ModelRuntime, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
     const configured = { ...provider, settings: { extraHeaders: { 'x-tenant': 'a$b' } } }
     const injection = await resolvePiProviderInjectionForSession('!session$1', configured, makeModel({}))
-    const authStorage = AuthStorage.inMemory()
-    authStorage.setRuntimeApiKey(provider.id, injection.apiKey)
-    const registry = ModelRegistry.inMemory(authStorage)
+    const { InMemoryCredentialStore } = await import('@earendil-works/pi-ai')
+    const runtime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      refreshOnCreate: false
+    })
+    await runtime.setRuntimeApiKey(provider.id, injection.apiKey)
+    const registry = new ModelRegistry(runtime)
     registry.registerProvider(provider.id, injection.providerConfig)
     const auth = await registry.getApiKeyAndHeaders(registry.find(provider.id, injection.modelId)!)
 
@@ -682,7 +693,7 @@ describe('Cherry Cloud Pi injection', () => {
 })
 
 function stubGrokCliServices(): void {
-  serviceMocks.getByProviderId.mockResolvedValue({
+  serviceMocks.getByProviderId.mockReturnValue({
     id: 'grok-cli',
     name: 'Grok CLI',
     authMethods: ['oauth'],
@@ -690,7 +701,7 @@ function stubGrokCliServices(): void {
     defaultChatEndpoint: 'openai-responses',
     endpointConfigs: { 'openai-responses': { adapterFamily: 'grok', baseUrl: 'https://cli-chat-proxy.grok.com/v1' } }
   })
-  serviceMocks.getByKey.mockResolvedValue({
+  serviceMocks.getByKey.mockReturnValue({
     id: 'grok-cli::grok-build',
     providerId: 'grok-cli',
     name: 'M',
@@ -703,13 +714,13 @@ describe('modelInjection service resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     serviceMocks.resolveApiGatewayRuntime.mockResolvedValue(GATEWAY)
-    serviceMocks.getByProviderId.mockResolvedValue({
+    serviceMocks.getByProviderId.mockReturnValue({
       id: 'p',
       name: 'P',
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
     })
-    serviceMocks.getByKey.mockResolvedValue({
+    serviceMocks.getByKey.mockReturnValue({
       id: 'p::m',
       providerId: 'p',
       name: 'M',
@@ -726,7 +737,7 @@ describe('modelInjection service resolution', () => {
   })
 
   it('accepts a Cherry Cloud model without a provider API key when synchronized metadata is complete', async () => {
-    serviceMocks.getByProviderId.mockResolvedValueOnce({
+    serviceMocks.getByProviderId.mockReturnValueOnce({
       id: CHERRY_CLOUD_PROVIDER_ID,
       name: 'CherryAI',
       defaultChatEndpoint: 'anthropic-messages',
@@ -734,7 +745,7 @@ describe('modelInjection service resolution', () => {
         'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://cloud.cherryai.com.cn' }
       }
     })
-    serviceMocks.getByKey.mockResolvedValueOnce({
+    serviceMocks.getByKey.mockReturnValueOnce({
       id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
       providerId: CHERRY_CLOUD_PROVIDER_ID,
       apiModelId: 'deepseek-free',
@@ -752,7 +763,7 @@ describe('modelInjection service resolution', () => {
   })
 
   it('validates the same preferred Anthropic endpoint used during materialization', async () => {
-    serviceMocks.getByProviderId.mockResolvedValueOnce({
+    serviceMocks.getByProviderId.mockReturnValueOnce({
       id: 'p',
       name: 'P',
       defaultChatEndpoint: 'openai-chat-completions',
@@ -761,7 +772,7 @@ describe('modelInjection service resolution', () => {
         'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.example.com' }
       }
     })
-    serviceMocks.getByKey.mockResolvedValueOnce({
+    serviceMocks.getByKey.mockReturnValueOnce({
       id: 'p::m',
       providerId: 'p',
       name: 'M',
@@ -777,7 +788,7 @@ describe('modelInjection service resolution', () => {
     serviceMocks.getApiKeys.mockReturnValueOnce([{ id: 'k1', key: '   ', isEnabled: true }])
     await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiMissingApiKeyError)
 
-    serviceMocks.getByProviderId.mockResolvedValueOnce({
+    serviceMocks.getByProviderId.mockReturnValueOnce({
       id: 'p',
       defaultChatEndpoint: 'ollama-chat',
       endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama', baseUrl: 'http://localhost:11434' } }
@@ -802,13 +813,13 @@ describe('modelInjection service resolution', () => {
     expect(oauth.apiKey).toBe(PI_PLACEHOLDER_API_KEY)
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
 
-    serviceMocks.getByProviderId.mockResolvedValue({
+    serviceMocks.getByProviderId.mockReturnValue({
       id: 'p',
       name: 'P',
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
     })
-    serviceMocks.getByKey.mockResolvedValue({
+    serviceMocks.getByKey.mockReturnValue({
       id: 'p::m',
       providerId: 'p',
       name: 'M',
@@ -943,7 +954,7 @@ describe('pi thinking level ladder', () => {
     let requestBody: any
     const stream = streamOpenAIResponses(
       { ...piModel, api: 'openai-responses' },
-      { messages: [{ role: 'user', content: 'hello', timestamp: 1 }] },
+      normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] }),
       {
         apiKey: REAL_KEY,
         reasoning: 'ultra',
