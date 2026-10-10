@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
-import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
+import { useCacheSelector, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -322,8 +322,6 @@ export function Topics({
   const isGroupGrouping = assistantSortType === 'tags'
   const [topicExpansionTime, setTopicExpansionTime] = usePersistCache('ui.topic.expansion.time')
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
-  const [renamingTopics] = useCache('topic.renaming')
-  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const { queueTarget: queueImageCaptureTarget, targets: imageCaptureTargets } = useImageCaptureTargets<Topic>({
     cancelMessage: 'Topic image export was cancelled',
     delayMs: IMAGE_CAPTURE_START_DELAY_MS,
@@ -634,9 +632,6 @@ export function Topics({
     },
     [renameTopicOptimistically, topics, t, updateTopic]
   )
-
-  const isRenaming = useCallback((topicId: string) => renamingTopics.includes(topicId), [renamingTopics])
-  const isNewlyRenamed = useCallback((topicId: string) => newlyRenamedTopics.includes(topicId), [newlyRenamedTopics])
 
   const handlePinTopic = useCallback(
     async (topic: Topic) => {
@@ -1616,8 +1611,6 @@ export function Topics({
           assistantMoveTargets={assistantMoveTargets}
           displayMode={displayMode}
           exportMenuOptions={exportMenuOptions}
-          isNewlyRenamed={isNewlyRenamed}
-          isRenaming={isRenaming}
           listRef={listRef}
           notesPath={notesPath}
           onAutoRename={handleAutoRename}
@@ -1712,8 +1705,6 @@ interface TopicListBodyProps {
   assistantMoveTargets: readonly TopicMoveAssistantTarget[]
   displayMode: TopicDisplayMode
   exportMenuOptions: TopicExportMenuOptions
-  isNewlyRenamed: (topicId: string) => boolean
-  isRenaming: (topicId: string) => boolean
   listRef: RefObject<HTMLDivElement | null>
   notesPath: string
   onAutoRename: (topic: Topic) => Promise<void>
@@ -1742,8 +1733,6 @@ function TopicListBody(props: TopicListBodyProps) {
     assistantMoveTargets,
     displayMode,
     exportMenuOptions,
-    isNewlyRenamed,
-    isRenaming,
     listRef,
     notesPath,
     onAutoRename,
@@ -1768,8 +1757,6 @@ function TopicListBody(props: TopicListBodyProps) {
       assistantMoveTargets,
       displayMode,
       exportMenuOptions,
-      isNewlyRenamed,
-      isRenaming,
       notesPath,
       onAutoRename,
       onClearMessages,
@@ -1790,8 +1777,6 @@ function TopicListBody(props: TopicListBodyProps) {
       assistantMoveTargets,
       displayMode,
       exportMenuOptions,
-      isNewlyRenamed,
-      isRenaming,
       notesPath,
       onAutoRename,
       onClearMessages,
@@ -1843,8 +1828,6 @@ const TopicRow = memo(function TopicRow({
   displayMode,
   exportMenuOptions,
   isActive,
-  isNewlyRenamed,
-  isRenaming,
   notesPath,
   onAutoRename,
   onClearMessages,
@@ -1863,6 +1846,14 @@ const TopicRow = memo(function TopicRow({
   topicsLength
 }: TopicRowProps) {
   const { t } = useTranslation()
+  const isRenaming = useCacheSelector(
+    ['topic.renaming'] as const,
+    ([topicIds]) => topicIds?.includes(topic.id) ?? false
+  )
+  const isNewlyRenamed = useCacheSelector(
+    ['topic.newly_renamed'] as const,
+    ([topicIds]) => topicIds?.includes(topic.id) ?? false
+  )
   const rightPanelState = useOptionalRightPanelState()
   const rightPanelActions = useOptionalRightPanelActions()
   const actions = useResourceListActions()
@@ -1870,11 +1861,7 @@ const TopicRow = memo(function TopicRow({
   const streamStatus = useTopicListStreamStatus(topic.id)
   const topicDisplayName = topic.name.trim() ? topic.name : t('chat.conversation.new')
   const topicName = topicDisplayName.replace('`', '')
-  const nameAnimationClassName = isRenaming(topic.id)
-    ? 'animation-shimmer'
-    : isNewlyRenamed(topic.id)
-      ? 'animation-reveal'
-      : ''
+  const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
   const {
     isAwaitingApproval: isTopicAwaitingApproval,
     isErrored: isTopicStreamErrored,
@@ -1907,7 +1894,7 @@ const TopicRow = memo(function TopicRow({
     exportMenuOptions,
     isArchiveBlocked,
     isActiveInCurrentTab: isActive,
-    isRenaming: isRenaming(topic.id),
+    isRenaming,
     notesPath,
     assistantMoveTargets,
     onAutoRename,

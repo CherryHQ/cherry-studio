@@ -475,6 +475,7 @@ vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [undefined, vi.fn()],
+  useCacheSelector: () => false,
   usePersistCache: (key: string) => [
     cacheMocks.values.get(key),
     (value: unknown) => {

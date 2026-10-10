@@ -102,6 +102,7 @@ Both channels are sender-gated by `validateSender` (untrusted `Cache_Sync` messa
 | Method                                               | Tier    | Key type                |
 | ---------------------------------------------------- | ------- | ----------------------- |
 | `useCache` / `get` / `set` / `has` / `delete` / `hasTTL` | Memory  | Fixed + Template        |
+| `useCacheSelector` — multi-key read-only aggregate observer: values tuple → selector → selection-level bail-out; no default write-back or pin | Memory | Fixed + Template |
 | `getCasual` / `setCasual` / `hasCasual` / `deleteCasual` / `hasTTLCasual` | Memory | Dynamic only (schema keys blocked) |
 | `useSharedCache` / `getShared` / `setShared` / `hasShared` / `deleteShared` / `hasSharedTTL` | Shared | Fixed + Template |
 | `useSharedCacheValue` — read-only observer for main-owned keys: no default write-back, no pin, no setter; `undefined` on physical miss | Shared | Fixed + Template |
