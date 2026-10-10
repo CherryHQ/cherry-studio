@@ -132,6 +132,35 @@ the same once the host stores the running turn and rebuilds. `query` is a keywor
 words first, 5 per page), `range: [from, to]` lists entries in order (20 per page) and `expand: [N]`
 returns full text. `scope: 'all'` is the same as `'lineage'`: edits drop the turns after them.
 
+## Extensions
+
+Factories the host passes in `extensionFactories`. Both tools are `model-only` (never callable from
+codemode scripts, so every call stays its own tool part) and use the names Cherry's renderer already
+handles.
+
+- **`createTodoExtension()`** – `todo_write` with dsh's schema: `{ todos: { content, status }[] }`,
+  status `pending | in_progress | completed`, no other item fields. Every call carries the whole list
+  and replaces the previous one; content is trimmed and must be non-empty and unique, and at most one
+  todo may be `in_progress`. Invalid lists come back as error results. `details` is
+  `{ todos, counts }`. The extension keeps no state: the latest list is the last successful
+  `todo_write` on the transcript's active path, so it follows forks and edits and the model sees it in
+  the rebuilt history, until a compaction folds that call into the summary.
+- **`createAskUserExtension(port)`** – `AskUserQuestion` with Claude Code's input schema (1–4
+  questions, each with a `header`, 2–4 options and `multiSelect`; question texts must differ, since
+  answers are keyed by them, and so must the option labels of a question, since answers name them).
+  The tool waits on `AskUserPort.ask`, which resolves `answered` (`answers`, optional `annotations`
+  notes), `declined` (optional `feedback`) or `unavailable` (no one can answer, e.g. a channel or
+  scheduled run). The result text tells the model what happened; only `answered` is a success. Every
+  result the tool returns, aborted included, has `details` `{ questions, answers, annotations? }`;
+  invalid input and a rejecting port fail the call with empty `details`. Calls in
+  one model step run one at a time. When the turn aborts, the tool stops waiting at once and the
+  request's `signal` aborts so the host can withdraw the question; a late answer is ignored. A
+  question pending at a crash is not persisted: the rebuilt session closes the call as failed.
+
+The host's approval layer must not ask approval for `AskUserQuestion` (the question is itself the
+interaction, or the user would be asked twice) and may auto-allow `todo_write` (it only changes the
+session's list). `ASK_USER_TOOL_NAME` and `TODO_TOOL_NAME` hold the names.
+
 ## Known gaps
 
 - `vcc_recall` has no regex search, `mode: 'touched'` (files worked on) or `#N:path` file
