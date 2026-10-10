@@ -4902,6 +4902,7 @@
   "settings.models.default_assistant_model": "Modelo de assistente padrão",
   "settings.models.default_assistant_model_description": "Usado quando um assistente não tem modelo.",
   "settings.models.docs": "Documentação do modelo",
+  "settings.models.edit.classification_save_hint": "As definições podem vir do catálogo de modelos. As alterações são guardadas imediatamente. As modalidades de entrada dos modelos predefinidos que correspondem ao catálogo continuam a seguir as suas atualizações; os valores diferentes são guardados como definições próprias. Os modelos personalizados guardam explicitamente as modalidades de entrada apresentadas. Ative apenas entradas suportadas pelo seu fornecedor.",
   "settings.models.empty": "Selecione um modelo",
   "settings.models.empty_hint": "Clique em «Sincronizar modelos» acima para adicionar modelos.",
   "settings.models.enabled_models": "Ativados",

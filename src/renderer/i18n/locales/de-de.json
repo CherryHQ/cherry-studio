@@ -4902,6 +4902,7 @@
   "settings.models.default_assistant_model": "Standard-Assistent-Modell",
   "settings.models.default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
   "settings.models.docs": "Modelldokumentation",
+  "settings.models.edit.classification_save_hint": "Die Einstellungen können aus dem Modellkatalog stammen. Änderungen werden sofort gespeichert. Eingabemodalitäten voreingestellter Modelle folgen weiterhin Katalogaktualisierungen, wenn sie mit dem Katalog übereinstimmen; abweichende Werte werden als eigene Vorgaben gespeichert. Benutzerdefinierte Modelle speichern die angezeigten Eingabemodalitäten ausdrücklich. Aktivieren Sie nur Eingaben, die Ihr Anbieter unterstützt.",
   "settings.models.empty": "Modell auswählen",
   "settings.models.empty_hint": "Klicken Sie oben auf „Modelle synchronisieren“, um Modelle hinzuzufügen.",
   "settings.models.enabled_models": "Aktiviert",

@@ -4902,6 +4902,7 @@
   "settings.models.default_assistant_model": "デフォルトアシスタントモデル",
   "settings.models.default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
   "settings.models.docs": "モデルドキュメント",
+  "settings.models.edit.classification_save_hint": "設定はモデルカタログから取得される場合があり、変更は直ちに保存されます。プリセットモデルの入力モダリティがカタログと一致する場合は引き続き更新に追従し、異なる場合は上書き設定として保存されます。カスタムモデルでは表示中の入力モダリティが明示的に保存されます。プロバイダーが対応している入力だけを有効にしてください。",
   "settings.models.empty": "モデルを選択",
   "settings.models.empty_hint": "上の「モデルを同期」をクリックしてモデルを追加します。",
   "settings.models.enabled_models": "有効",
