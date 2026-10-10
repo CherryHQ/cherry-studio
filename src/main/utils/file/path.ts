@@ -14,12 +14,26 @@ const notImplemented = (op: string): never => {
   throw new Error(`@main/utils/file/path.${op}: not implemented (deferred to Phase 2)`)
 }
 
+/** Strip Win32 extended-length prefixes so containment checks compare like paths. */
+export function stripExtendedPathPrefix(value: string): string {
+  if (isWin && value.startsWith('\\\\?\\')) {
+    return value.slice(4)
+  }
+  return value
+}
+
+/** Normalize a realpath result for containment comparisons and stable lock keys. */
+export function normalizeRealpathResult(value: string): string {
+  return path.resolve(stripExtendedPathPrefix(value))
+}
+
 /** Resolve a relative path against a base directory. */
 export function resolvePath(_base: string, _relative: string): string {
   return notImplemented('resolvePath')
 }
 
-function normalizePathForComparison(value: string): string {
+/** Returns a platform-folded comparison key, not a path to use for filesystem I/O. */
+export function normalizePathForComparison(value: string): string {
   const resolved = path.resolve(value)
   return isMac || isWin ? resolved.toLowerCase() : resolved
 }
@@ -47,7 +61,7 @@ export function isPathInside(child: string, parent: string): boolean {
   const b = normalizePathForComparison(parent)
   if (a === b) return false
   const rel = path.relative(b, a)
-  return rel.length > 0 && !rel.startsWith('..') && !path.isAbsolute(rel)
+  return rel.length > 0 && !isOutsidePath(rel)
 }
 
 /** True iff `candidate` equals `container` or is a descendant of it. */
@@ -97,9 +111,11 @@ export async function canonicalizePathForContainment(
   { allowMissing }: { allowMissing: boolean }
 ): Promise<string | undefined> {
   try {
-    return await realpath(target)
+    return normalizeRealpathResult(await realpath(target))
   } catch (error) {
-    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+    const code = (error as NodeJS.ErrnoException).code
+    if (!allowMissing) return undefined
+    if (code !== 'ENOENT') return undefined
     try {
       await lstat(target)
       return undefined
@@ -111,7 +127,7 @@ export async function canonicalizePathForContainment(
   let parent = path.dirname(target)
   while (true) {
     try {
-      return path.resolve(await realpath(parent), path.relative(parent, target))
+      return normalizeRealpathResult(path.resolve(await realpath(parent), path.relative(parent, target)))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
       try {
