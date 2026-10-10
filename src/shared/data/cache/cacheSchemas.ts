@@ -488,8 +488,6 @@ export type RendererPersistCacheSchema = {
   'ui.screenshot.annotation_color': string
   'ui.screenshot.annotation_stroke_width': number
   'ui.screenshot.annotation_font_size': number
-  /** Last notes root-transition id applied in this renderer window (per-window consumption). */
-  'notes.directory_root_transition_consumed_id': string | null
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -538,8 +536,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   // or the overlay opens with no swatch, width or size marked as current.
   'ui.screenshot.annotation_color': '#F54A45',
   'ui.screenshot.annotation_stroke_width': 4,
-  'ui.screenshot.annotation_font_size': 20,
-  'notes.directory_root_transition_consumed_id': null
+  'ui.screenshot.annotation_font_size': 20
 }
 
 /**

@@ -565,7 +565,14 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   // Show action menu for table rows/columns
   const showTableActionMenu = useCallback(
     (type: 'row' | 'column', index: number, position?: { x: number; y: number }) => {
-      if (!editor) return
+      if (!editor || !editor.isEditable) return
+
+      const runIfEditable = (command: () => void) => {
+        if (!editor.isEditable || editor.isDestroyed) {
+          return
+        }
+        command()
+      }
 
       const actions = [
         {
@@ -575,11 +582,13 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
               ? t('richEditor.action.table.insertRowBefore')
               : t('richEditor.action.table.insertColumnBefore'),
           action: () => {
-            if (type === 'row') {
-              editor.chain().focus().addRowBefore().run()
-            } else {
-              editor.chain().focus().addColumnBefore().run()
-            }
+            runIfEditable(() => {
+              if (type === 'row') {
+                editor.chain().focus().addRowBefore().run()
+              } else {
+                editor.chain().focus().addColumnBefore().run()
+              }
+            })
           }
         },
         {
@@ -589,22 +598,26 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
               ? t('richEditor.action.table.insertRowAfter')
               : t('richEditor.action.table.insertColumnAfter'),
           action: () => {
-            if (type === 'row') {
-              editor.chain().focus().addRowAfter().run()
-            } else {
-              editor.chain().focus().addColumnAfter().run()
-            }
+            runIfEditable(() => {
+              if (type === 'row') {
+                editor.chain().focus().addRowAfter().run()
+              } else {
+                editor.chain().focus().addColumnAfter().run()
+              }
+            })
           }
         },
         {
           id: type === 'row' ? 'deleteRow' : 'deleteColumn',
           label: type === 'row' ? t('richEditor.action.table.deleteRow') : t('richEditor.action.table.deleteColumn'),
           action: () => {
-            if (type === 'row') {
-              editor.chain().focus().deleteRow().run()
-            } else {
-              editor.chain().focus().deleteColumn().run()
-            }
+            runIfEditable(() => {
+              if (type === 'row') {
+                editor.chain().focus().deleteRow().run()
+              } else {
+                editor.chain().focus().deleteColumn().run()
+              }
+            })
           }
         }
       ]

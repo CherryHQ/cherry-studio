@@ -124,15 +124,9 @@ function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
         continue
       }
 
-      let targetEntry: fs.Stats
-      try {
-        targetEntry = fs.lstatSync(targetEntryPath)
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-          unresolved.push(relativePath)
-          continue
-        }
-        throw error
+      if (!fs.existsSync(targetEntryPath)) {
+        unresolved.push(relativePath)
+        continue
       }
       if (!filesMatch(sourceEntryPath, targetEntryPath)) {
         unresolved.push(relativePath)
