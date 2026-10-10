@@ -39,8 +39,16 @@ describe('resolveConfiguredNotesDirectoryPath', () => {
       if (key === 'feature.notes.data') {
         return defaultNotes
       }
+      if (key === 'sys.appdata') {
+        return path.join(tempDir, 'appdata')
+      }
+      if (key === 'feature.files.data') {
+        return path.join(tempDir, 'files')
+      }
       throw new Error(`unexpected path key ${key}`)
     })
+    fs.mkdirSync(path.join(tempDir, 'appdata'), { recursive: true })
+    fs.mkdirSync(path.join(tempDir, 'files'), { recursive: true })
   })
 
   it('falls back to the default notes directory when the preference path is not writable', () => {
@@ -49,6 +57,13 @@ describe('resolveConfiguredNotesDirectoryPath', () => {
     fs.chmodSync(custom, fs.constants.S_IRUSR | fs.constants.S_IXUSR)
 
     preferenceGet.mockReturnValue(custom)
+
+    expect(resolveConfiguredNotesDirectoryPath()).toBe(defaultNotes)
+  })
+
+  it('falls back to the default notes directory when the preference path is protected', () => {
+    const filesDir = path.join(tempDir, 'files')
+    preferenceGet.mockReturnValue(filesDir)
 
     expect(resolveConfiguredNotesDirectoryPath()).toBe(defaultNotes)
   })
