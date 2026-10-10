@@ -30,6 +30,7 @@ import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
@@ -289,7 +290,10 @@ registerCommand('message.exportImage', async (context) => {
       return
     }
 
-    const success = await context.actions.saveImage(title, imageData)
+    // The title derives from message content (e.g. leading `**bold**` markup);
+    // an unsanitized name pre-fills the save dialog with Windows-reserved
+    // characters and disables its Save button. Mirrors the topic image export.
+    const success = await context.actions.saveImage(removeSpecialCharactersForFileName(title), imageData)
     if (success) {
       context.actions.notifySuccess?.(context.t('chat.topics.export.image_saved'))
     } else {
