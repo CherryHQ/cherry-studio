@@ -268,6 +268,17 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     if (!reason) return false
     const fallbackModelId = selectFallbackModelId(resolveAgentFallbackPolicy(this.input.agentId), this.currentModelId)
     if (!fallbackModelId) return false
+    // The replay must keep the turn's live policy: a save during the backoff (e.g. switching to
+    // bypassPermissions) would otherwise re-admit the replayed turn under a mode that mid-turn
+    // reconciliation itself defers. A policy that cannot be read cannot be preserved — decline.
+    const turnPolicy = this.current.getPermissionPolicy?.()
+    if (!turnPolicy) {
+      logger.warn('Declining the fallback replay: the live turn policy cannot be read', {
+        sessionId: this.input.sessionId,
+        fallbackModelId
+      })
+      return false
+    }
     this.attempted = true
     let connection: AgentRuntimeConnection | undefined
     try {
@@ -280,6 +291,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
           ...this.input,
           modelId: fallbackModelId,
           resumeToken: this.resumeToken,
+          permissionPolicy: turnPolicy,
           // The fallback connection's spans must name the model that will actually run, while keeping
           // the container ids of the latest refreshed context — the turnId the host is tracing.
           ...(this.trace ? { trace: { ...this.trace, modelName: parseUniqueModelId(fallbackModelId).modelId } } : {})

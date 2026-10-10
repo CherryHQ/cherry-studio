@@ -54,6 +54,7 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimePermissionPolicy,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
@@ -254,8 +255,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     // pi has no native permission modes; the approval extension enforces them.
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
-    this.permissionMode = agent.configuration?.permission_mode ?? 'default'
-    this.disabledTools = normalizeDisabledTools(agent.disabledTools)
+    // A model-fallback replay pins the turn's live policy here; reading the freshly saved agent
+    // row would re-admit the replayed turn under a mode that mid-turn reconciliation defers.
+    this.permissionMode =
+      this.input.permissionPolicy?.permissionMode ?? agent.configuration?.permission_mode ?? 'default'
+    this.disabledTools = this.input.permissionPolicy
+      ? new Set(this.input.permissionPolicy.disabledTools)
+      : normalizeDisabledTools(agent.disabledTools)
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
@@ -528,6 +534,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   refreshTraceContext(context: AgentRuntimeTraceContext): void {
     this.traceContext = context
+  }
+
+  /** The live policy the approval extension enforces — what a fallback replay must be pinned to. */
+  getPermissionPolicy(): AgentRuntimePermissionPolicy {
+    return { permissionMode: this.permissionMode, disabledTools: [...this.disabledTools] }
   }
 
   /**

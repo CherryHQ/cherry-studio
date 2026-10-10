@@ -10,6 +10,7 @@ import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsa
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { Tool } from '@shared/ai/tool'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
@@ -58,6 +59,18 @@ export interface AgentRuntimeTraceContext {
   rootSpanId: string
 }
 
+/**
+ * The permission policy a live turn runs under: the mode frozen when the turn was admitted plus
+ * every restriction (disabled tools) applied to it during the turn. Reconciliation defers mode
+ * changes for an active turn; a replacement connection (model fallback) must be pinned to this
+ * policy so the replayed turn keeps the approvals it was admitted under.
+ */
+export interface AgentRuntimePermissionPolicy {
+  permissionMode: AgentPermissionMode
+  /** Driver-normalized disabled-tool names, as the live connection enforces them. */
+  disabledTools: readonly string[]
+}
+
 export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
@@ -66,6 +79,11 @@ export interface AgentRuntimeConnectInput {
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier frozen for this connection's turn. */
   serviceTier?: ServiceTierSelection
+  /**
+   * Permission policy frozen for the turn this connection replays (model fallback). Absent ⇒ the
+   * connection reads the agent's latest policy at startup.
+   */
+  permissionPolicy?: AgentRuntimePermissionPolicy
   /** Per-turn composer knowledge selection; static Agent bindings still take precedence. */
   knowledgeBaseIds?: readonly string[]
   /** Whether this connection's turn requests Fast processing. */
@@ -235,6 +253,12 @@ export interface AgentRuntimeConnection {
    * static builtin list.
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
+  /**
+   * The live permission policy this connection enforces right now (frozen mode + mid-turn
+   * restrictions). A model-fallback replacement reads this to replay the active turn under the
+   * policy it was admitted under; omitted ⇒ the driver cannot report it and the replay is declined.
+   */
+  getPermissionPolicy?(): AgentRuntimePermissionPolicy
   stopTask?(taskId: string): Promise<boolean>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */

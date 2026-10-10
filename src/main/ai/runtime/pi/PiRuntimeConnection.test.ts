@@ -1757,6 +1757,33 @@ describe('PiRuntimeConnection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  it('starts a fallback replay under the pinned turn policy, not the freshly saved agent row', async () => {
+    // Saved mid-backoff: bypassPermissions plus a re-enabled write. The replaying turn was admitted
+    // under default with write disabled, and reconcile defers exactly these changes while streaming.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      disabledTools: [],
+      configuration: { permission_mode: 'bypassPermissions' }
+    })
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      permissionPolicy: { permissionMode: 'default', disabledTools: ['write'] }
+    }).start()
+
+    expect(mocks.createOpts?.excludeTools).toEqual(['write'])
+    expect(conn.getPermissionPolicy?.()).toEqual({ permissionMode: 'default', disabledTools: ['write'] })
+
+    // Approvals the turn was admitted under still hold: default-mode bash prompts instead of the
+    // freshly saved bypassPermissions auto-allow.
+    const handler = approvalGateHandler()
+    void handler({ type: 'tool_call', toolName: 'bash', toolCallId: 'tc-replay', input: { command: 'ls' } }, {})
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(toolApprovalRegistry.size()).toBe(1)
+    toolApprovalRegistry.abort(SESSION_ID, 'test-boundary')
+  })
+
   it('defers a permission-mode change while streaming and applies it once idle', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     mocks.isStreaming = true

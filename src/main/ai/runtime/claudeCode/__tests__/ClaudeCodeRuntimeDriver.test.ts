@@ -170,6 +170,7 @@ const mocks = vi.hoisted(() => ({
   processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
   disposeToolPolicySnapshot: vi.fn(),
+  disposeSessionHolders: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -506,7 +507,10 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
       if (name === 'ClaudeCodeSessionStateService')
-        return { disposeToolPolicySnapshot: mocks.disposeToolPolicySnapshot }
+        return {
+          disposeToolPolicySnapshot: mocks.disposeToolPolicySnapshot,
+          disposeSessionHolders: mocks.disposeSessionHolders
+        }
       if (name === 'PreferenceService') return { get: mocks.getPreference }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -3837,6 +3841,64 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(mocks.disposeToolPolicySnapshot).toHaveBeenCalledTimes(2) // close teardown + abandoned snapshot
     expect(mocks.registerMcpSessionCatalogSync).toHaveBeenCalledTimes(1) // primary install only
     expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+  })
+
+  it('disposes the half-registered settings a rejected fallback build leaves after Stop', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackBuild = createDeferred<any>()
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockImplementationOnce(() => fallbackBuild.promise)
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.buildRequest).toHaveBeenCalledTimes(2))
+
+    let closeResolved = false
+    const closed = Promise.resolve(connection.close()).then(() => {
+      closeResolved = true
+    })
+    // The build is still parked mid-construction: close must not resolve past it, or the host's
+    // closing barrier releases while the builder can still register fresh session state.
+    await delay(20)
+    expect(closeResolved).toBe(false)
+
+    // Stop already latched the teardown, and the builder re-registered the session's approval and
+    // steer holders before its workspace read (e.g. AGENTS.md) rejected — nothing else disposes them.
+    fallbackBuild.reject(new Error('AGENTS.md is no longer readable'))
+    await closed
+
+    expect(mocks.disposeSessionHolders).toHaveBeenCalledWith('session-1')
+    expect(mocks.disposeToolPolicySnapshot).toHaveBeenCalledTimes(2) // close teardown + abandoned registration
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1) // nothing installed after the rejection
   })
 
   it('holds the closing barrier until a fallback build racing the close settles', async () => {

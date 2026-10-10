@@ -202,6 +202,7 @@ vi.mock('@data/services/ModelService', () => ({
 }))
 
 const { DshBridgeServer } = await import('../DshBridgeServer')
+const { buildDshCompositionYaml } = await import('../compositionBuilder')
 const { buildDshCherryToolBridge } = await import('../DshCherryToolBridge')
 const { DshRuntimeConnection } = await import('../DshRuntimeConnection')
 const { DshRuntimeDriver } = await import('../DshRuntimeDriver')
@@ -698,6 +699,32 @@ describe('DshRuntimeConnection tracing', () => {
     await connection.close()
   })
 
+  it('starts a fallback replay under the pinned turn policy, not the freshly saved agent row', async () => {
+    // Saved mid-backoff: bypassPermissions plus a re-enabled bash. The replaying turn was admitted
+    // under default with bash disabled, and reconcile defers exactly these changes mid-turn.
+    runtimeMocks.snapshot = {
+      ...baseSnapshot(),
+      agent: { id: 'agent-1', configuration: { permission_mode: 'bypassPermissions' }, disabledTools: [] }
+    }
+    const connection = await new DshRuntimeConnection({
+      ...connectInput,
+      permissionPolicy: { permissionMode: 'default', disabledTools: ['bash'] }
+    }).start()
+
+    // The saved bypass must not follow the replay into spawn-frozen state (the composition's
+    // sandbox boundary) nor the pushed live policy; the mid-turn bash disable stays in force.
+    expect(vi.mocked(buildDshCompositionYaml).mock.calls[0][0]).toMatchObject({ permissionMode: 'default' })
+    expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+      'session/open',
+      expect.objectContaining({
+        policy: expect.objectContaining({ permissionMode: 'default', disabledTools: ['bash'] })
+      })
+    )
+    expect(connection.getPermissionPolicy?.()).toEqual({ permissionMode: 'default', disabledTools: ['bash'] })
+
+    await connection.close()
+  })
+
   it.each(['idle', 'active'] as const)(
     'closes its event stream when the notification transport dies while %s',
     async (state) => {
@@ -935,7 +962,8 @@ describe('DshRuntimeConnection send admission', () => {
       send: vi.fn(),
       close: vi.fn(async () => primaryEvents.close()),
       redirect: vi.fn(() => false),
-      reconcile: vi.fn(async () => 'current' as const)
+      reconcile: vi.fn(async () => 'current' as const),
+      getPermissionPolicy: () => ({ permissionMode: 'default' as const, disabledTools: [] })
     }
     const wrapper = new AgentSessionFallbackConnection(
       { connect: vi.fn(async () => fallback) } as unknown as AgentSessionRuntimeDriver,

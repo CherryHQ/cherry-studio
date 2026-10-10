@@ -82,6 +82,7 @@ import {
 import { resolveClaudeConfigDirectory } from './queryOptions'
 import {
   AgentSessionWorkspaceError,
+  disposeSessionHolders,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
@@ -920,7 +921,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
       return undefined
     })
-    if (!request) return false
+    if (!request) {
+      // The build rejected partway but may already have re-registered the session's holders and
+      // snapshot (they are created lazily inside the builder). A latched teardown will not run
+      // again, so this path owns their disposal — by id, since a rejected build hands back no
+      // references. The closing barrier guarantees no successor registered replacements yet.
+      if (this.sessionTornDown) {
+        disposeSessionHolders(this.input.sessionId)
+        disposeToolPolicySnapshot(this.input.sessionId)
+      }
+      return false
+    }
     if (this.sessionTornDown) {
       this.disposeAbandonedRequestSettings(request)
       return false

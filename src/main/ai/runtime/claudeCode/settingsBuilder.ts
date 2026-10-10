@@ -103,6 +103,11 @@ export function disposeToolPolicySnapshot(sessionId: string): void {
 }
 
 /** Facade over {@link ClaudeCodeSessionStateService} — keeps the driver's historical import path. */
+export function disposeSessionHolders(sessionId: string): void {
+  sessionState().disposeSessionHolders(sessionId)
+}
+
+/** Facade over {@link ClaudeCodeSessionStateService} — keeps the driver's historical import path. */
 export function registerMcpSessionCatalogSync(
   sessionId: string,
   agentId: string,

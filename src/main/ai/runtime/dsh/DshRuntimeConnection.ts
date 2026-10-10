@@ -47,6 +47,7 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimePermissionPolicy,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentSessionUsageCapture
@@ -317,8 +318,14 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
 
     // dsh has no native permission modes; the bridge plugin enforces the pushed policy.
-    this.permissionMode = toBridgePermissionMode(agent.configuration?.permission_mode)
-    this.disabledTools = normalizeDisabledTools(agent.disabledTools)
+    // A model-fallback replay pins the turn's live policy here; reading the freshly saved agent
+    // row would re-admit the replayed turn under a mode that mid-turn reconciliation defers.
+    this.permissionMode = this.input.permissionPolicy
+      ? toBridgePermissionMode(this.input.permissionPolicy.permissionMode)
+      : toBridgePermissionMode(agent.configuration?.permission_mode)
+    this.disabledTools = this.input.permissionPolicy
+      ? new Set(this.input.permissionPolicy.disabledTools)
+      : normalizeDisabledTools(agent.disabledTools)
     const injection = await resolveInjection(snapshot)
     this.modelId = injection.modelId
     this.contextWindow = injection.modelConfig.contextWindow
@@ -637,6 +644,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       return 'rebuild'
     }
     return policyChanged ? 'patched' : 'current'
+  }
+
+  /** The live policy the bridge enforces — what a fallback replay must be pinned to. */
+  getPermissionPolicy(): AgentRuntimePermissionPolicy {
+    return { permissionMode: this.permissionMode, disabledTools: [...this.disabledTools] }
   }
 
   /**
