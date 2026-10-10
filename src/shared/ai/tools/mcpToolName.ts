@@ -146,6 +146,89 @@ export type McpFunctionCallToolNameParts = {
 }
 
 /**
+ * Saved agent-level denials written while MCP tools were keyed by server id (`mcp__<uuid>__tool`)
+ * no longer match runtime names derived from the configured server name. Rewrite each legacy rule
+ * whose server segment is a known id into the current server key; name-form rules (and rules naming
+ * unknown servers) pass through unchanged. Ids contain no underscores, so splitting on the first
+ * `__` is exact for legacy rules and never mis-splits a `__`-bearing server name.
+ */
+export function translateLegacyMcpToolRules(
+  rules: readonly string[] | null | undefined,
+  serverNameById: ReadonlyMap<string, string> = new Map()
+): string[] {
+  return (rules ?? []).map((rule) => {
+    if (!rule.startsWith('mcp__')) return rule
+    const rest = rule.slice('mcp__'.length)
+    const delimiterIndex = rest.indexOf('__')
+    if (delimiterIndex <= 0) return rule
+    const mapped = serverNameById.get(rest.slice(0, delimiterIndex))
+    return mapped === undefined ? rule : `mcp__${mapped}${rest.slice(delimiterIndex)}`
+  })
+}
+
+/**
+ * Rewrite denial rules onto the identities a tool bridge actually registered. An id-keyed rule
+ * (`mcp__<uuid>__<raw tool>`) names one (server, raw tool) pair exactly, so it resolves through
+ * the `<server key>\0<raw tool>` identity entry — a second pair whose name-form string flattens
+ * identically (`docs` + `search__all` vs `docs__search` + `all`) cannot capture the denial.
+ * After the legacy id rewrite, any rule whose name-form string matches a registered identity is
+ * replaced by the allocated runtime name(s); a flattened string maps to every candidate
+ * (fail-closed). Rules with no registered identity pass through unchanged.
+ */
+export function translateMcpToolRulesToRuntimeNames(
+  rules: readonly string[] | null | undefined,
+  serverNameById: ReadonlyMap<string, string> = new Map(),
+  runtimeNameByRule: ReadonlyMap<string, readonly string[]> = new Map()
+): string[] {
+  return (rules ?? []).flatMap((rule) => {
+    let candidate = rule
+    if (candidate.startsWith('mcp__')) {
+      const rest = candidate.slice('mcp__'.length)
+      const delimiterIndex = rest.indexOf('__')
+      if (delimiterIndex > 0) {
+        const mapped = serverNameById.get(rest.slice(0, delimiterIndex))
+        if (mapped !== undefined) {
+          const pairNames = runtimeNameByRule.get(`${mapped}\u0000${rest.slice(delimiterIndex + 2)}`)
+          if (pairNames) {
+            // The saved string can simultaneously be another pair's historical collision/counter
+            // name: a reconnect may bake the disambiguator into a real tool's name (so this pair
+            // match names the NEW tool exactly) while the originally disabled identity moved to
+            // the stripped plain name. Merge the stripped-base candidates instead of
+            // short-circuiting; rules without a disambiguator tail keep their exact pair match.
+            const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
+            const baseNames = stripped !== candidate ? runtimeNameByRule.get(stripped) : undefined
+            return baseNames ? [...new Set([...pairNames, ...baseNames])] : [...pairNames]
+          }
+          candidate = `mcp__${mapped}${rest.slice(delimiterIndex)}`
+        }
+      }
+    }
+    const names = runtimeNameByRule.get(candidate)
+    if (names) {
+      // An exact hit can also be a historical counter-allocated denial name of another pair: a
+      // reconnect may bake the disambiguator into a real tool's name, so the string now names
+      // the new tool exactly while the originally disabled identity moved to the stripped base.
+      // Merge the stripped-base candidates (fail-closed) instead of short-circuiting.
+      const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
+      const baseNames = stripped !== candidate ? runtimeNameByRule.get(stripped) : undefined
+      if (!baseNames) return [...names]
+      return [...new Set([...names, ...baseNames])]
+    }
+    // A denial can be saved under a collision-allocated name from an earlier topology
+    // (`<plain name>_<disambiguator>` — the deterministic pair hash, or any counter depth when
+    // even that was taken). The full string dies with the old allocation, but the stripped
+    // plain name still resolves; mapping it (merged fail-closed like every other ambiguous
+    // form) beats letting an explicitly disabled tool execute.
+    const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
+    if (stripped !== candidate) {
+      const baseNames = runtimeNameByRule.get(stripped)
+      if (baseNames) return [...baseNames]
+    }
+    return [candidate]
+  })
+}
+
+/**
  * Parse MCP tool-call names in the Claude/AI-SDK format:
  * `mcp__{server}__{tool}`.
  *

@@ -18,7 +18,11 @@ import {
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
+import {
+  buildAgentMcpServers,
+  resolveAgentMcpServerKeys,
+  warmAgentMcpToolCatalogs
+} from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
@@ -38,6 +42,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
+import { translateMcpToolRulesToRuntimeNames } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -163,6 +168,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
    */
   private runtimePlanActive?: boolean
   private disabledTools = new Set<string>()
+  /** The live bridge's rule-string → registered runtime-name(s) mapping (lossy identities included). */
+  private bridgeRuleNames: ReadonlyMap<string, readonly string[]> = new Map()
+  /**
+   * Mounted-server id → runtime record key. Fixed at connect (a mounted-server change rebuilds the
+   * connection), and used to translate legacy id-keyed denial rules onto name-keyed tool names.
+   */
+  private serverNameById = new Map<string, string>()
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
   /** Serializes push/pull reconciles so snapshot reads and live policy writes cannot land out of order. */
@@ -386,6 +398,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
         channelLinked: snapshot.linkedChannel !== null
       })
+      this.serverNameById = resolveAgentMcpServerKeys(agent, snapshot.mcpServerSnapshots)
       const toolBridge = await buildDshCherryToolBridge(
         buildAgentMcpServers(
           session,
@@ -396,8 +409,15 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           this.agentDataPath,
           this.input.knowledgeBaseIds
         ),
-        { agentsDataRoot, toolResultRoot }
+        // The id map rebuilds pre-name runtime aliases so denials saved while tools were
+        // keyed by the mounted id still translate onto the configured-name identities.
+        { agentsDataRoot, toolResultRoot, serverNameById: this.serverNameById }
       )
+      // Legacy id-keyed denials must reach the bridge plugin in the current name-keyed form — the
+      // plugin matches exact runtime tool names (`mcp__<record key>__<tool>`). Names are resolved
+      // through the bridge's own identity mapping so lossy-normalized (hashed) tools are caught.
+      this.bridgeRuleNames = toolBridge.ruleNames
+      this.disabledTools = new Set(this.translateDisabledTools([...this.disabledTools]))
       this.toolBridge = toolBridge
       const finalSnapshot = await captureDshConnectionSnapshot(
         this.input.sessionId,
@@ -561,6 +581,16 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
+  /**
+   * Rewrites denial rules onto the identities the bridge actually registered: the legacy
+   * id rewrite runs first, then any rule naming `mcp__<server name>__<raw tool>` is replaced
+   * by the bridge's allocated runtime name (lossy normalization and collision suffixes
+   * included). Unmatched rules pass through.
+   */
+  private translateDisabledTools(rules: readonly string[]): string[] {
+    return translateMcpToolRulesToRuntimeNames(rules, this.serverNameById, this.bridgeRuleNames)
+  }
+
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
@@ -585,7 +615,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     // A mode change can alter admission for the live tool loop, so defer it to idle.
     // Disabled tools only tighten policy and still push immediately below.
     const applicablePermissionMode = this.turnActive ? this.permissionMode : nextPermissionMode
-    const nextDisabledTools = normalizeDisabledTools(agent.disabledTools)
+    const nextDisabledTools = new Set(this.translateDisabledTools([...normalizeDisabledTools(agent.disabledTools)]))
     const applicableDisabledTools = this.turnActive
       ? new Set([...this.disabledTools, ...nextDisabledTools])
       : nextDisabledTools

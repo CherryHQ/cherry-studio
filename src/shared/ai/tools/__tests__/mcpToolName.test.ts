@@ -5,7 +5,9 @@ import {
   buildMcpToolName,
   generateMcpToolFunctionName,
   parseFunctionCallToolName,
-  toCamelCase
+  toCamelCase,
+  translateLegacyMcpToolRules,
+  translateMcpToolRulesToRuntimeNames
 } from '../mcpToolName'
 
 describe('parseFunctionCallToolName', () => {
@@ -270,5 +272,101 @@ describe('buildFunctionCallToolName', () => {
       const result = buildFunctionCallToolName('@anthropic/mcp-server', 'chat')
       expect(result).toBe('mcp__AnthropicMcpServer__chat')
     })
+  })
+})
+
+describe('translateLegacyMcpToolRules', () => {
+  const byId = new Map([
+    ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'github'],
+    ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'docs__search']
+  ])
+
+  it('rewrites a legacy id-keyed rule to the current server key', () => {
+    expect(translateLegacyMcpToolRules(['mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run'], byId)).toEqual([
+      'mcp__github__run'
+    ])
+  })
+
+  it('keeps the tool segment verbatim, including further __ separators', () => {
+    expect(translateLegacyMcpToolRules(['mcp__bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb__deep__nested'], byId)).toEqual([
+      'mcp__docs__search__deep__nested'
+    ])
+  })
+
+  it('leaves name-form rules and unknown servers untouched', () => {
+    expect(translateLegacyMcpToolRules(['mcp__github__run', 'mcp__ghost__run', 'Bash'], byId)).toEqual([
+      'mcp__github__run',
+      'mcp__ghost__run',
+      'Bash'
+    ])
+  })
+
+  it('passes through malformed rules and empty input', () => {
+    expect(translateLegacyMcpToolRules(['mcp__', 'mcp__no-delimiter', ''], byId)).toEqual([
+      'mcp__',
+      'mcp__no-delimiter',
+      ''
+    ])
+    expect(translateLegacyMcpToolRules(undefined, byId)).toEqual([])
+    expect(translateLegacyMcpToolRules(null, byId)).toEqual([])
+  })
+})
+
+describe('translateMcpToolRulesToRuntimeNames', () => {
+  const byId = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Old server']])
+
+  it('rewrites translated rules onto the bridge-registered runtime identity', () => {
+    // `Old server` is not provider-safe: the executable tool carries the lossy hash suffix,
+    // so the translated name-form rule must be replaced by the identity the bridge actually
+    // registered — otherwise an exact-match policy misses the denial.
+    const runtimeNames = new Map([['mcp__Old server__run', ['mcp__oldServer__run_4f7413c24ae4']]])
+    expect(
+      translateMcpToolRulesToRuntimeNames([`mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run`], byId, runtimeNames)
+    ).toEqual(['mcp__oldServer__run_4f7413c24ae4'])
+  })
+
+  it('resolves an id-keyed rule onto its own pair when name-form strings collide', () => {
+    // `docs` exposing `search__all` and `docs__search` exposing `all` both flatten to the
+    // rule string `mcp__docs__search__all`; the id-keyed denial names one pair exactly and
+    // must land on that pair's allocated name, never on the colliding sibling.
+    const byIdPair = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'docs']])
+    const runtimeNames = new Map([
+      ['docs\u0000search__all', ['mcp__docs__search__all']],
+      ['docs__search\u0000all', ['mcp__docs__search__all_353988fff1e9']],
+      ['mcp__docs__search__all', ['mcp__docs__search__all', 'mcp__docs__search__all_353988fff1e9']]
+    ])
+    expect(
+      translateMcpToolRulesToRuntimeNames(
+        [`mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__search__all`],
+        byIdPair,
+        runtimeNames
+      )
+    ).toEqual(['mcp__docs__search__all'])
+  })
+
+  it('maps a flattened name-form rule onto every candidate identity (fail-closed)', () => {
+    // A saved name-form denial cannot say which colliding pair it meant — denying both
+    // candidates over-blocks instead of letting an explicitly disabled tool execute.
+    const runtimeNames = new Map([
+      ['mcp__docs__search__all', ['mcp__docs__search__all', 'mcp__docs__search__all_353988fff1e9']]
+    ])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__docs__search__all'], new Map(), runtimeNames)).toEqual([
+      'mcp__docs__search__all',
+      'mcp__docs__search__all_353988fff1e9'
+    ])
+  })
+
+  it('rewrites name-form rules whose rule string matches a registered identity', () => {
+    const runtimeNames = new Map([['mcp__docs__search__all', ['mcp__docs__search__all_353988fff1e9']]])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__docs__search__all'], byId, runtimeNames)).toEqual([
+      'mcp__docs__search__all_353988fff1e9'
+    ])
+  })
+
+  it('keeps rules with no registered runtime identity unchanged', () => {
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__ghost__run', 'Bash'], byId, new Map())).toEqual([
+      'mcp__ghost__run',
+      'Bash'
+    ])
   })
 })

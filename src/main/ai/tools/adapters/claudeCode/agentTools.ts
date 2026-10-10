@@ -14,6 +14,7 @@ import {
 } from '@shared/ai/claudecode/toolRules'
 import type { Tool } from '@shared/ai/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
+import { translateLegacyMcpToolRules } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 function sanitizeDescription(value: string): string {
@@ -154,7 +155,10 @@ export interface ClaudeAgentToolPolicySnapshot {
   isDisabled(runtimeName: string): boolean
   getPermissionMode(): AgentPermissionMode | undefined
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>): Promise<void>
+  update(
+    agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>,
+    options?: { serverNameById?: ReadonlyMap<string, string> }
+  ): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
@@ -166,12 +170,18 @@ export async function createClaudeAgentToolPolicySnapshot(
     // (e.g. mutating cherry-tools like kb_manage). Checked against the full runtime name.
     autoAllowRuntimeNameExceptions?: readonly string[]
     conditionContext?: ClaudeToolContext
+    /** Mounted-server id → runtime record key, so id-keyed denials survive the #21322 rename. */
+    serverNameById?: ReadonlyMap<string, string>
   } = {}
 ): Promise<ClaudeAgentToolPolicySnapshot> {
   let descriptors: ClaudeToolDescriptor[] = []
   let policy: ClaudeToolPolicy = {}
   let disallowed = new Set<string>()
   let rebuildSequence = 0
+  // The id → server-key mapping is mutable state: a server renamed mid-session must be
+  // translated under its CURRENT key, or a later-added id-keyed denial blocks the
+  // pre-rename name while the executable tool answers to the new one.
+  let serverNameById = options.serverNameById
 
   const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>) => {
     // `update()` is fire-and-forget and unserialized, so two rebuilds can overlap. Guard with a
@@ -197,8 +207,14 @@ export async function createClaudeAgentToolPolicySnapshot(
     policy = buildClaudeToolPolicy(nextAgent)
     // Same derivation as the build-time SDK `disallowedTools`, recomputed on every live update so a
     // mid-session disable is honored by `canUseTool` on the warm connection (registry exposure +
-    // user opt-out + dependency cascade).
-    disallowed = new Set(resolveDisallowedTools(nextAgent, options.conditionContext))
+    // user opt-out + dependency cascade). Legacy id-keyed rules are rewritten first so a denial
+    // saved under the pre-#21322 namespace still blocks its name-keyed tool.
+    disallowed = new Set(
+      resolveDisallowedTools(
+        { disabledTools: translateLegacyMcpToolRules(nextAgent.disabledTools, serverNameById) },
+        options.conditionContext
+      )
+    )
   }
 
   await rebuild(agent)
@@ -232,7 +248,8 @@ export async function createClaudeAgentToolPolicySnapshot(
       policy = { ...policy, permissionMode }
     },
 
-    update(agent) {
+    update(agent, nextOptions) {
+      if (nextOptions?.serverNameById) serverNameById = nextOptions.serverNameById
       return rebuild(agent)
     }
   }

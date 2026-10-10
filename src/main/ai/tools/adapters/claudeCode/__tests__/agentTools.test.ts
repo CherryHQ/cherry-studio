@@ -90,6 +90,34 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('mcp__cherry-tools__cron')).toBe(false)
   })
 
+  it('translates a legacy id-keyed denial onto the name-keyed runtime tool', async () => {
+    // Saved while tools were keyed by server id; the runtime now keys tools by configured name.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'github']])
+    })
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    // An unrelated tool of the same server is not caught by the legacy rule.
+    expect(snapshot.isDisabled('mcp__github__other')).toBe(false)
+  })
+
+  it('refreshes the server-key mapping on update so a renamed server keeps catching later denials', async () => {
+    // Prewarm under `old`, the server is renamed to `new`, and the denial is added during an
+    // active turn: the rebuild must translate against the CURRENT key mapping, or the live
+    // guard blocks the pre-rename name while the executable tool answers to the new one.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([]), {
+      serverNameById: new Map([[serverId, 'old']])
+    })
+
+    await snapshot.update(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'new']])
+    })
+
+    expect(snapshot.isDisabled('mcp__new__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__old__run')).toBe(false)
+  })
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))

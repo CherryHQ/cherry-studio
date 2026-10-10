@@ -40,6 +40,8 @@ interface McpSessionCatalogState {
   agentId: string
   serverIds: Set<string>
   metadata: Record<string, McpToolDisplayMetadata>
+  /** The running connection's server allocation — metadata attribution is frozen to it. */
+  serverAllocation?: ReadonlyMap<string, string>
   refreshSequence: number
   subscription?: { dispose(): void }
 }
@@ -109,7 +111,9 @@ export class ClaudeCodeSessionStateService extends BaseService {
     if (existing) {
       // Connect (including a warm-hit) refreshes the shared instance with the current agent so a
       // policy change made between prewarm and connect is honored on the running subprocess.
-      await existing.update(agent)
+      // The key mapping rides along: a server renamed between prewarm and connect must not
+      // leave the snapshot translating id-keyed rules onto the stale name.
+      await existing.update(agent, { serverNameById: options?.serverNameById })
       return existing
     }
     const snapshot = await createClaudeAgentToolPolicySnapshot(agent, options)
@@ -200,7 +204,8 @@ export class ClaudeCodeSessionStateService extends BaseService {
     sessionId: string,
     agentId: string,
     mcpIds: readonly string[],
-    metadata: Record<string, McpToolDisplayMetadata> | undefined
+    metadata: Record<string, McpToolDisplayMetadata> | undefined,
+    serverAllocation?: ReadonlyMap<string, string>
   ): void {
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
@@ -218,6 +223,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
       agentId,
       serverIds,
       metadata,
+      serverAllocation,
       refreshSequence: 0
     }
     state.subscription = application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
@@ -238,7 +244,11 @@ export class ClaudeCodeSessionStateService extends BaseService {
 
     const [policyResult, metadataResult] = await Promise.allSettled([
       this.getToolPolicySnapshot(sessionId)?.update(liveAgent),
-      buildMcpToolMetadata(liveAgent)
+      // Attribute under the running connection's frozen allocation: the live agent may have
+      // dropped or renamed a mounted server mid-turn, and re-allocating from agent.mcps would
+      // hand its configured-name key to a same-named survivor the connection still binds under
+      // its own key until the deferred rebuild.
+      buildMcpToolMetadata(liveAgent, { serverAllocation: state.serverAllocation })
     ])
     if (this.mcpSessionCatalogStates.get(sessionId) !== state || sequence !== state.refreshSequence) return
 
