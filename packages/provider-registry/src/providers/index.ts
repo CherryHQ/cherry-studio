@@ -49,6 +49,7 @@ import p_ovms from './ovms'
 import p_perplexity from './perplexity'
 import p_ph8 from './ph8'
 import p_poe from './poe'
+import p_powertokens from './powertokens'
 import p_ppio from './ppio'
 import p_qiniu from './qiniu'
 import p_radeon_cloud from './radeon-cloud'
@@ -124,6 +125,7 @@ export const PROVIDERS: Provider[] = [
   p_voyageai,
   p_aws_bedrock,
   p_poe,
+  p_powertokens,
   p_longcat,
   p_huggingface,
   p_gateway,
