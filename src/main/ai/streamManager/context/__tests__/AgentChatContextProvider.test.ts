@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
+  getModelNames: vi.fn(),
+  getDb: vi.fn(),
   saveMessage: vi.fn(),
   saveMessagesTx: vi.fn(),
   hasSessionMessages: vi.fn(),
@@ -19,7 +21,12 @@ const mocks = vi.hoisted(() => ({
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
   runtimeAssertWritable: vi.fn(),
-  runtimeValidateSession: vi.fn()
+  runtimeAssertSessionEditable: vi.fn(),
+  runtimeEditSession: vi.fn(),
+  runtimeValidateSession: vi.fn(),
+  setEditRuntimeTx: vi.fn(),
+  notifyDataApiDataChange: vi.fn(),
+  validateEditedInput: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -28,6 +35,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getNamesByUniqueIdsTx: mocks.getModelNames }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -42,8 +53,17 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
     saveMessagesTx: mocks.saveMessagesTx,
-    hasSessionMessages: mocks.hasSessionMessages
+    hasSessionMessages: mocks.hasSessionMessages,
+    setEditRuntimeTx: mocks.setEditRuntimeTx
   }
+}))
+
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: mocks.notifyDataApiDataChange
+}))
+
+vi.mock('../../../agentSession/editInput', () => ({
+  validateEditedInput: mocks.validateEditedInput
 }))
 
 vi.mock('@main/services/TopicNamingService', () => ({
@@ -141,10 +161,12 @@ describe('AgentChatContextProvider', () => {
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy,
-          assertSessionWritable: mocks.runtimeAssertWritable
+          assertSessionWritable: mocks.runtimeAssertWritable,
+          assertSessionEditable: mocks.runtimeAssertSessionEditable,
+          editSession: mocks.runtimeEditSession
         }
       }
-      if (name === 'DbService') return { withWriteTx: (fn: (tx: object) => unknown) => fn({}) }
+      if (name === 'DbService') return { withWriteTx: (fn: (tx: object) => unknown) => fn({}), getDb: mocks.getDb }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.runtimeBeginTurn.mockReturnValue({
@@ -153,6 +175,10 @@ describe('AgentChatContextProvider', () => {
     })
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
+    mocks.validateEditedInput.mockResolvedValue(undefined)
+    mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, persist) =>
+      persist({}, 'native-session-id')
+    )
   })
 
   it.each(['busy', 'close_failed'] as const)(
@@ -274,6 +300,7 @@ describe('AgentChatContextProvider', () => {
           emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         },
+        modelId: 'anthropic::claude-sonnet',
         reasoningEffort: 'default',
         serviceTier: 'standard'
       }
@@ -324,6 +351,7 @@ describe('AgentChatContextProvider', () => {
           emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         },
+        modelId: 'anthropic::claude-sonnet',
         reasoningEffort: 'default',
         serviceTier: 'standard'
       }
@@ -441,5 +469,213 @@ describe('AgentChatContextProvider', () => {
     )
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+  })
+
+  it('resolves the turn model from the session override instead of the agent default', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'My Agent',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet'
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
+    expect(prepared.reservedMessages?.find((message) => message.role === 'assistant')?.metadata).toMatchObject({
+      modelId: 'openai::gpt-4o',
+      messageSnapshot: {
+        model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+      }
+    })
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'openai::gpt-4o' }))
+  })
+
+  it('snapshots the session override for post-validation ownership checks', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+
+    const validated = await provider.validateDispatch(openReq())
+
+    expect(validated.sessionModelId).toBe('openai::gpt-4o')
+    expect(validated.agentModel).toBe('anthropic::claude-sonnet')
+  })
+
+  it('falls back to the agent model when the session has no override', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: null,
+      workspace: { path: '/tmp' }
+    })
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
+    expect(mocks.getModelNames).not.toHaveBeenCalled()
+  })
+
+  it('forwards the session override model when a busy dispatch enqueues a follow-up', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-1' }),
+      expect.objectContaining({
+        expectedAgent: expect.objectContaining({ sessionModelId: 'openai::gpt-4o' })
+      })
+    )
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ role: 'user' }),
+      expect.objectContaining({ modelId: 'openai::gpt-4o' })
+    )
+  })
+
+  it('rejects a turn when neither the session nor the agent has a model', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: null,
+      workspace: { path: '/tmp' }
+    })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', name: 'My Agent', type: 'claude-code', model: null })
+
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({
+      code: 'TARGET_UNAVAILABLE'
+    })
+
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+  })
+
+  it('enforces the validation snapshot when an idle dispatch persists', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
+
+    await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+    expect(mocks.saveMessagesTx.mock.calls[0][2]).toMatchObject({
+      id: 'agent-1',
+      sessionModelId: 'openai::gpt-4o'
+    })
+  })
+
+  it('rejects a busy follow-up when the write boundary detects session override drift', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+    mocks.saveMessage.mockImplementation(() => {
+      throw Object.assign(new Error('concurrent modification'), { code: 'CONCURRENT_MODIFICATION' })
+    })
+
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({
+      code: 'CONCURRENT_MODIFICATION'
+    })
+
+    expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
+  })
+
+  it('enforces the validation snapshot for a caller-supplied owner on idle dispatch', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
+
+    await provider.prepareAgentSessionDispatch(
+      makeSubscriber(),
+      openReq(),
+      {},
+      { hasLiveStream: false, expectedAgentId: 'agent-1' }
+    )
+
+    expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+    expect(mocks.saveMessagesTx.mock.calls[0][2]).toMatchObject({
+      id: 'agent-1',
+      sessionModelId: 'openai::gpt-4o'
+    })
+  })
+
+  it('checks edit ownership against the agent default and session override, not the effective model', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+
+    await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({
+        trigger: 'edit-agent-message',
+        editTarget: { messageId: 'msg-1', version: '1' }
+      })
+    )
+
+    expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+    expect(mocks.saveMessagesTx.mock.calls[0][2]).toMatchObject({
+      id: 'agent-1',
+      model: 'anthropic::claude-sonnet',
+      sessionModelId: 'openai::gpt-4o'
+    })
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'openai::gpt-4o' }))
+  })
+
+  it('forwards a disagreed caller owner so the write boundary refuses the turn', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: null,
+      workspace: { path: '/tmp' }
+    })
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
+
+    await provider.prepareAgentSessionDispatch(
+      makeSubscriber(),
+      openReq(),
+      {},
+      { hasLiveStream: false, expectedAgentId: 'other-agent' }
+    )
+
+    expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+    expect(mocks.saveMessagesTx.mock.calls[0][2]).toBe('other-agent')
   })
 })

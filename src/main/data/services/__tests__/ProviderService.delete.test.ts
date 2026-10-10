@@ -11,9 +11,12 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { agentTable } from '@data/db/schemas/agent'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { pinService } from '@data/services/PinService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
@@ -281,5 +284,56 @@ describe('ProviderService.delete — preset protection boundary', () => {
 
   it('throws notFound when the provider row does not exist (no silent zero-row delete)', async () => {
     expect(() => providerService.delete('does-not-exist')).toThrow(/not found/i)
+  })
+
+  it('clears session model overrides for models owned by the deleted provider', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'override-prov',
+      presetProviderId: null,
+      name: 'Override Provider',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+    const modelId = createUniqueModelId('override-prov', 'model-x')
+    await dbh.db.insert(userModelTable).values({
+      id: modelId,
+      providerId: 'override-prov',
+      modelId: 'model-x',
+      name: 'Model X',
+      capabilities: [],
+      supportsStreaming: true,
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+    await dbh.db.insert(agentTable).values({
+      id: 'override-agent',
+      type: 'claude-code',
+      name: 'Override Agent',
+      instructions: '',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+    const workspace = dbh.db.transaction((tx) =>
+      agentWorkspaceService.findOrCreateByPathTx(tx, '/tmp/override-prov-workspace')
+    )
+    const session = agentSessionService.create({
+      agentId: 'override-agent',
+      name: 'Override session',
+      workspace: { type: 'user', workspaceId: workspace.id }
+    })
+    agentSessionService.update(session.id, { modelId })
+    notifyDataApiDataChangeMock.mockClear()
+    const notified: string[] = []
+    const dispose = agentSessionService.onSessionModelUpdated(({ sessionId }) => notified.push(sessionId))
+
+    // Without the pre-clear this aborts on the session model FK.
+    providerService.delete('override-prov')
+
+    expect(agentSessionService.getById(session.id).modelId).toBeNull()
+    expect(notified).toEqual([session.id])
+    dispose.dispose()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/latest' }
+    ])
   })
 })

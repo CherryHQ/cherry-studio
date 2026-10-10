@@ -127,7 +127,20 @@ vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
     validateDispatch: mocks.validateDispatch,
     persistDispatchTx: mocks.persistDispatchTx,
     activateDispatch: mocks.activateDispatch
-  }
+  },
+  ownershipSnapshotFromValidated: (validated: {
+    agentId: string
+    agentUpdatedAt: string
+    agentModel: string | null
+    agentType: string
+    sessionModelId?: string | null
+  }) => ({
+    id: validated.agentId,
+    updatedAt: validated.agentUpdatedAt,
+    model: validated.agentModel,
+    type: validated.agentType,
+    sessionModelId: validated.sessionModelId ?? null
+  })
 }))
 
 const runtime = {
@@ -244,7 +257,8 @@ describe('AgentSessionDeliveryService', () => {
       agentId: 'agent-1',
       agentUpdatedAt: now,
       agentType: 'claude-code',
-      uniqueModelId: 'provider::model'
+      uniqueModelId: 'provider::model',
+      agentModel: 'provider::model'
     })
     mocks.persistDispatchTx.mockReturnValue({
       assistantMessageId: assistant.id,
@@ -333,7 +347,8 @@ describe('AgentSessionDeliveryService', () => {
       id: 'agent-1',
       updatedAt: now,
       model: 'provider::model',
-      type: 'claude-code'
+      type: 'claude-code',
+      sessionModelId: null
     })
     expect(mocks.claim).toHaveBeenCalledWith({}, 'target', 'delivery-1', 'assistant-1')
     expect(mocks.publishDispatchChanges).toHaveBeenCalledWith('target', [accepted, assistant])
@@ -633,6 +648,37 @@ describe('AgentSessionDeliveryService', () => {
 
     expect(mocks.validateDispatch).toHaveBeenCalledTimes(2)
     expect(mocks.claim).toHaveBeenCalledOnce()
+    expect(mocks.send).toHaveBeenCalledOnce()
+  })
+
+  it('checks target ownership against the agent default, not the session override', async () => {
+    // A session override makes uniqueModelId differ from the agent row's model. The claim
+    // transaction compares expectedAgent against the agent row, so passing the effective
+    // model there raises a phantom concurrent-modification and the accepted delivery stalls.
+    mocks.validateDispatch.mockResolvedValue({
+      sessionId: 'target',
+      agentId: 'agent-1',
+      agentUpdatedAt: now,
+      agentType: 'claude-code',
+      uniqueModelId: 'provider::override-model',
+      agentModel: 'provider::agent-model',
+      sessionModelId: 'provider::override-model'
+    })
+    mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    service.kick('target')
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.persistDispatchTx).toHaveBeenCalledOnce()
+    expect(mocks.persistDispatchTx.mock.calls[0][2]).toEqual({
+      id: 'agent-1',
+      updatedAt: now,
+      model: 'provider::agent-model',
+      type: 'claude-code',
+      sessionModelId: 'provider::override-model'
+    })
     expect(mocks.send).toHaveBeenCalledOnce()
   })
 

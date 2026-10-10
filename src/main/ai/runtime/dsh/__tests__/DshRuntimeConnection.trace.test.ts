@@ -5,6 +5,8 @@ import { SessionSeq } from '@deepseek-ai/dsh-session'
 import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AgentPromptModule from '@main/ai/runtime/agentPrompt'
+
 import { AgentSessionForkError, type RuntimeForkInput } from '../../fork'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
 
@@ -176,9 +178,13 @@ vi.mock('@application', async () => {
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
 }))
-vi.mock('@main/ai/runtime/agentPrompt', () => ({
-  buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' })
-}))
+vi.mock('@main/ai/runtime/agentPrompt', async (importOriginal) => {
+  const actual = await importOriginal<typeof AgentPromptModule>()
+  return {
+    ...actual,
+    buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' })
+  }
+})
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   buildAgentMcpServers: vi.fn(() => []),
   warmAgentMcpToolCatalogs: vi.fn().mockResolvedValue(undefined)
