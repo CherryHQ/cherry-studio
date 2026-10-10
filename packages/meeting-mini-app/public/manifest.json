@@ -1,0 +1,12 @@
+{
+  "id": "cc.sonicrhino.meeting",
+  "name": { "en": "Meeting Notes", "zh": "会议整理" },
+  "description": {
+    "en": "Organize meeting transcripts with Meeting Mind. An account access token is required.",
+    "zh": "使用 Meeting Mind 整理会议文本，需要有效的账号 Token。"
+  },
+  "version": "1.0.0",
+  "entry": "index.html",
+  "permissions": ["network.fetch", "file.save", "file.load", "file.list", "file.delete", "file.export"],
+  "network": ["work.sonicrhino.cc", "cherrymousetest.sonicrhino.cc"]
+}
