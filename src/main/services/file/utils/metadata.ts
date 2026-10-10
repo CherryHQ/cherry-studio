@@ -1,6 +1,7 @@
+import mime from 'mime'
+
 import { getFileType, stat as fsStat } from '@main/utils/file'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
-import mime from 'mime'
 
 type FsStatResult = Awaited<ReturnType<typeof fsStat>>
 

@@ -1,6 +1,7 @@
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { TextSelectionData } from 'selection-hook'
 import * as z from 'zod'
+
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 import { defineRoute } from '../define'
 

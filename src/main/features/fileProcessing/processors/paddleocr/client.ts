@@ -1,7 +1,8 @@
-import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { PaddleOCRClient as PaddleOCRClientType } from '@paddleocr/api-sdk'
-import { MB } from '@shared/utils/constants'
 import { net } from 'electron'
+
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { MB } from '@shared/utils/constants'
 
 export const PADDLE_MAX_FILE_SIZE = 50 * MB
 
@@ -40,7 +41,7 @@ export async function createPaddleClient(apiHost: string, apiKey: string) {
     return net.fetch(sanitizeRemoteUrl(url, apiHost), {
       ...init,
       redirect: 'error'
-    } as RequestInit) as unknown as ReturnType<typeof fetch>
+    })
   }
 
   return new PaddleOCRClient({

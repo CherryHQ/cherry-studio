@@ -1,7 +1,7 @@
-import { SegmentedControl } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
-import { FilePreviewToolbar } from '../../FilePreviewToolbar'
+import { FilePreviewToolbar } from '@cherrystudio/file-preview/react'
+import { SegmentedControl } from '@cherrystudio/ui'
 
 export type HtmlFilePreviewMode = 'preview' | 'source'
 

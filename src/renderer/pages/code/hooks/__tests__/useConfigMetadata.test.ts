@@ -1,3 +1,7 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -6,9 +10,6 @@ import {
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useConfigMetadata } from '../useConfigMetadata'
 

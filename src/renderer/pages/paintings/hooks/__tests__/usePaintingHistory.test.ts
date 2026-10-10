@@ -1,8 +1,9 @@
-import type { PaintingListResponse } from '@shared/data/api/schemas/paintings'
-import type { Painting } from '@shared/data/types/painting'
 import { MockUseDataApiUtils, mockUseInfiniteFlatItems, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { PaintingListResponse } from '@shared/data/api/schemas/paintings'
+import type { Painting } from '@shared/data/types/painting'
 
 const mockRecordsToPaintingDataList = vi.hoisted(() => vi.fn())
 

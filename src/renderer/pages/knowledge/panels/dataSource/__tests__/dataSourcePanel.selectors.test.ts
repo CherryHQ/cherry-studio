@@ -1,5 +1,6 @@
-import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
+
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import { getItemStatus, getItemTitle } from '../utils/selectors'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
@@ -57,7 +58,7 @@ describe('dataSourcePanel.selectors', () => {
     })
     expect(getItemStatus(createFileItem({ id: 'file-4', status: 'reading' }))).toEqual({
       kind: 'processing',
-      labelKey: 'knowledge.rag.file_processing',
+      labelKey: 'knowledge.data_source.status.reading',
       textClassName: 'text-info',
       icon: 'loader'
     })

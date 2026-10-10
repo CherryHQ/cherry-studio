@@ -13,6 +13,8 @@
 
 // Wire-safe by design (dsh keeps this subpath free of cordis imports), and pinned to
 // the same rc at both ends — safe to put on the wire, unlike the wider ContentBlock.
+import type { StreamChunk, ToolCallId } from '@deepseek-ai/dsh-llm'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions/types'
 
 export type {
@@ -20,6 +22,15 @@ export type {
   AskUserQuestionAnswerItem,
   AskUserQuestionItem
 } from '@deepseek-ai/dsh-user-questions/types'
+
+export interface DshAssistantChunk {
+  sessionId: string
+  turn: number
+  step: number
+  chunk: StreamChunk
+}
+
+export type DshRuntimeEvent = SessionEvent | { type: 'assistant/chunk'; data: Omit<DshAssistantChunk, 'sessionId'> }
 
 export const BRIDGE_SOCKET_ENV = 'CHERRY_DSH_BRIDGE_SOCK'
 export const BRIDGE_TOKEN_ENV = 'CHERRY_DSH_BRIDGE_TOKEN'
@@ -94,6 +105,10 @@ export interface BridgeCommandResult {
 
 /** Host→plugin request methods with their param and result shapes. */
 export interface BridgeHostRequestMap {
+  'session/flush': {
+    params: { sessionId: string }
+    result: Record<string, never>
+  }
   'session/open': {
     params: {
       sessionId: string
@@ -132,10 +147,20 @@ export interface BridgePluginRequestMap {
   ready: { params: { pid: number; token: string }; result: Record<string, never> }
   'guard/check': {
     params: { sessionId: string; toolName: string; args: unknown; cwd: string }
-    result: { kind: 'allow' } | { kind: 'deny'; ruleId: 'user-data-sqlite-write'; reason: string }
+    result:
+      | { kind: 'allow' }
+      | { kind: 'ask'; reason: string }
+      | { kind: 'deny'; ruleId: 'user-data-sqlite-write' | 'browser-tool-disabled'; reason: string }
   }
   'approval/ask': {
-    params: { sessionId: string; toolName: string; callId?: string; args?: unknown; reason?: string }
+    params: {
+      sessionId: string
+      sessionEventSeq: SessionEvent['seq']
+      toolName: string
+      callId?: ToolCallId
+      args?: unknown
+      reason?: string
+    }
     result: { outcome: 'allowed-once' | 'rejected'; rejectionReason?: string }
   }
   'tool/call': {
@@ -147,8 +172,9 @@ export interface BridgePluginRequestMap {
   'question/ask': {
     params: {
       sessionId: string
+      sessionEventSeq: SessionEvent['seq']
       /** Exact `exit_plan_mode` call correlated from the plugin's authoritative session log. */
-      callId: string
+      callId: ToolCallId
       questions: AskUserQuestionItem[]
     }
     result: AskUserQuestionAnswer
@@ -158,6 +184,8 @@ export interface BridgePluginRequestMap {
 /** Plugin→host notifications. JSON-RPC has no cancel, so `tool/cancel` carries the
  *  bridge's own `callId` (independent of the transport's request id). */
 export interface BridgeNotificationMap {
+  'session/state': { sessionId: string; sessionEventSeq: SessionEvent['seq']; status: 'running' | 'idle' }
+
   'tool/cancel': { sessionId: string; callId: string }
   /**
    * One subagent residency epoch's start or terminal edge (`ctx.on('subagent/start'|'end')`).

@@ -1,10 +1,11 @@
-import { toast } from '@renderer/services/toast'
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 
 import DataSourcePanelComponent, { type DataSourcePanelProps } from '../DataSourcePanel'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
@@ -359,7 +360,6 @@ vi.mock('react-i18next', () => ({
             'knowledge.rag.download_local_model': '下载本地模型',
             'knowledge.file_hint': `支持 ${options?.file_types} 格式`,
             'knowledge.status.processing': '处理中',
-            'knowledge.rag.file_processing': '文件处理',
             'settings.dependencies.localModels.embedding.name': '本地嵌入模型',
             'settings.dependencies.localModels.status.downloading': '下载中…',
             'settings.dependencies.localModels.unsupported': '当前平台不支持本地模型。'

@@ -1,6 +1,7 @@
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 
 // ── Service mocks ────────────────────────────────────────────────────
 

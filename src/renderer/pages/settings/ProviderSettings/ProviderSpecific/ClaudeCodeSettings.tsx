@@ -1,12 +1,13 @@
+import { CheckCircle2, CircleAlert, Copy, RefreshCw, TerminalSquare } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { CodeCli } from '@shared/types/codeCli'
-import { CheckCircle2, CircleAlert, Copy, RefreshCw, TerminalSquare } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
 
@@ -77,7 +78,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   // than the sign-in panel, so an already-signed-in user doesn't see it flash.
   if (loggedIn === null) {
     return (
-      <div className="flex items-center gap-2 text-foreground-tertiary text-xs">
+      <div className="flex items-center gap-2 text-xs text-foreground-tertiary">
         <RefreshCw className="size-4 animate-spin" aria-hidden />
         {t('common.loading')}
       </div>

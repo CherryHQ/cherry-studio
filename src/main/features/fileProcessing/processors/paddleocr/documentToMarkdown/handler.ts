@@ -1,4 +1,5 @@
 import type { JobStatus } from '@paddleocr/api-sdk'
+
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
 

@@ -1,3 +1,7 @@
+import { CircleSlash, Folder, FolderPlus, Trash2 } from 'lucide-react'
+import { lazy, type ReactElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from '@renderer/components/ModelSelector'
@@ -8,12 +12,9 @@ import {
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { CircleSlash, Folder, FolderPlus, Trash2 } from 'lucide-react'
-import { lazy, type ReactElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WorkspaceSelector')
 const DEFAULT_MIN_LIST_HEIGHT = 144
@@ -71,6 +72,7 @@ export function WorkspaceSelector({
   const listRef = useRef<HTMLDivElement>(null)
 
   const { data: workspaces, isLoading, refetch } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetch())
   const { trigger: createWorkspace, isLoading: isCreatingWorkspace } = useMutation('POST', '/agent-workspaces', {
     refresh: ['/agent-workspaces']
   })

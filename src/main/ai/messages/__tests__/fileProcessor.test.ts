@@ -2,8 +2,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { FileUIPart } from '@shared/data/types/message'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import type { FileUIPart } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
@@ -21,8 +22,12 @@ vi.mock('@application', async () => {
 
 import { materializeNativeFilePart } from '../fileProcessor'
 
-const filePart = (p: Partial<FileUIPart>): FileUIPart =>
-  ({ type: 'file', url: '', mediaType: 'application/octet-stream', ...p }) as FileUIPart
+const filePart = (p: Partial<FileUIPart>): FileUIPart => ({
+  type: 'file',
+  url: '',
+  mediaType: 'application/octet-stream',
+  ...p
+})
 
 describe('materializeNativeFilePart — file:// inline', () => {
   let tmpDir: string

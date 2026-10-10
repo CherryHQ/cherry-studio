@@ -1,10 +1,17 @@
+import { describe, expect, it } from 'vitest'
+
 import type { SamplingSettings } from '@main/ai/types'
 import type { AssistantSettings } from '@shared/data/types/assistant'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 import { makeAssistant as makeAssistantBase, makeModel } from '../../__tests__/fixtures'
-import { adjustMaxOutputTokensForReasoning, filterStandardParams, getTemperature, getTopP } from '../modelParameters'
+import {
+  adjustMaxOutputTokensForReasoning,
+  filterStandardParams,
+  getTemperature,
+  getTopP,
+  stripRejectedSamplingParams
+} from '../modelParameters'
 
 const OMIT_REASONING = { kind: 'omit' } as const
 const OFF_REASONING = { kind: 'off' } as const
@@ -17,6 +24,62 @@ const NO_BUDGET = { budgetTokens: undefined }
 function makeSampling(settings: Partial<AssistantSettings> = {}): SamplingSettings {
   return makeAssistantBase({ settings: { enableTemperature: true, ...settings } }).settings
 }
+
+describe('stripRejectedSamplingParams', () => {
+  it.each([
+    { temperature: false, topP: false, standard: {}, wire: {} },
+    { temperature: false, topP: true, standard: { topP: 0.8 }, wire: { topP: 0.8, top_p: 0.8 } },
+    { temperature: true, topP: false, standard: { temperature: 0.3 }, wire: { temperature: 0.3 } },
+    {
+      temperature: true,
+      topP: true,
+      standard: { temperature: 0.3, topP: 0.8 },
+      wire: { temperature: 0.3, topP: 0.8, top_p: 0.8 }
+    },
+    {
+      temperature: undefined,
+      topP: undefined,
+      standard: { temperature: 0.3, topP: 0.8 },
+      wire: { temperature: 0.3, topP: 0.8, top_p: 0.8 }
+    }
+  ])(
+    'enforces temperature=$temperature and topP=$topP independently without mutating inputs',
+    ({ temperature, topP, standard, wire }) => {
+      const model = makeModel({
+        parameterSupport: {
+          temperature: temperature === undefined ? undefined : { supported: temperature, min: 0, max: 1 },
+          topP: topP === undefined ? undefined : { supported: topP, min: 0, max: 1 },
+          maxTokens: true,
+          stopSequences: true,
+          systemMessage: true
+        }
+      })
+      const standardParams = Object.freeze({ temperature: 0.3, topP: 0.8, maxOutputTokens: 100 })
+      const wireParams = Object.freeze({
+        temperature: 0.3,
+        topP: 0.8,
+        top_p: 0.8,
+        user: 'kept',
+        metadata: Object.freeze({ temperature: 'business data', top_p: 42 })
+      })
+      const params = Object.freeze({
+        standardParams,
+        providerOptions: Object.freeze({ openai: wireParams, other: wireParams }),
+        bodyParams: wireParams
+      })
+      const result = stripRejectedSamplingParams(params, model)
+      expect(result.standardParams).toEqual({ ...standard, maxOutputTokens: 100 })
+      const expectedWire = {
+        ...wire,
+        user: 'kept',
+        metadata: { temperature: 'business data', top_p: 42 }
+      }
+      expect(result.providerOptions).toEqual({ openai: expectedWire, other: expectedWire })
+      expect(result.bodyParams).toEqual(expectedWire)
+      expect(stripRejectedSamplingParams(result, model)).toEqual(result)
+    }
+  )
+})
 
 describe('getTemperature', () => {
   it('returns undefined when enableTemperature is false', () => {
@@ -87,10 +150,10 @@ describe('getTemperature', () => {
   })
 
   it.each(['kimi-k2.5', 'kimi-k2.7-code', 'kimi-k3'])(
-    'omits fixed temperature for a custom %s model without registry metadata',
+    'does not infer Moonshot temperature constraints for a third-party %s model',
     (id) => {
       const a = makeSampling({ temperature: 0.7 })
-      expect(getTemperature(a, makeModel({ id: `custom::${id}` }), OMIT_REASONING)).toBeUndefined()
+      expect(getTemperature(a, makeModel({ id: `third-party::${id}` }), OMIT_REASONING)).toBe(0.7)
     }
   )
 
@@ -135,10 +198,10 @@ describe('getTopP', () => {
   })
 
   it.each(['kimi-k2.5', 'kimi-k2.7-code', 'kimi-k3'])(
-    'omits fixed topP for a custom %s model without registry metadata',
+    'does not infer Moonshot topP constraints for a third-party %s model',
     (id) => {
       const a = makeSampling({ enableTopP: true, topP: 1 })
-      expect(getTopP(a, makeModel({ id: `custom::${id}` }), OMIT_REASONING)).toBeUndefined()
+      expect(getTopP(a, makeModel({ id: `third-party::${id}` }), OMIT_REASONING)).toBe(1)
     }
   )
 

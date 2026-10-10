@@ -1,5 +1,6 @@
-import type { TreeNode, TreeResponse } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { TreeNode, TreeResponse } from '@shared/data/types/message'
 
 import { buildTopicMessageFlowGraph } from '../topicMessageFlowGraph'
 
@@ -12,7 +13,6 @@ function treeNode({ id, ...overrides }: Partial<TreeNode> & Pick<TreeNode, 'id'>
     // edge guard skips the edge and the node still renders as a graph root.
     parentId: 'vroot',
     role: 'user',
-    hasContent: true,
     preview: id,
     modelId: null,
     status: 'success',

@@ -1,13 +1,14 @@
+import { Undo2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
-import { Undo2 } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const DEFAULT_MAX_KEEPALIVE = 3
 
@@ -22,7 +23,7 @@ const MiniAppDisplaySettings: FC = () => {
   const [maxKeepAlive, setMaxKeepAlive] = usePreference('feature.mini_app.max_keep_alive')
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [checkUpdatesOnOpen, setCheckUpdatesOnOpen] = usePreference('feature.mini_app.check_updates_on_open')
-  const [region = 'auto', setRegion] = usePreference('feature.mini_app.region')
+  const [region, setRegion] = usePreference('feature.mini_app.region')
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(
@@ -110,7 +111,7 @@ const MiniAppDisplaySettings: FC = () => {
               onValueChange={(v) => handleCacheChange(v[0])}
               showValueLabel
             />
-            <span className="w-6 text-right text-muted-foreground text-xs">{maxKeepAlive}</span>
+            <span className="w-6 text-right text-xs text-muted-foreground">{maxKeepAlive}</span>
           </div>
         </PageSidePanelItem>
       </div>

@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dataApiService } from '@data/DataApiService'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -51,7 +52,7 @@ function createSessionMessage(
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...rest
-  } as AgentSessionMessageEntity
+  }
 }
 
 describe('agentSessionExport', () => {

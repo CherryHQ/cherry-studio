@@ -1,6 +1,7 @@
-import { splitToSubTrunks } from '@renderer/services/ShikiStreamTokenizer'
 import type { ThemedToken } from 'shiki/types'
 import { describe, expect, it } from 'vitest'
+
+import { splitToSubTrunks } from '@renderer/services/ShikiStreamTokenizer'
 
 import { getMarkdownIt, getReactStyleFromToken } from '../shiki'
 

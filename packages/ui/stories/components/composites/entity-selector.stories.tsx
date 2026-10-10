@@ -1,8 +1,9 @@
-import { Button } from '@cherrystudio/ui/components/primitives/button'
-import { Checkbox } from '@cherrystudio/ui/components/primitives/checkbox'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { ArrowDown, ArrowUp, Check, ChevronRight, Pencil, Pin, PinOff, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
+
+import { Button } from '@cherrystudio/ui/components/primitives/button'
+import { Checkbox } from '@cherrystudio/ui/components/primitives/checkbox'
 
 import { EntitySelector } from '../../../src/components/composites/entity-selector'
 
@@ -569,7 +570,7 @@ function WithSectionsDemo() {
   }, [pinnedIds])
 
   const sectionHeader = (label: string) => (
-    <div className="px-3 pt-2 pb-1 text-muted-foreground/50 text-xs">{label}</div>
+    <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground/50">{label}</div>
   )
 
   return (

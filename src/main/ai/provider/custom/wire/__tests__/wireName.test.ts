@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { wireName } from '@cherrystudio/provider-registry'
 import type { CanonicalParamKey } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 /**
  * The durable spec of `wireName(key)`: it reproduces EVERY canonical→wire rename

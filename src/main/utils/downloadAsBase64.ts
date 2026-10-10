@@ -1,8 +1,9 @@
+import { net } from 'electron'
+import { fileTypeFromBuffer } from 'file-type'
+
 import { loggerService } from '@logger'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { MB } from '@shared/utils/constants'
-import { net } from 'electron'
-import { fileTypeFromBuffer } from 'file-type'
 
 const logger = loggerService.withContext('downloadAsBase64')
 
@@ -61,7 +62,7 @@ function extFromFilename(filename: string | null | undefined): string | null {
   return lastSegment.slice(dot + 1)
 }
 
-function filenameFromContentDisposition(contentDisposition: string | null): string | null {
+export function filenameFromContentDisposition(contentDisposition: string | null): string | null {
   if (!contentDisposition) return null
 
   const encodedMatch = /(?:^|;)\s*filename\*=([^;]+)/i.exec(contentDisposition)

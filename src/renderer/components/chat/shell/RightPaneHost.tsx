@@ -1,21 +1,22 @@
-import { usePersistCache } from '@data/hooks/useCache'
-import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
-import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'motion/react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { RESOURCE_LIST_RIGHT_PANE_CACHE_KEY } from './paneLayout'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
+import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
+import { cn } from '@renderer/utils/style'
+
 import {
   ARTIFACT_RIGHT_PANE_CACHE_KEY,
   ARTIFACT_RIGHT_PANE_CLOSE_DRAG_OVERSHOOT,
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH,
   CHAT_SHELL_PANE_WIDTH,
-  CHAT_SHELL_TRANSITION
+  CHAT_SHELL_TRANSITION,
+  getRightPaneWindowCacheKey,
+  type RightPaneResizeCacheKey
 } from './paneLayout'
 import { buildDockedPaneWidthExpression, getPaneSpaceCap, resolveDockedPaneWidth } from './paneWidthPolicy'
 import {
@@ -35,8 +36,6 @@ import {
 import { getVerticalSplitterProps } from './splitterA11y'
 
 export type { RightPaneLayoutMode } from './rightPaneTransition'
-
-type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
 
 interface RightPaneFrameProps {
   children?: ReactNode
@@ -68,8 +67,8 @@ export interface PersistentRightPaneHostProps extends ResizableRightPaneProps {
   onDragClose?: () => void
 }
 
-function clampRightPaneWidth(width: number, minWidth: number, maxWidth: number): number {
-  return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
+function clampRightPaneWidth(width: number, minWidth: number, maxWidth: number | undefined): number {
+  return Math.min(maxWidth ?? Number.POSITIVE_INFINITY, Math.max(minWidth, Math.round(width)))
 }
 
 /** Matches the gap the message list keeps between its content and the composer. */
@@ -171,13 +170,13 @@ function useRightPaneResize({
   cacheKey: RightPaneResizeCacheKey
   defaultWidth: number
   minWidth: number
-  maxWidth: number
+  maxWidth: number | undefined
   /** Current space-imposed display cap; null before the main region is measured. */
   spaceCapRef?: RefObject<number | null>
   /** Dragging well past the minimum width closes the pane (mirrors the left list's drag-collapse). */
   onDragClose?: () => void
 }) {
-  const [storedWidth, setStoredWidth] = usePersistCache(cacheKey)
+  const [storedWidth, setStoredWidth] = useWindowScopedPersistCache(cacheKey, getRightPaneWindowCacheKey(cacheKey))
   const paneRef = useRef<HTMLDivElement>(null)
   const paneRightRef = useRef(0)
   const pendingDragCloseRef = useRef(false)
@@ -331,7 +330,11 @@ function RightPaneContents({
       {/* Mouse events over an iframe (e.g. the HTML preview tab) never reach this
           document's mousemove/mouseup listeners. Disable pointer events on pane
           content while dragging so the document-level resize listeners keep working. */}
-      <div className="h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none">
+      <div
+        className={cn(
+          'h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none',
+          resizeHandleVisible && 'pl-2'
+        )}>
         <ErrorBoundary>{children}</ErrorBoundary>
       </div>
       {resizeHandleVisible && (
@@ -387,7 +390,7 @@ export function PersistentRightPaneHost({
   resizable = false,
   minWidth = ARTIFACT_RIGHT_PANE_MIN_WIDTH,
   defaultWidth,
-  maxWidth = ARTIFACT_RIGHT_PANE_MAX_WIDTH,
+  maxWidth,
   cacheKey = ARTIFACT_RIGHT_PANE_CACHE_KEY,
   onLayoutAnimationComplete,
   onFullWidthPhaseChange,
@@ -421,7 +424,9 @@ export function PersistentRightPaneHost({
   const splitterMinWidth =
     mainRegionWidth === null ? minWidth : Math.round(resolveDockedPaneWidth(mainRegionWidth, minWidth, minWidth))
   const splitterMaxWidth =
-    mainRegionWidth === null ? maxWidth : Math.round(resolveDockedPaneWidth(mainRegionWidth, maxWidth, minWidth))
+    mainRegionWidth === null
+      ? (maxWidth ?? paneWidth)
+      : Math.round(resolveDockedPaneWidth(mainRegionWidth, maxWidth ?? mainRegionWidth, minWidth))
   const hasChildren = children !== null && children !== undefined
   const targetMode: RightPaneLayoutMode = !open || !hasChildren ? 'closed' : maximized ? 'maximized' : 'docked'
   const [visualState, setVisualStateState] = useState<PersistentRightPaneVisualState>(() =>

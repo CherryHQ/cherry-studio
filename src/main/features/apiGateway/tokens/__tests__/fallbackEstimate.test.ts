@@ -1,5 +1,6 @@
-import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
 import { describe, expect, it } from 'vitest'
+
+import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
 
 import { boundedBodyTokens } from '../fallbackEstimate'
 
