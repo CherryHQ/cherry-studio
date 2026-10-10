@@ -485,3 +485,31 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     })
   })
 })
+
+// Regression: code execution must never be injected for an old/off setting or an unsupported endpoint.
+describe('native code execution opt-in', () => {
+  const nativeScope = (enabled: boolean, endpoint = 'openai-responses') =>
+    makeScope({
+      assistant: { id: 'a', settings: { enableNativeCodeExecution: enabled } as Assistant['settings'] },
+      aiSdkProviderId: 'xai-responses',
+      model: { id: 'grok::grok-4.7', apiModelId: 'grok-4.7', endpointTypes: [endpoint] } as Partial<Model>,
+      provider: {
+        id: 'grok',
+        defaultChatEndpoint: 'openai-responses',
+        endpointConfigs: { 'openai-responses': { adapterFamily: 'xai-responses', baseUrl: 'https://api.x.ai/v1' } }
+      }
+    })
+
+  it('offers server code execution only when explicitly enabled on the supported Responses model', () => {
+    expect(activeNames(nativeScope(true))).toContain('provider-tool-codeExecution')
+    expect(activeNames(nativeScope(false))).not.toContain('provider-tool-codeExecution')
+    expect(activeNames(nativeScope(true, 'openai-chat-completions'))).not.toContain('provider-tool-codeExecution')
+    const unsupported = nativeScope(true)
+    expect(activeNames({ ...unsupported, model: { ...unsupported.model, apiModelId: 'grok-3' } })).not.toContain(
+      'provider-tool-codeExecution'
+    )
+    expect(activeNames({ ...unsupported, aiSdkProviderId: 'openai-responses' })).not.toContain(
+      'provider-tool-codeExecution'
+    )
+  })
+})
