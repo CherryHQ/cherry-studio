@@ -113,7 +113,8 @@ overflow then ends the turn with the provider's error.
 A `tool_result` hook (after every other extension's) saves text output longer than
 `thresholdChars` (and than 3000 characters, so the marker is always shorter than the output) through
 the host's `ToolOutputStore` and gives the model its head and tail around a
-`<persisted-output>` note with the saved path, to read back with Pi's `read` tool. Names are content
+`<persisted-output>` note with the saved path, to read back with Pi's `read` tool. If the store
+throws, the note gives its error instead and the model keeps only the head and tail. Names are content
 addressed (`tool-output-<sha256>.txt`), so the same output gives the same marker and prompt caches
 hold. Images and `structuredContent` (for the UI and codemode) are kept. Not offloaded: errors,
 `read` results (reading an offloaded file back must not offload it again) and nested tool calls,

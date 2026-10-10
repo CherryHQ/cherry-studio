@@ -170,6 +170,33 @@ describe('tool output offload', () => {
     expect(lastAssistant(session).stopReason).toBe('stop')
   })
 
+  it('still keeps an oversized result out of the context when the store cannot save it', async () => {
+    const { model, calls } = windowedModel(WINDOW, (_prompt, call) =>
+      call === 1
+        ? [toolCall('call_dump', 'dump_table', {}), finish('tool-calls')]
+        : [...textParts('t', 'I only see part of it.'), finish('stop')]
+    )
+    const store: ToolOutputStore = {
+      async save() {
+        throw new Error('disk full')
+      }
+    }
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      model: { ...MODEL, contextWindow: WINDOW },
+      tools: [dumpTable],
+      offload: { store, thresholdChars: 20_000 }
+    })
+    await session.prompt('Dump the table')
+
+    expect(lastAssistant(session).stopReason).toBe('stop')
+    const sent = calls[1].prompt.find((message) => message.role === 'tool')!
+    const marker = (plain(sent.content[0]) as { output: { value: string } }).output.value
+    expect(marker).toContain('disk full')
+    expect(marker).not.toContain('Full output saved to')
+    expect(marker.length).toBeLessThan(3_000)
+  })
+
   it('sends an output whole when its marker would not be shorter', async () => {
     const output = 'x'.repeat(2_000)
     const echo = defineTool({
