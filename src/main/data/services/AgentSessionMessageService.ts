@@ -304,7 +304,6 @@ export class AgentSessionMessageService {
         sessionId: sessionTable.id,
         runtime: agentTable.type,
         resumeToken: sessionMessagesTable.runtimeResumeToken,
-        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`,
         checkpoint: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint')`
       })
       .from(sessionTable)

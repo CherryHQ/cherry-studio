@@ -180,11 +180,7 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       .parse(await runForkWorker(createWorker({ workerData, env: { ...process.env } }), new AbortController().signal))
     await mkdir(path.join(directory, 'staged'))
     await mkdir(path.join(directory, 'backup'))
-    async function stage(source: string, target: string, prepared?: string) {
-      const sourceRelative = path.relative(root, source)
-      const targetRelative = path.relative(root, target)
-      artifactPath(root, sourceRelative)
-      artifactPath(root, targetRelative)
+    async function assertNoPendingRelocation(...files: string[]) {
       for (const id of await readdir(path.dirname(directory))) {
         if (id === workspace.id) continue
         const pendingFile = path.join(path.dirname(directory), id, 'journal.json')
@@ -193,12 +189,19 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         const pending = JournalSchema.parse(JSON.parse(await readFile(pendingFile, 'utf8')))
         if (
           pending.operations.some((operation) =>
-            [operation.source, operation.target].some((file) => [sourceRelative, targetRelative].includes(file))
+            [operation.source, operation.target].some((file) => files.includes(file))
           )
         ) {
           throw new Error('Runtime history belongs to an unfinished relocation')
         }
       }
+    }
+    async function stage(source: string, target: string, prepared?: string) {
+      const sourceRelative = path.relative(root, source)
+      const targetRelative = path.relative(root, target)
+      artifactPath(root, sourceRelative)
+      artifactPath(root, targetRelative)
+      await assertNoPendingRelocation(sourceRelative, targetRelative)
       await assertAgentStoragePath(root, target)
       if (source !== target && (await exists(target))) throw new Error(`Relocation target already exists: ${target}`)
       const before = await digest(root, source)
@@ -238,7 +241,8 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
     for (const row of history) {
       const checkpoint = row.checkpoint ? (JSON.parse(row.checkpoint) as Record<string, unknown>) : undefined
       const runtime = checkpoint?.runtime ?? row.runtime
-      const id = checkpoint?.runtimeSessionId ?? row.resumeToken ?? row.nativeSessionId
+      // nativeSessionId only initializes a new history; it need not have materialized on disk.
+      const id = checkpoint?.runtimeSessionId ?? row.resumeToken
       if (typeof id !== 'string') continue
       if (runtime !== 'pi' && !z.uuid().safeParse(id).success) throw new Error('Invalid native session identity')
       if (runtime === 'pi') {
@@ -264,6 +268,7 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       }
     }
     const configFile = path.join(newConfig, '.claude.json')
+    await assertNoPendingRelocation(path.relative(root, configFile))
     if (await exists(configFile)) {
       await digest(root, configFile)
       const config = JSON.parse(await readFile(configFile, 'utf8'))
