@@ -70,7 +70,6 @@ export function useProviderDeepLinkImport(
     if (importPayloadRef.current === searchAddProviderData) {
       return
     }
-    importPayloadRef.current = searchAddProviderData
 
     const importProvider = async (providerData: ImportedProviderSearchData) => {
       try {
@@ -79,6 +78,7 @@ export function useProviderDeepLinkImport(
 
         if (!updatedProvider) {
           void navigate({ to: '/settings/provider' })
+          importPayloadRef.current = searchAddProviderData
           return
         }
 
@@ -88,9 +88,13 @@ export function useProviderDeepLinkImport(
           logger.warn('Rejected deep-link apiHost with invalid scheme', { providerId })
           toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
           void navigate({ to: '/settings/provider' })
+          importPayloadRef.current = searchAddProviderData
           return
         }
         const existingProvider = providers.find((entry) => entry.id === providerId)
+        if (!isNew && !existingProvider) {
+          return
+        }
         const endpointConfigs = updatedProvider.apiHost
           ? {
               ...(isNew ? undefined : existingProvider?.endpointConfigs),
@@ -131,10 +135,12 @@ export function useProviderDeepLinkImport(
         onSelectProvider(providerId)
         void navigate({ to: '/settings/provider', search: { id: providerId } })
         toast.success(t('settings.models.provider_key_added', { provider: displayName }))
+        importPayloadRef.current = searchAddProviderData
       } catch (error) {
         logger.error('Failed to import provider deep link data', error as Error)
         toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         void navigate({ to: '/settings/provider' })
+        importPayloadRef.current = searchAddProviderData
       }
     }
 
@@ -144,6 +150,7 @@ export function useProviderDeepLinkImport(
       if (!parsed.success) {
         toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         void navigate({ to: '/settings/provider' })
+        importPayloadRef.current = searchAddProviderData
         return
       }
 
