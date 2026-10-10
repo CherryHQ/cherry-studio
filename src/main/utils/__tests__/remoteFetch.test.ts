@@ -21,7 +21,7 @@ vi.mock('node:dns/promises', () => ({
   lookup: lookupMock
 }))
 
-import { fetchRemoteBytes, fetchRemoteText } from '../remoteFetch'
+import { fetchRemoteBytes, fetchRemoteBytesWithUrl, fetchRemoteText } from '../remoteFetch'
 
 type MockResponseOptions = {
   readonly body?: Buffer | string
@@ -292,7 +292,7 @@ describe('fetchRemoteText', () => {
       .mockResolvedValueOnce([{ address: '1.1.1.1', family: 4 }])
 
     await expect(
-      fetchRemoteText('https://example.com/start', {
+      fetchRemoteBytesWithUrl('https://example.com/start', {
         headers: {
           Authorization: 'Bearer secret',
           Cookie: 'session=secret',
@@ -300,7 +300,7 @@ describe('fetchRemoteText', () => {
         },
         maxRedirects: 1
       })
-    ).resolves.toBe('redirected content')
+    ).resolves.toEqual({ body: Buffer.from('redirected content'), headers: {}, url: 'https://cdn.example.com/article' })
 
     expect(lookupMock).toHaveBeenNthCalledWith(1, 'example.com', { all: true })
     expect(lookupMock).toHaveBeenNthCalledWith(2, 'cdn.example.com', { all: true })

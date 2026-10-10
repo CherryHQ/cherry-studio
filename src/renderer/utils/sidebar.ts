@@ -75,6 +75,10 @@ const SIDEBAR_APP_DEFINITIONS = [
     resolveUrl: ({ defaultPaintingProvider }) => `/app/paintings/${defaultPaintingProvider}`
   },
   {
+    id: 'marketplace',
+    routePrefix: '/app/marketplace'
+  },
+  {
     id: 'translate',
     routePrefix: '/app/translate'
   },
@@ -386,7 +390,11 @@ export function getOrderedLaunchpadApps(stored: readonly string[] | undefined): 
   for (const id of SIDEBAR_FAVORITE_ORDER) {
     if (!seen.has(id)) {
       seen.add(id)
-      ordered.push(id)
+      if (id === 'marketplace' && ordered.includes('paintings')) {
+        ordered.splice(ordered.indexOf('paintings') + 1, 0, id)
+      } else {
+        ordered.push(id)
+      }
     }
   }
 

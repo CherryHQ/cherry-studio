@@ -19,6 +19,7 @@ import { Route as AppFilePreviewRouteImport } from './routes/app/file-preview'
 import { Route as AppFilesRouteImport } from './routes/app/files'
 import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
 import { Route as AppLaunchpadRouteImport } from './routes/app/launchpad'
+import { Route as AppMarketplaceRouteImport } from './routes/app/marketplace'
 import { Route as AppNotesRouteImport } from './routes/app/notes'
 import { Route as AppReleaseNotesRouteImport } from './routes/app/release-notes'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
@@ -117,6 +118,11 @@ const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
 const AppLaunchpadRoute = AppLaunchpadRouteImport.update({
   id: '/launchpad',
   path: '/launchpad',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMarketplaceRoute = AppMarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
   getParentRoute: () => AppRoute,
 } as any)
 const AppNotesRoute = AppNotesRouteImport.update({
@@ -381,6 +387,7 @@ export interface FileRoutesByFullPath {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
+  '/app/marketplace': typeof AppMarketplaceRoute
   '/app/notes': typeof AppNotesRoute
   '/app/release-notes': typeof AppReleaseNotesRoute
   '/app/translate': typeof AppTranslateRoute
@@ -441,6 +448,7 @@ export interface FileRoutesByTo {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
+  '/app/marketplace': typeof AppMarketplaceRoute
   '/app/notes': typeof AppNotesRoute
   '/app/release-notes': typeof AppReleaseNotesRoute
   '/app/translate': typeof AppTranslateRoute
@@ -500,6 +508,7 @@ export interface FileRoutesById {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
+  '/app/marketplace': typeof AppMarketplaceRoute
   '/app/notes': typeof AppNotesRoute
   '/app/release-notes': typeof AppReleaseNotesRoute
   '/app/translate': typeof AppTranslateRoute
@@ -563,6 +572,7 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/launchpad'
+    | '/app/marketplace'
     | '/app/notes'
     | '/app/release-notes'
     | '/app/translate'
@@ -623,6 +633,7 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/launchpad'
+    | '/app/marketplace'
     | '/app/notes'
     | '/app/release-notes'
     | '/app/translate'
@@ -681,6 +692,7 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/launchpad'
+    | '/app/marketplace'
     | '/app/notes'
     | '/app/release-notes'
     | '/app/translate'
@@ -807,6 +819,13 @@ declare module '@tanstack/react-router' {
       path: '/launchpad'
       fullPath: '/app/launchpad'
       preLoaderRoute: typeof AppLaunchpadRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/marketplace': {
+      id: '/app/marketplace'
+      path: '/marketplace'
+      fullPath: '/app/marketplace'
+      preLoaderRoute: typeof AppMarketplaceRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/notes': {
@@ -1164,6 +1183,7 @@ interface AppRouteChildren {
   AppFilesRoute: typeof AppFilesRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppLaunchpadRoute: typeof AppLaunchpadRoute
+  AppMarketplaceRoute: typeof AppMarketplaceRoute
   AppNotesRoute: typeof AppNotesRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppTranslateRoute: typeof AppTranslateRoute
@@ -1182,6 +1202,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppFilesRoute: AppFilesRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppLaunchpadRoute: AppLaunchpadRoute,
+  AppMarketplaceRoute: AppMarketplaceRoute,
   AppNotesRoute: AppNotesRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppTranslateRoute: AppTranslateRoute,

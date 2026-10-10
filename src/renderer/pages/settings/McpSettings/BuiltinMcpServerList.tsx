@@ -6,29 +6,25 @@ import { useTranslation } from 'react-i18next'
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
-import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import { useBuiltinMcpCatalog } from '@renderer/hooks/useBuiltinMcpCatalog'
 import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
-import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { QVERIS_API_KEY_REGISTRATION_URL } from './QVerisApiKeyGuide'
-import { toCreateMcpServerDto } from './utils'
 
 const BuiltinMcpServerList: FC = () => {
   const { t } = useTranslation()
-  const { addMcpServer, mcpServers } = useMcpServers()
+  const { presets, findInstalled, add, adding, isLoading, error } = useBuiltinMcpCatalog()
   const [searchText, setSearchText] = useState('')
   const [filter, setFilter] = useState<'installed' | 'uninstalled'>('uninstalled')
 
   const filteredServers = useMemo(() => {
     const keyword = searchText.trim().toLowerCase()
 
-    return PRESET_MCP_SERVERS.filter((server) => {
-      if (isBrowserMcpServer(server)) return false
-      const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
+    return presets.filter((server) => {
+      const isInstalled = Boolean(findInstalled(server))
 
       if (filter === 'installed' && !isInstalled) return false
       if (filter === 'uninstalled' && isInstalled) return false
@@ -37,8 +33,8 @@ const BuiltinMcpServerList: FC = () => {
 
       const description = t(getBuiltInMcpServerDescriptionLabelKey(server.name)).toLowerCase()
       return server.name.toLowerCase().includes(keyword) || description.includes(keyword)
-    }).sort((a, b) => Number(Boolean(a.shouldConfig)) - Number(Boolean(b.shouldConfig)))
-  }, [filter, mcpServers, searchText, t])
+    })
+  }, [filter, findInstalled, presets, searchText, t])
 
   return (
     <div className="mb-5">
@@ -67,7 +63,7 @@ const BuiltinMcpServerList: FC = () => {
 
       <div className="flex flex-col gap-2">
         {filteredServers.map((server) => {
-          const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
+          const isInstalled = Boolean(findInstalled(server))
 
           return (
             <div
@@ -134,9 +130,11 @@ const BuiltinMcpServerList: FC = () => {
                     variant="ghost"
                     size="sm"
                     className="h-7 rounded-lg px-2 text-muted-foreground text-xs shadow-none hover:bg-muted hover:text-foreground hover:shadow-none"
+                    disabled={isLoading || Boolean(error) || adding.has(server.name)}
+                    loading={adding.has(server.name)}
                     onClick={async () => {
                       try {
-                        await addMcpServer(toCreateMcpServerDto(server))
+                        await add(server)
                         toast.success(t('settings.mcp.addSuccess'))
                       } catch {
                         toast.error(t('settings.mcp.addError'))

@@ -20,6 +20,7 @@ import {
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
+import { SkillSubscriptionService } from '@main/ai/skills/SkillSubscriptionService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
@@ -116,6 +117,7 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   AppService,
+  SkillSubscriptionService,
   CodeCliService,
   CommandService,
   ConversationNavigationService,

@@ -1,5 +1,4 @@
-import type { CompoundIcon } from '@cherrystudio/ui'
-import { Bailian, Modelscope } from '@cherrystudio/ui/icons/providers'
+import { MCP_PROVIDER_ENTRIES } from '@renderer/utils/mcpDiscovery'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { getBailianToken, saveBailianToken, syncBailianServers } from './bailian'
@@ -25,8 +24,7 @@ export interface ProviderConfig {
 
 export const providers: ProviderConfig[] = [
   {
-    key: 'bailian',
-    nameKey: 'provider.dashscope',
+    ...MCP_PROVIDER_ENTRIES[0],
     discoverUrl: `https://bailian.console.aliyun.com/?tab=mcp#/mcp-market`,
     apiKeyUrl: `https://bailian.console.aliyun.com/?tab=app#/api-key`,
     tokenFieldName: 'bailianToken',
@@ -35,8 +33,7 @@ export const providers: ProviderConfig[] = [
     syncServers: syncBailianServers
   },
   {
-    key: 'modelscope',
-    nameKey: 'ModelScope',
+    ...MCP_PROVIDER_ENTRIES[1],
     discoverUrl: `${MODELSCOPE_HOST}/mcp?hosted=1&page=1`,
     apiKeyUrl: `${MODELSCOPE_HOST}/my/myaccesstoken`,
     tokenFieldName: 'modelScopeToken',
@@ -46,19 +43,4 @@ export const providers: ProviderConfig[] = [
   }
 ]
 
-/**
- * Helper function to get the display name for a provider.
- * Translates if nameKey starts with 'provider.', otherwise returns as-is.
- */
-export const getProviderDisplayName = (provider: ProviderConfig, t: (key: string) => string): string => {
-  return provider.nameKey.startsWith('provider.') ? t(provider.nameKey) : provider.nameKey
-}
-
-const MCP_PROVIDER_ICONS: Record<string, CompoundIcon> = {
-  modelscope: Modelscope,
-  bailian: Bailian
-}
-
-export function getMcpProviderLogo(providerKey: string): CompoundIcon | undefined {
-  return MCP_PROVIDER_ICONS[providerKey]
-}
+export { getProviderDisplayName, getMcpProviderLogo } from '@renderer/utils/mcpDiscovery'

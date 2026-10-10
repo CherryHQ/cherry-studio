@@ -134,6 +134,7 @@ vi.mock('@renderer/i18n/label', () => ({
       agents: 'Agent',
       store: 'Library',
       paintings: 'Paintings',
+      marketplace: 'Marketplace',
       translate: 'Translate',
       mini_app: 'Mini Apps',
       knowledge: 'Knowledge',
@@ -216,6 +217,12 @@ describe('LaunchpadPage', () => {
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
+  })
+
+  it('opens the marketplace from its launchpad tile', async () => {
+    render(<LaunchpadPage />)
+    await userEvent.click(screen.getByRole('button', { name: 'Marketplace' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/marketplace' })
   })
 
   it('renders the launchpad page chrome and app grid', () => {

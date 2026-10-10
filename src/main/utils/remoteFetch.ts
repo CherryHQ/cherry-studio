@@ -103,7 +103,7 @@ async function fetchRemoteResponse(
   options: ResolvedFetchRemoteTextOptions,
   signal: AbortSignal,
   redirectsRemaining: number
-): Promise<{ body: Buffer; headers: IncomingHttpHeaders }> {
+): Promise<{ body: Buffer; headers: IncomingHttpHeaders; url: string }> {
   const target = await resolveRemoteFetchUrl(url, {
     signal,
     allowPrivateNetwork: application.get('PreferenceService').get('app.fetch.allow_private_network')
@@ -208,7 +208,7 @@ async function fetchRemoteResponse(
         }
 
         settled = true
-        resolve({ body: Buffer.concat(chunks), headers: response.headers })
+        resolve({ body: Buffer.concat(chunks), headers: response.headers, url: target.url })
       })
 
       response.on('aborted', () => fail(new Error('Remote response aborted before completion')))
@@ -234,6 +234,15 @@ export async function fetchRemoteBytes(
   url: string,
   options: FetchRemoteTextOptions = {}
 ): Promise<{ body: Buffer; headers: IncomingHttpHeaders }> {
+  const { body, headers } = await fetchRemoteBytesWithUrl(url, options)
+  return { body, headers }
+}
+
+/** Also expose the final validated URL for resolving relative links after redirects. */
+export async function fetchRemoteBytesWithUrl(
+  url: string,
+  options: FetchRemoteTextOptions = {}
+): Promise<{ body: Buffer; headers: IncomingHttpHeaders; url: string }> {
   const maxRedirects = options.maxRedirects ?? 0
   if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0) {
     throw new Error('maxRedirects must be a non-negative safe integer')

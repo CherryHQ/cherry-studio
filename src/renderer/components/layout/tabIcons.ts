@@ -12,7 +12,8 @@ import {
   Rocket,
   ScanSearch,
   Settings,
-  Sparkles
+  Sparkles,
+  Store
 } from 'lucide-react'
 
 import type { Tab } from '@renderer/hooks/tab'
@@ -26,6 +27,7 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/browser': Globe,
   '/app/agents': MousePointerClick,
   '/app/paintings': Palette,
+  '/app/marketplace': Store,
   '/app/translate': Languages,
   '/app/mini-app': LayoutGrid,
   '/app/launchpad': Rocket,

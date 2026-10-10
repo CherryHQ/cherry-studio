@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
+import { removeLibraryTagAssignments } from '@data/services/utils/libraryTags'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { DeleteAssistantResult } from '@shared/data/api/schemas/assistants'
@@ -124,9 +125,17 @@ export class TrashService extends BaseService {
   }
 
   async deleteActiveAssistantPermanently(assistantId: string, deleteTopics: boolean): Promise<DeleteAssistantResult> {
-    return this.withStableAssistantTopics(assistantId, () =>
+    const result = await this.withStableAssistantTopics(assistantId, () =>
       assistantDataService.delete(assistantId, { permanent: true, targetState: 'active', deleteTopics })
     )
+    if (result.deleted) await removeLibraryTagAssignments([`assistant:${assistantId}`])
+    return result
+  }
+
+  async deleteTrashedAssistantPermanently(assistantId: string): Promise<DeleteAssistantResult> {
+    const result = assistantDataService.delete(assistantId, { permanent: true })
+    if (result.deleted) await removeLibraryTagAssignments([`assistant:${assistantId}`])
+    return result
   }
 
   private async withStableAssistantTopics<T>(assistantId: string, archive: () => T): Promise<T> {
