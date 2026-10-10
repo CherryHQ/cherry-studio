@@ -74,6 +74,7 @@ import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
+import MessageCompactionStatus from './MessageCompactionStatus'
 import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
 import {
   findOpenTextTailIndex,
@@ -1651,14 +1652,20 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       // back to it otherwise.
       return (
         <AnimatePresence mode="sync">
-          <ActiveTurnStatusView fallback={placeholder} />
+          <MessageCompactionStatus messageId={message.id} fallback={<ActiveTurnStatusView fallback={placeholder} />} />
         </AnimatePresence>
       )
     }
-    if (message.role === 'assistant' && message.status === 'paused') {
-      return <ChatMarkdown block={{ id: `${message.id}-paused`, content: '', status: 'paused' }} />
-    }
-    return null
+    return (
+      <MessageCompactionStatus
+        messageId={message.id}
+        fallback={
+          message.role === 'assistant' && message.status === 'paused' ? (
+            <ChatMarkdown block={{ id: `${message.id}-paused`, content: '', status: 'paused' }} />
+          ) : null
+        }
+      />
+    )
   }
 
   return (
@@ -1672,7 +1679,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         message={message}
         renderOptions={renderOptions}
       />
-      {isActiveTurnProcessing && <ActiveTurnStatusView fallback={null} />}
+      <MessageCompactionStatus
+        messageId={message.id}
+        fallback={isActiveTurnProcessing ? <ActiveTurnStatusView fallback={null} /> : null}
+      />
       {unsettledTextPlayoutPartIds.size === 0 && sessionToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`session-results-${message.id}`} enableAnimation={false} animation="fade">
           <SessionResultCards toolResponses={sessionToolResponses} />

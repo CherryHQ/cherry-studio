@@ -217,12 +217,15 @@ describe('AppShellTabBar', () => {
     return closeTab
   }
 
-  it('names an icon-only pinned tab after its title, not its emoji', () => {
+  it('names a labeled pinned tab after its title, not its emoji', () => {
     const emojiTab = createTab('emoji', { icon: 'emoji:🎉', isPinned: true, title: 'Emoji' })
 
     renderTabBar({ tabs: [emojiTab], activeTabId: emojiTab.id })
 
-    expect(screen.getByRole('button', { name: 'Emoji' })).toHaveAttribute('title', 'Emoji')
+    const pinnedTab = screen.getByRole('button', { name: 'Emoji' })
+    expect(within(pinnedTab).getByText('Emoji')).toBeInTheDocument()
+    expect(pinnedTab).toHaveAttribute('aria-label', 'Emoji')
+    expect(pinnedTab).not.toHaveAttribute('title')
   })
 
   it('opens launchpad from the plus button', async () => {
