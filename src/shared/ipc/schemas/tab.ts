@@ -1,8 +1,16 @@
 import * as z from 'zod'
 
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { ConversationType } from '@shared/types/navigation'
 
 import { defineRoute } from '../define'
+
+/** A conversation's new title, identified by the shared conversation vocabulary. */
+export interface ConversationTitlePayload {
+  conversationType: ConversationType
+  conversationId: string
+  title: string
+}
 
 /**
  * Tab (detached sub-window) IPC schemas. The legacy `tab:attach` string served both an
@@ -28,9 +36,20 @@ export const tabRequestSchemas = {
     }),
     output: z.void()
   }),
-  'tab.drag_end': defineRoute({ input: z.void(), output: z.void() })
+  'tab.drag_end': defineRoute({ input: z.void(), output: z.void() }),
+  // A window renamed a conversation and asks main to relay the new title: another window's
+  // tab for it may be dormant or hidden, with no page left that could derive the name.
+  'tab.sync_conversation_title': defineRoute({
+    input: z.object({
+      conversationType: z.enum(['assistant', 'agent']),
+      conversationId: z.string(),
+      title: z.string()
+    }),
+    output: z.void()
+  })
 }
 
 export type TabEventSchemas = {
   'tab.attached': Tab
+  'tab.conversation_title_synced': ConversationTitlePayload
 }
