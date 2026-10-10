@@ -51,6 +51,7 @@ import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
 import type { AiChatRequest, CallOverrides } from '../../../types'
+import { applyChatPromptCacheIdentity } from '../../../utils/chatPromptCacheKey'
 import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
@@ -654,12 +655,18 @@ function buildAgentOptions(
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
-  const effectiveProviderOptions = applyFastModeToProviderOptions(
+  const fastModeProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
     overridden.providerOptions,
     request.fastMode === true
   )
+  // Caller-owned turns (the API gateway) use a fresh stream id as conversation.id.
+  // A chat-derived key would change on every request and bust the caller's cache.
+  const effectiveProviderOptions =
+    request.contextOwner === 'caller'
+      ? fastModeProviderOptions
+      : applyChatPromptCacheIdentity(provider, model, fastModeProviderOptions, request.conversation.id)
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
