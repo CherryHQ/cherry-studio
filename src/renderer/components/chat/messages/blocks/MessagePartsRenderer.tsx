@@ -41,6 +41,7 @@ import {
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
+import { getConvertedDocumentArtifacts } from '@shared/ai/documentConversionTool'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
@@ -880,7 +881,13 @@ function buildToolRenderItems(
 function getReportArtifactToolResponses(entries: readonly PartEntry[], messageId: string) {
   return entries.flatMap((entry) => {
     const toolResponse = getCachedToolProjection(entry.part, `${messageId}-part-${entry.index}`).toolResponse
-    return toolResponse && isReportArtifactsToolResponse(toolResponse) ? [toolResponse] : []
+    if (!toolResponse || !isReportArtifactsToolResponse(toolResponse)) return []
+    if (
+      hasPartParentToolCallId(entry.part) &&
+      getConvertedDocumentArtifacts(toolResponse.tool.name, toolResponse.arguments, toolResponse.response).length === 0
+    )
+      return []
+    return [toolResponse]
   })
 }
 
@@ -1517,8 +1524,12 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
   const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
   const nextReportArtifactToolResponses = useMemo(
-    () => getReportArtifactToolResponses(partEntries, message.id),
-    [partEntries, message.id]
+    () =>
+      getReportArtifactToolResponses(
+        messageParts.map((part, index) => ({ part, index })),
+        message.id
+      ),
+    [messageParts, message.id]
   )
   const reportArtifactToolResponses = useStableItemArray(nextReportArtifactToolResponses)
   const sessionToolResponses = useMemo(

@@ -1,5 +1,6 @@
-import ExcelJS from 'exceljs'
 import { describe, expect, it, vi } from 'vitest'
+
+import { createWorkbook, writeWorkbook } from '@cherrystudio/spreadsheet'
 
 import { DEFAULT_COL_WIDTH_PX, DEFAULT_ROW_HEIGHT_PX, MAX_FLOATING_OBJECTS } from '../gridLayout'
 import type { SheetDataAccessor, SheetLayoutAccessor } from '../worker/chartXmlParser'
@@ -105,7 +106,7 @@ describe('parseWorkbook — floating image cap', () => {
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
 
   it('truncates image anchors beyond the per-sheet budget with a warning', async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
     const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
     for (let i = 0; i < MAX_FLOATING_OBJECTS + 8; i++) {
@@ -113,10 +114,7 @@ describe('parseWorkbook — floating image cap', () => {
       ws.addImage(imgId, { tl: { col: 0, row: i }, ext: { width: 10, height: 10 } })
     }
 
-    const buf = await wb.xlsx.writeBuffer()
-    const view = buf as unknown as Uint8Array
-    const arrayBuffer = new ArrayBuffer(view.byteLength)
-    new Uint8Array(arrayBuffer).set(view)
+    const arrayBuffer = (await writeWorkbook(wb)).buffer
     const model = await parseWorkbook(arrayBuffer, 'image-flood.xlsx')
 
     expect(model.sheets[0].floatingImages).toHaveLength(MAX_FLOATING_OBJECTS)

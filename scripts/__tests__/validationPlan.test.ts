@@ -39,6 +39,7 @@ describe('validation selection', () => {
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
     ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
     ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
+    ['packages/spreadsheet/src/workbook.ts', ['main', 'preload', 'renderer', 'file-preview']],
     ['packages/provider-registry/src/index.ts', ['provider-registry', 'shared', 'main', 'renderer']],
     ['src/preload/types.d.ts', ['preload', 'main', 'renderer']],
     ['src/shared/types/agent.ts', ['main', 'renderer', 'scripts']]

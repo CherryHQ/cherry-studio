@@ -43,6 +43,7 @@ const consumers = {
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
   ui: ['ui', 'file-preview', 'renderer'],
   'file-preview': ['file-preview', 'renderer'],
+  spreadsheet: ['main', 'preload', 'file-preview', 'renderer'],
   'provider-registry': ['provider-registry', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'extension-table-plus': ['renderer'],
   'dsh-bridge': ['dsh-bridge', 'main', 'preload'],

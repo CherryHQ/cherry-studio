@@ -269,8 +269,6 @@ describe('collectExportableImages', () => {
   })
 
   it('collects MCP inline payloads that keep the {content} envelope (mcp metadata)', async () => {
-    // With mcp metadata present, extractOutputMetadata keeps the {content: [...]}
-    // envelope instead of unwrapping to the array — the envelope branch must hit too.
     const part = {
       ...generateImageInlinePart([{ data: PNG_1PX_RAW, mimeType: 'image/png' }]),
       output: {
@@ -303,9 +301,7 @@ describe('collectExportableImages', () => {
     expect(unresolvedCount).toBe(0)
   })
 
-  it('does not export an errored envelope whose flag the unwrap would drop (no metadata)', async () => {
-    // Without mcp metadata extractOutputMetadata unwraps to the bare content array,
-    // so the isError flag only survives a check made before the unwrap.
+  it('does not export an errored MCP result without tool metadata', async () => {
     const part = {
       ...generateImageInlinePart([{ data: PNG_1PX_RAW }]),
       output: {
