@@ -667,9 +667,6 @@ function buildAgentOptions(
     request.contextOwner === 'caller'
       ? fastModeProviderOptions
       : applyChatPromptCacheIdentity(provider, model, fastModeProviderOptions, request.conversation.id)
-  // A namespace that ended up empty carries nothing; emitting it would ship a bare
-  // `providerOptions` for callers that opted into nothing.
-  const hasProviderOptions = Object.values(effectiveProviderOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
