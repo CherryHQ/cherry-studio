@@ -43,3 +43,5 @@ function buildCurlCommand(event) {
 
   return parts.join(' \\\n  ')
 }
+
+globalThis.buildCurlCommand = buildCurlCommand

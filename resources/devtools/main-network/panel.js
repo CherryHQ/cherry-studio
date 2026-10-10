@@ -1,3 +1,5 @@
+/* global buildCurlCommand */
+
 const rowsEl = document.getElementById('rows')
 const detailsEl = document.getElementById('details')
 const filterEl = document.getElementById('filter')
