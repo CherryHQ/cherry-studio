@@ -200,6 +200,37 @@ describe('session transcript', () => {
     expect(second.calls[0].tools?.map((t) => t.name).sort()).toEqual(['get_weather', 'host_new', 'tool_search'])
   })
 
+  it('rebuilds a session after the model sent a tool call with unparsable input', async () => {
+    const live = scriptedModel([
+      [
+        { type: 'tool-call', toolCallId: 'call_bad', toolName: 'todo_write', input: '{"items":["a"' },
+        finish('tool-calls')
+      ],
+      [...textParts('a', 'Let me retry.'), finish('stop')],
+      [...textParts('b', 'ok'), finish('stop')]
+    ])
+    const host = hostStore()
+    const cwd = tempDir('cwd')
+    const liveRuntime = await createTestSession({
+      cwd,
+      port: streamTextPort(live.model).port,
+      tools: [todoTool],
+      onEvent: host.onEvent
+    })
+    await liveRuntime.session.prompt('Plan')
+
+    const rebuiltModel = scriptedModel([[...textParts('b', 'ok'), finish('stop')]])
+    const rebuilt = await createTestSession({
+      cwd,
+      port: streamTextPort(rebuiltModel.model).port,
+      tools: [todoTool],
+      transcript: plain(host.entries)
+    })
+    await liveRuntime.session.prompt('Again')
+    await rebuilt.session.prompt('Again')
+    expect(plain(rebuiltModel.calls[0].prompt)).toEqual(plain(live.calls[2].prompt))
+  })
+
   const user = (id: string): TranscriptEntry => ({
     kind: 'message',
     id,
@@ -266,7 +297,11 @@ describe('session transcript', () => {
     timestamp: 1,
     message: { role, content }
   })
+  const reply = message([{ type: 'text', text: 'x' }], 'assistant')
   it.each<{ label: string; entry: unknown }>([
+    { label: 'an out-of-range timestamp', entry: { ...message('hi'), timestamp: 1e20 } },
+    { label: 'a non-string error message', entry: { ...reply, errorMessage: { text: 'x' } } },
+    { label: 'a non-string response id', entry: { ...reply, responseId: 42 } },
     { label: 'null user content', entry: message(null) },
     { label: 'non-string text', entry: message([{ type: 'text', text: 42 }]) },
     { label: 'null assistant content', entry: message(null, 'assistant') },
