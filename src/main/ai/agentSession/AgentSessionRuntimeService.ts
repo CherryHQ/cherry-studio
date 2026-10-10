@@ -313,7 +313,8 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   constructor(
     private readonly service: AgentSessionRuntimeService,
     private readonly sessionId: string,
-    private readonly turnId: string
+    private readonly turnId: string,
+    private readonly assistantMessageId: string
   ) {
     this.id = `agent-runtime:${sessionId}`
   }
@@ -324,17 +325,17 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
     // Always advance the runtime turn. For a single-model agent turn, `isTopicDone=false` only means
     // the stream manager is CHAINING the next turn (keeping the stream alive so the queued follow-up
     // can carry the renderer listeners) — which still needs markTurnTerminal to open that next turn.
-    this.service.markTurnTerminal(this.sessionId, 'success', this.turnId)
+    this.service.markTurnTerminal(this.sessionId, 'success', this.turnId, this.assistantMessageId)
   }
 
   onPaused(result: StreamPausedResult): void {
     if (result.isTopicDone === false) return
-    this.service.markTurnTerminal(this.sessionId, 'paused', this.turnId)
+    this.service.markTurnTerminal(this.sessionId, 'paused', this.turnId, this.assistantMessageId)
   }
 
   onError(result: StreamErrorResult): void {
     if (result.isTopicDone === false) return
-    this.service.markTurnTerminal(this.sessionId, 'error', this.turnId)
+    this.service.markTurnTerminal(this.sessionId, 'error', this.turnId, this.assistantMessageId)
   }
 
   isAlive(): boolean {
@@ -655,7 +656,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return {
         listeners: [
           this.createPersistenceListener(existing, userMessage),
-          new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId),
+          new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId, turn.assistantMessageId),
           new TraceFlushListener(input.topicId)
         ],
         turnId,
@@ -680,7 +681,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return {
       listeners: [
         this.createPersistenceListener(entry, userMessage),
-        new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId),
+        new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId, turn.assistantMessageId),
         new TraceFlushListener(input.topicId)
       ],
       turnId,
@@ -1037,7 +1038,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus, expectedTurnId?: string): void {
+  markTurnTerminal(
+    sessionId: string,
+    status: AgentSessionRuntimeTerminalStatus,
+    expectedTurnId?: string,
+    expectedAssistantMessageId?: string
+  ): void {
     const entry = this.entries.get(sessionId)
     if (!entry) {
       // closeSession may remove the runtime before AiStreamManager publishes the terminal callback.
@@ -1057,7 +1063,14 @@ export class AgentSessionRuntimeService extends BaseService {
         (execution.kind === 'steer-transition' &&
           (execution.sourceTurn === completedTurn || execution.continuationTurn === completedTurn)) ||
         (execution.kind === 'autonomous-turn' && execution.turn === completedTurn)
-      if (!executionOwnsTurn || completedTurn?.turnId !== expectedTurnId) return
+      if (!executionOwnsTurn || completedTurn?.turnId !== expectedTurnId) {
+        // A background wake can replace this turn's execution while it still awaited terminal
+        // delivery. The persistence this callback acknowledges did complete (persistence listeners
+        // run first in the terminal dispatch), so release the chunks anchored to the completed
+        // message even though the execution transition itself stays guarded.
+        if (expectedAssistantMessageId) this.markFlowMessagePersisted(entry, expectedAssistantMessageId)
+        return
+      }
     }
     if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
     if (completedTurn) {
@@ -3009,7 +3022,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: nextTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, nextMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, assistantMessageId),
         new TraceFlushListener(entry.topicId)
       ]
     })
@@ -3081,7 +3094,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: turn.abortController,
       listeners: [
         this.createPersistenceListener(entry, turn.userMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId, turn.assistantMessageId),
         new TraceFlushListener(entry.topicId)
       ]
     })
@@ -3190,7 +3203,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: receiveOnlyTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, syntheticMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, assistantMessageId),
         new TraceFlushListener(entry.topicId)
       ]
     })
@@ -3307,7 +3320,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: continuationTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, steerMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, assistantMessageId),
         new TraceFlushListener(entry.topicId)
       ]
     })

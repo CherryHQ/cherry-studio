@@ -290,6 +290,80 @@ describe('subagent settlement wake (incident replay)', () => {
     void service.closeSession('session-1')
   })
 
+  it('still acknowledges persistence for a turn whose execution a wake replaced mid-settle', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+    const terminalListener = (handle.listeners as any[]).find((listener) => listener.id === 'agent-runtime:session-1')!
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      },
+      occupancy: {}
+    }
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(entry, event)
+    const turn1 = currentTurn(entry)
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: turn1.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+
+    handleRuntimeEvent({
+      type: 'chunk',
+      chunk: { type: 'tool-input-start', toolCallId: 'call-spawn', toolName: 'subagent' }
+    })
+    handleRuntimeEvent({
+      type: 'chunk',
+      chunk: { type: 'tool-input-available', toolCallId: 'call-spawn', toolName: 'subagent', input: {} }
+    })
+    handleRuntimeEvent({ type: 'background-work-state', active: true })
+    handleRuntimeEvent({ type: 'turn-complete' })
+    expect(entry.runtimeState.execution.kind).toBe('turn')
+    expect(entry.runtimeState.execution.stream).toBe('awaiting-persistence')
+
+    // The child streams while the turn's row has not been acknowledged as persisted yet, so its
+    // chunks park in pendingBackgroundFlowChunks.
+    handleRuntimeEvent({
+      type: 'background-flow-chunk',
+      rootToolCallId: 'call-spawn',
+      chunk: { type: 'text-start', id: 'c1' }
+    })
+    handleRuntimeEvent({
+      type: 'background-flow-chunk',
+      rootToolCallId: 'call-spawn',
+      chunk: { type: 'text-delta', id: 'c1', delta: 'child says hi' }
+    })
+    handleRuntimeEvent({
+      type: 'background-flow-chunk',
+      rootToolCallId: 'call-spawn',
+      chunk: { type: 'text-end', id: 'c1' }
+    })
+
+    // The settlement wake lands while the spawning turn still awaits channel terminal delivery, so
+    // the awaiting-persistence execution is not live and the wake replaces it outright.
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    expect(entry.runtimeState.execution.kind).toBe('autonomous-turn')
+
+    // The turn's own terminal callback runs after persistence completed (persistence listeners are
+    // awaited first in the terminal dispatch): the parked child chunks must be released into the
+    // flow accumulator and persist, even though the execution transition stays guarded.
+    terminalListener.onDone()
+    handleRuntimeEvent({ type: 'background-work-state', active: false })
+    await (service as any).finishBackgroundFlows(entry)
+
+    expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', [
+      expect.objectContaining({ type: 'text', text: 'child says hi' })
+    ])
+    expect(entry.pendingBackgroundFlowChunks?.get('assistant-1')).toBeUndefined()
+
+    void service.closeSession('session-1')
+  })
+
   /**
    * A receive-only turn streams on a connection that already exists, so every facet it records has
    * to be the one that connection is targeted at. `reasoningEffort` used to be pinned to the literal
