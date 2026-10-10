@@ -61,9 +61,9 @@ describe('file processing provider utils', () => {
       apiKeys: ['KEY-A', 'KEY-A', 'KEY-B']
     } as never
 
-    expect(getApiKey(config, 'rotate-distinct-duplicate')).toBe('KEY-A')
-    expect(getApiKey(config, 'rotate-distinct-duplicate')).toBe('KEY-B')
-    expect(getApiKey(config, 'rotate-distinct-duplicate')).toBe('KEY-A')
+    expect(getApiKey(config, 'mistral')).toBe('KEY-A')
+    expect(getApiKey(config, 'mistral')).toBe('KEY-B')
+    expect(getApiKey(config, 'mistral')).toBe('KEY-A')
   })
 
   it('treats whitespace variants of the same key as one entry', () => {
@@ -71,9 +71,9 @@ describe('file processing provider utils', () => {
       apiKeys: ['KEY-A', ' KEY-A ', 'KEY-B']
     } as never
 
-    expect(getApiKey(config, 'rotate-distinct-whitespace')).toBe('KEY-A')
-    expect(getApiKey(config, 'rotate-distinct-whitespace')).toBe('KEY-B')
-    expect(getApiKey(config, 'rotate-distinct-whitespace')).toBe('KEY-A')
+    expect(getApiKey(config, 'open-mineru')).toBe('KEY-A')
+    expect(getApiKey(config, 'open-mineru')).toBe('KEY-B')
+    expect(getApiKey(config, 'open-mineru')).toBe('KEY-A')
   })
 
   it('collapses all-identical keys to a single key', () => {
@@ -81,8 +81,8 @@ describe('file processing provider utils', () => {
       apiKeys: ['KEY-A', 'KEY-A', 'KEY-A']
     } as never
 
-    expect(getApiKey(config, 'rotate-distinct-identical')).toBe('KEY-A')
-    expect(getApiKey(config, 'rotate-distinct-identical')).toBe('KEY-A')
-    expect(getApiKey(config, 'rotate-distinct-identical')).toBe('KEY-A')
+    expect(getApiKey(config, 'paddleocr')).toBe('KEY-A')
+    expect(getApiKey(config, 'paddleocr')).toBe('KEY-A')
+    expect(getApiKey(config, 'paddleocr')).toBe('KEY-A')
   })
 })
