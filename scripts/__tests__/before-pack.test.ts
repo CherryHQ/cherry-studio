@@ -92,19 +92,6 @@ describe('prepareNativeModulesForElectron', () => {
 })
 
 describe('keepPackages', () => {
-  it.each([
-    ['linux', 'x64', ['@deepseek-ai/node-addon-system-linux-x64']],
-    ['linux', 'arm64', ['@deepseek-ai/node-addon-system-linux-arm64']],
-    ['darwin', 'x64', ['@deepseek-ai/node-addon-system-darwin-x64']],
-    ['darwin', 'arm64', ['@deepseek-ai/node-addon-system-darwin-arm64']],
-    ['win32', 'x64', []],
-    ['win32', 'arm64', []]
-  ] as const)('keeps only the %s %s DSH system binary', (platform, arch, expectedPackages) => {
-    const keptPackages = keepPackages(platform, arch).filter((name) => name.startsWith('@deepseek-ai/node-addon-'))
-
-    expect(keptPackages).toEqual(expectedPackages)
-  })
-
   // The name matcher keys off arch and platform tokens, and this package name carries
   // neither. Left to it, a Mac build would drop the module the permission prompt needs,
   // and a Windows or Linux build cross-made on a Mac would ship its darwin-only `.node`.

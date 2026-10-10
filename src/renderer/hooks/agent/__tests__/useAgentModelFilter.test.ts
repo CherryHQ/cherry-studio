@@ -111,13 +111,13 @@ describe('useAgentModelFilter', () => {
       ).toBe(true)
     })
 
-    it('filters models whose provider has no pi API mapping', () => {
+    it('keeps gateway-routable models available while filtering missing providers', () => {
       const { result } = renderHook(() => useAgentModelFilter('pi'))
 
-      // Vertex is unsupported for pi (D2).
+      // Vertex retains its model through the local gateway.
       expect(
         result.current({ ...model(), providerId: 'vertex', id: 'vertex::gemini-2.5-pro' }, providers.vertex as Provider)
-      ).toBe(false)
+      ).toBe(true)
       // Unknown provider (no entry) cannot be resolved → filtered.
       expect(result.current({ ...model(), providerId: 'ghost', id: 'ghost::model' })).toBe(false)
     })

@@ -135,7 +135,7 @@ overlay-vs-persist conditional write.
 | Subsystem | Reference |
 |---|---|
 | Active-stream registry, listeners, persistence backends, reconnect, abort, grace-period eviction | [Stream Manager](./stream-manager.md) |
-| Agent-session host plus Claude Code, Pi, and DSH runtime drivers | [Agent Session Runtime](./agent-session-runtime.md) |
+| Agent-session host plus Claude Code and Pi runtime drivers | [Agent Session Runtime](./agent-session-runtime.md) |
 | `Agent.stream` single-pass loop, hooks model, error/abort | [Agent Loop](./agent-loop.md) |
 | `buildAgentParams`, `RequestFeature` composition, `INTERNAL_FEATURES` order | [Params Pipeline](./params-pipeline.md) |
 | Tool registry, MCP sync, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), defer exposition | [Tool Registry](./tool-registry.md) |
@@ -168,7 +168,7 @@ overlay-vs-persist conditional write.
 ```
 src/main/ai/
 ├── AiService.ts                  ← provider operations, built-in tool init, approval decisions
-├── runtime/                      ← aiSdk plus claudeCode / pi / dsh agent-session drivers
+├── runtime/                      ← aiSdk plus claudeCode / pi agent-session drivers
 ├── agentSession/                 ← agent-session topic host
 ├── agents/                       ← AgentJobsService, AgentTaskJobHandler, runAgentTask, prompt, heartbeat
 ├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat) + security/

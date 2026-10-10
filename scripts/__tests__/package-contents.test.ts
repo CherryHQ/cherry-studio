@@ -101,8 +101,6 @@ describe('packaged dependency contents', () => {
     }
     for (const file of [
       'node_modules/koffi/src/koffi/index.cjs',
-      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/cherry_acl.ps1',
-      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/SKILL.md',
       'node_modules/pdfjs-dist/cmaps/Adobe-GB1-UCS2.bcmap',
       'resources/builtin-agents/icon.png'
     ]) {

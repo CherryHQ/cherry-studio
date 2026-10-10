@@ -18,7 +18,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { isPiGatewayCompatibleModel, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
@@ -39,7 +39,7 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
-import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { ApiGatewayNotRunningError, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
@@ -230,8 +230,13 @@ function toPiHeaders(headers: Record<string, string> | undefined): Record<string
 }
 
 /** Whether this provider declares that Pi must use Cherry's local Gateway route. */
-export function usesPiGateway(provider: Provider): boolean {
-  return requiresAgentGateway(provider.id)
+export function usesPiGateway(provider: Provider, model: Model): boolean {
+  const endpoint = resolvePiEndpoint(provider, model).endpointType
+  const api =
+    isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)
+      ? undefined
+      : mapEndpointToPiApi(endpoint, endpoint ? provider.endpointConfigs?.[endpoint]?.adapterFamily : undefined)
+  return requiresAgentGateway(provider.id) || api === undefined
 }
 
 /** Build a Pi route targeting Cherry's local Gateway while preserving the model's wire protocol. */
@@ -244,21 +249,25 @@ export function buildPiGatewayInjection(
   const adapterFamily = resolvedEndpoint.endpointType
     ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
     : undefined
-  const api = mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
-  if (!api) throw new PiUnsupportedProviderError(provider.id)
+  const api =
+    isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)
+      ? undefined
+      : mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
+  if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(provider.id)
+  const gatewayApi = api && api !== 'azure-openai-responses' ? api : 'openai-completions'
 
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
-  const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType)
+  const modelConfig = buildPiModelConfig(provider, model, modelId, gatewayApi, resolvedEndpoint.endpointType)
   const headers = Object.keys(gateway.usageHeaders).length ? gateway.usageHeaders : undefined
 
   return {
     providerName: provider.id,
-    api,
+    api: gatewayApi,
     providerConfig: {
       name: provider.name,
-      baseUrl: formatPiBaseUrl(gateway.baseUrl, api),
+      baseUrl: formatPiBaseUrl(gateway.baseUrl, gatewayApi),
       apiKey: PI_PLACEHOLDER_API_KEY,
-      api,
+      api: gatewayApi,
       ...(headers ? { headers } : {}),
       models: [modelConfig]
     },
@@ -330,7 +339,7 @@ export async function resolvePiProviderInjectionForSession(
   model: Model,
   enabledApiKeys?: readonly ApiKeyEntry[]
 ): Promise<PiProviderInjection> {
-  if (!usesPiGateway(provider)) {
+  if (!usesPiGateway(provider, model)) {
     const injection = resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
     const headers = injection.providerConfig.headers
     if (
@@ -342,6 +351,7 @@ export async function resolvePiProviderInjectionForSession(
     return injection
   }
 
+  if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(provider.id)
   const gateway = await resolveApiGatewayRuntime(sessionId)
   return buildPiGatewayInjection(provider, model, gateway)
 }
@@ -356,15 +366,9 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
 
-  // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
-  if (usesPiGateway(provider)) {
-    const resolvedEndpoint = resolvePiEndpoint(provider, model)
-    const adapterFamily = resolvedEndpoint.endpointType
-      ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
-      : undefined
-    if (!mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)) {
-      throw new PiUnsupportedProviderError(providerId)
-    }
+  if (usesPiGateway(provider, model)) {
+    if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(providerId)
+    if (!application.get('ApiGatewayService').getCurrentConfig().enabled) throw new ApiGatewayNotRunningError()
     return
   }
 

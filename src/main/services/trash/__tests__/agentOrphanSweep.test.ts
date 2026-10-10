@@ -296,14 +296,14 @@ describe('sweepAgentOrphans', () => {
     })
 
     it('isolates a failing runtime so the others still reclaim', async () => {
-      registerDriver('dsh', async () => {
-        throw new Error('dsh reclaim exploded')
+      registerDriver('failing-runtime', async () => {
+        throw new Error('runtime reclaim exploded')
       })
       registerDriver('pi', async () => ({ removed: ['/tmp/pi.jsonl'] }))
 
       const { removed, failedDrivers } = await sweepAgentOrphans()
 
-      expect(failedDrivers).toEqual(['dsh'])
+      expect(failedDrivers).toEqual(['failing-runtime'])
       expect(removed).toContain('/tmp/pi.jsonl')
     })
   })

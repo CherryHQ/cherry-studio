@@ -2,12 +2,15 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { mcpServerService } from '@data/services/McpServerService'
+import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
+import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { listEntries, reclaimStale } from '../orphanSessionReclaim'
 import type {
   AgentRuntimeConnectInput,
@@ -19,6 +22,7 @@ import { assertPiProviderUsable } from './modelInjection'
 import { forkPiSession } from './piFork'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
+import { ensureRetiredSessionHistory } from './retiredSessionHistory'
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'pi'
@@ -26,6 +30,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly fork = forkPiSession
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
+    await ensureRetiredSessionHistory(session.id)
     const cwd = session.workspace?.path
     if (!cwd) {
       throw new Error(`pi agent session ${session.id} has no workspace configured`)
@@ -40,7 +45,14 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
     await prepareAgentSessionWorkspaceDirectory(session)
     // Side-effect free: dispatch validation must not consume API-key rotation;
     // the concrete key is selected only when the runtime connection starts.
-    await assertPiProviderUsable(agent.model)
+    try {
+      await assertPiProviderUsable(agent.model)
+    } catch (error) {
+      if (error instanceof ApiGatewayNotRunningError) {
+        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: session.id })
+      }
+      throw error
+    }
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
@@ -71,7 +83,16 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    return new PiRuntimeConnection(input).start()
+    const migration = getRetiredAgentSessionMigration(application.get('DbService').getDb(), input.sessionId)
+    await ensureRetiredSessionHistory(input.sessionId)
+    const migratedInput = migration
+      ? {
+          ...input,
+          resumeToken: agentSessionMessageService.getLastRuntimeResumeToken(input.sessionId) ?? undefined,
+          nativeSessionId: undefined
+        }
+      : input
+    return new PiRuntimeConnection(migratedInput).start()
   }
 
   /**

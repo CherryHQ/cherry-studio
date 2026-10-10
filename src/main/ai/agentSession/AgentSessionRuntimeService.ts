@@ -9,6 +9,7 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
+import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
@@ -62,6 +63,7 @@ import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shar
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
+import { migrateRetiredSessionHistories } from '../runtime/pi/retiredSessionHistory'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
@@ -483,6 +485,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
     // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
     this.reconcileStalePendingMessages()
+    await migrateRetiredSessionHistories()
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
@@ -1810,6 +1813,15 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
+    const migration =
+      entry.agentType === 'pi'
+        ? getRetiredAgentSessionMigration(application.get('DbService').getDb(), entry.sessionId)
+        : undefined
+    if (migration) {
+      // Claim the Pi identity before a retry can finish importing and remove the migration marker.
+      entry.lastResumeToken = migration.resumeToken
+      return
+    }
     const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
     if (runtimeResumeToken && !entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken
   }
@@ -1924,8 +1936,8 @@ export class AgentSessionRuntimeService extends BaseService {
           break
         }
         // Runtime-generated content is already streaming. The autonomous execution state buffers
-        // chunks until its receive-only stream exists and owns the current user turn meanwhile — even
-        // an admitted one: dsh runs a queued goal round before the prompt it has already accepted.
+        // chunks until its receive-only stream exists and owns the current user turn meanwhile — the
+        // autonomous generation must own the connection until its content finishes.
         const turn = this.currentTurn(entry)
         const turnLive = turn !== undefined && this.isTurnLive(entry, turn)
         if (entry.runtimeState.execution.kind === 'steer-transition') break
@@ -2888,9 +2900,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /**
    * Runtime-generated content can arrive after a user turn's renderer stream opened but before the
-   * runtime produced anything for it — the prompt may not be admitted yet, or (dsh) a queued goal
-   * round runs ahead of the admitted prompt. Detach that empty execution, keep the turn object
-   * queued, and let the receive-only generation own the connection first.
+   * runtime admits the prompt. Detach that empty execution and keep the turn queued until the
+   * receive-only generation releases the connection.
    */
   private deferTurnForReceiveOnly(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     const execution = entry.runtimeState.execution

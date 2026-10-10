@@ -360,7 +360,7 @@ serial.
 
 The connection carries `{ owner: 'agent-sdk', credentialReceipt, frozenModels }`.
 Every emitted invocation id is globally namespaced by its driver (`claude-agent:`
-`pi-agent:`, or `dsh-agent:`) before it crosses the runtime contract; the host persists that id
+`pi-agent:`; historical records can also use `dsh-agent:`) before it crosses the runtime contract; the host persists that id
 verbatim for cross-runtime idempotency.
 
 Each Claude SDK assistant message supplies provider request id, actual nested
@@ -391,11 +391,7 @@ create records, duplicate completed ids are ignored, and Pi's
 input/cache/reasoning buckets are preserved rather than re-derived from the
 message-level running total.
 
-DSH records each completed harness provider invocation by
-`sessionId + turn + sequence`, including child-session calls under the child
-session id. It preserves no-cache, cache-read, cache-write, reasoning, and
-output buckets from the harness event and carries DSH timing metrics when
-available. Duplicate completed invocation ids are ignored.
+Historical DSH invocation records remain available after runtime migration.
 
 ### Gateway-backed Agent
 
@@ -496,6 +492,5 @@ global SWR focus/reconnect revalidation is disabled.
 | `packages/aiCore/src/core/runtime/` | Embedding/image/rerank provider-call events |
 | `src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts` | Direct Agent SDK capture |
 | `src/main/ai/runtime/pi/PiRuntimeConnection.ts` | Pi provider-stream capture |
-| `src/main/ai/runtime/dsh/DshRuntimeConnection.ts` | DSH main/child invocation capture |
 | `src/main/data/migration/v2/migrators/AiUsageRecordMigrator.ts` | v1 aggregate migration |
 | `src/renderer/pages/settings/UsageSettings/` | Usage read model consumers |

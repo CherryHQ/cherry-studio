@@ -41,7 +41,7 @@ precedence hierarchy is injected.
 An explicit `system.md` selects a custom base across runtimes; an empty file
 deliberately selects an empty custom base. Each driver maps the common
 `{ base, append }` result into its SDK: Claude Code uses its preset/custom base,
-Pi uses system/append overrides, and DSH maps it into its composition. Runtime-
+Pi uses system/append overrides. Runtime-
 native workspace context can still load according to that driver's trust
 boundary. Cherry-owned persona, memory, workspace-path, security, citation,
 artifact, and language guidance is appended independently of the base.
@@ -65,7 +65,7 @@ not force a rebuild every turn.
 ## Implementation map
 
 - `src/main/ai/runtime/agentPrompt.ts` owns shared precedence, variable materialization, and the `{ base, append }` contract.
-- Runtime drivers under `src/main/ai/runtime/{claudeCode,pi,dsh}/` map that contract into their SDK/composition.
+- Runtime drivers under `src/main/ai/runtime/{claudeCode,pi}/` map that contract into their SDK/composition.
 - `src/main/ai/agents/prompt.ts` owns workspace base selection and persona/memory context.
 - `src/main/ai/agents/bootstrap.ts` owns first-run persona and user onboarding guidance.
 - `src/main/ai/agentSession/AgentSessionRuntimeService.ts` owns next-turn connection reconciliation.

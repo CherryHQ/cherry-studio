@@ -198,7 +198,6 @@ export default defineConfig({
       },
       ...[
         ['ai-sdk-provider', 'src'],
-        ['dsh-bridge', '__tests__'],
         ['remote-protocol', 'tests'],
         ['remote-transport', 'tests']
       ].map(([name, directory]) => ({

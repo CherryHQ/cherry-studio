@@ -54,6 +54,7 @@ import {
   type ClaudeToolCategory
 } from '@shared/ai/claudecode/toolRegistry'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
+import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -1065,6 +1066,7 @@ function AgentToolsFields({
   // so hide their toggles here when the agent has none — they would otherwise read as
   // "on" while doing nothing.
   const hasKnowledgeScope = knowledgeBaseIds.length > 0
+  const legacyRestrictions = disabledTools.filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX))
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
   const builtinSections = useMemo(() => {
     const tools = caps
@@ -1146,6 +1148,30 @@ function AgentToolsFields({
       ) : null}
       {activeToolTab === 'tools.knowledge' ? (
         <KnowledgeBaseField form={form} portalContainer={portalContainer} />
+      ) : null}
+      {activeToolTab === 'tools.mcp' && legacyRestrictions.length > 0 ? (
+        <div className="grid gap-2">
+          <p className="text-muted-foreground text-xs">{t('library.config.tools.legacy_restrictions.description')}</p>
+          <ul className="grid gap-1 text-xs">
+            {legacyRestrictions.map((name) => (
+              <li key={name}>{name.slice(LEGACY_DSH_TOOL_PREFIX.length)}</li>
+            ))}
+          </ul>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="justify-self-start"
+            onClick={() =>
+              form.setValue(
+                'disabledTools',
+                disabledTools.filter((name) => !name.startsWith(LEGACY_DSH_TOOL_PREFIX)),
+                { shouldDirty: true }
+              )
+            }>
+            {t('library.config.tools.legacy_restrictions.remove')}
+          </Button>
+        </div>
       ) : null}
       {activeToolTab === 'tools.mcp' ? (
         <McpServerCatalogGrid

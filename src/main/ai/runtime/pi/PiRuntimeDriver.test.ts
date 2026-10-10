@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpTool } from '@shared/types/mcp'
+
+import { ApiGatewayNotRunningError } from '../agentApiGateway'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
@@ -15,14 +18,10 @@ vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { findByIdOrName: mocks.findByIdOrName }
 }))
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'McpCatalogService') return { listTools: mocks.listTools }
-      throw new Error(`unexpected service ${name}`)
-    }
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ McpCatalogService: { listTools: mocks.listTools } } as never)
+})
 vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
   prepareAgentSessionWorkspaceDirectory: mocks.prepareWorkspace
 }))
@@ -39,21 +38,21 @@ beforeEach(() => {
 })
 
 describe('PiRuntimeDriver.validateSession', () => {
-  it('materializes a system workspace before validating the provider', async () => {
+  it('rejects a gateway-only session and offers to enable the gateway', async () => {
+    mocks.getAgent.mockReturnValue({ model: 'provider::model' })
+    mocks.assertProviderUsable.mockRejectedValueOnce(new ApiGatewayNotRunningError())
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { path: '/data/Agents/system/2026-08-12/session-1', type: 'system' }
+      workspace: { path: '/workspace', type: 'user' }
     } as AgentSessionEntity
-    mocks.getAgent.mockReturnValue({ model: 'provider::model' })
-
-    await new PiRuntimeDriver().validateSession(session)
-
-    expect(mocks.prepareWorkspace).toHaveBeenCalledWith(session)
-    expect(mocks.assertProviderUsable).toHaveBeenCalledWith('provider::model')
-    expect(mocks.prepareWorkspace.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.assertProviderUsable.mock.invocationCallOrder[0]
-    )
+    await expect(new PiRuntimeDriver().validateSession(session)).rejects.toMatchObject({
+      name: 'ApiGatewayNotRunningError',
+      i18nKey: 'api_gateway_required'
+    })
+    expect(application.get('IpcApiService').broadcast).toHaveBeenCalledWith('api_gateway.required', {
+      sessionId: 'session-1'
+    })
   })
 })
 

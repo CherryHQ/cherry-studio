@@ -1888,6 +1888,26 @@ describe('PiRuntimeConnection', () => {
         gateHandler()({ type: 'tool_call', toolName: nativeName, toolCallId: 'blocked', input: {} }, {})
       ).resolves.toMatchObject({ block: true })
     })
+    it('preserves a migrated built-in MCP prohibition', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        disabledTools: ['legacy-dsh:mcp__skills__install_skill']
+      })
+      const conn = await new PiRuntimeConnection(input).start()
+      await expect(
+        gateHandler()(
+          { type: 'tool_call', toolName: 'mcp__skills__install_skill', toolCallId: 'blocked', input: {} },
+          {}
+        )
+      ).resolves.toMatchObject({ block: true })
+      await conn.close()
+    })
+
+    it('refuses to open tools if an old MCP prohibition cannot be resolved', async () => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['legacy-dsh:mcp__missing__tool'] })
+      await expect(new PiRuntimeConnection(input).start()).rejects.toThrow()
+    })
     function gateHandler(): (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined> {
       const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
       let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined>
