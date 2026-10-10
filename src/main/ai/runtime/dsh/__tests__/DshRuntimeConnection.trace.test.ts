@@ -181,6 +181,7 @@ vi.mock('@main/ai/runtime/agentPrompt', () => ({
 }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   buildAgentMcpServers: vi.fn(() => []),
+  resolveAgentMcpServerKeys: vi.fn(() => new Map()),
   warmAgentMcpToolCatalogs: vi.fn().mockResolvedValue(undefined)
 }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: vi.fn(() => '') }))

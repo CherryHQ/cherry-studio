@@ -72,19 +72,61 @@ describe('DshCherryToolBridge', () => {
     expect(first.length).toBeLessThanOrEqual(63)
   })
 
-  it('fails closed when two MCP identities map to the same public name', async () => {
-    const first = createServer([tool('same')], async () => ({ content: [] }))
-    const second = createServer([tool('same')], async () => ({ content: [] }))
-    await expect(
-      buildDshCherryToolBridge(
-        {
-          first: { name: 'duplicate', connect: first.connect },
-          second: { name: 'duplicate', connect: second.connect }
-        },
-        bridgeOptions()
-      )
-    ).rejects.toThrow('Duplicate dsh Cherry tool name: mcp__duplicate__same')
-    await vi.waitFor(() => expect(first.onClose).toHaveBeenCalledOnce())
+  it('keeps two same-named servers callable instead of failing the whole turn', async () => {
+    const first = createServer([tool('same')], async () => ({ content: [{ type: 'text', text: 'first' }] }))
+    const second = createServer([tool('same')], async () => ({ content: [{ type: 'text', text: 'second' }] }))
+    const bridge = await buildDshCherryToolBridge(
+      {
+        first: { name: 'duplicate', connect: first.connect },
+        second: { name: 'duplicate', connect: second.connect }
+      },
+      bridgeOptions()
+    )
+
+    const names = bridge.tools.map(({ name }) => name)
+    expect(names[0]).toBe('mcp__duplicate__same')
+    expect(names[1]).toMatch(/^mcp__duplicate__same_[0-9a-f]{6,}$/)
+    expect(new Set(names).size).toBe(names.length)
+    // Each public name still routes to its own server.
+    await expect(bridge.callTool(names[0], {}, undefined)).resolves.toMatchObject({ text: 'first' })
+    await expect(bridge.callTool(names[1], {}, undefined)).resolves.toMatchObject({ text: 'second' })
+    await bridge.close()
+  })
+
+  it('disambiguates when two server+tool pairs concatenate to the same identity', async () => {
+    // `docs` exposing `search__all` and `docs__search` exposing `all` both flatten to
+    // `mcp__docs__search__all` — valid servers and tools, so neither may fail the turn.
+    const docs = createServer([tool('search__all')], async () => ({ content: [{ type: 'text', text: 'docs' }] }))
+    const docsSearch = createServer([tool('all')], async () => ({ content: [{ type: 'text', text: 'docs__search' }] }))
+    const bridge = await buildDshCherryToolBridge(
+      {
+        docs: { name: 'docs', connect: docs.connect },
+        docs__search: { name: 'docs__search', connect: docsSearch.connect }
+      },
+      bridgeOptions()
+    )
+
+    const names = bridge.tools.map(({ name }) => name)
+    expect(names).toHaveLength(2)
+    expect(names[0]).toBe('mcp__docs__search__all')
+    expect(names[1]).toMatch(/^mcp__docs__search__all_[0-9a-f]{6,}$/)
+    expect(new Set(names).size).toBe(names.length)
+    await expect(bridge.callTool(names[0], {}, undefined)).resolves.toMatchObject({ text: 'docs' })
+    await expect(bridge.callTool(names[1], {}, undefined)).resolves.toMatchObject({ text: 'docs__search' })
+    await bridge.close()
+  })
+
+  it('keeps lossy-normalized tools within one server distinct', async () => {
+    // Same server exposing `searchAll` and `search all` — lossy camelCase would collapse both.
+    const server = createServer([tool('searchAll'), tool('search all')], async () => ({
+      content: [{ type: 'text', text: 'ok' }]
+    }))
+    const bridge = await buildDshCherryToolBridge({ only: { name: 'tools', connect: server.connect } }, bridgeOptions())
+
+    const names = bridge.tools.map(({ name }) => name)
+    expect(names).toHaveLength(2)
+    expect(new Set(names).size).toBe(names.length)
+    await bridge.close()
   })
 
   it('skips one unavailable server without hiding the remaining tool catalog', async () => {

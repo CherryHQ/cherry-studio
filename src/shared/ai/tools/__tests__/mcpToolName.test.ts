@@ -5,7 +5,8 @@ import {
   buildMcpToolName,
   generateMcpToolFunctionName,
   parseFunctionCallToolName,
-  toCamelCase
+  toCamelCase,
+  translateLegacyMcpToolRules
 } from '../mcpToolName'
 
 describe('parseFunctionCallToolName', () => {
@@ -270,5 +271,42 @@ describe('buildFunctionCallToolName', () => {
       const result = buildFunctionCallToolName('@anthropic/mcp-server', 'chat')
       expect(result).toBe('mcp__AnthropicMcpServer__chat')
     })
+  })
+})
+
+describe('translateLegacyMcpToolRules', () => {
+  const byId = new Map([
+    ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'github'],
+    ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'docs__search']
+  ])
+
+  it('rewrites a legacy id-keyed rule to the current server key', () => {
+    expect(translateLegacyMcpToolRules(['mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run'], byId)).toEqual([
+      'mcp__github__run'
+    ])
+  })
+
+  it('keeps the tool segment verbatim, including further __ separators', () => {
+    expect(translateLegacyMcpToolRules(['mcp__bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb__deep__nested'], byId)).toEqual([
+      'mcp__docs__search__deep__nested'
+    ])
+  })
+
+  it('leaves name-form rules and unknown servers untouched', () => {
+    expect(translateLegacyMcpToolRules(['mcp__github__run', 'mcp__ghost__run', 'Bash'], byId)).toEqual([
+      'mcp__github__run',
+      'mcp__ghost__run',
+      'Bash'
+    ])
+  })
+
+  it('passes through malformed rules and empty input', () => {
+    expect(translateLegacyMcpToolRules(['mcp__', 'mcp__no-delimiter', ''], byId)).toEqual([
+      'mcp__',
+      'mcp__no-delimiter',
+      ''
+    ])
+    expect(translateLegacyMcpToolRules(undefined, byId)).toEqual([])
+    expect(translateLegacyMcpToolRules(null, byId)).toEqual([])
   })
 })

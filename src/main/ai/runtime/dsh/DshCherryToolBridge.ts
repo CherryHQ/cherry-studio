@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { Client, InMemoryTransport, type Tool } from '@modelcontextprotocol/client'
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 
 import type { BridgeToolCallResult, BridgeToolDescriptor } from '@cherrystudio/dsh-bridge'
 import { loggerService } from '@logger'
@@ -13,8 +13,6 @@ import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import { dshToolResultErrorText, projectDshToolResult } from './dshToolResultProjection'
 
 const logger = loggerService.withContext('DshCherryToolBridge')
-
-class DshCherryToolIdentityError extends Error {}
 
 interface DshToolBinding {
   client: Client
@@ -69,34 +67,31 @@ export async function buildDshCherryToolBridge(
   const clients: Client[] = []
   const tools: BridgeToolDescriptor[] = []
   const bindings = new Map<string, DshToolBinding>()
+  const usedNames = new Set<string>()
 
   for (const [serverId, server] of Object.entries(servers)) {
     let client: Client | undefined
     try {
       client = await connectClient(server, `cherry-dsh-${serverId}`)
       const result = await client.listTools()
-      const serverNames = new Set<string>()
-      const serverTools = result.tools.map((tool) => ({
-        descriptor: toBridgeDescriptor(server.name, tool),
-        rawName: tool.name
-      }))
-      for (const { descriptor } of serverTools) {
-        if (bindings.has(descriptor.name) || serverNames.has(descriptor.name)) {
-          throw new DshCherryToolIdentityError(`Duplicate dsh Cherry tool name: ${descriptor.name}`)
-        }
-        serverNames.add(descriptor.name)
-      }
       clients.push(client)
-      for (const { descriptor, rawName } of serverTools) {
-        tools.push(descriptor)
-        bindings.set(descriptor.name, { client, rawName })
+      for (const raw of result.tools) {
+        // Two valid (server, tool) pairs can flatten to one wire name (`docs` + `search__all` vs
+        // `docs__search` + `all`), and the first server to claim a name wins it. A stable hash
+        // suffix keeps every tool callable — throwing here would fail the whole turn on a
+        // configuration the name allocator accepts.
+        let name = buildDshCherryToolName(server.name, raw.name)
+        if (usedNames.has(name)) name = disambiguatedDshToolName(server.name, raw.name, usedNames)
+        usedNames.add(name)
+        tools.push({
+          name,
+          description: raw.description ?? '',
+          inputSchema: raw.inputSchema
+        })
+        bindings.set(name, { client, rawName: raw.name })
       }
     } catch (error) {
       await client?.close().catch(() => undefined)
-      if (error instanceof DshCherryToolIdentityError) {
-        await Promise.allSettled(clients.map((connected) => connected.close()))
-        throw error
-      }
       logger.warn('Skipping unavailable MCP server for dsh session', { serverId, error })
     }
   }
@@ -125,20 +120,29 @@ export async function buildDshCherryToolBridge(
   }
 }
 
+/**
+ * Collision identity for two (server, tool) pairs that flatten to the same wire name: the readable
+ * prefix stays, and a fixed-width sha256 head of the raw pair keeps the extra name deterministic
+ * (the same pair always resolves to the same identity) within the 63-char provider-safe cap.
+ */
+function disambiguatedDshToolName(serverName: string, toolName: string, taken: ReadonlySet<string>): string {
+  const base = buildDshCherryToolName(serverName, toolName).slice(0, 50)
+  const hash = createHash('sha256').update(`${serverName}\0${toolName}`).digest('hex')
+  let name = `${base}_${hash.slice(0, 12)}`
+  let counter = 1
+  while (taken.has(name)) {
+    name = `${base}_${(hash + String(counter)).slice(0, 12)}`
+    counter++
+  }
+  return name
+}
+
 async function connectClient(server: AgentMcpServer, clientName: string): Promise<Client> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: clientName, version: '1.0.0' })
   await server.connect(serverTransport)
   await client.connect(clientTransport)
   return client
-}
-
-function toBridgeDescriptor(serverName: string, tool: Tool): BridgeToolDescriptor {
-  return {
-    name: buildDshCherryToolName(serverName, tool.name),
-    description: tool.description ?? '',
-    inputSchema: tool.inputSchema
-  }
 }
 
 function toToolArguments(args: unknown): Record<string, unknown> {

@@ -90,6 +90,17 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('mcp__cherry-tools__cron')).toBe(false)
   })
 
+  it('translates a legacy id-keyed denial onto the name-keyed runtime tool', async () => {
+    // Saved while tools were keyed by server id; the runtime now keys tools by configured name.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'github']])
+    })
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    // An unrelated tool of the same server is not caught by the legacy rule.
+    expect(snapshot.isDisabled('mcp__github__other')).toBe(false)
+  })
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))

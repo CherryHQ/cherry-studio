@@ -24,6 +24,7 @@ import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import { resolveAgentMcpServerKeys } from '@main/ai/runtime/agentMcpServers'
 import {
   type AgentNotificationContext,
   type LinkedChannelSnapshot,
@@ -57,6 +58,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
+import { translateLegacyMcpToolRules } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Provider } from '@shared/data/types/provider'
@@ -223,7 +225,10 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     agentsMdLoader,
     await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
-    options?.supportsImages !== false
+    options?.supportsImages !== false,
+    // Same allocation the step-6 record build consumes, so legacy id-keyed denials translate
+    // onto the exact runtime keys the servers register under.
+    resolveAgentMcpServerKeys(agent, options?.mcpServerSnapshots)
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -470,7 +475,9 @@ async function buildToolPermissions(
   agentDataPath: string,
   agentsMdLoader: AgentsMdLoader,
   pluginDirectories: ReadonlyMap<string, string>,
-  supportsImages: boolean
+  supportsImages: boolean,
+  /** Mounted-server id → runtime record key, for translating legacy id-keyed denial rules. */
+  serverNameById: ReadonlyMap<string, string>
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -496,7 +503,8 @@ async function buildToolPermissions(
     autoAllowRuntimeNames: listBuiltinToolPolicies({ approval: 'auto', mountedServers }).map(toMcpRuntimeName),
     // Side-effecting and local-data-reading built-in tools must still prompt for approval.
     autoAllowRuntimeNameExceptions: approvalRequiredTools,
-    conditionContext
+    conditionContext,
+    serverNameById
   })
 
   const canUseTool: CanUseTool = async (toolName, input, opts) => {
@@ -620,7 +628,12 @@ async function buildToolPermissions(
   return {
     canUseTool,
     hooks,
-    disallowedTools: resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
+    // Rewrite legacy id-keyed denials first: the SDK hard-block list matches exact runtime names,
+    // so a rule saved under the pre-#21322 id namespace must reach the SDK in its current form.
+    disallowedTools: resolveDisallowedTools(
+      { disabledTools: translateLegacyMcpToolRules(agent.disabledTools, serverNameById) },
+      conditionContext
+    ),
     toolPolicySnapshot
   }
 }

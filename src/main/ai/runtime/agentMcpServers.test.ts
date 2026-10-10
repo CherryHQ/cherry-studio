@@ -28,7 +28,7 @@ vi.mock('@main/ai/mcp/servers/mcpManager', () => ({ createMcpManagerServer: vi.f
 vi.mock('@main/ai/mcp/servers/skills', () => ({ createSkillsServer: vi.fn() }))
 vi.mock('@main/ai/utils/knowledgeScope', () => ({ resolveKnowledgeBaseScope: vi.fn(() => []) }))
 
-import { buildAgentMcpServers } from './agentMcpServers'
+import { buildAgentMcpServers, resolveAgentMcpServerKeys } from './agentMcpServers'
 
 const session = {
   id: 'sess-1',
@@ -84,5 +84,30 @@ describe('buildAgentMcpServers key allocation', () => {
 
     expect(servers[idA]).toMatchObject({ id: idA })
     expect(servers[idB]).toMatchObject({ id: idB })
+  })
+})
+
+describe('resolveAgentMcpServerKeys', () => {
+  it('mirrors buildAgentMcpServers key allocation per server id', () => {
+    const idA = '22222222-2222-4222-8222-222222222222'
+    const idB = '33333333-3333-4333-8333-333333333333'
+    const snapshots: Array<[string, { id: string; name: string; isActive: true }]> = [
+      [idA, { id: idA, name: 'alpha', isActive: true }],
+      [idB, { id: idB, name: 'skills', isActive: true }]
+    ]
+    const keys = resolveAgentMcpServerKeys(agentWithMcps([idA, idB]), new Map(snapshots))
+    const servers = build(snapshots)
+
+    // Every translated key must host exactly that server in the built record.
+    for (const [id, key] of keys) {
+      expect(servers[key]).toMatchObject({ id })
+    }
+    expect(keys.get(idA)).toBe('alpha')
+    expect(keys.get(idB)).toBe(idB) // 'skills' is reserved by the builtin → id fallback
+  })
+
+  it('skips unresolvable servers instead of inventing a key', () => {
+    const keys = resolveAgentMcpServerKeys(agentWithMcps(['missing-id']))
+    expect(keys.size).toBe(0)
   })
 })

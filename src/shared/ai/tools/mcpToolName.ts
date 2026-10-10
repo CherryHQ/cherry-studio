@@ -146,6 +146,27 @@ export type McpFunctionCallToolNameParts = {
 }
 
 /**
+ * Saved agent-level denials written while MCP tools were keyed by server id (`mcp__<uuid>__tool`)
+ * no longer match runtime names derived from the configured server name. Rewrite each legacy rule
+ * whose server segment is a known id into the current server key; name-form rules (and rules naming
+ * unknown servers) pass through unchanged. Ids contain no underscores, so splitting on the first
+ * `__` is exact for legacy rules and never mis-splits a `__`-bearing server name.
+ */
+export function translateLegacyMcpToolRules(
+  rules: readonly string[] | null | undefined,
+  serverNameById: ReadonlyMap<string, string> = new Map()
+): string[] {
+  return (rules ?? []).map((rule) => {
+    if (!rule.startsWith('mcp__')) return rule
+    const rest = rule.slice('mcp__'.length)
+    const delimiterIndex = rest.indexOf('__')
+    if (delimiterIndex <= 0) return rule
+    const mapped = serverNameById.get(rest.slice(0, delimiterIndex))
+    return mapped === undefined ? rule : `mcp__${mapped}${rest.slice(delimiterIndex)}`
+  })
+}
+
+/**
  * Parse MCP tool-call names in the Claude/AI-SDK format:
  * `mcp__{server}__{tool}`.
  *
