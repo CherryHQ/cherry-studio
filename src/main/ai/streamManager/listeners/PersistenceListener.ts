@@ -4,10 +4,9 @@
  * delegates the write to a `PersistenceBackend`.
  */
 
-import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { toExecutionFailure, type PersistedExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -193,7 +192,7 @@ export class PersistenceListener implements StreamListener {
 function mergeErrorIntoMessage(
   base: CherryUIMessage | undefined,
   error: SerializedError,
-  failure: ExecutionFailure,
+  failure: PersistedExecutionFailure,
   anchorMessageId?: string
 ): CherryUIMessage {
   const baseParts = (base?.parts ?? []) as CherryMessagePart[]

@@ -32,6 +32,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { withTerminalErrorFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -53,6 +54,7 @@ import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -163,6 +165,27 @@ export function useHomeMessageListProviderValue({
   }, [messages, resolvedAssistantId, topicId])
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
+  // A turn that settled with nothing to render needs an error part, or the user is
+  // left looking at an empty bubble with no cause and no way to act on it. This
+  // mirrors what the Agent list already did; without it, ordinary chats showed a
+  // blank assistant message instead (#20941). Display-only: write flows read the
+  // raw persisted parts so the synthetic error part is never saved to storage.
+  const displayPartsByMessageId = useMemo(
+    () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
+    [messages, partsByMessageId, t]
+  )
+  const displayStreamingLayers = useMemo(() => {
+    if (!streamingLayers) return undefined
+
+    const historyPartsByMessageId = withTerminalErrorFallback(
+      messages,
+      streamingLayers.historyPartsByMessageId,
+      t('error.no_response')
+    )
+    if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
+
+    return { ...streamingLayers, historyPartsByMessageId }
+  }, [messages, streamingLayers, t])
   const partsByMessageIdRef = useRef(partsByMessageId)
   const listRuntimeRef = useRef<MessageListRuntime | null>(null)
   const translationAbortControllersRef = useRef(new Map<string, AbortController>())
@@ -248,8 +271,8 @@ export function useHomeMessageListProviderValue({
     topicId,
     topicName: topic.name,
     messages: messageItems,
-    partsByMessageId,
-    streamingLayers,
+    partsByMessageId: displayPartsByMessageId,
+    streamingLayers: displayStreamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,
     getDoctorSubject,
@@ -505,9 +528,17 @@ export function useHomeMessageListProviderValue({
         const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
         if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') return
 
+        // Dismiss, not delete: removing the part would leave an error-status message
+        // with no error evidence, which the terminal fallback immediately "repairs"
+        // with a synthetic part the user also cannot dismiss. The tombstone keeps the
+        // evidence while display hides it.
         await requireChatWrite('removeMessageErrorPart').editMessage(
           messageId,
-          persistedParts.filter((_, index) => index !== resolved.index)
+          persistedParts.map((part, index) =>
+            index === resolved.index
+              ? withCherryMeta(resolved.part as Extract<CherryMessagePart, { type: 'data-error' }>, { dismissed: true })
+              : part
+          )
         )
       } catch (error) {
         logger.error('Failed to remove error part:', error as Error)
@@ -787,8 +818,8 @@ export function useHomeMessageListProviderValue({
     () => ({
       topic,
       messages: messageItems,
-      partsByMessageId,
-      streamingLayers,
+      partsByMessageId: displayPartsByMessageId,
+      streamingLayers: displayStreamingLayers,
       isInitialLoading,
       isMessagesStale,
       hasOlder,
@@ -824,11 +855,11 @@ export function useHomeMessageListProviderValue({
       messageItems,
       messageActivityStore,
       messageNavigation,
-      partsByMessageId,
+      displayPartsByMessageId,
       renderConfig,
       resolvedAssistantId,
       selectionController.selection,
-      streamingLayers,
+      displayStreamingLayers,
       topic,
       translationLanguages,
       translationLanguagesStatus

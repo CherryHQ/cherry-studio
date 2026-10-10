@@ -1356,6 +1356,21 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'boom')
     })
 
+    it('renders nothing for a dismissed error part while keeping the remaining content', () => {
+      // Dismissal hides the error without deleting it; the partial answer stays.
+      renderParts([
+        { type: 'text', text: 'partial answer' },
+        {
+          type: 'data-error',
+          data: { name: 'Err', message: 'boom' },
+          providerMetadata: { cherry: { dismissed: true } }
+        }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByText('partial answer')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-error-block')).toBeNull()
+    })
+
     it('does not move non-consecutive updates for the same video ahead of intervening content', async () => {
       const { container } = renderParts([
         { type: 'data-video', data: { filePath: '/tmp/same.mp4', url: 'https://v.test/first.mp4' } },

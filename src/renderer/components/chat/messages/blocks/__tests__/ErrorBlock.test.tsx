@@ -15,6 +15,12 @@ const mocks = vi.hoisted(() => ({
 }))
 
 const GO_TO_SETTINGS_LABEL = enUS['error.diagnosis.go_to_settings']
+const STAGE_LABELS = {
+  parse: enUS['error.stage.parse'],
+  persistence: enUS['error.stage.persistence'],
+  runtime: enUS['error.stage.runtime'],
+  stream: enUS['error.stage.stream']
+}
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
@@ -79,6 +85,9 @@ describe('ErrorBlock', () => {
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
+    for (const [stage, label] of Object.entries(STAGE_LABELS)) {
+      mocks.translations.set(`error.stage.${stage}`, label)
+    }
     vi.clearAllMocks()
   })
 
@@ -439,5 +448,113 @@ describe('ErrorBlock', () => {
     expect(screen.getByText('error.diagnosis.proxy')).toBeInTheDocument()
     await user.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/general')
+  })
+
+  describe('failure stage', () => {
+    it('names the runtime stage next to a bare "No response"', () => {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'AgentRuntimeError',
+            message: 'No response',
+            stack: null,
+            executionFailure: {
+              message: 'No response',
+              retryable: true,
+              failure: { version: 1, reasonCode: 'unknown', source: { layer: 'runtime' }, stage: 'runtime' }
+            }
+          }}
+          message={message}
+        />
+      )
+
+      // The stage is what tells the user whether retrying is worth it; "No response" alone does not.
+      expect(screen.getByText(`${STAGE_LABELS.runtime} No response`)).toBeInTheDocument()
+    })
+
+    it('names the parse stage for an undecodable provider reply', () => {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'APICallError',
+            message: 'Failed to process successful response',
+            stack: null,
+            failureStage: 'parse'
+          }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText(`${STAGE_LABELS.parse} Failed to process successful response`)).toBeInTheDocument()
+    })
+
+    it('names the persistence stage when the reply could not be saved', () => {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'Error',
+            message: 'database is locked',
+            stack: null,
+            failureStage: 'persistence'
+          }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText(`${STAGE_LABELS.persistence} database is locked`)).toBeInTheDocument()
+    })
+
+    it('shows the message alone when no stage is attributed', () => {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{ name: 'Error', message: 'boom', stack: null }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText('boom')).toBeInTheDocument()
+      expect(screen.queryByText(/Failure stage unknown/)).toBeNull()
+    })
+
+    it('names the stream stage next to an HTTP status label', () => {
+      // A mid-stream provider frame can carry both a 429 status and the stream stage;
+      // the status alone leaves the user guessing whether the request ever got going.
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'StreamError',
+            message: 'rate limited',
+            stack: null,
+            statusCode: 429,
+            failureStage: 'stream'
+          }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText(`${STAGE_LABELS.stream} HTTP 429 rate limited`)).toBeInTheDocument()
+    })
+
+    it('keeps the HTTP label unprefixed when the error carries no stage', () => {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'APICallError',
+            message: 'Too many requests',
+            stack: null,
+            statusCode: 429
+          }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText('HTTP 429 Too many requests')).toBeInTheDocument()
+    })
   })
 })
