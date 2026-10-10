@@ -2579,7 +2579,7 @@ describe('SkillService', () => {
 
     it('reconcileSkills skips a malformed catalog row without duplicating its folder', async () => {
       await writeLibrarySkill('broken-skill', '# valid library copy')
-      await dbh.db.run(
+      dbh.db.run(
         sql.raw(
           `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
            VALUES ('broken-row', 'Broken', NULL, 'broken-skill', 'local', NULL, NULL, NULL, NULL, 'not-json', 'old', 1, 1, 1)`
@@ -2643,7 +2643,7 @@ describe('SkillService', () => {
         contentHash: 'healthy',
         isEnabled: false
       })
-      await dbh.db.run(
+      dbh.db.run(
         sql.raw(
           `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
            VALUES ('case-quarantined-row', 'Case Skill', NULL, 'Case-Skill', 'local', NULL, NULL, NULL, NULL, 'not-json', 'quarantined', 1, 1, 1)`
