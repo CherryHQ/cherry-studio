@@ -2,6 +2,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ThemedToken } from 'shiki/core'
+import stringWidth from 'string-width'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -13,6 +14,62 @@ import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 
 const logger = loggerService.withContext('CodeViewer')
+
+// Kept in sync with scroller `tabSize` — wrapped-row estimates expand tabs using this width.
+const WRAPPED_LINE_TAB_SIZE = 2
+// Pessimistic width deduction so `ch` gutters and sub-pixel layout do not overstate chars/row.
+const WRAPPED_ESTIMATE_WIDTH_MARGIN_PX = 4
+
+function wrappedLineVisibleText(part: string): string {
+  // string-width strips ESC/C1 CSI and OSC sequences, but CodeViewer renders those bytes in HTML.
+  return part.replaceAll('\u001b', '').replaceAll('\u009b', '')
+}
+
+function wrappedLineVisualColumns(line: string): number {
+  const parts = line.split('\t')
+  let columns = 0
+  for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+    if (partIndex > 0) {
+      columns += WRAPPED_LINE_TAB_SIZE - (columns % WRAPPED_LINE_TAB_SIZE)
+    }
+    columns += stringWidth(wrappedLineVisibleText(parts[partIndex]))
+  }
+  return columns
+}
+
+/** First index whose line text differs; optimized for streaming append / last-line edits. */
+function firstChangedRawLineIndex(prev: string[], next: string[]): number {
+  const maxIndex = Math.max(prev.length, next.length) - 1
+  if (maxIndex < 0) return 0
+
+  if (next.length === prev.length + 1 && prev.length > 0) {
+    let onlyAppendedLastLine = true
+    for (let index = 0; index < prev.length; index++) {
+      if (prev[index] !== next[index]) {
+        onlyAppendedLastLine = false
+        break
+      }
+    }
+    if (onlyAppendedLastLine) return next.length - 1
+  }
+
+  if (next.length === prev.length && next.length > 0 && prev[next.length - 1] !== next[next.length - 1]) {
+    let onlyLastLineChanged = true
+    for (let index = 0; index < next.length - 1; index++) {
+      if (prev[index] !== next[index]) {
+        onlyLastLineChanged = false
+        break
+      }
+    }
+    if (onlyLastLineChanged) return next.length - 1
+  }
+
+  let startIndex = 0
+  while (startIndex <= maxIndex && prev[startIndex] === next[startIndex]) {
+    startIndex++
+  }
+  return startIndex
+}
 
 interface SavedSelection {
   startLine: number
@@ -108,6 +165,11 @@ const CodeViewer = ({
   const shouldStickToBottomRef = useRef(true)
   const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
   const hasRequestedHighlightRef = useRef(false)
+  const measuredRowHeightsRef = useRef(new Map<number, number>())
+  const remeasureLayoutKeyRef = useRef('')
+  const scrollerWidthRef = useRef(0)
+  const prevRawLinesRef = useRef<string[]>([])
+  const prevGutterDigitsRef = useRef(0)
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -120,9 +182,13 @@ const CodeViewer = ({
 
   const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
   const lineNumbers = useMemo(() => options?.lineNumbers ?? _lineNumbers, [options?.lineNumbers, _lineNumbers])
+  // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
+  const lineHeight = useMemo(() => Math.round(fontSize * 1.6), [fontSize])
   const highlight = options?.highlight ?? true
 
   const rawLines = useMemo(() => (typeof value === 'string' ? value.trimEnd().split('\n') : []), [value])
+  const rawLinesRef = useRef(rawLines)
+  rawLinesRef.current = rawLines
 
   useEffect(() => {
     if (!autoScrollToBottom || expanded) {
@@ -374,8 +440,45 @@ const CodeViewer = ({
   // Virtualizer 配置
   const getScrollElement = useCallback(() => scrollerRef.current, [])
   const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
-  // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
-  const estimateSize = useCallback(() => Math.round(fontSize * 1.6), [fontSize])
+  const wrappedCharsPerRow = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (!scroller?.clientWidth) {
+      // One char per row until layout is known — underestimates cause overlap.
+      return 1
+    }
+    const paddingLeft = fontSize
+    // Match VirtualizedRow: `--gutter-width: Ndigits ch`, `mr-4`, and line-content `pr-[1em]`.
+    const gutterWidth = lineNumbers ? gutterDigits * fontSize : 0
+    const lineNumberMargin = lineNumbers ? 16 : 0
+    const lineContentPaddingRight = fontSize
+    const contentWidth =
+      scroller.clientWidth -
+      paddingLeft -
+      gutterWidth -
+      lineNumberMargin -
+      lineContentPaddingRight -
+      WRAPPED_ESTIMATE_WIDTH_MARGIN_PX
+    // Monospace code is ~1em wide; a smaller factor over-counts chars per row and under-estimates height.
+    const charWidth = Math.max(1, fontSize)
+    return Math.max(1, Math.floor(contentWidth / charWidth))
+  }, [fontSize, gutterDigits, lineNumbers])
+  const estimateWrappedRowHeight = useCallback(
+    (line: string) => {
+      const visualColumns = wrappedLineVisualColumns(line)
+      if (visualColumns === 0) return lineHeight
+      // Underestimating wrapped rows makes later virtual rows overlap earlier ones until remeasure.
+      const charsPerRow = wrappedCharsPerRow()
+      return lineHeight * Math.max(1, Math.ceil(visualColumns / charsPerRow))
+    },
+    [lineHeight, wrappedCharsPerRow]
+  )
+  const estimateSize = useCallback(
+    (index: number) => {
+      if (!wrapped) return lineHeight
+      return estimateWrappedRowHeight(rawLinesRef.current[index] ?? '')
+    },
+    [estimateWrappedRowHeight, lineHeight, wrapped]
+  )
 
   // 创建 virtualizer 实例
   const virtualizer = useVirtualizer({
@@ -497,7 +600,117 @@ const CodeViewer = ({
   // Report scrollHeight when it might change
   useLayoutEffect(() => {
     onHeightChange?.(scrollerRef.current?.scrollHeight ?? 0)
-  }, [rawLines.length, onHeightChange])
+  }, [rawLines.length, totalSize, onHeightChange])
+
+  // rawLines 变更（流式输出）不重置测量缓存：重置会让未变更的行退回估算高度、再次互相重叠。
+  // measure() 会清空全部缓存；对 wrapped 行改为逐行更新，避免离屏行退回估算后 translateY 重叠。
+  const remeasureRows = useCallback(() => {
+    if (!wrapped) {
+      virtualizer.measure()
+      return
+    }
+
+    const scroller = scrollerRef.current
+    if (!scroller) return
+
+    const layoutKey = `${fontSize}|${lineNumbers}|${wrapped}|${scroller.clientWidth}|${gutterDigits}`
+    if (layoutKey !== remeasureLayoutKeyRef.current) {
+      remeasureLayoutKeyRef.current = layoutKey
+      measuredRowHeightsRef.current.clear()
+    }
+
+    const lineCount = rawLinesRef.current.length
+    for (let index = 0; index < lineCount; index++) {
+      const row = scroller.querySelector(`[data-index="${index}"]`)
+      if (row instanceof HTMLElement) {
+        virtualizer.measureElement(row)
+        const measured = row.getBoundingClientRect().height
+        if (measured > 0) {
+          measuredRowHeightsRef.current.set(index, measured)
+        }
+      } else {
+        const line = rawLinesRef.current[index] ?? ''
+        const estimated = estimateWrappedRowHeight(line)
+        const cached = measuredRowHeightsRef.current.get(index)
+        // Never shrink offscreen rows within the same layout — undersized estimates overlap rows.
+        const nextSize = Math.max(estimated, cached ?? 0)
+        virtualizer.resizeItem(index, nextSize)
+        measuredRowHeightsRef.current.set(index, nextSize)
+      }
+    }
+  }, [estimateWrappedRowHeight, fontSize, gutterDigits, lineNumbers, virtualizer, wrapped])
+
+  useLayoutEffect(() => {
+    remeasureRows()
+  }, [expanded, wrapped, fontSize, gutterDigits, lineNumbers, remeasureRows])
+
+  useLayoutEffect(() => {
+    if (!wrapped) {
+      prevRawLinesRef.current = rawLines
+      return
+    }
+
+    const prev = prevRawLinesRef.current
+    if (prevGutterDigitsRef.current !== gutterDigits) {
+      prevGutterDigitsRef.current = gutterDigits
+      remeasureLayoutKeyRef.current = ''
+      measuredRowHeightsRef.current.clear()
+    }
+
+    if (prev.length > 0) {
+      const scroller = scrollerRef.current
+      const maxIndex = Math.max(prev.length, rawLines.length) - 1
+      const startIndex = firstChangedRawLineIndex(prev, rawLines)
+      for (let index = startIndex; index <= maxIndex; index++) {
+        if (prev[index] === rawLines[index]) continue
+        // Newly appended lines get their initial size from estimateSize; remeasure only in-place edits.
+        if (prev[index] === undefined) continue
+
+        if (scroller) {
+          const row = scroller.querySelector(`[data-index="${index}"]`)
+          if (row instanceof HTMLElement) {
+            virtualizer.measureElement(row)
+            const measured = row.getBoundingClientRect().height
+            if (measured > 0) {
+              measuredRowHeightsRef.current.set(index, measured)
+              continue
+            }
+          }
+        }
+
+        const estimated = estimateWrappedRowHeight(rawLines[index] ?? '')
+        const cached = measuredRowHeightsRef.current.get(index)
+        const nextSize = Math.max(estimated, cached ?? 0)
+        virtualizer.resizeItem(index, nextSize)
+        measuredRowHeightsRef.current.set(index, nextSize)
+      }
+    }
+    prevRawLinesRef.current = rawLines
+  }, [gutterDigits, rawLines, wrapped, estimateWrappedRowHeight, virtualizer])
+
+  useLayoutEffect(() => {
+    if (!wrapped) return
+    const scroller = scrollerRef.current
+    if (!scroller || typeof ResizeObserver === 'undefined') return
+
+    scrollerWidthRef.current = scroller.clientWidth
+    const resizeObserver = new ResizeObserver(() => {
+      const width = scroller.clientWidth
+      if (width === scrollerWidthRef.current) return
+      scrollerWidthRef.current = width
+      remeasureRows()
+    })
+    resizeObserver.observe(scroller)
+    return () => resizeObserver.disconnect()
+  }, [remeasureRows, wrapped])
+
+  useLayoutEffect(() => {
+    if (!expanded) return
+    const scroller = scrollerRef.current
+    if (scroller) {
+      scroller.scrollTop = 0
+    }
+  }, [expanded])
 
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
@@ -515,8 +728,10 @@ const CodeViewer = ({
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
-            '--line-height': `${estimateSize()}px`,
+            '--line-height': `${lineHeight}px`,
+            fontFamily: 'var(--code-font-family)',
             fontSize,
+            tabSize: WRAPPED_LINE_TAB_SIZE,
             height: expanded ? undefined : height,
             maxHeight: expanded ? undefined : maxHeight,
             overflowY: expanded ? 'hidden' : 'auto'
@@ -529,29 +744,30 @@ const CodeViewer = ({
             width: '100%',
             position: 'relative'
           }}>
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              transform: `translateY(${virtualItems[0]?.start ?? 0}px)`
-            }}>
-            {virtualItems.map((virtualItem) => (
-              <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
-                <VirtualizedRow
-                  rawLine={rawLines[virtualItem.index]}
-                  tokenLine={highlight ? tokenLines[virtualItem.index] : undefined}
-                  highlightEnabled={highlight}
-                  showLineNumbers={lineNumbers}
-                  expanded={expanded}
-                  wrapped={wrapped}
-                  index={virtualItem.index}
-                  isDarkTheme={isShikiThemeDark}
-                />
-              </div>
-            ))}
-          </div>
+          {virtualItems.map((virtualItem) => (
+            <div
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualItem.start}px)`
+              }}>
+              <VirtualizedRow
+                rawLine={rawLines[virtualItem.index]}
+                tokenLine={highlight ? tokenLines[virtualItem.index] : undefined}
+                highlightEnabled={highlight}
+                showLineNumbers={lineNumbers}
+                expanded={expanded}
+                wrapped={wrapped}
+                index={virtualItem.index}
+                isDarkTheme={isShikiThemeDark}
+              />
+            </div>
+          ))}
         </div>
       </div>
     </div>
