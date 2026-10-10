@@ -9,8 +9,9 @@ import type { WebSocketServer } from 'ws'
 import { loggerService } from '@logger'
 import { installBundledDevtools } from '@main/core/devtools'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
-import { isDev } from '@main/core/platform'
 import { isSensitiveKey, REDACTED, redactUrlParams } from '@shared/utils/redaction'
+
+import { isMainNetworkDevtoolsEnabled } from './isMainNetworkDevtoolsEnabled'
 
 const logger = loggerService.withContext('MainNetworkDevtoolsService')
 
@@ -37,6 +38,8 @@ export interface MainNetworkDevtoolsBody {
   truncated?: boolean
   size?: number
   note?: string
+  /** False when `text` is a display summary (e.g. FormData) rather than a replayable payload. */
+  replayable?: boolean
 }
 
 export interface MainNetworkDevtoolsEvent {
@@ -134,8 +137,9 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 }
 
 /**
- * Development-only monitor for network requests initiated by this main-process
- * JavaScript runtime (`fetch`, Electron `net.fetch`, and Node `http`/`https`).
+ * Monitor for network requests initiated by this main-process JavaScript runtime
+ * (`fetch`, Electron `net.fetch`, and Node `http`/`https`). Active in development
+ * builds and in packaged builds when Developer Mode is enabled at startup.
  *
  * Known limitations: traffic emitted by native binaries or child processes is
  * not visible to these in-process monkey patches. In particular, Claude agent SDK
@@ -146,7 +150,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 @Injectable('MainNetworkDevtoolsService')
 @ServicePhase(Phase.Background)
 @Priority(0)
-@Conditional(when(() => isDev, 'development mode'))
+@Conditional(when(() => isMainNetworkDevtoolsEnabled(), 'development or developer mode'))
 export class MainNetworkDevtoolsService extends BaseService {
   private readonly events: MainNetworkDevtoolsEvent[] = []
   private readonly clients = new Set<WebSocket>()
@@ -646,7 +650,15 @@ export function captureRequestBody(body: unknown, contentType?: string): MainNet
   if (body instanceof URLSearchParams)
     return createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded')
   if (typeof FormData !== 'undefined' && body instanceof FormData) {
-    return createCapturedTextBody(JSON.stringify(formDataToRecord(body)), contentType ?? 'multipart/form-data')
+    const captured = createCapturedTextBody(
+      JSON.stringify(formDataToRecord(body)),
+      contentType ?? 'multipart/form-data'
+    )
+    return {
+      ...captured,
+      replayable: false,
+      note: 'Multipart FormData cannot be exported as cURL.'
+    }
   }
   if (typeof Blob !== 'undefined' && body instanceof Blob) {
     return {
@@ -777,7 +789,8 @@ function createCapturedTextBody(
     text: redactBodyText(visibleText, contentType),
     contentType,
     size,
-    truncated: truncated || undefined
+    truncated: truncated || undefined,
+    replayable: true
   }
 }
 
