@@ -307,6 +307,7 @@ export type SharedCacheSchema = {
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
   'doctor.state.${scope}': CacheValueTypes.CacheDoctorState
+  'doctor.agent.${scope}': CacheValueTypes.CacheDoctorAgentState
   'network.online': boolean
   // Runtime-only opt-out shared across windows; resets when the app exits.
   'agent.model_switch_confirmation.skipped': boolean
@@ -318,6 +319,7 @@ export type SharedCacheSchema = {
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
   'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
   'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
+  'message.context.compacting.${messageId}': boolean
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -365,6 +367,10 @@ export type SharedCacheSchema = {
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
+  // File-processing progress for a knowledge item, main -> all windows. The check job
+  // mirrors the linked file-processing job's progress here every poll round so the row can
+  // show a percentage during the 'processing' wait; absence means no progress was reported.
+  'knowledge.item.file_processing_progress.${itemId}': number | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -372,6 +378,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
   'doctor.state.${scope}': { status: 'idle' },
+  'doctor.agent.${scope}': { status: 'idle' },
   'network.online': true,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
@@ -382,6 +389,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.task_events.${sessionId}': {},
   'agent.session.flow_parts.${sessionId}.${messageId}': [],
   'agent.session.turn_origin.${sessionId}.${messageId}': null,
+  'message.context.compacting.${messageId}': false,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
@@ -404,7 +412,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'channel.status.${channelId}': null,
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
-  'knowledge.item.directory_copy_progress.${itemId}': null
+  'knowledge.item.directory_copy_progress.${itemId}': null,
+  'knowledge.item.file_processing_progress.${itemId}': null
 }
 
 /**
@@ -451,6 +460,7 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  'settings.device_connections.step': 'download' | 'connect' | 'complete'
   // Usage statistics view selections, persisted so leaving and re-entering the page restores
   // them. The heatmap drill-down date stays component-local: a stored past date would reopen
   // the page on an empty range.
@@ -506,6 +516,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.filter_mode': 'all',
+  'settings.device_connections.step': 'download',
   'settings.usage.window': '30d',
   'settings.usage.group_by': 'provider',
   'settings.usage.chart_metric': 'tokens',

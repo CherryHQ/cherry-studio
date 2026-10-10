@@ -2,6 +2,7 @@ import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { BaseService, Injectable, ServiceContainer } from '@main/core/lifecycle'
 
@@ -11,7 +12,12 @@ import { ChannelManager } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 
 const mocks = vi.hoisted(() => ({
-  getLifecycleState: vi.fn()
+  getLifecycleState: vi.fn(),
+  resumeListeners: new Set<() => void>(),
+  onResume: vi.fn((listener: () => void) => {
+    mocks.resumeListeners.add(listener)
+    return { dispose: () => mocks.resumeListeners.delete(listener) }
+  })
 }))
 
 vi.mock('../channelAdapterLoader', () => ({ loadChannelAdapter: vi.fn() }))
@@ -29,6 +35,8 @@ class TestFileManager {
     Object.assign(this, defaultServiceInstances.FileManager)
   }
 }
+@Injectable('PowerService')
+class TestPowerService {}
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -68,6 +76,7 @@ class MockAdapter extends ChannelAdapter {
   disconnect = vi.fn().mockResolvedValue(undefined)
   sendMessage = vi.fn().mockResolvedValue(undefined)
   sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
+  handleSystemResume = vi.fn()
 
   protected async performConnect(): Promise<void> {}
   protected async performDisconnect(): Promise<void> {}
@@ -104,6 +113,14 @@ describe('ChannelManager', () => {
     ServiceContainer.reset()
     vi.clearAllMocks()
     mocks.getLifecycleState.mockReturnValue('active')
+    mocks.resumeListeners.clear()
+    vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'PowerService') return { onResume: mocks.onResume } as never
+      if (name in defaultServiceInstances) {
+        return defaultServiceInstances[name as keyof typeof defaultServiceInstances] as never
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
     rows = []
     adapters = []
     qrOnConnect = undefined
@@ -129,12 +146,13 @@ describe('ChannelManager', () => {
     const container = ServiceContainer.getInstance()
     container.register(TestWindowManager)
     container.register(TestFileManager)
+    container.register(TestPowerService)
     container.register(ChannelManager)
     manager = container.get(ChannelManager)
   })
 
   afterEach(async () => {
-    await manager._doStop()
+    if (manager && !manager.isStopped) await manager._doStop()
     BaseService.resetInstances()
     ServiceContainer.reset()
   })
@@ -148,6 +166,19 @@ describe('ChannelManager', () => {
 
     expect(adapters[0].channelId).toBe('ch-1')
     expect(adapters[0].connect).toHaveBeenCalledOnce()
+  })
+
+  it('forwards system resume to active adapters and unregisters on stop', async () => {
+    rows = [makeChannel()]
+    await manager._doInit()
+    await vi.waitFor(() => expect(adapters).toHaveLength(1))
+
+    expect(mocks.resumeListeners.size).toBe(1)
+    for (const listener of mocks.resumeListeners) listener()
+    expect(adapters[0].handleSystemResume).toHaveBeenCalledOnce()
+
+    await manager._doStop()
+    expect(mocks.resumeListeners.size).toBe(0)
   })
 
   it('treats archive and restore events as hints and preserves channel intent', async () => {

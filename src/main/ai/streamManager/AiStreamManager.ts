@@ -24,6 +24,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -2026,6 +2027,14 @@ export class AiStreamManager extends BaseService {
 
     exec.timings.completedAt = result.broadcastCompletedAt
 
+    if (result.accumulationError !== undefined) {
+      logger.error('Message accumulation failed', {
+        topicId,
+        modelId,
+        err: chatErrorContext(result.accumulationError.error)
+      })
+    }
+
     if (result.threw !== undefined) {
       const fromThrow = serializeError(result.threw.error)
       if (signal.aborted) {
@@ -2050,6 +2059,10 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+    } else if (result.accumulationError !== undefined) {
+      const error = serializeError(result.accumulationError.error)
+      error.executionFailure = toExecutionFailure(error, modelId, 'host')
+      await this.onExecutionError(topicId, modelId, error, exec)
     } else {
       await this.onExecutionDone(topicId, modelId, exec)
     }

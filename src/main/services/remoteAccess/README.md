@@ -43,6 +43,10 @@ Deviations from the design doc, kept deliberately small:
   `interaction.updated`; only stream-presented approvals enter the live projection.
 - Legacy files retain metadata-only `data` parts. Remote uploads expose revision-bound file content references.
 
+The desktop identity is sealed with `safeStorage`. Without an OS key store (Linux `basic_text`), it is
+stored unencrypted with mode `0600`. An existing identity is never regenerated: a sealed identity whose
+key store disappears is an error, since replacing it would unpair every device.
+
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
 
