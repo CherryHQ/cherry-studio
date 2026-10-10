@@ -1,6 +1,6 @@
 import type { AssistantMessage, JsonValue, Usage } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
-import type { AssistantModelMessage } from 'ai'
+import { type AssistantModelMessage, modelMessageSchema } from 'ai'
 
 import { AI_SDK_API } from './aiSdkProvider'
 import { toPiAssistantContent, toPiToolResult, toPiUserContent } from './modelMessages'
@@ -110,7 +110,8 @@ export function rebuildSessionEntries(
     switch (entry.kind) {
       case 'message': {
         const { message, custom } = entry
-        if (!isRecord(message)) throw invalid(id, 'a message entry needs a message')
+        if (!modelMessageSchema.safeParse(message).success)
+          throw invalid(id, 'a message entry needs an AI SDK ModelMessage')
         if (custom !== undefined) {
           if (message.role !== 'user' || !isRecord(custom) || typeof custom.type !== 'string')
             throw invalid(id, 'a custom message needs a user message and a type')
@@ -162,6 +163,7 @@ export function rebuildSessionEntries(
       case 'compaction':
         if (typeof entry.summary !== 'string' || !isCount(entry.tokensBefore))
           throw invalid(id, 'a compaction needs a summary and tokensBefore')
+        if (typeof entry.firstKeptEntryId !== 'string') throw invalid(id, 'firstKeptEntryId must be a string')
         if (entry.firstKeptEntryId !== id && !kinds.has(entry.firstKeptEntryId))
           throw new TranscriptError(
             'compaction_boundary_missing',
@@ -179,6 +181,7 @@ export function rebuildSessionEntries(
         break
       case 'context-edit':
         if (entry.replacement !== null) throw invalid(id, 'context edits can only remove a message')
+        if (typeof entry.targetId !== 'string') throw invalid(id, 'targetId must be a string')
         if (kinds.get(entry.targetId) !== 'message')
           throw new TranscriptError('edit_target_missing', id, 'Context edit targets no earlier message')
         entries.push({ ...base, type: 'context_edit', targetId: entry.targetId, replacement: null })
