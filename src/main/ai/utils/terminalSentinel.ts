@@ -8,11 +8,13 @@
  * `status='error'` with zero parts, so history showed a bubble with nothing in
  * it. These sentinels give those paths a truthful, classified error.
  *
- * Cross-process: `main` writes them, the renderer's `ErrorBlock` renders them.
+ * Cross-process: `main` writes them, the renderer's `ErrorBlock` renders them —
+ * but every producer is main-side, so this module is main-owned; only the
+ * serialized {@link SerializedError} contract it emits is shared.
  */
 
-import type { CherryMessagePart } from '../data/types/message'
-import type { SerializedError } from '../types/error'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import type { SerializedError } from '@shared/types/error'
 
 /** Renderer key prefix — `ErrorBlock` resolves `error.${i18nKey}`. See the SerializedError doc comment. */
 export const TERMINAL_I18N_PREFIX = 'error'

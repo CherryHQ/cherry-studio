@@ -1,7 +1,7 @@
 /** Finalizes a pending assistant placeholder without writing usage/cost. */
 
+import { withTerminalErrorPart } from '@main/ai/utils/terminalSentinel'
 import { messageService } from '@main/data/services/MessageService'
-import { withTerminalErrorPart } from '@shared/ai/terminalSentinel'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import type { AssistantTurnOptions, CherryUIMessage } from '@shared/data/types/message'
 
