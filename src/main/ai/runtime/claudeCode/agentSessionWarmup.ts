@@ -37,7 +37,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
-import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -51,6 +51,7 @@ import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayR
 import type { AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { resolveModelNativeImageSupport } from './modelImageSupport'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
@@ -537,7 +538,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         linkedChannelSnapshot,
         notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
-        supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
+        supportsImages: resolveModelNativeImageSupport(uniqueModelId),
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
         effectiveLanguage
