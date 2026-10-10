@@ -70,6 +70,7 @@ vi.mock('../useResourceLibrary', () => ({
     return {
       allResources: controllerMocks.resourceLibraryState.allResources,
       error: controllerMocks.resourceLibraryState.error,
+      groups: controllerMocks.groups,
       isLoading: controllerMocks.resourceLibraryState.isLoading,
       isRefreshing: false,
       refetch: controllerMocks.refetch,
@@ -368,6 +369,15 @@ describe('useResourceCatalogController', () => {
   })
 
   it('clears the active group when the resource type changes', async () => {
+    // Chips only exist for real groups, so the selected id has a backing row.
+    controllerMocks.groups.push({
+      id: '11111111-1111-4111-8111-111111111111',
+      entityType: 'assistant',
+      name: 'work',
+      orderKey: 'a0',
+      createdAt: '2026-09-15T00:00:00.000Z',
+      updatedAt: '2026-09-15T00:00:00.000Z'
+    })
     const { result, rerender } = renderHook(
       ({ resourceType }: { resourceType: ControllerResourceType }) => useResourceCatalogController(resourceType),
       { initialProps: { resourceType: 'assistant' as ControllerResourceType } }
@@ -386,6 +396,15 @@ describe('useResourceCatalogController', () => {
     await waitFor(() => {
       expect(result.current.gridProps.activeGroupId).toBeNull()
     })
+
+    // A group id only means something in the library it was picked in: the agent library must
+    // never be asked for it, not even on the render the switch happens on.
+    expect(controllerMocks.resourceLibraryOptions).not.toContainEqual(
+      expect.objectContaining({
+        resourceType: 'agent',
+        activeGroupId: '11111111-1111-4111-8111-111111111111'
+      })
+    )
 
     rerender({ resourceType: 'assistant' })
 

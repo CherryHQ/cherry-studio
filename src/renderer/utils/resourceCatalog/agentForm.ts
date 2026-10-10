@@ -33,6 +33,8 @@ export interface AgentFormState {
   skillIds: string[]
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
+  /** Group membership; null = ungrouped. */
+  groupId: string | null
 
   // configuration.* derived fields we edit in the library UI.
   avatar: string
@@ -106,6 +108,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     disabledTools: (agent?.disabledTools ?? []).map((name) =>
       agent?.type === 'pi' ? normalizePiDisabledToolId(name) : name
     ),
+    groupId: agent?.groupId ?? null,
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
@@ -191,6 +194,10 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   }
   if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
     dto.disabledTools = next.disabledTools
+    dirty = true
+  }
+  if (baseline.groupId !== next.groupId) {
+    dto.groupId = next.groupId
     dirty = true
   }
 
