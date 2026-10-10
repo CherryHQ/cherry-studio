@@ -453,7 +453,7 @@ export function useHomeMessageListProviderValue({
           if (updatedText === null) {
             logger.warn(`Failed to save code block to message block ${msgBlockId}: no unique matching code block`)
             toast.error(t('code_block.edit.save.failed.label'))
-            return
+            return false
           }
           const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
           allParts[resolved.index] = {
@@ -462,7 +462,7 @@ export function useHomeMessageListProviderValue({
           }
           await requireChatWrite('saveCodeBlock').editMessage(resolved.messageId, allParts)
           toast.success(t('code_block.edit.save.success'))
-          return
+          return true
         }
 
         logger.error(`Failed to save code block content to message block ${msgBlockId}: unable to resolve part`)
@@ -471,6 +471,7 @@ export function useHomeMessageListProviderValue({
         logger.error(`Failed to save code block content to message block ${msgBlockId}:`, error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
+      return false
     },
     [requireChatWrite, t]
   )
