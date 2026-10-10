@@ -45,6 +45,9 @@ type FinishStepPart = Extract<TextStreamPart<ToolSet>, { type: 'finish-step' }>
 
 const zeroCost = (): Usage['cost'] => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 })
 
+const isJsonObject = (value: unknown): value is JsonObject =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
 /**
  * Usage reported to Pi feeds its context accounting and compaction only. The host's AI SDK call
  * has already accounted the same tokens, so usage read back from Pi must not be billed again.
@@ -138,6 +141,7 @@ function streamModelCall<TRequestOptions>(
     const signature = (current: string | undefined, metadata: ProviderMetadata | undefined) =>
       encodeProviderMetadata(metadata) ?? current
     let finish: FinishStepPart | undefined
+    let streamAborted = false
     signal?.addEventListener('abort', cancelRead, { once: true })
     try {
       let request: ModelCallRequest<TRequestOptions> = {
@@ -238,16 +242,21 @@ function streamModelCall<TRequestOptions>(
               toolCalls.set(part.toolCallId, block)
               stream.push({ type: 'toolcall_start', contentIndex: indexOf(block), partial: output })
             }
-            block.arguments = (part.input ?? {}) as JsonObject
+            // A repair may rename the call. Unparsable input stays raw text; replay `{}` as the AI SDK does.
+            block.name = part.toolName
+            block.arguments = isJsonObject(part.input) ? part.input : {}
             block.thoughtSignature = encodeProviderMetadata(part.providerMetadata)
             stream.push({ type: 'toolcall_end', contentIndex: indexOf(block), toolCall: block, partial: output })
             break
           }
           case 'source':
           case 'file':
+            provider.sideChannel?.onUnmappedPart?.(part, call)
+            break
           case 'tool-result':
           case 'tool-error':
-            provider.sideChannel?.onUnmappedPart?.(part, call)
+            // Pi answers its own calls, including those the AI SDK rejected as invalid.
+            if (part.providerExecuted) provider.sideChannel?.onUnmappedPart?.(part, call)
             break
           case 'finish-step':
             finish = part
@@ -260,7 +269,8 @@ function streamModelCall<TRequestOptions>(
           case 'error':
             throw part.error
           case 'abort':
-            throw new Error('Model call was aborted')
+            streamAborted = true
+            throw new Error(part.reason ? `Model call was aborted: ${part.reason}` : 'Model call was aborted')
           default:
             break
         }
@@ -271,7 +281,8 @@ function streamModelCall<TRequestOptions>(
       stream.push({ type: 'done', reason: output.stopReason as 'stop' | 'length' | 'toolUse', message: output })
       stream.end()
     } catch (error) {
-      const aborted = signal?.aborted === true
+      // The host may abort through its own signal; the stream's `abort` part reports that too.
+      const aborted = signal?.aborted === true || streamAborted
       output.stopReason = aborted ? 'aborted' : 'error'
       output.errorMessage = errorMessageOf(error)
       try {
