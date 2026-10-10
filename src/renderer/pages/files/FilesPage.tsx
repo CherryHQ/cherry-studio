@@ -212,11 +212,12 @@ function toFileItem(
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
   if (type === 'image') {
+    const imagePath = entry.origin === 'external' ? entry.externalPath : physicalPath
     return {
       ...base,
       ...originFields,
       type,
-      previewUrl: physicalPath ? toSafeFileUrl(physicalPath, entry.ext) : undefined
+      previewUrl: imagePath ? toSafeFileUrl(imagePath, entry.ext) : undefined
     }
   }
 

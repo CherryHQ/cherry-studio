@@ -130,6 +130,14 @@ const externalEntry = {
   updatedAt: 1_719_216_000_000
 } as unknown as FileEntry
 
+const externalImageEntry = {
+  ...externalEntry,
+  id: 'file-external-image',
+  name: 'external-photo',
+  ext: 'png',
+  externalPath: '/tmp/external-photo.png'
+} as unknown as FileEntry
+
 function bulkEntry(origin: 'internal' | 'external', index: number): FileEntry {
   const base = {
     id: `bulk-${origin}-${index}`,
@@ -583,6 +591,21 @@ describe('FilesPage file operations', () => {
       expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-note.md')
     })
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: ['file-migrated-a'] })
+  })
+
+  it('renders external image thumbnails without hydrating their physical paths', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata' || route === 'file.batch_get_dangling_states') {
+        return Promise.resolve({})
+      }
+      return Promise.resolve(input)
+    })
+    renderFilesPage([externalImageEntry])
+
+    fireEvent.click(screen.getByText('files.image'))
+
+    expect(await screen.findByAltText('external-photo.png')).toHaveAttribute('src', 'file:///tmp/external-photo.png')
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_get_physical_paths', expect.anything())
   })
 
   it('embeds the file preview across the Files page after resolving the physical path', async () => {
