@@ -9,6 +9,7 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CROSS_SESSION_DELEGATION_HEADLESS_DENIAL } from '@main/ai/runtime/claudeCode/guardRules'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -1917,7 +1918,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       'EnterPlanMode',
       'ExitPlanMode',
       'EnterWorktree',
-      ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
+      ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.filter(
+        (name) => !NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES.includes(name)
+      )
     ]
     for (const toolName of toolsRequiringAResponder) {
       const result = await settings.canUseTool?.(toolName, {}, {
@@ -1929,6 +1932,19 @@ describe('buildClaudeCodeSessionSettings', () => {
         behavior: 'deny',
         message:
           'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+      })
+    }
+    // Delegation tools get the delivery-aware denial: they cannot run unattended, and the wording
+    // must tell the delivered Agent where its reply actually goes.
+    for (const toolName of NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES) {
+      const result = await settings.canUseTool?.(toolName, {}, {
+        signal: { aborted: false },
+        toolUseID: 'tool-use-1'
+      } as never)
+
+      expect(result).toEqual({
+        behavior: 'deny',
+        message: CROSS_SESSION_DELEGATION_HEADLESS_DENIAL
       })
     }
     expect(getInteractionState).toHaveBeenCalledWith('session-1')
@@ -1968,11 +1984,17 @@ describe('buildClaudeCodeSessionSettings', () => {
       await expect(decide(toolName)).resolves.toEqual({ behavior: 'allow', updatedInput: {} })
     }
     // The delegation ceiling and tools whose whole function is a user-authored answer still deny.
-    for (const toolName of [...NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES, 'AskUserQuestion', 'EnterPlanMode']) {
+    for (const toolName of ['AskUserQuestion', 'EnterPlanMode']) {
       await expect(decide(toolName)).resolves.toEqual({
         behavior: 'deny',
         message:
           'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+      })
+    }
+    for (const toolName of NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES) {
+      await expect(decide(toolName)).resolves.toEqual({
+        behavior: 'deny',
+        message: CROSS_SESSION_DELEGATION_HEADLESS_DENIAL
       })
     }
   })
