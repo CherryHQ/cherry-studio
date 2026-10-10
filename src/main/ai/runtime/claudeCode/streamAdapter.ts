@@ -770,9 +770,17 @@ export class ClaudeCodeStreamAdapter {
       if (chunk.providerMetadata) ctx.streamPartParentMetadata.set(partId, chunk.providerMetadata)
       return chunk
     }
-    if (chunk.providerMetadata) return chunk
-    const parentMetadata = ctx.streamPartParentMetadata.get(partId)
-    return parentMetadata ? { ...chunk, providerMetadata: parentMetadata } : chunk
+    if (
+      chunk.type === 'text-delta' ||
+      chunk.type === 'text-end' ||
+      chunk.type === 'reasoning-delta' ||
+      chunk.type === 'reasoning-end'
+    ) {
+      if (chunk.providerMetadata) return chunk
+      const parentMetadata = ctx.streamPartParentMetadata.get(partId)
+      return parentMetadata ? { ...chunk, providerMetadata: parentMetadata } : chunk
+    }
+    return chunk
   }
 
   private detachFlowContexts(): void {

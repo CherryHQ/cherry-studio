@@ -2109,7 +2109,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
 
-    this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId, flowOwnerToolCallId)
+    this.enqueueBackgroundFlowChunk(entry, messageId, chunk, flowOwnerToolCallId)
   }
 
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
@@ -2118,8 +2118,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!pending?.length) return
 
     entry.pendingBackgroundFlowChunks?.delete(messageId)
-    for (const { chunk, rootToolCallId, flowOwnerToolCallId } of pending)
-      this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId, flowOwnerToolCallId)
+    for (const { chunk, flowOwnerToolCallId } of pending)
+      this.enqueueBackgroundFlowChunk(entry, messageId, chunk, flowOwnerToolCallId)
     if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) void this.finishBackgroundFlows(entry)
   }
 
@@ -2127,7 +2127,6 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     messageId: string,
     chunk: UIMessageChunk,
-    rootToolCallId: string,
     flowOwnerToolCallId: string
   ): void {
     let accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
@@ -2273,7 +2272,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const { part: match, index } = seedStreaming[0]
     const parent = getPartParentToolCallId(match)
     if (parent && parent !== flowOwnerToolCallId) return false
-    parts[index] = { ...match, state: 'done' as const }
+    if (match.type !== 'text' && match.type !== 'reasoning') return false
+    parts[index] = { ...match, state: 'done' }
     accumulator.closedSeedIndexes ??= new Set()
     accumulator.closedSeedIndexes.add(index)
     return true
