@@ -38,6 +38,7 @@ export {
   stripKnownModelScratchpadBlocks,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripModelScratchpadBlocks,
+  textHasUnclosedCodeFence,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from './scratchpadText'

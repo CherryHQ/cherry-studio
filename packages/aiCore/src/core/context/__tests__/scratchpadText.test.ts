@@ -104,6 +104,18 @@ Example:
     expect(stripModelScratchpadBlocks(fourTick)).toContain('<thinking>nested fence example</thinking>')
   })
 
+  it('preserves analysis-note markup inside a summary wrapper', () => {
+    const input = '<summary><analysis-note>keep</analysis-note><analysis>hidden</analysis>answer</summary>'
+    expect(stripModelScratchpadBlocks(input)).toContain('<analysis-note>keep</analysis-note>')
+    expect(stripModelScratchpadBlocks(input)).toContain('answer')
+    expect(stripModelScratchpadBlocks(input)).not.toContain('hidden')
+  })
+
+  it('preserves fenced scratchpad literals when the closing fence uses CRLF', () => {
+    const input = `<summary>\r\n\`\`\`xml\r\n<thinking>literal example</thinking>\r\n\`\`\`\r\n</summary>`
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
+  })
+
   it('unwraps a whole summary block that quotes summary tags inside a fenced example', () => {
     const input = `<summary>
 1. Task Overview: user wants the syntax for a reasoning tag
