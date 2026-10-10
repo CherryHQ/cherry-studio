@@ -1,23 +1,39 @@
 /**
- * Agent autonomy tools (cron / notify / config / session_*) hosted by the in-process
+ * Agent autonomy tools (cron / notify / config / background_task / session_*) hosted by the in-process
  * `cherry-tools` MCP server (see `cherryBuiltinTools.ts`).
  *
  * Unlike the stateless builtin lookup tools, these act on behalf of a specific
  * agent (schedule its tasks, notify through its channels, delegate to other Sessions,
- * manage its own configuration), so they take the per-session agent context.
+ * manage its own configuration, run detached tasks), so they take the per-session agent context.
  */
+
+import path from 'node:path'
 
 import type { CallToolResult, McpServer } from '@modelcontextprotocol/server'
 import QRCode from 'qrcode'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskService'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import { notifyAgentBackgroundTaskCompletion, startAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
+import {
+  type BackgroundTaskRecord,
+  type CompletedBackgroundTask,
+  getDetachedBackgroundTask,
+  listDetachedBackgroundTasks,
+  stopDetachedBackgroundTask
+} from '@main/ai/agents/backgroundTasks'
+import {
+  detectDestructiveAssistantCommand,
+  isGitHubIssueCreationCommand,
+  isLarkFormSubmissionCommand
+} from '@main/ai/agents/builtin/assistantCommandSafety'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -36,6 +52,8 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import { evaluateShellCommandSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
   AgentSessionDeliveryStatusSchema,
@@ -46,13 +64,18 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
-import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import { BUILTIN_AGENT_ROLE, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { BACKGROUND_TASK_TOOL_NAME, CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
+
+/** Mirrors the guard table's assistant-feedback row: feedback submits externally under the user's identity. */
+const isExternalSubmission = (command: string): boolean =>
+  isLarkFormSubmissionCommand(command) || isGitHubIssueCreationCommand(command)
 
 const AGENT_LIST_TOOL_NAME = 'agent_list'
 
@@ -303,6 +326,24 @@ const SessionSendInputSchema = z.object({
     .optional()
     .describe('completion returns one asynchronous terminal result in a separate turn.')
 })
+
+const BACKGROUND_TASK_DESCRIPTION = [
+  'Run, inspect, or list fully detached background tasks. Unlike the runtime-native background shell (run_in_background-style), whose processes live inside the agent CLI process tree and are killed when the CLI session exits, the user aborts, or the app quits, a task started here is spawned into its own process session (setsid) and keeps running across turns, CLI exits, and app restarts. ',
+  "Completion handling is best-effort: while the app is running, the task's exit notifies the notification recipients authorized by the starting turn and writes an <id>.done marker; if the app exited first, status/list reconcile from the marker and PID liveness. ",
+  'stdout and stderr stream to a task log file; every task is registered with PID, log path, and start time. ',
+  'Use the runtime-native background shell for short work that should report back inside this session; use this tool when the task must outlive the session or the app. Commands run with shell semantics in the session workspace and require user approval.'
+].join('')
+
+const BackgroundTaskInputSchema = z.object({
+  action: z.enum(['start', 'status', 'list', 'stop', 'kill']).describe('The action to perform'),
+  command: z.string().optional().describe("Shell command to run detached (required for 'start')."),
+  name: z
+    .string()
+    .optional()
+    .describe("Optional short label used in records and completion notifications (for 'start')."),
+  task_id: z.string().optional().describe("Task id returned by start (required for 'status', 'stop', and 'kill').")
+})
+type BackgroundTaskInput = z.output<typeof BackgroundTaskInputSchema>
 
 function assertCurrentSessionIdentity(ctx: AutonomyToolsContext): void {
   const session = agentSessionService.getById(ctx.sessionId)
@@ -1105,6 +1146,148 @@ async function runConfig(ctx: AutonomyToolsContext, args: ConfigInput): Promise<
   }
 }
 
+// ── Background task handlers ──────────────────────────────────────
+
+function backgroundTaskStorageDir(ctx: AutonomyToolsContext): string {
+  return path.join(application.getPath('feature.agents.data'), ctx.agentId, 'background-tasks')
+}
+
+async function startBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTaskInput): Promise<CallToolResult> {
+  const command = args.command ?? ''
+  if (!command.trim()) throw new Error("'command' is required for start")
+  const agent = agentService.getAgent(ctx.agentId)
+  const builtinRole = agent?.configuration?.builtin_role
+  if (isProtectedBuiltinAgentRole(builtinRole)) {
+    const reason = detectDestructiveAssistantCommand(command)
+    if (reason) throw new Error(`This built-in Agent blocked ${reason}`)
+    // A detached command is a shell command: mirror the guard table's headless Bash denials so
+    // they hold on every runtime, not just Claude Code's PreToolUse plane (#18898 gap).
+    const interaction = application.get('AgentSessionRuntimeService').getInteractionState(ctx.sessionId)
+    const headless = interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable'
+    if (headless && (builtinRole === BUILTIN_AGENT_ROLE.SUPPORT || isExternalSubmission(command))) {
+      throw new Error(
+        builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
+          ? 'Headless channel or scheduled turns cannot run shell commands for Cherry Support.'
+          : 'Headless channel or scheduled turns cannot submit Cherry Studio feedback.'
+      )
+    }
+  }
+  // A detached command is a shell command, so the shared command denials of native shell execution
+  // must hold here too: this tool's MCP name is not a bound tool of those guards, and Full Access
+  // lifts the per-call approval, so the restrictions are enforced at this boundary itself.
+  const sqliteDecision = await evaluateShellCommandSqliteGuard({
+    command,
+    cwd: ctx.workspacePath,
+    workspacePath: ctx.workspacePath
+  })
+  if (sqliteDecision) throw new Error(sqliteDecision.reason)
+  const globalInstallReason = detectGlobalInstall(command)
+  if (globalInstallReason) {
+    throw new Error(
+      `Blocked to avoid cross-agent dependency pollution: ${globalInstallReason}. Install project dependencies in the current workspace (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg>\` python for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\`; for persistent CLIs use \`cli_search\` then \`cli_install\`.`
+    )
+  }
+  const storageDir = backgroundTaskStorageDir(ctx)
+  const record = await startAgentBackgroundTask({
+    agentId: ctx.agentId,
+    storageDir,
+    command,
+    cwd: ctx.workspacePath,
+    name: args.name,
+    // Completion delivery is scoped to these recipients; see notifyBackgroundTaskCompletion.
+    notifyChannelIds: ctx.trustedNotifyChannels.map((channel) => channel.id),
+    onExit: (task) => {
+      indexBackgroundTask(ctx.agentId, task.record)
+      notifyBackgroundTaskCompletion(ctx.agentId, task)
+    }
+  })
+  indexBackgroundTask(ctx.agentId, (await getDetachedBackgroundTask(storageDir, record.id)) ?? record)
+  return {
+    content: [{ type: 'text', text: JSON.stringify(record, null, 2) }]
+  }
+}
+
+async function backgroundTaskStatus(ctx: AutonomyToolsContext, args: BackgroundTaskInput): Promise<CallToolResult> {
+  const taskId = args.task_id?.trim() ?? ''
+  if (!taskId) throw new Error("'task_id' is required for status")
+  const record = await getDetachedBackgroundTask(backgroundTaskStorageDir(ctx), taskId)
+  if (!record) throw new Error(`Task "${taskId}" not found`)
+  indexBackgroundTask(ctx.agentId, record)
+  return {
+    content: [{ type: 'text', text: JSON.stringify(record, null, 2) }]
+  }
+}
+
+async function listBackgroundTasks(ctx: AutonomyToolsContext): Promise<CallToolResult> {
+  const tasks = await listDetachedBackgroundTasks(backgroundTaskStorageDir(ctx))
+  indexBackgroundTasks(ctx.agentId, tasks)
+  return {
+    content: [{ type: 'text', text: JSON.stringify({ tasks }, null, 2) }]
+  }
+}
+
+async function stopBackgroundTask(
+  ctx: AutonomyToolsContext,
+  args: BackgroundTaskInput,
+  force: boolean
+): Promise<CallToolResult> {
+  const taskId = args.task_id?.trim() ?? ''
+  if (!taskId) throw new Error("'task_id' is required for stop/kill")
+  const record = await stopDetachedBackgroundTask(backgroundTaskStorageDir(ctx), taskId, force, (task) => {
+    indexBackgroundTask(ctx.agentId, task.record)
+    notifyBackgroundTaskCompletion(ctx.agentId, task)
+  })
+  if (!record) throw new Error(`Task "${taskId}" is not running or cannot be verified`)
+  indexBackgroundTask(ctx.agentId, record)
+  return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }
+}
+
+async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTaskInput): Promise<CallToolResult> {
+  switch (args.action) {
+    case 'start':
+      return await startBackgroundTask(ctx, args)
+    case 'status':
+      return await backgroundTaskStatus(ctx, args)
+    case 'list':
+      return await listBackgroundTasks(ctx)
+    case 'stop':
+      return await stopBackgroundTask(ctx, args, false)
+    case 'kill':
+      return await stopBackgroundTask(ctx, args, true)
+  }
+}
+
+/**
+ * Index a task for the panel. Best-effort by design: the disk record is the source of truth and
+ * the side effect has already happened, so a DB failure must not be reported as a tool failure —
+ * for `start` that invites a retry and duplicates work that is in fact running.
+ */
+function indexBackgroundTask(agentId: string, record: BackgroundTaskRecord): void {
+  try {
+    agentBackgroundTaskService.saveRecord(agentId, record)
+  } catch (error) {
+    logger.error('Failed to index detached background task', { taskId: record.id, error })
+  }
+}
+
+/** One transaction for the whole listing, so a large task set costs one write, not one per row. */
+function indexBackgroundTasks(agentId: string, records: BackgroundTaskRecord[]): void {
+  try {
+    agentBackgroundTaskService.saveRecords(agentId, records)
+  } catch (error) {
+    logger.error('Failed to index detached background tasks', { agentId, error })
+  }
+}
+
+/**
+ * Out-of-band completion delivery — the app's ordinary notify authority does
+ * not exist this long after the starting turn, so the starting turn's trusted
+ * recipients were persisted on the task and delivery stays inside that scope.
+ */
+function notifyBackgroundTaskCompletion(agentId: string, task: CompletedBackgroundTask): void {
+  notifyAgentBackgroundTaskCompletion(agentId, task)
+}
+
 export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsContext): void {
   server.registerTool(CRON_TOOL_NAME, { description: CRON_DESCRIPTION, inputSchema: CronInputSchema }, (args) =>
     runCron(ctx, args)
@@ -1120,6 +1303,11 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
   }
   server.registerTool(CONFIG_TOOL_NAME, { description: CONFIG_DESCRIPTION, inputSchema: ConfigInputSchema }, (args) =>
     runConfig(ctx, args)
+  )
+  server.registerTool(
+    BACKGROUND_TASK_TOOL_NAME,
+    { description: BACKGROUND_TASK_DESCRIPTION, inputSchema: BackgroundTaskInputSchema },
+    (args) => runBackgroundTask(ctx, args)
   )
   server.registerTool(
     SESSION_LIST_TOOL_NAME,

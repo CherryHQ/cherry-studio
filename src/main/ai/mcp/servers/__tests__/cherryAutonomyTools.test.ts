@@ -1,4 +1,5 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -7,38 +8,73 @@ import { McpServer } from '@modelcontextprotocol/server'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { isPidAlive } from '@main/ai/agents/backgroundTasks'
 import type * as ChannelsModule from '@main/ai/channels'
 
 // Mock TaskService before importing CherryAutonomyTools
-const mockCreateTask = vi.fn()
-const mockListTasks = vi.fn()
-const mockDeleteTask = vi.fn()
-const mockGetNotifyAdapters = vi.fn()
-const mockSendMessage = vi.fn()
-const mockSendFile = vi.fn()
-const mockGetAgent = vi.fn()
-const mockListAgents = vi.fn()
-const mockUpdateAgent = vi.fn()
-const mockQRCodeToDataURL = vi.fn()
-const mockListChannels = vi.fn()
-const mockCreateChannel = vi.fn()
-const mockCreateChannelAndWaitForQr = vi.fn()
-const mockGetChannel = vi.fn()
-const mockUpdateChannel = vi.fn()
-const mockUpdateChannelAndWaitForQr = vi.fn()
-const mockDeleteChannel = vi.fn()
-const mockReconnectChannel = vi.fn()
-const mockReconnectChannelWithQr = vi.fn()
-const mockGetSession = vi.fn()
-const mockReadConversation = vi.fn()
-const mockFindPersistedToolOutput = vi.fn()
-const mockListSessions = vi.fn()
-const mockSearchSessions = vi.fn()
-const mockSearchSessionMessages = vi.fn()
-const mockAcceptSessionDelivery = vi.fn()
-const mockCreateSessionWithDelivery = vi.fn()
-const mockListSessionDeliveries = vi.fn()
-const mockGetInteractionState = vi.fn()
+const {
+  mockCreateTask,
+  mockListTasks,
+  mockDeleteTask,
+  mockGetNotifyAdapters,
+  mockSendMessage,
+  mockSendMessageOther,
+  mockSendFile,
+  mockGetAgent,
+  mockListAgents,
+  mockUpdateAgent,
+  mockQRCodeToDataURL,
+  mockListChannels,
+  mockCreateChannel,
+  mockCreateChannelAndWaitForQr,
+  mockGetChannel,
+  mockUpdateChannel,
+  mockUpdateChannelAndWaitForQr,
+  mockDeleteChannel,
+  mockReconnectChannel,
+  mockReconnectChannelWithQr,
+  mockGetSession,
+  mockReadConversation,
+  mockFindPersistedToolOutput,
+  mockListSessions,
+  mockSearchSessions,
+  mockSearchSessionMessages,
+  mockAcceptSessionDelivery,
+  mockCreateSessionWithDelivery,
+  mockListSessionDeliveries,
+  mockGetInteractionState
+} = vi.hoisted(() => ({
+  mockCreateTask: vi.fn(),
+  mockListTasks: vi.fn(),
+  mockDeleteTask: vi.fn(),
+  mockGetNotifyAdapters: vi.fn(),
+  mockSendMessage: vi.fn(),
+  mockSendMessageOther: vi.fn(),
+  mockSendFile: vi.fn(),
+  mockGetAgent: vi.fn(),
+  mockListAgents: vi.fn(),
+  mockUpdateAgent: vi.fn(),
+  mockQRCodeToDataURL: vi.fn(),
+  mockListChannels: vi.fn(),
+  mockCreateChannel: vi.fn(),
+  mockCreateChannelAndWaitForQr: vi.fn(),
+  mockGetChannel: vi.fn(),
+  mockUpdateChannel: vi.fn(),
+  mockUpdateChannelAndWaitForQr: vi.fn(),
+  mockDeleteChannel: vi.fn(),
+  mockReconnectChannel: vi.fn(),
+  mockReconnectChannelWithQr: vi.fn(),
+  mockGetSession: vi.fn(),
+  mockReadConversation: vi.fn(),
+  mockFindPersistedToolOutput: vi.fn(),
+  mockListSessions: vi.fn(),
+  mockSearchSessions: vi.fn(),
+  mockSearchSessionMessages: vi.fn(),
+  mockAcceptSessionDelivery: vi.fn(),
+  mockCreateSessionWithDelivery: vi.fn(),
+  mockListSessionDeliveries: vi.fn(),
+  mockGetInteractionState: vi.fn()
+}))
 
 // Task reads stay on AgentTaskService; task commands (create / delete) go
 // through the AgentJobsService routed via the application mock below.
@@ -142,6 +178,9 @@ vi.mock('@main/services/MainWindowService', () => ({
 }))
 
 const { registerAutonomyTools } = await import('../cherryAutonomyTools')
+// Dynamic import keeps the hoisted '@application' mock factory from evaluating
+// before this module's top-level mock fns exist.
+const { application } = await import('@application')
 const WORKSPACE_SOURCE = { type: 'system' as const }
 const WORKSPACE_PATH = '/tmp/cherry-test-workspace'
 const clients: Client[] = []
@@ -1936,6 +1975,343 @@ describe('cherry-tools autonomy tools', () => {
 
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('status')
+    })
+  })
+
+  describe('background task tool', () => {
+    let agentsDataDir: string
+    let workspaceDir: string
+
+    beforeEach(async () => {
+      agentsDataDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-agents-'))
+      workspaceDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-workspace-'))
+      // vi.clearAllMocks() above keeps implementations, so overriding getPath per test is enough.
+      vi.mocked(application.getPath).mockImplementation((key: string) =>
+        key === 'feature.agents.data' ? agentsDataDir : `/mock/${key}`
+      )
+    })
+
+    afterEach(async () => {
+      // A killed detached child releases its log fd and cwd handle a beat after the kill lands
+      // (pid liveness is not handle liveness), so removal retries through that window.
+      for (const dir of [agentsDataDir, workspaceDir]) {
+        const deadline = Date.now() + 5_000
+        for (;;) {
+          try {
+            await rm(dir, { recursive: true, force: true })
+            break
+          } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code
+            if (Date.now() >= deadline || (code !== 'EBUSY' && code !== 'ENOTEMPTY' && code !== 'EPERM')) throw error
+            await new Promise((resolve) => setTimeout(resolve, 50))
+          }
+        }
+      }
+    })
+
+    const nodeBin = `"${process.execPath}"`
+
+    it('blocks destructive detached commands for protected built-in Agents', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'assistant' } })
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: 'rm -rf important-data' },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('permanent file deletion')
+    })
+
+    it('denies every detached shell command for Cherry Support in headless turns', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'support' } })
+      mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'stream' })
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"` },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('cannot run shell commands for Cherry Support')
+    })
+
+    it('denies detached feedback submissions for the Assistant without a live responder', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'assistant' } })
+      mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'unavailable' })
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: 'gh issue create --title "bug"' },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('cannot submit Cherry Studio feedback')
+    })
+
+    // The tool's MCP name is not a bound tool of the shared command guards and Full Access lifts
+    // its per-call approval, so the native Bash denials must be re-enforced at this boundary.
+    it('denies a detached command writing the user-data SQLite database and spawns nothing', async () => {
+      const userDataDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-userdata-'))
+      const dbFile = path.join(userDataDir, 'cherryStudio.sqlite')
+      vi.mocked(application.getPath).mockImplementation((key: string) => {
+        if (key === 'feature.agents.data') return agentsDataDir
+        if (key === 'app.userdata') return userDataDir
+        if (key === 'app.database.file') return dbFile
+        return `/mock/${key}`
+      })
+      try {
+        await writeFile(dbFile, '')
+        const result = await callTool(
+          createServer('agent_test', workspaceDir),
+          { action: 'start', command: `sqlite3 "${dbFile}" "DELETE FROM agents"` },
+          'background_task'
+        )
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Access to SQLite files inside Cherry Studio user data is blocked.')
+        const storage = path.join(agentsDataDir, 'agent_test', 'background-tasks')
+        expect(await readdir(storage).catch(() => [] as string[])).toHaveLength(0)
+      } finally {
+        await rm(userDataDir, { recursive: true, force: true })
+      }
+    })
+
+    // `--help` keeps the command harmless if a regression ever lets it start.
+    it('denies a detached global package install the native shell blocks and spawns nothing', async () => {
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: 'uv tool install --help' },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('cross-agent dependency pollution')
+      const storage = path.join(agentsDataDir, 'agent_test', 'background-tasks')
+      expect(await readdir(storage).catch(() => [] as string[])).toHaveLength(0)
+    })
+
+    it('starts a detached task stored under the agent data dir and rejects missing commands', async () => {
+      const server = createServer('agent_test', workspaceDir)
+      const result = await callTool(
+        server,
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"`, name: 'probe' },
+        'background_task'
+      )
+
+      const record = JSON.parse(result.content[0].text)
+      expect(record.status).toBe('running')
+      expect(record.pid).toBeGreaterThan(0)
+      expect(record.command).toContain('process.exit(0)')
+      expect(record.name).toBe('probe')
+      expect(record.logFile).toBe(path.join(agentsDataDir, 'agent_test', 'background-tasks', `${record.id}.log`))
+
+      const missing = await callTool(server, { action: 'start' }, 'background_task')
+      expect(missing.isError).toBe(true)
+      expect(missing.content[0].text).toContain("'command' is required")
+    })
+
+    it('notifies configured channels when the task exits', async () => {
+      mockGetNotifyAdapters.mockReturnValue([
+        { channelId: 'ch1', connected: true, notifyChatIds: ['100'], sendMessage: mockSendMessage }
+      ])
+      mockSendMessage.mockResolvedValue(undefined)
+
+      const server = createServer('agent_test', workspaceDir)
+      await callTool(server, { action: 'start', command: `${nodeBin} -e "process.exit(0)"` }, 'background_task')
+
+      await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+      expect(mockSendMessage.mock.calls[0][0]).toBe('100')
+      expect(mockSendMessage.mock.calls[0][1]).toContain('finished with exit code 0')
+    })
+
+    it('keeps the completion notice inside the starting turn’s recipients', async () => {
+      // A task started in a turn authorized for ch1 only must not broadcast its summary (name,
+      // id, outcome, log path) to the Agent's other channel.
+      mockGetNotifyAdapters.mockReturnValue([
+        { channelId: 'ch1', connected: true, notifyChatIds: ['100'], sendMessage: mockSendMessage },
+        { channelId: 'ch2', connected: true, notifyChatIds: ['200'], sendMessage: mockSendMessageOther }
+      ])
+      mockSendMessage.mockResolvedValue(undefined)
+      mockSendMessageOther.mockResolvedValue(undefined)
+
+      const started = await callTool(
+        createServer('agent_test', workspaceDir, 'ch1'),
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"` },
+        'background_task'
+      )
+      const record = JSON.parse(started.content[0].text)
+      expect(record.notifyChannelIds).toEqual(['ch1'])
+
+      await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+      expect(mockSendMessageOther).not.toHaveBeenCalled()
+    })
+
+    it('delivers no completion notice when the starting turn had no recipients', async () => {
+      mockGetNotifyAdapters.mockReturnValue([
+        { channelId: 'ch1', connected: true, notifyChatIds: ['100'], sendMessage: mockSendMessage }
+      ])
+      mockSendMessage.mockResolvedValue(undefined)
+
+      const started = await callTool(
+        createServer('agent_test', workspaceDir, null),
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"` },
+        'background_task'
+      )
+      const record = JSON.parse(started.content[0].text)
+      expect(record.notifyChannelIds).toEqual([])
+
+      // Wait until the exit is fully reconciled (sentinel on disk) and past the finalize tick.
+      const sentinel = path.join(agentsDataDir, 'agent_test', 'background-tasks', `${record.id}.done`)
+      await vi.waitFor(() => expect(existsSync(sentinel)).toBe(true), { timeout: 10_000 })
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(mockSendMessage).not.toHaveBeenCalled()
+    })
+
+    it('reports status reconciliation and errors for unknown task ids', async () => {
+      const server = createServer('agent_test', workspaceDir)
+      const missing = await callTool(server, { action: 'status', task_id: 'bt-missing' }, 'background_task')
+      expect(missing.isError).toBe(true)
+      expect(missing.content[0].text).toContain('not found')
+
+      const emptyId = await callTool(server, { action: 'status' }, 'background_task')
+      expect(emptyId.isError).toBe(true)
+      expect(emptyId.content[0].text).toContain("'task_id' is required")
+
+      const unknownAction = await callTool(server, { action: 'tail' }, 'background_task')
+      expect(unknownAction.isError).toBe(true)
+      expect(unknownAction.content[0].text).toContain('start')
+    })
+
+    it('lists tasks recorded on disk so a later session can discover them', async () => {
+      const server = createServer('agent_test', workspaceDir)
+      const started = await callTool(
+        server,
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"` },
+        'background_task'
+      )
+      const record = JSON.parse(started.content[0].text)
+
+      const listed = await callTool(server, { action: 'list' }, 'background_task')
+      const tasks = JSON.parse(listed.content[0].text).tasks
+      expect(tasks.map((task: { id: string }) => task.id)).toContain(record.id)
+
+      // The durable record file, not process memory, is what a restarted app reads back.
+      const onDisk = JSON.parse(
+        await readFile(path.join(agentsDataDir, 'agent_test', 'background-tasks', `${record.id}.json`), 'utf8')
+      )
+      expect(onDisk.command).toBe(record.command)
+      expect(onDisk.startedAt).toBe(record.startedAt)
+    })
+
+    // Indexing the task for the panel is the last step of `start`, after the process is spawned and
+    // its disk record written. Reporting a failure there would be a lie that invites a retry, and the
+    // retry would run the command a second time.
+    it('reports a start whose only failure was indexing the task', async () => {
+      const { MockMainDbServiceExport } = await import('@test-mocks/main/DbService')
+      const { withWriteTx } = MockMainDbServiceExport.dbService
+      const original = withWriteTx.getMockImplementation()
+      withWriteTx.mockImplementation(() => {
+        throw new Error('database is locked')
+      })
+      try {
+        const server = createServer('agent_test', workspaceDir)
+        const result = await callTool(
+          server,
+          { action: 'start', command: `${nodeBin} -e "setTimeout(() => process.exit(0), 1500)"` },
+          'background_task'
+        )
+
+        expect(result.isError).toBeFalsy()
+        const record = JSON.parse(result.content[0].text)
+        expect(record.status).toBe('running')
+        expect(record.pid).toBeGreaterThan(0)
+
+        // The disk record exists even though indexing failed, so `stop` can still find the task.
+        // Without this the detached child outlives the test and holds the fixture dirs open
+        // while afterEach removes them.
+        const stopped = await callTool(server, { action: 'stop', task_id: record.id }, 'background_task')
+        expect(stopped.isError).toBeFalsy()
+        await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+      } finally {
+        withWriteTx.mockImplementation(original!)
+      }
+    })
+
+    // Same seam at the other end: a finished task's channel notification must not be suppressed by
+    // the panel index write that happens alongside it.
+    it('still notifies configured channels when indexing a finished task fails', async () => {
+      const { MockMainDbServiceExport } = await import('@test-mocks/main/DbService')
+      const { withWriteTx } = MockMainDbServiceExport.dbService
+      const original = withWriteTx.getMockImplementation()
+      mockGetNotifyAdapters.mockReturnValue([
+        { channelId: 'ch1', connected: true, notifyChatIds: ['100'], sendMessage: mockSendMessage }
+      ])
+      mockSendMessage.mockResolvedValue(undefined)
+      withWriteTx.mockImplementation(() => {
+        throw new Error('database is locked')
+      })
+      try {
+        const server = createServer('agent_test', workspaceDir)
+        await callTool(server, { action: 'start', command: `${nodeBin} -e "process.exit(0)"` }, 'background_task')
+
+        await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+      } finally {
+        withWriteTx.mockImplementation(original!)
+      }
+    })
+
+    // IPC-boundary seam (the twin of the MCP layer's best-effort indexing): the disk and process
+    // work has already succeeded by the time the panel index write runs, so a DB failure must not
+    // turn the completed listing into an error response or a different answer.
+    it('lists detached tasks even when indexing them into the panel store fails', async () => {
+      // Dynamic: a static import would hoist @application's mock factory above the const mocks.
+      const { listAgentBackgroundTasks, startAgentBackgroundTask } =
+        await import('@main/ai/agents/backgroundTaskActions')
+      const { MockMainDbServiceExport } = await import('@test-mocks/main/DbService')
+      const { withWriteTx } = MockMainDbServiceExport.dbService
+      const original = withWriteTx.getMockImplementation()
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: {} })
+      const started = await startAgentBackgroundTask({
+        agentId: 'agent_test',
+        storageDir: path.join(agentsDataDir, 'agent_test', 'background-tasks'),
+        command: `${nodeBin} -e "setTimeout(() => process.exit(0), 800)"`,
+        cwd: workspaceDir
+      })
+      withWriteTx.mockImplementation(() => {
+        throw new Error('database is locked')
+      })
+      try {
+        // The panel and the agent's own list tool must not disagree: the MCP `list_background_tasks`
+        // returns the reconciled disk records, so a failed index write may not hand the panel a
+        // stale (here: empty) SQLite read instead.
+        const tasks = await listAgentBackgroundTasks('agent_test')
+        expect(tasks.map((task) => task.id)).toContain(started.id)
+      } finally {
+        withWriteTx.mockImplementation(original!)
+      }
+    })
+
+    it('stops a detached task even when indexing the stop into the panel store fails', async () => {
+      const { startAgentBackgroundTask, stopAgentBackgroundTask } =
+        await import('@main/ai/agents/backgroundTaskActions')
+      const { MockMainDbServiceExport } = await import('@test-mocks/main/DbService')
+      const { withWriteTx } = MockMainDbServiceExport.dbService
+      const original = withWriteTx.getMockImplementation()
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: {} })
+      const record = await startAgentBackgroundTask({
+        agentId: 'agent_test',
+        storageDir: path.join(agentsDataDir, 'agent_test', 'background-tasks'),
+        command: `${nodeBin} -e "setTimeout(() => {}, 30_000)"`,
+        cwd: workspaceDir
+      })
+      withWriteTx.mockImplementation(() => {
+        throw new Error('database is locked')
+      })
+      try {
+        // The stop itself must complete (the child dies) even though the index write failed;
+        // a graceful stop returns before the process is reaped, so wait for the pid.
+        const stopped = await stopAgentBackgroundTask('agent_test', record.id, false)
+        expect(stopped).toBeDefined()
+        await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+      } finally {
+        withWriteTx.mockImplementation(original!)
+      }
     })
   })
 })

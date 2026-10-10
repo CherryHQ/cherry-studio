@@ -9,8 +9,9 @@
  *
  * Domain tools that act on behalf of the session's agent live in sibling providers this
  * server merely registers — it stays unaware of their domain logic:
- * - {@link registerAutonomyTools} (`…__cron`, `…__notify`, `…__config`, `…__session_*`) —
- *   schedules, notifies, delegates, and self-configures the agent.
+ * - {@link registerAutonomyTools} (`…__cron`, `…__notify`, `…__config`, `…__background_task`,
+ *   `…__session_*`) — schedules, notifies, delegates, self-configures the agent, and runs fully
+ *   detached background tasks.
  * - {@link registerKnowledgeTools} (`…__kb_search`, `…__kb_read`, `…__kb_list`,
  *   `…__kb_manage`) — owns knowledge-base exposure and per-call scope authorization.
  * - {@link registerCliTools} (`…__cli_list`, `…__cli_search`, `…__cli_install`) —
