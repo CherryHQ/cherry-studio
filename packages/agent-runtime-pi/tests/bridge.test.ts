@@ -74,7 +74,9 @@ describe('Pi agent loop over the AI SDK port', () => {
       [
         { type: 'reasoning-start', id: 'r1' },
         { type: 'reasoning-delta', id: 'r1', delta: 'Need weather' },
-        { type: 'reasoning-end', id: 'r1', providerMetadata: { anthropic: { signature: 'sig-A' } } },
+        // Anthropic's shape: the signature arrives on an empty delta, the end part carries none.
+        { type: 'reasoning-delta', id: 'r1', delta: '', providerMetadata: { anthropic: { signature: 'sig-A' } } },
+        { type: 'reasoning-end', id: 'r1' },
         { type: 'tool-input-start', id: 'call_1', toolName: 'get_weather' },
         { type: 'tool-input-delta', id: 'call_1', delta: '{"city":' },
         { type: 'tool-input-delta', id: 'call_1', delta: '"Paris"}' },
