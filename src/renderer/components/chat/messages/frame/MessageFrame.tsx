@@ -34,8 +34,10 @@ import MessageHeader, { AgentSessionDeliveryBadge } from './MessageHeader'
 import MessageMenuBar from './MessageMenuBar'
 import { MessageUserLayout } from './MessageUserLayout'
 
-const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
-  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
+const USER_MESSAGE_FOOTER_ACTIONS_CLASS = 'flex items-center gap-2'
+
+const MESSAGE_TIMESTAMP_CLASS =
+  'shrink-0 opacity-0 transition-opacity duration-150 group-focus-within/message:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
 interface Props {
   message: MessageListItem
@@ -246,11 +248,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   ) : undefined
 
   const assistantFooter = showAssistantFooterActions ? (
-    <div
-      className={cn(
-        'MessageFooter mt-1 flex min-h-6.5 shrink-0 items-center justify-between gap-1.5 text-xs leading-none',
-        assistantFooterVisibilityClass
-      )}>
+    <div className="MessageFooter mt-1 flex min-h-6.5 shrink-0 items-center justify-between gap-1.5 text-xs leading-none">
       <HorizontalScrollContainer
         classNames={{
           content: cn('flex-1 flex-row items-center justify-between')
@@ -258,7 +256,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
         <MessageMenuBar
           message={message}
           isLastMessage={isLatestAssistantMessage}
-          forceVisible={isMessageMenuOpen}
           isAssistantMessage={isAssistantMessage}
           isGrouped={isGrouped}
           isProcessing={isProcessing}
@@ -268,7 +265,9 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           onSelectContext={onSelectContext}
         />
       </HorizontalScrollContainer>
-      <SiblingNavigator messageId={message.id} />
+      <div className={assistantFooterVisibilityClass}>
+        <SiblingNavigator messageId={message.id} />
+      </div>
     </div>
   ) : undefined
 
@@ -277,7 +276,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       key={message.id}
       className={cn(
         classNames({
-          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200 [&_.menubar:focus-within]:opacity-100 no-hover:[&_.menubar]:opacity-100': true,
+          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage,
           'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
@@ -394,7 +393,9 @@ const UserBubbleMessage = ({
       {!isEditing && (
         <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-xs leading-none text-foreground-tertiary">
           <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
-            <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
+            <span className={MESSAGE_TIMESTAMP_CLASS}>
+              {dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}
+            </span>
             <MessageMenuBar
               message={message}
               isLastMessage={isLastMessage}
