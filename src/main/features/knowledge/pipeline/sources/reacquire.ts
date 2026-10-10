@@ -1,5 +1,6 @@
 import type { IndexableKnowledgeItem } from '../../items'
 import { copyFileIntoKnowledgeBaseAt, writeFileIntoKnowledgeBaseAt } from '../../pathStorage'
+import { assertSourceFileNotBinary } from '../readers/KnowledgeFileReader'
 import { buildNoteSnapshotFile } from './noteSnapshot'
 import { fetchKnowledgeWebPage } from './url'
 import { buildUrlSnapshotFile } from './urlSnapshot'
@@ -30,8 +31,12 @@ export function resolveKnowledgeReacquireProducer(item: IndexableKnowledgeItem):
 
   if (item.type === 'file') {
     const { source, relativePath } = item.data
-    return async () => async (signal) => {
-      await copyFileIntoKnowledgeBaseAt(baseId, source, relativePath, { overwrite: true, signal })
+    return async () => {
+      // Reject a source that is (now) binary before re-copying it over the stored file.
+      await assertSourceFileNotBinary(source)
+      return async (signal) => {
+        await copyFileIntoKnowledgeBaseAt(baseId, source, relativePath, { overwrite: true, signal })
+      }
     }
   }
 

@@ -1,3 +1,5 @@
+import type * as FsPromises from 'node:fs/promises'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as FsUtils from '@main/utils/file'
@@ -15,6 +17,16 @@ vi.mock('@application', async () => {
 
 vi.mock('@main/utils/legacyFile', () => ({
   getFileExt: (path: string) => path.slice(path.lastIndexOf('.'))
+}))
+
+// The text-fallback binary guard sniffs the file's raw byte prefix via `fs.open`. Return clean
+// (NUL-free) bytes so a .txt file passes the guard without touching disk.
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof FsPromises>()),
+  open: vi.fn(async () => ({
+    read: async () => ({ bytesRead: 0 }),
+    close: async () => {}
+  }))
 }))
 
 vi.mock('@vectorstores/readers/text', async () => {
