@@ -16,6 +16,7 @@ Native deltas accumulate once into ordered SDK messages, including preliminary/f
 
 
 
+
 ## Session builder
 
 `createAgentRuntimeSession` builds an `AgentSession` entirely in memory: in-memory credentials,
