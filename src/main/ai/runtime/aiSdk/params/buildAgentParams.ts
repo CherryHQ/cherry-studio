@@ -697,15 +697,10 @@ function buildAgentOptions(
   )
   if (Object.keys(callOverridesBodyParams).length > 0) rawBodyLayers.push(callOverridesBodyParams)
 
-  if (rawBodyLayers.length > 0) {
-    const mergedRawBody = rawBodyLayers.reduce<Record<string, unknown>>((acc, layer) => merge({}, acc, layer), {})
-    if (Object.keys(mergedRawBody).length > 0) {
-      sdkConfig.providerSettings.fetch = createCustomParamsFetch(
-        sdkConfig.providerSettings.fetch ?? globalThis.fetch,
-        mergedRawBody
-      )
-    }
-  }
+  const mergedRawBody =
+    rawBodyLayers.length > 0
+      ? rawBodyLayers.reduce<Record<string, unknown>>((acc, layer) => merge({}, acc, layer), {})
+      : {}
 
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
   // Body-routed keys already injected via the unified fetch wrapper, so strip them from
@@ -740,10 +735,9 @@ function buildAgentOptions(
   }
 
   const sanitized = stripRejectedSamplingParams(
-    { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
+    { standardParams, providerOptions: effectiveProviderOptions, bodyParams: mergedRawBody },
     model
   )
-  // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
   if (Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(
       sdkConfig.providerSettings.fetch ?? globalThis.fetch,
