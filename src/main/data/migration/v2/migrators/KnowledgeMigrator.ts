@@ -30,6 +30,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import type { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
+import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
   expandLegacyDirectoryItem,
@@ -974,6 +975,13 @@ export class KnowledgeMigrator extends BaseMigrator {
       }
 
       // Cross-run idempotency lives at the engine level (verifyAndClearNewTables) — no onConflict guard needed here.
+      const baseOrderKeys = new Map(
+        assignOrderKeysInSequence(
+          [...this.preparedBases].sort(
+            (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0) || (b.id ?? '').localeCompare(a.id ?? '')
+          )
+        ).map((base) => [base.id, base.orderKey])
+      )
       const legacyBaseIdByMigratedId = new Map(
         [...this.legacyBaseIdRemap.entries()].map(([legacyBaseId, migratedBaseId]) => [migratedBaseId, legacyBaseId])
       )
@@ -992,7 +1000,9 @@ export class KnowledgeMigrator extends BaseMigrator {
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
 
         ctx.db.transaction((tx) => {
-          tx.insert(knowledgeBaseTable).values(base).run()
+          tx.insert(knowledgeBaseTable)
+            .values({ ...base, orderKey: baseOrderKeys.get(base.id)! })
+            .run()
           transactionProcessed += 1
 
           for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {

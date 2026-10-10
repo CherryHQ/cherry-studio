@@ -9,6 +9,7 @@ import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { KnowledgeItemSort, KnowledgeItemSortBy } from '@shared/data/api/schemas/knowledges'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
@@ -23,6 +24,8 @@ import { dataSourceTypeDisplayConfig } from './utils/models'
 import { canReindexKnowledgeItem, getItemTitle } from './utils/selectors'
 
 export interface DataSourcePanelProps {
+  sort?: KnowledgeItemSort | null
+  onSortChange?: (sortBy: KnowledgeItemSortBy) => void
   embeddingModelId?: string | null
   items: KnowledgeItem[]
   /** Server-side total across all pages. Defaults to the loaded count when omitted. */
@@ -149,6 +152,8 @@ interface DataSourcePanelContentProps extends DataSourcePanelProps {
 }
 
 const DataSourcePanelContent = ({
+  sort = null,
+  onSortChange,
   items,
   total = items.length,
   isLoading,
@@ -186,6 +191,14 @@ const DataSourcePanelContent = ({
       return next.size === prev.size ? prev : next
     })
   }, [items])
+
+  const handleSortChange = useCallback(
+    (sortBy: KnowledgeItemSortBy) => {
+      setSelectedIds(new Set())
+      onSortChange?.(sortBy)
+    },
+    [onSortChange]
+  )
 
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
@@ -369,6 +382,9 @@ const DataSourcePanelContent = ({
           )
         ) : (
           <KnowledgeItemList
+            key={currentDirectory?.id ?? 'root'}
+            sort={sort}
+            onSortChange={handleSortChange}
             items={items}
             isLoading={isLoading}
             hasMore={hasMore}

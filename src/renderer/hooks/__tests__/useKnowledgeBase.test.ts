@@ -36,6 +36,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+  orderKey: 'a0',
   id: '',
   name: '',
   groupId: null,
@@ -86,6 +87,7 @@ describe('useKnowledgeBases', () => {
 
     await waitFor(() => {
       expect(mockUseInfiniteQuery).toHaveBeenLastCalledWith('/knowledge-bases', {
+        query: { sortBy: 'orderKey', sortOrder: 'asc' },
         limit: 100,
         enabled: undefined,
         swrOptions: { revalidateAll: true, revalidateFirstPage: false }
@@ -205,6 +207,7 @@ describe('useKnowledgeBases', () => {
     renderHook(() => useKnowledgeBases({ enabled: false }))
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/knowledge-bases', {
+      query: { sortBy: 'orderKey', sortOrder: 'asc' },
       limit: 100,
       enabled: false,
       swrOptions: { revalidateAll: false, revalidateFirstPage: false }

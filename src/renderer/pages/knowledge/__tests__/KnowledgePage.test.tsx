@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as KnowledgeBaseHooks from '@renderer/hooks/useKnowledgeBase'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
@@ -49,7 +50,8 @@ const mockRestoreDialogModuleLoad = vi.fn()
 const mockChunkDetailPanelModuleLoad = vi.fn()
 const mockNoteContentPanelModuleLoad = vi.fn()
 
-vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
+vi.mock('@renderer/hooks/useKnowledgeBase', async (importOriginal) => ({
+  ...(await importOriginal<typeof KnowledgeBaseHooks>()),
   useKnowledgeBases: () => mockUseKnowledgeBases(),
   useCreateKnowledgeBase: () => mockUseCreateKnowledgeBase(),
   useRestoreKnowledgeBase: () => mockUseRestoreKnowledgeBase(),
@@ -590,6 +592,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
+  orderKey: 'a0',
   id: '',
   name: '',
   itemCount: 0,
