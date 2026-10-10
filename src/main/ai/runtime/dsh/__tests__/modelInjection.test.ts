@@ -186,6 +186,17 @@ describe('buildDshGatewayInjection', () => {
     const windowless = makeModel({ contextWindow: undefined })
     expect(buildDshGatewayInjection(vertexProvider, windowless, GATEWAY).modelConfig.contextWindow).toBe(256_000)
   })
+
+  // #20285: a disabled provider/model must surface as a configuration error before generation,
+  // not a late gateway 400.
+  it('rejects disabled providers and models with an actionable error', () => {
+    expect(() => buildDshGatewayInjection({ ...vertexProvider, isEnabled: false }, makeModel(), GATEWAY)).toThrow(
+      'is disabled'
+    )
+    expect(() => buildDshGatewayInjection(vertexProvider, makeModel({ isEnabled: false }), GATEWAY)).toThrow(
+      'the model is disabled'
+    )
+  })
 })
 
 describe('buildDshProviderInjection', () => {
@@ -472,5 +483,17 @@ describe('assertDshProviderUsable', () => {
     mocks.getByKey.mockReturnValue(makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] }))
 
     await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow(DshUnsupportedProviderError)
+  })
+
+  // #20285: a disabled provider/model must surface as a configuration error before generation,
+  // not a late gateway 400.
+  it('rejects disabled providers and models with an actionable error', async () => {
+    mocks.getByProviderId.mockReturnValue({ ...vertexProvider, isEnabled: false })
+    mocks.getByKey.mockReturnValue(makeModel())
+    await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow('provider "vertexai" is disabled')
+
+    mocks.getByProviderId.mockReturnValue(vertexProvider)
+    mocks.getByKey.mockReturnValue(makeModel({ apiModelId: 'gemini-2.5-pro', isEnabled: false }))
+    await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow('the model is disabled')
   })
 })

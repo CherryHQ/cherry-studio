@@ -125,6 +125,40 @@ export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly 
 }
 
 /**
+ * Actionable pre-flight check for Agent runtimes holding an already-resolved
+ * `Provider` + `Model` pair. Mirrors the availability contract
+ * {@link resolveGatewayModelAddress} enforces (enabled provider/model, routable
+ * model, no external-CLI or — unless `allowAgentOnly` — agent-only providers),
+ * but names the cause so a stale or disabled Agent model surfaces as a
+ * configuration error before generation instead of a late generic 400.
+ *
+ * Missing rows never reach here — `getByProviderId`/`getByKey` already throw
+ * `NOT_FOUND` for those. Throws an `Error` describing how to fix the config.
+ */
+export function assertAgentGatewayModelAvailable(
+  provider: Provider,
+  model: Model,
+  modelAddress: string,
+  allowAgentOnly = false
+): void {
+  if (provider.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: provider "${provider.id}" is disabled.`)
+  }
+  if (model.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: the model is disabled.`)
+  }
+  if (isExternalCliProvider(provider)) {
+    throw new Error(`Agent model "${modelAddress}" is not available through the API gateway.`)
+  }
+  if (!allowAgentOnly && isAgentOnlyProvider(provider, getAppEdition())) {
+    throw new Error(`Agent model "${modelAddress}" is not available through the API gateway.`)
+  }
+  if (!isGatewayRoutableModel(model)) {
+    throw new Error(`Agent model "${modelAddress}" is not available through the API gateway.`)
+  }
+}
+
+/**
  * Build the OpenAI `/v1/models` listing: enabled models across enabled providers,
  * deduplicated by gateway id and optionally paginated. Never throws — returns an empty
  * list on failure so the route stays resilient.
