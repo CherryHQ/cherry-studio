@@ -20,6 +20,8 @@ import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import { useCherryInSetup } from '../hooks/useCherryInSetup'
+
 const logger = loggerService.withContext('CherryInOauth')
 
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
@@ -39,6 +41,7 @@ function formatCurrency(value: number | null | undefined): string {
 
 const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   const { provider, updateProvider, addApiKey, deleteApiKey } = useProvider(providerId)
+  const { completeSetup } = useCherryInSetup(providerId)
   const { t } = useTranslation()
 
   const [isLoggingIn, setIsLoggingIn] = useState(false)
@@ -129,13 +132,23 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
           setOauthTokenOverride(true)
           void refreshHasToken()
           await fetchData()
-          toast.success(t('auth.get_key_success'))
         },
         {
           oauthServer: CHERRYIN_OAUTH_SERVER,
           requestId
         }
       )
+
+      if (providerId === SystemProviderIds.cherryin) {
+        try {
+          const models = await completeSetup(() => signInRequestIdRef.current === requestId)
+          if (!models) return
+        } catch {
+          toast.warning(t('settings.provider.oauth.cherryIn.model_sync_failed'))
+          return
+        }
+      }
+      toast.success(t('auth.get_key_success'))
     } catch (error) {
       if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
       logger.error('OAuth error:', error as Error)
@@ -146,7 +159,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
         setIsLoggingIn(false)
       }
     }
-  }, [addApiKey, fetchData, refreshHasToken, t, updateProvider])
+  }, [addApiKey, completeSetup, fetchData, providerId, refreshHasToken, t, updateProvider])
 
   const handleCancelLogin = useCallback(async () => {
     const requestId = signInRequestIdRef.current
@@ -293,7 +306,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
               {t('settings.provider.oauth.topup')}
             </Button>
             <Button
-              className={cn(oauthCardClasses.logoutCompact, 'h-7 px-2 py-0 text-muted-foreground')}
+              className={cn(oauthCardClasses.logoutCompact, 'text-muted-foreground h-7 px-2 py-0')}
               disabled={isLoggingOut}
               onClick={handleLogout}
               variant="ghost">

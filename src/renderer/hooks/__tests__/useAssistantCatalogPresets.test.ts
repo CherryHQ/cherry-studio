@@ -1,6 +1,9 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import agentsEn from '../../../../resources/data/agents-en.json'
+import agentsZh from '../../../../resources/data/agents-zh.json'
+
 const assistantCatalogMocks = vi.hoisted(() => ({
   language: 'en-US',
   read: vi.fn(),
@@ -26,6 +29,15 @@ import {
   toCreateAssistantDtoFromCatalogPreset,
   useAssistantCatalogPresets
 } from '../useAssistantCatalogPresets'
+
+const CHERRYIN_ASSISTANT_IDS = new Set([
+  '7a65fb18-8fa8-4b71-9dcb-5b3ce319d0d1',
+  '87bf2bd5-88c9-4ea7-984f-7c75d4e70244',
+  '984168e8-805e-4b43-9018-d4bd0f4c5515',
+  'a3b811bc-bd5c-4f55-9d73-18cb53ff404f',
+  'b76d4a0f-09a7-48e9-894f-681552a9bca3',
+  'c983559a-53fb-4a83-8142-d59c794681ff'
+])
 
 describe('assistant catalog presets', () => {
   beforeEach(() => {
@@ -126,5 +138,12 @@ describe('assistant catalog presets', () => {
     expect(getAssistantPresetCatalogKey({ id: '550e8400-e29b-41d4-a716-446655440000' })).toBe(
       '550e8400-e29b-41d4-a716-446655440000'
     )
+  })
+
+  it.each([
+    ['English', agentsEn],
+    ['Chinese', agentsZh]
+  ] as const)('does not expose CherryIN assistants in the %s preset catalog', (_, entries) => {
+    expect(entries.some((entry) => CHERRYIN_ASSISTANT_IDS.has(entry.id))).toBe(false)
   })
 })
