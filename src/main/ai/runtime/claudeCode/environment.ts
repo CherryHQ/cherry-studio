@@ -20,7 +20,7 @@ import {
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/binaryResolver'
+import { getBinaryPath, getStandaloneBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import {
   applyUserMiseContract,
@@ -150,7 +150,8 @@ export async function buildEnvironment(
   const proxyEnvironment = getProxyEnvironment(process.env)
   const loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
-  const bunPath = await getBinaryPath('bun')
+  const hasUserMise = hasUserMiseEnv(loginShellEnv)
+  const bunPath = hasUserMise ? await getStandaloneBinaryPath('bun') : await getBinaryPath('bun')
 
   // API key and base URL are injected by the agent-session runtime query builder.
   // This function only builds agent-specific env vars.
@@ -202,6 +203,7 @@ export async function buildEnvironment(
     CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
     CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
+    CLAUDE_AGENT_SDK_CLIENT_APP: `cherry-studio/${app.getVersion()}`,
     CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
     // Identify Cherry Studio in the agent CLI's User-Agent (appends
     // `client-app/cherry-studio/<version>`) so gateways and analytics can
@@ -232,6 +234,7 @@ export async function buildEnvironment(
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
+      'CLAUDE_AGENT_SDK_CLIENT_APP',
       'CHERRY_STUDIO_SKILLS_DIR',
       'CLAUDE_AGENT_SDK_CLIENT_APP',
       'NODE_OPTIONS',
