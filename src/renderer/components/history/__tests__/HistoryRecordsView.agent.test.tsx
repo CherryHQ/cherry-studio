@@ -295,7 +295,7 @@ vi.mock('react-i18next', () => {
         'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
         'recycle_bin.already_moved': 'Already in Recycle Bin',
         'recycle_bin.move_failed': 'Could not move to Recycle Bin',
-        'history.records.bulkDelete': 'Batch Delete',
+        'history.records.bulkArchive': 'Batch Archive',
         'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
         'history.records.bulkDeleteSessions.title': 'Delete selected tasks',
         'history.records.agentTitle': 'Agent history',
@@ -343,7 +343,7 @@ function flushCommandMenuAction() {
 
 async function clickBulkDelete() {
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Archive/ }))
     await flushAnimationFrame()
   })
 }
@@ -581,7 +581,7 @@ describe('HistoryRecordsView agent mode', () => {
     const searchInput = screen.getByRole('searchbox', { name: 'Search tasks...' })
     const sourceFilter = screen.getByRole('button', { name: 'history.records.filter.selectAgent' })
     const statusFilter = screen.getByRole('button', { name: 'Status' })
-    const bulkDeleteButton = screen.getByRole('button', { name: 'Batch Delete' })
+    const bulkDeleteButton = screen.getByRole('button', { name: 'Batch Archive' })
 
     expect(searchInput.compareDocumentPosition(sourceFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(sourceFilter.compareDocumentPosition(statusFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
@@ -947,7 +947,7 @@ describe('HistoryRecordsView agent mode', () => {
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
 
-    expect(screen.getByRole('button', { name: 'Batch Delete' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Batch Archive' })).toBeDisabled()
     expect(hookMocks.deleteSession).not.toHaveBeenCalled()
   })
 
@@ -994,7 +994,7 @@ describe('HistoryRecordsView agent mode', () => {
     expect(alphaCheckbox).toHaveAttribute('aria-checked', 'true')
     expect(betaCheckbox).toHaveAttribute('aria-checked', 'false')
     expect(gammaCheckbox).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
+    expect(screen.getByRole('button', { name: /Batch Archive/ })).toHaveTextContent('Batch Archive (2)')
   })
 
   it('renders an empty state when there are no sessions', () => {

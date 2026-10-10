@@ -19,7 +19,7 @@ Classify each reviewed module before looking for issues:
 | Shared layer | `src/shared/` | Actual cross-process demand, immutable/stateless surface, closed top level, API contracts |
 | Renderer data hooks | `src/renderer/data/`, hooks using `useQuery`, `useMutation`, cache/preference hooks | SWR keys, invalidation, optimistic updates, external store snapshots |
 | React UI | `src/renderer/`, `packages/ui/` | `@cherrystudio/ui`, i18n, a11y, hooks correctness, design-system fit |
-| Network downloads | Package-manager configuration, lockfiles, install/download code, model or binary manifests | Global and China-accelerated sources, artifact parity, source selection, integrity checks |
+| Network downloads | Package-manager configuration, lockfiles, install/download code, model or binary manifests | Distribution mechanism, regional availability, applicable mirrors, artifact parity, source selection, integrity checks |
 | Naming / module shape | Added, renamed, or moved files/directories; new classes and barrels | Path casing, export-role naming, Service/Manager roles, promotion, barrel boundaries |
 
 ## Architecture-First Review
@@ -206,24 +206,31 @@ Report these as:
 
 ## Network Download Source Gate
 
-Every component fetched over the network during development, build,
-installation, or runtime must have both a usable global source and a usable
-China-accelerated source. This includes package-manager dependencies such as
-npm packages, runtime and toolchain binaries, offline models, and other
-downloaded assets.
+First identify the distribution mechanism and the project's control over it.
+The goal is a usable acquisition path in supported regions, not two URLs for
+every network link. Apply source requirements to the actual platform and
+accepted distribution channel.
 
 - For registry packages, the supported install path must work with both the
   default global registry and a China mirror; dependency declarations do not
   need duplicate URLs.
-- For models, binaries, and URL-addressed assets, both sources must resolve to
-  the same version and content and use the same integrity validation when one
-  is available.
-- A hard-coded single source, or a second source that no supported code or
-  configuration path can select, does not satisfy this requirement.
+- For mirrorable models, binaries, and directly downloaded assets, check global
+  and China acquisition paths. Required mirrors must be selectable through
+  supported code or configuration, resolve to the same version and content,
+  and use the same integrity validation when one is available.
+- Publisher-managed distribution, such as TestFlight invitations and App Store
+  listings, is not an interchangeable artifact mirror. Both editions may use
+  the same official entry point when that is the supported channel. Do not
+  require an invented mirror, proxy, or alternate installer merely to produce
+  a second URL; check any concrete availability or eligibility problem on its
+  own evidence.
 
-Treat any new or changed network download that lacks either usable source as a
-**Blocker**. Do not approve or recommend merging the change until both sources
-are provided.
+Use **Blocker** for an evidenced failure of a required acquisition path, broken
+source selection or integrity, or a violation of an applicable distribution
+requirement. State the affected platform/edition, requirement, and evidence.
+A single official URL alone is not sufficient evidence. Unverified regional
+concerns or optional mirror improvements must not become automatic blockers;
+report uncertainty or a non-blocking follow-up when warranted.
 
 ## Reference Routing
 

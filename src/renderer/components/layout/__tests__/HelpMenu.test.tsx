@@ -36,7 +36,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: { language: mocks.language, resolvedLanguage: mocks.language },
     t: (key: string) => {
-      if (key === 'help.star') return 'Star us on GitHub'
+      if (key === 'settings.about.feedback.diagnostics.title') return 'Report a problem'
       if (key === 'settings.doctor.entry.title') return 'System diagnostics'
       return key
     }
@@ -79,24 +79,37 @@ describe('HelpMenu', () => {
     const trigger = screen.getByRole('button', { name: 'help.title' })
     expect(trigger).toBeInTheDocument()
     expect(trigger).toHaveTextContent(hasVisibleLabel ? 'help.title' : '')
-    if (layout === 'full') {
-      expect(trigger).toHaveClass('min-w-0', 'overflow-hidden')
-      expect(trigger.querySelector('span')).toHaveClass('min-w-0', 'truncate')
-    }
   })
 
-  it('shows four compact 32px actions and opens release notes', async () => {
+  it('places report a problem immediately after the guide and opens release notes', async () => {
     render(<HelpMenu layout="icon" onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
-    const actions = ['help.whats_new', 'help.guide', 'help.feedback', 'System diagnostics'].map((name) =>
-      screen.getByRole('button', { name })
-    )
-    expect(actions).toHaveLength(4)
-    actions.forEach((action) => expect(action).toHaveClass('h-8'))
+    expect(
+      screen
+        .getAllByRole('button')
+        .slice(1)
+        .map((action) => action.textContent)
+    ).toEqual(['help.whats_new', 'help.guide', 'Report a problem', 'help.feedback', 'System diagnostics'])
 
-    await user.click(actions[0])
+    await user.click(screen.getByRole('button', { name: 'help.whats_new' }))
     await waitFor(() => expect(mocks.openReleaseNotes).toHaveBeenCalledOnce())
+  })
+
+  it('closes the help menu before opening the report panel', async () => {
+    let reportEntryWasVisible = true
+    mocks.showDoctor.mockImplementationOnce(() => {
+      reportEntryWasVisible = screen.queryByRole('button', { name: 'Report a problem' }) !== null
+      return Promise.resolve()
+    })
+    render(<HelpMenu layout="full" onFeedbackClick={mocks.openFeedback} />)
+    const user = await openMenu()
+
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
+
+    await waitFor(() => expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' }))
+    expect(reportEntryWasVisible).toBe(false)
+    expect(mocks.openFeedback).not.toHaveBeenCalled()
   })
 
   it('reports the help overlay lifecycle to its sidebar owner', async () => {
@@ -142,11 +155,10 @@ describe('HelpMenu', () => {
     await waitFor(() => expect(mocks.openFeedback).toHaveBeenCalledOnce())
   })
 
-  it('opens system diagnostics checks in place of the GitHub Star action', async () => {
+  it('opens system diagnostics checks independently of the report action', async () => {
     render(<HelpMenu layout="icon" onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
-    expect(screen.queryByRole('button', { name: 'Star us on GitHub' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'System diagnostics' }))
 
     await waitFor(() => expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'checks' }))

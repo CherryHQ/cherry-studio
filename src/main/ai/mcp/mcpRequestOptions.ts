@@ -1,4 +1,4 @@
-import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
+import type { RequestOptions } from '@modelcontextprotocol/client'
 
 /** The slice of per-server config that governs tool-call timeouts. */
 export interface McpCallPolicy {
@@ -13,7 +13,7 @@ export interface McpCallPolicy {
  * Single source of truth for timeout policy — consumed by McpRuntimeService on the live
  * config it reads per call (#20266).
  */
-export function resolveMcpRequestOptions(policy?: McpCallPolicy): RequestOptions {
+export function resolveMcpRequestOptions(policy?: McpCallPolicy): RequestOptions & { timeout: number } {
   return {
     timeout: policy?.timeout ? policy.timeout * 1000 : 60_000,
     resetTimeoutOnProgress: policy?.longRunning ?? false,

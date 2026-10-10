@@ -6,6 +6,7 @@ import winston from 'winston'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
+import { getClientId } from '@main/utils/systemInfo'
 import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '@shared/utils/sentry'
 
 import { name, version } from '../../../package.json'
@@ -66,7 +67,10 @@ export function initSentry(): void {
     sendDefaultPii: false,
     skipOpenTelemetrySetup: true,
     tracePropagationTargets: [],
-    beforeSend: (event) => (consentGranted() ? sanitizeSentryEvent(event) : null),
+    beforeSend: (event) => {
+      if (!consentGranted()) return null
+      return sanitizeSentryEvent({ ...event, user: { ...event.user, id: getClientId() } })
+    },
     defaultIntegrations: false,
     integrations: allowedIntegrations(),
     // Not the SDK's offline transport: queueing envelopes on disk would persist

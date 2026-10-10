@@ -1,4 +1,4 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import { tool } from 'ai'
 
 import { application } from '@application'
@@ -12,7 +12,7 @@ export function createBrowserToolEntries(): ToolEntry[] {
     name: `browser_${name}`,
     namespace: 'browser',
     description,
-    defer: 'auto',
+    defer: 'always',
     truncatable: false,
     applies: (scope) => scope.browserEnabled === true,
     tool: tool({
