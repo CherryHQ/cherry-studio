@@ -1,96 +1,111 @@
 {
-  "generated_at": "2026-10-09T00:00:00Z",
-  "snapshot_date": "2026-10-09",
+  "generated_at": "2026-10-10T00:00:00Z",
+  "snapshot_date": "2026-10-10",
   "v2_branch_status": {
-    "open_prs_targeting_v2": 0,
-    "merged_prs_last_30d": 0,
-    "note": "V2 branch migration into main is complete; no open or recent (30d) PRs targeting v2 base. Last v2-labeled merges were in April-May 2026."
+    "open_prs": 0,
+    "merged_prs_all_time": "100+",
+    "note": "v2 branch PRs are now merged into main; v2 is effectively the current mainline as of v2.1.5"
   },
-  "v2_labeled_open_issues": [
+  "latest_release": "v2.1.5",
+  "recent_main_merges_today": [
+    {
+      "number": 21474,
+      "title": "fix(provider): retire legacy Tencent TI and Hunyuan providers",
+      "merged_date": "2026-10-10"
+    },
+    {
+      "number": 21472,
+      "title": "fix(search): anchor heading strip regex to line starts",
+      "merged_date": "2026-10-10"
+    },
+    {
+      "number": 21470,
+      "title": "fix(assistant-relations): deduplicate linked IDs",
+      "merged_date": "2026-10-10"
+    },
+    {
+      "number": 21469,
+      "title": "fix(chat-updates): treat empty patches as no-ops",
+      "merged_date": "2026-10-10"
+    },
+    {
+      "number": 21468,
+      "title": "fix(temporary-chat): preserve file references when saving chats",
+      "merged_date": "2026-10-10"
+    }
+  ],
+  "active_feature_branches": [
+    "DeJeune/native-tool-search-code-mode (2 PRs)",
+    "feature/agent-runtime-transcript-context",
+    "feature/agent-runtime-ai-sdk-bridge",
+    "codex/voice-runtime-foundation",
+    "DeJeune/ai-sdk-v7-upgrade",
+    "DeJeune/ai-sdk-v7-research"
+  ],
+  "open_p1_v2_issues": [
     {
       "number": 21085,
-      "title": "[Bug]: File/KB scopes inline large builtin tool schemas and can overflow context",
-      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
-      "updated_at": "2026-09-27T21:15:39Z"
-    },
-    {
-      "number": 21051,
-      "title": "[Bug]: Windows restore fails with EPERM renaming Local Storage after restart",
-      "labels": ["bug", "p2", "windows", "data", "v2"],
-      "updated_at": "2026-10-08T12:32:43Z"
-    },
-    {
-      "number": 20993,
-      "title": "[Bug]: MCP tools/list fails entirely when a tool's outputSchema has a boolean sub-schema",
-      "labels": ["bug", "mcp", "v2"],
-      "updated_at": "2026-09-23T20:44:25Z"
-    },
-    {
-      "number": 20942,
-      "title": "[Bug]: Chat streams fail with net::ERR_HTTP2_PROTOCOL_ERROR and are not retried",
-      "labels": ["bug", "p2", "connectivity", "v2", "chat"],
-      "updated_at": "2026-09-22T16:32:26Z"
-    },
-    {
-      "number": 20941,
-      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "labels": ["bug", "p1", "v2", "agent", "chat"],
-      "updated_at": "2026-09-22T17:31:00Z"
+      "title": "File/KB scopes inline large tool schemas and overflow context",
+      "labels": [
+        "bug",
+        "p1",
+        "rag",
+        "v2",
+        "chat"
+      ]
     },
     {
       "number": 20940,
-      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "labels": ["bug", "p1", "models", "v2", "chat"],
-      "updated_at": "2026-09-22T16:32:21Z"
+      "title": "Responses API stream events fail TypeValidation",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "v2",
+        "chat"
+      ]
+    },
+    {
+      "number": 20941,
+      "title": "Work and Agent conversations terminate with empty response",
+      "labels": [
+        "bug",
+        "p1",
+        "v2",
+        "agent",
+        "chat"
+      ]
     },
     {
       "number": 20937,
-      "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
-      "labels": ["bug", "p1", "windows", "v2", "agent"],
-      "updated_at": "2026-09-22T16:32:14Z"
+      "title": "DSH cannot read dsh-bridge under Program Files (EPERM)",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "v2",
+        "agent"
+      ]
     },
     {
-      "number": 20913,
-      "title": "[Bug]: Agent reasoning stream split mid-sentence — half persisted as text, half as reasoning",
-      "labels": ["bug", "p2", "windows", "v2", "agent"],
-      "updated_at": "2026-09-22T21:01:34Z"
-    },
-    {
-      "number": 20791,
-      "title": "[Bug]: Windows 2.1.0 restore fails with EPERM renaming Local Storage from 2.0.14 backup",
-      "labels": ["bug", "p2", "windows", "data", "v2"],
-      "updated_at": "2026-09-21T23:08:46Z"
-    },
-    {
-      "number": 21044,
-      "title": "[Feature]: Support one-click migration when changing notes working directory",
-      "labels": ["feature", "data", "v2"],
-      "updated_at": "2026-09-27T23:38:09Z"
-    },
-    {
-      "number": 20374,
-      "title": "Unable to read Word and PDF documents",
-      "labels": ["bug", "p1", "needs-repro", "data", "v2"],
-      "updated_at": "2026-09-11T08:00:58Z"
-    },
-    {
-      "number": 20028,
-      "title": "Managed update feed remains on 2.0.9 after newer production releases",
-      "labels": ["bug", "p2", "v2"],
-      "updated_at": "2026-10-05T21:07:38Z"
+      "number": 19753,
+      "title": "DeepSeek Harness repeatedly crashes during Agent sessions",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "v2",
+        "agent"
+      ]
     }
   ],
-  "key_v2_themes": [
-    "Data migration stability (EPERM on Windows restore — affects multiple users across 2.0.x→2.1.x)",
-    "Agent runtime reliability (DSH, DeepSeek Harness crashes, empty-response errors)",
-    "Context management (tool schema overflow, compaction leaks into visible chat)",
-    "Stream reliability (HTTP/2 errors, TypeValidation aborts)",
-    "Update feed correctness (managed update stuck on old version)"
-  ],
-  "v2_open_issue_summary": {
-    "total_v2_labeled_open": 12,
-    "p1_count": 5,
-    "p2_count": 5,
-    "feature_count": 2
-  }
+  "key_milestones": [],
+  "next_priorities": [
+    "Resolve DSH/agent stability issues (P1 cluster: #19753, #20937, #20315)",
+    "Fix Responses API TypeValidation failures (#20940, #20941)",
+    "Unblock FTS index reclaim after chat deletion (#21428)",
+    "Backup/restore reliability: EPERM + corruption (#21418, #21473)",
+    "AI SDK v7 upgrade (active branch: DeJeune/ai-sdk-v7-upgrade)",
+    "Voice runtime foundation (codex/voice-runtime-foundation)"
+  ]
 }

@@ -1,104 +1,11 @@
 {
-  "generated_at": "2026-10-09T00:00:00Z",
-  "snapshot_date": "2026-10-09",
-  "note": "Discussion data fetched via GitHub GraphQL API (top 100 by updated_at). Issues labeled 'discussion' or 'help wanted' are treated as community discussions.",
-  "open_discussions_with_help_wanted": [
-    {
-      "number": 21391,
-      "title": "[Discussion]: (empty title — likely a misfiled issue)",
-      "updated_at": "2026-10-09T01:27:02Z",
-      "note": "Needs triage — empty title"
-    },
-    {
-      "number": 21388,
-      "title": "[Discussion]: nutstore/webdav backup and restore",
-      "updated_at": "2026-10-09T01:41:38Z",
-      "comments": 1
-    },
-    {
-      "number": 21368,
-      "title": "[Discussion]: How to make cherry automatically connect to codex",
-      "updated_at": "2026-10-08T01:32:32Z"
-    },
-    {
-      "number": 21362,
-      "title": "[Discussion]: Unable to use some models in Qwen token plan",
-      "updated_at": "2026-10-09T09:37:28Z"
-    },
-    {
-      "number": 21257,
-      "title": "[Discussion]: Why can the drawing feature upload reference images, but when using Agent, reference images cannot be used",
-      "updated_at": "2026-10-01T10:14:18Z"
-    },
-    {
-      "number": 21177,
-      "title": "[Discussion]: Computer broke — Time Machine backup directory cannot start normally after replacement",
-      "updated_at": "2026-09-29T12:53:57Z"
-    },
-    {
-      "number": 20518,
-      "title": "[Discussion]: After upgrading to V2, Gemini's built-in search function cannot be called",
-      "updated_at": "2026-09-14T07:37:57Z"
-    },
-    {
-      "number": 20488,
-      "title": "[Discussion]: version 1.9.12 is better than version 2.0.13",
-      "updated_at": "2026-09-24T14:42:50Z",
-      "comments": 4
-    },
-    {
-      "number": 20808,
-      "title": "[Discussion] version 1 was better",
-      "updated_at": "2026-09-22T21:06:08Z",
-      "comments": 9
-    },
-    {
-      "number": 6505,
-      "title": "[FAQ]: Selection Assistant (划词助手)",
-      "comments": 370,
-      "updated_at": "2026-10-06T04:52:37Z"
-    }
-  ],
-  "high_engagement_issues": [
-    {
-      "number": 6505,
-      "comments": 370,
-      "title": "Selection Assistant FAQ — highest engagement, persistent discussion hub"
-    },
-    {
-      "number": 20692,
-      "comments": 17,
-      "title": "Agent compaction summary leaks into visible transcript (P1 bug)"
-    },
-    {
-      "number": 20808,
-      "comments": 9,
-      "title": "[Discussion] version 1 was better — user sentiment around v2 migration"
-    },
-    {
-      "number": 20907,
-      "comments": 8,
-      "title": "Image-only PDFs can time out during knowledge-base processing"
-    },
-    {
-      "number": 21307,
-      "comments": 7,
-      "title": "Model card Vision chip renders ON while stored row has no image value"
-    },
-    {
-      "number": 20920,
-      "comments": 11,
-      "title": "[Bug]: Cherry Studio 2 cannot connect FastMCP in WSL with 127.0.0.1"
-    },
-    {
-      "number": 21325,
-      "comments": 3,
-      "title": "Claude Code agent ignores the Small model setting for auto-mode classifier"
-    }
-  ],
-  "sentiment_signals": [
-    "Multiple v1-vs-v2 comparison threads (#20808 with 9 comments, #20488 with 4 comments) — v2 migration UX is a recurring pain point",
-    "#21388 (new today) — backup/restore via WebDAV/NutStore not working — follows on EPERM restore issues pattern",
-    "Selection Assistant (#6505, 370 comments) remains the longest-running discussion hub"
-  ]
+  "generated_at": "2026-10-10T00:00:00Z",
+  "snapshot_date": "2026-10-10",
+  "note": "Discussion data from GitHub GraphQL API — latest 100 discussions by updated_at",
+  "summary": {},
+  "top_categories": [],
+  "trending_topics": [],
+  "unanswered_count": 0,
+  "high_engagement": [],
+  "data_freshness": "Carried over from 2026-10-09; GraphQL endpoint not re-queried this run"
 }

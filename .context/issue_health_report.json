@@ -1,86 +1,173 @@
 {
-  "generated_at": "2026-10-09T00:00:00Z",
-  "snapshot_date": "2026-10-09",
-  "thresholds": {
-    "active_days": 7,
-    "aging_days": 30,
-    "stale_days": 90,
-    "zombie_days": 90
+  "generated_at": "2026-10-10T00:00:00Z",
+  "snapshot_date": "2026-10-10",
+  "summary": {
+    "total_open": 1138,
+    "active_7d": 67,
+    "aging_7_30d": 498,
+    "stale_30_90d": 412,
+    "zombie_90d_plus": 161,
+    "health_score": 5.9,
+    "health_grade": "C",
+    "notes": "Active ratio improved marginally (5.3%→5.9%). Zombie count down (207→161). Aging backlog steady at ~44%."
   },
-  "health_summary": {
-    "active": {
-      "count": 60,
-      "pct": 5.3,
-      "description": "Updated within last 7 days"
+  "priority_breakdown": {
+    "p1_open": 100,
+    "p1_bugs": 90,
+    "p1_features": 10,
+    "p2_open": 152,
+    "p3_open": 38,
+    "unlabeled": 250
+  },
+  "top_aging_p1_bugs": [
+    {
+      "number": 8730,
+      "title": "cherry studio是否无法接入商汤大模型？",
+      "days_open": 437,
+      "labels": [
+        "bug",
+        "p1",
+        "models"
+      ]
     },
-    "aging": {
-      "count": 510,
-      "pct": 45.1,
-      "description": "Updated 7-30 days ago"
+    {
+      "number": 18373,
+      "title": "Data directory relocation leaves stale absolute paths in DB",
+      "days_open": 60,
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "data"
+      ]
     },
-    "stale": {
-      "count": 405,
-      "pct": 35.8,
-      "description": "Updated 30-90 days ago"
+    {
+      "number": 19793,
+      "title": "Chat fails when a response stream ends without a finish reason",
+      "days_open": 39,
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "chat"
+      ]
     },
-    "zombie": {
-      "count": 207,
-      "pct": 18.3,
-      "description": "Not updated in 90+ days"
-    }
-  },
-  "label_coverage": {
-    "total_open": 1131,
-    "unlabeled": 204,
-    "unlabeled_pct": 18.0,
-    "needs_triage": 75
-  },
-  "priority_distribution": {
-    "p1": 102,
-    "p2": 147,
-    "p1_pct": 9.0,
-    "p2_pct": 13.0
-  },
-  "closed_last_30d": 311,
-  "top_active_p1_issues": [
+    {
+      "number": 19753,
+      "title": "DeepSeek Harness runtime repeatedly crashes during Agent sessions",
+      "days_open": 39,
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "needs-repro",
+        "v2",
+        "agent"
+      ]
+    },
+    {
+      "number": 19865,
+      "title": "Claude Code Agent can exhaust Windows virtual memory",
+      "days_open": 38,
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "performance",
+        "agent"
+      ]
+    },
+    {
+      "number": 19847,
+      "title": "Agent with DashScope Qwen3.8-Max terminates on server error",
+      "days_open": 39,
+      "labels": [
+        "bug",
+        "p1",
+        "needs-triage",
+        "models",
+        "agent"
+      ]
+    },
+    {
+      "number": 19989,
+      "title": "Agent execution fails when API Gateway port 23333 already in use",
+      "days_open": 36,
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "connectivity",
+        "agent"
+      ]
+    },
+    {
+      "number": 20315,
+      "title": "DSH bridge fails while loading cordis:include",
+      "days_open": 30,
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "mcp",
+        "agent"
+      ]
+    },
     {
       "number": 20692,
       "title": "Agent compaction summary leaks into visible chat transcript",
-      "comments": 17,
-      "updated_at": "2026-10-08T18:05:27Z"
+      "days_open": 23,
+      "labels": [
+        "bug",
+        "p1",
+        "agent"
+      ]
     },
     {
-      "number": 21085,
-      "title": "File/KB scopes inline large tool schemas, can overflow context",
-      "comments": 6,
-      "updated_at": "2026-09-27T21:15:39Z"
-    },
-    {
-      "number": 18765,
-      "title": "Agent mode sends Anthropic max_tokens to OpenAI gateways → GPT-5.x 400",
-      "comments": 5,
-      "updated_at": "2026-10-07T04:00:42Z"
+      "number": 20695,
+      "title": "Parallel edit calls to same file cause lost updates (MCP filesystem)",
+      "days_open": 22,
+      "labels": [
+        "bug",
+        "p1"
+      ]
     }
   ],
-  "watch_list": [
-    {
-      "number": 21418,
-      "title": "Restore triggers app auto-restart; EPERM rename + backup corruption (v6→v7 incompatible)",
-      "reason": "Data loss risk — EPERM during restore + incompatible backup version; no P1 label yet",
-      "created_at": "2026-10-09T13:31:32Z"
-    },
-    {
-      "number": 21307,
-      "title": "Model card Vision chip renders ON while stored row has no image value",
-      "reason": "7 comments, active discussion, UI state inconsistency",
-      "updated_at": "2026-10-09T16:53:07Z"
-    }
-  ],
-  "recommendations": [
-    "207 zombie issues (90+ days inactive) — consider triage sprint to close or escalate",
-    "204 issues (18.0%) have no labels — run label triage on newly opened issues",
-    "102 P1 bugs open — particularly agent crashes, Windows EPERM, and context overflow",
-    "#21418 (new Oct 9) — backup EPERM + v6→v7 incompatibility — recommend P1 triage",
-    "Active issue ratio improved slightly (5.3% vs 4.8% yesterday) — good sign of community engagement"
-  ]
+  "trending_issue_categories": {
+    "agent_stability": 35,
+    "windows_specific": 28,
+    "model_compatibility": 22,
+    "data_backup_restore": 8,
+    "ui_ux": 7
+  },
+  "issue_resolution_rate": {
+    "closed_last_7d": 45,
+    "closed_last_30d": 381,
+    "avg_close_days_estimate": 14,
+    "note": "High closure rate (381/30d) vs open rate suggests backlog slowly clearing"
+  },
+  "triage_queue": {
+    "needs_triage": 68,
+    "new_today": 6,
+    "recommended_priority_upgrades": [
+      {
+        "number": 21418,
+        "title": "Restore triggers auto-restart, EPERM + backup archive corrupted",
+        "suggested_label": "p1",
+        "reason": "Data loss risk: backup corruption across v6→v7"
+      },
+      {
+        "number": 21428,
+        "title": "Deleting chats never reclaims FTS index",
+        "suggested_label": "p2",
+        "reason": "Data integrity: grows DB unboundedly over time"
+      },
+      {
+        "number": 21473,
+        "title": "Restore rollback cleanup deletes unrecovered original resources",
+        "suggested_label": "p1",
+        "reason": "Data loss risk: irrecoverable original data deleted"
+      }
+    ]
+  }
 }

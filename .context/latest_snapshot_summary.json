@@ -1,35 +1,35 @@
 {
-  "generated_at": "2026-10-09T00:00:00Z",
-  "snapshot_date": "2026-10-09",
+  "generated_at": "2026-10-10T00:00:00Z",
+  "snapshot_date": "2026-10-10",
   "repository": "CherryHQ/cherry-studio",
   "issues": {
-    "open_total": 1131,
-    "closed_last_30d": 311,
-    "unlabeled": 204,
-    "unlabeled_pct": 18.0,
-    "needs_triage": 75,
+    "open_total": 1138,
+    "closed_last_30d": 381,
+    "unlabeled": 250,
+    "unlabeled_pct": 22.0,
+    "needs_triage": 68,
     "by_priority": {
-      "p1": 102,
-      "p2": 147,
-      "p3": null
+      "p1": 100,
+      "p2": 152,
+      "p3": 38
     },
     "health": {
-      "active_7d": 60,
-      "aging_7_30d": 510,
-      "stale_30_90d": 405,
-      "zombie_90d_plus": 207
+      "active_7d": 67,
+      "aging_7_30d": 498,
+      "stale_30_90d": 412,
+      "zombie_90d_plus": 161
     },
     "health_pct": {
-      "active": 5.3,
-      "aging": 45.1,
-      "stale": 35.8,
-      "zombie": 18.3
+      "active": 5.9,
+      "aging": 43.8,
+      "stale": 36.2,
+      "zombie": 14.1
     }
   },
   "pull_requests": {
-    "open_total": 610,
+    "open_total": 100,
     "open_v2_base": 0,
-    "needs_review": 9,
+    "needs_review": 8,
     "drafts": 0,
     "top_authors": [
       {
@@ -41,138 +41,305 @@
         "count": 10
       },
       {
-        "login": "lianshuang-photo",
-        "count": 10
+        "login": "DeJeune",
+        "count": 9
       },
       {
-        "login": "DeJeune",
-        "count": 8
+        "login": "kangfenmao",
+        "count": 6
+      },
+      {
+        "login": "ggbdpq",
+        "count": 6
+      },
+      {
+        "login": "lianshuang-photo",
+        "count": 6
+      },
+      {
+        "login": "focus-zyw",
+        "count": 5
       },
       {
         "login": "NatsUIJM",
-        "count": 6
+        "count": 5
+      },
+      {
+        "login": "SiinXu",
+        "count": 5
       }
     ],
     "base_branch_distribution": {
-      "main": 94,
-      "other": 6
+      "main": 92,
+      "feature_branches": 8
     }
   },
-  "p1_urgent_issues": [
+  "top_p1_open_issues": [
     {
       "number": 20692,
       "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
-      "labels": ["bug", "p1", "agent"],
+      "labels": [
+        "bug",
+        "p1",
+        "agent"
+      ],
       "updated_at": "2026-10-08T18:05:27Z",
+      "assignees": [
+        "404-Page-Found",
+        "Copilot"
+      ],
       "comments": 17
+    },
+    {
+      "number": 20315,
+      "title": "[Bug]: DSH bridge fails while loading cordis:include",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "mcp",
+        "agent"
+      ],
+      "updated_at": "2026-10-04T14:15:36Z",
+      "assignees": [
+        "404-Page-Found"
+      ],
+      "comments": 6
+    },
+    {
+      "number": 19753,
+      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "needs-repro",
+        "v2",
+        "agent"
+      ],
+      "updated_at": "2026-09-29T02:10:41Z",
+      "assignees": [],
+      "comments": 15
+    },
+    {
+      "number": 19865,
+      "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "performance",
+        "agent"
+      ],
+      "updated_at": "2026-09-28T03:15:14Z",
+      "assignees": [
+        "404-Page-Found"
+      ],
+      "comments": 3
+    },
+    {
+      "number": 19864,
+      "title": "Large local Ollama context allocation ends in an opaque 500 and OOM",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "updated_at": "2026-09-28T03:14:29Z",
+      "assignees": [
+        "404-Page-Found"
+      ],
+      "comments": 2
     },
     {
       "number": 21085,
       "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
-      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
+      "labels": [
+        "bug",
+        "p1",
+        "rag",
+        "assistant",
+        "performance",
+        "v2",
+        "chat"
+      ],
       "updated_at": "2026-09-27T21:15:39Z",
+      "assignees": [
+        "404-Page-Found"
+      ],
       "comments": 6
+    },
+    {
+      "number": 20365,
+      "title": "[Bug]: Clearing chat context still reports about 90K cached prompt tokens for a one-line request",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "models",
+        "performance",
+        "chat"
+      ],
+      "updated_at": "2026-09-26T18:29:48Z",
+      "assignees": [],
+      "comments": 2
     },
     {
       "number": 20695,
       "title": "[Bug]: Parallel `edit` calls to the same file via built-in filesystem MCP cause lost updates and duplicated tail fragments",
-      "labels": ["bug", "p1"],
+      "labels": [
+        "bug",
+        "p1"
+      ],
       "updated_at": "2026-09-24T15:37:51Z",
-      "comments": 3
+      "assignees": [
+        "404-Page-Found",
+        "Copilot"
+      ],
+      "comments": 2
     },
     {
       "number": 20941,
       "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "labels": ["bug", "p1", "v2", "agent", "chat"],
+      "labels": [
+        "bug",
+        "p1",
+        "v2",
+        "agent",
+        "chat"
+      ],
       "updated_at": "2026-09-22T17:31:00Z",
-      "comments": 2
+      "assignees": [],
+      "comments": 4
     },
     {
       "number": 20940,
       "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "labels": ["bug", "p1", "models", "v2", "chat"],
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "v2",
+        "chat"
+      ],
       "updated_at": "2026-09-22T16:32:21Z",
+      "assignees": [],
       "comments": 2
     },
     {
       "number": 20937,
       "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
-      "labels": ["bug", "p1", "windows", "v2", "agent"],
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "v2",
+        "agent"
+      ],
       "updated_at": "2026-09-22T16:32:14Z",
+      "assignees": [],
       "comments": 2
     },
     {
-      "number": 20532,
-      "title": "[Bug]: Cherry Studio crashes when saving a Chinese-named file",
-      "labels": ["bug", "p1", "windows"],
-      "updated_at": "2026-09-19T06:55:06Z",
-      "comments": 0
+      "number": 20343,
+      "title": "Configured OCR fallback fails for image input on non-vision models",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "models",
+        "chat"
+      ],
+      "updated_at": "2026-09-22T16:32:04Z",
+      "assignees": [
+        "eeee0717"
+      ],
+      "comments": 12
     },
     {
-      "number": 20476,
-      "title": "DeepSeek chat content can be serialized with an incomplete hex escape",
-      "labels": ["bug", "p1", "windows", "models", "chat"],
-      "updated_at": "2026-09-12T18:36:43Z",
-      "comments": 0
+      "number": 19989,
+      "title": "[Bug]: Agent execution fails when API Gateway port 23333 is already in use",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "connectivity",
+        "agent"
+      ],
+      "updated_at": "2026-09-22T16:31:58Z",
+      "assignees": [
+        "SiinXu"
+      ],
+      "comments": 3
     },
     {
-      "number": 20460,
-      "title": "[Bug]: Volcano responses with reasoning_content break tool_calls parsing",
-      "labels": ["bug", "p1", "models", "agent"],
-      "updated_at": "2026-09-12T12:40:31Z",
-      "comments": 0
+      "number": 19847,
+      "title": "[Bug]: Agent with DashScope Qwen3.8-Max terminates on a mid-response server error without recovery",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-triage",
+        "models",
+        "agent"
+      ],
+      "updated_at": "2026-09-22T16:31:56Z",
+      "assignees": [
+        "DeJeune"
+      ],
+      "comments": 20
     },
     {
-      "number": 20458,
-      "title": "[Bug]: Hybrid Chat Completions response schema fails strict validation",
-      "labels": ["bug", "p1", "models", "chat"],
-      "updated_at": "2026-09-18T11:26:50Z",
-      "comments": 2
-    },
-    {
-      "number": 20374,
-      "title": "Unable to read Word and PDF documents",
-      "labels": ["bug", "p1", "needs-repro", "data", "v2"],
-      "updated_at": "2026-09-11T08:00:58Z",
-      "comments": 0
-    },
-    {
-      "number": 18765,
-      "title": "[Bug]: Agent mode sends Anthropic max_tokens to OpenAI-compatible gateways -> GPT-5.x 400",
-      "labels": ["bug", "p1", "models", "agent"],
-      "updated_at": "2026-10-07T04:00:42Z",
-      "comments": 5
-    },
-    {
-      "number": 19753,
-      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
-      "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
-      "updated_at": "2026-09-29T02:10:41Z",
-      "comments": 15
+      "number": 19793,
+      "title": "Chat fails when a response stream ends without a finish reason",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "chat"
+      ],
+      "updated_at": "2026-09-22T16:31:52Z",
+      "assignees": [],
+      "comments": 22
     }
   ],
   "notable_new_issues_today": [
     {
-      "number": 21420,
-      "title": "[Bug]: Text Selection Assistant Popup Cannot Be Dragged After Using the Vertical Scrollbar",
-      "created_at": "2026-10-09T16:05:10Z"
+      "number": 21477,
+      "title": "[Feature]: Add DemonRoute as a built-in OpenAI-compatible provider",
+      "created_at": "2026-10-10T16:54:43Z"
     },
     {
-      "number": 21418,
-      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename \"Local Storage\"); backup archive corrupted (Bad archive) and old backup version incompatible (v6→v7) — data cannot be restored",
-      "created_at": "2026-10-09T13:31:32Z",
-      "note": "Potential P1 — EPERM + backup corruption, data loss risk"
+      "number": 21476,
+      "title": "[Bug]: Querit & Crawl4AI (URL fetch providers) fail API key check",
+      "created_at": "2026-10-10T16:51:56Z"
     },
     {
-      "number": 21417,
-      "title": "[Bug]: Deferred-tools reminder is factually wrong — direct calls succeed, ToolSearch doesn't exist, schemas still in request; compliant models abandon all MCP tools",
-      "created_at": "2026-10-09T13:18:36Z"
+      "number": 21475,
+      "title": "[Feature]: Add TrustedRouter as a built-in provider",
+      "created_at": "2026-10-10T16:26:02Z"
+    },
+    {
+      "number": 21473,
+      "title": "[Bug]: Restore rollback cleanup deletes unrecovered original resources",
+      "created_at": "2026-10-10T14:53:31Z"
+    },
+    {
+      "number": 21456,
+      "title": "[Bug]: Markdown split into blank HTML artifact previews",
+      "created_at": "2026-10-10T10:34:34Z"
+    },
+    {
+      "number": 21428,
+      "title": "[Bug]: Deleting chats never reclaims FTS index — dead FTS data in main DB",
+      "created_at": "2026-10-10T03:17:04Z",
+      "note": "Assigned DeJeune; data integrity concern"
     }
   ],
   "delta_from_yesterday": {
-    "open_issues": "+2",
-    "p1_count": "+0",
-    "active_issues": "+6",
-    "notes": "2 new issues opened Oct 9; #21418 (backup corruption + EPERM) may warrant P1 triage"
+    "open_issues": "+7",
+    "p1_count": "-2",
+    "closed_30d": "+70",
+    "notes": "7 new issues Oct 10; #21473 (restore rollback deletes resources) and #21476 (URL fetch API key check) need triage; P1 count dropped 102→100 as 2 resolved"
   }
 }
