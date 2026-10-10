@@ -4604,6 +4604,7 @@
   "settings.mcp.builtinServersDescriptions.python": "Python kodunu güvenli bir korumalı alan ortamında yürütür. Çoğu standart kitaplığı ve bilimsel hesaplama paketini destekleyen Pyodide ile Python çalıştırır",
   "settings.mcp.builtinServersDescriptions.qveris": "Yapay zekâ ajanı yeteneklerini keşfetmek, incelemek ve çağırmak için QVeris'e bağlanır. QVERIS_API_KEY ortam değişkeninin yapılandırılması gerekir.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "Yapılandırılmış düşünme süreçleri aracılığıyla dinamik ve yansıtıcı problem çözme araçları sunan bir MCP sunucusu uygulaması",
+  "settings.mcp.builtinServersDescriptions.truthifi": "Yapay zekânız için doğrulanmış bir hane finans kaydı: hesaplar, işlemler, varlıklar, ücretler, performans, nakit akışı ve Truthifi Skorunuz. Para transferi yapamaz. Bir Truthifi hesabına giriş (OAuth) gerektirir.",
   "settings.mcp.command": "Komut",
   "settings.mcp.copyLogs": "Günlükleri kopyala",
   "settings.mcp.customRegistryPlaceholder": "Özel kayıt defteri URL'sini girin, ör.: https://npm.company.com",
