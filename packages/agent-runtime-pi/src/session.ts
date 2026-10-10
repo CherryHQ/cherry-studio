@@ -25,7 +25,8 @@ export type AgentRuntimeModel = AiSdkModelSpec & {
   provider: string
   /**
    * Stable host identity of the model (e.g. Cherry's unique model id), stored on assistant entries.
-   * A stored reply replays its reasoning and signatures only to a model with the same key.
+   * A stored reply replays its reasoning as reasoning, with signatures, only to a model with the same
+   * key; other models get that reasoning as plain text.
    */
   key: string
 }
