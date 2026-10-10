@@ -1405,3 +1405,124 @@ describe('hasOversizedMarkdownChunk', () => {
     expect(hasOversizedMarkdownChunk(chunks)).toBe(false)
   })
 })
+
+describe('definitions behind legal indentation', () => {
+  // CommonMark accepts a definition at up to three columns of indent; only a fourth is indented
+  // code. Refusing the legal ones left the definition out of the chunks that reference it, so the
+  // reference degraded to literal text while the unsplit document rendered a link.
+  for (const indent of [' ', '  ', '   ']) {
+    it(`carries a definition indented ${indent.length} space${indent.length > 1 ? 's' : ''}`, () => {
+      const content = [
+        `${indent}[label]: https://example.com/target`,
+        '',
+        'filler paragraph that spends the budget',
+        '',
+        'see [label]'
+      ].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      for (const chunk of chunks) {
+        expect(chunk.text).toContain('[label]: https://example.com/target')
+      }
+    })
+  }
+
+  it('leaves a four-column indented definition in the indented code it belongs to', () => {
+    const content = ['    [label]: https://example.com/code', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [label]'))
+
+    expect(referencing).toHaveLength(1)
+    expect(referencing[0].text).not.toContain('[label]: https://example.com/code')
+  })
+
+  it('leaves a tab-indented definition in the indented code it belongs to', () => {
+    const content = ['\t[label]: https://example.com/code', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [label]'))
+
+    expect(referencing).toHaveLength(1)
+    expect(referencing[0].text).not.toContain('[label]: https://example.com/code')
+  })
+})
+
+describe('definitions inside blocks the parser reads as raw', () => {
+  // First definition wins, so carrying a definition-looking line out of the raw block it lives in
+  // would redirect every reference to the wrong destination — even in a single chunk.
+  it('does not carry a definition-looking line out of a quoted fenced block', () => {
+    const content = [
+      '> ```',
+      '> [label]: https://example.com/wrong',
+      '> ```',
+      '',
+      'see [label]',
+      '',
+      '[label]: https://example.com/correct'
+    ].join('\n')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text.startsWith('[label]: https://example.com/correct\n\n')).toBe(true)
+  })
+
+  it('does not carry a definition-looking line out of a block-level HTML block', () => {
+    const content = [
+      '<div>',
+      '[label]: https://example.com/wrong',
+      '</div>',
+      '',
+      'see [label]',
+      '',
+      '[label]: https://example.com/correct'
+    ].join('\n')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text.startsWith('[label]: https://example.com/correct\n\n')).toBe(true)
+  })
+
+  it('collects a definition the quote below an unterminated quoted fence opens', () => {
+    // A line without the markers ends the quote and its fence; the parser reads what follows at
+    // the top level, so the suppression must not outlive the fence.
+    const content = ['> ```', 'plain line', '', '[label]: https://example.com/target', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com/target')
+    }
+  })
+
+  it('collects a definition after the blank line that ends an HTML block', () => {
+    const content = ['<div>', '</div>', '', '[label]: https://example.com/target', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com/target')
+    }
+  })
+})
+
+describe('a title left open across a long document', () => {
+  it('reads each line below an unterminated title once', () => {
+    // An unterminated title once rescanned and rebuilt the accumulated title for every line below
+    // it, which blocked preview preparation on a few hundred kilobytes of ordinary text. The
+    // unterminated title is a paragraph, so exactly one chunk — the one it was written in — holds it.
+    const content = ['[spec]: /url "the long', ...Array<string>(32_000).fill('ordinary text')].join('\n')
+
+    const window = splitMarkdownChunks(content)
+
+    expect(window.longLines).toBe(false)
+    // A blank line would end the title's paragraph and with it the scan, so the input holds none
+    // and the document is one chunk; the unterminated title itself renders in that chunk alone.
+    expect(window.chunks).toHaveLength(1)
+    expect(window.chunks.filter((chunk) => chunk.text.includes('[spec]: /url'))).toHaveLength(1)
+  })
+})
