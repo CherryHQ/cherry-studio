@@ -643,6 +643,23 @@ describe('JobManager schedule control APIs', () => {
       armSpy.mockRestore()
     })
 
+    it('syncJobScheduleTimerById re-arm carries the pending interval fire (no full-period push-out)', async () => {
+      // armSchedule disposes + re-registers through SchedulerService; the
+      // persisted nextRun must survive that re-arm (issue #21111 starvation).
+      const snap = jobManager.registerJobSchedule({ ...baseInput, name: 'sync-carry' })
+      const firstNextRun = Date.parse(jobScheduleService.getById(snap.id)?.nextRun ?? '')
+      // Separate register and sync by a real gap large enough that a fresh
+      // re-arm (syncNow + period) lands measurably past the carried deadline.
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      jobManager.syncJobScheduleTimerById(snap.id)
+
+      const afterNextRun = Date.parse(jobScheduleService.getById(snap.id)?.nextRun ?? '')
+      // Carried: the pending fire survives (±1 ms ISO rounding). A fresh
+      // re-arm would push it a full period out (syncNow + 60_000).
+      expect(Math.abs(afterNextRun - firstNextRun)).toBeLessThanOrEqual(1)
+    })
+
     it('syncJobScheduleTimerById disposes the timer for a disabled row', () => {
       const snap = jobManager.registerJobSchedule({ ...baseInput, name: 'tx-e' })
       expect(scheduler.has(`schedule:${snap.id}`)).toBe(true)
