@@ -39,6 +39,8 @@ export interface AttachmentBudgetInput {
   model: Model
   endpointType?: EndpointType
   runtimeProviderId?: string
+  /** Frozen request window after wire options are finalized (avoids re-sampling host RAM). */
+  requestContextWindow?: number
   system: string | undefined
   tools: ToolSet | undefined
   /** What this request declares as `max_tokens`; undefined = it declares none. */
@@ -54,7 +56,8 @@ export interface AttachmentBudgetInput {
  */
 export async function resolveAttachmentBudget(input: AttachmentBudgetInput): Promise<AttachmentBudget | null> {
   const window = resolveContextWindow(
-    resolveModelRequestContextWindow(input.model, input.provider, input.endpointType, input.runtimeProviderId)
+    input.requestContextWindow ??
+      resolveModelRequestContextWindow(input.model, input.provider, input.endpointType, input.runtimeProviderId)
   )
   if (window === null) return null
 

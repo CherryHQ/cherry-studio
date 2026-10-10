@@ -630,8 +630,8 @@ export class AiService extends BaseService {
       nativeFileSupport,
       fileAttachments
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    const requestContext = options.context as RequestContext | undefined
     if (request.streamErrorSerialization) {
-      const requestContext = options.context as RequestContext | undefined
       if (requestContext?.ollamaNumCtx) {
         request.streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
       } else {
@@ -675,6 +675,7 @@ export class AiService extends BaseService {
               model,
               endpointType: resolveEffectiveEndpoint(provider, model).endpointType,
               runtimeProviderId: sdkConfig.providerId,
+              requestContextWindow: requestContext?.ollamaNumCtx?.numCtx,
               system,
               tools,
               maxOutputTokens: options.maxOutputTokens,
