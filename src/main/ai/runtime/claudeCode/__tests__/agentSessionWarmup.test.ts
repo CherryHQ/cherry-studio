@@ -285,6 +285,20 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
   })
 
+  it('flags a stale connection when native image support is restored after a modality-only disable', async () => {
+    mocks.resolveModelNativeImageSupport.mockReturnValueOnce(false)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    mocks.resolveModelNativeImageSupport.mockReturnValueOnce(true)
+    const current = await deriveConnectionConfig('session-1')
+
+    if (!request || !current.ok) throw new Error('expected materialized request and current config')
+    expect(request.connectionConfig.rebuildFactFingerprints.supportsImages).not.toBe(
+      current.config.rebuildFactFingerprints.supportsImages
+    )
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
   it('pins the rebuild baseline to the context window used to materialize settings', async () => {
     const model = { id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 128_000 }
     mocks.getModelByKey.mockReturnValue(model)
@@ -1304,6 +1318,15 @@ describe('deriveConnectionConfig', () => {
     if (!result.ok) throw new Error('expected ok derive')
     return result.config
   }
+
+  it('includes native image support in rebuild facts', async () => {
+    mocks.resolveModelNativeImageSupport.mockReturnValueOnce(false)
+    const disabled = await deriveSignature()
+    mocks.resolveModelNativeImageSupport.mockReturnValueOnce(true)
+    const enabled = await deriveSignature()
+
+    expect(disabled.rebuildFactFingerprints.supportsImages).not.toBe(enabled.rebuildFactFingerprints.supportsImages)
+  })
 
   it('is a pure read: no rotation advance, no gateway effects, no settings materialization', async () => {
     const result = await deriveConnectionConfig('session-1')
