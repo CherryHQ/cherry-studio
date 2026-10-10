@@ -2873,13 +2873,13 @@ export class AgentSessionRuntimeService extends BaseService {
     // leaves the entry cache stale — fall back to the live default.
     const effectiveModelId = sessionOverride ?? liveAgent.model ?? entry.modelId
 
+    entry.modelId = effectiveModelId
+    const rootSpan = this.startRuntimeRootSpan(entry, effectiveModelId)
     // Use the snapshot frozen when THIS follow-up was submitted (not the entry's, which the last beginTurn
     // set) so a mid-session agent change can't stamp the queued reply with a stale author. The queue drains
     // on the LATEST model (`entry.modelId`), so reconcile the snapshot's nested model to the model that
     // actually runs — otherwise a mid-queue model switch leaves `messageSnapshot.model` disagreeing with the
     // row's `modelId`, and the header/exports (which prefer the snapshot model) would show the wrong model.
-    entry.modelId = effectiveModelId
-    const rootSpan = this.startRuntimeRootSpan(entry, effectiveModelId)
     const frozenSnapshot = pendingTurn.messageSnapshot ?? entry.messageSnapshot
     const modelName =
       effectiveModelId === liveAgent.model

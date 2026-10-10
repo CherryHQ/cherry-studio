@@ -395,7 +395,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           snapshot.mcpServerSnapshots,
           snapshot.linkedChannel,
           this.agentDataPath,
-          this.input.knowledgeBaseIds
+          this.input.knowledgeBaseIds,
+          undefined,
+          this.input.modelId
         ),
         { agentsDataRoot, toolResultRoot }
       )

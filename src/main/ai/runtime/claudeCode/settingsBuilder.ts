@@ -266,7 +266,8 @@ export async function buildClaudeCodeSessionSettings(
     linkedChannelSnapshot,
     agentDataPath,
     options?.knowledgeBaseIds,
-    notificationContext
+    notificationContext,
+    effectiveModelId
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
   if (agent.mcps?.length) mcpToolMetadata ??= {}

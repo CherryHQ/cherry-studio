@@ -1286,6 +1286,7 @@ const AgentComposerInner = ({
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
         agentId: agent.id,
+        scopedModelId: nextModel.id,
         value: nextReasoningEffort,
         version
       })
