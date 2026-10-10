@@ -1471,6 +1471,7 @@ export default function ComposerSurfaceRuntime({
   const memoizedEditorProps = useMemo(
     () => ({
       attributes: {
+        dir: 'auto',
         // Keep the input focusable while a send temporarily makes it read-only.
         tabindex: '0',
         class: cn(
@@ -1478,7 +1479,7 @@ export default function ComposerSurfaceRuntime({
           hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
           hasCustomHeight && 'h-full'
         ),
-        style: editorElementStyle
+        style: `${editorElementStyle}; text-align: start`
       },
       handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
         const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
