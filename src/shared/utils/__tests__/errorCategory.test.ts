@@ -91,3 +91,28 @@ describe('classifyErrorCategory transport failures', () => {
     expect(classifyErrorCategory({ text: 'Some totally unrelated failure' })).toBe('unknown')
   })
 })
+
+// Client-refusal gateways reject third-party clients with auth-flavored wording that names the
+// CLIENT, not the key ("unauthorized client detected, contact support" — #21376). Filing that
+// under auth claims the key is invalid and sends users off regenerating working keys; it is a
+// refusal (permission), and explicit key-invalidity signals must still win.
+describe('classifyErrorCategory client refusals', () => {
+  it('maps "unauthorized client" refusals to permission, not auth', () => {
+    expect(
+      classifyErrorCategory({
+        status: 401,
+        text: 'unauthorized client detected, contact support for assistance at https://discord.gg/HgekCyHJqB'
+      })
+    ).toBe('permission')
+  })
+
+  it('keeps explicit key-invalidity signals in auth even alongside client wording', () => {
+    expect(classifyErrorCategory({ text: 'unauthorized client: invalid api key' })).toBe('auth')
+    expect(classifyErrorCategory({ status: 401, text: 'invalid_api_key for unauthorized client' })).toBe('auth')
+  })
+
+  it('keeps plain unauthorized responses in auth', () => {
+    expect(classifyErrorCategory({ status: 401, text: 'Unauthorized' })).toBe('auth')
+    expect(classifyErrorCategory({ text: 'authentication required' })).toBe('auth')
+  })
+})
