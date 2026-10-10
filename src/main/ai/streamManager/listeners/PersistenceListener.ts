@@ -263,10 +263,14 @@ export function diagnoseEmptySuccessTurn(finalMessage: CherryUIMessage | undefin
   }
   const hasErrorPart = parts.some((part) => part.type === 'data-error')
   if (hasErrorPart) return undefined
-  // A `/compact` turn legitimately ends with no answer: the compaction record IS
-  // the outcome. Treating it as a lost reply would mislabel every compacted turn.
-  const isCompactionTurn = parts.some((part) => part.type === 'data-compaction-anchor')
-  if (isCompactionTurn) return undefined
+  // An *explicit* compaction-only request (`/compact`) legitimately ends with no
+  // answer: the compaction record IS the outcome. An anchor that automatic
+  // compaction attached to an ordinary request does not answer that request —
+  // exempting it here would leave the missing reply unexplained.
+  const isExplicitCompactionTurn = parts.some(
+    (part) => part.type === 'data-compaction-anchor' && part.data?.trigger === 'manual'
+  )
+  if (isExplicitCompactionTurn) return undefined
   return {
     name: 'blank-content',
     detail: 'The model finished the request without producing a reply.'
