@@ -111,6 +111,17 @@ describe('classifyErrorCategory client refusals', () => {
     expect(classifyErrorCategory({ status: 401, text: 'invalid_api_key for unauthorized client' })).toBe('auth')
   })
 
+  it('maps policy refusals that merely mention the key to permission', () => {
+    // The refusal names the client as the policy subject; the key is mentioned but not
+    // declared invalid ("this api key does not permit third-party clients" — #21376).
+    expect(
+      classifyErrorCategory({
+        status: 401,
+        text: 'unauthorized client detected; this api key does not permit third-party clients'
+      })
+    ).toBe('permission')
+  })
+
   it('keeps plain unauthorized responses in auth', () => {
     expect(classifyErrorCategory({ status: 401, text: 'Unauthorized' })).toBe('auth')
     expect(classifyErrorCategory({ text: 'authentication required' })).toBe('auth')

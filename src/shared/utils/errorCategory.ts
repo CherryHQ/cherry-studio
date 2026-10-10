@@ -133,9 +133,16 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   // Client-refusal gateways reject third-party clients with auth-flavored wording that names
   // the CLIENT, not the key ("unauthorized client detected, contact support" — #21376). The
   // server is refusing this client outright, so claiming the key is invalid sends users off
-  // regenerating working keys. Explicit key-invalidity signals must still win, so this sits
-  // before the generic auth branch and yields to them.
-  if (msg.includes('unauthorized client') && !msg.includes('api key') && !msg.includes('invalid_api_key')) {
+  // regenerating working keys. A key MENTION under a client policy ("this api key does not
+  // permit third-party clients") is still a refusal; only explicit invalidity phrases/codes
+  // keep the auth bucket, so this sits before the generic auth branch and yields to them.
+  if (
+    msg.includes('unauthorized client') &&
+    !msg.includes('invalid_api_key') &&
+    !msg.includes('invalid api key') &&
+    !msg.includes('api key is invalid') &&
+    !msg.includes('incorrect api key')
+  ) {
     return 'permission'
   }
 
