@@ -161,6 +161,8 @@ class TelegramAdapter extends ChannelAdapter {
     }
     this.shouldStop = false
     this.reconnectAttempts = 0
+    this.deliveryAbort?.abort()
+    this.deliveryAbort = new AbortController()
     await this.startBot()
   }
 
@@ -172,8 +174,6 @@ class TelegramAdapter extends ChannelAdapter {
     }
 
     const bot = new Bot(this.botToken)
-    this.deliveryAbort?.abort()
-    this.deliveryAbort = new AbortController()
     this.bot = bot
     bot.api.config.use(withGetUpdatesTimeout)
 
@@ -460,22 +460,20 @@ class TelegramAdapter extends ChannelAdapter {
   }
 
   async sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void> {
-    const bot = this.bot
     const signal = this.deliveryAbort?.signal
-    if (!bot || !signal) {
+    if (!signal) {
       throw new Error('Bot is not connected')
     }
 
     try {
-      await this.deliverMessageChunks(bot, signal, chatId, text, opts)
+      await this.deliverMessageChunks(signal, chatId, text, opts)
     } catch (error) {
-      await this.notifyDeliveryFailure(bot, signal, chatId)
+      await this.notifyDeliveryFailure(signal, chatId)
       throw error
     }
   }
 
   private async deliverMessageChunks(
-    bot: Bot,
     signal: AbortSignal,
     chatId: string,
     text: string,
@@ -490,7 +488,7 @@ class TelegramAdapter extends ChannelAdapter {
     const plainChunks = splitMessage(text, isMarkdown ? TELEGRAM_MARKDOWN_CHUNK_BUDGET : TELEGRAM_MAX_LENGTH)
 
     for (let i = 0; i < plainChunks.length; i++) {
-      this.assertDeliveryActive(bot, signal)
+      this.getDeliveryBot(signal)
       const plain = plainChunks[i]
       const formatted = isMarkdown ? toMarkdownV2(plain).trimEnd() : plain
       // Telegram message ids are numeric; a string replyToMessageId (QQ's msg_id) isn't ours.
@@ -500,7 +498,7 @@ class TelegramAdapter extends ChannelAdapter {
           : {}
 
       const sendPlainText = () =>
-        this.sendWithNetworkRetry(bot, signal, chatId, () => bot.api.sendMessage(chatId, plain, replyParams))
+        this.sendWithNetworkRetry(signal, chatId, (bot) => bot.api.sendMessage(chatId, plain, replyParams))
 
       // Escaping can exceed 4096. That 400 is not a parse error, so send the plain chunk
       // instead of letting the rejection drop the message.
@@ -512,7 +510,7 @@ class TelegramAdapter extends ChannelAdapter {
         await sendPlainText()
       } else {
         try {
-          await this.sendWithNetworkRetry(bot, signal, chatId, () =>
+          await this.sendWithNetworkRetry(signal, chatId, (bot) =>
             bot.api.sendMessage(chatId, formatted, {
               parse_mode: parseMode,
               ...replyParams
@@ -535,25 +533,23 @@ class TelegramAdapter extends ChannelAdapter {
 
       // Small delay between chunks to avoid rate limiting
       if (i < plainChunks.length - 1) {
-        await this.waitForDelivery(100, bot, signal)
+        await this.waitForDelivery(100, signal)
       }
     }
   }
 
   private async sendWithNetworkRetry(
-    bot: Bot,
     signal: AbortSignal,
     chatId: string,
-    send: () => Promise<unknown>
+    send: (bot: Bot) => Promise<unknown>
   ): Promise<void> {
     for (let attempt = 0; ; attempt++) {
       try {
-        this.assertDeliveryActive(bot, signal)
-        await send()
-        this.assertDeliveryActive(bot, signal)
+        await send(this.getDeliveryBot(signal))
+        this.getDeliveryBot(signal)
         return
       } catch (error) {
-        this.assertDeliveryActive(bot, signal)
+        this.getDeliveryBot(signal)
         const delayMs = TELEGRAM_SEND_RETRY_DELAYS_MS[attempt]
         if (!isTransientNetworkError(error) || delayMs === undefined) throw error
         this.log.warn('Transient Telegram send failure, retrying', {
@@ -562,27 +558,26 @@ class TelegramAdapter extends ChannelAdapter {
           delayMs,
           error: error instanceof Error ? error.message : String(error)
         })
-        await this.waitForDelivery(delayMs, bot, signal)
+        await this.waitForDelivery(delayMs, signal)
       }
     }
   }
 
-  private isDeliveryActive(bot: Bot, signal: AbortSignal): boolean {
-    return !signal.aborted && !this.shouldStop && this.bot === bot
-  }
-
-  private assertDeliveryActive(bot: Bot, signal: AbortSignal): void {
+  private getDeliveryBot(signal: AbortSignal): Bot {
     if (signal.aborted) throw signal.reason ?? new Error('Telegram delivery cancelled')
-    if (this.shouldStop || this.bot !== bot) throw new Error('Bot is not connected')
+    if (this.shouldStop || this.deliveryAbort?.signal !== signal || !this.bot) {
+      throw new Error('Bot is not connected')
+    }
+    return this.bot
   }
 
-  private waitForDelivery(delayMs: number, bot: Bot, signal: AbortSignal): Promise<void> {
-    this.assertDeliveryActive(bot, signal)
+  private waitForDelivery(delayMs: number, signal: AbortSignal): Promise<void> {
+    this.getDeliveryBot(signal)
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         signal.removeEventListener('abort', onAbort)
         try {
-          this.assertDeliveryActive(bot, signal)
+          this.getDeliveryBot(signal)
           resolve()
         } catch (error) {
           reject(error)
@@ -596,8 +591,13 @@ class TelegramAdapter extends ChannelAdapter {
     })
   }
 
-  private async notifyDeliveryFailure(bot: Bot, signal: AbortSignal, chatId: string): Promise<void> {
-    if (!this.isDeliveryActive(bot, signal)) return
+  private async notifyDeliveryFailure(signal: AbortSignal, chatId: string): Promise<void> {
+    let bot: Bot
+    try {
+      bot = this.getDeliveryBot(signal)
+    } catch {
+      return
+    }
     try {
       // Plain text, single attempt — do not recurse through sendMessage / MarkdownV2.
       await bot.api.sendMessage(chatId, t('common.channel_message_dropped'))

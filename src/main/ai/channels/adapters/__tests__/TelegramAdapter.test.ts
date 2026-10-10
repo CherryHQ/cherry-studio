@@ -123,6 +123,17 @@ describe('TelegramAdapter', () => {
     })
   }
 
+  function createReplacementBot() {
+    const sendMessage = vi.fn().mockResolvedValue(undefined)
+    const bot = {
+      ...mockBot,
+      api: { ...mockBot.api, config: { use: vi.fn() }, sendMessage },
+      start: vi.fn().mockImplementation(async (options) => options?.onStart?.({})),
+      stop: vi.fn().mockResolvedValue(undefined)
+    }
+    return { bot, sendMessage }
+  }
+
   it('reports connected only after grammY confirms polling startup', async () => {
     let onStart: (() => void) | undefined
     mockBot.start.mockImplementationOnce((options) => {
@@ -601,6 +612,57 @@ describe('TelegramAdapter', () => {
     await vi.runAllTimersAsync()
 
     expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('sendMessage() preserves a pending network retry across automatic polling reconnect', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    const replacement = createReplacementBot()
+    vi.mocked(Bot)
+      .mockImplementationOnce(function () {
+        return mockBot
+      })
+      .mockImplementationOnce(function () {
+        return replacement.bot as unknown as Bot
+      })
+    mockBot.start.mockRejectedValueOnce(new Error('409: Conflict'))
+    await adapter.connect()
+    await vi.advanceTimersByTimeAsync(0)
+    mockBot.api.sendMessage.mockRejectedValueOnce(networkResetError()).mockResolvedValueOnce(undefined)
+
+    const sendPromise = adapter.sendMessage('123', 'Hello')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(Bot).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(4_000)
+    await sendPromise
+
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(1)
+    expect(replacement.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('sendMessage() preserves remaining chunks across automatic polling reconnect', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    const replacement = createReplacementBot()
+    vi.mocked(Bot)
+      .mockImplementationOnce(function () {
+        return mockBot
+      })
+      .mockImplementationOnce(function () {
+        return replacement.bot as unknown as Bot
+      })
+    mockBot.start.mockRejectedValueOnce(new Error('409: Conflict'))
+    await adapter.connect()
+    await vi.advanceTimersByTimeAsync(0)
+    mockBot.api.sendMessage.mockImplementationOnce(() => new Promise((resolve) => setTimeout(resolve, 950)))
+
+    const sendPromise = adapter.sendMessage('123', 'A'.repeat(5000))
+    await vi.advanceTimersByTimeAsync(1_050)
+    await sendPromise
+
+    expect(Bot).toHaveBeenCalledTimes(2)
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(1)
+    expect(replacement.sendMessage).toHaveBeenCalledTimes(1)
   })
 
   // #20643: after retries are exhausted the failure must surface to the caller and a
