@@ -411,6 +411,16 @@ describe('filesystem MCP security', () => {
       ).rejects.toThrow('Path is not a file')
     })
 
+    it.skipIf(process.platform === 'win32')('rejects writing a FIFO before writeInPlace verification', async () => {
+      const workspaceRoot = await createTempDir('write-fifo-root-')
+      const fifoPath = path.join(workspaceRoot, 'pipe.fifo')
+      await promisify(execFile)('mkfifo', [fifoPath])
+
+      await expect(handleWriteTool({ file_path: 'pipe.fifo', content: 'payload' }, workspaceRoot)).rejects.toThrow(
+        'Path is not a file'
+      )
+    })
+
     it('serializes concurrent edits for the same file so both changes land', async () => {
       const workspaceRoot = await createTempDir('edit-serialization-root-')
       const filePath = path.join(workspaceRoot, 'recipe.py')

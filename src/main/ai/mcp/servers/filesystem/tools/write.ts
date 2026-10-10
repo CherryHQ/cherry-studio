@@ -42,13 +42,15 @@ export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, bas
       }
     }
 
-    // Check if file exists (for logging)
     let isOverwrite = false
     try {
-      await stat(validPath)
+      const stats = await stat(validPath)
+      if (!stats.isFile) {
+        throw new Error(`Path is not a file: ${filePath}`)
+      }
       isOverwrite = true
-    } catch {
-      // File doesn't exist, that's fine
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') throw error
     }
 
     // Write the file
