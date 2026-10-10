@@ -38,6 +38,7 @@ import { useDefaultModel } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
@@ -54,6 +55,7 @@ import {
   MIN_TRUNCATE_THRESHOLD
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Prompt } from '@shared/data/types/prompt'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -259,6 +261,7 @@ export function AssistantEditDialog({
 
   return (
     <AssistantEditDialogContent
+      key={resource.id}
       resource={resource}
       open={open}
       onOpenChange={onOpenChange}
@@ -285,6 +288,7 @@ function AssistantEditDialogContent({
 }: Omit<AssistantEditDialogProps, 'resource'> & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
+  const [bindingDraft, setBindingDraft] = useState<{ prompts: Prompt[]; expectedIds: string[] } | null>(null)
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -335,6 +339,7 @@ function AssistantEditDialogContent({
     if (!justOpened) return
 
     form.reset(defaultValues)
+    setBindingDraft(null)
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
@@ -450,12 +455,22 @@ function AssistantEditDialogContent({
     createPending.current = true
     form.clearErrors('root')
     try {
-      if (saveIntent) await updateAssistant(saveIntent.payload)
+      const ids = bindingDraft?.prompts.map((prompt) => prompt.id)
+      const promptBindings =
+        bindingDraft &&
+        ids &&
+        (ids.length !== bindingDraft.expectedIds.length ||
+          ids.some((id, index) => id !== bindingDraft.expectedIds[index]))
+          ? { ids, expectedIds: bindingDraft.expectedIds }
+          : undefined
+      if (saveIntent || promptBindings)
+        await updateAssistant({ ...saveIntent?.payload, ...(promptBindings ? { promptBindings } : {}) })
       onOpenChange(false)
     } catch (error) {
       logger.error('Failed to save assistant edit dialog', error as Error, { assistantId: resource.id })
-      form.setError('root', { message: saveFailedMessage })
-      toast.error(saveFailedMessage)
+      const message = formatErrorMessageWithPrefix(error, saveFailedMessage)
+      form.setError('root', { message })
+      toast.error(message)
     } finally {
       createPending.current = false
     }
@@ -546,6 +561,18 @@ function AssistantEditDialogContent({
               enabled={open && activeTab === 'prompts'}
               target={{ type: 'assistant', id: resource.id }}
               portalContainer={dialogContentElement}
+              draft={
+                requireConfirmation
+                  ? {
+                      prompts: bindingDraft?.prompts,
+                      onChange: (prompts, original) =>
+                        setBindingDraft((current) => ({
+                          prompts,
+                          expectedIds: current?.expectedIds ?? original.map((prompt) => prompt.id)
+                        }))
+                    }
+                  : undefined
+              }
             />
           </TabsContent>
         ) : null}

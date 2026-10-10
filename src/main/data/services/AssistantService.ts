@@ -518,7 +518,7 @@ export class AssistantDataService {
     }
 
     // Strip relation fields — these are synced to junction tables, not assistant columns
-    const { mcpServerIds, knowledgeBaseIds, settings: settingsPatch, ...columnFields } = dto
+    const { mcpServerIds, knowledgeBaseIds, promptBindings, settings: settingsPatch, ...columnFields } = dto
     const updates = Object.fromEntries(Object.entries(columnFields).filter(([, v]) => v !== undefined)) as Partial<
       typeof assistantTable.$inferInsert
     >
@@ -526,7 +526,8 @@ export class AssistantDataService {
       updates.settings = { ...current.settings, ...settingsPatch }
     }
     const hasColumnUpdates = Object.keys(updates).length > 0
-    const hasRelationUpdates = mcpServerIds !== undefined || knowledgeBaseIds !== undefined
+    const hasRelationUpdates =
+      mcpServerIds !== undefined || knowledgeBaseIds !== undefined || promptBindings !== undefined
 
     if (!hasColumnUpdates && !hasRelationUpdates) {
       return current
@@ -573,6 +574,7 @@ export class AssistantDataService {
 
       // Sync junction table rows if relation fields are provided
       this.syncRelationsTx(tx, id, { mcpServerIds, knowledgeBaseIds })
+      if (promptBindings) promptService.replaceBindingsForTargetTx(tx, { type: 'assistant', id }, promptBindings)
 
       const nextModelName =
         dto.modelId !== undefined && dto.modelId !== current.modelId
@@ -582,6 +584,7 @@ export class AssistantDataService {
       return { row: next, modelName: nextModelName }
     })
 
+    if (promptBindings) promptService.notifyTargetBindingsChanged()
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
 
     return rowToAssistant(row, nextRelations, modelName)

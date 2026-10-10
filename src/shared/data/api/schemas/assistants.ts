@@ -12,6 +12,7 @@ import { GroupIdSchema, GroupNameSchema } from '../../types/group'
 import { PromptContentSchema, PromptTitleSchema } from '../../types/prompt'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { UpdatePromptBindingsSchema } from './prompts'
 
 // ============================================================================
 // DTO Derivation
@@ -90,9 +91,11 @@ export type ImportAssistantDto = z.infer<typeof ImportAssistantSchema>
  * replace existing junction table rows. Update picks directly from the entity,
  * not Create, so Create defaults do not bleed into partial updates.
  */
-export const UpdateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
-  .partial()
-  .extend({ settings: AssistantSettingsSchema.partial().optional() })
+export const UpdateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial().extend({
+  settings: AssistantSettingsSchema.partial().optional(),
+  /** Ordered binding draft, committed atomically with the Assistant fields. */
+  promptBindings: UpdatePromptBindingsSchema.optional()
+})
 export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
 
 export const ASSISTANTS_DEFAULT_PAGE = 1

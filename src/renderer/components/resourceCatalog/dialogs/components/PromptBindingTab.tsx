@@ -8,7 +8,7 @@ import { useReorder } from '@data/hooks/useReorder'
 import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
+import type { Prompt, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
 
 import { PromptEditDialog } from '../edit'
 import { AddCatalogPopover, CatalogEmptyPlaceholder } from './CatalogPicker'
@@ -18,14 +18,19 @@ export type PromptBindingTabProps = {
   enabled: boolean
   target: PromptBindingTarget
   portalContainer?: HTMLElement | null
+  draft?: {
+    prompts: Prompt[] | undefined
+    onChange: (prompts: Prompt[], original: Prompt[]) => void
+  }
 }
 
-export function PromptBindingTab({ enabled, target, portalContainer }: PromptBindingTabProps) {
+export function PromptBindingTab({ enabled, target, portalContainer, draft }: PromptBindingTabProps) {
   const { t } = useTranslation()
   const [isCreatePromptOpen, setIsCreatePromptOpen] = useState(false)
   const [isBinding, setIsBinding] = useState(false)
   const isBindingRef = useRef(false)
   const bindingOperationGenerationRef = useRef(0)
+  const createOperationGenerationRef = useRef(0)
   const bindingTarget = useMemo<PromptBindingTarget>(
     () => (target.type === 'assistant' ? { type: 'assistant', id: target.id } : { type: 'agent', id: target.id }),
     [target.id, target.type]
@@ -47,7 +52,8 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
     refetch: refetchBoundPrompts
   } = useQuery('/prompt-bindings/:targetType/:targetId', {
     enabled,
-    params: bindingParams
+    params: bindingParams,
+    swrOptions: { keepPreviousData: false }
   })
   const { createPrompt } = usePromptMutations()
   const { bindPrompt, unbindPrompt } = usePromptBindingMutations(bindingTarget)
@@ -70,9 +76,13 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
 
   useEffect(() => {
     if (!enabled) setIsCreatePromptOpen(false)
-  }, [enabled])
+    return () => {
+      createOperationGenerationRef.current += 1
+    }
+  }, [enabled, bindingTarget])
 
-  const boundPromptIds = useMemo(() => new Set((boundPromptsData ?? []).map((prompt) => prompt.id)), [boundPromptsData])
+  const boundPrompts = useMemo(() => draft?.prompts ?? boundPromptsData ?? [], [draft?.prompts, boundPromptsData])
+  const boundPromptIds = useMemo(() => new Set(boundPrompts.map((prompt) => prompt.id)), [boundPrompts])
   const promptItems = useMemo(() => {
     return (allPromptsData ?? []).map((prompt) => ({
       id: prompt.id,
@@ -86,6 +96,16 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
   const handleBindingChange = useCallback(
     async (promptId: string, shouldBind: boolean) => {
       if (isBindingRef.current) return
+      if (draft) {
+        const prompt = allPromptsData?.find((item) => item.id === promptId)
+        const next = shouldBind
+          ? prompt && !boundPromptIds.has(promptId)
+            ? [...boundPrompts, prompt]
+            : boundPrompts
+          : boundPrompts.filter((item) => item.id !== promptId)
+        draft.onChange(next, boundPromptsData ?? [])
+        return
+      }
 
       const operationGeneration = bindingOperationGenerationRef.current
       isBindingRef.current = true
@@ -110,23 +130,26 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
         }
       }
     },
-    [bindPrompt, t, unbindPrompt]
+    [allPromptsData, bindPrompt, boundPromptIds, boundPrompts, boundPromptsData, draft, t, unbindPrompt]
   )
 
   const handleCreatePrompt = useCallback(
     async (data: { title: string; content: string; visibility: PromptVisibility }) => {
+      const operationGeneration = createOperationGenerationRef.current
       try {
-        await createPrompt({
+        const prompt = await createPrompt({
           ...data,
-          ...(data.visibility === 'restricted' ? { bindingTarget } : {})
+          ...(!draft && data.visibility === 'restricted' ? { bindingTarget } : {})
         })
+        if (createOperationGenerationRef.current !== operationGeneration) return
+        if (draft && data.visibility === 'restricted') draft.onChange([...boundPrompts, prompt], boundPromptsData ?? [])
         setIsCreatePromptOpen(false)
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
         throw error
       }
     },
-    [bindingTarget, createPrompt, t]
+    [bindingTarget, boundPrompts, boundPromptsData, createPrompt, draft, t]
   )
 
   const error = allPromptsError ?? boundPromptsError
@@ -148,7 +171,7 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
               type="button"
               variant="outline"
               size="sm"
-              disabled={!enabled || isBinding}
+              disabled={!enabled || isBinding || (Boolean(draft) && (isLoading || Boolean(error)))}
               onClick={() => setIsCreatePromptOpen(true)}>
               <Plus size={12} className="shrink-0" />
               {t('settings.prompts.add')}
@@ -188,7 +211,7 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
           />
         ) : isLoading ? (
           <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
-        ) : (boundPromptsData ?? []).length === 0 ? (
+        ) : boundPrompts.length === 0 ? (
           <EmptyState
             compact
             icon={Zap}
@@ -197,9 +220,9 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
           />
         ) : (
           <ReorderableList
-            items={boundPromptsData ?? []}
+            items={boundPrompts}
             getId={(prompt) => prompt.id}
-            onReorder={applyReorderedList}
+            onReorder={draft ? (prompts) => draft.onChange(prompts, boundPromptsData ?? []) : applyReorderedList}
             onReorderError={handleReorderError}
             disabled={isBinding || isReordering}
             dragHandle
