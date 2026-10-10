@@ -331,6 +331,8 @@ export function resolveWebToolRoutes(
     clientSearchAvailable: boolean
     clientFetchAvailable: boolean
     modelToolsPreferred: boolean
+    clientSearchPreferred?: boolean
+    clientFetchPreferred?: boolean
     /** Non-web function tools expected on the request (MCP/KB/attachments/…); predictive in the renderer. */
     hasFunctionToolSignals?: boolean
     /** Effective reasoning effort selection for the request. */
@@ -363,15 +365,15 @@ export function resolveWebToolRoutes(
   const serverSearchAvailable = serverSearchEligible && !googleToolConflict && !openaiMinimalConflict
   const serverFetchAvailable = serverFetchEligible && !googleToolConflict
 
-  const selectRoute = (clientAvailable: boolean, serverAvailable: boolean): WebToolRoute => {
-    if (options.modelToolsPreferred) {
+  const selectRoute = (clientAvailable: boolean, serverAvailable: boolean, clientPreferred?: boolean): WebToolRoute => {
+    if (options.modelToolsPreferred && !clientPreferred) {
       return serverAvailable ? 'server' : clientAvailable ? 'client' : 'none'
     }
     return clientAvailable ? 'client' : serverAvailable ? 'server' : 'none'
   }
 
-  let webSearch = selectRoute(clientSearchAvailable, serverSearchAvailable)
-  let webFetch = selectRoute(clientFetchAvailable, serverFetchAvailable)
+  let webSearch = selectRoute(clientSearchAvailable, serverSearchAvailable, options.clientSearchPreferred)
+  let webFetch = selectRoute(clientFetchAvailable, serverFetchAvailable, options.clientFetchPreferred)
   let coordinatedGoogleConflict = false
 
   if (
@@ -381,9 +383,12 @@ export function resolveWebToolRoutes(
     coordinatedGoogleConflict = true
     const clientCoverage = Number(clientSearchAvailable) + Number(clientFetchAvailable)
     const serverCoverage = Number(serverSearchAvailable) + Number(serverFetchAvailable)
-    const selectedSide: Exclude<WebToolRoute, 'none'> =
-      clientCoverage === serverCoverage
-        ? options.modelToolsPreferred
+    const explicitClientChoice =
+      (options.clientSearchPreferred && clientSearchAvailable) || (options.clientFetchPreferred && clientFetchAvailable)
+    const selectedSide: Exclude<WebToolRoute, 'none'> = explicitClientChoice
+      ? 'client'
+      : clientCoverage === serverCoverage
+        ? options.modelToolsPreferred && !options.clientSearchPreferred && !options.clientFetchPreferred
           ? 'server'
           : 'client'
         : clientCoverage > serverCoverage

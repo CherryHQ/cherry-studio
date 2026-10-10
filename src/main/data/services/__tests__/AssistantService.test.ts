@@ -1064,6 +1064,24 @@ describe('AssistantDataService', () => {
       expect(row.modelId).toBe('openai::gpt-4')
     })
 
+    it('persists independent assistant web providers without leaking to another assistant', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'first' })
+      await seedAssistantRow({ id: 'ast-2', name: 'second' })
+      assistantDataService.update('ast-1', {
+        settings: { searchKeywordsProviderId: 'exa', fetchUrlsProviderId: 'jina' }
+      })
+      expect(assistantDataService.getById('ast-1').settings).toMatchObject({
+        searchKeywordsProviderId: 'exa',
+        fetchUrlsProviderId: 'jina'
+      })
+      expect(assistantDataService.getById('ast-2').settings.searchKeywordsProviderId).toBeUndefined()
+      assistantDataService.update('ast-1', { settings: { searchKeywordsProviderId: null } })
+      expect(assistantDataService.getById('ast-1').settings).toMatchObject({
+        searchKeywordsProviderId: null,
+        fetchUrlsProviderId: 'jina'
+      })
+    })
+
     it('should preserve groupId after a column-only update', async () => {
       const groupId = '11111111-1111-4111-8111-111111111111'
       await seedAssistantGroup(groupId, 'work')

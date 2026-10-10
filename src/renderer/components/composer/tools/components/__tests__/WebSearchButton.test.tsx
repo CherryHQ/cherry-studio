@@ -217,6 +217,28 @@ describe('WebSearchButton', () => {
     })
   })
 
+  it('offers ready providers per capability and restores the active assistant choices', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', { tavily: { apiKeys: ['key'] } })
+    mocks.assistant.settings.searchKeywordsProviderId = 'tavily'
+    const view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    const choices = () =>
+      vi
+        .mocked(launcherApi.registerLaunchers)
+        .mock.calls.at(-1)![0]
+        .find((item) => item.id === 'web-search-providers')!.submenu!
+    expect(choices().find((item) => item.id === 'web-provider-searchKeywords-tavily')?.active).toBe(true)
+    expect(choices().some((item) => item.id === 'web-provider-fetchUrls-tavily')).toBe(false)
+    const choice = choices().find((item) => item.id === 'web-provider-fetchUrls-jina')!
+    choice.action!({} as any)
+    expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { fetchUrlsProviderId: 'jina' } })
+    mocks.assistant = { ...mocks.assistant, id: 'assistant-2', settings: { enableWebSearch: false } }
+    view.rerender(<WebSearchButton assistantId="assistant-2" launcher={launcherApi} />)
+    expect(choices().find((item) => item.id === 'web-provider-searchKeywords-default')?.active).toBe(true)
+    expect(choices().find((item) => item.id === 'web-provider-searchKeywords-tavily')?.active).toBe(false)
+    choices().find((item) => item.id === 'web-provider-fetchUrls-default')!.action!({} as any)
+    expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { fetchUrlsProviderId: null } })
+  })
+
   it('reads only the current model provider', () => {
     const view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
