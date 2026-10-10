@@ -1,9 +1,11 @@
+import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
-import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { Model, ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -52,6 +54,22 @@ export interface CallOverrides {
   tools?: ToolSet
   toolChoice?: ToolChoice<ToolSet>
   providerOptions?: ProviderOptions
+  /** Vendor fields injected after AI SDK schema serialization. */
+  rawBodyParameters?: Record<string, unknown>
+}
+
+export interface ModelAttemptOverrides {
+  callOverrides?: CallOverrides
+  /** Provider-level prompt replacement merged by ai-retry for this fallback attempt. */
+  prompt?: LanguageModelV3Prompt
+}
+
+/** Main-only hooks for callers whose request contract changes with the actual retry model. */
+export interface InProcessModelAttemptController {
+  /** Return `null` to skip a fallback that cannot satisfy the caller's contract. */
+  resolveFallback(input: { provider: Provider; model: Model }): ModelAttemptOverrides | null
+  /** Runs immediately before an attempt uses the selected model. */
+  onActivated?(model: Model): void
 }
 
 /**
@@ -100,6 +118,8 @@ export interface AiChatRequest extends AiRequest {
   contextOwner?: ContextOwner
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
+  /** Per-model retry shaping for main-only callers such as translation. */
+  modelAttempt?: InProcessModelAttemptController
   /** In-process caller identity used only for targeted embedded MCP authorization. */
   interactionWindowId?: WindowId
   /** In-process safety switch for MCP sampling; prevents tool recursion. */

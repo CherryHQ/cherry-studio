@@ -627,6 +627,70 @@ describe('buildAgentParams provider resolution', () => {
     expect(requestFetches[2]).toBe(requestFetches[0])
     expect(requestFetches[1]).not.toBe(requestFetches[0])
   })
+
+  it('preserves caller raw body parameters through Anthropic request serialization', async () => {
+    let requestBody: Record<string, unknown> | undefined
+    const innerFetch: typeof globalThis.fetch = async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body))
+      throw new Error('request captured')
+    }
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: { fetch: innerFetch } },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
+    const model = makeModel({
+      id: 'dashscope::qwen-mt-flash',
+      providerId: 'dashscope',
+      apiModelId: 'qwen-mt-flash',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    const rawBodyParameters = {
+      translation_options: { source_lang: 'auto', target_lang: 'English' },
+      incremental_output: true
+    }
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          providerOptions: { anthropic: rawBodyParameters },
+          rawBodyParameters
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+    const sdkModel = createAnthropic({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: result.sdkConfig.providerSettings.fetch
+    }).languageModel(model.apiModelId!)
+
+    // Translate streams. doGenerate and doStream both go through the Anthropic
+    // schema, which drops unknown fields such as translation_options.
+    for (const call of ['doGenerate', 'doStream'] as const) {
+      requestBody = undefined
+      await expect(
+        sdkModel[call]({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'Translate this.' }] }],
+          providerOptions: result.options.providerOptions
+        })
+      ).rejects.toThrow('request captured')
+      expect(requestBody).toMatchObject(rawBodyParameters)
+      expect((requestBody as Record<string, unknown> | undefined)?.translation_options).toEqual({
+        source_lang: 'auto',
+        target_lang: 'English'
+      })
+    }
+  })
 })
 
 describe('buildAgentParams standard model parameters', () => {

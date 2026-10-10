@@ -47,6 +47,7 @@ import type {
   ApprovalRequestedEvent,
   CallOverrides,
   ContextOwner,
+  InProcessModelAttemptController,
   InProcessUsageContext
 } from '../types'
 import { AiStreamAdmissionError, type LiveExecutionChangeAdmission, type LiveExecutionChangeIntent } from './admission'
@@ -891,6 +892,8 @@ export class AiStreamManager extends BaseService {
     listener: StreamListener | StreamListener[]
     /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
     callOverrides?: CallOverrides
+    /** Main-only per-model shaping for retry/fallback attempts. */
+    modelAttempt?: InProcessModelAttemptController
     /** Which layer owns history shaping; omitted means Cherry-managed. */
     contextOwner?: ContextOwner
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
@@ -920,6 +923,7 @@ export class AiStreamManager extends BaseService {
       uniqueModelId: input.uniqueModelId,
       messages,
       callOverrides: input.callOverrides,
+      modelAttempt: input.modelAttempt,
       contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
