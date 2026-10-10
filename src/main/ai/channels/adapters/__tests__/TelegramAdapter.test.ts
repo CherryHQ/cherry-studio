@@ -567,6 +567,42 @@ describe('TelegramAdapter', () => {
     }
   })
 
+  it('sendMessage() cancels a pending network retry when disconnected', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    await adapter.connect()
+    mockBot.api.sendMessage.mockRejectedValue(networkResetError())
+
+    const sendPromise = adapter.sendMessage('123', 'Hello')
+    const rejection = expect(sendPromise).rejects.toMatchObject({ name: 'AbortError' })
+    await Promise.resolve()
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(1)
+
+    await adapter.disconnect()
+    await rejection
+    await vi.runAllTimersAsync()
+
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('sendMessage() cancels remaining chunks when disconnected between chunks', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const sendPromise = adapter.sendMessage('123', 'A'.repeat(5000))
+    const rejection = expect(sendPromise).rejects.toMatchObject({ name: 'AbortError' })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(1)
+
+    await adapter.disconnect()
+    await rejection
+    await vi.runAllTimersAsync()
+
+    expect(mockBot.api.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
   // #20643: after retries are exhausted the failure must surface to the caller and a
   // user-visible drop notice must be attempted (not silent swallow inside the adapter).
   it('sendMessage() notifies and rethrows after network retries are exhausted (REGRESSION #20643)', async () => {
