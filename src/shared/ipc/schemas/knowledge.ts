@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { UpdateKnowledgeBaseSchema } from '@shared/data/api/schemas/knowledges'
+import { ExternalKnowledgeSourceSchema } from '@shared/data/types/externalKnowledge'
 import { ExternalKnowledgeConnectionSchema } from '@shared/data/types/externalKnowledgeConnection'
 import {
   ExternalKnowledgeScopePreviewSchema,
@@ -68,6 +69,19 @@ const itemIdsInputSchema = z.strictObject({
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const knowledgeRequestSchemas = {
+  'knowledge.external_source.create': defineRoute({
+    input: z.strictObject({
+      baseId: z.uuidv4(),
+      connectionId: connectionIdSchema,
+      url: z.url().max(4096),
+      name: z.string().trim().min(1).max(256)
+    }),
+    output: ExternalKnowledgeSourceSchema
+  }),
+  'knowledge.external_source.sync': defineRoute({
+    input: z.strictObject({ sourceId: z.uuidv7() }),
+    output: ExternalKnowledgeSourceSchema
+  }),
   'knowledge.feishu.registration.begin': defineRoute({
     input: z.void(),
     output: z.strictObject({
