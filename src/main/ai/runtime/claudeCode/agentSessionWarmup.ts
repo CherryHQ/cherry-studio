@@ -37,7 +37,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
-import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { isVisionModel, requiresUpfrontToolsForModel } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -89,15 +89,8 @@ interface ClaudeCodeRouteFacts {
     sonnet: string
     haiku: string
   }
-  /**
-   * Whether the primary model accepts dynamically-loaded tool declarations — the mechanism behind
-   * the SDK's ToolSearch, which Cherry force-enables via `ENABLE_TOOL_SEARCH=auto`
-   * (settingsBuilder). False means `mergeRuntimeSettings` must strip that env var, or providers
-   * that reject the injected blocks (Moonshot's Anthropic endpoint on non-K3 models) fail every
-   * turn with `400 Invalid request: tokenization failed`. Computed from the effective connection
-   * model in `deriveRouteFacts`, not `agent.model` — a per-turn connection can override it.
-   */
-  toolSearchCompatible: boolean
+  /** Whether a known Kimi model must use upfront tool definitions. */
+  requiresUpfrontTools: boolean
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
   usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
 }
@@ -666,7 +659,7 @@ function deriveRouteFacts(
   // primary model must parse. Sub-models are pinned to the primary whenever they differ from
   // `agent.model` (see `pinSubModelsToPrimary`), so keying on the primary never misses a
   // per-turn model override.
-  const toolSearchCompatible = supportsDynamicallyLoadedTools(primaryRef.apiModelId)
+  const requiresUpfrontTools = requiresUpfrontToolsForModel(primaryRef.apiModelId)
 
   // External-cli (e.g. claude-code) authenticates only through the SDK's
   // subscription login, which can serve *only* this provider's own models. A
@@ -692,7 +685,7 @@ function deriveRouteFacts(
     return {
       branch: 'external-cli',
       credentialsFingerprint: 'external-cli',
-      toolSearchCompatible,
+      requiresUpfrontTools,
       modelIds,
       usageModels: buildUsageModels([
         { sdkModelId: modelIds.primary, ref: externalRefs.primary },
@@ -719,7 +712,7 @@ function deriveRouteFacts(
       branch: 'gateway',
       baseUrl: gatewayClientOrigin(host, port),
       credentialsFingerprint: gatewayCredentialsFingerprint(),
-      toolSearchCompatible,
+      requiresUpfrontTools,
       modelIds: {
         primary: toGatewayModelId(primaryRef),
         opus: toGatewayModelId(opusRef),
@@ -756,7 +749,7 @@ function deriveRouteFacts(
       ...enabledKeys.map((key) => `api-key:${key}`),
       ...(customHeaders ? [`custom-headers:${customHeaders}`] : [])
     ]),
-    toolSearchCompatible,
+    requiresUpfrontTools,
     modelIds,
     usageModels: buildUsageModels([
       { sdkModelId: modelIds.primary, ref: primaryRef },
@@ -843,7 +836,7 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     branch: route.branch,
     baseUrl: route.baseUrl,
     credentialsFingerprint: route.credentialsFingerprint,
-    toolSearchCompatible: route.toolSearchCompatible,
+    requiresUpfrontTools: route.requiresUpfrontTools,
     modelIds: route.modelIds,
     usageModels: route.usageModels
   }
@@ -944,13 +937,9 @@ function mergeRuntimeSettings(
     },
     { additionalBypassRule: gatewayBypassRule(route) }
   )
-  // `buildEnvironment` force-enables the SDK's ToolSearch via `ENABLE_TOOL_SEARCH=auto` before the
-  // per-turn model is known, and the var is in the blocked list so agents cannot override it. When
-  // the effective connection model rejects dynamically-loaded tool declarations (e.g. Kimi models
-  // other than K3 on Moonshot's Anthropic endpoint → `400 Invalid request: tokenization failed`),
-  // drop it here so the SDK falls back to loading every tool upfront.
-  if (!route.toolSearchCompatible) {
-    delete env.ENABLE_TOOL_SEARCH
+  // Kimi requires upfront tools; its API does not provide Claude Code's server-side ToolSearch.
+  if (route.requiresUpfrontTools) {
+    env.ENABLE_TOOL_SEARCH = 'false'
   }
   return {
     ...settings,
