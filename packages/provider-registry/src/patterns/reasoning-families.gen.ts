@@ -120,8 +120,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   },
   { pattern: 'claude-3-7-sonnet|claude-3\\.7-sonnet' },
   { pattern: 'claude-(?:sonnet|opus|haiku)-4' },
-  // arceeai
-  { pattern: '^trinity', effort: ['none', 'low', 'medium', 'high'] },
   // baichuan
   { pattern: 'baichuan-m2$', budget: { min: 0, max: 30000 }, template: true },
   { pattern: 'baichuan-m3$', budget: { min: 0, max: 30000 }, template: true },
@@ -129,7 +127,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // bailing
   { pattern: 'ring-(?:1t|mini|flash)' },
   { pattern: '^ling-3[.-]0-flash' },
-  { pattern: '^ling-3[.-]1-flash', effort: ['none', 'low', 'medium', 'high'] },
   { pattern: '^inkling' },
   // bytedance
   {
@@ -205,7 +202,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^mercury-2' },
   // meituan
   { pattern: '^longcat-2[.-]0$', toggle: true },
-  { pattern: '^longcat-2[.-]5', toggle: true },
   // meta
   { pattern: '^muse-spark' },
   // minimax
@@ -220,7 +216,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^kimi-k2[.-]7-code', toggle: false },
   { pattern: '^kimi-k3$', effort: ['low', 'high', 'max'], toggle: true },
   { pattern: '^kimi-k3-fast$', effort: ['low', 'high', 'max'] },
-  { pattern: '^kimi-k2$', toggle: true },
   { pattern: '^kimi-k2[.-][5-9]\\d*', toggle: true },
   { pattern: 'kimi-k2[.-][5-9]\\d*', budget: { min: 0, max: 30720 }, template: true },
   { pattern: '^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)(?:-[\\w-]+)?$' },
@@ -241,7 +236,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gpt-5[.-]\\d+(?!.*chat)', effort: ['none', 'low', 'medium', 'high', 'xhigh'] },
   { pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', effort: ['minimal', 'low', 'medium', 'high'] },
   { pattern: '^gpt-6', effort: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
-  { pattern: '^gpt-daybreak', effort: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^gpt-oss', effort: ['low', 'medium', 'high'] },
   { pattern: '^o1(?!-preview|-mini)|^o3|^o4', effort: ['low', 'medium', 'high'] },
   { pattern: '^o\\d+(?:-[\\w-]+)?$' },
@@ -256,7 +250,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // stepfun
   { pattern: 'step-3' },
   { pattern: 'step-r1-v-mini' },
-  { pattern: '^step-5-preview', effort: ['low', 'medium', 'high'] },
   // tencent
   { pattern: '^hunyuan-a13b', toggle: true },
   { pattern: 'hunyuan-a13b', budget: { min: 0, max: 30720 }, template: true },
@@ -269,11 +262,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^muse-spark' },
   { pattern: '^interfaze' },
   { pattern: '^laguna-s' },
-  { pattern: '^arrow-2', effort: ['low', 'medium', 'high', 'xhigh'] },
-  { pattern: '^ember-1', effort: ['low', 'medium', 'high'], toggle: true },
-  { pattern: '^fugu', effort: ['high', 'xhigh'] },
-  { pattern: '^namazu', effort: ['none', 'low', 'medium', 'high'] },
-  { pattern: '^pixel-canary', effort: ['none', 'low', 'medium', 'xhigh'] },
   // xai
   { pattern: '^grok-4\\.3(?!.*non-reasoning)', effort: ['none', 'low', 'medium', 'high'] },
   { pattern: '^grok-4[.-][67](?!.*non-reasoning)', effort: ['low', 'medium', 'high', 'xhigh'] },
