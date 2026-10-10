@@ -11,6 +11,12 @@ const PROTECTED_HTML_PLACEHOLDER_PREFIX = '__CHERRY_STUDIO_HTML_ARTIFACT_'
 const LEADING_HTML_DOCTYPE_REGEX = /^(?:\s*(?:<!--[\s\S]*?-->|<\?[\s\S]*?\?>))*\s*<!doctype(?:\s|>)/i
 // A *closed* opening tag, so a half-streamed `<div` never counts as a fragment.
 const HTML_FRAGMENT_START_REGEX = /^<[a-z][a-z0-9-]*(?:\s[^>]*)?>/i
+// Paired container boundaries wrapping Markdown stay raw HTML (#21456): CommonMark splits
+// `<details>…</summary>` and `</details>` into two top-level html nodes around the body, and
+// converting each into an artifact iframe shatters the native disclosure. Unpaired fragments
+// keep the artifact preview path.
+const HTML_CONTAINER_OPEN_REGEX = /^<details(?=[\s>])/i
+const HTML_CONTAINER_CLOSE_REGEX = /^<\/details\b/i
 
 interface SourceRange {
   start: number
@@ -77,6 +83,18 @@ function findHtmlDocumentEnd(children: readonly RootContent[], startIndex: numbe
     if (child?.type === 'html' && HTML_DOCUMENT_END_REGEX.test(child.value)) return index
   }
 
+  return undefined
+}
+
+function findPairedContainerClose(children: readonly RootContent[], startIndex: number): number | undefined {
+  const open = children[startIndex]
+  if (open?.type !== 'html' || !HTML_CONTAINER_OPEN_REGEX.test(stripLeadingHtmlMetadata(open.value))) {
+    return undefined
+  }
+  for (let index = startIndex + 1; index < children.length; index += 1) {
+    const child = children[index]
+    if (child?.type === 'html' && HTML_CONTAINER_CLOSE_REGEX.test(child.value.trim())) return index
+  }
   return undefined
 }
 
@@ -196,6 +214,16 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         children.push(...documentNodes)
       }
       index = documentEndIndex
+      continue
+    }
+
+    const pairedEndIndex = findPairedContainerClose(tree.children, index)
+    if (pairedEndIndex !== undefined) {
+      for (let paired = index; paired <= pairedEndIndex; paired += 1) {
+        const node = tree.children[paired]
+        if (node) children.push(node)
+      }
+      index = pairedEndIndex
       continue
     }
 
