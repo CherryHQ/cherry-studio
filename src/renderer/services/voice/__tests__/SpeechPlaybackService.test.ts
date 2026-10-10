@@ -124,6 +124,28 @@ function createHarness(options: { chunks?: string[]; objectUrl?: string; audio?:
 beforeEach(() => vi.restoreAllMocks())
 
 describe('SpeechPlaybackService planning and playback', () => {
+  it.each(['resolveSpeechPreferences', 'initialize'] as const)(
+    'cancels pending auto-read during %s when the preference is turned off',
+    async (boundary) => {
+      const { service, voice } = createHarness()
+      let resolve!: (value: any) => void
+      voice[boundary].mockReturnValueOnce(new Promise<any>((done) => (resolve = done)))
+      const starting = service.start({ ...baseInput, trigger: 'auto_read' })
+      const aborted = expect(starting).rejects.toMatchObject({ reason: 'aborted' })
+      await vi.waitFor(() => expect(voice[boundary]).toHaveBeenCalled())
+
+      await service.stopAutoRead()
+      resolve({ modelId: 'local-voice::apple-system-tts', voice: 'configured-voice', speed: 1 })
+      await aborted
+
+      expect(voice.generateSpeech).not.toHaveBeenCalled()
+      expect(service.getSnapshot().phase).toBe('idle')
+      await expect(service.start(baseInput)).resolves.toEqual({ status: 'started' })
+      expect(service.getSnapshot().phase).toBe('playing')
+      await service.stop()
+    }
+  )
+
   it('invalidates a start waiting for preferences when Main reports a power interruption', async () => {
     const { service, voice } = createHarness()
     let resolve!: (value: any) => void
@@ -137,6 +159,29 @@ describe('SpeechPlaybackService planning and playback', () => {
     await aborted
 
     expect(voice.generateSpeech).not.toHaveBeenCalled()
+    expect(service.getSnapshot().phase).toBe('idle')
+  })
+
+  it('cancels a pending automatic output locally before waiting for Main cleanup', async () => {
+    const { service, voice, audios } = createHarness()
+    let resolveOutput!: (value: any) => void
+    let resolveStop!: () => void
+    voice.readOutput.mockReturnValueOnce(new Promise<any>((resolve) => (resolveOutput = resolve)))
+    const cleanup = new Promise<any>((resolve) => (resolveStop = () => resolve({})))
+    voice.controlPlayback.mockReturnValueOnce(cleanup)
+    voice.discardSession.mockReturnValueOnce(cleanup)
+    const starting = service.start({ ...baseInput, trigger: 'auto_read' })
+    const aborted = expect(starting).rejects.toMatchObject({ reason: 'aborted' })
+    await vi.waitFor(() => expect(voice.readOutput).toHaveBeenCalled())
+
+    const stopping = service.stopAutoRead()
+    resolveOutput({ audio: wav, mimeType: 'audio/wav' })
+    await aborted
+    resolveStop()
+    await stopping
+
+    expect(audios).toHaveLength(0)
+    expect(voice.discardSession).toHaveBeenCalledWith(sessionId)
     expect(service.getSnapshot().phase).toBe('idle')
   })
 
@@ -421,6 +466,23 @@ describe('SpeechPlaybackService planning and playback', () => {
     await service.stop()
     expect(voice.controlPlayback).toHaveBeenNthCalledWith(1, { sessionId, command: 'pause' })
     expect(voice.controlPlayback).toHaveBeenNthCalledWith(2, { sessionId, command: 'stop' })
+  })
+
+  it('stops an owned auto-read run and leaves manual playback running', async () => {
+    const automatic = createHarness()
+    await automatic.service.start({ ...baseInput, trigger: 'auto_read' })
+
+    await expect(automatic.service.stopAutoRead()).resolves.toBe(true)
+    expect(automatic.voice.discardSession).toHaveBeenCalledWith(sessionId)
+    expect(automatic.service.getSnapshot().phase).toBe('idle')
+
+    const manual = createHarness()
+    await manual.service.start(baseInput)
+
+    await expect(manual.service.stopAutoRead()).resolves.toBe(false)
+    expect(manual.voice.controlPlayback).not.toHaveBeenCalled()
+    expect(manual.voice.discardSession).not.toHaveBeenCalled()
+    expect(manual.service.getSnapshot().phase).toBe('playing')
   })
 
   it('does not replace a visible snapshot when a new start fails local validation', async () => {

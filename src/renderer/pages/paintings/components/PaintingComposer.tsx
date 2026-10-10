@@ -21,6 +21,7 @@ import {
   COMPOSER_SELECTOR_BUTTON_CLASS,
   ComposerToolbarControls
 } from '@renderer/components/composer/variants/shared/ComposerControlScaffolding'
+import { ComposerDictationButton } from '@renderer/components/composer/variants/shared/ComposerDictationButton'
 import { fileToComposerToken } from '@renderer/components/composer/variants/shared/composerTokens'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
@@ -274,8 +275,9 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>
-      {model && <ComposerToolRuntimeHost scope={PAINTING_SCOPE} model={model} />}
+      <ComposerToolRuntimeHost scope={PAINTING_SCOPE} model={model} />
       <ComposerSurface
+        voiceTarget={{ targetId: `composer:painting:${painting.id}`, sourceEntityId: painting.id }}
         text={text}
         onTextChange={handleTextChange}
         tokens={tokens}
@@ -304,6 +306,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+        sendAccessory={(inputAdapter) => <ComposerDictationButton inputAdapter={inputAdapter} />}
         renderLeftControls={(inputAdapter, unifiedPanelControl) => (
           <ComposerToolbarControls
             inputAdapter={inputAdapter}

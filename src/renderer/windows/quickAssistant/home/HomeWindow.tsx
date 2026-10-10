@@ -9,7 +9,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -17,6 +17,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
+import { autoReadCoordinator, readMessageAloud, voiceTargetManager } from '@renderer/services/voice'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -47,6 +48,8 @@ const logger = loggerService.withContext('HomeWindow')
 const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 
 type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
+
+const supportsVoicePlayback = (route: MiniRoute) => route === 'chat' || route === 'summary' || route === 'explanation'
 
 /**
  * Finalize a list of live assistant messages: turn any still-streaming text
@@ -82,6 +85,7 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
+  const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -102,7 +106,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [])
 
   const lastClipboardTextRef = useRef<string | null>(null)
-  const inputBarRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
   const { quickModel: quickApiModel } = useDefaultModel()
@@ -151,11 +155,76 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // streams in `completedAssistants` so the multi-turn conversation
   // renders properly. Cleared on `clear()` together with `setMessages([])`.
   const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const [lastCompletedVoiceMessage, setLastCompletedVoiceMessage] = useState<CherryUIMessage | null>(null)
+  const voiceScopeGenerationRef = useRef(0)
+  const voiceScopeTopicRef = useRef(temporaryTopicId)
+  const voiceExecutionContextsRef = useRef(
+    new Map<string, { topicId: string; generation: number; eligible: boolean }>()
+  )
+
+  useEffect(() => {
+    void autoReadCoordinator.setEnabled(autoReadEnabled)
+  }, [autoReadEnabled])
+
+  useEffect(() => {
+    if (voiceScopeTopicRef.current === temporaryTopicId) return
+    voiceScopeTopicRef.current = temporaryTopicId
+    voiceScopeGenerationRef.current += 1
+    voiceExecutionContextsRef.current.clear()
+    setLastCompletedVoiceMessage(null)
+  }, [temporaryTopicId])
+
+  useEffect(() => {
+    if (!temporaryTopicId || voiceScopeTopicRef.current !== temporaryTopicId) return
+    for (const execution of activeExecutions) {
+      const key = `${execution.executionId}:${execution.attemptId}`
+      if (voiceExecutionContextsRef.current.has(key)) continue
+      voiceExecutionContextsRef.current.set(key, {
+        topicId: temporaryTopicId,
+        generation: voiceScopeGenerationRef.current,
+        eligible: supportsVoicePlayback(route)
+      })
+    }
+  }, [activeExecutions, route, temporaryTopicId])
+
+  const handleExecutionFinish = useCallback(
+    (executionId: string, { attemptId, message, isAbort, isError }: ExecutionFinishEvent) => {
+      const key = `${executionId}:${attemptId}`
+      const context = voiceExecutionContextsRef.current.get(key)
+      if (!context) return
+      voiceExecutionContextsRef.current.delete(key)
+      if (context.topicId !== temporaryTopicId || context.generation !== voiceScopeGenerationRef.current) {
+        return
+      }
+
+      void autoReadCoordinator.consume({
+        enabled: autoReadEnabled,
+        message,
+        attemptId,
+        isAbort,
+        isError,
+        eligible: context.eligible
+      })
+
+      if (
+        context.eligible &&
+        message.role === 'assistant' &&
+        !isAbort &&
+        !isError &&
+        getTextFromParts(message.parts ?? []).trim()
+      ) {
+        setLastCompletedVoiceMessage(message)
+      }
+    },
+    [autoReadEnabled, temporaryTopicId]
+  )
   const {
     liveAssistants,
     reset: resetExecutionMessages,
     clear: clearExecutionMessages
-  } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions, EMPTY_UI_MESSAGES)
+  } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions, EMPTY_UI_MESSAGES, {
+    onFinish: handleExecutionFinish
+  })
   const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
 
   const prevActiveCountRef = useRef(activeExecutions.length)
@@ -248,6 +317,32 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const isLoading = isPreparing || isStreaming
   const isOutputted = messageItems.some((message) => message.role === 'assistant')
+  const dictationTargetId =
+    temporaryTopicId && (route === 'home' || route === 'chat') ? `quick-assistant-input:${temporaryTopicId}` : undefined
+
+  useEffect(() => {
+    if (!temporaryTopicId || !dictationTargetId) return
+
+    return voiceTargetManager.bind({
+      targetId: dictationTargetId,
+      owner: window,
+      sourceEntityId: temporaryTopicId,
+      captureReplaceRange: () => {
+        const input = inputRef.current
+        if (!input || input.selectionStart === null || input.selectionEnd === null) return null
+        return { from: input.selectionStart, to: input.selectionEnd }
+      },
+      replaceRange: ({ from, to }, text) => {
+        const input = inputRef.current
+        if (!input || from < 0 || to < from || to > input.value.length) return false
+        const next = `${input.value.slice(0, from)}${text}${input.value.slice(to)}`
+        const caret = from + text.length
+        setUserInputText(next)
+        queueMicrotask(() => inputRef.current?.setSelectionRange(caret, caret))
+        return true
+      }
+    })
+  }, [dictationTargetId, temporaryTopicId])
 
   useEffect(() => {
     if (route === 'home') {
@@ -258,9 +353,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [route, clear])
 
   const focusInput = useCallback(() => {
-    if (!inputBarRef.current) return
-    const input = inputBarRef.current.querySelector('input')
-    input?.focus()
+    inputRef.current?.focus()
   }, [])
 
   const readClipboard = useCallback(async () => {
@@ -327,6 +420,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const resetConversation = useCallback(() => {
     // Drop the current temporary topic and let useTemporaryTopic lease a fresh one.
+    voiceScopeGenerationRef.current += 1
+    voiceScopeTopicRef.current = null
+    voiceExecutionContextsRef.current.clear()
+    setLastCompletedVoiceMessage(null)
     resetTemporaryTopic()
     clear()
   }, [clear, resetTemporaryTopic])
@@ -354,6 +451,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     void navigator.clipboard.writeText(content)
     toast.success(t('message.copy.success'))
   }, [content, t])
+
+  const handleReadAloud = useCallback(() => {
+    if (isLoading || !lastCompletedVoiceMessage?.parts) return
+    void readMessageAloud({
+      messageId: lastCompletedVoiceMessage.id,
+      parts: lastCompletedVoiceMessage.parts,
+      focusOnClose: focusInput
+    })
+  }, [focusInput, isLoading, lastCompletedVoiceMessage])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing || e.key === 'Process') {
@@ -445,9 +551,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 model={currentModel}
                 placeholder={inputPlaceholder}
                 loading={isLoading}
+                inputRef={inputRef}
+                dictationTargetId={dictationTargetId}
                 handleKeyDown={handleKeyDown}
                 handleChange={handleChange}
-                ref={inputBarRef}
               />
               <Separator className="my-2.5" />
             </>
@@ -473,7 +580,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           )}
 
           <Separator className="my-2.5" />
-          <Footer key="footer" {...baseFooterProps} onCopy={handleCopy} />
+          <Footer
+            key="footer"
+            {...baseFooterProps}
+            onCopy={handleCopy}
+            onReadAloud={lastCompletedVoiceMessage ? handleReadAloud : undefined}
+          />
         </div>
       )
 
@@ -497,9 +609,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               model={currentModel}
               placeholder={inputPlaceholder}
               loading={isLoading}
+              inputRef={inputRef}
+              dictationTargetId={dictationTargetId}
               handleKeyDown={handleKeyDown}
               handleChange={handleChange}
-              ref={inputBarRef}
             />
           )}
           <Separator className="my-2.5" />

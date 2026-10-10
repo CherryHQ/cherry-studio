@@ -85,4 +85,13 @@ describe('composer tool visibility', () => {
 
     expect(tools.map((tool) => tool.key)).toContain('knowledge_base')
   })
+
+  it('exposes shared dictation only in Chat, Agent Session, and Painting composers', () => {
+    const model = { id: 'model', providerId: 'provider', name: 'Model' } as any
+
+    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope('painting', { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('dictation')
+  })
 })

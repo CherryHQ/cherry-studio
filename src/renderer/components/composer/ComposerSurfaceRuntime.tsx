@@ -174,6 +174,11 @@ export interface ComposerSurfaceProps {
    * keeping the composer centred and its margins symmetric while the rail shows. */
   railGutterPx?: number
   onFocus?: () => void
+  voiceTarget?: { targetId: string; sourceEntityId: string }
+  /** @internal Keeps the outer deferred surface's voice binding stable while the editor swaps. */
+  onInputAdapterChange?: (inputAdapter: QuickPanelInputAdapter | undefined) => void
+  /** @internal Marks the outer deferred surface's voice target from rich-editor interactions. */
+  onVoiceTargetInteraction?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   isInputHistoryActive?: boolean
   onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
@@ -519,6 +524,8 @@ export default function ComposerSurfaceRuntime({
   narrowMode,
   railGutterPx,
   onFocus,
+  onInputAdapterChange,
+  onVoiceTargetInteraction,
   onActionsChange,
   isInputHistoryActive = false,
   onInputHistoryNavigate,
@@ -1922,6 +1929,11 @@ export default function ComposerSurfaceRuntime({
     }
   }, [editor])
 
+  useLayoutEffect(() => {
+    onInputAdapterChange?.(inputAdapter)
+    return () => onInputAdapterChange?.(undefined)
+  }, [inputAdapter, onInputAdapterChange])
+
   const isRootQuickPanelVisible =
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
   const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
@@ -2268,6 +2280,8 @@ export default function ComposerSurfaceRuntime({
       data-ui="chat.composer"
       data-composer-inputbar=""
       data-composer-presentation={isCompact ? 'compact' : 'regular'}
+      onPointerDownCapture={onVoiceTargetInteraction}
+      onFocusCapture={onVoiceTargetInteraction}
       className={cn(
         'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-sm transition-all duration-200 ease-in-out',
         isCompact || editingState ? 'pt-0' : 'pt-2',
@@ -2343,6 +2357,7 @@ export default function ComposerSurfaceRuntime({
             className="min-w-0 flex-1"
             style={isCompact ? compactEditorContentStyle : editorContentStyle}
             onFocus={() => {
+              onVoiceTargetInteraction?.()
               onFocus?.()
               pasteHandling.setLastFocusedComponent('inputbar')
             }}
