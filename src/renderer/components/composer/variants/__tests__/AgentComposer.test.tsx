@@ -1507,7 +1507,7 @@ describe('AgentComposer', () => {
       id: 'anthropic::claude-opus-4',
       apiModelId: 'claude-opus-4',
       name: 'Claude Opus 4'
-    }
+    } satisfies Model
 
     const { rerender } = render(
       <AgentComposer
