@@ -14,6 +14,7 @@ import {
   onWebviewStateChange,
   setWebviewLoaded
 } from '@renderer/services/MiniAppWebviewService'
+import { webviewRecreationService } from '@renderer/services/WebviewRecreationService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MinimalToolbar, { type SplitMode } from './MinimalToolbar'
@@ -111,6 +112,11 @@ const MiniAppPane: FC<Props> = ({
     webview.reload()
   }, [app.appId, isReady, webview])
 
+  const handleRestart = useCallback(() => {
+    setCurrentUrl(app.url)
+    webviewRecreationService.request(app.appId)
+  }, [app.appId, app.url])
+
   const handleOpenDevTools = useCallback(() => {
     webview?.openDevTools()
   }, [webview])
@@ -131,6 +137,7 @@ const MiniAppPane: FC<Props> = ({
           currentUrl={currentUrl}
           isWebviewReady={isWebviewReady}
           onReload={handleReload}
+          onRestart={handleRestart}
           onOpenDevTools={handleOpenDevTools}
           splitMode={splitMode}
           splitActive={splitActive}

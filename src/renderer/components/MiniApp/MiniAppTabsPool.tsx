@@ -15,6 +15,7 @@ import {
   setWebviewElement,
   setWebviewLoaded
 } from '@renderer/services/MiniAppWebviewService'
+import { webviewRecreationService } from '@renderer/services/WebviewRecreationService'
 import {
   DEFAULT_MAX_KEEP_ALIVE_MINI_APPS,
   miniAppIdFromTabUrl,
@@ -66,6 +67,10 @@ const MiniAppTabsPool: React.FC = () => {
   // `@tanstack/react-router` `useLocation` here — the Pool sits above the
   // per-tab MemoryRouter, with no Router context.
   const { tabs, activeTabId, closeTab } = useTabs()
+
+  // Changing one app's epoch remounts only its Electron <webview> node,
+  // retaining every other mini-app in the pool.
+  const [webviewEpochs, setWebviewEpochs] = useState<Record<string, number>>({})
 
   const tabMiniAppIds = useMemo(() => {
     const ids = new Set<string>()
@@ -153,6 +158,23 @@ const MiniAppTabsPool: React.FC = () => {
     // reference, but URL edits to an opened app still reach WebviewContainer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMetadataSignature])
+
+  useEffect(() => {
+    const activeAppIds = new Set(apps.map((app) => app.appId))
+    setWebviewEpochs((current) => {
+      const entries = Object.entries(current)
+      const retainedEntries = entries.filter(([appId]) => activeAppIds.has(appId))
+      return retainedEntries.length === entries.length ? current : Object.fromEntries(retainedEntries)
+    })
+
+    return webviewRecreationService.subscribe((appId) => {
+      if (!activeAppIds.has(appId)) return
+      setWebviewEpochs((current) => ({
+        ...current,
+        [appId]: (current[appId] ?? 0) + 1
+      }))
+    })
+  }, [apps])
 
   // closeSplit's contract keeps split-opened apps pooled (the cap-LRU retires them), so remember
   // every app the split pane ever showed: orphan cleanup only evicts entries no tab references
@@ -302,6 +324,7 @@ const MiniAppTabsPool: React.FC = () => {
               paneGeometry(splitOpen, isPrimaryPane, isSplitPane)
             )}>
             <WebviewContainer
+              key={`${app.appId}:${webviewEpochs[app.appId] ?? 0}`}
               appid={app.appId}
               url={app.url}
               kind={app.kind}
