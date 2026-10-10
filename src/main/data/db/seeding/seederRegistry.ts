@@ -4,6 +4,7 @@ import { BuiltinMcpServerSeeder } from './seeders/builtinMcpServerSeeder'
 import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder'
 import { CherryAssistantSeeder } from './seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from './seeders/cherrySupportSeeder'
+import { CommandShortcutPreferenceUpgradeSeeder } from './seeders/CommandShortcutPreferenceUpgradeSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
 import { LegacyFileCleanupPolicySeeder } from './seeders/legacyFileCleanupPolicySeeder'
 import { LocalModelSeeder } from './seeders/LocalModelSeeder'
@@ -34,6 +35,7 @@ export const seeders: ISeeder[] = [
   new LongTextPastePreferenceUpgradeSeeder(),
   new WebSearchPreferenceUpgradeSeeder(),
   new SidebarShortcutMigrationSeeder(),
+  new CommandShortcutPreferenceUpgradeSeeder(),
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),

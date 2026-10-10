@@ -47,7 +47,7 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '[']
+      defaultBinding: { default: ['CommandOrControl', '['], darwin: ['CommandOrControl', 'Alt', '['] }
     }
   }),
   defineCommand({
@@ -258,7 +258,29 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', ']']
+      defaultBinding: { default: ['CommandOrControl', ']'], darwin: ['CommandOrControl', 'Alt', ']'] }
+    }
+  }),
+  defineCommand({
+    id: 'tab.history.back',
+    titleKey: 'settings.shortcuts.history_back',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      // Shared default must differ from Alt+Left so a stored macOS Option+arrow is kept.
+      defaultBinding: { default: ['CommandOrControl', '['], win32: ['Alt', 'Left'], linux: ['Alt', 'Left'] },
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'tab.history.forward',
+    titleKey: 'settings.shortcuts.history_forward',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      // Shared default must differ from Alt+Right so a stored macOS Option+arrow is kept.
+      defaultBinding: { default: ['CommandOrControl', ']'], win32: ['Alt', 'Right'], linux: ['Alt', 'Right'] },
+      when: '!webview.focused'
     }
   }),
   defineCommand({
