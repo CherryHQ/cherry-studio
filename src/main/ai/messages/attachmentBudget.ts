@@ -20,8 +20,9 @@ import { countToolTokens, estimateModelMessagesSync } from '@main/ai/tokens/foot
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
 import { serializeToolSchema } from '@main/ai/tools/adapters/aiSdk/meta/schemaStub'
+import { resolveModelRequestContextWindow } from '@main/ai/utils/ollamaRequestNumCtx'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
-import type { Model } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { MediaCapabilities } from './messageCapabilities'
@@ -36,6 +37,8 @@ export interface AttachmentBudget {
 export interface AttachmentBudgetInput {
   provider: Provider
   model: Model
+  endpointType?: EndpointType
+  runtimeProviderId?: string
   system: string | undefined
   tools: ToolSet | undefined
   /** What this request declares as `max_tokens`; undefined = it declares none. */
@@ -50,7 +53,9 @@ export interface AttachmentBudgetInput {
  * or the history could not be priced. Callers fall back to their flat cap.
  */
 export async function resolveAttachmentBudget(input: AttachmentBudgetInput): Promise<AttachmentBudget | null> {
-  const window = resolveContextWindow(input.model.contextWindow)
+  const window = resolveContextWindow(
+    resolveModelRequestContextWindow(input.model, input.provider, input.endpointType, input.runtimeProviderId)
+  )
   if (window === null) return null
 
   const dialect = resolveModelTokenDialect(input.provider, input.model)

@@ -66,9 +66,11 @@ export function resolveOllamaRequestNumCtx(
 export function resolveModelRequestContextWindow(
   model: Model,
   provider?: Provider,
-  preferredEndpoint?: EndpointType | null
+  preferredEndpoint?: EndpointType | null,
+  runtimeProviderId?: string | null
 ): number | undefined {
-  if (provider?.id !== SystemProviderIds.ollama) {
+  const usesOllamaWire = runtimeProviderId === SystemProviderIds.ollama || provider?.id === SystemProviderIds.ollama
+  if (!usesOllamaWire) {
     return model.contextWindow
   }
   const resolution = resolveOllamaRequestNumCtx(model, provider, preferredEndpoint)
