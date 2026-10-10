@@ -80,20 +80,9 @@ describe('topic context menu actions', () => {
     expect(onDelete).toHaveBeenCalledWith(topic)
   })
 
-  it('requires destructive confirmation for permanent deletion and blocks it during generation', async () => {
-    const onDeletePermanently = vi.fn()
-    const context = createTopicActionFixture({ onDeletePermanently })
-    const action = resolveTopicMenuActions(context).find((action) => action.id === 'topic.delete-permanently')!
-    expect(action).toMatchObject({
-      danger: true,
-      label: 'common.delete_permanently',
-      confirm: { destructive: true, confirmText: 'common.delete_permanently' }
-    })
-    await expect(executeTopicMenuAction(action, { ...context, isArchiveBlocked: true })).resolves.toBe(false)
-    expect(onDeletePermanently).not.toHaveBeenCalled()
-    await executeTopicMenuAction(action, context)
-    expect(onDeletePermanently).toHaveBeenCalledWith(topic)
-    expect(context.onDelete).not.toHaveBeenCalled()
+  it('does not offer permanent deletion in the conversation menu', () => {
+    const actions = resolveTopicMenuActions(createTopicActionFixture())
+    expect(actions.map((action) => action.id)).not.toContain('topic.delete-permanently')
   })
 
   it('keeps Delete visible but disabled while the Topic has unsettled generation work', async () => {

@@ -94,6 +94,77 @@ describe('pasteHandling', () => {
     expect(files[0]?.fileTokenSourceId).not.toBe(selectedFile.id)
   })
 
+  it('creates a text file instead of attaching an image for rich long clipboard text', async () => {
+    const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
+    const textFile: FileMetadata = {
+      ...selectedFile,
+      id: 'text-file',
+      name: 'pasted_text.txt',
+      origin_name: 'pasted_text.txt',
+      path: '/tmp/pasted_text.txt'
+    }
+    const imageFile: FileMetadata = {
+      ...selectedFile,
+      id: 'image-file',
+      name: 'excel.png',
+      origin_name: 'excel.png',
+      path: '/tmp/excel.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    const clipboardImage = {
+      name: 'excel.png',
+      type: 'image/png',
+      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
+    } as unknown as File
+    vi.mocked(window.api.file.createTempFile).mockImplementation(async (name) =>
+      name === 'pasted_text.txt' ? textFile.path : imageFile.path
+    )
+    vi.mocked(window.api.file.get).mockImplementation(async (path) =>
+      path === textFile.path ? textFile : path === imageFile.path ? imageFile : null
+    )
+
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => {
+          if (type === 'text/plain' || type === 'text') return clipboardText
+          if (type === 'text/html') return '<table><tr><td>Excel data</td></tr></table>'
+          return ''
+        }),
+        files: [clipboardImage]
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.png', '.txt'],
+      setFiles,
+      true,
+      LONG_TEXT_PASTE_THRESHOLD,
+      undefined,
+      (key) => (key === 'chat.input.pasted_text_file_name' ? 'pasted text.txt' : key)
+    )
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(window.api.file.createTempFile).toHaveBeenCalledWith('pasted_text.txt')
+    expect(window.api.file.createTempFile).not.toHaveBeenCalledWith('excel.png')
+    expect(window.api.file.write).toHaveBeenCalledWith(textFile.path, clipboardText)
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({
+      path: textFile.path,
+      ext: '.txt',
+      type: FILE_TYPE.TEXT,
+      composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+    })
+    expect(files).not.toContainEqual(expect.objectContaining({ path: imageFile.path }))
+  })
+
   it('leaves long pasted text untouched when text attachments are unsupported', async () => {
     const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
     const preventDefault = vi.fn()

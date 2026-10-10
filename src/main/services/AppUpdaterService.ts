@@ -212,8 +212,8 @@ export class AppUpdaterService extends BaseService {
 
     // disable downgrade after change the channel
     autoUpdater.allowDowngrade = false
-    // Keep differential downloads disabled for the current release artifacts.
-    autoUpdater.disableDifferentialDownload = true
+    // The updater falls back to a full download when blockmaps or the cached base are unavailable.
+    autoUpdater.disableDifferentialDownload = false
   }
 
   private async fetchReleaseHistory(): Promise<ReleaseNotesEntry[] | null> {

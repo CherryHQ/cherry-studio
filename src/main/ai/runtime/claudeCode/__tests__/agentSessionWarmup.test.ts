@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   buildSkillWhitelist: vi.fn(),
   findChannelBySessionId: vi.fn(),
   findMcpServerByIdOrName: vi.fn(),
+  getMcpInstructions: vi.fn(),
   preferenceGet: vi.fn(),
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
@@ -92,6 +93,9 @@ vi.mock('@application', () => ({
       }
       if (name === 'AgentSessionRuntimeService') {
         return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+      }
+      if (name === 'McpRuntimeService') {
+        return { getConnectedServerInstructions: mocks.getMcpInstructions }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -903,6 +907,27 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'qwen3:14b'
     })
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+
+  it('injects a per-provider dummy token for a keyless local provider', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'omlx::qwen3-coder-30b' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'omlx',
+      presetProviderId: 'omlx',
+      authOptional: true,
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://localhost:8000' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'qwen3-coder-30b', apiModelId: 'qwen3-coder-30b' })
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://localhost:8000',
+      ANTHROPIC_API_KEY: 'omlx',
+      ANTHROPIC_AUTH_TOKEN: 'omlx'
+    })
   })
 
   it('strips a trailing API version from Anthropic base URLs before launching Claude Code agents', async () => {
@@ -1720,6 +1745,14 @@ describe('deriveConnectionConfig', () => {
     })
     const mcpDefinitionChanged = await deriveSignature()
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
+    mocks.getMcpInstructions.mockReturnValueOnce({
+      serverId: 'mcp-1',
+      serverName: 'server',
+      text: 'Use search before reading.',
+      truncated: false
+    })
+    const instructionsArrived = await deriveSignature()
+    expect(instructionsArrived.rebuildSignature).not.toBe(mcpDefinitionChanged.rebuildSignature)
   })
 
   it('fingerprints knowledge-base bindings as a set', async () => {

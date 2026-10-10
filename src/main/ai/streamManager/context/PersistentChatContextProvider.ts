@@ -68,18 +68,17 @@ import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupI
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
 
-/**
- * Adapt a turn subscriber into a {@link CompactionSink}.
- *
- * Turn-start compaction is a full summarize round-trip that runs BEFORE the
- * model stream opens, so without this the UI sits on an idle placeholder for
- * however long the summarizer takes. The subscriber is already live here (it is
- * `prepareDispatch`'s first argument), so the anchor part can stream ahead of
- * the assistant's own content. Both writes share one id, so the `done` event
- * replaces the spinner rather than appending a second anchor.
- */
-function toCompactionSink(subscriber: StreamListener): CompactionSink {
-  return (anchorId, data) => subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data })
+function toCompactionSink(messageIds: string[], subscriber: StreamListener): CompactionSink {
+  return (anchorId, data) => {
+    // Preparation has no execution identity yet, so its progress cannot use the execution stream.
+    const cache = application.get('CacheService')
+    for (const messageId of messageIds) {
+      const key = `message.context.compacting.${messageId}` as const
+      if (data.status === 'compacting') cache.setShared(key, true)
+      else cache.deleteShared(key)
+    }
+    subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data })
+  }
 }
 
 /** Media cost table for the turn. Unreachable provider row → the openai table. */
@@ -205,6 +204,7 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       parentId: message.parentId,
       siblingsGroupId: message.siblingsGroupId || undefined,
       modelId: message.modelId ?? undefined,
+      modelSelection: message.data.modelSelection,
       messageSnapshot: message.messageSnapshot ?? undefined,
       status: message.status,
       turnOptions: message.data.turnOptions,
@@ -236,6 +236,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     req: MainDispatchRequest,
     ctx: DispatchContext
   ): Promise<PreparedDispatch> {
+    if (req.trigger === 'edit-agent-message') throw new Error('Agent editing requires an Agent session')
     assertUniqueMentionedModelIds('mentionedModelIds' in req ? req.mentionedModelIds : undefined)
 
     // 1. Resolve context
@@ -312,6 +313,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
     const models = resolveModels(req.mentionedModelIds, defaultModelId)
+    // Single-model submits also carry the composer's current model snapshot.
+    const modelSelection =
+      models.length > 1 || (isRegenerate && req.appendToLiveGroupMessageId !== undefined) ? 'explicit' : 'default'
     const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
     let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {
@@ -414,7 +418,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         preserveActiveNode: Boolean(liveGroupSourceAnchorMessageId),
         placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
-          data: { parts: [], turnOptions },
+          data: { parts: [], turnOptions, modelSelection },
           status: 'pending',
           modelId: model.id,
           messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)
@@ -476,7 +480,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         assistantPlaceholders.map((p) => p.model),
         assistantId,
         contextSettingsOverride,
-        toCompactionSink(subscriber)
+        toCompactionSink(
+          assistantPlaceholders.map(({ placeholder }) => placeholder.id),
+          subscriber
+        )
       )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
@@ -574,7 +581,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         [model],
         assistantId,
         contextSettingsOverride,
-        toCompactionSink(subscriber)
+        toCompactionSink([target.id], subscriber)
       )
       const request = this.buildStreamRequest(
         req.topicId,
@@ -725,7 +732,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         [model],
         assistantId,
         contextSettingsOverride,
-        toCompactionSink(subscriber)
+        toCompactionSink([anchor.id], subscriber)
       )
       return {
         topicId: req.topicId,
@@ -831,7 +838,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         [model],
         assistantId,
         contextSettingsOverride,
-        toCompactionSink(subscriber)
+        toCompactionSink([placeholder.id], subscriber)
       )
       const history = withSteerReminder(compactedHistory)
       return {
