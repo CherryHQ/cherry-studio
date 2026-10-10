@@ -44,6 +44,12 @@ export interface StreamChunkPayload {
   attemptId?: number
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
   anchorMessageId?: string
+  /**
+   * Per-topic ingest index assigned by main. A re-attaching renderer drops
+   * pre-attach live chunks at or below the replay watermark — main already
+   * sent those to a stale/parallel listener and they are inside the snapshot.
+   */
+  seq?: number
   chunk: UIMessageChunk
 }
 
@@ -293,7 +299,12 @@ export interface AiStreamAttachTerminal {
 }
 export type AiStreamAttachResponse =
   | { status: 'not-found' }
-  | { status: 'attached'; bufferedChunks: StreamChunkPayload[] }
+  | {
+      status: 'attached'
+      bufferedChunks: StreamChunkPayload[]
+      /** Executions still in their streaming phase, in launch order. Undefined only for older Main builds. */
+      activeExecutions?: ActiveExecution[]
+    }
   | ({ status: 'done' } & AiStreamAttachTerminal)
   | ({ status: 'paused' } & AiStreamAttachTerminal)
   | { status: 'error'; error?: SerializedError }
