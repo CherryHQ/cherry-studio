@@ -43,6 +43,8 @@ export interface TransportTimings {
 
 interface TerminalOutcome {
   persistence?: { status: 'saved'; message: PersistedAssistant } | { status: 'failed'; failure: ExecutionFailure }
+  /** Terminal status committed by the persistence listener, before later listeners run. */
+  persistedAssistantStatus?: 'success' | 'paused' | 'error'
 }
 
 export interface StreamDoneResult extends TerminalOutcome {

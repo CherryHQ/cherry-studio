@@ -4021,6 +4021,110 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.maybeRenameAgentSession).not.toHaveBeenCalled()
   })
 
+  it('reports a persisted empty completion error to Agent delivery listeners', async () => {
+    const service = new AgentSessionRuntimeService()
+    const terminal = vi.fn()
+    service.onTurnTerminal(terminal)
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const result: StreamDoneResult = {
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+    }
+    await persistenceListener(handle).onDone(result)
+    terminalListener(handle).onDone(result)
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.objectContaining({ status: 'error' }) }),
+      { publishDataChange: true }
+    )
+    expect(terminal).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-1',
+      status: 'error',
+      boundary: 'turn'
+    })
+    expect(mocks.getSessionMessage).not.toHaveBeenCalled()
+  })
+
+  it('opens the steer continuation after an empty pre-steer completion persists as an error', async () => {
+    const service = new AgentSessionRuntimeService()
+    const terminal = vi.fn()
+    service.onTurnTerminal(terminal)
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const entry = getEntry(service)
+    ;(service as any).handleRuntimeEvent(entry, {
+      type: 'steer-boundary',
+      inputs: [{ message: userMessage('user-2'), systemReminder: true }]
+    })
+    const result: StreamDoneResult = {
+      status: 'success',
+      isTopicDone: false,
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+    }
+
+    await persistenceListener(handle).onDone(result)
+    terminalListener(handle).onDone(result)
+
+    expect(result.persistedAssistantStatus).toBe('error')
+    expect(terminal).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-1',
+      status: 'error',
+      boundary: 'row-roll'
+    })
+    await vi.waitFor(() => expect(getEntry(service).currentTurn.userMessage.id).toBe('user-2'))
+    expect(getEntry(service).runtimeState.execution.kind).toBe('steer-transition')
+
+    const continuation = getEntry(service).currentTurn
+    service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: continuation.turnId,
+      signal: new AbortController().signal
+    })
+    const continuationHandle = mocks.startRuntimeTurn.mock.lastCall?.[0]
+    const continuationResult: StreamDoneResult = {
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: continuation.assistantMessageId, role: 'assistant', parts: [{ type: 'text', text: 'done' }] }
+    }
+    await persistenceListener(continuationHandle).onDone(continuationResult)
+    terminalListener(continuationHandle).onDone(continuationResult)
+    expect(getEntry(service).runtimeState.execution.kind).toBe('idle')
+  })
+
+  it('keeps a saved successful turn successful when a later message read fails', async () => {
+    const service = new AgentSessionRuntimeService()
+    const terminal = vi.fn()
+    service.onTurnTerminal(terminal)
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const result: StreamDoneResult = {
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'done' }] }
+    }
+    await persistenceListener(handle).onDone(result)
+    mocks.getSessionMessage.mockImplementation(() => {
+      throw new Error('transient read failure')
+    })
+
+    terminalListener(handle).onDone(result)
+
+    expect(result.persistedAssistantStatus).toBe('success')
+    expect(terminal).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-1',
+      status: 'success',
+      boundary: 'turn'
+    })
+    expect(mocks.getSessionMessage).not.toHaveBeenCalled()
+  })
+
   it('persists empty paused terminals to the active assistant placeholder', async () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -5901,7 +6005,7 @@ describe('AgentSessionRuntimeService', () => {
     const result: StreamDoneResult = {
       status: 'success',
       isTopicDone: true,
-      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'done' }] }
     }
     await persistenceListener(handle).onDone(result)
 
@@ -5922,7 +6026,7 @@ describe('AgentSessionRuntimeService', () => {
           id: 'assistant-1',
           role: 'assistant',
           status: 'success',
-          data: { parts: [] },
+          data: { parts: [{ type: 'text', text: 'done' }] },
           modelId: 'claude-code::claude-sonnet-4-5'
         }
       },

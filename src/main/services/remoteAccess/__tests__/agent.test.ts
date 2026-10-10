@@ -522,6 +522,52 @@ describe('remote agent access', () => {
     }
   )
 
+  it('reports an empty persisted Agent completion as failed to remote subscribers', async () => {
+    const { session } = await call('agent.sessions.get', { sessionId })
+    const prepared = await call('agent.sessions.subscribe', { sessionId })
+    let projection = (await installCheckpoint(prepared.subscriptionId, prepared.checkpoint)).projection
+    await call('agent.subscriptions.activate', {
+      subscriptionId: prepared.subscriptionId,
+      appliedCursor: projection.cursor
+    })
+    const receipt = await call('agent.messages.send', {
+      commandId: randomUUID(),
+      sessionId,
+      text: 'hello',
+      expectedIdleRevision: session.idleRevision
+    })
+    const anchor = randomUUID()
+    const result = {
+      status: 'success' as const,
+      isTopicDone: true,
+      anchorMessageId: anchor,
+      finalMessage: { id: anchor, role: 'assistant' as const, parts: [] }
+    }
+    const persistence = new PersistenceListener({
+      topicId: `agent-session:${sessionId}`,
+      backend: new AgentSessionMessageBackend({ sessionId, assistantMessageId: anchor }),
+      onPersistFailed: () => {
+        throw new Error('Unexpected persistence failure')
+      }
+    })
+    await persistence.onDone(result)
+    expect(result).toMatchObject({ persistedAssistantStatus: 'error', persistence: { status: 'saved' } })
+    for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) await listener.onDone(result)
+    fake.streams.delete(`agent-session:${sessionId}`)
+    projection = await drain(projection)
+    const execution = projection.executions[receipt.executionId]
+    expect(execution).toMatchObject({ status: 'failed', durable: true, messageId: anchor })
+    expect(execution.failure?.message).toContain('no response content')
+    const history = await call('agent.messages.list', {
+      sessionId,
+      historyRevision: projection.session.historyRevision
+    })
+    expect(history.items.find((item: { messageId: string }) => item.messageId === anchor)).toMatchObject({
+      status: 'error',
+      failure: execution.failure
+    })
+  })
+
   it('does not replace a fast failed execution with running when send admission returns', async () => {
     const anchor = randomUUID()
     fake.onStarted = async (listeners) => {
