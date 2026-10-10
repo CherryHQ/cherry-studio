@@ -8,6 +8,7 @@ import { RefreshProvider } from '@renderer/components/chat/messages/blocks/Messa
 import type { MessageListActions, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import { ConversationSuggestions } from '@renderer/components/chat/shell/ConversationSuggestions'
 import type {
   ChatComposerResolvedContext,
   ChatContextUsageSource,
@@ -40,6 +41,8 @@ interface Props {
   onConversationControlsChange?: ChatConversationControlsChangeHandler
   composerModelId?: UniqueModelId
 }
+
+const CHAT_SUGGESTION_FOCUS = 'conversation, learning, creativity, reflection, and planning'
 
 /**
  * Home chat content.
@@ -215,7 +218,24 @@ const ChatContentInner: FC<InnerProps> = ({
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
-          <ConversationGreeting avatar={assistant?.emoji} title={t('chat.home.welcome_title')} />
+          <ConversationGreeting
+            avatar={assistant?.emoji}
+            title={t('chat.home.welcome_title')}
+            suggestions={
+              <ConversationSuggestions
+                focus={CHAT_SUGGESTION_FOCUS}
+                conversationId={topic.id}
+                topicId={topic.id}
+                enabled={!assistantContext?.isLoading}
+                persona={assistant ? { name: assistant.name, description: assistant.description } : undefined}
+                fallback={[
+                  t('chat.home.suggestions.clarify'),
+                  t('chat.home.suggestions.learn'),
+                  t('chat.home.suggestions.explore')
+                ]}
+              />
+            }
+          />
         </div>
       )}
       <ChatMain

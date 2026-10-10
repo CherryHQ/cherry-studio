@@ -91,7 +91,7 @@ import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 import { useComposerLayerActive } from '../ComposerContext'
-import { excludeComposerDraftTokens } from '../composerDraft'
+import { excludeComposerDraftTokens, withComposerDraftUserText } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -134,6 +134,7 @@ import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/com
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerFill } from './shared/useComposerFill'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
@@ -979,7 +980,14 @@ const AgentComposerInner = ({
     },
     [actionsRef, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
   )
-  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+  const {
+    isInputHistoryActive,
+    navigateHistory,
+    resetHistoryIndex,
+    peekDraftBeforeHistory,
+    takeDraftBeforeHistory,
+    saveHistory
+  } = useInputHistory({
     applyDraft: applyHistoryDraft
   })
   const handleTextChange = useCallback(
@@ -1139,6 +1147,32 @@ const AgentComposerInner = ({
       data.updateOnly ? actionsRef.current.insertToken(data.token, true) : actionsRef.current.insertToken(data.token)
     })
   }, [actionsRef, layerActive, sessionTopicId])
+
+  useComposerFill(
+    actionsRef,
+    sessionTopicId,
+    (text) => {
+      const draftBeforeHistory = takeDraftBeforeHistory()
+      const currentDraft = draftBeforeHistory ?? actionsRef.current.getDraft()
+      const nextDraft = withComposerDraftUserText(
+        { ...currentDraft, tokens: getAgentDraftTokens(currentDraft.tokens) },
+        text
+      )
+      actionsRef.current.replaceDraft(nextDraft)
+      setText(nextDraft.text)
+      setDraftTokens(nextDraft.tokens)
+      draftTokensRef.current = nextDraft.tokens
+      setSelectedSkills(getCachedSkillTokens(nextDraft.tokens).map(getSkillFromCachedToken))
+      const savedTools = inputHistoryToolsRef.current
+      inputHistoryToolsRef.current = null
+      if (savedTools) {
+        setFiles(savedTools.files)
+        setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+      }
+    },
+    () => peekDraftBeforeHistory() ?? actionsRef.current.getDraft(),
+    layerActive
+  )
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return

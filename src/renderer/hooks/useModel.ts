@@ -243,7 +243,7 @@ export function useModelById(uniqueModelId: UniqueModelId | null | undefined) {
     enabled: !!modelKey,
     swrOptions: { keepPreviousData: false }
   })
-  useDataChange('/models/:uniqueModelId*', () => void refetch())
+  useDataChange(modelKey ? '/models/:uniqueModelId*' : [], () => void refetch())
 
   return {
     model: data,

@@ -75,6 +75,8 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
     navigationHistoryRef.current = null
   }, [])
 
+  const peekDraftBeforeHistory = useCallback(() => draftBeforeHistoryRef.current, [])
+
   const takeDraftBeforeHistory = useCallback(() => {
     // Consumers that replace the whole composer (for example message editing)
     // need the live draft captured before the currently visible history preview.
@@ -103,6 +105,7 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
     isInputHistoryActive: historyIndex !== -1,
     navigateHistory,
     resetHistoryIndex,
+    peekDraftBeforeHistory,
     takeDraftBeforeHistory,
     saveHistory
   }
