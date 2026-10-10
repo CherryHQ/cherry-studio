@@ -18,11 +18,16 @@ vi.mock('@logger', () => ({
   }
 }))
 
+const messageServiceMocks = vi.hoisted(() => ({
+  findLaunchToolCallId: vi.fn()
+}))
+
 const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
 
 beforeEach(() => {
   vi.clearAllMocks()
+  messageServiceMocks.findLaunchToolCallId.mockReturnValue(null)
 })
 
 /**
@@ -44,6 +49,7 @@ function createAdapter(
     sink: { enqueue: (part) => parts.push(part) },
     statusSink: { emit: (event) => statusEvents.push(event) },
     onSessionId: (sessionId) => sessionIds.push(sessionId),
+    resolveLaunchToolCallId: (taskId) => messageServiceMocks.findLaunchToolCallId('session-1', taskId) ?? undefined,
     ...overrides
   })
   if (openTurn) adapter.beginTurn()
@@ -1702,6 +1708,86 @@ describe('ClaudeCodeStreamAdapter', () => {
       ])
     })
 
+    // A SendMessage to a still-running agent returns the queued form (no resumedAgentId, only
+    // pin.id). Its send call id must still tag that agent's subsequent content for round splitting.
+    it('re-tags content of a running agent from a queued-pin SendMessage receipt', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'launch-use', name: 'Agent', input: { prompt: 'review' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'launch-use',
+              content: JSON.stringify({ status: 'async_launched', agentId: 'agent-a1b2c3d4e5f6' }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'send-use', name: 'SendMessage', input: { to: 'agent-a1b2c3d4e5f6' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-use',
+              content: JSON.stringify({
+                success: true,
+                message: 'Message queued for delivery to agent-a1b2c3d4e5f6 at its next tool round.',
+                pin: { id: 'agent-a1b2c3d4e5f6', name: 'worker', ref: 'abc' }
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      const receiptChunk = parts.find(
+        (chunk) => chunk.type === 'tool-output-available' && chunk.toolCallId === 'send-use'
+      ) as { providerMetadata?: Record<string, Record<string, unknown>> }
+      expect(receiptChunk.providerMetadata?.cherry?.launchToolCallId).toBe('launch-use')
+
+      adapter.handleMessage({
+        type: 'stream_event',
+        event: { type: 'content_block_start', index: 0, content_block: { type: 'text' } },
+        parent_tool_use_id: 'launch-use',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID()
+      } as any)
+
+      const textStart = parts.filter((chunk) => chunk.type === 'text-start').at(-1) as {
+        providerMetadata?: Record<string, Record<string, unknown>>
+      }
+      expect(textStart.providerMetadata?.['claude-code']?.parentToolCallId).toBe('launch-use')
+      expect(textStart.providerMetadata?.cherry?.resumedViaCallId).toBe('send-use')
+    })
+
     it('enriches a local workflow task from its launch receipt without handling remote agents', () => {
       const { adapter, statusEvents } = createAdapter()
 
@@ -1764,6 +1850,7 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
 
     it('uses subagent edges only to enrich navigation without changing authoritative membership', () => {
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue('tool-use-b')
       const { adapter, statusEvents } = createAdapter()
 
       adapter.handleMessage({
@@ -1813,7 +1900,377 @@ describe('ClaudeCodeStreamAdapter', () => {
       ])
     })
 
+    // A SendMessage resume re-points lifecycle edges at the resuming call's id; the navigation
+    // anchor must stay on the launch root the content actually streams under.
+    it('keeps the first navigation id for a task when resume edges report a new one', () => {
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue('call_launch')
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-1', task_type: 'subagent', description: 'Review the patch' }]
+      } as any)
+
+      const started = {
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        task_id: 'subagent-1',
+        tool_use_id: 'call_launch',
+        description: 'Review the patch',
+        task_type: 'subagent'
+      } as any
+      adapter.handleMessage({ ...started, uuid: crypto.randomUUID() })
+      adapter.handleMessage({
+        ...started,
+        uuid: crypto.randomUUID(),
+        tool_use_id: 'call_resume',
+        description: 'Resumed review'
+      })
+
+      const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(last).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_launch' }]
+      })
+    })
+
+    it('skips registration on a launch-root lookup miss and self-heals on the next event', () => {
+      let lookupCalls = 0
+      messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) return null
+        return 'call_launch'
+      })
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-1', task_type: 'subagent', description: 'Review the patch' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume',
+        description: 'Resumed review',
+        task_type: 'subagent'
+      } as any)
+
+      // The connection survives the failed recovery; the chip surfaces without a toolCallId
+      // (delayed, never misshown) rather than pinning the resume edge id.
+      const first = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(first).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch' }]
+      })
+
+      // The next task event re-runs the lookup and finally registers the launch root, once the
+      // edge-lookup throttle window has passed.
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6_000)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume_2',
+        description: 'Resumed review again',
+        task_type: 'subagent'
+      } as any)
+      nowSpy.mockRestore()
+      const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(last).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_launch' }]
+      })
+    })
+
+    it('skips registration on a launch-root query miss so a resume edge is not pinned', () => {
+      // A null result (row not yet persisted) must not pin the resume edge id either — a later
+      // event re-queries and lands the authoritative launch root.
+      let lookupCalls = 0
+      messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) return null
+        return 'call_launch'
+      })
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-1', task_type: 'subagent', description: 'Review the patch' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume',
+        description: 'Resumed review',
+        task_type: 'subagent'
+      } as any)
+
+      const first = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(first).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch' }]
+      })
+
+      // The retry lands the authoritative root once the edge-lookup throttle window has passed.
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6_000)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume_2',
+        description: 'Resumed review again',
+        task_type: 'subagent'
+      } as any)
+      nowSpy.mockRestore()
+      const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(last).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_launch' }]
+      })
+    })
+
+    it("stamps a launch receipt's own call id when the host lookup misses", () => {
+      let lookupCalls = 0
+      messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) return null
+        return 'call_launch'
+      })
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'launch-use', name: 'Agent', input: { prompt: 'review' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'launch-use',
+              content: JSON.stringify({ status: 'async_launched', agentId: 'agent-a1b2c3d4e5f6' }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'send-use', name: 'SendMessage', input: { to: 'agent-a1b2c3d4e5f6' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-use',
+              content: JSON.stringify({
+                success: true,
+                message: 'Agent "agent-a1b2c3d4e5f6" had no active task; resumed from transcript',
+                resumedAgentId: 'agent-a1b2c3d4e5f6'
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      // The host lookup missed at launch time, so the launch receipt's own call id — which IS the
+      // launch root — establishes the binding; the resume receipt then stamps it.
+      const receiptChunk = parts.find(
+        (part) => part.type === 'tool-output-available' && (part as { toolCallId?: string }).toolCallId === 'send-use'
+      ) as {
+        resultProviderMetadata?: { cherry?: { launchToolCallId?: string } }
+        providerMetadata?: { cherry?: { launchToolCallId?: string } }
+      }
+      const stamped =
+        receiptChunk?.resultProviderMetadata?.cherry?.launchToolCallId ??
+        receiptChunk?.providerMetadata?.cherry?.launchToolCallId
+      expect(stamped).toBe('launch-use')
+    })
+
+    it('does not rescan the transcript for every unresolvable resume receipt', () => {
+      let lookupCalls = 0
+      messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
+        lookupCalls += 1
+        return null
+      })
+      const { adapter } = createAdapter()
+
+      const sendReceipt = (toolUseId: string) => {
+        adapter.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          message: { content: [{ type: 'tool_use', id: toolUseId, name: 'SendMessage', input: { to: 'agent-1' } }] }
+        } as any)
+        adapter.handleMessage({
+          type: 'user',
+          parent_tool_use_id: null,
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          message: {
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: toolUseId,
+                content: JSON.stringify({ success: true, resumedAgentId: 'agent-1' }),
+                is_error: false
+              }
+            ]
+          }
+        } as any)
+      }
+
+      // Receipts arrive per send, and each unresolved one would scan the persisted transcript.
+      sendReceipt('send-1')
+      sendReceipt('send-2')
+      expect(lookupCalls).toBe(1)
+
+      // The attempt after the window still recovers the root, so the miss is not permanent.
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6_000)
+      sendReceipt('send-3')
+      nowSpy.mockRestore()
+      expect(lookupCalls).toBe(2)
+    })
+
+    it('keeps the resume-receipt recovery independent of a throttled task edge', () => {
+      let lookupCalls = 0
+      messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
+        lookupCalls += 1
+        return lookupCalls === 1 ? null : 'launch-use'
+      })
+      const { adapter, parts } = createAdapter()
+
+      // The native edge misses first and is throttled on its own key; the receipt must still get
+      // its own attempt, because the marker it stamps depends on the root that attempt returns.
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'agent-1', task_type: 'subagent', description: 'Audit' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'agent-1',
+        tool_use_id: 'call_resume',
+        description: 'Audit',
+        task_type: 'subagent'
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { content: [{ type: 'tool_use', id: 'send-1', name: 'SendMessage', input: { to: 'agent-1' } }] }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-1',
+              content: JSON.stringify({ success: true, resumedAgentId: 'agent-1' }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      expect(lookupCalls).toBe(2)
+      const receiptChunk = parts.find(
+        (part) => part.type === 'tool-output-available' && (part as { toolCallId?: string }).toolCallId === 'send-1'
+      ) as {
+        resultProviderMetadata?: { cherry?: { launchToolCallId?: string } }
+        providerMetadata?: { cherry?: { launchToolCallId?: string } }
+      }
+      const stamped =
+        receiptChunk?.resultProviderMetadata?.cherry?.launchToolCallId ??
+        receiptChunk?.providerMetadata?.cherry?.launchToolCallId
+      expect(stamped).toBe('launch-use')
+    })
+
+    it('reuses the host-supplied launch root when the adapter starts fresh', () => {
+      // A restarted app builds a new adapter with no in-memory mapping; the first resume edge
+      // must land on the persisted launch tool-use id, not the resuming call.
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue('call_launch')
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-1', task_type: 'subagent', description: 'Review the patch' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume',
+        description: 'Resumed review',
+        task_type: 'subagent'
+      } as any)
+
+      expect(messageServiceMocks.findLaunchToolCallId).toHaveBeenCalledWith('session-1', 'subagent-1')
+      const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(last).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_launch' }]
+      })
+    })
+
     it('uses local workflow task starts to enrich navigation without changing authoritative membership', () => {
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue('workflow-tool-use')
       const { adapter, statusEvents } = createAdapter()
 
       adapter.handleMessage({
