@@ -1363,6 +1363,7 @@
   "error.diagnosis.ai_result": "Resultado del diagnóstico IA",
   "error.diagnosis.auth": "Clave API no válida, por favor verifica y reconfigura",
   "error.diagnosis.bad_request": "La solicitud al proveedor falló (HTTP 400)",
+  "error.diagnosis.bad_request_recovery": "Si el error se repite al reintentar, revise los mensajes anteriores y los archivos adjuntos. Edite el mensaje afectado, elimine el contenido no compatible y vuelva a enviarlo. Reiniciar no elimina el contenido guardado de la conversación.",
   "error.diagnosis.content": "Contenido bloqueado por el sistema de seguridad, modifica e intenta de nuevo",
   "error.diagnosis.context_length": "Conversación demasiado larga, por favor borra el historial o inicia un nuevo chat",
   "error.diagnosis.deprecated": "Este modelo ha sido retirado, por favor cambia a otro modelo",

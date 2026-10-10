@@ -370,6 +370,28 @@ describe('ErrorBlock', () => {
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
+  it('shows the provider code and saved-history recovery guidance for a rejected request', () => {
+    mocks.translations.set('error.diagnosis.bad_request_recovery', enUS['error.diagnosis.bad_request_recovery'])
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: 'The provided URL does not appear to be valid.',
+          stack: null,
+          statusCode: 400,
+          providerErrorCode: 'invalid_parameter_error'
+        }}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText(/invalid_parameter_error: The provided URL does not appear to be valid/)
+    ).toBeInTheDocument()
+    expect(screen.getByText(enUS['error.diagnosis.bad_request_recovery'])).toBeInTheDocument()
+  })
+
   it('uses injected diagnosis capability for unknown errors', async () => {
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
     mocks.actions = {
