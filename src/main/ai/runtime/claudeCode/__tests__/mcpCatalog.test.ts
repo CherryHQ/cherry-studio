@@ -41,7 +41,15 @@ vi.mock('node:fs', async (importOriginal) => {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ McpCatalogService: { listTools: mockListTools } })
+  const module = mockApplicationFactory()
+  return {
+    ...module,
+    application: {
+      ...module.application,
+      get: (name: string) =>
+        name === 'McpCatalogService' ? { listTools: mockListTools } : module.application.get(name)
+    }
+  }
 })
 
 vi.mock('@main/utils/file', () => ({
