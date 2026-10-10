@@ -5,7 +5,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { extractReasoningMiddleware, type TextStreamPart, type ToolSet, wrapLanguageModel } from 'ai'
+import { extractReasoningMiddleware, streamText, type TextStreamPart, type ToolSet, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import type { ModelCallInfo, ModelCallPort, UnmappedStreamPart } from '../src'
@@ -324,6 +324,81 @@ describe('Pi agent loop over the AI SDK port', () => {
     expect(message.stopReason).toBe('stop')
     expect(message.content.map((b) => b.type)).toEqual(['text'])
     expect(unmapped.map((p) => p.type)).toEqual(['tool-call', 'tool-result'])
+  })
+
+  it('replays a tool call with unparsable input as an object and lets Pi answer it with an error', async () => {
+    const weatherCalls: unknown[] = []
+    const { model, calls } = scriptedModel([
+      [
+        { type: 'tool-call', toolCallId: 'call_1', toolName: 'get_weather', input: '{"city":"Par' },
+        finish('tool-calls')
+      ],
+      [...textParts('t', 'Let me retry.'), finish('stop')]
+    ])
+    const unmapped: UnmappedStreamPart[] = []
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [weatherTool(weatherCalls)],
+      sideChannel: { onUnmappedPart: (part) => unmapped.push(part) }
+    })
+    await session.prompt('Weather in Paris?')
+
+    expect(weatherCalls).toEqual([])
+    const [assistant] = messagesOf(calls[1].prompt, 'assistant')
+    expect(plain(assistant.content)).toEqual([
+      { type: 'tool-call', toolCallId: 'call_1', toolName: 'get_weather', input: {} }
+    ])
+    const [toolMessage] = messagesOf(calls[1].prompt, 'tool')
+    expect(toolMessage.content[0]).toMatchObject({ toolCallId: 'call_1', output: { type: 'error-text' } })
+    // Pi answers the call itself, so the AI SDK's tool-error for it is not a part the host must show.
+    expect(unmapped).toEqual([])
+  })
+
+  it('runs the tool a repaired call names, not the name the stream started with', async () => {
+    const weatherCalls: unknown[] = []
+    const { model } = scriptedModel([
+      [
+        { type: 'tool-input-start', id: 'call_1', toolName: 'get_wether' },
+        { type: 'tool-input-delta', id: 'call_1', delta: '{"city":"Paris"}' },
+        { type: 'tool-input-end', id: 'call_1' },
+        { type: 'tool-call', toolCallId: 'call_1', toolName: 'get_wether', input: '{"city":"Paris"}' },
+        finish('tool-calls')
+      ],
+      [...textParts('t', 'Sunny.'), finish('stop')]
+    ])
+    const { port } = streamTextPort(model, {
+      experimental_repairToolCall: async ({ toolCall }) => ({ ...toolCall, toolName: 'get_weather' })
+    })
+    const { session } = await createTestSession({ port, tools: [weatherTool(weatherCalls)] })
+    await session.prompt('Weather in Paris?')
+
+    expect(weatherCalls).toEqual([{ city: 'Paris' }])
+  })
+
+  it('settles a call the host aborts through its own signal as aborted, not as a failure', async () => {
+    const chunks = Array.from({ length: 50 }, (_, i) => `chunk${i} `)
+    const { model } = scriptedModel([[...textParts('t', ...chunks), finish('stop')]], 30)
+    const host = new AbortController()
+    const failures: unknown[] = []
+    const { session } = await createTestSession({
+      port: {
+        streamText: (request) =>
+          streamText({
+            model,
+            messages: request.messages,
+            abortSignal: AbortSignal.any(request.abortSignal ? [request.abortSignal, host.signal] : [host.signal]),
+            maxRetries: 0
+          })
+      },
+      sideChannel: { onError: (error) => failures.push(error) }
+    })
+    session.subscribe((event) => {
+      if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') host.abort()
+    })
+    await session.prompt('long answer').catch(() => {})
+
+    expect(lastAssistant(session).stopReason).toBe('aborted')
+    expect(failures).toEqual([])
   })
 
   it('runs a tool round trip through a real provider package over HTTP', async () => {
