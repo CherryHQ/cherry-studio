@@ -591,6 +591,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       owner: 'agent-sdk',
       credentialReceipt: { attribution: 'explicit', id: 'warm-key' }
     })
+    // The host's agent-switch gate keys off this: the connection declares the agent it serves.
+    expect(connection.agentId).toBe('agent-1')
     expect(warmQuery.query).toHaveBeenCalledOnce()
     await connection.close()
   })

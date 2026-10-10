@@ -175,6 +175,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     return this._usageCapture
   }
 
+  get agentId(): string | undefined {
+    return this.input.agentId
+  }
+
   constructor(
     private readonly input: AgentRuntimeConnectInput,
     private readonly onClosed: () => void = () => undefined

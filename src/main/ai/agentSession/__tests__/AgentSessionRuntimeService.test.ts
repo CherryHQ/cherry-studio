@@ -2429,6 +2429,124 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toBeDefined()
   })
 
+  it('replaces a warm connection owned by the previous agent instead of reconciling it for the new agent', async () => {
+    const warmEvents = createAsyncQueue<any>()
+    // Agent-1 finished and its connection idles warm; the top-bar switch moved the session to
+    // same-runtime agent-2 and the follow-up is sent with identical model/turn settings — the
+    // connection's owner is the only stale fact.
+    const warmConnection = {
+      events: warmEvents.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      agentId: 'agent-1',
+      // Emulates the runtime contract the bug rides on: with servesAcceptedTurn the reconcile
+      // re-derives its configuration from the connection's frozen owner and reports it unchanged.
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const freshEvents = createAsyncQueue<any>()
+    const freshConnection = { events: freshEvents.iterable, send: vi.fn(), close: vi.fn(), agentId: 'agent-2' }
+    const connect = vi.fn().mockResolvedValue(freshConnection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    getEntry(service).connection = warmConnection
+    getEntry(service).currentTurn = null
+
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', model: baseTurnInput.modelId })
+
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2'),
+      agentId: 'agent-2'
+    })
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+      .getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(freshConnection.send).toHaveBeenCalled())
+
+    // The stale owner's connection is replaced, never reconciled: the turn's input reaches a
+    // connection spawned under agent-2, so it runs B's instructions and tool restrictions.
+    expect(warmConnection.reconcile).not.toHaveBeenCalled()
+    expect(warmConnection.send).not.toHaveBeenCalled()
+    expect(warmConnection.close).toHaveBeenCalled()
+    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'agent-2' }))
+    expect(getEntry(service).connection).toBe(freshConnection)
+    expect(service.inspect('session-1')).toBeDefined()
+    void service.closeSession('session-1')
+  })
+
+  it("keeps the previous agent's connection while its own turn is still running after a switch", async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = { close: vi.fn(), send: vi.fn(), events: [], agentId: 'agent-1' }
+    entry.connection = connection
+    entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+    // Top-bar switch mid-turn: the session row already points at agent-2, but the running turn was
+    // accepted under agent-1 — its connection keeps serving it until the turn boundary.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', model: baseTurnInput.modelId })
+
+    await expect((service as any).ensureConnection(entry)).resolves.toBe(true)
+
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(connection)
+    expect(service.inspect('session-1')).toBeDefined()
+  })
+
+  it('still reconciles a warm connection whose owner matches the new turn', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      agentId: 'agent-1',
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const connect = vi.fn()
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    getEntry(service).connection = connection
+    getEntry(service).currentTurn = null
+
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+      .getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+
+    // No agent switch happened, so the warm connection is reconciled and reused as before.
+    expect(connection.reconcile).toHaveBeenCalledWith(expect.objectContaining({ servesAcceptedTurn: true }))
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(connect).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(connection)
+    void service.closeSession('session-1')
+  })
+
   it('queues a follow-up when its Fast selection differs from the live turn', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, fastMode: true })

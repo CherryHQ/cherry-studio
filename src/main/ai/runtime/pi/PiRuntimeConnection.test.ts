@@ -544,6 +544,8 @@ describe('PiRuntimeConnection', () => {
 
     const connection = await new PiRuntimeConnection({ ...input, modelId: cloudModelId }).start()
 
+    // The host's agent-switch gate keys off this: the connection declares the agent it serves.
+    expect(connection.agentId).toBe('agent-1')
     expect(mocks.resolveInjection).toHaveBeenCalledTimes(2)
     expect(mocks.createAgentSession).toHaveBeenCalledOnce()
     await connection.close()

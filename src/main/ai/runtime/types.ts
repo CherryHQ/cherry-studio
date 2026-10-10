@@ -196,6 +196,12 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /**
+   * The agent this connection was spawned under — the owner of its frozen instructions, tools,
+   * and restrictions. The host replaces (never reconciles) a warm connection whose owner is not
+   * the agent a new turn runs under, so a config re-derived from the old owner cannot serve it.
+   */
+  readonly agentId?: string
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */

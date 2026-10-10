@@ -1723,6 +1723,22 @@ export class AgentSessionRuntimeService extends BaseService {
           return true
         }
 
+        // A warm connection is frozen to the agent it was spawned under. After a top-bar switch to
+        // a same-runtime agent, reconciling it would re-derive an unchanged configuration from the
+        // old owner (Pi/Dsh signatures, Claude's captured request) while servesAcceptedTurn
+        // suppresses the ownership check — the new turn would run the old agent's instructions and
+        // tool policy while being attributed to the new agent. Replace the connection and let the
+        // loop reconnect under the entry's agent; background work on the old owner releases first,
+        // exactly like a rebuild verdict.
+        if (connection.agentId && connection.agentId !== entry.agentId) {
+          if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) {
+            await this.waitForBackgroundWorkRelease(entry, connection, target)
+          } else {
+            this.closeConnectionAsync(entry)
+          }
+          continue
+        }
+
         // TOCTOU discipline: reconcile acts on the CAPTURED connection (its live patches land on
         // the right object even if the entry moves on), and every close decision below re-validates
         // that the captured connection is still the entry's current one. A thrown reconcile fails
