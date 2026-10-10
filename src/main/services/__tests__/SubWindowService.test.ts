@@ -13,7 +13,7 @@ const {
   openTabInMainWindowMock
 } = vi.hoisted(() => {
   const platformState = { isMac: false, isWin: false, isLinux: false }
-  const nativeThemeState = { shouldUseDarkColors: false }
+  const nativeThemeState = { shouldUseDarkColors: false, on: vi.fn(), removeListener: vi.fn() }
   const preferenceServiceMock = { get: vi.fn(() => 1.3) }
   const windowManagerMock = {
     open: vi.fn<(type: string, args?: { initData?: unknown; options?: Record<string, unknown> }) => string>(
@@ -116,6 +116,7 @@ interface MockBrowserWindow extends EventEmitter {
   getBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   getContentBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   setAlwaysOnTop: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setTitleBarOverlay: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   webContents: {
     isLoadingMainFrame: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     setZoomFactor: ReturnType<typeof vi.fn<(...args: any[]) => any>>
@@ -134,6 +135,7 @@ function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrows
   win.getBounds = vi.fn(() => ({ x: 100, y: 100, width: 1200, height: 800 }))
   win.getContentBounds = vi.fn(() => ({ x: 100, y: 100, width: 800, height: 600 }))
   win.setAlwaysOnTop = vi.fn()
+  win.setTitleBarOverlay = vi.fn()
   // Fresh (still-loading) window by default; reused-pool tests override isLoadingMainFrame → false.
   win.webContents = { isLoadingMainFrame: vi.fn(() => true), setZoomFactor: vi.fn() }
   Object.assign(win, overrides)
@@ -154,11 +156,11 @@ function getNativeOnHandler(channel: string) {
 }
 
 function getOnWindowCreatedListener(): (managed: { window: unknown }) => void {
-  const call = windowManagerMock.onWindowCreatedByType.mock.calls.at(-1) as unknown as
-    | [string, (managed: { window: unknown }) => void]
-    | undefined
-  if (!call) throw new Error('onWindowCreatedByType was not subscribed')
-  return call[1]
+  const calls = windowManagerMock.onWindowCreatedByType.mock.calls as unknown as Array<
+    [string, (managed: { window: unknown }) => void]
+  >
+  if (calls.length === 0) throw new Error('onWindowCreatedByType was not subscribed')
+  return (managed) => calls.forEach(([, listener]) => listener(managed))
 }
 
 describe('SubWindowService', () => {

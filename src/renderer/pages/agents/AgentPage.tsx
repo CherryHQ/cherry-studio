@@ -25,6 +25,7 @@ import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
@@ -43,9 +44,11 @@ import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/util
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
+import type { InstalledSkill } from '@shared/data/types/agent'
 
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
@@ -59,6 +62,12 @@ import {
   type FeedbackComposerLaunch,
   getFeedbackIntentGuardCacheKey
 } from './feedbackComposerLaunch'
+import {
+  createSkillComposerLaunch,
+  getSkillIntentGuardCacheKey,
+  SKILL_INTENT_GUARD_TTL_MS,
+  type SkillComposerLaunch
+} from './skillComposerLaunch'
 import type { CreateAgentSessionDefaults } from './types'
 import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
@@ -98,10 +107,13 @@ const AgentPage = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
+  const isSkillIntent = routeSearch.intent === 'skill'
+  const isPreparedIntent = isFeedbackIntent || isSkillIntent
   const currentTabId = useCurrentTabId()
   const routeSessionId = routeSearch.sessionId
   const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
+  const routeSkillId = routeSearch.skillId
   const routeActiveSessionId = routeSessionId ?? null
   // Shared full-list source for session UI plus exact latest/reusable lookups.
   const agentSessionsSource = useAgentSessionsSource()
@@ -192,6 +204,7 @@ const AgentPage = () => {
   const [feedbackComposerLaunch, setFeedbackComposerLaunch] = useState<FeedbackComposerLaunch | null>(
     routeFeedbackComposerLaunch
   )
+  const [skillComposerLaunch, setSkillComposerLaunch] = useState<SkillComposerLaunch | null>(null)
   const [selectingMissingAgent, setSelectingMissingAgent] = useState(false)
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
@@ -201,12 +214,12 @@ const AgentPage = () => {
   const closeConversationTabs = useCloseConversationTabs()
   const { setSessionWorkspace } = useUpdateSession()
   useEffect(() => {
-    if (activeSessionId || agents.length > 0 || isAgentsLoading || isFeedbackIntent || missingAgentSelection) {
+    if (activeSessionId || agents.length > 0 || isAgentsLoading || isPreparedIntent || missingAgentSelection) {
       return
     }
 
     setMissingAgentSelection(true)
-  }, [activeSessionId, agents.length, isAgentsLoading, isFeedbackIntent, missingAgentSelection])
+  }, [activeSessionId, agents.length, isAgentsLoading, isPreparedIntent, missingAgentSelection])
   const initialActiveSession = useMemo(
     () => (activeSessionId ? agentSessions.find((session) => session.id === activeSessionId) : undefined),
     [activeSessionId, agentSessions]
@@ -260,7 +273,7 @@ const AgentPage = () => {
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
   useEffect(() => {
-    if (isFeedbackIntent || forkReturnSessionId) return
+    if (isPreparedIntent || forkReturnSessionId) return
     if (!routeSessionId || activeSessionId !== routeSessionId) return
     if (activeSession || isActiveSessionLoading) return
     if (!isDataApiNotFoundError(activeSessionError)) return
@@ -271,7 +284,7 @@ const AgentPage = () => {
     activeSessionId,
     forkReturnSessionId,
     isActiveSessionLoading,
-    isFeedbackIntent,
+    isPreparedIntent,
     reenterAgentRoute,
     routeSessionId
   ])
@@ -747,19 +760,72 @@ const AgentPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest feedback orchestration without resubscribing.
   }, [currentTabId, isFeedbackIntent, routeSessionId])
 
+  const runSkillIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
+    closeSurface()
+    clearLocate()
+    setMissingAgentSelection(false)
+    try {
+      if (!routeSessionId || !routeSkillId) throw new Error('Skill intent is missing its prepared session or Skill')
+      const skillPath = resolveTemplate('/skills/:skillId', { skillId: routeSkillId }) as ConcreteApiPaths
+      const [skill] = await Promise.all([
+        dataApiService.get(skillPath) as Promise<InstalledSkill>,
+        invalidateCache(['/agents', '/skills', '/agent-sessions', `/agent-sessions/${routeSessionId}`]).catch((err) => {
+          logger.warn('Failed to refresh Agent cache for prepared Skill session', err as Error, {
+            sessionId: routeSessionId,
+            skillId: routeSkillId
+          })
+        })
+      ])
+      setSkillComposerLaunch(
+        createSkillComposerLaunch(routeSessionId, skill, t('settings.skills.launchDraft', { name: skill.name }))
+      )
+    } catch (err) {
+      setSkillComposerLaunch(null)
+      logger.error('Failed to prepare Skill session', err as Error, {
+        sessionId: routeSessionId,
+        skillId: routeSkillId
+      })
+      toast.error(t('settings.skills.intentInvalid'))
+    } finally {
+      try {
+        await navigate({
+          to: '/app/agents',
+          search: routeSessionId ? { sessionId: routeSessionId } : {},
+          replace: true
+        })
+      } finally {
+        cacheService.deleteCasual(intentGuardCacheKey)
+      }
+    }
+  })
+
+  useEffect(() => {
+    if (!isSkillIntent || !currentTabId) return
+    const intentGuardCacheKey = getSkillIntentGuardCacheKey(currentTabId)
+    if (cacheService.hasCasual(intentGuardCacheKey)) return
+    cacheService.setCasual(intentGuardCacheKey, true, SKILL_INTENT_GUARD_TTL_MS)
+    void runSkillIntent(intentGuardCacheKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest Skill orchestration without resubscribing.
+  }, [currentTabId, isSkillIntent, routeSessionId, routeSkillId])
+
   const visibleSessionId = visibleSession?.id
   const feedbackLaunch = feedbackComposerLaunch ?? routeFeedbackComposerLaunch
   const visibleFeedbackComposerLaunch = feedbackLaunch?.sessionId === visibleSessionId ? feedbackLaunch : null
+  const visibleSkillComposerLaunch = skillComposerLaunch?.sessionId === visibleSessionId ? skillComposerLaunch : null
   const composerLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(() => {
-    if (!visibleFeedbackComposerLaunch) return undefined
-    const launch = visibleFeedbackComposerLaunch
+    const launch = visibleSkillComposerLaunch ?? visibleFeedbackComposerLaunch
+    if (!launch) return undefined
     return {
       initialDraft: launch.initialDraft,
       onSent: () => {
-        setFeedbackComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
+        if (visibleSkillComposerLaunch) {
+          setSkillComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
+        } else {
+          setFeedbackComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
+        }
       }
     }
-  }, [visibleFeedbackComposerLaunch])
+  }, [visibleFeedbackComposerLaunch, visibleSkillComposerLaunch])
 
   const setActiveSessionAndClearTransient = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {

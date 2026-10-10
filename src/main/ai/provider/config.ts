@@ -40,13 +40,20 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
-import { getBaseUrl, getExtraHeaders, getProviderAppHeaders, routeToEndpoint } from '../utils/provider'
+import {
+  getBaseUrl,
+  getExtraHeaders,
+  getProviderAppHeaders,
+  headersWithoutCredentials,
+  routeToEndpoint
+} from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig } from './cherryCloud'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
+import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
@@ -64,6 +71,7 @@ interface BuilderContext {
   actualProvider: Provider
   model: Model
   baseConfig: BaseConfig
+  resolvedBaseUrl: string
   apiKeyOverride?: string
   endpointType?: EndpointType
   endpoint?: string
@@ -201,6 +209,7 @@ export async function resolveProviderAiSdkConfig(
   const ctx: BuilderContext = {
     actualProvider: provider,
     model,
+    resolvedBaseUrl: baseUrl,
     // Credential selection is intentionally deferred until a key-backed builder
     // wins dispatch. OAuth/IAM/no-credential routes must not advance rotation
     // for a key they never serve with.
@@ -238,6 +247,8 @@ export async function resolveProviderAiSdkConfig(
       }))
     },
     { match: (p) => isOllamaProvider(p), build: withSelectedApiKey(buildOllamaConfig) },
+    // ComfyUI has no OpenAI fallback; its key is for partner nodes, not the server.
+    { match: (p) => matchesPreset(p, SystemProviderIds.comfyui), build: withSelectedApiKey(buildComfyuiConfig) },
     { match: (p) => isAzureOpenAIProvider(p), build: withSelectedApiKey(buildAzureConfig) },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
     // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
@@ -487,7 +498,7 @@ function buildCodexFetch() {
  * proxy (`cli-chat-proxy.grok.com/v1/responses`) with OAuth bearer auth. The
  * per-request `fetch` injects a freshly-refreshed token + the Grok-CLI proxy
  * headers, and rewrites the body into the shape the proxy accepts (hoisting
- * system turns into `instructions`, dropping reasoning knobs) — none of which
+ * system turns into `instructions`, normalizing reasoning) — none of which
  * the generic Responses adapter does on its own.
  */
 function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
@@ -592,6 +603,25 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
     providerId: 'ollama',
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, headers }
+  }
+}
+
+/**
+ * ComfyUI: a credential-free local server, so no `Authorization` ever goes to it.
+ * The key, when one is set, is a Comfy API key: the transport hands it to the
+ * workflow's partner nodes (Flux Pro, Kling, …) in the `/prompt` body, which is
+ * where ComfyUI reads it. `baseURL` is the server root; the transport appends its
+ * own paths (`/prompt`, `/history/{id}`, `/view?…`).
+ */
+function buildComfyuiConfig(ctx: BuilderContext): ProviderConfig<'comfyui'> {
+  return {
+    providerId: 'comfyui',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL: normalizeComfyuiBaseUrl(ctx.resolvedBaseUrl),
+      headers: headersWithoutCredentials(ctx.actualProvider)
+    }
   }
 }
 

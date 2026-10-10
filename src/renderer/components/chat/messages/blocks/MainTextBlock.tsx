@@ -25,7 +25,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
-import { useMessageRenderConfig } from '../MessageListProvider'
+import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
 import CitationsList from './CitationsList'
 import { useScrollAnchor } from './useScrollAnchor'
 
@@ -94,13 +94,21 @@ function ComposerMessageTokenChip({
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   hidden?: boolean
 }) {
+  const actions = useOptionalMessageListActions()
   if (hidden) return null
 
   if (isComposerTokenBackedMessageToken(token)) {
     const fileTokenSourceId = token.kind === 'file' ? readComposerFileTokenIdSuffix(token.id) : undefined
     const readOnlyFilePreview = fileTokenSourceId ? readOnlyFilePreviews?.get(fileTokenSourceId) : undefined
 
-    return <ComposerToken token={token} readOnly readOnlyFilePreview={readOnlyFilePreview} />
+    return (
+      <ComposerToken
+        token={token}
+        readOnly
+        readOnlyFilePreview={readOnlyFilePreview}
+        onOpenLink={actions?.openExternalUrl}
+      />
+    )
   }
 
   return <LegacyComposerMessageTokenChip token={token} />
@@ -310,7 +318,7 @@ function CollapsibleUserMessageContent({
           aria-expanded={isExpanded}
           aria-controls={contentId}
           data-user-message-content-toggle
-          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:bg-accent/50 focus-visible:outline-none"
+          className="text-muted-foreground mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] focus-visible:bg-accent/50 focus-visible:outline-none"
           onClick={() => withScrollAnchor(onToggle, { enterReadingMode: !isExpanded })}>
           <span className="shrink-0 leading-5 font-normal">
             {t(isExpanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}
@@ -318,7 +326,7 @@ function CollapsibleUserMessageContent({
           <ChevronDown
             aria-hidden="true"
             size={16}
-            className={`shrink-0 text-foreground-tertiary opacity-70 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+            className={`text-foreground-tertiary shrink-0 opacity-70 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
           />
         </button>
       )}

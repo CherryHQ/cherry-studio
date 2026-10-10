@@ -11,6 +11,7 @@ import { IpcError } from './IpcError'
  * branches. Not aggregated through `errors/index.ts` (see ipc-overview.md).
  */
 export const aiErrorCodes = {
+  AI_AGENT_SESSION_EDIT_FAILED: 'AI_AGENT_SESSION_EDIT_FAILED',
   AI_AGENT_SESSION_FORK_FAILED: 'AI_AGENT_SESSION_FORK_FAILED',
   /**
    * A provider / AI SDK call failed. The full {@link SerializedError} (statusCode,
