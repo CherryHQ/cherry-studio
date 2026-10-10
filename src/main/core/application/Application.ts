@@ -40,6 +40,9 @@ export class Application {
   private lifecycleManager: LifecycleManager
   private isBootstrapped = false
   private isShuttingDown = false
+  private shutdownPromise: Promise<void> | undefined
+  private isRelaunching = false
+  private quitHandlersRegistered = false
   private _isQuitting = false
   private quitPreventionHolds = new Map<string, string>()
   private ipcQuitHolds = new Map<string, QuitPreventionHold>()
@@ -193,6 +196,7 @@ export class Application {
     // Check for boot config corruption BEFORE starting any services
     if (bootConfigService.hasLoadError()) {
       await this.handleBootConfigError()
+      if (this.isRelaunching) return
       // If we reach here, user chose "Continue with Defaults"
     }
 
@@ -248,12 +252,11 @@ export class Application {
    * shutdown was clean is stated on the `Shutdown complete` line — that is the
    * first line to read when diagnosing one.
    */
-  public async shutdown(): Promise<void> {
-    if (this.isShuttingDown) {
-      logger.warn('Already shutting down')
-      return
-    }
+  public shutdown(): Promise<void> {
+    return (this.shutdownPromise ??= this.performShutdown())
+  }
 
+  private async performShutdown(): Promise<void> {
     this.isShuttingDown = true
     this._isQuitting = true
     logger.info('Shutting down...')
@@ -398,7 +401,14 @@ export class Application {
    * Relaunch the app, with dev mode warning
    */
   public relaunch(options?: Electron.RelaunchOptions): void {
-    if (isDev || !app.isPackaged) {
+    if (this.isRelaunching) return
+    if (!this.canQuit()) {
+      logger.info('Relaunch prevented', { reasons: [...this.quitPreventionHolds.values()] })
+      return
+    }
+    this.isRelaunching = true
+    const canRelaunch = !isDev && app.isPackaged
+    if (!canRelaunch) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
       dialog.showMessageBoxSync({
         type: 'info',
@@ -407,26 +417,45 @@ export class Application {
         detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
         buttons: ['OK']
       })
-      app.exit(0)
-      return
     }
 
     // Platform-specific fixes
-    if (isLinux && process.env.APPIMAGE) {
+    if (canRelaunch && isLinux && process.env.APPIMAGE) {
       options = options || {}
       options.execPath = process.env.APPIMAGE
       options.args = options.args || []
       options.args.unshift('--appimage-extract-and-run')
     }
 
-    if (isWin && isPortable) {
+    if (canRelaunch && isWin && isPortable) {
       options = options || {}
       options.execPath = process.env.PORTABLE_EXECUTABLE_FILE
       options.args = options.args || []
     }
 
-    app.relaunch(options)
-    app.exit(0)
+    const exitForRelaunch = () => {
+      if (canRelaunch) app.relaunch(options)
+      app.exit(0)
+    }
+    // Preboot has no lifecycle resources and must not continue startup after a restart request.
+    if (!this.quitHandlersRegistered) {
+      exitForRelaunch()
+      return
+    }
+
+    let timer: ReturnType<typeof setTimeout>
+    const timeout = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        logger.warn('Shutdown timed out before relaunch')
+        resolve()
+      }, SHUTDOWN_TIMEOUT_MS)
+    })
+    void Promise.race([this.shutdown(), timeout])
+      .catch((error) => logger.error('Error during shutdown before relaunch:', error as Error))
+      .finally(() => {
+        clearTimeout(timer)
+        exitForRelaunch()
+      })
   }
 
   /**
@@ -477,6 +506,7 @@ export class Application {
    * so quit is handled correctly even during early bootstrap stages.
    */
   private setupQuitHandlers(): void {
+    this.quitHandlersRegistered = true
     // before-quit: gate check + mark quitting. Does NOT preventDefault unless blocking.
     app.on('before-quit', (event) => {
       if (!this.canQuit()) {
@@ -491,6 +521,10 @@ export class Application {
 
     // will-quit: all windows closed, perform actual cleanup
     app.on('will-quit', (event) => {
+      if (this.isRelaunching) {
+        event.preventDefault()
+        return
+      }
       if (this.isShuttingDown) return // Already shutting down (SIGINT/SIGTERM path), let it exit
 
       event.preventDefault()

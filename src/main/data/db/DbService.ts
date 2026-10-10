@@ -140,6 +140,11 @@ export class DbService extends BaseService {
     new SeedRunner(this.db).runAll(seeders)
   }
 
+  protected onDestroy(): void {
+    this.sqlite.close()
+    logger.info('Database connection closed')
+  }
+
   /**
    * Configure database PRAGMAs (WAL mode, synchronous, foreign keys, busy timeout).
    *
