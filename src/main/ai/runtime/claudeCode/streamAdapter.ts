@@ -1295,8 +1295,8 @@ export class ClaudeCodeStreamAdapter {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
     let visibleText = text
     if (ctx.filterParentlessScratchpadText && textStartsWithModelScratchpadTag(text)) {
-      visibleText = stripKnownModelScratchpadBlocksPreservingCodeFences(text)
-      if (!visibleText.trim()) {
+      visibleText = stripKnownModelScratchpadBlocksPreservingCodeFences(text).trimStart()
+      if (!visibleText) {
         return
       }
     }

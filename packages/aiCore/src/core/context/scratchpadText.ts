@@ -3,14 +3,22 @@ export const MODEL_SCRATCHPAD_TAG_NAMES = ['analysis', 'assessment', 'thinking']
 
 const MODEL_SCRATCHPAD_TAG_SET = new Set<string>(MODEL_SCRATCHPAD_TAG_NAMES)
 
+const SCRATCHPAD_TAG_OPEN_SUFFIX = '(?:>(?!/)|\\s+[^>]*[^/]>)'
+
 const SCRATCHPAD_OPENING_TAG = new RegExp(
-  `^\\s*<(${MODEL_SCRATCHPAD_TAG_NAMES.join('|')})(?:>(?!/)|\\s[^>/][^>]*>)`,
+  `^\\s*<(${MODEL_SCRATCHPAD_TAG_NAMES.join('|')})${SCRATCHPAD_TAG_OPEN_SUFFIX}`,
   'i'
 )
-const NON_SCRATCHPAD_OPENING_TAG = /^\s*<([a-z][a-z0-9-]*)(?:>(?!\/)|\s[^>/][^>]*>)/i
+const NON_SCRATCHPAD_OPENING_TAG = new RegExp(`^\\s*<([a-z][a-z0-9-]*)${SCRATCHPAD_TAG_OPEN_SUFFIX}`, 'i')
 const CODE_FENCE_PLACEHOLDER_PREFIX = '\uE000CODE_FENCE_'
 const CODE_FENCE_PLACEHOLDER_SUFFIX = '\uE001'
 const CODE_FENCE_PLACEHOLDER = new RegExp(`${CODE_FENCE_PLACEHOLDER_PREFIX}(\\d+)${CODE_FENCE_PLACEHOLDER_SUFFIX}`, 'g')
+
+function fenceLinePrefixStart(text: string, fenceMarkerIndex: number): number {
+  const lineStart = text.lastIndexOf('\n', fenceMarkerIndex - 1) + 1
+  const prefix = text.slice(lineStart, fenceMarkerIndex)
+  return /^> ?$/.test(prefix) ? lineStart : fenceMarkerIndex
+}
 
 function maskCodeFences(text: string): { text: string; fences: string[] } {
   const fences: string[] = []
@@ -23,9 +31,10 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
       out += text.slice(pos)
       break
     }
-    out += text.slice(pos, pos + rel)
-    const fenceStart = pos + rel
-    const openMatch = text.slice(fenceStart).match(/^([`~])\1{2,}/)
+    const markerStart = pos + rel
+    const fenceStart = fenceLinePrefixStart(text, markerStart)
+    out += text.slice(pos, fenceStart)
+    const openMatch = text.slice(markerStart).match(/^([`~])\1{2,}/)
     if (!openMatch) {
       out += text[fenceStart]
       pos = fenceStart + 1
@@ -34,8 +43,8 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
 
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
-    const afterOpen = fenceStart + openMatch[0].length
-    const closePattern = new RegExp(`(?:\\r\\n|\\n)[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`)
+    const afterOpen = markerStart + openMatch[0].length
+    const closePattern = new RegExp(`(?:\\r\\n|\\n)(?:> ?)?[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`)
     const closeMatch = closePattern.exec(text.slice(afterOpen))
     if (!closeMatch) {
       out += text[fenceStart]
@@ -62,17 +71,17 @@ export function textHasUnclosedCodeFence(text: string): boolean {
   while (pos < text.length) {
     const rel = text.slice(pos).search(/[`~]{3,}/)
     if (rel === -1) return false
-    const fenceStart = pos + rel
-    const openMatch = text.slice(fenceStart).match(/^([`~])\1{2,}/)
+    const markerStart = pos + rel
+    const openMatch = text.slice(markerStart).match(/^([`~])\1{2,}/)
     if (!openMatch) {
-      pos = fenceStart + 1
+      pos = markerStart + 1
       continue
     }
 
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
-    const afterOpen = fenceStart + openMatch[0].length
-    const closePattern = new RegExp(`(?:\\r\\n|\\n)[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`)
+    const afterOpen = markerStart + openMatch[0].length
+    const closePattern = new RegExp(`(?:\\r\\n|\\n)(?:> ?)?[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`)
     const closeMatch = closePattern.exec(text.slice(afterOpen))
     if (!closeMatch) return true
     pos = afterOpen + closeMatch.index + closeMatch[0].length
@@ -115,7 +124,7 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
   do {
     previous = out
     for (const tag of MODEL_SCRATCHPAD_TAG_NAMES) {
-      const block = new RegExp(`<${tag}(?:>(?!/)|\\s[^>/][^>]*>)[\\s\\S]*?<\\/${tag}\\s*>`, 'gi')
+      const block = new RegExp(`<${tag}${SCRATCHPAD_TAG_OPEN_SUFFIX}[\\s\\S]*?<\\/${tag}\\s*>`, 'gi')
       out = out.replace(block, '')
     }
   } while (out !== previous)
