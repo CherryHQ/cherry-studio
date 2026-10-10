@@ -1022,6 +1022,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: classified.visible })
     ctx.textPartStarted = true
+    ctx.textStreamedViaContentBlock = true
     ctx.accumulatedText += classified.visible
     ctx.streamedTextLength += classified.visible.length
   }
@@ -1083,6 +1084,7 @@ export class ClaudeCodeStreamAdapter {
     }
 
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
+    ctx.textStreamedViaContentBlock = true
     ctx.accumulatedText += text
     ctx.streamedTextLength += text.length
   }

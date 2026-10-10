@@ -2446,6 +2446,30 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).not.toContain('<thinking>')
     })
 
+    it('flushes deferred scratchpad probes when a snapshot-only reply ends the turn', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: '<' }] }
+      } as any)
+      adapter.handleMessage(successResult())
+
+      const textStarts = parts.filter((part) => part.type === 'text-start')
+      const textEnds = parts.filter((part) => part.type === 'text-end')
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toBe('<')
+      expect(textStarts).toHaveLength(1)
+      expect(textEnds).toHaveLength(1)
+    })
+
     it('settles a compaction that reports success without a boundary', () => {
       const { adapter, statusEvents } = createAdapter()
 
