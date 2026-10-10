@@ -3887,6 +3887,7 @@
   "settings.data.notes_relocation.error.invalid_target": "El directorio seleccionado no es válido o se denegó el acceso",
   "settings.data.notes_relocation.error.preference_update_failed": "Las notas se copiaron a la nueva carpeta, pero no se pudo guardar la nueva ruta. Configúrela manualmente en los ajustes.",
   "settings.data.notes_relocation.error.same_path": "El nuevo directorio es el mismo que el directorio de notas actual",
+  "settings.data.notes_relocation.error.source_changed": "El directorio de notas cambió mientras se confirmaba la migración. Vuelva a iniciar la migración.",
   "settings.data.notes_relocation.error.source_contains_symlinks": "La carpeta de notas actual contiene enlaces simbólicos y no se puede migrar",
   "settings.data.notes_relocation.error.source_missing": "No se pudo leer el directorio de notas actual",
   "settings.data.notes_relocation.error.source_not_directory": "La ruta de notas actual no es un directorio",

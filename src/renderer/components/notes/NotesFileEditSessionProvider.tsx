@@ -21,23 +21,11 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
   const session = useFileEditSession(activeFileHandle, {
     suppressAutosave: () => editsLockedForRelocation
   })
-  const guardedSession = useMemo<FileEditSession>(
-    () => ({
-      ...session,
-      setDraft: (next: string) => {
-        if (editsLockedForRelocation) {
-          return
-        }
-        session.setDraft(next)
-      }
-    }),
-    [editsLockedForRelocation, session]
-  )
 
   useEffect(() => registerNotesEditFlush(session.flush), [session.flush])
   useEffect(() => registerNotesRelocationAutosaveCancel(session.cancelPendingAutosave), [session.cancelPendingAutosave])
 
-  return <NotesFileEditSessionContext value={guardedSession}>{children}</NotesFileEditSessionContext>
+  return <NotesFileEditSessionContext value={session}>{children}</NotesFileEditSessionContext>
 }
 
 export function useNotesFileEditSession(): FileEditSession {

@@ -3887,6 +3887,7 @@
   "settings.data.notes_relocation.error.invalid_target": "Выбранный каталог недействителен или доступ запрещён",
   "settings.data.notes_relocation.error.preference_update_failed": "Заметки скопированы в новую папку, но сохранить новый путь не удалось. Укажите его вручную в настройках.",
   "settings.data.notes_relocation.error.same_path": "Новый каталог совпадает с текущим каталогом заметок",
+  "settings.data.notes_relocation.error.source_changed": "Папка заметок изменилась во время подтверждения переноса. Запустите перенос снова.",
   "settings.data.notes_relocation.error.source_contains_symlinks": "Текущая папка заметок содержит символические ссылки и не может быть перенесена",
   "settings.data.notes_relocation.error.source_missing": "Не удалось прочитать текущий каталог заметок",
   "settings.data.notes_relocation.error.source_not_directory": "Текущий путь заметок не является каталогом",

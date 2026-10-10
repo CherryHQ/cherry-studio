@@ -3887,6 +3887,7 @@
   "settings.data.notes_relocation.error.invalid_target": "Seçilen dizin geçersiz veya erişim reddedildi",
   "settings.data.notes_relocation.error.preference_update_failed": "Notlar yeni klasöre kopyalandı, ancak yeni not yolu kaydedilemedi. Ayarlardan elle belirleyin.",
   "settings.data.notes_relocation.error.same_path": "Yeni dizin mevcut notlar diziniyle aynı",
+  "settings.data.notes_relocation.error.source_changed": "Taşıma onaylanırken notlar klasörü değişti. Taşımayı yeniden başlatın.",
   "settings.data.notes_relocation.error.source_contains_symlinks": "Mevcut notlar klasörü sembolik bağlantılar içeriyor ve taşınamaz",
   "settings.data.notes_relocation.error.source_missing": "Mevcut notlar dizini okunamadı",
   "settings.data.notes_relocation.error.source_not_directory": "Mevcut not yolu bir dizin değil",

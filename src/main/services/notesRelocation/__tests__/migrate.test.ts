@@ -112,6 +112,23 @@ describe('notesRelocation', () => {
     expect(fs.readFileSync(path.join(target, 'new-note.md'), 'utf8')).toBe('# New')
   })
 
+  it('merges when the target only contains an empty directory', async () => {
+    const source = path.join(tempRoot, 'source-notes-empty-dir')
+    const target = path.join(tempRoot, 'target-notes-empty-dir')
+    fs.mkdirSync(path.join(source, 'folder-a'), { recursive: true })
+    fs.mkdirSync(path.join(target, 'folder-a'), { recursive: true })
+    fs.writeFileSync(path.join(source, 'folder-a', 'note.md'), '# Note')
+
+    const inspection = await inspectNotesRelocation(source, target)
+    expect(inspection.valid).toBe(true)
+    if (!inspection.valid) return
+    expect(inspection.targetHasFiles).toBe(true)
+
+    const result = await migrateNotesDirectory(source, target, { merge: true })
+    expect(result.target.markdownFileCount).toBe(1)
+    expect(fs.readFileSync(path.join(target, 'folder-a', 'note.md'), 'utf8')).toBe('# Note')
+  })
+
   it('merges when the target only contains non-markdown files', async () => {
     const source = path.join(tempRoot, 'source-notes-5')
     const target = path.join(tempRoot, 'target-notes-5')

@@ -3887,6 +3887,7 @@
   "settings.data.notes_relocation.error.invalid_target": "The selected directory is invalid or access denied",
   "settings.data.notes_relocation.error.preference_update_failed": "Notes were copied to the new folder, but the app could not save the new notes path. Set it manually in settings.",
   "settings.data.notes_relocation.error.same_path": "The new directory is the same as the current notes directory",
+  "settings.data.notes_relocation.error.source_changed": "The notes directory changed while migration was being confirmed. Start the migration again.",
   "settings.data.notes_relocation.error.source_contains_symlinks": "The current notes folder contains symbolic links, which cannot be migrated",
   "settings.data.notes_relocation.error.source_missing": "The current notes directory could not be read",
   "settings.data.notes_relocation.error.source_not_directory": "The current notes path is not a directory",

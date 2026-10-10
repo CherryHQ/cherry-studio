@@ -6,6 +6,8 @@ import {
   NotesDirectoryMigrationMergeContent
 } from '@renderer/components/notes/NotesDirectoryMigrationConfirmContent'
 import { ipcApi } from '@renderer/ipc'
+import { resolveNotesPath } from '@renderer/services/NotesService'
+import { normalizePathValue } from '@renderer/services/NotesTreeService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -13,6 +15,11 @@ import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
 
 const logger = loggerService.withContext('NotesDirectoryMigration')
+
+export async function resolveNotesMigrationSourcePath(configuredNotesPath: string): Promise<string> {
+  const resolved = await resolveNotesPath(configuredNotesPath || '')
+  return resolved.isFallback && configuredNotesPath ? configuredNotesPath : resolved.path
+}
 
 async function finishNotesRelocationSession(sessionEpoch: number): Promise<void> {
   try {
@@ -82,9 +89,10 @@ export async function migrateNotesDirectoryWithUi(options: {
   t: TFunction
   sourcePath: string
   targetPath: string
+  configuredNotesPath?: string
   onSuccess: (targetPath: string) => void | Promise<void>
 }): Promise<void> {
-  const { t, sourcePath, targetPath, onSuccess } = options
+  const { t, sourcePath, targetPath, configuredNotesPath, onSuccess } = options
 
   try {
     const inspection = await ipcApi.request('app.notes_relocation.inspect', {
@@ -120,6 +128,14 @@ export async function migrateNotesDirectoryWithUi(options: {
 
     const { sessionEpoch } = await ipcApi.request('app.notes_relocation.begin_barrier')
     try {
+      if (configuredNotesPath != null) {
+        const currentSourcePath = await resolveNotesMigrationSourcePath(configuredNotesPath)
+        if (normalizePathValue(currentSourcePath) !== normalizePathValue(sourcePath)) {
+          toast.error(t('settings.data.notes_relocation.error.source_changed'))
+          return
+        }
+      }
+
       await ipcApi.request('app.notes_relocation.migrate', {
         sourcePath,
         targetPath,
@@ -164,6 +180,7 @@ export async function pickNotesTargetDirectory(t: TFunction): Promise<string> {
 export async function startNotesDirectoryMigration(options: {
   t: TFunction
   sourcePath: string
+  configuredNotesPath?: string
   onSuccess: (targetPath: string) => void | Promise<void>
 }): Promise<void> {
   try {

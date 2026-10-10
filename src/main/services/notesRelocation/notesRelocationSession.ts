@@ -9,6 +9,10 @@ export function setNotesRelocationMigrateInFlight(inFlight: boolean): void {
   notesRelocationMigrateInFlight = inFlight
 }
 
+export function isNotesRelocationMigrateInFlight(): boolean {
+  return notesRelocationMigrateInFlight
+}
+
 export function acquireNotesRelocationSession(ownerId: string): number {
   if (notesRelocationSessionOwnerId != null) {
     throw new IpcError(
