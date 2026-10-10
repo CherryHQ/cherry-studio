@@ -822,7 +822,10 @@ export class AgentSessionRuntimeService extends BaseService {
 
     let verdict: AgentRuntimeReconcileResult
     try {
-      verdict = await connection.reconcile(this.connectionTarget(entry, agent))
+      verdict = await connection.reconcile({
+        ...this.connectionTarget(entry, agent),
+        ...this.acceptedTurnScope(entry)
+      })
     } catch (error) {
       logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
       this.closeFailedPolicyUpdateConnection(entry, connection)
@@ -847,6 +850,10 @@ export class AgentSessionRuntimeService extends BaseService {
         return
       }
       case 'invalid':
+        // An ownership-only rejection (top-bar switch) must not tear down a connection serving an
+        // accepted turn — the frozen agent is still runnable and the turn boundary adopts the
+        // session's new agent anyway.
+        if (this.invalidVerdictIsReassignmentOnly(entry)) return
         // Desired config no longer derivable (agent/session/model rows gone) — same full
         // invalidation as a cleared model.
         this.invalidateModelClearedEntry(entry)
@@ -1661,6 +1668,29 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.modelId = agent?.model ?? entry.modelId
   }
 
+  /**
+   * A live turn is frozen to `entry.agentId` (adoption never runs mid-turn), so a connect or
+   * reconcile serving it validates the frozen agent itself instead of the session row, which a
+   * top-bar switch may have re-pointed meanwhile.
+   */
+  private acceptedTurnScope(entry: AgentSessionRuntimeEntry): { servesAcceptedTurn?: boolean } {
+    return this.liveTurn(entry) ? { servesAcceptedTurn: true } : {}
+  }
+
+  /**
+   * An 'invalid' reconcile verdict that fired only because the session row was re-pointed away
+   * from the agent a live turn froze to (top-bar switch): the frozen agent is still runnable, so
+   * the accepted turn keeps its connection until the turn boundary — where adoption picks up the
+   * session's new agent. A verdict from an actually unroutable owner (row gone, model cleared)
+   * returns false and keeps the full-invalidation handling.
+   */
+  private invalidVerdictIsReassignmentOnly(entry: AgentSessionRuntimeEntry): boolean {
+    if (!this.liveTurn(entry)) return false
+    const session = agentSessionService.getById(entry.sessionId)
+    if (!session?.agentId || session.agentId === entry.agentId) return false
+    return Boolean(agentService.getAgent(entry.agentId)?.model)
+  }
+
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
       this.assertSessionWritable(entry.sessionId)
@@ -1699,7 +1729,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // closed like the push path: the suspect connection is replaced by a fresh one.
         let verdict: AgentRuntimeReconcileResult
         try {
-          verdict = await connection.reconcile(target)
+          verdict = await connection.reconcile({ ...target, ...this.acceptedTurnScope(entry) })
         } catch (error) {
           logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
           verdict = 'failed'
@@ -1747,6 +1777,10 @@ export class AgentSessionRuntimeService extends BaseService {
             this.closeConnectionAsync(entry)
             continue
           case 'invalid': {
+            // The turn already accepted under the frozen agent outranks the reassignment until
+            // its boundary: an ownership-only rejection (see invalidVerdictIsReassignmentOnly)
+            // must not close the session and strand the accepted input.
+            if (this.invalidVerdictIsReassignmentOnly(entry)) return true
             // 'invalid' also fires for a warm connection frozen to an agent the session no longer
             // points at (top-bar reassignment; Pi/Dsh capture against the frozen id). The session
             // row is still runnable, so replace the connection instead of closing the session —
@@ -1810,10 +1844,7 @@ export class AgentSessionRuntimeService extends BaseService {
       sessionId: entry.sessionId,
       agentId: entry.agentId,
       modelId: target.modelId,
-      // A live turn is frozen to entry.agentId (adoption never runs mid-turn), so this connect
-      // serves an already-accepted input: the driver's snapshot must not reject it just because
-      // the session row was re-pointed while the connection materialized.
-      ...(this.liveTurn(entry) ? { servesAcceptedTurn: true } : {}),
+      ...this.acceptedTurnScope(entry),
       reasoningEffort: target.reasoningEffort,
       serviceTier: target.serviceTier,
       knowledgeBaseIds: target.knowledgeBaseIds,

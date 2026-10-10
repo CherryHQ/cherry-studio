@@ -219,7 +219,10 @@ export interface AgentRuntimeConnection {
    *
    * The input is the config the connection should serve right now (a live turn's frozen model,
    * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
-   * pinning the host uses for `connect`.
+   * pinning the host uses for `connect`. `servesAcceptedTurn` mirrors the connect flag: the
+   * reconcile serves a turn already accepted and frozen to this connection's agent, so snapshot
+   * capture validates that agent itself instead of requiring the session row to still point at
+   * it.
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
   reconcile(input: {
@@ -228,6 +231,7 @@ export interface AgentRuntimeConnection {
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the

@@ -558,6 +558,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
     knowledgeBaseIds?: readonly string[]
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
@@ -571,6 +572,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
     knowledgeBaseIds?: readonly string[]
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
@@ -578,7 +580,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         input.modelId,
-        input.knowledgeBaseIds
+        input.knowledgeBaseIds,
+        { servesAcceptedTurn: input.servesAcceptedTurn === true }
       )
     } catch (error) {
       if (error instanceof DshInvalidConnectionSnapshotError) return 'invalid'
