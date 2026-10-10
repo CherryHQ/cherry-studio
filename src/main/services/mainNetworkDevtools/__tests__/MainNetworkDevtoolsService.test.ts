@@ -211,6 +211,16 @@ describe('MainNetworkDevtoolsService helpers', () => {
     )
   })
 
+  it('marks multipart FormData bodies as non-replayable display summaries', () => {
+    const formData = new FormData()
+    formData.append('file', new Blob(['hello'], { type: 'text/plain' }), 'doc.txt')
+
+    expect(captureRequestBody(formData)).toMatchObject({
+      replayable: false,
+      note: 'Multipart FormData cannot be exported as cURL.'
+    })
+  })
+
   it('allows only registered DevTools extension origins', () => {
     const service = new MainNetworkDevtoolsService()
     const serviceState = service as unknown as {
