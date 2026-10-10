@@ -1,12 +1,16 @@
+import * as z from 'zod'
+
 import {
-  executionFailureSchema,
+  aiFailureSnapshotSchema,
   type AiFailureReason,
+  type AiFailureSnapshot,
   type ExecutionFailure
 } from '@cherrystudio/remote-protocol/failure'
 
 import type { SerializedError } from '../types/error'
 import {
   classifyErrorCategory,
+  ERROR_STAGES,
   extractHttpStatus,
   isErrorCategory,
   isErrorStage,
@@ -15,6 +19,45 @@ import {
 } from '../utils/errorCategory'
 import { getSafeProviderErrorMessage } from './providerError'
 import { extractSseErrorFrame } from './sseErrorFrame'
+
+/**
+ * Desktop-local superset of the wire snapshot: `stage` persists in message parts but is
+ * not part of the v1 wire contract, whose strict schema deployed peers parse. Remote
+ * producers project it away with `toWireExecutionFailure` while `agentFailureVersion`
+ * stays 1.
+ */
+export type PersistedFailureSnapshot = AiFailureSnapshot & { stage?: ErrorStage }
+
+// A type alias (not an interface) so failures stay assignable to `SerializedError`'s
+// index signature when persisted onto an error bag.
+export type PersistedExecutionFailure = {
+  message: string
+  retryable: boolean
+  failure: PersistedFailureSnapshot
+}
+
+const persistedExecutionFailureSchema = z
+  .strictObject({
+    message: z.string().max(1024),
+    retryable: z.boolean(),
+    failure: aiFailureSnapshotSchema.extend({ stage: z.enum(ERROR_STAGES).optional() })
+  })
+  .refine((value) => new TextEncoder().encode(JSON.stringify(value)).length <= 4096, 'Failure exceeds byte budget')
+
+/** Project a persisted failure onto the v1 wire snapshot by dropping the local `stage`. */
+export function toWireExecutionFailure(failure: PersistedExecutionFailure): ExecutionFailure {
+  const { failure: snapshot } = failure
+  return {
+    message: failure.message,
+    retryable: failure.retryable,
+    failure: {
+      version: snapshot.version,
+      reasonCode: snapshot.reasonCode,
+      source: snapshot.source,
+      ...(snapshot.context ? { context: snapshot.context } : {})
+    }
+  }
+}
 
 const reasons: Partial<Record<ErrorCategory, AiFailureReason>> = {
   auth: 'auth',
@@ -110,8 +153,8 @@ export function toExecutionFailure(
   error: SerializedError,
   modelId?: string,
   layer?: ExecutionFailure['failure']['source']['layer']
-): ExecutionFailure {
-  const stored = executionFailureSchema.safeParse(error.executionFailure)
+): PersistedExecutionFailure {
+  const stored = persistedExecutionFailureSchema.safeParse(error.executionFailure)
   if (stored.success && !layer) return stored.data
   const raw = typeof error.message === 'string' ? error.message : ''
   // Some providers hand back the whole SSE frame their error rode in on
@@ -139,7 +182,7 @@ export function toExecutionFailure(
   const model = safeText(modelId ?? error.modelId, 128)
   const source = layer ?? (status || error.providerErrorCategory ? 'provider' : 'runtime')
   const stage = isErrorStage(error.failureStage) ? error.failureStage : deriveStage(error, source, status, category)
-  const value: ExecutionFailure = {
+  const value: PersistedExecutionFailure = {
     message,
     retryable: error.isRetryable === true && !['auth', 'permission', 'quota', 'internal'].includes(reasonCode),
     failure: {

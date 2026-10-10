@@ -6,7 +6,9 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { toExecutionFailure } from '../executionFailure'
+import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
+
+import { toExecutionFailure, toWireExecutionFailure } from '../executionFailure'
 
 const SSE_QUOTA_FRAME =
   'API Error: Request rejected (429) · event:error data:{"type":"error","error":{"type":"rate_limit_error","message":"You exceeded your current quota."}}'
@@ -100,6 +102,48 @@ describe('execution failure — pipeline stage', () => {
       }
     })
     expect(failure.failure.stage).toBeUndefined()
+  })
+})
+
+describe('execution failure — v1 wire contract', () => {
+  it('keeps the strict v1 schema rejecting stage-bearing snapshots', () => {
+    // Deployed peers parse failures with the v1 strict schema; a snapshot carrying
+    // `stage` makes them drop the whole event batch or checkpoint. This is why the
+    // remote boundary projects the stage away while `agentFailureVersion` stays 1.
+    const persisted = toExecutionFailure({
+      name: 'APICallError',
+      message: 'Provider returned error',
+      stack: null,
+      statusCode: 403
+    })
+    expect(persisted.failure.stage).toBe('http')
+    expect(executionFailureSchema.safeParse(persisted).success).toBe(false)
+  })
+
+  it('projects a persisted failure onto a snapshot the v1 schema accepts', () => {
+    const persisted = toExecutionFailure({
+      name: 'APICallError',
+      message: 'Provider returned error',
+      stack: null,
+      statusCode: 403
+    })
+    const wire = toWireExecutionFailure(persisted)
+    expect(wire.failure).not.toHaveProperty('stage')
+    expect(executionFailureSchema.safeParse(wire).success).toBe(true)
+  })
+
+  it('round-trips a stored stage-bearing failure without re-deriving it', () => {
+    const failure = toExecutionFailure({
+      name: 'Error',
+      message: 'stored',
+      stack: null,
+      executionFailure: {
+        message: 'stored',
+        retryable: false,
+        failure: { version: 1, reasonCode: 'quota', source: { layer: 'provider' }, stage: 'http' }
+      }
+    })
+    expect(failure.failure.stage).toBe('http')
   })
 })
 

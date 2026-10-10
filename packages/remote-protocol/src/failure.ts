@@ -25,26 +25,6 @@ export const aiFailureReasonSchema = z.enum([
 ])
 export type AiFailureReason = z.infer<typeof aiFailureReasonSchema>
 
-/**
- * Where in the request pipeline the failure happened. Orthogonal to `reasonCode`
- * (what went wrong) and to `source.layer` (which subsystem reported it): the same
- * `quota` reason can be observed at `http` or at `runtime`, and a `runtime` layer
- * can fail at its `transport` or at its `stream`.
- *
- * Optional so pre-existing persisted failures keep parsing (RFC 9457 §3.2: clients
- * ignore extension members they do not recognize).
- */
-export const aiFailureStageSchema = z.enum([
-  'transport',
-  'http',
-  'parse',
-  'stream',
-  'runtime',
-  'persistence',
-  'unknown'
-])
-export type AiFailureStage = z.infer<typeof aiFailureStageSchema>
-
 export const aiFailureSnapshotSchema = z.strictObject({
   version: z.literal(1),
   reasonCode: aiFailureReasonSchema,
@@ -53,8 +33,6 @@ export const aiFailureSnapshotSchema = z.strictObject({
     name: z.string().max(256).optional(),
     code: z.string().max(128).optional()
   }),
-  /** Failing pipeline stage; see `aiFailureStageSchema`. Absent on older failures. */
-  stage: aiFailureStageSchema.optional(),
   context: z
     .strictObject({
       statusCode: z.number().int().min(100).max(599).optional(),
