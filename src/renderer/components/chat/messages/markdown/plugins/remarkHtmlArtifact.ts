@@ -43,8 +43,8 @@ export function classifyHtmlArtifactSource(value: string): HtmlArtifactKind | un
 
 function isHtmlArtifact(node: Html): boolean {
   const content = stripLeadingHtmlMetadata(node.value)
-  // Native disclosures must keep their boundaries around the intervening Markdown.
-  return content.length > 0 && !/^<svg[\s>]/i.test(content) && !/^<\/?(?:details|summary)[\s>]/i.test(content)
+  // Disclosure boundaries can share a raw HTML node with preceding body content.
+  return content.length > 0 && !/^<svg[\s>]/i.test(content) && !/<\/?(?:details|summary)[\s>]/i.test(content)
 }
 
 function isHtmlMetadataOnly(node: Html): boolean {

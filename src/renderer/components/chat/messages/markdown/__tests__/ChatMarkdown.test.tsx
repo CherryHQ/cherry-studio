@@ -63,6 +63,30 @@ describe('ChatMarkdown adapter', () => {
     expect(openArtifactFile).not.toHaveBeenCalled()
   })
 
+  it('keeps following prose visible when an HTML body shares the closing disclosure node', async () => {
+    const user = userEvent.setup()
+    render(
+      <ChatMarkdown
+        block={{
+          id: 'html-disclosure',
+          status: 'success',
+          content: '<details>\n<summary>Answer</summary>\n\n<div>Body</div>\n</details>\n\nAfter'
+        }}
+        inlineHtmlPreviewMode="ready"
+      />,
+      { wrapper: CodeStyleProvider }
+    )
+
+    expect(screen.getByText('After')).toBeVisible()
+    const body = screen.getByText('Body')
+    expect(body).not.toBeVisible()
+    await user.click(screen.getByText('Answer'))
+    expect(body).toBeVisible()
+    await user.click(screen.getByText('Answer'))
+    expect(body).not.toBeVisible()
+    expect(screen.getByText('After')).toBeVisible()
+  })
+
   it.each(['success', 'streaming'] as const)('keeps Markdown inside a native disclosure (%s)', async (status) => {
     const user = userEvent.setup()
     render(
