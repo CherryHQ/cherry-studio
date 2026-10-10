@@ -86,7 +86,8 @@ vi.mock('electron', () => {
       // subscribes to `web-contents-created` through it.
       on: vi.fn(),
       once: vi.fn(),
-      removeListener: vi.fn()
+      removeListener: vi.fn(),
+      whenReady: vi.fn().mockResolvedValue(undefined)
     },
     ipcMain: {
       handle: vi.fn(),
@@ -116,6 +117,7 @@ vi.mock('electron', () => {
     session: {
       defaultSession: {
         clearCache: vi.fn(),
+        clearData: vi.fn().mockResolvedValue(undefined),
         clearStorageData: vi.fn(),
         webRequest: {
           onBeforeSendHeaders: vi.fn()

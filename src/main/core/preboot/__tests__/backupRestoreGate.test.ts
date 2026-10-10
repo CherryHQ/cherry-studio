@@ -12,12 +12,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const runRestorePromotionMock = vi.fn<() => Promise<void>>()
 const markRestoreFailedAfterCrashMock = vi.fn<() => void>()
 const isLiveDbStrandedMock = vi.fn<() => boolean>()
+const isChromiumStorageStrandedMock = vi.fn<() => boolean>()
 const cleanupTerminalRestoreArtifactsMock = vi.fn<() => void>()
 
 vi.mock('@data/db/restore/restorePromotion', () => ({
   runRestorePromotion: () => runRestorePromotionMock(),
   markRestoreFailedAfterCrash: () => markRestoreFailedAfterCrashMock(),
   isLiveDbStranded: () => isLiveDbStrandedMock(),
+  isChromiumStorageStranded: () => isChromiumStorageStrandedMock(),
   cleanupTerminalRestoreArtifacts: () => cleanupTerminalRestoreArtifactsMock()
 }))
 
@@ -27,8 +29,10 @@ beforeEach(() => {
   runRestorePromotionMock.mockReset()
   markRestoreFailedAfterCrashMock.mockReset()
   isLiveDbStrandedMock.mockReset()
+  isChromiumStorageStrandedMock.mockReset()
   cleanupTerminalRestoreArtifactsMock.mockReset()
   isLiveDbStrandedMock.mockReturnValue(false)
+  isChromiumStorageStrandedMock.mockReturnValue(false)
 })
 
 describe('runBackupRestoreGate', () => {
@@ -81,5 +85,13 @@ describe('runBackupRestoreGate', () => {
 
     await expect(runBackupRestoreGate()).rejects.toThrow(/empty database/)
     expect(cleanupTerminalRestoreArtifactsMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses to boot when Chromium storage remains stranded after terminal cleanup', async () => {
+    runRestorePromotionMock.mockResolvedValue(undefined)
+    isChromiumStorageStrandedMock.mockReturnValue(true)
+
+    await expect(runBackupRestoreGate()).rejects.toThrow(/empty storage shell/)
+    expect(cleanupTerminalRestoreArtifactsMock).toHaveBeenCalledOnce()
   })
 })

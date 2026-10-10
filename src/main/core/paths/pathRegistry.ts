@@ -261,6 +261,10 @@ export function buildPathRegistry() {
     // durable (see restoreJournal.ts). Never relocate the two independently.
     'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+    // Failed-restore asides that rollback could not reinstall are parked here
+    // (per restoreId) instead of being destroyed with the staging tree; the
+    // preboot gate shell reinstalls or GCs them (see restorePromotion.ts).
+    'feature.backup.restore.aside_quarantine': path.join(appUserData, 'restore-aside-quarantine'),
 
     // Stored in the profile it authorizes for reset.
     'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),
