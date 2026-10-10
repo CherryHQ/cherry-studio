@@ -1,10 +1,10 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceCatalogViewProps } from '@renderer/components/resourceCatalog/catalog/ResourceCatalogView'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 
 import { SkillsSettings } from '../SkillsSettings'
 
