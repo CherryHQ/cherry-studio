@@ -14,6 +14,7 @@ import {
   assertNotesRelocationSessionOwner,
   bindNotesRelocationSessionOwnerWindow,
   clearNotesRelocationSessionOwnerWindowBinding,
+  finalizeNotesRelocationAfterMigrate,
   handleNotesRelocationOwnerWindowGone,
   inspectNotesRelocation,
   isNotesRelocationBarrierActive,
@@ -139,6 +140,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       return await migrateNotesDirectory(sourcePath, targetPath, { merge })
     } finally {
       setNotesRelocationMigrateInFlight(false)
+      finalizeNotesRelocationAfterMigrate(senderId, broadcastNotesRelocationMigrateComplete)
     }
   },
   'app.notes_relocation.complete': async ({ sessionEpoch }, { senderId }) => {

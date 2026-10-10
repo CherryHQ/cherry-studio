@@ -17,6 +17,7 @@ vi.mock('@application', async () => {
 
 import {
   bindNotesRelocationSessionOwnerWindow,
+  finalizeNotesRelocationAfterMigrate,
   handleNotesRelocationOwnerWindowGone,
   isNotesRelocationOwnerWindowAlive,
   resetNotesRelocationOwnerLifecycleForTests
@@ -122,5 +123,32 @@ describe('notesRelocationOwnerLifecycle', () => {
 
     expect(released).toBe(false)
     setNotesRelocationMigrateInFlight(false)
+  })
+
+  it('releases the session after migrate when the owner became unavailable during copy', () => {
+    const ownerWindow = new EventEmitter() as EventEmitter & {
+      isDestroyed: () => boolean
+      webContents: EventEmitter
+    }
+    ownerWindow.isDestroyed = () => false
+    ownerWindow.webContents = new EventEmitter()
+    getWindowMock.mockReturnValue(ownerWindow)
+
+    acquireNotesRelocationSession('owner-window')
+    setNotesRelocationMigrateInFlight(true)
+
+    bindNotesRelocationSessionOwnerWindow('owner-window', () => {
+      handleNotesRelocationOwnerWindowGone('owner-window', () => undefined)
+    })
+    ownerWindow.webContents.emit('render-process-gone')
+
+    setNotesRelocationMigrateInFlight(false)
+
+    let released = false
+    finalizeNotesRelocationAfterMigrate('owner-window', () => {
+      released = true
+    })
+
+    expect(released).toBe(true)
   })
 })

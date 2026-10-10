@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isLinux, isWin } from '@main/core/platform'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
 
 export class NotesRelocationValidationError extends Error {
@@ -21,11 +21,32 @@ function invalid(reason: NotesRelocationValidationReason, message: string): neve
 
 function normalizeForCompare(value: string): string {
   const resolved = path.resolve(value)
-  return isWin || isMac ? resolved.toLowerCase() : resolved
+  return isWin ? resolved.toLowerCase() : resolved
+}
+
+function pathsReferToSameLocation(left: string, right: string): boolean {
+  const leftResolved = normalizeForCompare(left)
+  const rightResolved = normalizeForCompare(right)
+  if (leftResolved === rightResolved) {
+    return true
+  }
+  if (isWin) {
+    return false
+  }
+  try {
+    return realPath(left) === realPath(right)
+  } catch {
+    return false
+  }
 }
 
 function isPathInside(child: string, parent: string): boolean {
-  const relative = path.relative(normalizeForCompare(parent), normalizeForCompare(child))
+  const childResolved = path.resolve(child)
+  const parentResolved = path.resolve(parent)
+  if (pathsReferToSameLocation(childResolved, parentResolved)) {
+    return false
+  }
+  const relative = path.relative(parentResolved, childResolved)
   if (relative === '' || relative === '..' || path.isAbsolute(relative)) {
     return false
   }
@@ -178,7 +199,7 @@ export async function assertNotesRelocationPaths(sourcePath: string, targetPath:
     await assertTargetHasNoSymbolicLinks(targetPath)
   }
 
-  if (sourceReal === targetEffective) {
+  if (pathsReferToSameLocation(sourcePath, targetEffective)) {
     invalid('same_path', `source and target are the same path: ${targetPath}`)
   }
   if (isPathInside(targetEffective, sourceReal)) {

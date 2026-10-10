@@ -8,6 +8,7 @@ import {
 import { unregisterRendererNotesEditsFlushWindow } from './requestRendererNotesEditsFlush'
 
 let ownerWindowClosedCleanup: (() => void) | null = null
+let ownerUnavailableDuringMigrate = false
 
 export function isNotesRelocationOwnerWindowAlive(ownerId: string): boolean {
   const window = application.get('WindowManager').getWindow(ownerId)
@@ -49,6 +50,7 @@ export function handleNotesRelocationOwnerWindowGone(ownerId: string, onSessionR
   }
   unregisterRendererNotesEditsFlushWindow(ownerId)
   if (isNotesRelocationMigrateInFlight()) {
+    ownerUnavailableDuringMigrate = true
     return
   }
   if (releaseNotesRelocationSession(ownerId, session.epoch)) {
@@ -56,7 +58,26 @@ export function handleNotesRelocationOwnerWindowGone(ownerId: string, onSessionR
   }
 }
 
+export function finalizeNotesRelocationAfterMigrate(ownerId: string, onSessionReleased: () => void): void {
+  const session = getActiveNotesRelocationSession()
+  if (session?.ownerId !== ownerId) {
+    return
+  }
+
+  const ownerUnavailable = ownerUnavailableDuringMigrate || !isNotesRelocationOwnerWindowAlive(ownerId)
+  ownerUnavailableDuringMigrate = false
+  if (!ownerUnavailable) {
+    return
+  }
+
+  if (releaseNotesRelocationSession(ownerId, session.epoch)) {
+    clearNotesRelocationSessionOwnerWindowBinding()
+    onSessionReleased()
+  }
+}
+
 /** Resets module state for unit tests. */
 export function resetNotesRelocationOwnerLifecycleForTests(): void {
   clearNotesRelocationSessionOwnerWindowBinding()
+  ownerUnavailableDuringMigrate = false
 }

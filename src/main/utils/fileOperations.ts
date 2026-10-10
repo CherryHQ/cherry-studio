@@ -26,6 +26,28 @@ type CopyDirectoryRecursiveOptions = {
   exclusiveFileCopies?: boolean
 }
 
+async function assertDestinationPathHasNoSymlinkComponents(basePath: string, absolutePath: string): Promise<void> {
+  const relative = path.relative(basePath, absolutePath)
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`Destination path is outside allowed directory: ${absolutePath}`)
+  }
+
+  let current = basePath
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment)
+    try {
+      const stats = await fs.promises.lstat(current)
+      if (stats.isSymbolicLink()) {
+        throw new Error(`Destination contains a symlink: ${current}`)
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+    }
+  }
+}
+
 export async function copyDirectoryRecursive(
   source: string,
   destination: string,
@@ -54,6 +76,9 @@ export async function copyDirectoryRecursive(
   if (allowedDestinationBasePath && !isPathInside(destination, allowedDestinationBasePath)) {
     throw new Error(`Destination path is outside allowed directory: ${destination}`)
   }
+  if (allowedDestinationBasePath) {
+    await assertDestinationPathHasNoSymlinkComponents(allowedDestinationBasePath, destination)
+  }
 
   try {
     // Verify source exists and is a directory
@@ -73,6 +98,10 @@ export async function copyDirectoryRecursive(
     for (const entry of entries) {
       const sourcePath = path.join(source, entry.name)
       const destPath = path.join(destination, entry.name)
+
+      if (allowedDestinationBasePath) {
+        await assertDestinationPathHasNoSymlinkComponents(allowedDestinationBasePath, destPath)
+      }
 
       // Use lstat to detect symlinks and prevent following them
       const entryStats = await fs.promises.lstat(sourcePath)

@@ -325,7 +325,13 @@ export function useFileEditSession(
       const model = modelRef.current
       if (model && !model.conflict && model.draft !== model.snapshot.content) {
         requestWrite(model, { force: true })
-        trackDepartingNotesFileWrite(model.chain)
+        trackDepartingNotesFileWrite(
+          model.chain.then(() => {
+            if (model.draft !== model.snapshot.content) {
+              throw model.lastWriteError ?? new Error('Pending edit could not be saved')
+            }
+          })
+        )
       }
       modelRef.current = null
       setDraftState('')
@@ -342,6 +348,9 @@ export function useFileEditSession(
     (next: string) => {
       const model = modelRef.current
       if (!model) return
+      if (suppressAutosaveRef.current?.()) {
+        return
+      }
       model.draft = next
       setDraftState(next)
       if (
