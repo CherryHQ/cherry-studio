@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+﻿import { nanoid } from 'nanoid'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useMermaid } from '@renderer/hooks/useMermaid'
@@ -50,9 +50,12 @@ const MermaidPreview = ({
         // 避免不可见时产生 undefined 和 NaN
         const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
 
-        // 有问题可以回退到 innerHTML
-        renderSvgInShadowHost(fixedSvg, container)
-        // container.innerHTML = fixedSvg
+        // 直接用 innerHTML 渲染，不用 shadow DOM。
+        // 原因：Mermaid 主题 CSS 用 :root 选择器定义变量，
+        // shadow DOM 里 :root 指向文档根而非 shadow root，
+        // 导致主题变量失效、边线颜色回到默认黑色，深色背景下完全看不见。
+        // 参考 issue #20944。
+        container.innerHTML = fixedSvg
       } finally {
         document.body.removeChild(measureEl)
       }
@@ -140,3 +143,4 @@ const MermaidPreview = ({
 }
 
 export default memo(MermaidPreview)
+
