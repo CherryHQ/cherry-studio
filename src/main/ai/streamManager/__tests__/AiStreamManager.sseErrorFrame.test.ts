@@ -20,6 +20,10 @@ import type { AiStreamManagerConfig } from '../types'
 const SSE_QUOTA_FRAME =
   'API Error: Request rejected (429) · event:error data:{"type":"error","error":{"type":"rate_limit_error","message":"You exceeded your current quota."}}'
 
+/** Frame whose message names no cause and carries no HTTP status — only the code knows. */
+const SSE_QUOTA_CODE_ONLY_FRAME =
+  'event:error data:{"error":{"code":"insufficient_quota","message":"Request rejected"}}'
+
 const mockStreamText = vi.fn()
 
 vi.mock('@application', async () => {
@@ -44,12 +48,12 @@ function createManager(config?: Partial<AiStreamManagerConfig>): ManagerInstance
 }
 
 /** Streams real content, then fails mid-stream carrying the SSE frame. */
-function quotaFramedStream(): ReadableStream<UIMessageChunk> {
+function quotaFramedStream(errorText: string = SSE_QUOTA_FRAME): ReadableStream<UIMessageChunk> {
   const chunks = [
     { type: 'start' },
     { type: 'text-start', id: 't1' },
     { type: 'text-delta', id: 't1', delta: 'Partial answer' },
-    { type: 'error', errorText: SSE_QUOTA_FRAME }
+    { type: 'error', errorText }
   ] as UIMessageChunk[]
   let index = 0
   return new ReadableStream<UIMessageChunk>({
@@ -176,5 +180,32 @@ describe('AiStreamManager — mid-stream SSE error frame', () => {
       | { text?: string }
       | undefined
     expect(text?.text).toBe('Partial answer')
+  })
+
+  it('keeps the quota diagnosis when the frame carries no HTTP status', async () => {
+    // "Request rejected" names no cause and the frame has no status; only the
+    // provider's `code` says quota. Unwrapping must not leave the failure
+    // unclassifiable, or the renderer drops quota guidance and settings navigation.
+    mockStreamText.mockResolvedValue(quotaFramedStream(SSE_QUOTA_CODE_ONLY_FRAME))
+    const listener = new ErrorCapturingListener()
+    mgr.send({
+      topicId: 'topic-sse-4',
+      models: [
+        {
+          modelId: 'deepseek::deepseek-chat',
+          request: { conversation: { id: 'c', topicId: 'topic-sse-4' }, trigger: 'submit-message', messages: [] }
+        }
+      ],
+      listeners: [listener]
+    })
+
+    expect(await flushUntil(() => listener.errors.length > 0)).toBe(true)
+
+    const error = listener.errors[0].error
+    expect(error.message).toBe('Request rejected')
+    expect(error.providerErrorCategory).toBe('quota')
+    expect(error.providerErrorCode).toBe('insufficient_quota')
+    const failure = toExecutionFailure(error, 'deepseek::deepseek-chat')
+    expect(failure.failure.reasonCode).toBe('quota')
   })
 })

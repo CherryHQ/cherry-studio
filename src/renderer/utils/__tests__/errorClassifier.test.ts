@@ -49,6 +49,18 @@ describe('classifyError', () => {
     expect(result.category).toBe('rate_limit')
   })
 
+  it('uses a retained provider category whose message names no cause', () => {
+    // SSE frames unwrapped by the stream manager keep their diagnosis here; the bare
+    // provider message ("Request rejected") would otherwise classify as unknown and
+    // drop the quota guidance and provider-settings navigation.
+    const result = classifyError(
+      makeError({ name: 'StreamError', message: 'Request rejected', providerErrorCategory: 'quota' }),
+      'anthropic'
+    )
+    expect(result.category).toBe('quota')
+    expect(result.navTarget).toBe('/settings/provider?id=anthropic')
+  })
+
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')
