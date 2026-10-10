@@ -40,7 +40,7 @@ describe('main network cURL export', () => {
       requestBody: { text: 'payload', replayable: true }
     })
 
-    expect(curl).toContain("-X")
+    expect(curl).toContain('-X')
     expect(curl).toContain("'GET'")
     expect(curl).toContain('--data-raw')
     expect(curl).toContain("'payload'")
