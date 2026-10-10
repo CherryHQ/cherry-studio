@@ -4,10 +4,14 @@
  * delegates the write to a `PersistenceBackend`.
  */
 
+import { isToolUIPart } from 'ai'
+
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
+import { messageArtifactRetentionService } from '@data/services/MessageArtifactRetentionService'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { isNativeImageOutput } from '@shared/ai/nativeImageGeneration'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -108,6 +112,7 @@ export class PersistenceListener implements StreamListener {
         topicId: this.opts.topicId,
         status
       })
+      if (result.anchorMessageId) messageArtifactRetentionService.releaseMessageArtifacts(result.anchorMessageId)
       return
     }
 
@@ -127,6 +132,7 @@ export class PersistenceListener implements StreamListener {
       ...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) ? { contextTokens } : {})
     }
 
+    let persisted = false
     try {
       const saved = await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
@@ -134,6 +140,7 @@ export class PersistenceListener implements StreamListener {
         modelId: this.opts.modelId,
         ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
       })
+      persisted = true
       if (saved) result.persistence = { status: 'saved', message: saved }
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,
@@ -175,6 +182,23 @@ export class PersistenceListener implements StreamListener {
         })
       }
       throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
+    } finally {
+      const persistedFileIds = new Set<string>()
+      if (persisted && this.opts.backend.kind === 'temp') {
+        for (const part of finalMessageForPersistence?.parts ?? []) {
+          if (isToolUIPart(part) && part.state === 'output-available' && isNativeImageOutput(part.output)) {
+            for (const file of part.output.files) persistedFileIds.add(file.id)
+          }
+        }
+      }
+      for (const id of new Set([finalMessage?.id, result.anchorMessageId])) {
+        if (!id) continue
+        if (persisted && this.opts.backend.kind === 'temp') {
+          messageArtifactRetentionService.reconcileMessageArtifacts(id, persistedFileIds)
+        } else {
+          messageArtifactRetentionService.releaseMessageArtifacts(id)
+        }
+      }
     }
 
     if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {

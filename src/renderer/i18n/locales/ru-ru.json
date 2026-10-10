@@ -677,6 +677,7 @@
   "chat.input.followup_queue.steer": "Отправить в текущий ход",
   "chat.input.followup_queue.title": "В очереди ({{count}})",
   "chat.input.generate_image": "Сгенерировать изображение",
+  "chat.input.generate_image_native": "Создать изображение с Grok",
   "chat.input.generate_image_no_model": "Настройте модель для рисования в разделе Настройки › Модель по умолчанию",
   "chat.input.image_preview_failed": "Предпросмотр изображения не удался",
   "chat.input.knowledge_base": "База знаний",

@@ -6,7 +6,7 @@ import type { ProviderV3 } from '@ai-sdk/provider'
  * 各 SDK 的工具键名不同（OpenAI: webSearch, Anthropic: webSearch_20250305, Google: googleSearch），
  * 但表达的是同一种能力。Plugin 通过 ToolCapability 进行跨 provider 统一查找。
  */
-export type ToolCapability = 'webSearch' | 'fileSearch' | 'codeExecution' | 'urlContext'
+export type ToolCapability = 'webSearch' | 'fileSearch' | 'codeExecution' | 'imageGeneration' | 'urlContext'
 
 /**
  * 工具工厂返回的 patch，描述要合并到 params 的修改。

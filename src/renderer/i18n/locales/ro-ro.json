@@ -677,6 +677,7 @@
   "chat.input.followup_queue.steer": "Trimite în tura curentă",
   "chat.input.followup_queue.title": "În coadă ({{count}})",
   "chat.input.generate_image": "Generează imagine",
+  "chat.input.generate_image_native": "Generează o imagine cu Grok",
   "chat.input.generate_image_no_model": "Configurează un model de pictură în Setări › Model implicit",
   "chat.input.image_preview_failed": "Previzualizarea imaginii a eșuat",
   "chat.input.knowledge_base": "Bază de cunoștințe",

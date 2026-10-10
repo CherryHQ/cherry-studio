@@ -20,6 +20,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { isNativeImageOutput } from '@shared/ai/nativeImageGeneration'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -259,6 +260,8 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
   for (const part of data?.parts ?? []) {
     if (part.type === 'file') {
       add(readCherryMeta(part)?.fileEntryId, 'attachment')
+    } else if (isToolUIPart(part) && part.state === 'output-available' && isNativeImageOutput(part.output)) {
+      for (const file of part.output.files) add(file.id, 'tool_output')
     } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
     }
@@ -1475,6 +1478,11 @@ export class MessageService {
    * Uses transaction to ensure atomicity of validation and update.
    * Cycle check is performed outside transaction as a read-only safety check.
    */
+  /** Restore message-owned file references in the caller's promotion transaction. */
+  syncFileRefsTx(tx: DbOrTx, id: string, data: MessageData): void {
+    replaceChatMessageFileRefsTx(tx, id, data)
+  }
+
   update(id: string, dto: UpdateMessageDto): Message {
     // Pre-transaction: Check for cycle if moving to new parent
     // This is done outside transaction since getDescendantIds uses its own db context

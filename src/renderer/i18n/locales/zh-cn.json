@@ -677,6 +677,7 @@
   "chat.input.followup_queue.steer": "插入消息",
   "chat.input.followup_queue.title": "排队中 ({{count}})",
   "chat.input.generate_image": "生成图片",
+  "chat.input.generate_image_native": "使用 Grok 生成图片",
   "chat.input.generate_image_no_model": "请在 设置 › 默认模型 中配置画图模型",
   "chat.input.image_preview_failed": "图片预览失败",
   "chat.input.knowledge_base": "知识库",

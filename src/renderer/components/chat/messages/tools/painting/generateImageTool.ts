@@ -2,6 +2,7 @@ import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import { getToolName, isToolUIPart } from 'ai'
 
 import { GENERATE_IMAGE_TOOL_NAME, generateImageOutputSchema } from '@shared/ai/builtinTools'
+import { isNativeImageOutput, NATIVE_IMAGE_TOOL_NAME } from '@shared/ai/nativeImageGeneration'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -10,14 +11,18 @@ import { buildToolResponseFromPart } from '../toolResponse'
 const CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
 
 export function isGenerateImageToolName(toolName: string): boolean {
-  return toolName === GENERATE_IMAGE_TOOL_NAME || toolName === CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME
+  return (
+    toolName === GENERATE_IMAGE_TOOL_NAME ||
+    toolName === CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME ||
+    toolName === NATIVE_IMAGE_TOOL_NAME
+  )
 }
 
 export function parseGeneratedImageOutput(response: unknown) {
   const outputParse = generateImageOutputSchema.safeParse(response)
   const mcpOutputParse = CallToolResultSchema.safeParse(response)
   return {
-    items: outputParse.success ? outputParse.data : [],
+    items: isNativeImageOutput(response) ? response.files : outputParse.success ? outputParse.data : [],
     inlineUrls:
       mcpOutputParse.success && mcpOutputParse.data.isError !== true
         ? mcpOutputParse.data.content.flatMap((item) =>

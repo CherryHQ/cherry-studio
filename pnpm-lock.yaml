@@ -228,6 +228,7 @@ patchedDependencies:
   '@ai-sdk/openai-compatible@2.0.72': e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480
   '@ai-sdk/openai@3.0.109': 20f56d97d97f666e8356fde783cde3f9e5bae2cb02af1c17e2644c184c306a5b
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
+  '@ai-sdk/xai@3.0.126': f71417e9232627a3bc96e89999bda0a3e386b595608afbaeffc55cd504c9749b
   '@aiden0z/pptx-renderer@1.2.2': cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329
   '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2': 22e1bba3e6b5d2567a6c64821bc2310147b41f8f6d993774d1c65b249f7d6d78
   '@deepseek-ai/dsh-sandbox-local@0.2.0-rc.2': 8a2acc0e4ca1a7015dd7dedf825038230b7770b4f260fc93ae205247b3b3e9ec
@@ -472,7 +473,7 @@ importers:
         version: 2.0.78(zod@4.4.3)
       '@ai-sdk/xai':
         specifier: ^3.0.126
-        version: 3.0.126(zod@4.4.3)
+        version: 3.0.126(patch_hash=f71417e9232627a3bc96e89999bda0a3e386b595608afbaeffc55cd504c9749b)(zod@4.4.3)
       '@anthropic-ai/sdk':
         specifier: ^0.93.0
         version: 0.93.0(zod@4.4.3)
@@ -1707,7 +1708,7 @@ importers:
         version: 4.0.56(zod@4.4.3)
       '@ai-sdk/xai':
         specifier: ^3.0.126
-        version: 3.0.126(zod@4.4.3)
+        version: 3.0.126(patch_hash=f71417e9232627a3bc96e89999bda0a3e386b595608afbaeffc55cd504c9749b)(zod@4.4.3)
       '@cherrystudio/ai-sdk-provider':
         specifier: workspace:*
         version: link:../ai-sdk-provider
@@ -17226,7 +17227,7 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.56(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/xai@3.0.126(zod@4.4.3)':
+  '@ai-sdk/xai@3.0.126(patch_hash=f71417e9232627a3bc96e89999bda0a3e386b595608afbaeffc55cd504c9749b)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18

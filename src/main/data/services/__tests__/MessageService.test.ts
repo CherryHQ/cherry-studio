@@ -1812,6 +1812,36 @@ describe('MessageService', () => {
   })
 
   describe('chat message file refs', () => {
+    // Regression: native image files must remain owned by the persisted chat until its message is deleted.
+    it('retains native image artifacts as tool output refs', async () => {
+      const topicId = 'native-image-ref'
+      const fileId = '019606a0-0000-7000-8000-00000000fa01'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-imageGeneration',
+              toolCallId: 'image-call',
+              state: 'output-available',
+              input: {},
+              providerExecuted: true,
+              output: { nativeImage: true, files: [{ id: fileId, name: 'Grok image' }] }
+            }
+          ]
+        }
+      })
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({ fileEntryId: fileId, role: 'tool_output' })
+    })
+
     it('syncs refs when reserving a new user message with file parts', async () => {
       const topicId = 'topic-ref-reserve'
       const fileId = '019606a0-0000-7000-8000-00000000fa01'

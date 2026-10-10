@@ -260,7 +260,7 @@ export interface FileEntryService {
   findManualUnreferenced(query?: { origin?: FileEntryOrigin }): FileEntry[]
 
   /** Auto-policy entries past grace with zero persistent refs (trashed included) — backs the GC pass. */
-  findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[]
+  findCleanupCandidates(opts: { graceMs: number; limit: number; offset?: number }): FileEntry[]
 
   /**
    * All entry ids regardless of trashed state — backs the FS orphan sweep,
@@ -742,7 +742,7 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
   }
 
-  findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[] {
+  findCleanupCandidates(opts: { graceMs: number; limit: number; offset?: number }): FileEntry[] {
     const conditions: SQL[] = [
       // NOTE: no deletedAt filter — trashed auto entries are reclaimed too (spec §5.1)
       eq(fileEntryTable.cleanupPolicy, 'delete_when_unreferenced'),
@@ -753,8 +753,9 @@ class FileEntryServiceImpl implements FileEntryService {
       .select({ entry: fileEntryTable })
       .from(fileEntryTable)
       .where(and(...conditions))
-      .orderBy(asc(fileEntryTable.createdAt))
+      .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
       .limit(opts.limit)
+      .offset(opts.offset ?? 0)
       .all()
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
   }

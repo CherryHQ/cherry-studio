@@ -76,10 +76,20 @@ export async function runEntryCleanup(
   }
   try {
     await intakeProtection?.load()
-    const batch = deps.fileEntryService.findCleanupCandidates({
-      graceMs: ENTRY_CLEANUP_GRACE_MS,
-      limit: ENTRY_CLEANUP_BATCH_LIMIT
-    })
+    const batch: FileEntry[] = []
+    let offset = 0
+    while (batch.length < ENTRY_CLEANUP_BATCH_LIMIT) {
+      const page = deps.fileEntryService.findCleanupCandidates({
+        graceMs: ENTRY_CLEANUP_GRACE_MS,
+        limit: ENTRY_CLEANUP_BATCH_LIMIT,
+        offset
+      })
+      batch.push(
+        ...page.filter((entry) => !deps.isEntryRetained(entry.id)).slice(0, ENTRY_CLEANUP_BATCH_LIMIT - batch.length)
+      )
+      if (page.length < ENTRY_CLEANUP_BATCH_LIMIT) break
+      offset += page.length
+    }
     const candidates = batch.length
     if (candidates === 0) {
       return finish({
@@ -111,7 +121,10 @@ export async function runEntryCleanup(
           ) {
             return { kind: 'gone-or-pinned' }
           }
-          if (deps.fileRefService.countPersistentRefsByEntryIdTx(tx, candidate.id) > 0) {
+          if (
+            deps.isEntryRetained(candidate.id) ||
+            deps.fileRefService.countPersistentRefsByEntryIdTx(tx, candidate.id) > 0
+          ) {
             return { kind: 'refs-reappeared' }
           }
           deps.fileEntryService.deleteTx(tx, candidate.id)

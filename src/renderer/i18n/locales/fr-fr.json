@@ -677,6 +677,7 @@
   "chat.input.followup_queue.steer": "Envoyer dans le tour en cours",
   "chat.input.followup_queue.title": "Mis en file d’attente ({{count}})",
   "chat.input.generate_image": "Générer une image",
+  "chat.input.generate_image_native": "Générer une image avec Grok",
   "chat.input.generate_image_no_model": "Configurez un modèle de peinture dans Paramètres › Modèle par défaut",
   "chat.input.image_preview_failed": "L'aperçu de l'image a échoué",
   "chat.input.knowledge_base": "Base de connaissances",
