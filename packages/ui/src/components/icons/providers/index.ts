@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-09-10T18:57:46.000Z
- * Total icons: 163
+ * Total icons: 164
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -163,6 +163,7 @@ export { WorkersAiIcon as WorkersAi } from './workers-ai'
 export { XiaoyiIcon as Xiaoyi } from './xiaoyi'
 export { XinghuoIcon as Xinghuo } from './xinghuo'
 export { XirangIcon as Xirang } from './xirang'
+export { YApiIcon as YApi } from './y-api/y-api'
 export { YouIcon as You } from './you'
 export { YuanbaoIcon as Yuanbao } from './yuanbao'
 export { ZAiIcon as ZAi } from './z-ai'
