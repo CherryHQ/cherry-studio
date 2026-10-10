@@ -8,7 +8,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { DoctorAgentDialog } from '@renderer/components/doctor'
 import i18n from '@renderer/i18n/resolver'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { openDoctorTarget } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
@@ -672,7 +672,7 @@ export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
 
   void ErrorDetailPopup.show({
     ...params,
-    onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
+    onDoctorNavigate: (target) => finishHandoff(() => openDoctorTarget(target)),
     onOpenDiagnosticReport: (initialDescription) =>
       finishHandoff(() => {
         void DoctorPopup.show({ initialPanel: 'report', initialDescription })
