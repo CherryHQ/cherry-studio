@@ -650,9 +650,12 @@ export function captureRequestBody(body: unknown, contentType?: string): MainNet
   if (body instanceof URLSearchParams)
     return createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded')
   if (typeof FormData !== 'undefined' && body instanceof FormData) {
+    const captured = createCapturedTextBody(
+      JSON.stringify(formDataToRecord(body)),
+      contentType ?? 'multipart/form-data'
+    )
     return {
-      text: JSON.stringify(formDataToRecord(body)),
-      contentType: contentType ?? 'multipart/form-data',
+      ...captured,
       replayable: false,
       note: 'Multipart FormData cannot be exported as cURL.'
     }

@@ -221,6 +221,19 @@ describe('MainNetworkDevtoolsService helpers', () => {
     })
   })
 
+  it('truncates large multipart FormData display summaries like other text bodies', () => {
+    const formData = new FormData()
+    formData.append('prompt', 'x'.repeat(200 * 1024))
+
+    const captured = captureRequestBody(formData)
+    expect(captured?.text?.length).toBe(128 * 1024)
+    expect(captured).toMatchObject({
+      truncated: true,
+      replayable: false,
+      note: 'Multipart FormData cannot be exported as cURL.'
+    })
+  })
+
   it('allows only registered DevTools extension origins', () => {
     const service = new MainNetworkDevtoolsService()
     const serviceState = service as unknown as {
