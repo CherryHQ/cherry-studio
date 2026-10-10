@@ -1718,6 +1718,77 @@ describe('AiStreamManager', () => {
       expect(listener.doneResults).toHaveLength(1)
       expect(mgr.inspect('a')?.status).toBe('done')
     })
+
+    it('demotes a billed zero-answer turn through the error path before terminal classification', async () => {
+      const l = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [l]
+      })
+      // Inject the terminal snapshot the accumulator would produce for #21315:
+      // the provider billed tokens, but no answer content was streamed.
+      const exec = (
+        mgr as unknown as {
+          activeStreams: Map<string, { executions: Map<string, { finalMessage?: CherryUIMessage }> }>
+        }
+      ).activeStreams
+        .get('a')!
+        .executions.get('provider-a::model-a')!
+      exec.finalMessage = {
+        id: 'msg-z',
+        role: 'assistant',
+        parts: [{ type: 'step-start' }],
+        metadata: { stats: { outputTokens: 401 } }
+      } as unknown as CherryUIMessage
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      // The authoritative terminal outcome itself must be the error path —
+      // not a persisted-row-only demotion behind a success terminal event.
+      expect(l.doneResults).toEqual([])
+      expect(l.errorResults).toHaveLength(1)
+      expect(l.errorResults[0].error.name).toBe('EmptyResponseError')
+      expect(l.errorResults[0].status).toBe('error')
+      expect(mgr.inspect('a')!.status).toBe('error')
+      // The chat lifecycle sees a non-'done' terminal status: no completion event.
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('keeps the empty-success exemption for streams whose backend accepts empty success terminals', async () => {
+      class ExemptingListener extends FakeListener {
+        readonly allowsEmptySuccessTerminal = true as const
+      }
+      const l = new ExemptingListener('persistence:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [l],
+        isPersistentConversation: true
+      })
+      const exec = (
+        mgr as unknown as {
+          activeStreams: Map<string, { executions: Map<string, { finalMessage?: CherryUIMessage }> }>
+        }
+      ).activeStreams
+        .get('a')!
+        .executions.get('provider-a::model-a')!
+      exec.finalMessage = {
+        id: 'msg-z',
+        role: 'assistant',
+        parts: [{ type: 'step-start' }],
+        metadata: { stats: { outputTokens: 401 } }
+      } as unknown as CherryUIMessage
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      expect(l.errorResults).toEqual([])
+      expect(l.doneResults).toHaveLength(1)
+      expect(mgr.inspect('a')!.status).toBe('done')
+      expect(conversationCompletedEvents).toHaveLength(1)
+    })
   })
 
   // ── onExecutionError ────────────────────────────────────────────

@@ -58,6 +58,7 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import { zeroTextTurnDemotionError } from './persistence/PersistenceBackend'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import type {
@@ -1403,6 +1404,16 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'streaming') return
 
+    // A billed zero-answer turn is a runtime gap, not a clean success (#21315): demote it
+    // through the authoritative error path BEFORE terminal classification, so topic status,
+    // the completion event, and notifications all report failure — not just the persisted
+    // row. Streams whose persistence accepts an empty success terminal (agent sessions)
+    // keep their semantics.
+    if (!this.allowsEmptySuccessTerminal(stream)) {
+      const demotion = zeroTextTurnDemotionError(exec.finalMessage, modelId)
+      if (demotion) return this.onExecutionError(topicId, modelId, demotion, expectedExecution)
+    }
+
     exec.status = 'done'
     exec.runtimeTiming.closeOpenToolSpans()
     if ((exec.pendingApprovalToolCallIds?.size ?? 0) === 0) {
@@ -2103,6 +2114,14 @@ export class AiStreamManager extends BaseService {
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
     await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result))
+  }
+
+  /** Any persistence listener whose backend accepts an empty success terminal (agent sessions). */
+  private allowsEmptySuccessTerminal(stream: ActiveStream): boolean {
+    for (const listener of stream.listeners.values()) {
+      if (listener.allowsEmptySuccessTerminal === true) return true
+    }
+    return false
   }
 
   private getTopicAttemptWatermark(stream: ActiveStream): number {

@@ -20,8 +20,10 @@ import type { SerializedError } from '@shared/types/error'
 import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
+  hasNoAnswerContent,
   type PersistenceBackend,
-  stripTransientStatusParts
+  stripTransientStatusParts,
+  zeroTextTurnError
 } from '../persistence/PersistenceBackend'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
@@ -47,9 +49,11 @@ export interface PersistenceListenerOptions {
 export class PersistenceListener implements StreamListener {
   readonly id: string
   readonly terminalPhase = 'persistence' as const
+  readonly allowsEmptySuccessTerminal: boolean
 
   constructor(private readonly opts: PersistenceListenerOptions) {
     this.id = `persistence:${opts.backend.kind}:${opts.topicId}:${opts.modelId ?? 'default'}`
+    this.allowsEmptySuccessTerminal = opts.backend.canPersistEmptySuccessTerminal === true
   }
 
   /** Backend strategy tag (e.g. "sqlite", "temp", "agents-db"). */
@@ -121,6 +125,35 @@ export class PersistenceListener implements StreamListener {
           parts: finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
         }
       : finalMessage
+
+    // A billed zero-text turn: the stream ended cleanly and usage reported
+    // output tokens, yet no answer content was streamed (e.g. an upstream
+    // completion cap truncating the reply below the configured
+    // maxOutputTokens — issue #21315). Persisting it as `success` shows the
+    // user a silent empty bubble; demote it through the existing error path
+    // so the failure is surfaced with a retry affordance. Backends that
+    // accept an empty success (agent sessions) keep their semantics.
+    if (
+      status === 'success' &&
+      finalMessageForPersistence &&
+      !this.opts.backend.canPersistEmptySuccessTerminal &&
+      finalMessageForPersistence.metadata?.stats?.outputTokens !== undefined &&
+      finalMessageForPersistence.metadata.stats.outputTokens > 0 &&
+      hasNoAnswerContent(finalMessageForPersistence.parts)
+    ) {
+      // Shared synthetic error carrying explicit app-owned failure metadata (see
+      // zeroTextTurnError): the prose's billed token count is never re-parsed as an
+      // HTTP status.
+      const error = zeroTextTurnError(finalMessageForPersistence.metadata.stats.outputTokens, this.opts.modelId)
+      const withErrorPart = mergeErrorIntoMessage(
+        finalMessageForPersistence,
+        error,
+        error.executionFailure as ExecutionFailure,
+        result.anchorMessageId
+      )
+      return this.persistAssistant(withErrorPart, 'error', runtimeTiming, result)
+    }
+
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
     const runtimeStats: MessageRuntimeStatsInput = {
       ...(runtimeTiming ? { runtimeTiming } : {}),
