@@ -71,15 +71,11 @@ const effortWire = modeWire(
 
 const thinkingBudgetWire: ReasoningWireProfile = {
   auto: {
-    operations: [
-      { target: 'extra_body.thinking_budget', value: { source: 'budget' }, delivery: 'request-body' as const }
-    ],
+    operations: [{ target: 'extra_body.thinking_budget', value: { source: 'budget' } }],
     budget: { missing: { type: 'omit-mode' } }
   },
   effort: {
-    operations: [
-      { target: 'extra_body.thinking_budget', value: { source: 'budget' }, delivery: 'request-body' as const }
-    ],
+    operations: [{ target: 'extra_body.thinking_budget', value: { source: 'budget' } }],
     budget: { missing: { type: 'omit-mode' } }
   }
 }

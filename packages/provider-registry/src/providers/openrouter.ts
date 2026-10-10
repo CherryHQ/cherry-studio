@@ -1,6 +1,7 @@
 import { CURRENCY } from '../schemas/enums'
 import { fixedSamplingParameterSupport } from './parameterSupports'
 import { defineProvider } from './types'
+import { EFFORT, modeWire } from './wires'
 
 export default defineProvider({
   id: 'openrouter',
@@ -31,30 +32,7 @@ export default defineProvider({
       baseUrl: 'https://openrouter.ai/api/v1/',
       reasoningFormat: {
         type: 'openai-chat',
-        wire: {
-          off: {
-            operations: [
-              {
-                target: 'reasoning.effort',
-                value: { source: 'literal', value: 'none' },
-                delivery: 'request-body' as const
-              }
-            ]
-          },
-          auto: {
-            operations: [
-              {
-                target: 'reasoning.effort',
-                value: { source: 'effort' },
-                delivery: 'request-body' as const
-              }
-            ],
-            effortMap: { auto: 'medium' }
-          },
-          effort: {
-            operations: [{ target: 'reasoning.effort', value: { source: 'effort' }, delivery: 'request-body' as const }]
-          }
-        }
+        wire: modeWire('reasoning.effort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
       },
       requestControls: {
         serviceTier: {

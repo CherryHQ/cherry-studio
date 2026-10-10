@@ -45,11 +45,9 @@ const chatEffortModels: Array<{
   values: ReasoningEffort[]
   defaultEffort?: ReasoningEffort
   pricing?: ProviderModelOverride['pricing']
-  name?: string
 }> = [
   { modelId: 'deepseek-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
-  { modelId: 'deepseek-v4-1-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash-vision-exp', values: ['high', 'max'] },
   // models.dev leaves this SKU unclassified (no provider.npm); it prints a
   // chat/completions effort ladder, so pin chat like the family above.
@@ -71,9 +69,9 @@ const chatEffortModels: Array<{
   { modelId: 'kimi-k3', values: ['max'] },
   // Stealth model, no creator entry: models.dev routes it through `@ai-sdk/openai-compatible`
   // and prints an effort ladder, so pin chat/completions rather than let it fall back unpinned.
-  { modelId: 'ox-alpha', values: ['low', 'high', 'max'], name: 'Ox Alpha Free (Unlimited)' },
+  { modelId: 'ox-alpha', values: ['low', 'high', 'max'] },
   // Same shape as ox-alpha: unclassified stealth SKU, chat/completions with a printed ladder.
-  { modelId: 'omen-alpha', values: ['low', 'high'], name: 'Omen Alpha' }
+  { modelId: 'omen-alpha', values: ['low', 'high'] }
 ]
 
 const anthropicFixedModels = ['minimax-m2-5', 'minimax-m2-7']
@@ -95,18 +93,15 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
       'openai-chat-completions': { support: fixedSupport }
     }
   })),
-  ...chatEffortModels.map(({ modelId, values, defaultEffort, pricing, name }) => ({
+  ...chatEffortModels.map(({ modelId, values, defaultEffort, pricing }) => ({
     modelId,
     endpointTypes: ['openai-chat-completions' as const],
-    ...(name ? { name } : {}),
     ...(pricing ? { pricing } : {}),
     reasoningContracts: {
       'openai-chat-completions': { support: effortSupport(values, defaultEffort) }
     }
   })),
   { modelId: 'longcat-2-0', endpointTypes: ['openai-chat-completions'] },
-  { modelId: 'longcat-2-5-preview', endpointTypes: ['openai-chat-completions'] },
-  { modelId: 'space-bunny', endpointTypes: ['openai-chat-completions'] },
   // models.dev routes Zen Go's Grok 4.5 through `@ai-sdk/openai` (Responses); the Go endpoint table
   // still prints chat/completions, so Chat stays selectable behind the Responses default (#17860).
   {
@@ -133,13 +128,6 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
   },
   {
     modelId: 'gpt-5-6-luna',
-    endpointTypes: ['openai-responses' as const],
-    reasoningContracts: {
-      'openai-responses': { support: effortSupport(['none', 'low', 'medium', 'high', 'xhigh', 'max']) }
-    }
-  },
-  {
-    modelId: 'gpt-6-luna',
     endpointTypes: ['openai-responses' as const],
     reasoningContracts: {
       'openai-responses': { support: effortSupport(['none', 'low', 'medium', 'high', 'xhigh', 'max']) }

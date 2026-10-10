@@ -53,30 +53,7 @@ const override = (modelId: string, support: ReasoningSupport): Partial<ProviderM
   reasoningContracts: reasoningContracts(support)
 })
 
-const toggleModels: Array<{
-  modelId: string
-  apiModelId: string
-  pricing: NonNullable<ProviderModelOverride['pricing']>
-}> = [
-  {
-    modelId: 'kimi-k2-6',
-    apiModelId: 'accounts/fireworks/models/kimi-k2p6',
-    pricing: {
-      cacheRead: { currency: 'USD', perMillionTokens: 0.16 },
-      input: { currency: 'USD', perMillionTokens: 0.95 },
-      output: { currency: 'USD', perMillionTokens: 4 }
-    }
-  },
-  {
-    modelId: 'kimi-k2-7-code',
-    apiModelId: 'accounts/fireworks/models/kimi-k2p7-code',
-    pricing: {
-      cacheRead: { currency: 'USD', perMillionTokens: 0.19 },
-      input: { currency: 'USD', perMillionTokens: 0.95 },
-      output: { currency: 'USD', perMillionTokens: 4 }
-    }
-  }
-]
+const toggleModels = ['kimi-k2-6', 'kimi-k2-7-code']
 
 // `/v1/models` does not reliably list router-backed variants; keep the exact IDs
 // advertised by Fireworks' serving-path and integration docs.
@@ -119,62 +96,12 @@ const effortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
   { modelId: 'minimax-m3', values: ['low', 'medium', 'high'] }
 ]
 
-const adjustableModels: Array<{
-  modelId: string
-  apiModelId: string
-  values: ReasoningEffort[]
-  pricing: NonNullable<ProviderModelOverride['pricing']>
-}> = [
-  {
-    modelId: 'deepseek-v4-flash',
-    apiModelId: 'accounts/fireworks/models/deepseek-v4-flash-0731',
-    values: ['high', 'max'],
-    pricing: {
-      cacheRead: { currency: 'USD', perMillionTokens: 0.007 },
-      input: { currency: 'USD', perMillionTokens: 0.22 },
-      output: { currency: 'USD', perMillionTokens: 0.66 }
-    }
-  },
-  {
-    modelId: 'deepseek-v4-pro',
-    apiModelId: 'accounts/fireworks/models/deepseek-v4-pro-0813',
-    values: ['high', 'max'],
-    pricing: {
-      cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
-      input: { currency: 'USD', perMillionTokens: 1.32 },
-      output: { currency: 'USD', perMillionTokens: 3.96 }
-    }
-  },
-  {
-    modelId: 'glm-5-2',
-    apiModelId: 'accounts/fireworks/models/glm-5p2',
-    values: ['high', 'max'],
-    pricing: {
-      cacheRead: { currency: 'USD', perMillionTokens: 0.14 },
-      input: { currency: 'USD', perMillionTokens: 1.4 },
-      output: { currency: 'USD', perMillionTokens: 4.4 }
-    }
-  },
-  {
-    modelId: 'glm-5-2-fast',
-    apiModelId: 'accounts/fireworks/routers/glm-5p2-fast',
-    values: ['high', 'max'],
-    pricing: {
-      cacheRead: { currency: 'USD', perMillionTokens: 0.21 },
-      input: { currency: 'USD', perMillionTokens: 2.1 },
-      output: { currency: 'USD', perMillionTokens: 6.6 }
-    }
-  },
-  {
-    modelId: 'qwen3-7-plus',
-    apiModelId: 'accounts/fireworks/models/qwen3p7-plus',
-    values: ['low', 'medium', 'high'],
-    pricing: {
-      cacheRead: { currency: 'USD', perMillionTokens: 0.08 },
-      input: { currency: 'USD', perMillionTokens: 0.4 },
-      output: { currency: 'USD', perMillionTokens: 1.6 }
-    }
-  }
+const adjustableModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
+  { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
+  { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },
+  { modelId: 'glm-5-2', values: ['high', 'max'] },
+  { modelId: 'glm-5-2-fast', values: ['high', 'max'] },
+  { modelId: 'qwen3-7-plus', values: ['low', 'medium', 'high'] }
 ]
 
 export default defineProvider({
@@ -211,11 +138,7 @@ export default defineProvider({
   },
   modelsDevProvider: 'fireworks-ai',
   overrides: [
-    ...toggleModels.map(({ modelId, apiModelId, pricing }) => ({
-      ...override(modelId, toggleSupport),
-      apiModelId,
-      pricing
-    })),
+    ...toggleModels.map((modelId) => override(modelId, toggleSupport)),
     ...fastToggleModels.map((model) => ({ ...override(model.modelId, toggleSupport), ...model })),
     {
       ...override('glm-5-1-fast', toggleSupport),
@@ -246,10 +169,6 @@ export default defineProvider({
       }
     },
     ...effortModels.map(({ modelId, values }) => override(modelId, effortSupport(values))),
-    ...adjustableModels.map(({ modelId, apiModelId, values, pricing }) => ({
-      ...override(modelId, adjustableSupport(values)),
-      apiModelId,
-      pricing
-    }))
+    ...adjustableModels.map(({ modelId, values }) => override(modelId, adjustableSupport(values)))
   ]
 })

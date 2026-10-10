@@ -42,7 +42,6 @@ export default defineCreator({
     { pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', effort: ['minimal', 'low', 'medium', 'high'] },
     // gpt-6 and later inherit the full upstream effort ladder (gpt-6-astra is the first SKU)
     { pattern: '^gpt-6', effort: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
-    { pattern: '^gpt-daybreak', effort: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
     { pattern: '^gpt-oss', effort: ['low', 'medium', 'high'] },
     // o-series reasoning SKUs (excluding the non-reasoning previews)
     { pattern: '^o1(?!-preview|-mini)|^o3|^o4', effort: ['low', 'medium', 'high'] },
