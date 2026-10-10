@@ -2249,6 +2249,55 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).not.toContain('<thinking>')
     })
 
+    it('emits snapshot-only parentless text with angle brackets before a successful result', () => {
+      const { adapter, parts } = createAdapter()
+      const reply = 'Use a < comparison operator in this reply'
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: reply }]
+        }
+      } as any)
+      adapter.handleMessage(successResult())
+
+      const textStarts = parts.filter((part) => part.type === 'text-start')
+      const textEnds = parts.filter((part) => part.type === 'text-end')
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toBe(reply)
+      expect(textStarts).toHaveLength(1)
+      expect(textEnds).toHaveLength(1)
+    })
+
+    it('preserves literal scratchpad tags inside fenced examples when stripping wrappers', () => {
+      const { adapter, parts } = createAdapter()
+      const mixed = '<thinking>internal</thinking>```xml\n<thinking>literal example</thinking>\n```'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: mixed } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toContain('<thinking>literal example</thinking>')
+      expect(text).not.toContain('internal')
+    })
+
     it('keeps visible reply text after a scratchpad wrapper in a later stream delta', () => {
       const { adapter, parts } = createAdapter()
       const leakedThinking = '<thinking>internal reasoning about the session</thinking>'

@@ -83,6 +83,27 @@ The content that actually matters: 1. Task Overview  2. Current State  3. Next S
     expect(result).toContain('<summary>1. Task: foo</summary>')
   })
 
+  it('preserves scratchpad-shaped literals inside tilde fences and longer backtick fences', () => {
+    const tildeExample = `<summary>
+Example:
+~~~xml
+<thinking>literal example</thinking>
+~~~
+</summary>`
+
+    expect(stripModelScratchpadBlocks(tildeExample)).toContain('<thinking>literal example</thinking>')
+
+    const fourTick = `<summary>
+\`\`\`\`text
+\`\`\`xml
+<thinking>nested fence example</thinking>
+\`\`\`
+\`\`\`\`
+</summary>`
+
+    expect(stripModelScratchpadBlocks(fourTick)).toContain('<thinking>nested fence example</thinking>')
+  })
+
   it('unwraps a whole summary block that quotes summary tags inside a fenced example', () => {
     const input = `<summary>
 1. Task Overview: user wants the syntax for a reasoning tag

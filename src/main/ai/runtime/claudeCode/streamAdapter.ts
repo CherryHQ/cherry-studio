@@ -36,7 +36,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
 import {
-  stripKnownModelScratchpadBlocks,
+  stripKnownModelScratchpadBlocksPreservingCodeFences,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from '@cherrystudio/ai-core'
@@ -977,7 +977,7 @@ export class ClaudeCodeStreamAdapter {
     }
 
     if (textStartsWithModelScratchpadTag(probe)) {
-      const stripped = stripKnownModelScratchpadBlocks(probe)
+      const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
       if (stripped.length < probe.length) {
         if (stripped.trim().length > 0) {
           return { action: 'emit', visible: stripped }
@@ -1024,7 +1024,11 @@ export class ClaudeCodeStreamAdapter {
     ctx: StreamContext,
     providerMetadata?: Record<string, JSONObject>
   ): void {
-    if (!text || ctx.suppressActiveTextPart) return
+    if (!text) return
+    if (ctx.suppressActiveTextPart) {
+      if (ctx.textPartStarted) return
+      ctx.suppressActiveTextPart = false
+    }
 
     if (!ctx.textPartId) {
       ctx.textPartId = generateId()
@@ -1272,7 +1276,7 @@ export class ClaudeCodeStreamAdapter {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
     let visibleText = text
     if (ctx.filterParentlessScratchpadText && textStartsWithModelScratchpadTag(text)) {
-      visibleText = stripKnownModelScratchpadBlocks(text)
+      visibleText = stripKnownModelScratchpadBlocksPreservingCodeFences(text)
       if (!visibleText.trim()) {
         if (ctx.hasReceivedStreamEvents) {
           ctx.accumulatedText = text
@@ -1430,7 +1434,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.hasStreamedJson && ctx.options.responseFormat?.type === 'json' && ctx.hasReceivedStreamEvents
 
     if (alreadyStreamedJson) {
-      if (ctx.textPartId) ctx.sink.enqueue({ type: 'text-end', id: ctx.textPartId })
+      if (ctx.textPartId) this.closeActiveTextPart(ctx)
     } else if (structuredOutput !== undefined) {
       const jsonTextId = generateId()
       const jsonText = JSON.stringify(structuredOutput)
@@ -1438,7 +1442,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({ type: 'text-delta', id: jsonTextId, delta: jsonText })
       ctx.sink.enqueue({ type: 'text-end', id: jsonTextId })
     } else if (ctx.textPartId) {
-      ctx.sink.enqueue({ type: 'text-end', id: ctx.textPartId })
+      this.closeActiveTextPart(ctx)
     } else if (ctx.accumulatedText && !ctx.textStreamedViaContentBlock) {
       const fallbackTextId = generateId()
       ctx.sink.enqueue({ type: 'text-start', id: fallbackTextId })

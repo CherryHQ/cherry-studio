@@ -79,6 +79,7 @@ export {
   resolveCompressionOutputTokens,
   MODEL_SCRATCHPAD_TAG_NAMES,
   stripKnownModelScratchpadBlocks,
+  stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripModelScratchpadBlocks,
   summarizeModelMessages,
   textStartsWithModelScratchpadTag,
