@@ -756,13 +756,14 @@ export async function assertPathVersionUnchanged(
 /** Get file/directory stats. */
 export async function stat(
   path: AbsoluteFilePath
-): Promise<{ size: number; createdAt: number; modifiedAt: number; isDirectory: boolean }> {
+): Promise<{ size: number; createdAt: number; modifiedAt: number; isDirectory: boolean; isFile: boolean }> {
   const s = await fsStat(path)
   return {
     size: s.size,
     createdAt: Math.floor(s.birthtimeMs),
     modifiedAt: Math.floor(s.mtimeMs),
-    isDirectory: s.isDirectory()
+    isDirectory: s.isDirectory(),
+    isFile: s.isFile()
   }
 }
 

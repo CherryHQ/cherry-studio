@@ -2,7 +2,7 @@ import { chmod, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -29,6 +29,32 @@ describe('canonicalizePathForContainment', () => {
     await expect(
       canonicalizePathForContainment(path.join(root, 'escape', 'secret.txt'), { allowMissing: false })
     ).resolves.toBe(path.join(outside, 'secret.txt'))
+  })
+
+  it('returns undefined when target realpath fails with a non-ENOENT error', async () => {
+    await writeFile(path.join(outside, 'secret.txt'), 'secret')
+    await symlink(outside, path.join(root, 'escape'), dirLinkType)
+    const target = path.join(root, 'escape', 'secret.txt')
+    const resolvedTarget = path.resolve(target)
+
+    vi.resetModules()
+    vi.doMock('node:fs/promises', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('node:fs/promises')>()
+      return {
+        ...actual,
+        realpath: async (p: Parameters<typeof actual.realpath>[0], options?: Parameters<typeof actual.realpath>[1]) => {
+          if (path.resolve(String(p)) === resolvedTarget) {
+            throw Object.assign(new Error('EIO'), { code: 'EIO' })
+          }
+          return actual.realpath(p, options)
+        }
+      }
+    })
+    const { canonicalizePathForContainment: canonicalizeWithMockedRealpath } = await import('../path')
+
+    await expect(canonicalizeWithMockedRealpath(target, { allowMissing: true })).resolves.toBeUndefined()
+    vi.doUnmock('node:fs/promises')
+    vi.resetModules()
   })
 
   it('resolves a missing target below a symlink to where it would be created', async () => {

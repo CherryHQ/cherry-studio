@@ -49,7 +49,7 @@ export async function handleEditTool(args: z.input<typeof EditToolSchema>, baseD
     // Check if file exists
     try {
       const stats = await stat(validPath)
-      if (stats.isDirectory) {
+      if (!stats.isFile) {
         throw new Error(`Path is not a file: ${filePath}`)
       }
     } catch (error: any) {
