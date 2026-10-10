@@ -72,6 +72,15 @@ describe('clampImageForModel', () => {
     await expect(clampImageForModel(new Uint8Array(PNG_1X1))).resolves.toBeNull()
   })
 
+  it('rejects a small truncated PNG that still exposes IHDR in metadata', async () => {
+    const valid = await sharp({ create: { width: 120, height: 50, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const truncated = valid.subarray(0, Math.floor(valid.length / 2))
+
+    await expect(clampImageForModel(truncated)).rejects.toThrow('could not decode image')
+  })
+
   it('throws on undecodable input', async () => {
     await expect(clampImageForModel(new Uint8Array([1, 2, 3]))).rejects.toThrow()
   })
