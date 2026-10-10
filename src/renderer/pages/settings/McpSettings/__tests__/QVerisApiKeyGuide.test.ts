@@ -1,5 +1,6 @@
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { describe, expect, it } from 'vitest'
+
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { isQVerisApiKeyMissing } from '../QVerisApiKeyGuide'
 

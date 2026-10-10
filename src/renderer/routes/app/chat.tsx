@@ -1,7 +1,8 @@
+import { createFileRoute, redirect } from '@tanstack/react-router'
+
 import HomePage from '@renderer/pages/home/HomePage'
 import { parseChatRouteSearch } from '@renderer/pages/home/routeSearch'
 import { resolveChatEntryTopicId, resolveChatEntryTopicIdForAssistant } from '@renderer/utils/conversationEntry'
-import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/app/chat')({
   validateSearch: (search) => parseChatRouteSearch(search),

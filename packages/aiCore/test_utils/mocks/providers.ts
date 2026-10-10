@@ -63,7 +63,7 @@ export function createMockLanguageModel(overrides?: Partial<LanguageModelV3>): L
     }),
 
     ...overrides
-  } as LanguageModelV3
+  }
 }
 
 /**
@@ -89,7 +89,7 @@ export function createMockImageModel(overrides?: Partial<ImageModelV3>): ImageMo
     }),
 
     ...overrides
-  } as ImageModelV3
+  }
 }
 
 /**

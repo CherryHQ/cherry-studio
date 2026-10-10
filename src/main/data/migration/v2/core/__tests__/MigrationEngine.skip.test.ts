@@ -1,5 +1,9 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
- * skipMigration() against a real database.
+ * Migration completion status and skipMigration() against a real database.
  *
  * Migration is not one big transaction, so a failed run leaves committed
  * migrator data behind. Skipping must clear everything migration wrote (shared
@@ -12,9 +16,6 @@ import { jobScheduleTable } from '@data/db/schemas/job'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { MigrationStatusValue } from '@shared/data/migration/v2/types'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MigrationEngine } from '../MigrationEngine'
 
@@ -23,6 +24,10 @@ vi.mock('@main/data/bootConfig', () => ({
     set: vi.fn(),
     persist: vi.fn()
   }
+}))
+
+vi.mock('../MigrationContext', () => ({
+  createMigrationContext: vi.fn().mockResolvedValue({})
 }))
 
 const MIGRATION_V2_STATUS = 'migration_v2_status'
@@ -34,14 +39,16 @@ const failedStatus: MigrationStatusValue = {
   error: 'ChatMigrator execute failed'
 }
 
-describe('MigrationEngine.skipMigration', () => {
+describe('MigrationEngine migration status and skipMigration', () => {
   const dbh = setupTestDatabase()
   let engine: MigrationEngine
 
   beforeEach(() => {
     vi.clearAllMocks()
     engine = new MigrationEngine()
+    ;(engine as any)._paths = { migrationDexieExportDir: '/tmp/cherry-migration-test' }
     ;(engine as any).migrationDb = { getDb: () => dbh.db, close: vi.fn() }
+    vi.spyOn(engine as any, 'cleanupTempFiles').mockResolvedValue(undefined)
   })
 
   /** Rows a partially-failed run would leave behind: business data + schedules. */
@@ -73,6 +80,55 @@ describe('MigrationEngine.skipMigration', () => {
     return row?.value as MigrationStatusValue | undefined
   }
 
+  it('records a fresh install as not migrated from v1', async () => {
+    vi.spyOn(engine as any, 'hasLegacyData').mockReturnValue(false)
+
+    await expect(engine.needsMigration()).resolves.toBe(false)
+
+    expect(readStatus()).toMatchObject({ status: 'completed', migratedFromV1: false })
+    expect(engine.isMigratedFromV1()).toBe(false)
+  })
+
+  it('records a successful migration as migrated from v1', async () => {
+    await expect(engine.run({}, '/tmp/cherry-migration-test')).resolves.toMatchObject({ success: true })
+
+    expect(readStatus()).toMatchObject({ status: 'completed', migratedFromV1: true })
+    expect(engine.isMigratedFromV1()).toBe(true)
+  })
+
+  it('restores the v1 migration origin from a completed status', async () => {
+    dbh.db
+      .insert(appStateTable)
+      .values({
+        key: MIGRATION_V2_STATUS,
+        value: { status: 'completed', migratedFromV1: true, version: '2.0.0' } satisfies MigrationStatusValue
+      })
+      .run()
+
+    await expect(engine.needsMigration()).resolves.toBe(false)
+
+    expect(engine.isMigratedFromV1()).toBe(true)
+  })
+
+  it('does not record a failed migration as migrated from v1', async () => {
+    engine.registerMigrators([
+      {
+        id: 'failing',
+        name: 'failing',
+        order: 1,
+        reset: vi.fn(),
+        setProgressCallback: vi.fn(),
+        prepare: vi.fn().mockResolvedValue({ success: true, itemCount: 1 }),
+        execute: vi.fn().mockResolvedValue({ success: false, processedCount: 0, error: 'failed' })
+      } as any
+    ])
+
+    await expect(engine.run({}, '/tmp/cherry-migration-test')).resolves.toMatchObject({ success: false })
+
+    expect(readStatus()).toMatchObject({ status: 'failed', migratedFromV1: false })
+    expect(engine.isMigratedFromV1()).toBe(false)
+  })
+
   it('clears migrated rows and agent.task schedules, keeps other schedules, and marks completed', async () => {
     seedMigratedData()
 
@@ -81,7 +137,8 @@ describe('MigrationEngine.skipMigration', () => {
     expect(dbh.db.select().from(preferenceTable).all()).toHaveLength(0)
     const schedules = dbh.db.select().from(jobScheduleTable).all()
     expect(schedules.map((s) => s.type)).toEqual(['other.job'])
-    expect(readStatus()).toMatchObject({ status: 'completed', error: null })
+    expect(readStatus()).toMatchObject({ status: 'completed', migratedFromV1: false, error: null })
+    expect(engine.isMigratedFromV1()).toBe(false)
   })
 
   it('restores hardware acceleration to its default and never touches user_data_path', async () => {

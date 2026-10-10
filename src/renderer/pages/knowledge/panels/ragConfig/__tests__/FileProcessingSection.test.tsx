@@ -1,13 +1,14 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 const mocks = vi.hoisted(() => ({
   openSettingsTab: vi.fn(),
   showDownloadPopup: vi.fn<(params: Record<string, unknown>) => Promise<boolean>>(),
   localModel: {
-    status: 'ready' as 'not_downloaded' | 'downloading' | 'ready' | 'error' | 'unsupported',
+    status: 'ready',
     isStatusResolved: true,
     percent: 0,
     download: vi.fn<() => Promise<boolean>>(),
@@ -57,7 +58,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as typeof ResizeObserver
+  }
 })
 
 beforeEach(() => {
@@ -210,7 +211,7 @@ describe('FileProcessingSection', () => {
 
       await waitFor(() => expect(mocks.showDownloadPopup).toHaveBeenCalled())
       expect(mocks.showDownloadPopup.mock.calls[0][0]).toMatchObject({
-        model: 'ocr',
+        id: 'pp-ocrv6-medium',
         description: 'PaddleOCR PP-OCRv6 · ~140 MB'
       })
       await waitFor(() => expect(onFileProcessorChange).toHaveBeenCalledWith('local-document'))

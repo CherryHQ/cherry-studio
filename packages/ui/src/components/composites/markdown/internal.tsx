@@ -8,8 +8,10 @@
  * the package stays provider-agnostic.
  */
 
-import { type ReactElement, useCallback, useMemo } from 'react'
+import { type ReactElement, useCallback, useMemo, useRef } from 'react'
+import remarkDefinitionList, { defListHastHandlers } from 'remark-definition-list'
 import remarkAlert from 'remark-github-blockquote-alert'
+import { remarkMark } from 'remark-mark-highlight'
 import {
   type AnimateOptions,
   Block,
@@ -24,7 +26,12 @@ import {
 import type { Pluggable } from 'unified'
 
 import { MarkdownBlockContext } from './context'
-import { rehypeHeadingIds, rehypePrefixSvgReferences } from './plugins'
+import { rehypeHeadingIds, rehypePrefixSvgReferences, rehypePreserveAnchorTargets } from './plugins'
+import {
+  FILE_LINK_MARKER_PROPERTY,
+  rehypePrepareFileLinks,
+  rehypeRestoreFileLinks
+} from './plugins/rehype-preserve-file-links'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
 import {
   createMarkdownSanitizeSchema,
@@ -33,7 +40,13 @@ import {
   SVG_ELEMENT_REGEX
 } from './utils'
 
-const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.values(defaultRemarkPlugins)
+const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).map(([name, plugin]) => {
+  if (name !== 'gfm' || !Array.isArray(plugin)) return plugin
+
+  // Keep GFM extensions while treating single tildes as literal chat text.
+  const [gfmPlugin, options] = plugin
+  return [gfmPlugin, { ...(options as Record<string, unknown>), singleTilde: false }] as Pluggable
+})
 
 function MarkdownBlock({ content, ...props }: BlockProps): ReactElement {
   const markdownCtx = useMemo(() => ({ content }), [content])
@@ -75,6 +88,28 @@ function resolveDefaultRehypePlugins(): ResolvedDefaultRehypePlugins {
   }
 }
 
+function isSamePluggableList(a?: readonly Pluggable[], b?: readonly Pluggable[]): boolean {
+  if (a === b) return true
+  if (!a || !b || a.length !== b.length) return false
+  return a.every((plugin, index) => plugin === b[index])
+}
+
+function isSameComponents(a?: Partial<Components>, b?: Partial<Components>): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  return keys.every((key) => a[key as keyof Components] === b[key as keyof Components])
+}
+
+// A new-but-equal identity must not rebuild the plugin lists: Streamdown
+// memoizes blocks on those references, so churn re-parses every block tick.
+function useStableReference<T>(value: T | undefined, isEqual: (a: T | undefined, b: T | undefined) => boolean) {
+  const ref = useRef(value)
+  if (!isEqual(ref.current, value)) ref.current = value
+  return ref.current
+}
+
 export interface MarkdownCoreProps {
   id: string
   children: string
@@ -91,10 +126,13 @@ export interface MarkdownCoreProps {
   mode: 'static' | 'streaming'
   /** Repair half-typed markdown at the tail (only meaningful in streaming mode). */
   parseIncompleteMarkdown?: boolean
+  parseMarkdownIntoBlocksFn?: (source: string) => string[]
   className?: string
   disallowedElements?: readonly string[]
   /** Override the default 'Footnotes' label (for i18n). */
   footnoteLabel?: string
+  /** Preserve local file hrefs for a custom anchor while retaining URL hardening for every link and image. */
+  preserveFileLinkHrefs?: boolean
 }
 
 export function MarkdownCore({
@@ -107,34 +145,59 @@ export function MarkdownCore({
   animated,
   mode,
   parseIncompleteMarkdown,
+  parseMarkdownIntoBlocksFn,
   className,
   disallowedElements = DISALLOWED_ELEMENTS,
-  footnoteLabel = 'Footnotes'
+  footnoteLabel = 'Footnotes',
+  preserveFileLinkHrefs = false
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
+  const stableComponents = useStableReference(components, isSameComponents)
+  const stableExtraRehypePlugins = useStableReference(extraRehypePlugins, isSamePluggableList)
+  const stableExtraRemarkPlugins = useStableReference(extraRemarkPlugins, isSamePluggableList)
 
   const remarkPlugins = useMemo(() => {
-    const list: Pluggable[] = [...STREAMDOWN_DEFAULT_REMARK_PLUGINS, remarkAlert as Pluggable]
-    if (extraRemarkPlugins?.length) list.push(...extraRemarkPlugins)
+    const list: Pluggable[] = [
+      ...STREAMDOWN_DEFAULT_REMARK_PLUGINS,
+      remarkDefinitionList as Pluggable,
+      remarkMark as Pluggable,
+      remarkAlert as Pluggable
+    ]
+    if (stableExtraRemarkPlugins?.length) list.push(...stableExtraRemarkPlugins)
     return list
-  }, [extraRemarkPlugins])
+  }, [stableExtraRemarkPlugins])
 
   const rehypePlugins = useMemo(() => {
     const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
     const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
-    const result: Pluggable[] = [raw]
+    const effectiveSchema = preserveFileLinkHrefs
+      ? {
+          ...extendedSchema,
+          attributes: {
+            ...extendedSchema.attributes,
+            span: [
+              ...(extendedSchema.attributes?.span ?? []),
+              ...(extendedSchema.attributes?.a ?? []),
+              FILE_LINK_MARKER_PROPERTY
+            ]
+          }
+        }
+      : extendedSchema
+    const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? ([rehypePrepareFileLinks] as Pluggable[]) : [])]
     result.push(
-      [sanitizeFn, extendedSchema] as Pluggable,
+      [sanitizeFn, effectiveSchema] as Pluggable,
+      rehypePreserveAnchorTargets as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
-      [rehypePrefixSvgReferences, (extendedSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
+      [rehypePrefixSvgReferences, (effectiveSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
       // Harden runs after sanitize, so every URL it rejects was already stripped or vetted there.
       // Keep the author's text/alt instead of defacing it with harden's "[blocked]" placeholders.
       [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
+      ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
     )
-    if (extraRehypePlugins?.length) result.push(...extraRehypePlugins)
+    if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
     return result
-  }, [hasSvgElement, id, extraRehypePlugins])
+  }, [hasSvgElement, id, stableExtraRehypePlugins, preserveFileLinkHrefs])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value
@@ -145,7 +208,8 @@ export function MarkdownCore({
     () => ({
       footnoteLabel,
       footnoteLabelTagName: 'h4' as const,
-      footnoteBackContent: ' '
+      footnoteBackContent: ' ',
+      handlers: defListHastHandlers
     }),
     [footnoteLabel]
   )
@@ -161,10 +225,11 @@ export function MarkdownCore({
           plugins={plugins}
           rehypePlugins={rehypePlugins}
           remarkPlugins={remarkPlugins}
-          components={components}
+          components={stableComponents}
           disallowedElements={disallowedElements}
           urlTransform={urlTransform}
           parseIncompleteMarkdown={parseIncompleteMarkdown}
+          parseMarkdownIntoBlocksFn={parseMarkdownIntoBlocksFn}
           normalizeHtmlIndentation
           remarkRehypeOptions={remarkRehypeOptions}
           animated={animated || undefined}

@@ -1,5 +1,6 @@
-import { application } from '@application'
 import type { BrowserWindow } from 'electron'
+
+import { application } from '@application'
 
 export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: boolean = false) {
   const preferenceService = application.get('PreferenceService')

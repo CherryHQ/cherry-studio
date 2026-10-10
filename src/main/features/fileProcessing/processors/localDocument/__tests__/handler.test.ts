@@ -1,16 +1,16 @@
 import type * as FsPromises from 'node:fs/promises'
 import path from 'node:path'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as MainFileUtils from '@main/utils/file'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FileInfoSchema } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   tempRoot,
   recognizeMock,
   isLocalModelReadyMock,
-  ocrModelPathsMock,
   toMarkdownBytesMock,
   formatFromExtensionMock,
   getTextMock,
@@ -29,7 +29,6 @@ const {
   tempRoot: process.platform === 'win32' ? 'C:\\mock\\file-processing-temp' : '/mock/file-processing-temp',
   recognizeMock: vi.fn(),
   isLocalModelReadyMock: vi.fn(),
-  ocrModelPathsMock: vi.fn(),
   toMarkdownBytesMock: vi.fn(),
   formatFromExtensionMock: vi.fn(),
   getTextMock: vi.fn(),
@@ -49,6 +48,7 @@ vi.mock('@application', async () => {
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
     if (name === 'OcrInferenceService') return { recognize: recognizeMock }
+    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
     return originalGet(name)
   })
   const originalGetPath = result.application.getPath.getMockImplementation()!
@@ -57,14 +57,6 @@ vi.mock('@application', async () => {
   )
   return result
 })
-
-vi.mock('@main/ai/inference/ocrModelPaths', () => ({
-  ocrModelPaths: ocrModelPathsMock
-}))
-
-vi.mock('@main/services/localModel', () => ({
-  isLocalModelReady: isLocalModelReadyMock
-}))
 
 vi.mock('@firecrawl/anydoc', () => ({
   toMarkdownBytes: toMarkdownBytesMock,
@@ -94,13 +86,7 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
 
 vi.mock('../../../utils/ocr', () => ({ preprocessImage: preprocessImageMock }))
 
-import { localDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
-
-const MODEL_PATHS = {
-  detection: '/models/paddleocr/PP-OCRv6_medium_det.onnx',
-  recognition: '/models/paddleocr/PP-OCRv6_medium_rec.onnx',
-  charactersDictionary: '/models/paddleocr/ppocrv6_dict.txt'
-}
+import { isScannedPdfError, localDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
 
 const PDF_BYTES = Buffer.from('%PDF-1.7 fake')
 
@@ -121,18 +107,29 @@ function createFile(ext: string | null, name = 'input') {
 
 const pdfFile = createFile('pdf')
 
-/**
- * anydoc rejections all arrive as `code: 'GenericFailure'` — the message is the only
- * thing that distinguishes them. These strings are the real ones; `handler.smoke.test.ts`
- * pins them against the actual binding.
- */
-function anydocError(message: string): Error {
-  return Object.assign(new Error(message), { code: 'GenericFailure' })
+function anydocError(code: string, message: string): Error {
+  return Object.assign(new Error(message), { code })
 }
 
-const SCANNED_PDF_ERROR = anydocError(
-  'unsupported input: PDF has no extractable text (Scanned, 3 pages): OCR is required'
-)
+const SCANNED_PDF_ERROR = anydocError('needsOcr', 'page 1 of 3 needs OCR')
+
+describe('isScannedPdfError', () => {
+  it('recognizes the OCR error code independently of its message', () => {
+    expect(isScannedPdfError(anydocError('needsOcr', 'image-only page'))).toBe(true)
+  })
+
+  it.each([
+    undefined,
+    null,
+    'OCR is required',
+    { code: 'needsOcr' },
+    new Error('OCR is required'),
+    anydocError('unsupported', 'PDF has no extractable text (Scanned, 0 pages): OCR is required'),
+    anydocError('encrypted', 'OCR is required')
+  ])('does not infer a scanned PDF from an unrelated rejection: %j', (error) => {
+    expect(isScannedPdfError(error)).toBe(false)
+  })
+})
 
 async function prepareBackground(file = pdfFile, signal?: AbortSignal) {
   const prepared = await localDocumentToMarkdownHandler.prepare(file, config, signal)
@@ -146,7 +143,6 @@ describe('localDocumentToMarkdownHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     isLocalModelReadyMock.mockReturnValue(true)
-    ocrModelPathsMock.mockReturnValue(MODEL_PATHS)
     formatFromExtensionMock.mockReturnValue('pdf')
     readFileMock.mockResolvedValue(PDF_BYTES)
     getTextMock.mockResolvedValue({
@@ -222,7 +218,7 @@ describe('localDocumentToMarkdownHandler', () => {
       expect(reportProgress).toHaveBeenLastCalledWith(100)
     })
 
-    it('falls back to per-page OCR when anydoc reports no extractable text', async () => {
+    it('falls back to per-page OCR when the PDF has no text layer', async () => {
       getTextMock.mockResolvedValue({
         total: 3,
         pages: [
@@ -255,12 +251,11 @@ describe('localDocumentToMarkdownHandler', () => {
       })
       expect(recognizeMock).toHaveBeenNthCalledWith(
         1,
-        MODEL_PATHS,
         { kind: 'path', imagePath: expect.any(String) },
         expect.anything()
       )
       // Each job renders into its own directory under the file-processing temp root.
-      const firstImagePath = recognizeMock.mock.calls[0][1].imagePath
+      const firstImagePath = recognizeMock.mock.calls[0][0].imagePath
       expect(path.dirname(path.dirname(firstImagePath))).toBe(tempRoot)
       expect(path.basename(path.dirname(firstImagePath))).toMatch(/^local-document-[\w-]+$/)
       expect(path.basename(firstImagePath)).toBe('page-1.png')
@@ -317,18 +312,34 @@ describe('localDocumentToMarkdownHandler', () => {
       expect(removeMock).toHaveBeenCalledTimes(1)
     })
 
-    it.each([
-      'document is encrypted',
-      'malformed document: invalid PDF structure',
-      'unsupported input: unrecognized file content: name the format explicitly',
-      'io error: permission denied',
-      'resource limit exceeded (max_entry_bytes): 1'
-    ])('rethrows "%s" instead of wasting minutes on OCR that cannot help', async (message) => {
+    it('returns OCR text when anydoc rejects a PDF with needsOcr', async () => {
       const prepared = await prepareBackground()
-      toMarkdownBytesMock.mockRejectedValueOnce(anydocError(message))
+      toMarkdownBytesMock.mockRejectedValueOnce(SCANNED_PDF_ERROR)
+      getScreenshotMock.mockResolvedValue({ pages: [{ data: new Uint8Array([1]) }] })
+      recognizeMock
+        .mockResolvedValueOnce({ text: 'page one', lines: [] })
+        .mockResolvedValueOnce({ text: 'page two', lines: [] })
+        .mockResolvedValueOnce({ text: 'page three', lines: [] })
 
-      await expect(prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })).rejects.toThrow(
-        message
+      await expect(
+        prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })
+      ).resolves.toEqual({ kind: 'markdown', markdownContent: 'page one\n\npage two\n\npage three' })
+    })
+
+    it.each([
+      ['encrypted', 'document is encrypted'],
+      ['malformed', 'malformed document: invalid PDF structure'],
+      ['unsupported', 'unsupported input: unrecognized file content: name the format explicitly'],
+      ['unsupported', 'unsupported input: PDF has no extractable text (Scanned, 0 pages): OCR is required'],
+      ['io', 'io error: permission denied'],
+      ['resourceLimit', 'resource limit exceeded (max_entry_bytes): 1']
+    ])('rethrows %s instead of wasting minutes on OCR that cannot help', async (code, message) => {
+      const prepared = await prepareBackground()
+      const error = anydocError(code, message)
+      toMarkdownBytesMock.mockRejectedValueOnce(error)
+
+      await expect(prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })).rejects.toBe(
+        error
       )
       expect(recognizeMock).not.toHaveBeenCalled()
     })

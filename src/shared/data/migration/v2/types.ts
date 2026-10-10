@@ -121,6 +121,8 @@ export interface MigrationResult {
 // Migration status stored in app_state table
 export interface MigrationStatusValue {
   status: 'completed' | 'failed' | 'in_progress'
+  /** True only when a v1-to-v2 migration completed successfully. Missing on historical records. */
+  migratedFromV1?: boolean
   completedAt?: number
   failedAt?: number
   version: string

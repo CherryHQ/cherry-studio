@@ -1,9 +1,10 @@
-import { Command } from 'commander'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as readline from 'readline/promises'
-import { type CallExpression, Node, Project, type SourceFile } from 'ts-morph'
 import { pathToFileURL } from 'url'
+
+import { Command } from 'commander'
+import { type CallExpression, Node, Project, type SourceFile } from 'ts-morph'
 
 import { COMMAND_DEFINITIONS } from '../src/shared/utils/command/definitions'
 import { sortedObjectByKeys } from './sort'
@@ -30,21 +31,34 @@ const DERIVED_KEY_SUFFIXES = ['_one', '_other']
 export type I18N = { [key: string]: string }
 
 export interface I18nCatalogConfig {
-  name: 'renderer' | 'main'
+  name: 'renderer' | 'main' | 'file-preview'
   localesDir: string
   sourceDirs: string[]
 }
+
+// File preview translates through its own catalog, so its keys must not keep renderer keys alive.
+const rendererPackageDirs = fs
+  .readdirSync(path.join(ROOT_DIR, 'packages'), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory() && entry.name !== 'file-preview')
+  .map((entry) => path.join('packages', entry.name))
 
 const I18N_CATALOGS: I18nCatalogConfig[] = [
   {
     name: 'renderer',
     localesDir: path.join(ROOT_DIR, 'src/renderer/i18n/locales'),
-    sourceDirs: ['src/renderer', 'src/main', 'src/shared', 'packages'].map((dir) => path.join(ROOT_DIR, dir))
+    sourceDirs: ['src/renderer', 'src/main', 'src/shared', ...rendererPackageDirs].map((dir) =>
+      path.join(ROOT_DIR, dir)
+    )
   },
   {
     name: 'main',
     localesDir: path.join(ROOT_DIR, 'src/main/i18n/locales'),
     sourceDirs: [path.join(ROOT_DIR, 'src/main')]
+  },
+  {
+    name: 'file-preview',
+    localesDir: path.join(ROOT_DIR, 'packages/file-preview/src/locales'),
+    sourceDirs: [path.join(ROOT_DIR, 'packages/file-preview/src')]
   }
 ]
 

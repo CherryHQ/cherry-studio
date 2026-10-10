@@ -1,14 +1,15 @@
-import { preferenceTable } from '@data/db/schemas/preference'
-import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { preferenceTable } from '@data/db/schemas/preference'
+import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+
 describe('PreferenceSeeder', () => {
   const dbh = setupTestDatabase()
   const toolbarKey = 'chat.input.toolbar.pinned_tools'
-  const clientWebToolsPreferredKey = 'chat.web_search.client_tools_preferred'
+  const modelToolsPreferredKey = 'chat.web_search.model_tools_preferred'
 
   it('should insert all default preferences into empty table', async () => {
     const seed = new PreferenceSeeder()
@@ -34,7 +35,7 @@ describe('PreferenceSeeder', () => {
     // Customise its value so we can check the seeder did not overwrite it.
     await dbh.db
       .update(preferenceTable)
-      .set({ value: '__customized__' as unknown as never })
+      .set({ value: '__customized__' })
       .where(and(eq(preferenceTable.scope, first.scope), eq(preferenceTable.key, first.key)))
 
     const seed = new PreferenceSeeder()
@@ -84,20 +85,19 @@ describe('PreferenceSeeder', () => {
     const [preference] = await dbh.db
       .select()
       .from(preferenceTable)
-      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, clientWebToolsPreferredKey)))
-    expect(preference.value).toBe(false)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, modelToolsPreferredKey)))
+    expect(preference?.value).toBe(true)
   })
 
   it('does not overwrite a persisted sidebar favorites order that differs from the generated default', async () => {
     const sidebarKey = 'ui.sidebar.favorites'
     const persisted = [
-      { id: 'agents', type: 'app' },
       { id: 'assistants', type: 'app' },
+      { id: 'agents', type: 'app' },
       { id: 'translate', type: 'app' }
     ]
     const generatedDefault = DefaultPreferences.default[sidebarKey]
 
-    expect(generatedDefault[0]).toEqual({ id: 'assistants', type: 'app' })
     expect(persisted).not.toEqual(generatedDefault)
 
     await dbh.db.insert(preferenceTable).values({

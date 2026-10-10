@@ -1,11 +1,12 @@
+import { ChevronDown } from 'lucide-react'
+import { type ButtonHTMLAttributes, type Ref } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useModelById } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown } from 'lucide-react'
-import { type ButtonHTMLAttributes, type Ref } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface ModelSelectorTriggerProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   value?: UniqueModelId

@@ -1,3 +1,5 @@
+import type { OutputFor } from '@shared/ipc/types'
+
 export type User = {
   id: string
   name: string
@@ -17,19 +19,7 @@ export enum ThemeMode {
 
 export type CodeStyleVarious = 'auto' | string
 
-export type AppInfo = {
-  version: string
-  isPackaged: boolean
-  appPath: string
-  homePath: string
-  configPath: string
-  appDataPath: string
-  resourcesPath: string
-  logsPath: string
-  arch: string
-  isPortable: boolean
-  installPath: string
-}
+export type AppInfo = OutputFor<'app.get_info'>
 
 export interface Shortcut {
   key: string

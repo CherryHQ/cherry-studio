@@ -6,6 +6,7 @@ import ProviderSetting from '../ProviderSetting'
 
 const useProviderMock = vi.fn()
 const useProviderApiKeyMock = vi.fn()
+const providerApiSetupModuleState = vi.hoisted(() => ({ loaded: false }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
@@ -45,9 +46,13 @@ vi.mock('../ConnectionSettings/AuthenticationSection', async () => {
   }
 })
 
-vi.mock('../ConnectionSettings/ProviderApiSetupDialog', () => ({
-  default: ({ initialStep }: any) => <div role="dialog" aria-label={`api-setup-${initialStep}`} />
-}))
+vi.mock('../ConnectionSettings/ProviderApiSetupDialog', () => {
+  providerApiSetupModuleState.loaded = true
+
+  return {
+    default: ({ initialStep }: any) => <div role="dialog" aria-label={`api-setup-${initialStep}`} />
+  }
+})
 
 vi.mock('../ModelList', async () => {
   const { useAuthenticationApiKey } = await import('../hooks/providerSetting/useAuthenticationApiKey')
@@ -76,6 +81,19 @@ describe('ProviderSetting', () => {
       hasPendingSync: true,
       commitInputApiKeyNow: vi.fn()
     })
+  })
+
+  it('loads API setup only when the user opens it', async () => {
+    const user = userEvent.setup()
+
+    render(<ProviderSetting providerId="openai" />)
+
+    expect(providerApiSetupModuleState.loaded).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: 'continue-model-setup' }))
+
+    expect(await screen.findByRole('dialog', { name: 'api-setup-models' })).toBeInTheDocument()
+    expect(providerApiSetupModuleState.loaded).toBe(true)
   })
 
   it('shares one API-key draft between authentication and model settings', () => {

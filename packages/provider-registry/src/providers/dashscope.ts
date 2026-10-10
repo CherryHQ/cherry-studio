@@ -1,6 +1,7 @@
 import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
+import { fixedSamplingParameterSupport } from './parameterSupports'
 import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
 
@@ -330,6 +331,8 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     apiModelId: 'kimi/kimi-k3',
     modelId: 'kimi-k3',
     ...endpointPin('kimi-k3'),
+    // Bailian forwards to Moonshot's backend, whose fixed sampling lock applies unchanged.
+    parameterSupport: fixedSamplingParameterSupport,
     reasoningContracts: {
       'openai-chat-completions': { support: kimiK3Support, wire: effortChatWire }
     }
@@ -358,6 +361,7 @@ export default defineProvider({
   // `endpointTypes` (custom models, `/models` discoveries with no override), and Bailian serves it far
   // more widely than Responses. Responses is opted into per model via `endpointPin`.
   name: 'Bailian',
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

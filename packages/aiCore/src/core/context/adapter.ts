@@ -177,7 +177,7 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
   // Cast is safe — ensureValidHistory only inserts plain user/tool messages without
   // _userContent/_toolContent fields; toAISDK falls back to constructing from IR fields
   // for any message lacking those (see toAISDK below).
-  return ensureValidHistory(messages) as AISDKMessage[]
+  return ensureValidHistory(messages)
 }
 
 /**

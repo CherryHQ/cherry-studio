@@ -1,6 +1,6 @@
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { canonicalizeFilePath } from '@shared/utils/file'
 
 /**
  * Pure path / selection helpers shared by `ArtifactPane` and the
@@ -16,9 +16,9 @@ export interface ArtifactPaneFileSelection {
   filePath: string
 }
 
-/** The canonical absolute path a selection edits — the `useFileEditSession` key. */
+/** The normalized absolute path a selection edits — the `useFileEditSession` key. */
 export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
-  canonicalizeFilePath(`${selection.workspacePath}/${selection.filePath}`)
+  normalizeFilePreviewPath(`${selection.workspacePath}/${selection.filePath}`)
 
 /**
  * Clipboard form of an absolute path: on Windows fold `/` to the native `\`

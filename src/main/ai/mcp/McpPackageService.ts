@@ -1,11 +1,13 @@
+import * as fs from 'fs'
+import * as path from 'path'
+
+import StreamZip from 'node-stream-zip'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { assertZipEntriesWithin } from '@main/utils/zipSafety'
-import * as fs from 'fs'
-import StreamZip from 'node-stream-zip'
-import * as path from 'path'
-import { v4 as uuidv4 } from 'uuid'
+import { assertNoFoldedPathCollisions, assertZipEntriesWithin } from '@main/utils/zipSafety'
 
 const logger = loggerService.withContext('McpPackageService')
 
@@ -500,8 +502,12 @@ export class McpPackageService extends BaseService {
 
       const zip = new StreamZip.async({ file: filePath })
       try {
-        // Reject any zip-slip entry before writing anything to disk.
-        assertZipEntriesWithin(Object.keys(await zip.entries()), tempExtractDir)
+        // Reject any zip-slip entry before writing anything to disk, and any entries that
+        // collide once case and Unicode are folded (they land on one file on Windows and
+        // default macOS volumes, so the extracted package would depend on entry order).
+        const entryNames = Object.keys(await zip.entries())
+        assertZipEntriesWithin(entryNames, tempExtractDir)
+        assertNoFoldedPathCollisions(entryNames, `${packageLabel} package`)
         await zip.extract(null, tempExtractDir)
       } finally {
         await zip.close()

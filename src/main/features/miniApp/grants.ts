@@ -6,6 +6,8 @@
  * scope of the network permission, not a permission of its own (design §7).
  */
 
+import { and, eq } from 'drizzle-orm'
+
 import { application } from '@application'
 import { miniAppGrantTable } from '@data/db/schemas/miniApp'
 import type { DbOrTx } from '@data/db/types'
@@ -16,7 +18,6 @@ import {
   type MiniAppManifest,
   type MiniAppMethod
 } from '@shared/types/miniAppManifest'
-import { and, eq } from 'drizzle-orm'
 
 export class PermissionDeniedError extends Error {
   /** `reason` replaces the default text for refusals that are not about the grant — a URL outside the allowlist is the case. */

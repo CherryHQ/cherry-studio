@@ -1,3 +1,7 @@
+import { Eraser } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
@@ -7,7 +11,7 @@ import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
-import { useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
+import { useActiveComposerOverride, useComposerLayerActive } from '@renderer/components/composer/ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerPinnedToolsProvider,
@@ -21,9 +25,15 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import {
+  ModelSpeedControl,
+  resolveSupportedReasoningEffort,
+  resolveSupportedServiceTier
+} from '@renderer/components/ModelSpeedControl'
 import { type QuickPanelListItem, useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -52,13 +62,15 @@ import {
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { Model, ReasoningSummary, ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import {
+  type Model,
+  type ReasoningSummary,
+  type ServiceTierSelection,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { Eraser } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
@@ -68,7 +80,11 @@ import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
-import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
+import {
+  createEditableMessageDraft,
+  getEditableKnowledgeBases,
+  replaceEditedMessageParts
+} from './chat/messageEditingDraft'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
 import {
   chatComposerTokenId,
@@ -89,11 +105,6 @@ import {
   hasUnsyncedComposerAttachments
 } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
-import {
-  ComposerSpeedControl,
-  resolveComposerReasoningEffort,
-  resolveComposerServiceTier
-} from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -109,15 +120,11 @@ const CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
 const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
 const CHAT_CLEAR_CONTEXT_TOOL_ID = 'composer:clear-context'
 const EMPTY_MODELS: Model[] = []
-const CHAT_TOOLBAR_CUSTOM_TOOLS: readonly ComposerToolbarCustomTool[] = [
-  {
-    id: ComposerPanelSymbol.McpStatus,
-    label: 'MCP',
-    icon: <McpLogo width={18} height={18} aria-hidden />,
-    onSelect: ({ unifiedPanelControl }) =>
-      unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
-  }
-]
+const openChatMcpStatusPanel = ({
+  unifiedPanelControl
+}: {
+  unifiedPanelControl?: Parameters<ComposerToolbarCustomTool['onSelect']>[0]['unifiedPanelControl']
+}) => unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
 
 export type ChatComposerResolvedContext = Pick<
   ReturnType<typeof useAssistant>,
@@ -177,6 +184,9 @@ interface SavedComposerDraft {
   draftTokens: ComposerSerializedToken[]
   files: ComposerAttachment[]
   mentionedModels: Model[]
+  mentionedModelSelectorValue: Model[]
+  mentionedModelMultiSelectMode: boolean
+  mentionedModelSelectionWasPending: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   knowledgeBaseIds: string[]
 }
@@ -186,28 +196,6 @@ interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 's
 }
 
 type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
-
-const isComposerEditableMessagePart = (part: CherryMessagePart) => part.type === 'text' || part.type === 'file'
-
-// Composer edits as a single text field: the draft joins all text parts (`\n\n`) and
-// rebuilds files from tokens. Saving replaces the first editable part with the rebuilt
-// draft and drops trailing editable parts — non-editable `reasoning`/`dynamic-tool` blocks
-// stay in place and `data-translation` is removed. Interleaved shapes such as
-// [text "before", tool, text "after"] are blocked by `canEditAssistantMessageParts` and
-// never reach this path, so no reordering occurs on save.
-const replaceComposerEditableMessageParts = (
-  originalParts: CherryMessagePart[],
-  editedParts: CherryMessagePart[]
-): CherryMessagePart[] => {
-  const firstEditablePartIndex = originalParts.findIndex(isComposerEditableMessagePart)
-  if (firstEditablePartIndex === -1) return editedParts
-
-  return originalParts.flatMap((part, index) => {
-    if (part.type === 'data-translation') return []
-    if (!isComposerEditableMessagePart(part)) return [part]
-    return index === firstEditablePartIndex ? editedParts : []
-  })
-}
 
 type ChatComposerControlProps = Omit<ChatConversationControlsProps, 'side'> & {
   topBarPortalAvailable: boolean
@@ -519,7 +507,8 @@ const ChatComposerInner = ({
   const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
+  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded, toolsRegistry } =
+    useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const loadedContext = useAssistant(externalContextControls ? null : assistantId, {
@@ -545,7 +534,7 @@ const ChatComposerInner = ({
     isDefault: pinnedToolsAtDefault,
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
-    customizePanelItem
+    customizeFooterAction
   } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
@@ -553,6 +542,7 @@ const ChatComposerInner = ({
   const { railGutterPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const composerOverridden = useActiveComposerOverride() !== null
+  const layerActive = useComposerLayerActive()
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
@@ -674,7 +664,7 @@ const ChatComposerInner = ({
   const runtimeModel = assistant || !assistantId ? model : undefined
   const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedAssistantId = assistant?.id ?? null
-  const canonicalReasoningEffort = (assistant?.settings.reasoning_effort ?? 'default') as ReasoningEffortOption
+  const canonicalReasoningEffort = assistant?.settings.reasoning_effort ?? 'default'
   const [reasoningOverride, setReasoningOverride] = useState<{
     assistantId: string
     value: ReasoningEffortOption
@@ -751,7 +741,8 @@ const ChatComposerInner = ({
     handleMentionedModelsSelect: selectMentionedModels,
     handleMentionedModelMultiSelectModeChange: changeMentionedModelMultiSelectMode,
     handleMentionedModelSelectorRestore: restoreMentionedModelSelector,
-    restoreMentionedModelDraft
+    restoreMentionedModelDraft,
+    restoreMentionedModelSelection
   } = useChatMentionedModels({
     enabled: useMentionedModelSelector,
     runtimeModel,
@@ -763,6 +754,9 @@ const ChatComposerInner = ({
     preserveExplicitSelectionOnRuntimeChange: !assistant && !assistantId,
     onModelSelect: handleModelSelect
   })
+  const mentionedModelSelectorValueRef = useLatest(mentionedModelSelectorValue)
+  const mentionedModelMultiSelectModeRef = useLatest(mentionedModelMultiSelectMode)
+  const runtimeModelRef = useLatest(runtimeModel)
 
   useEffect(() => {
     if (isMentionedModelDraftHydrated || !useMentionedModelSelector) return
@@ -850,9 +844,9 @@ const ChatComposerInner = ({
     !externalContextControls &&
     Boolean(
       runtimeModel ||
-        mentionedModels.length > 0 ||
-        mentionedModelSelectorValue.length > 0 ||
-        lockedMentionedModels.length > 0
+      mentionedModels.length > 0 ||
+      mentionedModelSelectorValue.length > 0 ||
+      lockedMentionedModels.length > 0
     )
   const { providers: loadedProviders } = useProviders(undefined, { enabled: shouldLoadProviders })
   const providers = resolvedProviders ?? loadedProviders
@@ -867,6 +861,10 @@ const ChatComposerInner = ({
             ? [runtimeModel]
             : EMPTY_MODELS
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
+  // Persisted assistant refreshes may clear transient mentions; submit the visible selector
+  // snapshot so the next turn cannot fall back to stale assistant state.
+  const submittedMentionedModels =
+    assistant && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
   // Without an assistant, persistent request controls have no owner. Keep per-turn Fast available.
   const speedControlModel = useMemo(
     () =>
@@ -1067,7 +1065,7 @@ const ChatComposerInner = ({
     }
     const draft = actionsRef.current.getDraft()
     writeChatDraftCache(draftCacheScopeKey, {
-      text,
+      text: draft.text,
       tokens: draft.tokens,
       files,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
@@ -1095,13 +1093,14 @@ const ChatComposerInner = ({
     if (editingMessage && !savedDraft) return
     const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
     writeChatDraftCache(draftCacheScopeKey, {
-      text: savedDraft ? draft.text : text,
+      text: draft.text,
       tokens: draft.tokens,
       files: savedDraft?.files ?? filesRef.current,
       knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
       mentionedModelIds:
         savedDraft?.mentionedModels.map((model) => model.id) ?? mentionedModelDraftRef.current.mentionedModelIds,
-      modelMultiSelectMode: mentionedModelDraftRef.current.modelMultiSelectMode
+      modelMultiSelectMode:
+        savedDraft?.mentionedModelMultiSelectMode ?? mentionedModelDraftRef.current.modelMultiSelectMode
     })
   })
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by topic.
@@ -1118,9 +1117,26 @@ const ChatComposerInner = ({
     setText(savedDraft.text)
     setDraftTokens(savedDraft.draftTokens)
     setFiles(savedDraft.files)
-    setMentionedModels(savedDraft.mentionedModels)
+    const restoredSelectorModels =
+      savedDraft.mentionedModelSelectionWasPending && savedDraft.mentionedModelSelectorValue.length === 0
+        ? runtimeModelRef.current
+          ? [runtimeModelRef.current]
+          : []
+        : savedDraft.mentionedModelSelectorValue
+    restoreMentionedModelSelection(
+      restoredSelectorModels,
+      savedDraft.mentionedModels,
+      savedDraft.mentionedModelMultiSelectMode
+    )
     setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
-  }, [actionsRef, exitInputHistoryPreview, setFiles, setMentionedModels, setSelectedKnowledgeBases])
+  }, [
+    actionsRef,
+    exitInputHistoryPreview,
+    restoreMentionedModelSelection,
+    runtimeModelRef,
+    setFiles,
+    setSelectedKnowledgeBases
+  ])
 
   const handleCancelEditing = useCallback(() => {
     restoreSavedDraft()
@@ -1133,7 +1149,7 @@ const ChatComposerInner = ({
   }, [editingMessageId])
 
   const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
-    const editableDraft = createEditableMessageDraft(nextEditingMessage.parts)
+    const editableDraft = createEditableMessageDraft(nextEditingMessage.parts, nextEditingMessage.message.id)
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
     const originalFileParts = nextEditingMessage.parts.filter(
       (part): part is ComposerFilePart => part.type === 'file' && !!part.url
@@ -1168,6 +1184,9 @@ const ChatComposerInner = ({
         draftTokens: currentDraft.tokens,
         files: currentTools?.files ?? filesRef.current,
         mentionedModels: currentTools?.mentionedModels ?? mentionedModelsRef.current,
+        mentionedModelSelectorValue: mentionedModelSelectorValueRef.current,
+        mentionedModelMultiSelectMode: mentionedModelMultiSelectModeRef.current,
+        mentionedModelSelectionWasPending: runtimeModelPending && mentionedModelSelectorValueRef.current.length === 0,
         selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current,
         knowledgeBaseIds: [...knowledgeBaseIdsRef.current]
       }
@@ -1292,6 +1311,7 @@ const ChatComposerInner = ({
 
     return items
   }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
+  const mcpToolbarActive = isMcpToolbarActive({ scope: TopicType.Chat, assistant })
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(
     () => [
       ...(hasNewTopicAction
@@ -1321,13 +1341,28 @@ const ChatComposerInner = ({
             }
           ]
         : []),
-      ...CHAT_TOOLBAR_CUSTOM_TOOLS
+      {
+        id: ComposerPanelSymbol.McpStatus,
+        label: 'MCP',
+        icon: <McpLogo width={18} height={18} aria-hidden />,
+        active: mcpToolbarActive,
+        onSelect: openChatMcpStatusPanel
+      }
     ],
-    [addNewTopic, chatWrite, clearContextDisabled, handleStartNewContext, hasNewTopicAction, newTopicDisabled, t]
+    [
+      addNewTopic,
+      chatWrite,
+      clearContextDisabled,
+      handleStartNewContext,
+      hasNewTopicAction,
+      mcpToolbarActive,
+      newTopicDisabled,
+      t
+    ]
   )
 
   const rootPanelAdditionalItems = useMemo<QuickPanelListItem[]>(() => {
-    const items = [customizePanelItem]
+    const items: QuickPanelListItem[] = []
     if (!chatWrite || pinnedToolIds.includes(CHAT_CLEAR_CONTEXT_TOOL_ID)) return items
 
     const label = t('chat.input.new.context')
@@ -1341,7 +1376,11 @@ const ChatComposerInner = ({
       action: () => void handleStartNewContext()
     })
     return items
-  }, [chatWrite, clearContextDisabled, customizePanelItem, handleStartNewContext, pinnedToolIds, t])
+  }, [chatWrite, clearContextDisabled, handleStartNewContext, pinnedToolIds, t])
+  useEffect(
+    () => toolsRegistry.registerLaunchers('composer-toolbar-settings', [], [customizeFooterAction]),
+    [customizeFooterAction, toolsRegistry]
+  )
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -1352,12 +1391,13 @@ const ChatComposerInner = ({
   )
 
   useEffect(() => {
+    if (!layerActive) return
     return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
       const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
       if (topicId !== streamScopeKey) return
       actionsRef.current.focus('end')
     })
-  }, [actionsRef, streamScopeKey])
+  }, [actionsRef, layerActive, streamScopeKey])
 
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })
@@ -1379,16 +1419,18 @@ const ChatComposerInner = ({
         // Allow attachment-only sends (matches v1 Inputbar + the send-enabled condition above).
         requireText: false,
         extra: () => ({
-          mentionedModels: mentionedModels.length ? mentionedModels.map((currentModel) => currentModel.id) : undefined,
+          mentionedModels: submittedMentionedModels.length
+            ? submittedMentionedModels.map((currentModel) => currentModel.id)
+            : undefined,
           reasoningEffort:
             assistantId && speedControlModel
-              ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+              ? resolveSupportedReasoningEffort(speedControlModel, reasoningEffort)
               : assistantId
                 ? reasoningEffort
                 : 'default',
           serviceTier:
             assistantId && speedControlModel
-              ? resolveComposerServiceTier(speedControlModel, serviceTier)
+              ? resolveSupportedServiceTier(speedControlModel, serviceTier)
               : assistantId
                 ? serviceTier
                 : 'standard',
@@ -1412,11 +1454,11 @@ const ChatComposerInner = ({
       chatTarget,
       fastMode,
       files,
-      mentionedModels,
       reasoningEffort,
       serviceTier,
       selectedKnowledgeBasesInScope,
-      speedControlModel
+      speedControlModel,
+      submittedMentionedModels
     ]
   )
 
@@ -1560,7 +1602,7 @@ const ChatComposerInner = ({
       const knowledgeBaseIds = selectedKnowledgeBasesInScope
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
-      return withKnowledgeScopePart(messageParts, knowledgeBaseIds)
+      return { draft: normalizedDraft, parts: withKnowledgeScopePart(messageParts, knowledgeBaseIds) }
     },
     [files, selectedKnowledgeBasesInScope]
   )
@@ -1586,12 +1628,17 @@ const ChatComposerInner = ({
       editSaveInFlightSessionIdRef.current = editingSessionId
       setSavingEditingSessionId(editingSessionId)
       try {
-        const editedParts = await buildEditedMessageParts(draft)
-        if (!editedParts) return
+        const edited = await buildEditedMessageParts(draft)
+        if (!edited) return
 
         const savedParts = isAssistantReply
-          ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
-          : editedParts
+          ? replaceEditedMessageParts(
+              editingMessageForCurrentTopic.parts,
+              editingMessageForCurrentTopic.message.id,
+              edited.draft,
+              edited.parts
+            )
+          : edited.parts
         if (isAssistantReply || !resend) {
           await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
         } else {
@@ -1600,13 +1647,13 @@ const ChatComposerInner = ({
             : {
                 reasoningEffort:
                   assistantId && speedControlModel
-                    ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+                    ? resolveSupportedReasoningEffort(speedControlModel, reasoningEffort)
                     : assistantId
                       ? reasoningEffort
                       : 'default',
                 serviceTier:
                   assistantId && speedControlModel
-                    ? resolveComposerServiceTier(speedControlModel, serviceTier)
+                    ? resolveSupportedServiceTier(speedControlModel, serviceTier)
                     : assistantId
                       ? serviceTier
                       : 'standard',
@@ -1799,7 +1846,7 @@ const ChatComposerInner = ({
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
     <>
       {speedControlModel ? (
-        <ComposerSpeedControl
+        <ModelSpeedControl
           model={speedControlModel}
           reasoningEffort={reasoningEffort}
           reasoningSummary={assistant?.settings.reasoning_summary}
@@ -1826,6 +1873,7 @@ const ChatComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
+          showAiDisclaimer
           text={text}
           onTextChange={handleTextChange}
           tokens={tokens}

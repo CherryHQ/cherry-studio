@@ -1,20 +1,18 @@
-import { Button } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-// Direct `Selector/model` path: the `Selector` barrel's nested `export *` isn't
-// resolved by tsgo on main's program (resolves on feat's). Transitional; reverts
-// to the barrel once main converges with feat.
-import { ModelSelector } from '@renderer/components/ModelSelector'
-import { useModels } from '@renderer/hooks/useModel'
-import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown } from 'lucide-react'
 import { useMemo } from 'react'
+
+import { Button } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { useModels } from '@renderer/hooks/useModel'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 export { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 
 export interface KnowledgeModelSelectProps {
   value: string | null
   placeholder: string
-  filter: (model: Model) => boolean
+  filter: ModelSelectorFilter
   invalid?: boolean
   noneOptionLabel?: string
   'aria-label'?: string
@@ -47,7 +45,6 @@ export const KnowledgeModelSelect = ({
   )
   const hasValue = Boolean(value)
   const triggerLabel = selectedModel?.name ?? (value || placeholder)
-
   return (
     <ModelSelector
       multiple={false}

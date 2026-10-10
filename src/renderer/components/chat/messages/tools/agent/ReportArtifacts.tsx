@@ -1,5 +1,9 @@
-import { Button } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
+import { ChevronDown } from 'lucide-react'
+import { type MouseEvent, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@renderer/components/OpenTarget'
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
@@ -9,9 +13,6 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { ChevronDown } from 'lucide-react'
-import { type MouseEvent, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 

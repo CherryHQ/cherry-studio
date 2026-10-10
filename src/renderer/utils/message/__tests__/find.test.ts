@@ -1,5 +1,6 @@
-import type { MessageExportView } from '@renderer/types/messageExport'
 import { describe, expect, it } from 'vitest'
+
+import type { MessageExportView } from '@renderer/types/messageExport'
 
 import { getMainTextContent, getNamingTextContent, getToolCitationExport } from '../find'
 
@@ -164,5 +165,30 @@ describe('getToolCitationExport', () => {
       content: 'Claim [1]',
       citation: '[1] [B](https://b.com)'
     })
+  })
+})
+
+describe('getToolCitationExport across turns', () => {
+  it('resolves a marker against priorCitationParts and lists that source', () => {
+    const message: MessageExportView = {
+      ...createExportView([{ type: 'text', text: 'Prices rose. [cite:3f2a1b9c-2]' }] as MessageExportView['parts']),
+      priorCitationParts: [
+        {
+          type: 'tool-web_search',
+          toolCallId: 'earlier-turn',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [
+            { id: '3f2a1b9c-1', title: 'First', url: 'https://a.com/x', content: 'alpha' },
+            { id: '3f2a1b9c-2', title: 'Second', url: 'https://b.com/y', content: 'beta' }
+          ]
+        }
+      ] as MessageExportView['parts']
+    }
+
+    const { content, citation } = getToolCitationExport(message, 'Prices rose. [cite:3f2a1b9c-2]')
+
+    expect(content).toBe('Prices rose. [1]')
+    expect(citation).toBe('[1] [Second](https://b.com/y)')
   })
 })

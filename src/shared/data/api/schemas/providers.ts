@@ -63,7 +63,8 @@ const ProviderSettingsMergePatchSchema = z.object({
       enabled: z.boolean().nullable().optional(),
       tokenThreshold: z.number().nullable().optional(),
       cacheSystemMessage: z.boolean().nullable().optional(),
-      cacheLastNMessages: z.number().nullable().optional()
+      cacheLastNMessages: z.number().nullable().optional(),
+      ttl: ProviderSettingsSchema.shape.cacheControl.unwrap().shape.ttl.nullable().optional()
     })
     .nullable()
     .optional(),
@@ -125,9 +126,9 @@ export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend
   /** RFC 7396 merge patch; null removes a stored setting. */
   providerSettings: ProviderSettingsMergePatchSchema.optional(),
   /**
-   * Whether this provider is enabled. A persisted false-to-true transition also
-   * moves the provider to the first position atomically; redundant true updates
-   * preserve the existing order.
+   * Whether this provider is enabled. Enabling or disabling an existing
+   * provider preserves its current order; only creation inserts first.
+   * Explicit order endpoints remain the ordering mechanism.
    */
   isEnabled: z.boolean().optional()
   // Logo edits (preset key / image upload / clear) go through the

@@ -1,7 +1,8 @@
+import { FileText, FolderOpen } from 'lucide-react'
+
 import { CursorIcon, FinderIcon, VsCodeIcon, WindowsTerminalIcon, ZedIcon } from '@renderer/components/icons/SvgIcon'
 import { isMac } from '@renderer/utils/platform'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
-import { FileText, FolderOpen } from 'lucide-react'
 
 export function OpenTargetIcon({ target, className = 'size-4' }: { target: ExternalOpenTarget; className?: string }) {
   if (target.iconDataUrl) {

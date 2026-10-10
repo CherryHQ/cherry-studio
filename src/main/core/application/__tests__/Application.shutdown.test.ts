@@ -8,10 +8,11 @@
  * that handler, with a real LifecycleManager underneath.
  */
 
-import { bootConfigService } from '@main/data/bootConfig'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+
+import { bootConfigService } from '@main/data/bootConfig'
 
 import { BaseService } from '../../lifecycle/BaseService'
 import { SERVICE_STOP_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS } from '../../lifecycle/constants'

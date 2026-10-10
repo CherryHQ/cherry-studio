@@ -1,6 +1,7 @@
+import { useEffect, useRef } from 'react'
+
 import { dataApiService } from '@data/DataApiService'
 import type { DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
-import { useEffect, useRef } from 'react'
 
 export interface UseDataChangeOptions {
   /** Concrete parameters for a template endpoint. Effects without a route claim still match. */

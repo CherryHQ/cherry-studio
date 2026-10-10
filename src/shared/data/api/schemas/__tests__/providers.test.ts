@@ -72,4 +72,11 @@ describe('Provider DTO logo validation', () => {
 
     expect(result.success).toBe(true)
   })
+
+  it('accepts only supported Anthropic cache lifetimes', () => {
+    expect(
+      UpdateProviderSchema.parse({ providerSettings: { cacheControl: { ttl: '1h' } } }).providerSettings?.cacheControl
+    ).toEqual({ ttl: '1h' })
+    expect(UpdateProviderSchema.safeParse({ providerSettings: { cacheControl: { ttl: '30m' } } }).success).toBe(false)
+  })
 })

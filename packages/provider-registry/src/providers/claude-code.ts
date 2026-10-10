@@ -1,6 +1,8 @@
 import { defineProvider } from './types'
 
 const webFetchModels = [
+  'claude-haiku-5-5',
+  'claude-sonnet-5-5',
   'claude-opus-4',
   'claude-sonnet-4',
   'claude-haiku-4',
@@ -27,8 +29,9 @@ const webFetchModels = [
  * | ---------------------- | ---------- | -------------------------------------- |
  * | Opus 4.6 / 4.7 / 4.8   | yes        | yes — Pro pays usage credits for it    |
  * | Opus 5                 | yes        | yes — same gating as the other Opuses  |
+ * | Opus 5.5               | yes        | no — 1M on every plan, incl. Pro       |
  * | Sonnet 4.6             | yes        | yes — credits on EVERY plan, incl. Max |
- * | Fable 5, Sonnet 5      | yes        | no — always 1M, nothing to select      |
+ * | Fable 5 / 5.1, Sonnet 5 | yes       | no — always 1M, nothing to select      |
  * | Opus 4.5 / 4.1, Sonnet 4.5, Haiku 4.5 | no | no — 200K models              |
  *
  * On a raw API key the twins are redundant (Opus 4.7+ always runs at 1M there),
@@ -54,6 +57,7 @@ const EXTENDED_CONTEXT_MODELS = [
 export default defineProvider({
   id: 'claude-code',
   name: 'Claude Code',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'anthropic-messages',
   modelListSource: 'registry',
   authMethods: ['external-cli'],
@@ -71,6 +75,10 @@ export default defineProvider({
     }
   },
   overrides: [
+    { modelId: 'claude-haiku-5-5' },
+    { modelId: 'claude-sonnet-5-5' },
+    { modelId: 'claude-fable-5-1' },
+    { modelId: 'claude-opus-5-5', supportsFastMode: true },
     { modelId: 'claude-fable-5' },
     { modelId: 'claude-sonnet-5' },
     { modelId: 'claude-opus-4-5' },

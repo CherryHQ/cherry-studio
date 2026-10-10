@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next'
+
 import { Badge } from '@cherrystudio/ui'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import {
@@ -8,7 +10,6 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
-import type { TFunction } from 'i18next'
 
 import { OpenTargetIcon } from './OpenTargetIcon'
 

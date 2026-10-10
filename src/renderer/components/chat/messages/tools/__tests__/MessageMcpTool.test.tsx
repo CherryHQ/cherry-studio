@@ -1,11 +1,12 @@
-import type { McpToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { McpToolResponse } from '@renderer/types/mcpTool'
 
 import MessageMcpTool from '../mcp/MessageMcpTool'
 
 const mockApproval = vi.hoisted(() => vi.fn())
-const mockActions = vi.hoisted(() => vi.fn(() => ({}) as Record<string, unknown>))
+const mockActions = vi.hoisted(() => vi.fn(() => ({})))
 const mockIsToolAutoApproved = vi.hoisted(() => vi.fn(() => false))
 const mockHighlightCode = vi.hoisted(() => vi.fn(async (code: string) => `<pre>${code}</pre>`))
 
@@ -155,6 +156,19 @@ describe('MessageMcpTool', () => {
 
     expect(screen.getByText('Denied')).toBeInTheDocument()
     expect(screen.getByText('Use the read-only endpoint instead')).toBeInTheDocument()
+  })
+
+  it('shows the model-facing denial wording when the user gave no reason', () => {
+    render(
+      <MessageMcpTool toolResponse={createMcpToolResponse({ status: 'cancelled', approval: { approved: false } })} />
+    )
+
+    expect(screen.getByText('Denied')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). Wait for the user's instructions instead of retrying it."
+      )
+    ).toBeInTheDocument()
   })
 
   it('renders structured tool output that is not an MCP content envelope', async () => {

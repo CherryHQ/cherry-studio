@@ -6,12 +6,16 @@ import { apiGatewayHandlers } from './apiGateway'
 import { appHandlers } from './app'
 import { backupHandlers } from './backup'
 import { binaryHandlers } from './binary'
+import { browserHandlers } from './browser'
 import { channelHandlers } from './channel'
+import { cherryCloudHandlers } from './cherryCloud'
 import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
 import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
+import { doctorHandlers } from './doctor'
+import { doctorAgentHandlers } from './doctorAgent'
 import { exportHandlers } from './export'
 import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
@@ -26,6 +30,7 @@ import { notificationHandlers } from './notification'
 import { oauthHandlers } from './oauth'
 import { openclawHandlers } from './openclaw'
 import { ovmsHandlers } from './ovms'
+import { pdfjsHandlers } from './pdfjs'
 import { printHandlers } from './print'
 import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
@@ -36,6 +41,7 @@ import { skillHandlers } from './skill'
 import { systemHandlers } from './system'
 import { tabHandlers } from './tab'
 import { translateHandlers } from './translate'
+import { trashHandlers } from './trash'
 import { webSearchHandlers } from './webSearch'
 import { webviewHandlers } from './webview'
 import { windowHandlers } from './window'
@@ -55,12 +61,16 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...appHandlers,
   ...backupHandlers,
   ...binaryHandlers,
+  ...browserHandlers,
   ...channelHandlers,
   ...cherryinHandlers,
+  ...cherryCloudHandlers,
   ...citationHandlers,
   ...codeCliHandlers,
   ...deepSeekHarnessHandlers,
   ...diagnosticsHandlers,
+  ...doctorHandlers,
+  ...doctorAgentHandlers,
   ...exportHandlers,
   ...externalAppHandlers,
   ...fileHandlers,
@@ -75,6 +85,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...oauthHandlers,
   ...openclawHandlers,
   ...ovmsHandlers,
+  ...pdfjsHandlers,
   ...printHandlers,
   ...profileHandlers,
   ...providerHandlers,
@@ -85,6 +96,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...systemHandlers,
   ...tabHandlers,
   ...translateHandlers,
+  ...trashHandlers,
   ...webSearchHandlers,
   ...webviewHandlers,
   ...windowHandlers

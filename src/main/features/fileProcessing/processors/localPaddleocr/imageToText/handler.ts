@@ -1,6 +1,4 @@
 import { application } from '@application'
-import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
-import { isLocalModelReady } from '@main/services/localModel'
 import { FILE_TYPE } from '@shared/types/file'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
@@ -18,17 +16,16 @@ export const localPaddleocrImageToTextHandler: FileProcessingCapabilityHandler<'
     if (file.type !== FILE_TYPE.IMAGE) {
       throw new Error('Local PaddleOCR only supports image files')
     }
-    if (!isLocalModelReady('ocr')) {
+    if (!application.get('LocalModelService').isCapabilityReady('ocr')) {
       throw new Error('Local PaddleOCR model is not downloaded')
     }
-    const modelPaths = ocrModelPaths()
 
     return {
       mode: 'background',
       async execute(executionContext) {
         const { text } = await application
           .get('OcrInferenceService')
-          .recognize(modelPaths, { kind: 'path', imagePath: file.path }, executionContext.signal)
+          .recognize({ kind: 'path', imagePath: file.path }, executionContext.signal)
         return { kind: 'text', text }
       }
     }

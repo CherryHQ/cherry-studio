@@ -1,11 +1,12 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import i18n from 'i18next'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
+
 import MessageMetaTool from '../meta/MessageMetaTool'
 
-const mockActions = vi.hoisted(() => vi.fn(() => ({}) as Record<string, unknown>))
+const mockActions = vi.hoisted(() => vi.fn(() => ({})))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockActions()
@@ -80,6 +81,32 @@ describe('MessageMetaTool', () => {
 
     expect(await screen.findByText('没有匹配的工具。')).toBeInTheDocument()
     expect(screen.getByText('参数')).toBeInTheDocument()
+  })
+
+  it('shows tools loaded by native Pi search instead of an empty result', async () => {
+    render(
+      <MessageMetaTool
+        toolResponse={createMetaToolResponse({ response: { loaded: ['mcp__cherry_tools__web_search'] } })}
+      />
+    )
+    await expandCard(/tool_search/)
+    expect(await screen.findByText('mcp__cherry_tools__web_search')).toBeTruthy()
+    expect(screen.queryByText('没有匹配的工具。')).toBeNull()
+  })
+
+  it('shows the native Code Mode script and its output', async () => {
+    render(
+      <MessageMetaTool
+        toolResponse={createMetaToolResponse({
+          tool: { id: 'codemode', name: 'codemode', type: 'builtin' },
+          arguments: { code: 'text(42)' },
+          response: 'Script completed\n42'
+        })}
+      />
+    )
+    await expandCard(/codemode/)
+    expect(await screen.findByText('text(42)')).toBeTruthy()
+    expect(screen.getByText(/Script completed/)).toBeTruthy()
   })
 
   it('localizes a missing tool_invoke name instead of hardcoding English', async () => {

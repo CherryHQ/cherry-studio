@@ -13,7 +13,7 @@
 import * as z from 'zod'
 
 import type { CanonicalParamKey } from '../schemas/enums'
-import { IMAGE_PARAM_CATALOG } from '../schemas/imageParamCatalog'
+import { IMAGE_PARAM_CATALOG, normalizeImageParamNumber } from '../schemas/imageParamCatalog'
 import type { ImageGenerationMode, ImageGenerationSupport, SupportSpec } from '../schemas/model'
 
 function resolveModeSupports(
@@ -75,8 +75,8 @@ export function buildParamsSchema(
     // `<key>_width` / `<key>_height` keys (not canonical), bounded by the spec.
     if (spec.type === 'size') {
       const side = z.preprocess(
-        (v) => (v === '' || v == null ? undefined : v),
-        z.coerce.number().min(spec.minSide).max(spec.maxSide).optional()
+        normalizeImageParamNumber,
+        z.number().finite().min(spec.minSide).max(spec.maxSide).optional()
       )
       shape[`${key}_width`] = side.catch(undefined)
       shape[`${key}_height`] = side.catch(undefined)

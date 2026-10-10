@@ -1,0 +1,60 @@
+diff --git a/dist/cjs/index.js b/dist/cjs/index.js
+--- a/dist/cjs/index.js
++++ b/dist/cjs/index.js
+@@ -6593,7 +6593,7 @@ class VisualElement {
+          * unmount/remount), reset motion values to their initial state
+          * so animations replay correctly from initial → animate.
+          */
+-        if (this.hasBeenMounted) {
++        if (this.hasBeenMounted && !this.blockInitialAnimation) {
+             for (const key in this.initialValues) {
+                 this.values.get(key)?.jump(this.initialValues[key]);
+                 this.latestValues[key] = this.initialValues[key];
+@@ -8068,6 +8068,13 @@ function createAnimationState(visualElement) {
+             });
+             animations.push({ animation: fallbackAnimation });
+         }
++        // A reconnect must restore the current target without replaying initial animations.
++        if (wasReset && visualElement.blockInitialAnimation) {
++            for (const key in encounteredKeys) {
++                visualElement.getValue(key)?.stop();
++            }
++            setTarget(visualElement, encounteredKeys);
++        }
+         let shouldAnimate = Boolean(animations.length);
+         if (isInitialRender &&
+             (props.initial === false || props.initial === props.animate) &&
+diff --git a/dist/es/render/VisualElement.mjs b/dist/es/render/VisualElement.mjs
+--- a/dist/es/render/VisualElement.mjs
++++ b/dist/es/render/VisualElement.mjs
+@@ -183,7 +183,7 @@ class VisualElement {
+          * unmount/remount), reset motion values to their initial state
+          * so animations replay correctly from initial → animate.
+          */
+-        if (this.hasBeenMounted) {
++        if (this.hasBeenMounted && !this.blockInitialAnimation) {
+             for (const key in this.initialValues) {
+                 this.values.get(key)?.jump(this.initialValues[key]);
+                 this.latestValues[key] = this.initialValues[key];
+diff --git a/dist/es/render/utils/animation-state.mjs b/dist/es/render/utils/animation-state.mjs
+--- a/dist/es/render/utils/animation-state.mjs
++++ b/dist/es/render/utils/animation-state.mjs
+@@ -1,3 +1,4 @@
++import { setTarget } from './setters.mjs';
+ import { animateVisualElement } from '../../animation/interfaces/visual-element.mjs';
+ import { calcChildStagger } from '../../animation/utils/calc-child-stagger.mjs';
+ import { getVariantContext } from './get-variant-context.mjs';
+@@ -317,6 +318,13 @@ function createAnimationState(visualElement) {
+             });
+             animations.push({ animation: fallbackAnimation });
+         }
++        // A reconnect must restore the current target without replaying initial animations.
++        if (wasReset && visualElement.blockInitialAnimation) {
++            for (const key in encounteredKeys) {
++                visualElement.getValue(key)?.stop();
++            }
++            setTarget(visualElement, encounteredKeys);
++        }
+         let shouldAnimate = Boolean(animations.length);
+         if (isInitialRender &&
+             (props.initial === false || props.initial === props.animate) &&

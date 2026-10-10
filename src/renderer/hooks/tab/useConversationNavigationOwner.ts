@@ -1,9 +1,10 @@
+import { useEffect, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { findConversationTab, getConversationSidebarApp } from '@renderer/utils/conversationNavigation'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
-import { useEffect, useRef } from 'react'
 
 import type { TabsContextValue } from './useTabsContext'
 

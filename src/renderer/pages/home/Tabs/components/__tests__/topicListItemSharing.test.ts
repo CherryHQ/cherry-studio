@@ -1,5 +1,6 @@
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { describe, expect, it } from 'vitest'
+
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
 
 import { EMPTY_TOPIC_LIST_ITEM_RECONCILIATION, reconcileTopicListItems } from '../topicListItemSharing'
 

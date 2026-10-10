@@ -1,5 +1,6 @@
-import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import { describe, expect, it } from 'vitest'
+
+import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 
 import { buildCreateSessionSeed, buildCreateSessionSeedIndex } from '../Sessions'
 

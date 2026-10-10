@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KNOWLEDGE_ACTIVE_JOB_LIMIT } from '../../../types'
 
@@ -17,7 +18,7 @@ vi.mock('@application', async () => {
       cancel: cancelMock,
       list: listMock
     }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  })
 })
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
