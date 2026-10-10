@@ -40,6 +40,7 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
+import { classifyErrorCategory } from '@shared/utils/errorCategory'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
@@ -234,7 +235,9 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
  * `errorText`, and some providers put the whole SSE frame there
  * (`… · event:error data:{"type":"error",…}`) — persisting that verbatim renders
  * protocol scaffolding in the message. Unwrap to the provider's own payload and
- * keep the structured fields so classification still sees the status.
+ * keep the structured fields so classification still sees the status. The unwrapped
+ * message alone may name neither cause nor status ("Request rejected"), so retain the
+ * category derived from the whole frame before discarding it.
  */
 function errorFromStreamChunk(errorText: string): SerializedError {
   const frame = extractSseErrorFrame(errorText)
@@ -248,6 +251,11 @@ function errorFromStreamChunk(errorText: string): SerializedError {
   if (frame.statusCode !== undefined) error.statusCode = frame.statusCode
   if (frame.type !== undefined) error.providerErrorType = frame.type
   if (frame.code !== undefined) error.providerErrorCode = frame.code
+  const category = classifyErrorCategory({
+    text: [frame.message, frame.type, frame.code].filter(Boolean).join('\n'),
+    status: frame.statusCode
+  })
+  if (category !== 'unknown') error.providerErrorCategory = category
   return error
 }
 
