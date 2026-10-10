@@ -73,3 +73,12 @@ The optional public model summary (`modelId`, `providerId`, `name`) is shared by
 and Agent catalog entries. A message records its producing model; the catalog records current
 configuration (`null` for unconfigured, omitted for older hosts). Neither carries provider secrets
 or requires the receiving device to have the model installed.
+
+### Pairing addresses
+
+`pairingQrSchema` accepts legacy v2 IP/port invitations and v3 invitations with complete
+`endpoints` (`host`, `port`, `security`). `fixtures/pairing-qr.json` is also exercised by
+Mobile's lightweight startup schema. Keep the fixture copy aligned when changing the wire contract.
+`parseDirectEndpoint` accepts HTTP(S) input as an alias for WS(S), preserving TLS and explicit ports.
+The fixed route remains `/v1/remote/connect`; advertised endpoints use `advertisedEndpointSchema`
+to reject loopback and wildcard destinations.

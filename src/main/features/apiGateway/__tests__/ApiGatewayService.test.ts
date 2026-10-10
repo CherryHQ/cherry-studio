@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { DirectEndpoint } from '@cherrystudio/remote-protocol'
 import { BaseService } from '@main/core/lifecycle'
 
 /**
@@ -34,6 +35,7 @@ const {
     hostPreference: '127.0.0.1',
     portPreference: 23333,
     ipv6Addresses: [] as string[],
+    advertisedEndpoint: null as DirectEndpoint | null,
     ipv6Listening: true
   }
 }))
@@ -81,7 +83,13 @@ vi.mock('@application', async () => {
         captured.prefHandler = cb
         return () => {}
       }),
-      get: vi.fn((key: string) => (key.endsWith('api_key') ? 'existing-key' : false)),
+      get: vi.fn((key: string) =>
+        key.endsWith('advertised_endpoint')
+          ? captured.advertisedEndpoint
+          : key.endsWith('api_key')
+            ? 'existing-key'
+            : false
+      ),
       getMultiple: vi.fn(() => ({
         enabled: captured.enabledPreference,
         host: captured.hostPreference,
@@ -120,6 +128,7 @@ beforeEach(() => {
   captured.hostPreference = '127.0.0.1'
   captured.portPreference = 23333
   captured.ipv6Addresses = []
+  captured.advertisedEndpoint = null
   captured.ipv6Listening = true
   mockPreferenceSet.mockReset()
   mockPreferenceSet.mockImplementation(async (key, value) => {
@@ -414,6 +423,31 @@ describe('ApiGatewayService LAN shutdown', () => {
     expect(invitation.addresses[0]).toBe('192.168.1.8')
     expect(invitation.addressOptions).toHaveLength(41)
     expect(invitation.addressOptions[0]).toEqual({ address: '192.168.1.8', interfaceName: 'en0' })
+  })
+
+  it('advertises an external endpoint and restores the actual bound port without rebinding', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    captured.advertisedEndpoint = { host: 'Desktop.example.com', port: 443, security: 'wss' }
+    captured.portPreference = 24444
+    expect(await service.createRemoteInvitation()).toMatchObject({
+      port: 23333,
+      endpoints: [{ host: 'desktop.example.com', port: 443, security: 'wss' }],
+      desktopIdentity: '12D3KooWDesktop',
+      invitationId: 'invitation'
+    })
+    captured.advertisedEndpoint = null
+    expect(await service.getRemoteEndpoint()).toMatchObject({
+      advertisedEndpoint: null,
+      endpoints: [{ host: '192.168.1.8', port: 23333, security: 'ws' }]
+    })
+  })
+
+  it('rejects invalid persisted destinations instead of issuing an unusable invitation', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    captured.advertisedEndpoint = { host: '127.0.0.1', port: 443, security: 'wss' }
+    await expect(service.createRemoteInvitation()).rejects.toThrow('Invalid remote destination')
   })
 
   it('offers routable IPv6 candidates only while IPv6 is actually listening', async () => {

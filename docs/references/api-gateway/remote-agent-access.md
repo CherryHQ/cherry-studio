@@ -45,6 +45,10 @@ the cloud forwards encrypted bytes and never becomes an Agent execution fallback
   Checkpoints are for initial synchronization and recovery, not periodic refresh.
 - **One protocol across reachability modes.** Direct LAN, a user's VPN/proxy,
   hosted relay, and self-hosted relay use the same encrypted WebSocket surface.
+- **Custom connection addresses and ports.** Automatic discovery is the default;
+  users can explicitly configure a hostname/IP, port and WS/WSS scheme for the
+  same desktop identity. An advertised connection endpoint can differ from the
+  desktop's listening address and port, for example behind a reverse proxy.
 - **One public package: `@cherrystudio/remote-protocol`.** Its root is domain-neutral;
   Agent schemas and reducers live in its `/agent` export. Future domains do not
   require renaming the package or depending on Agent types.
@@ -202,6 +206,65 @@ share Agent session IDs or parse encrypted business frames. Go binary acquisitio
 uses [Binary Manager](../binary-manager/README.md); secrets reach the child through
 an inherited private pipe rather than command-line arguments. Relay queues and
 connection admission must also be bounded.
+
+### Custom connection addresses and ports
+
+**Implementation:** Desktop can configure the address and port offered to
+remote clients, and Mobile can add or edit endpoints for an already paired
+desktop. Manual configuration works without mDNS and does not require pairing
+again. Desktop stores the optional override in
+`feature.remote_access.advertised_endpoint`. Automatic invitations retain QR v2;
+custom invitations use QR v3 with `endpoints: [{ host, port, security }]`.
+Mobile accepts both versions and preserves each endpoint through pairing and reconnect.
+
+| Configuration | Owner and meaning |
+|---|---|
+| Gateway listening port | Desktop's existing `feature.api_gateway.port`, default `23333`; local API and direct remote access share it. Reuse this setting rather than introduce a second remote listening port. |
+| Advertised connection endpoint | Optional Desktop Preference containing hostname/IP, port and `ws`/`wss`; used in connection details and invitations. This is where users specify a VPN address, domain or reverse-proxy endpoint. |
+| Configured client endpoints | Mobile's existing per-device configuration, persisted independently of pairing identity and grants; each endpoint owns its port and scheme. |
+
+With no override, Desktop offers its reachable interface addresses and actual
+bound port. A manual advertised endpoint replaces the automatic addresses in
+the invitation; clearing it restores automatic selection. It does not rebind the
+gateway, change network-access consent, configure DNS/TLS or create a proxy.
+The listener's existing loopback/network policy remains authoritative. Local
+gateway consumers continue using the local endpoint. DNS-SD continues publishing
+only the actual direct listener; an external override is not a local SRV record.
+
+Validate a nonempty hostname, IPv4 or supported IPv6 address, an integer connection
+port from `1` through `65535`, and `ws` or `wss`. Reject wildcard destinations
+(`0.0.0.0`, `::`), loopback destinations for another device, URL credentials,
+query/fragment values and arbitrary paths. IPv6 URL construction and interface
+scope follow the [connection contract](./remote-connectivity.md#5-连接消费契约).
+The Desktop input also accepts `https://` and `http://`, normalized to `wss://`
+and `ws://` respectively, preserving explicit ports (defaults: 443 and 80).
+Use the fixed `/v1/remote/connect` route. Public hops require WSS; an explicit
+scheme must never silently downgrade after a failure. Keep domain names for
+system DNS resolution on each connection attempt rather than persisting resolved IPs.
+
+For a direct LAN connection, setting the gateway's listening port to `24444`
+allows an endpoint such as `ws://192.168.1.8:24444/v1/remote/connect`.
+A TLS reverse proxy can instead expose `wss://desktop.example.com:443/v1/remote/connect`
+while the gateway listens on `23333`. That forwarding must be configured by the
+user; the proxy forwards only the remote route, and the desktop's remote ingress
+policy must permit it.
+
+Invitations carry the selected endpoint's host, port and scheme alongside the
+existing identity pin and invitation proof. If the current QR schema cannot
+represent them, update the shared invitation schema/version and both consumers
+together before offering the option; never encode a domain as an IP or discard
+a custom port or scheme. Editing an endpoint does not rotate desktop/device keys
+or grants. Refresh displayed connection details and QR data after applying changes;
+changing the listening port also refreshes discovery only after a successful bind.
+Invalid configuration or a bind failure must not advertise the requested endpoint
+as running, and an external endpoint is not proven reachable merely by saving it.
+
+Mobile saves edits as explicit user configuration. Discovery and QR hints must not
+overwrite it. Existing healthy connections can finish on their current endpoint;
+new attempts use the updated candidates and verify the same pinned identity.
+If an old address is no longer reachable, the user can edit it without reauthorizing.
+Recovery retains the original session cursor and pending command IDs, using the
+existing [resolver and reconnect owner](./remote-connectivity.md#7-调度连接代际与失败处理).
 
 ## Pairing and device authorization
 
@@ -417,6 +480,10 @@ silently enter that executor or create a second local run.
 - Mount `/v1/remote/connect` with its own admission/auth boundary, outside the
   gateway's provider-key guard while still covered by the remote route allowlist.
   Register resources with lifecycle ownership. Wire the JSON-RPC adapter to Stage 2.
+- Support the custom endpoint contract above. Verify automatic/manual selection,
+  IPv4/IPv6/domain inputs, non-default ports, invalid inputs, port conflicts and
+  invitation round trips. Test a WSS proxy whose external port differs from the
+  gateway port; ordinary HTTP/MCP routes must remain inaccessible remotely.
 - Verify that old provider/device credentials alone cannot invoke Agent methods,
   that revocation stops pending delivery, and that send/approve/cancel each enforce
   the enabled device authorization and concurrency preconditions. Validate full encrypted Node↔Expo
@@ -437,6 +504,10 @@ silently enter that executor or create a second local run.
 - Verify iOS/Android background/resume, app restart, lost receipt, token expiry,
   version mismatch and revoked device authorizations. Network timeout shows an unknown/pending
   command outcome until reconciled; it never silently resends under a new ID.
+- Verify editing a paired desktop's address/port with discovery unavailable,
+  persistence across Mobile restart, and recovery after a desktop port change.
+  Preserve identity, grants, history and command IDs; reject a different desktop
+  answering at the configured address without replacing the original pairing.
 - Deliverable: one real Agent session works end to end, including reconnect, without
   starting a local mobile Agent or copying credentials to run the model there.
 

@@ -922,6 +922,13 @@
       "defaultValue": "none",
       "status": "classified",
       "description": "Reasoning effort for the translate model; 'none' reproduces the hardcoded behaviour that predates this setting (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.remote_access.advertised_endpoint",
+      "type": "PreferenceTypes.AdvertisedRemoteEndpoint",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "Optional advertised remote connection endpoint; null uses the active local listener addresses."
     }
   ]
 }

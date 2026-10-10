@@ -24,9 +24,13 @@ export {
   remoteDiscoveryType,
   remoteConnectPath,
   directEndpointSchema,
+  advertisedEndpointSchema,
   configuredEndpointsSchema,
   remoteDiscoveryTxtSchema,
   directEndpointUrl,
   parseDirectEndpoint
 } from './discovery'
 export type { DirectEndpoint } from './discovery'
+
+export { pairingQrSchema } from './pairing'
+export type { PairingQr } from './pairing'

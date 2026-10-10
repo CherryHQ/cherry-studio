@@ -6,7 +6,8 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { RemoteCapability } from '@cherrystudio/remote-protocol'
+import { directEndpointUrl } from '@cherrystudio/remote-protocol'
+import type { PairingQr, RemoteCapability } from '@cherrystudio/remote-protocol'
 import {
   Alert,
   Badge,
@@ -21,6 +22,7 @@ import {
   DialogTrigger,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -28,6 +30,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePersistCache, useSharedCacheValue } from '@data/hooks/useCache'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
 import {
   SettingGroup,
   SettingRowTitle,
@@ -43,7 +46,9 @@ import type { OutputFor } from '@shared/ipc/types'
 
 import { MobileAppDownload } from './MobileAppDownload'
 import { MobileAppShowcase } from './MobileAppShowcase'
+import { RemoteEndpointSettings } from './RemoteEndpointSettings'
 
+const ENDPOINT_PREFERENCE_OPTIONS = { optimistic: false }
 const LAN_HOST = '0.0.0.0'
 const CAPABILITY_LABEL = {
   configuration: 'deviceConnections.capabilities.configuration',
@@ -59,6 +64,11 @@ const DeviceConnectionsSettings: FC = () => {
   const navigate = useNavigate()
   const [step, setStep] = usePersistCache('settings.device_connections.step')
   const { apiGatewayConfig, apiGatewayRunning, apiGatewayLoading } = useApiGateway()
+  const [advertisedEndpoint, setAdvertisedEndpoint] = usePreference(
+    'feature.remote_access.advertised_endpoint',
+    ENDPOINT_PREFERENCE_OPTIONS
+  )
+  const endpointKey = JSON.stringify(advertisedEndpoint)
   const discoveryStatus = useSharedCacheValue('feature.remote_access.discovery_status')
   const lanRunning = useSharedCacheValue('feature.api_gateway.lan_running') ?? false
   const {
@@ -84,6 +94,7 @@ const DeviceConnectionsSettings: FC = () => {
   const connectionReady = lanEnabled && lanRunning && gatewayAvailable
   const [invitation, setInvitation] = useState<Invitation>()
   const [selectedAddress, setSelectedAddress] = useState('auto')
+  const [endpointDialogOpen, setEndpointDialogOpen] = useState(false)
   const [invitationExpired, setInvitationExpired] = useState(false)
   const [claims, setClaims] = useState<PairingClaim[]>([])
   const [selectedCapabilities, setSelectedCapabilities] = useState<Record<string, RemoteCapability[]>>({})
@@ -142,7 +153,7 @@ const DeviceConnectionsSettings: FC = () => {
       invitationRequestId.current += 1
       claimRequestId.current += 1
     }
-  }, [refreshClaims, clearInvitation, showPairingQr])
+  }, [refreshClaims, clearInvitation, showPairingQr, endpointKey])
 
   useEffect(() => {
     if (!invitation) return
@@ -203,20 +214,29 @@ const DeviceConnectionsSettings: FC = () => {
   }
 
   const selectedAddressAvailable =
-    selectedAddress === 'auto' || invitation?.addressOptions.some(({ address }) => address === selectedAddress)
+    !!invitation?.advertisedEndpoint ||
+    selectedAddress === 'auto' ||
+    invitation?.addressOptions.some(({ address }) => address === selectedAddress)
   const qrPayload =
-    invitation && selectedAddressAvailable && !isCreatingInvitation
+    invitation &&
+    JSON.stringify(invitation.advertisedEndpoint ?? null) === endpointKey &&
+    selectedAddressAvailable &&
+    !isCreatingInvitation
       ? JSON.stringify({
-          v: 2,
+          ...(invitation.advertisedEndpoint
+            ? { v: 3, endpoints: invitation.endpoints }
+            : {
+                v: 2,
+                port: invitation.port,
+                ips: selectedAddress === 'auto' ? invitation.addresses : [selectedAddress]
+              }),
           t: 'cherry-studio-pair',
           name: invitation.hostname,
-          port: invitation.port,
-          ips: selectedAddress === 'auto' ? invitation.addresses : [selectedAddress],
           invitationId: invitation.invitationId,
           invitationSecret: invitation.invitationSecret,
           desktopIdentity: invitation.desktopIdentity,
           protocolVersions: invitation.protocolVersions
-        })
+        } satisfies PairingQr)
       : null
   const statusKey = connectionReady
     ? 'deviceConnections.status.ready'
@@ -268,6 +288,19 @@ const DeviceConnectionsSettings: FC = () => {
         <PageDescription>{t('deviceConnections.description')}</PageDescription>
       </div>
 
+      <Dialog open={endpointDialogOpen} onOpenChange={setEndpointDialogOpen}>
+        <DialogContent closeLabel={t('common.close')}>
+          <RemoteEndpointSettings
+            key={endpointKey}
+            endpoint={advertisedEndpoint}
+            onSave={async (endpoint) => {
+              await setAdvertisedEndpoint(endpoint)
+              setEndpointDialogOpen(false)
+            }}
+            onCancel={() => setEndpointDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
       <div className="mt-6 grid min-w-0 flex-1 items-stretch gap-8 @3xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {!onboardingComplete && step === 'download' && isLoadingDevices ? (
           <div role="status" className="text-muted-foreground text-sm">
@@ -411,8 +444,21 @@ const DeviceConnectionsSettings: FC = () => {
                       </label>
                       <div className="flex w-full max-w-lg items-start gap-2">
                         <Select
-                          value={selectedAddress}
-                          onValueChange={setSelectedAddress}
+                          value={invitation.advertisedEndpoint ? 'configured' : selectedAddress}
+                          onValueChange={(value) => {
+                            if (value === 'custom') {
+                              setEndpointDialogOpen(true)
+                            } else if (value !== 'configured') {
+                              void (async () => {
+                                try {
+                                  if (advertisedEndpoint) await setAdvertisedEndpoint(null)
+                                  setSelectedAddress(value)
+                                } catch {
+                                  toast.error(t('common.save_failed'))
+                                }
+                              })()
+                            }
+                          }}
                           disabled={isCreatingInvitation}>
                           <SelectTrigger
                             id="pairing-address"
@@ -420,17 +466,27 @@ const DeviceConnectionsSettings: FC = () => {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="max-h-80 max-w-[calc(100vw-2rem)]">
-                            <SelectItem value="auto">{t('deviceConnections.pairing.automatic')}</SelectItem>
-                            {!selectedAddressAvailable && (
-                              <SelectItem value={selectedAddress} disabled>
-                                {selectedAddress}
-                              </SelectItem>
-                            )}
-                            {invitation.addressOptions.map(({ address, interfaceName }) => (
-                              <SelectItem key={address} value={address} className="whitespace-normal break-all">
-                                {address} ({interfaceName})
-                              </SelectItem>
-                            ))}
+                            <SelectGroup>
+                              <SelectItem value="auto">{t('deviceConnections.pairing.automatic')}</SelectItem>
+                              {invitation.advertisedEndpoint && (
+                                <SelectItem value="configured" className="whitespace-normal break-all">
+                                  {directEndpointUrl(invitation.advertisedEndpoint)}
+                                </SelectItem>
+                              )}
+                              {!selectedAddressAvailable && (
+                                <SelectItem value={selectedAddress} disabled>
+                                  {selectedAddress}
+                                </SelectItem>
+                              )}
+                              {invitation.addressOptions.map(({ address, interfaceName }) => (
+                                <SelectItem key={address} value={address} className="whitespace-normal break-all">
+                                  {address} ({interfaceName})
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                            <SelectGroup className="sticky -bottom-1 z-10 border-t border-border bg-popover py-1">
+                              <SelectItem value="custom">{t('deviceConnections.endpoint.title')}</SelectItem>
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                         <Button

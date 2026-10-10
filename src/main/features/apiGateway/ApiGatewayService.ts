@@ -5,6 +5,7 @@ import { Mutex } from 'async-mutex'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
+import { advertisedEndpointSchema } from '@cherrystudio/remote-protocol'
 import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
@@ -350,13 +351,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async createRemoteInvitation(): Promise<OutputFor<'api_gateway.remote.create_invitation'>> {
     const endpoint = await this.getRemoteEndpoint()
-    if (endpoint.addresses.length === 0) throw new Error('No connection address is available')
+    if (endpoint.endpoints.length === 0) throw new Error('No connection address is available')
     const invitation = await application.get('RemoteAccessService').createInvitation()
     return { ...endpoint, ...invitation }
   }
 
   async getRemoteEndpoint() {
     const metadata = await getInterfaceMetadata()
+    const configured = application.get('PreferenceService').get('feature.remote_access.advertised_endpoint')
     if (!this.isRunning()) throw new Error('API Gateway is not running')
     if (
       !this.getCurrentConfig().enabled ||
@@ -369,7 +371,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
     const ipv6 = this.apiGateway.getHosts().includes('::')
     const addressOptions = getRemoteAddressOptions(networkInterfaces(), metadata, ipv6)
 
+    const advertisedEndpoint = configured == null ? null : advertisedEndpointSchema.parse(configured)
+    const port = this.apiGateway.getPort()
     return {
+      advertisedEndpoint,
+      endpoints: advertisedEndpoint
+        ? [advertisedEndpoint]
+        : addressOptions.slice(0, 32).map(({ address: host }) => ({ host, port, security: 'ws' as const })),
       hostname: hostname(),
       port: this.apiGateway.getPort(),
       addresses: addressOptions.slice(0, 32).map(({ address }) => address),
