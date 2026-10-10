@@ -138,6 +138,27 @@ describe('RendererEditFlushCoordinator', () => {
     await expect(prepared).resolves.toBe(false)
   })
 
+  it('sends the migration lock to a window that opens while migration is in progress', async () => {
+    mockWindows([mainWindow], [])
+
+    const prepared = rendererEditFlushCoordinator.prepareForMigration()
+    const lockBatchId = migrationLockBatchId()
+    rendererEditFlushCoordinator.acknowledgeMigrationLock(lockBatchId, 'main', true)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const flushId = flushBatchId()
+    ipcApiService.send.mockClear()
+    rendererEditFlushCoordinator.syncMigrationLockToWindow('late-window')
+
+    expect(ipcApiService.send).toHaveBeenCalledWith('late-window', 'app.notes_relocation.migration_started', {
+      batchId: lockBatchId
+    })
+
+    rendererEditFlushCoordinator.acknowledgeFlush(flushId, 'main', true)
+    await expect(prepared).resolves.toBe(true)
+    rendererEditFlushCoordinator.clearMigrationLockBroadcast()
+  })
+
   it('ignores acknowledgements for unknown batches', () => {
     expect(() => rendererEditFlushCoordinator.acknowledgeMigrationLock('unknown-batch', 'main', true)).not.toThrow()
     expect(() => rendererEditFlushCoordinator.acknowledgeFlush('unknown-batch', 'main', true)).not.toThrow()

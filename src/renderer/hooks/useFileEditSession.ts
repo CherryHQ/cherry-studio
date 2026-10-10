@@ -162,6 +162,14 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     setReady(true)
   }, [])
 
+  const mutateSnapshot = useCallback(
+    (model: FileEditModel, snapshot: FileEditSnapshot) => {
+      if (modelRef.current !== model) return
+      void mutate(model.key, snapshot, { revalidate: false })
+    },
+    [mutate]
+  )
+
   // The write loop is rebuilt every render (capturing the current `mutate`) but
   // invoked through a ref so the stable `requestWrite` never goes stale.
   const runWritesRef = useRef<(model: FileEditModel) => Promise<void>>(undefined)
@@ -185,7 +193,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
           model.lastWriteError = null
           syncFromModel(model)
           // Keep the SWR cache in step so a later reopen sees the saved bytes.
-          void mutate(model.key, model.snapshot, { revalidate: false })
+          mutateSnapshot(model, model.snapshot)
         } catch (writeError) {
           if (writeError instanceof IpcError && writeError.code === fileErrorCodes.COMMITTED_METADATA_PENDING) {
             logger.warn('Autosave bytes committed; metadata recovery is pending', {
@@ -197,7 +205,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
               model.snapshot = disk
               model.lastWriteError = writeError
               syncFromModel(model)
-              void mutate(model.key, disk, { revalidate: false })
+              mutateSnapshot(model, disk)
               // The bytes did land. Stop this write loop so the same payload
               // is never retried merely because metadata finalization failed.
               // A later user edit may start a new save against the refreshed
@@ -225,14 +233,14 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
               // Disk already holds exactly what we tried to write.
               model.snapshot = disk
               syncFromModel(model)
-              void mutate(model.key, disk, { revalidate: false })
+              mutateSnapshot(model, disk)
               continue
             }
             if (disk.content === baseline.content && ++rebases <= MAX_STALE_REBASES) {
               // Metadata-only touch (mtime advanced, content identical) —
               // rebase onto the new version and retry the write.
               model.snapshot = disk
-              void mutate(model.key, disk, { revalidate: false })
+              mutateSnapshot(model, disk)
               continue
             }
             model.conflict = true
@@ -364,8 +372,8 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     model.conflict = false
     model.lastWriteError = null
     syncFromModel(model)
-    void mutate(model.key, disk, { revalidate: false })
-  }, [debouncedWrite, mutate, syncFromModel])
+    mutateSnapshot(model, disk)
+  }, [debouncedWrite, mutateSnapshot, syncFromModel])
 
   const refreshFromDiskIfClean = useCallback(async () => {
     const model = modelRef.current
@@ -387,11 +395,11 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       model.snapshot = disk
       model.draft = disk.content
       syncFromModel(model)
-      void mutate(model.key, disk, { revalidate: false })
+      mutateSnapshot(model, disk)
     } catch (reloadError) {
       logger.error('Guarded disk refresh failed', reloadError as Error)
     }
-  }, [debouncedWrite, mutate, syncFromModel])
+  }, [debouncedWrite, mutateSnapshot, syncFromModel])
 
   const keepDraft = useCallback(async () => {
     const model = modelRef.current
@@ -404,13 +412,13 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     model.conflict = false
     model.lastWriteError = null
     syncFromModel(model)
-    void mutate(model.key, disk, { revalidate: false })
+    mutateSnapshot(model, disk)
     requestWrite(model)
     await model.writeTask.promise
     if (model.draft !== model.snapshot.content) {
       throw model.lastWriteError ?? new Error('Current draft could not be saved')
     }
-  }, [debouncedWrite, mutate, requestWrite, syncFromModel])
+  }, [debouncedWrite, mutateSnapshot, requestWrite, syncFromModel])
 
   const flush = useCallback(async () => {
     const model = modelRef.current
@@ -453,13 +461,13 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
           model.snapshot = disk
           model.draft = disk.content
           syncFromModel(model)
-          void mutate(model.key, disk, { revalidate: false })
+          mutateSnapshot(model, disk)
         } catch (reloadError) {
           logger.error('External-change reload failed', reloadError as Error)
         }
       })()
     },
-    [mutate, syncFromModel]
+    [mutateSnapshot, syncFromModel]
   )
 
   return useMemo(() => {

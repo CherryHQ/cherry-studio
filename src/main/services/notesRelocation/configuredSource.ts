@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 
-import { realPath } from './validation'
+import { isAllowedNotesDirectory, realPath } from './validation'
 
 export function resolveConfiguredNotesDirectoryPath(): string {
   const preference = application.get('PreferenceService').get('feature.notes.path')?.trim()
@@ -18,6 +18,9 @@ export function resolveConfiguredNotesDirectoryPath(): string {
       return defaultPath
     }
     fs.accessSync(normalized, fs.constants.W_OK)
+    if (!isAllowedNotesDirectory(normalized)) {
+      return defaultPath
+    }
     return normalized
   } catch {
     // Missing or non-writable — match renderer resolveNotesPath fallback to default.

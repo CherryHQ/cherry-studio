@@ -133,6 +133,13 @@ function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
       }
       if (targetEntry.size !== sourceSize) {
         unresolved.push(relativePath)
+        continue
+      }
+
+      const sourceDigest = crypto.createHash('sha256').update(fs.readFileSync(sourceEntryPath)).digest()
+      const targetDigest = crypto.createHash('sha256').update(fs.readFileSync(targetEntryPath)).digest()
+      if (!crypto.timingSafeEqual(sourceDigest, targetDigest)) {
+        unresolved.push(relativePath)
       }
     }
   }

@@ -16,6 +16,26 @@ interface PendingBatch {
   resolve: (success: boolean) => void
 }
 
+let migrationLockBroadcastBatchId: string | null = null
+let windowListenerRegistered = false
+
+function registerNotesWindowMigrationLockListener(): void {
+  if (windowListenerRegistered) {
+    return
+  }
+  windowListenerRegistered = true
+  const windowManager = application.get('WindowManager')
+  windowManager.onWindowCreated((managed) => {
+    if (managed.type !== WindowType.Main && managed.type !== WindowType.SubWindow) {
+      return
+    }
+    const windowId = windowManager.getWindowId(managed.window)
+    if (windowId) {
+      rendererEditFlushCoordinator.syncMigrationLockToWindow(windowId)
+    }
+  })
+}
+
 /**
  * Coordinates renderer handshakes before a notes directory migration: every
  * notes-capable window must lock edits, then persist in-memory drafts (except
@@ -40,6 +60,9 @@ class RendererEditFlushCoordinator {
 
     return new Promise<boolean>((resolve) => {
       const batchId = randomUUID()
+      if (label === 'edit lock') {
+        migrationLockBroadcastBatchId = batchId
+      }
       const pending: PendingBatch = {
         remaining: new Set(windowIds),
         failed: false,
@@ -74,6 +97,19 @@ class RendererEditFlushCoordinator {
     this.resolveBatch(this.flushPending, batchId, senderId, ok)
   }
 
+  syncMigrationLockToWindow(windowId: WindowId): void {
+    if (!migrationLockBroadcastBatchId) {
+      return
+    }
+    application
+      .get('IpcApiService')
+      .send(windowId, 'app.notes_relocation.migration_started', { batchId: migrationLockBroadcastBatchId })
+  }
+
+  clearMigrationLockBroadcast(): void {
+    migrationLockBroadcastBatchId = null
+  }
+
   private resolveBatch(
     store: Map<string, PendingBatch>,
     batchId: string,
@@ -96,9 +132,11 @@ class RendererEditFlushCoordinator {
   }
 
   async prepareForMigration(): Promise<boolean> {
+    registerNotesWindowMigrationLockListener()
     const allWindowIds = this.listNotesWindowIds()
     const locked = await this.waitForAcks(this.lockPending, allWindowIds, 'edit lock')
     if (!locked) {
+      this.clearMigrationLockBroadcast()
       return false
     }
     if (allWindowIds.length === 0) {
@@ -133,3 +171,7 @@ class RendererEditFlushCoordinator {
 }
 
 export const rendererEditFlushCoordinator = new RendererEditFlushCoordinator()
+
+export function clearRendererMigrationLockBroadcast(): void {
+  rendererEditFlushCoordinator.clearMigrationLockBroadcast()
+}

@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import type { WindowId } from '@shared/ipc/types'
 
+import { clearRendererMigrationLockBroadcast } from './rendererEditFlush'
 import { realPath, resolveExistingAncestor } from './validation'
 
 const logger = loggerService.withContext('NotesRelocation:Session')
@@ -153,6 +154,7 @@ export function releaseNotesMigrationSession(): void {
   activeSessionId = null
   blockedRoots = null
   clearCommitWatch()
+  clearRendererMigrationLockBroadcast()
   application.get('IpcApiService').broadcast('app.notes_relocation.migration_finished', undefined)
 }
 
