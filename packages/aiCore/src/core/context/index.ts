@@ -33,6 +33,15 @@ export {
   type VFSStorageAdapter
 } from './offloader'
 export { ContextPrompts, PERSISTED_OUTPUT_TAG } from './prompts'
+export {
+  MODEL_SCRATCHPAD_TAG_NAMES,
+  stripKnownModelScratchpadBlocks,
+  stripKnownModelScratchpadBlocksPreservingCodeFences,
+  stripModelScratchpadBlocks,
+  textHasUnclosedCodeFence,
+  textStartsWithModelScratchpadTag,
+  textStartsWithNonScratchpadOpeningTag
+} from './scratchpadText'
 export { type EntityToolOutputCodec, type TruncateOptions, truncateToolResults } from './truncator'
 export type {
   Attachment,

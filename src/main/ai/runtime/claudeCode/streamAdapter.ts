@@ -35,6 +35,12 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
+import {
+  stripKnownModelScratchpadBlocksPreservingCodeFences,
+  textHasUnclosedCodeFence,
+  textStartsWithModelScratchpadTag,
+  textStartsWithNonScratchpadOpeningTag
+} from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -146,6 +152,12 @@ type StreamContext = {
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
   textStreamedViaContentBlock: boolean
+  /** Parentless main-agent text may carry model scratchpad wrappers outside compaction windows. */
+  filterParentlessScratchpadText: boolean
+  scratchpadTextProbe: string
+  suppressActiveTextPart: boolean
+  textStartDeferred: boolean
+  textPartStarted: boolean
 }
 
 /**
@@ -509,6 +521,8 @@ export class ClaudeCodeStreamAdapter {
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
   private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
   private turnHasActivity = false
+  /** Runtime compaction prose is internal state transfer and must not land in visible transcript text. */
+  private runtimeCompactionActive = false
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
@@ -526,7 +540,7 @@ export class ClaudeCodeStreamAdapter {
    * missing-property check the guarantee that a turn starts clean — resetting fields individually
    * would silently leak whichever one a later change forgets.
    */
-  private createTurnContext(sink = this.sink): StreamContext {
+  private createTurnContext(sink = this.sink, filterParentlessScratchpadText = sink === this.sink): StreamContext {
     const systemReminderBodies = new Set<string>()
     return {
       sink: this.createSystemReminderFilteringSink(this.createActivityTrackingSink(sink), systemReminderBodies),
@@ -548,7 +562,12 @@ export class ClaudeCodeStreamAdapter {
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
       hasStreamedJson: false,
-      textStreamedViaContentBlock: false
+      textStreamedViaContentBlock: false,
+      filterParentlessScratchpadText,
+      scratchpadTextProbe: '',
+      suppressActiveTextPart: false,
+      textStartDeferred: false,
+      textPartStarted: false
     }
   }
 
@@ -630,6 +649,7 @@ export class ClaudeCodeStreamAdapter {
       this.handleContentMessage(message, flow.stream)
       return { type: 'continue' }
     }
+    if (this.isCompactionInternalContent(message, parentToolUseId)) return { type: 'continue' }
 
     // A resumed CLI replays pending background-task notifications as their own zero-turn query before
     // pulling the host's input (claude-agent-sdk#383); that result belongs to the task, not the turn.
@@ -740,7 +760,7 @@ export class ClaudeCodeStreamAdapter {
 
     const flow: FlowContext = {
       rootToolCallId: parentToolCallId,
-      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId))
+      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId), false)
     }
     this.flowContexts.push(flow)
     return flow
@@ -886,11 +906,18 @@ export class ClaudeCodeStreamAdapter {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
     ctx.textPartId = partId
-    ctx.sink.enqueue({
-      type: 'text-start',
-      id: partId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
-    })
+    ctx.scratchpadTextProbe = ''
+    ctx.suppressActiveTextPart = false
+    ctx.textStartDeferred = ctx.filterParentlessScratchpadText
+    ctx.textPartStarted = false
+    if (!ctx.textStartDeferred) {
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: partId,
+        providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      })
+      ctx.textPartStarted = true
+    }
     ctx.textStreamedViaContentBlock = true
   }
 
@@ -938,11 +965,154 @@ export class ClaudeCodeStreamAdapter {
       return
     }
 
+    this.enqueueVisibleTextDelta(text, ctx)
+  }
+
+  private classifyScratchpadProbe(
+    probe: string,
+    atBlockEnd = false
+  ): { action: 'pending'; rewriteProbe?: string } | { action: 'suppress' } | { action: 'emit'; visible: string } {
+    if (!probe) return { action: 'pending' }
+
+    const trimmed = probe.trimStart()
+    if (!trimmed) {
+      return atBlockEnd ? { action: 'emit', visible: probe } : { action: 'pending' }
+    }
+    if (!trimmed.startsWith('<')) {
+      return { action: 'emit', visible: probe }
+    }
+    if (!trimmed.includes('>')) {
+      if (atBlockEnd) {
+        return { action: 'emit', visible: probe }
+      }
+      return { action: 'pending' }
+    }
+
+    if (textStartsWithNonScratchpadOpeningTag(trimmed)) {
+      return { action: 'emit', visible: probe }
+    }
+
+    if (textStartsWithModelScratchpadTag(probe)) {
+      if (!atBlockEnd && textHasUnclosedCodeFence(probe)) {
+        return { action: 'pending' }
+      }
+      const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
+      if (stripped.length < probe.length) {
+        const remainder = stripped
+        if (
+          textStartsWithModelScratchpadTag(remainder) ||
+          (!atBlockEnd && remainder.trimStart().startsWith('<') && !textStartsWithNonScratchpadOpeningTag(remainder))
+        ) {
+          return { action: 'pending', rewriteProbe: remainder }
+        }
+        if (remainder.trim().length > 0) {
+          return { action: 'emit', visible: this.trimAfterScratchpadStrip(probe, remainder) }
+        }
+        return { action: 'suppress' }
+      }
+      if (atBlockEnd) {
+        return { action: 'emit', visible: probe }
+      }
+      return { action: 'pending' }
+    }
+
+    if (atBlockEnd) {
+      return { action: 'emit', visible: probe }
+    }
+    return { action: 'pending' }
+  }
+
+  private flushDeferredScratchpadText(ctx: StreamContext): void {
+    if (!ctx.textStartDeferred || !ctx.textPartId) return
+
+    const pending = ctx.scratchpadTextProbe
+    ctx.textStartDeferred = false
+    ctx.scratchpadTextProbe = ''
+    if (!pending) return
+
+    const classified = this.classifyScratchpadProbe(pending, true)
+    if (classified.action === 'pending') {
+      if (classified.rewriteProbe !== undefined) {
+        ctx.scratchpadTextProbe = classified.rewriteProbe
+        ctx.textStartDeferred = true
+      }
+      return
+    }
+    if (classified.action === 'suppress') {
+      ctx.suppressActiveTextPart = true
+      return
+    }
+
+    const visible = this.trimAfterScratchpadStrip(pending, classified.visible)
+    ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: visible })
+    ctx.textPartStarted = true
+    ctx.textStreamedViaContentBlock = true
+    ctx.accumulatedText += visible
+    ctx.streamedTextLength += visible.length
+  }
+
+  private enqueueVisibleTextDelta(
+    text: string,
+    ctx: StreamContext,
+    providerMetadata?: Record<string, JSONObject>
+  ): void {
+    if (!text) return
+    if (ctx.suppressActiveTextPart) {
+      if (ctx.textPartStarted) return
+      ctx.suppressActiveTextPart = false
+    }
+
     if (!ctx.textPartId) {
       ctx.textPartId = generateId()
-      ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+      ctx.textStartDeferred = ctx.filterParentlessScratchpadText
+      ctx.scratchpadTextProbe = ''
+      ctx.textPartStarted = false
+      if (!ctx.textStartDeferred) {
+        ctx.sink.enqueue({
+          type: 'text-start',
+          id: ctx.textPartId,
+          ...(providerMetadata ? { providerMetadata } : {})
+        })
+        ctx.textPartStarted = true
+      }
     }
+
+    if (ctx.filterParentlessScratchpadText && ctx.textStartDeferred) {
+      ctx.scratchpadTextProbe += text
+      const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
+      if (classified.action === 'pending') {
+        if (classified.rewriteProbe !== undefined) {
+          ctx.scratchpadTextProbe = classified.rewriteProbe
+        }
+        return
+      }
+      if (classified.action === 'suppress') {
+        ctx.scratchpadTextProbe = ''
+        return
+      }
+      ctx.textStartDeferred = false
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: ctx.textPartId,
+        ...(providerMetadata ? { providerMetadata } : {})
+      })
+      ctx.textPartStarted = true
+      text = classified.visible
+      ctx.scratchpadTextProbe = ''
+    }
+
+    if (!ctx.textPartStarted) {
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: ctx.textPartId,
+        ...(providerMetadata ? { providerMetadata } : {})
+      })
+      ctx.textPartStarted = true
+    }
+
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
+    ctx.textStreamedViaContentBlock = true
     ctx.accumulatedText += text
     ctx.streamedTextLength += text.length
   }
@@ -990,9 +1160,20 @@ export class ClaudeCodeStreamAdapter {
 
     const textId = ctx.textBlocksByIndex.get(blockIndex)
     if (textId) {
-      ctx.sink.enqueue({ type: 'text-end', id: textId })
+      if (ctx.textPartId === textId) {
+        this.flushDeferredScratchpadText(ctx)
+      }
+      if (!ctx.suppressActiveTextPart && ctx.textPartStarted && ctx.textPartId === textId) {
+        ctx.sink.enqueue({ type: 'text-end', id: textId })
+      }
       ctx.textBlocksByIndex.delete(blockIndex)
-      if (ctx.textPartId === textId) ctx.textPartId = undefined
+      if (ctx.textPartId === textId) {
+        ctx.textPartId = undefined
+        ctx.scratchpadTextProbe = ''
+        ctx.suppressActiveTextPart = false
+        ctx.textStartDeferred = false
+        ctx.textPartStarted = false
+      }
       return
     }
 
@@ -1054,11 +1235,29 @@ export class ClaudeCodeStreamAdapter {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
 
-    const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
+    const visibleText = content
+      .map((c: BetaContentBlock) => (c.type === 'text' ? c.text : ''))
+      .map((blockText) => this.normalizeParentlessAssistantBlockText(blockText, ctx))
+      .join('')
 
-    if (text) {
-      this.handleAssistantText(text, sdkParentToolUseId, ctx)
+    if (visibleText) {
+      this.handleAssistantText(visibleText, sdkParentToolUseId, ctx)
     }
+  }
+
+  /** Per content block so multi-block streaming offsets match snapshot reconciliation. */
+  private normalizeParentlessAssistantBlockText(blockText: string, ctx: StreamContext): string {
+    if (!blockText) return ''
+    if (!ctx.filterParentlessScratchpadText || !textStartsWithModelScratchpadTag(blockText)) {
+      return blockText
+    }
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(blockText)
+    return this.trimAfterScratchpadStrip(blockText, stripped)
+  }
+
+  /** Trim separator whitespace only when scratchpad stripping actually changed the text. */
+  private trimAfterScratchpadStrip(original: string, stripped: string): string {
+    return stripped.length < original.length ? stripped.trimStart() : stripped
   }
 
   private handleAssistantToolUse(
@@ -1128,30 +1327,24 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
+  private handleAssistantText(visibleText: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    if (!visibleText) {
+      return
+    }
     if (ctx.hasReceivedStreamEvents) {
-      const newTextStart = ctx.streamedTextLength
-      const deltaText = text.length > newTextStart ? text.slice(newTextStart) : ''
-      ctx.accumulatedText = text
+      const deltaText = visibleText.length > ctx.streamedTextLength ? visibleText.slice(ctx.streamedTextLength) : ''
 
       if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
-        if (!ctx.textPartId) {
-          ctx.textPartId = generateId()
-          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
-        }
-        ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: deltaText })
+        this.enqueueVisibleTextDelta(deltaText, ctx, providerMetadata)
       }
-      ctx.streamedTextLength = text.length
+      ctx.accumulatedText = visibleText
+      ctx.streamedTextLength = visibleText.length
+    } else if (ctx.options.responseFormat?.type === 'json') {
+      ctx.accumulatedText += visibleText
+      ctx.streamedTextLength += visibleText.length
     } else {
-      ctx.accumulatedText += text
-      if (ctx.options.responseFormat?.type !== 'json') {
-        if (!ctx.textPartId) {
-          ctx.textPartId = generateId()
-          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
-        }
-        ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
-      }
+      this.enqueueVisibleTextDelta(visibleText, ctx, providerMetadata)
     }
   }
 
@@ -1285,7 +1478,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.hasStreamedJson && ctx.options.responseFormat?.type === 'json' && ctx.hasReceivedStreamEvents
 
     if (alreadyStreamedJson) {
-      if (ctx.textPartId) ctx.sink.enqueue({ type: 'text-end', id: ctx.textPartId })
+      if (ctx.textPartId) this.closeActiveTextPart(ctx)
     } else if (structuredOutput !== undefined) {
       const jsonTextId = generateId()
       const jsonText = JSON.stringify(structuredOutput)
@@ -1293,15 +1486,22 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({ type: 'text-delta', id: jsonTextId, delta: jsonText })
       ctx.sink.enqueue({ type: 'text-end', id: jsonTextId })
     } else if (ctx.textPartId) {
-      ctx.sink.enqueue({ type: 'text-end', id: ctx.textPartId })
-    } else if (ctx.accumulatedText && !ctx.textStreamedViaContentBlock) {
+      this.closeActiveTextPart(ctx)
+    } else if (
+      ctx.accumulatedText &&
+      !ctx.textStreamedViaContentBlock &&
+      ctx.streamedTextLength < ctx.accumulatedText.length
+    ) {
       const fallbackTextId = generateId()
+      const fallbackDelta = ctx.accumulatedText.slice(ctx.streamedTextLength)
       ctx.sink.enqueue({ type: 'text-start', id: fallbackTextId })
-      ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: ctx.accumulatedText })
+      ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: fallbackDelta })
       ctx.sink.enqueue({ type: 'text-end', id: fallbackTextId })
+      ctx.streamedTextLength = ctx.accumulatedText.length
     }
 
     this.finalizeToolCalls(ctx)
+    this.runtimeCompactionActive = false
 
     ctx.sink.enqueue({
       type: 'finish',
@@ -1322,10 +1522,10 @@ export class ClaudeCodeStreamAdapter {
         this.handleTaskSystemMessage(message, ctx)
         return
       case 'status':
-        this.handleStatusSystemMessage(message)
+        this.handleStatusSystemMessage(message, ctx)
         return
       case 'compact_boundary':
-        this.handleCompactBoundarySystemMessage(message)
+        this.handleCompactBoundarySystemMessage(message, ctx)
         return
       case 'thinking_tokens':
         this.handleThinkingTokensSystemMessage(message, ctx)
@@ -1518,20 +1718,29 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private handleStatusSystemMessage(message: SDKStatusMessage): void {
+  private handleStatusSystemMessage(message: SDKStatusMessage, ctx: StreamContext): void {
     if (message.status === 'compacting') {
+      this.closeActiveTextPart(ctx)
+      ctx.accumulatedText = ''
+      ctx.streamedTextLength = 0
+      this.runtimeCompactionActive = true
       this.statusSink.emit({ type: 'compaction-start' })
       return
     }
     if (message.compact_result === 'failed' || message.compact_error) {
+      this.runtimeCompactionActive = false
       logger.warn('Claude compaction failed', { sessionId: message.session_id, error: message.compact_error })
       this.statusSink.emit({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
       return
     }
     if (message.compact_result === 'success') {
-      // A successful compaction may report `success` WITHOUT a following `compact_boundary` (the SDK
-      // does not guarantee one). Settle idempotently with a no-anchor completion so the session does
-      // not stay `compacting` until the idle TTL; a real boundary below still wins with the anchor.
+      // Success ends suppression: the SDK does not guarantee a boundary, so content after
+      // success is post-compaction output and must stay visible. A later boundary still wins.
+      this.runtimeCompactionActive = false
+      // closeActiveTextPart on compacting may have cleared textPartId while offsets still
+      // reflect pre-compaction streaming; reset so snapshot reconciliation starts fresh.
+      ctx.accumulatedText = ''
+      ctx.streamedTextLength = 0
       this.statusSink.emit({ type: 'compaction-complete' })
     }
   }
@@ -1557,7 +1766,13 @@ export class ClaudeCodeStreamAdapter {
     this.statusSink.emit({ type: 'background-work-state', active: false })
   }
 
-  private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {
+  private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage, ctx: StreamContext): void {
+    this.runtimeCompactionActive = false
+    // A boundary starts a fresh context window, so the next assistant snapshot is a new response.
+    // Reset the streaming offsets or its prefix would be sliced against pre-compaction lengths.
+    this.closeActiveTextPart(ctx)
+    ctx.accumulatedText = ''
+    ctx.streamedTextLength = 0
     const metadata = message.compact_metadata
     const anchor: AgentSessionCompactionAnchorData = {
       status: 'done',
@@ -1656,6 +1871,18 @@ export class ClaudeCodeStreamAdapter {
       toolUses: value.tool_uses,
       durationMs: value.duration_ms
     }
+  }
+
+  private isCompactionInternalContent(message: SDKMessage, parentToolUseId: string | null | undefined): boolean {
+    if (parentToolUseId != null || !this.runtimeCompactionActive) return false
+    if (message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user') {
+      logger.debug('Suppressing runtime compaction content from transcript stream', {
+        type: message.type,
+        sessionId: this.sessionId
+      })
+      return true
+    }
+    return false
   }
 
   private extractToolUses(content: BetaContentBlock[]): ClaudeToolUseBlock[] {
@@ -1936,8 +2163,15 @@ export class ClaudeCodeStreamAdapter {
   private closeActiveTextPart(ctx: StreamContext): void {
     if (!ctx.textPartId) return
     const closedTextId = ctx.textPartId
-    ctx.sink.enqueue({ type: 'text-end', id: closedTextId })
+    this.flushDeferredScratchpadText(ctx)
+    if (!ctx.suppressActiveTextPart && ctx.textPartStarted) {
+      ctx.sink.enqueue({ type: 'text-end', id: closedTextId })
+    }
     ctx.textPartId = undefined
+    ctx.scratchpadTextProbe = ''
+    ctx.suppressActiveTextPart = false
+    ctx.textStartDeferred = false
+    ctx.textPartStarted = false
     for (const [idx, blockTextId] of ctx.textBlocksByIndex) {
       if (blockTextId === closedTextId) {
         ctx.textBlocksByIndex.delete(idx)

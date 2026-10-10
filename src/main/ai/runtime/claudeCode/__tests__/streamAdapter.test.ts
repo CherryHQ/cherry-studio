@@ -2025,6 +2025,818 @@ describe('ClaudeCodeStreamAdapter', () => {
       ])
     })
 
+    it('suppresses runtime compaction prose so it does not persist as assistant transcript text', () => {
+      const { adapter, statusEvents, parts } = createAdapter()
+      const leakedSummary =
+        'Let me chronologically analyze this conversation, which is a continuation of a much longer session (previously compacted).'
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: leakedSummary } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: leakedSummary }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'compact_boundary',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_metadata: { trigger: 'auto', pre_tokens: 50_000, post_tokens: 12_000 }
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'regular reply' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('regular reply')
+      expect(text).not.toContain(leakedSummary)
+      expect(statusEvents).toEqual([
+        { type: 'compaction-start' },
+        {
+          type: 'compaction-complete',
+          anchor: expect.objectContaining({ trigger: 'auto', preTokens: 50_000, postTokens: 12_000 })
+        }
+      ])
+    })
+
+    it('closes an open text part when compaction interrupts mid-stream', () => {
+      const { adapter, parts } = createAdapter()
+      const leakedSummary = 'internal compaction transfer prose'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'before' } })
+      )
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: leakedSummary } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'compact_boundary',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_metadata: { trigger: 'auto', pre_tokens: 50_000, post_tokens: 12_000 }
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'after' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+
+      const starts = parts.filter((part) => part.type === 'text-start')
+      const ends = parts.filter((part) => part.type === 'text-end')
+      expect(starts).toHaveLength(2)
+      expect(ends).toHaveLength(2)
+      expect(new Set(starts.map((part: any) => part.id)).size).toBe(2)
+      expect(new Set(ends.map((part: any) => part.id)).size).toBe(2)
+      const deltas = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(deltas).toContain('before')
+      expect(deltas).toContain('after')
+      expect(deltas).not.toContain(leakedSummary)
+    })
+
+    it('resumes assistant snapshots after the compaction boundary without dropping their prefix', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'before' } })
+      )
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'compact_boundary',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_metadata: { trigger: 'auto', pre_tokens: 50_000, post_tokens: 12_000 }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        isSynthetic: true,
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'Summary of the compacted session.' }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: 'after' }] }
+      } as any)
+
+      const deltas = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(deltas).toContain('before')
+      expect(deltas).toContain('after')
+      // Two text parts opened: the pre-compaction stream and the resumed snapshot. The resumed
+      // part stays open until turn end, so only the interrupted part has closed so far.
+      const starts = parts.filter((part) => part.type === 'text-start')
+      const ends = parts.filter((part) => part.type === 'text-end')
+      expect(starts).toHaveLength(2)
+      expect(ends).toHaveLength(1)
+    })
+
+    it('preserves post-compaction replies after terminal success without a boundary', () => {
+      const { adapter, parts, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: 'assistant reply' }] }
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'streamed reply' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('assistant reply')
+      expect(text).toContain('streamed reply')
+      expect(statusEvents).toEqual([{ type: 'compaction-start' }, { type: 'compaction-complete' }])
+    })
+
+    it('preserves ordinary markup and avoids orphan text-end while probing scratchpad prefixes', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '<p>hello</p>' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const textStarts = parts.filter((part) => part.type === 'text-start')
+      const textEnds = parts.filter((part) => part.type === 'text-end')
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toBe('<p>hello</p>')
+      expect(textStarts).toHaveLength(1)
+      expect(textEnds).toHaveLength(1)
+    })
+
+    it('preserves markup whose tag name only shares a prefix with a scratchpad tag', () => {
+      const { adapter, parts } = createAdapter()
+      const markup = '<thinking-note>ordinary markup</thinking-note>'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: markup } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe(markup)
+    })
+
+    it('preserves parentless text with an incomplete angle-bracket prefix at block end', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '<' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const textStarts = parts.filter((part) => part.type === 'text-start')
+      const textEnds = parts.filter((part) => part.type === 'text-end')
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toBe('<')
+      expect(textStarts).toHaveLength(1)
+      expect(textEnds).toHaveLength(1)
+    })
+
+    it('preserves parentless text with an incomplete known scratchpad tag prefix at block end', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '<thinking' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toBe('<thinking')
+    })
+
+    it('suppresses scratchpad wrappers whose opening tag has a slash inside a quoted attribute', () => {
+      const { adapter, parts } = createAdapter()
+      const leakedThinking = '<thinking data="notes/path">internal reasoning about the session</thinking>'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: leakedThinking } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).not.toContain('internal reasoning')
+      expect(text).not.toContain('<thinking')
+    })
+
+    it('suppresses parentless scratchpad wrapper text outside compaction windows', () => {
+      const { adapter, parts } = createAdapter()
+      const leakedThinking = '<thinking>internal reasoning about the session</thinking>'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: leakedThinking } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: leakedThinking }]
+        }
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'visible follow-up' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('visible follow-up')
+      expect(text).not.toContain('internal reasoning')
+      expect(text).not.toContain('<thinking>')
+    })
+
+    it('keeps visible reply text after a scratchpad wrapper in the same content block', () => {
+      const { adapter, parts } = createAdapter()
+      const mixed = '<thinking>internal reasoning about the session</thinking>visible follow-up in the same block'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: mixed } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('visible follow-up in the same block')
+      expect(text).not.toContain('internal reasoning')
+      expect(text).not.toContain('<thinking>')
+    })
+
+    it('emits snapshot-only parentless text with angle brackets before a successful result', () => {
+      const { adapter, parts } = createAdapter()
+      const reply = 'Use a < comparison operator in this reply'
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: reply }]
+        }
+      } as any)
+      adapter.handleMessage(successResult())
+
+      const textStarts = parts.filter((part) => part.type === 'text-start')
+      const textEnds = parts.filter((part) => part.type === 'text-end')
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toBe(reply)
+      expect(textStarts).toHaveLength(1)
+      expect(textEnds).toHaveLength(1)
+    })
+
+    it('does not duplicate snapshot-only assistant text on turn result after compaction', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: 'Hello' }] }
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('Hello')
+    })
+
+    it('preserves fenced literals when the closing fence arrives in a later stream delta', () => {
+      const { adapter, parts } = createAdapter()
+      const head = '<thinking>internal</thinking>\n```xml\n<thinking>literal example</thinking>\n'
+      const tail = '```'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: head } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: tail } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('<thinking>literal example</thinking>')
+      expect(text).not.toContain('internal')
+    })
+
+    it('reconciles multi-block assistant snapshots without duplicating visible text', () => {
+      const { adapter, parts } = createAdapter()
+      const blockA = '<thinking>a</thinking>\nHello'
+      const blockB = '<thinking>b</thinking>\nWorld'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: blockA } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: blockB } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: blockA },
+            { type: 'text', text: blockB }
+          ]
+        }
+      } as any)
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('HelloWorld')
+    })
+
+    it('does not append a stray suffix when a streamed block is reconciled against an assistant snapshot', () => {
+      const { adapter, parts } = createAdapter()
+      const raw = '<thinking>hidden</thinking>\nVisible'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: raw } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: raw }]
+        }
+      } as any)
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('Visible')
+    })
+
+    it('suppresses scratchpad wrappers split across a whitespace-only first delta', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '\n' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '<thinking>hidden</thinking>Visible' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('Visible')
+      expect(text).not.toContain('hidden')
+    })
+
+    it('preserves literal scratchpad tags inside fenced examples when stripping wrappers', () => {
+      const { adapter, parts } = createAdapter()
+      const mixed = '<thinking>internal</thinking>```xml\n<thinking>literal example</thinking>\n```'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: mixed } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toContain('<thinking>literal example</thinking>')
+      expect(text).not.toContain('internal')
+    })
+
+    it('suppresses consecutive scratchpad wrappers split across stream deltas in one block', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '<thinking>one</thinking>' }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '<analysis>two</analysis>Visible' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('Visible')
+      expect(text).not.toContain('two')
+    })
+
+    it('resumes assistant snapshots after terminal compaction success without a boundary', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'before' } })
+      )
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        isSynthetic: true,
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'user', content: [{ type: 'text', text: 'context reset' }] }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: 'after' }] }
+      } as any)
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('before')
+      expect(text).toContain('after')
+    })
+
+    it('keeps visible reply text after a scratchpad wrapper in a later stream delta', () => {
+      const { adapter, parts } = createAdapter()
+      const leakedThinking = '<thinking>internal reasoning about the session</thinking>'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: leakedThinking }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'visible follow-up in a later delta' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const textStarts = parts.filter((part) => part.type === 'text-start')
+      const textEnds = parts.filter((part) => part.type === 'text-end')
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('visible follow-up in a later delta')
+      expect(textStarts).toHaveLength(1)
+      expect(textEnds).toHaveLength(1)
+      expect(text).not.toContain('internal reasoning')
+      expect(text).not.toContain('<thinking>')
+    })
+
+    it('preserves leading whitespace when reconciling streamed text against a matching snapshot', () => {
+      const { adapter, parts } = createAdapter()
+      const reply = '  Hello'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: reply } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: reply }] }
+      } as any)
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe(reply)
+    })
+
+    it('suppresses consecutive scratchpad wrappers split across stream deltas', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '<thinking>one</thinking><analysis>' }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'two</analysis>Visible' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('Visible')
+      expect(text).not.toContain('<analysis>')
+    })
+
+    it('preserves post-compaction assistant snapshots when compaction interrupts an open stream', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'before' } })
+      )
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        isSynthetic: true,
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'user', content: [{ type: 'text', text: 'context reset' }] }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: 'after' }] }
+      } as any)
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('before')
+      expect(text).toContain('after')
+    })
+
+    it('flushes deferred scratchpad probes when a snapshot-only reply ends the turn', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: '<' }] }
+      } as any)
+      adapter.handleMessage(successResult())
+
+      const textStarts = parts.filter((part) => part.type === 'text-start')
+      const textEnds = parts.filter((part) => part.type === 'text-end')
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+
+      expect(text).toBe('<')
+      expect(textStarts).toHaveLength(1)
+      expect(textEnds).toHaveLength(1)
+    })
+
     it('settles a compaction that reports success without a boundary', () => {
       const { adapter, statusEvents } = createAdapter()
 
