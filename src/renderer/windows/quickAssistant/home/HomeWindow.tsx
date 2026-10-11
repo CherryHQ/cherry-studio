@@ -163,10 +163,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   )
 
   useEffect(() => {
-    void autoReadService.setEnabled(autoReadEnabled)
-  }, [autoReadEnabled])
-
-  useEffect(() => {
     if (voiceScopeTopicRef.current === temporaryTopicId) return
     voiceScopeTopicRef.current = temporaryTopicId
     voiceScopeGenerationRef.current += 1

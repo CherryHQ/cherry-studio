@@ -119,9 +119,6 @@ export function useChatRuntimeState({
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
-  useEffect(() => {
-    void autoReadService.setEnabled(autoReadEnabled)
-  }, [autoReadEnabled])
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)

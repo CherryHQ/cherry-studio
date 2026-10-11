@@ -36,7 +36,6 @@ const mocks = vi.hoisted(() => ({
   invalidateMessages: vi.fn(),
   toastWarning: vi.fn(),
   autoReadConsume: vi.fn(async () => ({ status: 'started' })),
-  autoReadSetEnabled: vi.fn(async () => undefined),
   autoReadEnabled: true
 }))
 
@@ -73,8 +72,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/services/voice', () => ({
   autoReadService: {
-    consume: mocks.autoReadConsume,
-    setEnabled: mocks.autoReadSetEnabled
+    consume: mocks.autoReadConsume
   }
 }))
 
@@ -355,7 +353,6 @@ describe('useAgentChatRuntimeState', () => {
     mocks.sendTurn.mockReset()
     mocks.sendTurn.mockResolvedValue(true)
     mocks.autoReadConsume.mockClear()
-    mocks.autoReadSetEnabled.mockClear()
     mocks.autoReadEnabled = true
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],

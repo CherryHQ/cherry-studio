@@ -93,7 +93,7 @@ const InputBar = ({
     : ''
 
   return (
-    <div ref={ref} className="mt-2.5 flex items-center gap-2">
+    <div ref={ref} className="mt-2.5 flex items-center gap-2 [-webkit-app-region:no-drag]">
       {model && <ModelAvatar model={model} size={30} />}
       <Input
         ref={resolvedInputRef}

@@ -210,7 +210,8 @@ export class SpeechPlaybackService {
       if (
         input.signal?.aborted ||
         generation !== this.lifecycleGeneration ||
-        interruptionGeneration !== this.interruptionGeneration
+        interruptionGeneration !== this.interruptionGeneration ||
+        (input.trigger === 'auto_read' && autoReadGeneration !== this.autoReadGeneration)
       ) {
         throw new VoiceDomainError('aborted')
       }

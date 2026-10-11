@@ -152,9 +152,6 @@ export function useAgentChatRuntimeState({
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
-  useEffect(() => {
-    void autoReadService.setEnabled(autoReadEnabled)
-  }, [autoReadEnabled])
   const { t } = useTranslation()
   const [editDraft, setEditDraft] = useState<AgentSessionEditDraft & { sessionId: string }>()
   const editing = editDraft?.sessionId === sessionId ? editDraft : undefined
