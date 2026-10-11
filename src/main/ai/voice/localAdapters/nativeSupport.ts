@@ -8,6 +8,7 @@ import { SystemSpeechNativeClient } from '@cherrystudio/system-speech/native'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { voiceAudioProcess } from './voiceAudioProcess'
 
 export function checkAbort(signal?: AbortSignal): void {
   if (signal?.aborted) throw new VoiceRuntimeError('aborted')
@@ -15,6 +16,19 @@ export function checkAbort(signal?: AbortSignal): void {
 
 export function nativeClient(timeoutMs?: number): SystemSpeechNativeClient {
   return new SystemSpeechNativeClient({ helperPath: application.getPath('feature.voice.helper_file'), timeoutMs })
+}
+
+export async function decodeVoiceRecording(audio: Uint8Array, callerSignal?: AbortSignal) {
+  const timeout = AbortSignal.timeout(30_000)
+  const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout
+  return application
+    .get('UtilityProcessManager')
+    .client(voiceAudioProcess)
+    .request('decode', { audio, mimeType: 'audio/webm;codecs=opus' }, { signal })
+    .catch((error: unknown) => {
+      if (timeout.aborted && !callerSignal?.aborted) throw new VoiceRuntimeError('timeout')
+      throw error
+    })
 }
 
 export function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {

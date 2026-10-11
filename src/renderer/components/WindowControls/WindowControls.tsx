@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isLinux, isWin } from '@renderer/utils/platform'
 
@@ -50,19 +49,31 @@ export const WindowRestoreIcon = ({ size = '1.1em', ...props }: WindowRestoreIco
 )
 
 /**
- * Whether the renderer draws the OS window controls. Windows is always frameless (custom
- * controls); Linux is frameless unless the user opted into the system title bar, in which
- * case the OS draws them. Exported so frameless surfaces can reserve corner space to match.
+ * Width of the Linux Window Controls Overlay (Electron-drawn min/max/close), from the WCO safe
+ * area. Resolves to 0 when the window has no overlay (system title bar) or its buttons sit left.
+ */
+export const LINUX_WINDOW_CONTROLS_OVERLAY_WIDTH =
+  'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw))'
+
+/**
+ * Whether the renderer draws the OS window controls. Only Windows does (frameless); Linux gets
+ * them from Electron's overlay or the system title bar, macOS from native traffic lights.
  */
 export function useHasWindowControls(): boolean {
-  const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
-  return isWin || (isLinux && !useSystemTitleBar)
+  return isWin
 }
 
 const WindowControls: React.FC = () => {
+  if (isLinux) {
+    // Reserve the overlay's space in the title bar layout instead of drawing buttons.
+    return <div aria-hidden className="shrink-0" style={{ width: LINUX_WINDOW_CONTROLS_OVERLAY_WIDTH }} />
+  }
+  return isWin ? <WindowsWindowControls /> : null
+}
+
+const WindowsWindowControls: React.FC = () => {
   const [isMaximized, setIsMaximized] = useState(false)
   const { t } = useTranslation()
-  const hasWindowControls = useHasWindowControls()
 
   useEffect(() => {
     // Check initial maximized state
@@ -71,10 +82,6 @@ const WindowControls: React.FC = () => {
 
   // Listen for maximized state changes (auto-unsubscribes on unmount)
   useIpcOn('window.maximized_changed', setIsMaximized)
-
-  if (!hasWindowControls) {
-    return null
-  }
 
   const handleMinimize = () => {
     void ipcApi.request('window.minimize')

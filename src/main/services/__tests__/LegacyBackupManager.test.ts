@@ -171,7 +171,8 @@ vi.mock('@main/data/db/restore/appliedChain', () => ({
 }))
 
 vi.mock('@main/utils/file', () => ({
-  createAtomicWriteStream: mockCreateAtomicWriteStream
+  createAtomicWriteStream: mockCreateAtomicWriteStream,
+  ensureDir: (target: string) => fs.ensureDir(target)
 }))
 
 vi.mock('@main/utils/system', () => ({

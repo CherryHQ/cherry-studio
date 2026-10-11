@@ -37,7 +37,7 @@ import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
-import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/file'
+import { type AtomicWriteStream, createAtomicWriteStream, ensureDir } from '@main/utils/file'
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { getDeviceType, getHostname } from '@main/utils/system'
@@ -327,7 +327,7 @@ class BackupManager {
     let output: AtomicWriteStream | undefined
 
     try {
-      await fs.ensureDir(outputDirectory)
+      await ensureDir(AbsoluteFilePathSchema.parse(outputDirectory))
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       const userDataPath = application.getPath('app.userdata')
@@ -704,7 +704,7 @@ class BackupManager {
       const operationSignal = event === null ? signal : undefined
       operationSignal?.throwIfAborted()
       const backupDir = localConfig.localBackupDir || this.backupDir
-      await fs.ensureDir(backupDir)
+      await ensureDir(AbsoluteFilePathSchema.parse(backupDir))
       const result = await this.backupDirect(
         fileName || this.createBackupFileName(),
         backupDir,

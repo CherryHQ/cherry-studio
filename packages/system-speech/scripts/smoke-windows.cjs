@@ -1,5 +1,5 @@
 const { spawnSync } = require('node:child_process')
-const { mkdtempSync, readFileSync, rmSync } = require('node:fs')
+const { mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs')
 const { tmpdir } = require('node:os')
 const { join, resolve } = require('node:path')
 
@@ -78,6 +78,13 @@ async function protocolSmoke(helperPath) {
     throw new Error('Voice enumeration depends on ASR locale support')
   }
   await client.request({ operation: 'list_asr_locales' })
+  const missingRecognizer = invokeRaw(
+    helperPath,
+    JSON.stringify({ operation: 'probe_asr', locale: 'zz-ZZ' }),
+    nativeResponseSchema
+  )
+  if (missingRecognizer.ok || missingRecognizer.error.code !== 'unsupported_locale')
+    throw new Error('Missing recognizer was substituted')
   const synthesis = {
     operation: 'synthesize',
     voiceId: 'missing-voice',
@@ -87,6 +94,8 @@ async function protocolSmoke(helperPath) {
   const invalid = [
     '{}',
     'not json',
+    JSON.stringify({ operation: 'probe_asr' }),
+    JSON.stringify({ operation: 'probe_asr', locale: '' }),
     JSON.stringify(synthesis),
     ...[null, '1', 0.49, 2.01].map((speed) => JSON.stringify({ ...synthesis, speed }))
   ]
@@ -150,6 +159,70 @@ async function ttsSmoke(helperPath, voices) {
   return { synthesized: frameCounts.length, cancellation: true, timeout: true }
 }
 
+async function asrSmoke(helperPath, voices) {
+  const { SystemSpeechNativeClient } = await import('../dist/SystemSpeechNativeClient.mjs')
+  const client = new SystemSpeechNativeClient({ helperPath })
+  // This round trip checks the native pipeline, not human-speech accuracy.
+  await client.request({ operation: 'probe_asr', locale: 'en-US' })
+  const voice = voices.find((candidate) => candidate.locale.toLowerCase() === 'en-us')
+  if (!voice) throw new Error('ASR round-trip smoke requires an installed en-US SAPI voice')
+  const directory = mkdtempSync(join(tmpdir(), 'cherry asr-测试-'))
+  try {
+    const inputPath = join(directory, 'input.wav')
+    await client.request({
+      operation: 'synthesize',
+      voiceId: voice.id,
+      speed: 1,
+      text: 'The quick brown fox jumps over the lazy dog.',
+      outputPath: inputPath
+    })
+    inspectPcmWav(readFileSync(inputPath))
+    const { result } = await client.request({ operation: 'transcribe', locale: 'en-US', inputPath })
+    if (result.locale !== 'en-US' || !/\bfox\b/i.test(result.text) || !/\bdog\b/i.test(result.text))
+      throw new Error('ASR round-trip did not recognize the expected words')
+
+    const silent = Buffer.alloc(44 + 32000 * 2)
+    silent.write('RIFF')
+    silent.writeUInt32LE(silent.length - 8, 4)
+    silent.write('WAVEfmt ', 8)
+    silent.writeUInt32LE(16, 16)
+    silent.writeUInt16LE(1, 20)
+    silent.writeUInt16LE(1, 22)
+    silent.writeUInt32LE(16000, 24)
+    silent.writeUInt32LE(32000, 28)
+    silent.writeUInt16LE(2, 32)
+    silent.writeUInt16LE(16, 34)
+    silent.write('data', 36)
+    silent.writeUInt32LE(silent.length - 44, 40)
+    writeFileSync(inputPath, silent)
+    const silence = await client.request({ operation: 'transcribe', locale: 'en-US', inputPath })
+    if (silence.result.text.trim()) throw new Error('ASR returned a transcript for silence')
+
+    const longSilence = Buffer.concat([silent.subarray(0, 44), Buffer.alloc(32000 * 300)])
+    longSilence.writeUInt32LE(longSilence.length - 8, 4)
+    longSilence.writeUInt32LE(longSilence.length - 44, 40)
+    writeFileSync(inputPath, longSilence)
+    for (const expected of ['cancelled', 'timeout']) {
+      const controller = new AbortController()
+      const timer = expected === 'cancelled' ? setTimeout(() => controller.abort(), 50) : undefined
+      try {
+        await new SystemSpeechNativeClient({ helperPath, timeoutMs: expected === 'timeout' ? 50 : 30_000 }).request(
+          { operation: 'transcribe', locale: 'en-US', inputPath },
+          { signal: controller.signal }
+        )
+        throw new Error('ASR completed before cancellation verification')
+      } catch (error) {
+        if (error.code !== expected) throw new Error('Windows ASR cancellation verification failed')
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+  return { locale: 'en-US', transcription: true, silence: true, cancellation: true, timeout: true }
+}
+
 function verifySignature(file) {
   const result = spawnSync(
     'powershell.exe',
@@ -169,13 +242,13 @@ async function main(argv = process.argv.slice(2)) {
   const args = argv.filter((arg) => arg !== '--')
   const packagedIndex = args.indexOf('--packaged')
   const appPath = packagedIndex < 0 ? undefined : resolve(args[packagedIndex + 1] || '')
-  const allowed = new Set(['--tts', '--require-signature', '--packaged'])
+  const allowed = new Set(['--tts', '--asr', '--require-signature', '--packaged'])
   if (
     args.some((arg, index) => !(packagedIndex >= 0 && index === packagedIndex + 1) && !allowed.has(arg)) ||
     (packagedIndex >= 0 && (!args[packagedIndex + 1] || args[packagedIndex + 1].startsWith('--'))) ||
     (args.includes('--require-signature') && !appPath)
   ) {
-    throw new Error('Expected [--tts] [--packaged app-directory] [--require-signature]')
+    throw new Error('Expected [--tts] [--asr] [--packaged app-directory] [--require-signature]')
   }
   const helperPath = appPath
     ? join(appPath, 'resources', 'system-speech', 'cherry-system-speech.exe')
@@ -189,8 +262,9 @@ async function main(argv = process.argv.slice(2)) {
   }
   const voices = await protocolSmoke(helperPath)
   const tts = args.includes('--tts') ? await ttsSmoke(helperPath, voices) : undefined
+  const asr = args.includes('--asr') ? await asrSmoke(helperPath, voices) : undefined
   process.stdout.write(
-    `${JSON.stringify({ architecture: 'x64', protocol: true, installedVoices: voices.length, packaged: !!appPath, signatureVerified, tts })}\n`
+    `${JSON.stringify({ architecture: 'x64', protocol: true, installedVoices: voices.length, packaged: !!appPath, signatureVerified, tts, asr })}\n`
   )
 }
 

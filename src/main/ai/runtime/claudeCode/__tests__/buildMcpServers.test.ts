@@ -7,7 +7,10 @@
 import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
+import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -21,7 +24,6 @@ const {
   mockGetPath,
   mockPreferenceGet,
   mockListOrOutlineKnowledge,
-  mockMemoryConstructor,
   mockEnsureManagedDirectory
 } = vi.hoisted(() => ({
   mockGetAgent: vi.fn(),
@@ -31,7 +33,6 @@ const {
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
   mockPreferenceGet: vi.fn(() => undefined),
   mockListOrOutlineKnowledge: vi.fn(),
-  mockMemoryConstructor: vi.fn(),
   mockEnsureManagedDirectory: vi.fn()
 }))
 
@@ -87,15 +88,11 @@ vi.mock('@main/i18n', () => ({
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({
-  default: class {
-    readonly mcpServer = {}
-  }
+  createAssistantServer: vi.fn()
 }))
 
 vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
-  AssistantFileToolsServer: class {
-    readonly mcpServer = {}
-  }
+  createAssistantFileToolsServer: vi.fn()
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({
@@ -111,16 +108,6 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@main/ai/tools/knowledgeLookup', async (importOriginal) => ({
   ...(await importOriginal<typeof KnowledgeLookup>()),
   listOrOutlineKnowledge: mockListOrOutlineKnowledge
-}))
-
-vi.mock('@main/ai/mcp/servers/agentMemory', () => ({
-  default: class {
-    mcpServer = {}
-
-    constructor(agentId: string, agentDataPath: string) {
-      mockMemoryConstructor(agentId, agentDataPath)
-    }
-  }
 }))
 
 const {
@@ -271,13 +258,15 @@ describe('adjustAllowedToolsForMcp', () => {
 describe('buildMcpServers', () => {
   beforeEach(() => {
     mockGetAgent.mockReset()
-    mockMemoryConstructor.mockClear()
   })
 
   it('injects the agent-memory and skills servers for every agent (REGRESSION agents-jobs-3)', async () => {
     const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, '/data/Agents/agent-1')
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
-    expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', '/data/Agents/agent-1')
+    const { instance } = result!['agent-memory'] as McpSdkServerConfigWithInstance
+    const client = await connectMcpTestClient(instance)
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['memory'])
+    await client.close()
   })
 
   it('mounts mcp-manager only when the session resolved it, never off the agent role', () => {
@@ -293,21 +282,22 @@ describe('buildMcpServers', () => {
     expect(result?.exa).toBeUndefined()
   })
 
-  async function cherryToolNames(result: ReturnType<typeof buildMcpServers>): Promise<string[]> {
+  // Each call opens a new connection, so the per-connection tool decisions re-read the Agent.
+  const clients: Client[] = []
+  afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
+  })
+  async function cherryToolsClient(result: ReturnType<typeof buildMcpServers>): Promise<Client> {
     if (!result) throw new Error('buildMcpServers returned no servers')
-    const instance = (
-      result['cherry-tools'] as unknown as {
-        instance: {
-          server: {
-            _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<{ tools: Array<{ name: string }> }>>
-          }
-        }
-      }
-    ).instance
-    const listHandler = instance.server._requestHandlers.get('tools/list')
-    if (!listHandler) throw new Error('tools/list handler not registered')
-    const listed = await listHandler({ method: 'tools/list', params: {} }, {})
-    return listed.tools.map((tool) => tool.name)
+    const { instance } = result['cherry-tools'] as McpSdkServerConfigWithInstance
+    const client = await connectMcpTestClient(instance)
+    clients.push(client)
+    return client
+  }
+
+  async function cherryToolNames(result: ReturnType<typeof buildMcpServers>): Promise<string[]> {
+    const { tools } = await (await cherryToolsClient(result)).listTools()
+    return tools.map((tool) => tool.name)
   }
 
   it('hides the kb_* tools from cherry-tools when the agent has no bound knowledge base', async () => {
@@ -368,18 +358,8 @@ describe('buildMcpServers', () => {
 
   /** Run kb_list through the server and report the id set the scope closure handed to the core. */
   async function scopePassedToKnowledgeCore(result: ReturnType<typeof buildMcpServers>): Promise<readonly string[]> {
-    if (!result) throw new Error('buildMcpServers returned no servers')
     mockListOrOutlineKnowledge.mockReset().mockResolvedValue({ bases: [] })
-    const instance = (
-      result['cherry-tools'] as unknown as {
-        instance: {
-          server: { _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<unknown>> }
-        }
-      }
-    ).instance
-    const callHandler = instance.server._requestHandlers.get('tools/call')
-    if (!callHandler) throw new Error('tools/call handler not registered')
-    await callHandler({ method: 'tools/call', params: { name: 'kb_list', arguments: {} } }, {})
+    await (await cherryToolsClient(result)).callTool({ name: 'kb_list', arguments: {} })
     expect(mockListOrOutlineKnowledge).toHaveBeenCalledTimes(1)
     return mockListOrOutlineKnowledge.mock.calls[0][1]
   }
@@ -420,7 +400,7 @@ describe('buildMcpServers', () => {
     expect(await cherryToolNames(servers)).not.toContain('kb_search')
   })
 
-  it('re-reads knowledge bindings for an already-created cherry-tools server', async () => {
+  it('re-reads knowledge bindings for each new cherry-tools connection', async () => {
     const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
     mockGetAgent.mockReturnValueOnce(boundAgent).mockReturnValueOnce({ ...boundAgent, knowledgeBaseIds: [] })
     const servers = buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS)
