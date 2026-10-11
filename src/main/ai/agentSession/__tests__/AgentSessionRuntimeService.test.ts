@@ -3320,6 +3320,101 @@ describe('AgentSessionRuntimeService', () => {
       expect(interactive.getMcpInteractionHost('session-1')).toBeUndefined()
     })
 
+    it('keeps a detached-completion wake attributed to the agent that spawned the work after a top-bar switch', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const connection = {
+        agentId: 'agent-1',
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      // A same-runtime top-bar switch submits over the draining work: the entry adopts agent B.
+      service.beginTurn({
+        ...baseTurnInput,
+        agentId: 'agent-2',
+        modelId: switchedModelId,
+        assistantMessageId: 'assistant-2',
+        messageSnapshot: { agentName: 'Agent B' } as any,
+        userMessage: userMessage('user-2')
+      })
+      expect(getEntry(service).agentId).toBe('agent-2')
+      expect(getEntry(service).messageSnapshot).toMatchObject({ agentName: 'Agent B' })
+
+      // A's autonomous completion streams before the background work releases: the wake must not
+      // adopt B's identity, model, or author snapshot.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: { type: 'text-start', id: 'w1' }
+      })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      expect(mocks.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.objectContaining({
+            modelId: baseTurnInput.modelId,
+            messageSnapshot: undefined
+          })
+        })
+      )
+      expect(getEntry(service).backgroundAuthor).toMatchObject({ agentId: 'agent-1' })
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      // Once the work drains, the attribution override is retired with it.
+      expect(getEntry(service).backgroundAuthor).toBeUndefined()
+      void service.closeSession('session-1')
+    })
+
+    it('attributes a wake to the adopted agent when the connection owner matches it (no switch)', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: {
+          agentId: 'agent-1',
+          send: vi.fn(),
+          close: vi.fn(),
+          events: [],
+          reconcile: vi.fn().mockResolvedValue('current')
+        },
+        occupancy: {}
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      // Same agent: the wake resolves normally, no background-author override was captured.
+      expect(getEntry(service).backgroundAuthor).toBeUndefined()
+      expect(mocks.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.objectContaining({ modelId: baseTurnInput.modelId })
+        })
+      )
+      void service.closeSession('session-1')
+    })
+
     it('republishes the membership snapshot as session-scoped status', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
