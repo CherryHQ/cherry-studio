@@ -1814,6 +1814,8 @@ export class MessageService {
 
       const topic = this.getActiveTopicTx(tx, target.topicId)
 
+      const contextChangedIds = targets.flatMap((message) => this.getDescendantIdsTx(tx, message.id))
+      this.clearContextAnchorsTx(tx, contextChangedIds)
       const reparentedIds = this.reparentChildrenTx(tx, targets)
       let newActiveNodeId: string | null | undefined
       const activeNodeRemoved = Boolean(topic.activeNodeId && targetIds.includes(topic.activeNodeId))
@@ -1834,17 +1836,37 @@ export class MessageService {
       }
 
       return {
+        topicId: target.topicId,
+        contextChangedIds,
         deletedIds: targetIds,
         reparentedIds: reparentedIds.length > 0 ? reparentedIds : undefined,
         newActiveNodeId
       }
     })
 
+    const { topicId, contextChangedIds, ...response } = result
+    const changedIds = [...new Set([...response.deletedIds, ...(response.reparentedIds ?? []), ...contextChangedIds])]
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId },
+        entityIds: changedIds
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: changedIds },
+      { endpoint: '/messages/:id', entityIds: changedIds },
+      ...(response.newActiveNodeId !== undefined
+        ? ([
+            { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+            { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
+          ] as const)
+        : [])
+    ])
     logger.info('Deleted assistant reply group with reparenting', {
-      count: result.deletedIds.length,
-      reparentedCount: result.reparentedIds?.length ?? 0
+      count: response.deletedIds.length,
+      reparentedCount: response.reparentedIds?.length ?? 0
     })
-    return result
+    return response
   }
 
   /**
