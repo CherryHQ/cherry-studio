@@ -1395,6 +1395,16 @@ git commit -S --signoff -m "feat(agent-runtime): add goal tools and the /goal co
 - Consumes：任务 4 的 `runtime`、`commit`、`stop`、`notice`。
 - Produces：`turn_start` / `turn_end` / `agent_before_settle` / `agent_settled` 处理器；`startRound(ctx)` 供命令使用。任务 6–9 在 `decide()` 里加判断。
 
+**Notes from Tasks 1–4 (apply before the steps below):**
+
+- 扩展里已经没有 `runtime.ctx`、`branch()`、`guarded` 和 `fail`：工具直接抛错，`requireHumanTurn(ctx)` 接收处理器自己的 ctx；事件处理器从各自的 `ctx` 参数读 branch。
+- 使用 `goalExtension.ts` 里现成的助手：`create()`、`resume()`、`pause()`、`clear()`、`resetGoalRuntime()`；`commit()` 只在 goal id 相同时折入用量。
+- 修正 `resume()`：先调用 `resumeGoal`（它检查 `complete` 和余量），仅当它返回新对象时才 `commit`；它返回同一个对象且 goal 已武装时返回 false。
+- `tailRound` 只匹配 branch 最末尾的轮消息；接纳判断时，从末尾往回走到最近一条 assistant 消息，取途中遇到的 `cherry.goal-round` 消息（另一个扩展的边界草稿可能落在我们的消息之后）。
+- `stop('continuation_rejected')` 得到 `phase: 'blocked'`（spec §6.3 已改）。
+- 没有 goal 时，`/goal` 开头的 `edit` 落入创建分支。
+- 加 `not_human_turn` 测试：goal 轮里调用 `create_goal` / `update_goal(pause)` 被拒。
+
 - [ ] **Step 1: 写失败的测试**
 
 追加到 `tests/goal.test.ts`（把 `rounds` 加进顶部的 `./goalSupport` import）：
@@ -1660,6 +1670,10 @@ git commit -S --signoff -m "feat(agent-runtime): continue goals at the settle bo
 **Interfaces:**
 - Consumes：`createGoalExtension`、`goalSupport.ts` 的助手；`MODEL.cost = { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0 }`（`tests/support.ts`，单价按每百万 token），`finish(unified, input = 10, output = 5)` 给每次回复 `input+2` 个输入 token（其中 2 个 cacheRead）和 `output` 个输出 token。
 
+**Notes from Tasks 1–4 (apply before the steps below):**
+
+- `editGoal` 只有在 `hasCapacity(edited)` 时才把 `round_limit` / `budget_exhausted` 的目标恢复为 `active`；加两条测试：只调高轮数上限的 `budget_exhausted` 目标、只调高预算的 `round_limit` 目标。
+
 - [ ] **Step 1: 写失败的测试**
 
 ```ts
@@ -1920,6 +1934,10 @@ git commit -S --signoff -m "feat(agent-runtime): stop goals that make no progres
 - Consumes：`port.onApproval`、L3 的 `createAskUserExtension` 与 `AskUserQuestionDetails.outcome`（任务 1）、`runtime.stopRequest`。
 - Produces：审批监听、`AskUserQuestion` 结果检查（在 `turn_end`）、`session_shutdown` 清理。
 
+**Notes from Tasks 1–4 (apply before the steps below):**
+
+- 防御性地读 `details?.outcome`（旧会话和抛错的调用没有 `outcome`）。
+
 - [ ] **Step 1: 写失败的测试**
 
 ```ts
@@ -2120,6 +2138,10 @@ git commit -S --signoff -m "feat(agent-runtime): stop goals when a person is nee
 - Consumes：`port.verify`、`port.defaults.blockedAfter`、`runtime.blockedRounds`、`toModelMessages` / `convertToLlm`。
 - Produces：`completeGoal`、`blockGoal` 的真实实现（替换任务 4 的占位）。
 
+**Notes from Tasks 1–4 (apply before the steps below):**
+
+- `await port.verify.verify(...)` 之后重新读取当前 goal，若 id 或 revision 已变就拒绝完成（等待期间可能落下 `/goal clear` 或 edit）；既然 `complete` 现在可达，加一条 pause-on-complete 测试。
+
 - [ ] **Step 1: 写失败的测试**
 
 ```ts
@@ -2306,6 +2328,10 @@ git commit -S --signoff -m "feat(agent-runtime): accept goal completion and bloc
 **Interfaces:**
 - Consumes：L2 的 `transcript` 选项与 `hostStore`；`port.modelSupportsTools`。
 - Produces：`unsupported_model` 快照。
+
+**Notes from Tasks 1–4 (apply before the steps below):**
+
+- 另加 `session_start` 恢复测试：持久化的 goal 回来时是 disarmed。
 
 - [ ] **Step 1: 写失败的测试**
 
