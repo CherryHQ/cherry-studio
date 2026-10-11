@@ -311,6 +311,14 @@ type AgentSessionRuntimeEntry = {
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
+  /**
+   * Headless provenance of each detached child currently forwarding calls under this root Session
+   * id, keyed by the child's own session id. A bridged call carries the ROOT identity (dsh-bridge
+   * resolves every delegated caller to its root), so without this map the host cannot tell a
+   * headless turn's still-running child from the interactive turn that later reused the connection
+   * — the headless boundary, agent-session-runtime.md § security ceiling.
+   */
+  detachedChildHeadlessOrigins?: Map<string, boolean>
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -2342,13 +2350,12 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     const turn = this.currentTurn(entry)
+    const headless = turn === undefined || turn.headless === true
     this.applyRuntimeStateEvent(entry, {
       type: 'connection-occupancy',
       occupancy: 'background',
       active,
-      ...(active
-        ? { responder: turn && turn.headless !== true ? ('interactive' as const) : ('headless' as const) }
-        : {})
+      ...(active ? { responder: headless ? ('headless' as const) : ('interactive' as const) } : {})
     })
     if (active) {
       this.clearIdleTimer(entry)
@@ -2655,6 +2662,12 @@ export class AgentSessionRuntimeService extends BaseService {
     connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
+    // Bind this child to the turn that spawned it while that turn is still the current one. A child
+    // already bound keeps its original origin — detached work outlives its spawning turn, so a later
+    // turn re-spawning or waking it must not upgrade its authority.
+    const turn = this.currentTurn(entry)
+    const origins = (entry.detachedChildHeadlessOrigins ??= new Map<string, boolean>())
+    if (!origins.has(data.taskId)) origins.set(data.taskId, turn === undefined || turn.headless === true)
     const cache = application.get('CacheService')
     const key = AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)
     const events = cache.getShared(key) ?? {}
@@ -3378,13 +3391,32 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  getMcpInteractionHost(sessionId: string): { windowId: string; topicId: string; model: string } | undefined {
+  /**
+   * Consent host for one MCP request, resolved from the EXECUTION that issued it.
+   *
+   * `bridgeOrigin` names the descendant that made the call (absent for the root turn's own calls);
+   * a detached child spawned by a headless execution gets NO host even while a desktop follow-up is
+   * live on the same connection — otherwise unattended work could raise elicitation/sampling consent
+   * in the follow-up's window (the no-consent-host half of the headless boundary).
+   */
+  getMcpInteractionHost(
+    sessionId: string,
+    bridgeOrigin?: string
+  ): { windowId: string; topicId: string; model: string } | undefined {
     const entry = this.entries.get(sessionId)
-    if (!entry || this.getInteractionState(sessionId).userResponse === 'unavailable') return undefined
+    if (!entry) return undefined
+    if (this.isHeadlessBridgeOrigin(entry, bridgeOrigin)) return undefined
+    if (this.getInteractionState(sessionId).userResponse === 'unavailable') return undefined
     const windowId = application.get('AiStreamManager').getInteractionWindow(entry.topicId) ?? entry.interactionWindowId
     if (!windowId || !application.get('WindowManager').getWindow(windowId)) return undefined
     entry.interactionWindowId = windowId
     return { windowId, topicId: entry.topicId, model: entry.modelId }
+  }
+
+  /** Whether `bridgeOrigin` names a child bound to a headless (unattended) spawning execution. */
+  private isHeadlessBridgeOrigin(entry: AgentSessionRuntimeEntry, bridgeOrigin?: string): boolean {
+    if (bridgeOrigin === undefined) return false
+    return entry.detachedChildHeadlessOrigins?.get(bridgeOrigin) === true
   }
 
   getInteractionState(sessionId: string): AgentSessionInteractionState {
@@ -3440,10 +3472,16 @@ export class AgentSessionRuntimeService extends BaseService {
    * (dsh-bridge), so the held background responder must keep denying it even while a later
    * interactive turn is live (the headless boundary, agent-session-runtime.md § security ceiling).
    */
-  getSessionToolsAuthorization(sessionId: string): AgentSessionInteractionState {
+  getSessionToolsAuthorization(sessionId: string, bridgeOrigin?: string): AgentSessionInteractionState {
     const interaction = this.getInteractionState(sessionId)
-    if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') return interaction
     const entry = this.entries.get(sessionId)
+    // A call issued by a headless-spawned child keeps that origin's denial regardless of whose
+    // responder the aggregate occupancy currently reports. Checked FIRST: without an explicit
+    // provenance the session-level resolution below credits the child with someone else's turn.
+    if (entry && this.isHeadlessBridgeOrigin(entry, bridgeOrigin)) {
+      return { currentTurn: 'headless', userResponse: 'unavailable' }
+    }
+    if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') return interaction
     const backgroundResponder = entry && getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
     if (backgroundResponder === 'headless') return { currentTurn: 'headless', userResponse: 'unavailable' }
     return interaction

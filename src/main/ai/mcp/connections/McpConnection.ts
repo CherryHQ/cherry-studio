@@ -22,6 +22,12 @@ export interface McpInteractionContext {
   windowId?: string
   topicId?: string
   sessionId?: string
+  /**
+   * Originating execution that issued this request — the descendant id when a runtime's delegated
+   * child made the call. Bridged calls all carry the ROOT Session id, so without this the host
+   * cannot tell a detached child's call from the foreground turn's.
+   */
+  bridgeOrigin?: string
   requestId?: string
   model?: string
   roots?: ReadonlyArray<Root>

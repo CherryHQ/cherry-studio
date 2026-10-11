@@ -18,6 +18,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import { readBridgeOriginMeta } from '@main/ai/agentSession/bridgeOrigin'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -304,6 +305,18 @@ const SessionSendInputSchema = z.object({
     .describe('completion returns one asynchronous terminal result in a separate turn.')
 })
 
+/**
+ * Read the originating execution off this request's `_meta`. Every bridged call arrives under the
+ * root Session id, so this is the only thing that distinguishes a detached child's call from the
+ * foreground turn's. Absent (a driver that does not stamp provenance) resolves to the root turn,
+ * which is the pre-existing behavior — provenance can only narrow authority, never widen it.
+ */
+function originOf(toolCtx: unknown): string | undefined {
+  if (typeof toolCtx !== 'object' || toolCtx === null) return undefined
+  const mcpReq = (toolCtx as { mcpReq?: { _meta?: unknown } }).mcpReq
+  return readBridgeOriginMeta(mcpReq?._meta)
+}
+
 function assertCurrentSessionIdentity(ctx: AutonomyToolsContext): void {
   const session = agentSessionService.getById(ctx.sessionId)
   if (session.agentId !== ctx.agentId) {
@@ -311,11 +324,13 @@ function assertCurrentSessionIdentity(ctx: AutonomyToolsContext): void {
   }
 }
 
-function assertSessionToolsAuthorized(ctx: AutonomyToolsContext): void {
-  // Resolve through the detached-dispatch authorization, not the foreground turn's interaction
-  // state: a desktop follow-up stays interactive for approvals, but a still-running headless
-  // child's calls arrive under the same root Session id and must keep the headless denial.
-  const authorization = application.get('AgentSessionRuntimeService').getSessionToolsAuthorization(ctx.sessionId)
+function assertSessionToolsAuthorized(ctx: AutonomyToolsContext, bridgeOrigin?: string): void {
+  // Resolve by the CALLER's originating execution, not the foreground turn's interaction state:
+  // a desktop follow-up stays interactive for approvals, but a still-running headless child's calls
+  // arrive under the same root Session id and must keep the headless denial.
+  const authorization = application
+    .get('AgentSessionRuntimeService')
+    .getSessionToolsAuthorization(ctx.sessionId, bridgeOrigin)
   if (authorization.currentTurn === 'headless' || authorization.userResponse === 'unavailable') {
     throw new AgentSessionDeliveryRoutingError(
       'SESSION_TOOL_FORBIDDEN',
@@ -327,11 +342,12 @@ function assertSessionToolsAuthorized(ctx: AutonomyToolsContext): void {
 /** Session tools share the sender gates; routing failures keep a machine-readable code for the model. */
 async function runSessionTool(
   ctx: AutonomyToolsContext,
-  run: () => CallToolResult | Promise<CallToolResult>
+  run: () => CallToolResult | Promise<CallToolResult>,
+  bridgeOrigin?: string
 ): Promise<CallToolResult> {
   try {
     assertCurrentSessionIdentity(ctx)
-    assertSessionToolsAuthorized(ctx)
+    assertSessionToolsAuthorized(ctx, bridgeOrigin)
     return await run()
   } catch (error) {
     if (!(error instanceof AgentSessionDeliveryRoutingError)) throw error
@@ -1131,7 +1147,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
         'List active Cherry Agent Sessions that can receive a message. Returns both agentId and sessionId for every address.',
       inputSchema: SessionListInputSchema
     },
-    (args) => runSessionTool(ctx, () => listSessions(ctx, args))
+    (args, toolCtx) => runSessionTool(ctx, () => listSessions(ctx, args), originOf(toolCtx))
   )
   server.registerTool(
     AGENT_LIST_TOOL_NAME,
@@ -1139,7 +1155,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       description: 'List available Cherry Agents with their public identity and runtime readiness.',
       inputSchema: z.object({})
     },
-    () => runSessionTool(ctx, listAgents)
+    (_args, toolCtx) => runSessionTool(ctx, listAgents, originOf(toolCtx))
   )
   server.registerTool(
     SESSION_SEARCH_TOOL_NAME,
@@ -1147,7 +1163,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       description: 'Search visible Cherry Agent Sessions by metadata and message evidence.',
       inputSchema: SessionSearchInputSchema
     },
-    (args) => runSessionTool(ctx, () => searchSessions(ctx, args))
+    (args, toolCtx) => runSessionTool(ctx, () => searchSessions(ctx, args), originOf(toolCtx))
   )
   server.registerTool(
     SESSION_READ_TOOL_NAME,
@@ -1156,7 +1172,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
         'Read messages from a Cherry Chat topic, Agent Session, or temporary conversation. The session type is detected from session_id. Use message_id for one exact message and tool_call_id with it to restore a persisted tool result. Attachments are descriptive only: their addresses and contents are omitted.',
       inputSchema: SessionReadInputSchema
     },
-    (args) => runSessionTool(ctx, () => readSession(args))
+    (args, toolCtx) => runSessionTool(ctx, () => readSession(args), originOf(toolCtx))
   )
   server.registerTool(
     SESSION_CREATE_TOOL_NAME,
@@ -1165,7 +1181,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
         'Create a new Session and send its first durable message. Omit target_agent_id to use the current Agent; provide it to create the Session for another Agent. The new Session inherits the current workspace policy and uses the target Agent model.',
       inputSchema: SessionCreateInputSchema
     },
-    (args) => runSessionTool(ctx, () => createSession(ctx, args))
+    (args, toolCtx) => runSessionTool(ctx, () => createSession(ctx, args), originOf(toolCtx))
   )
   server.registerTool(
     SESSION_DELIVERIES_TOOL_NAME,
@@ -1173,7 +1189,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       description: 'Inspect durable incoming or outgoing cross-Session requests, results, and delivery state.',
       inputSchema: SessionDeliveriesInputSchema
     },
-    (args) => runSessionTool(ctx, () => listSessionDeliveries(ctx, args))
+    (args, toolCtx) => runSessionTool(ctx, () => listSessionDeliveries(ctx, args), originOf(toolCtx))
   )
   server.registerTool(
     SESSION_SEND_TOOL_NAME,
@@ -1182,6 +1198,6 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
         'Send a durable message to another Cherry Agent Session. Sender agentId/sessionId are injected by the trusted runtime and cannot be supplied by the caller.',
       inputSchema: SessionSendInputSchema
     },
-    (args) => runSessionTool(ctx, () => sendSessionMessage(ctx, args))
+    (args, toolCtx) => runSessionTool(ctx, () => sendSessionMessage(ctx, args), originOf(toolCtx))
   )
 }
