@@ -818,6 +818,14 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
     const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
+    // An explicit return to Plan must retire every remembered exit for this agent's sessions —
+    // the overlay also remembers disconnected sessions, which nothing else reconciles here, and a
+    // stale approval would otherwise open their next connection with plan folded inactive.
+    if (updates.configuration?.permission_mode === 'plan') {
+      for (const sessionId of agentSessionService.listIdsByAgent(agentId)) {
+        this.planExitedSessions.delete(sessionId)
+      }
+    }
     const reconciles: Promise<void>[] = []
     for (const entry of this.entries.values()) {
       if (entry.agentId !== agentId) continue
