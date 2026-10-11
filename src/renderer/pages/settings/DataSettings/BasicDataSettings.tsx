@@ -29,6 +29,7 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { LOG_RETENTION_DAYS } from '@shared/types/logger'
@@ -213,7 +214,9 @@ const BasicDataSettings: React.FC = () => {
         timeout: 2000
       })
       window.setTimeout(() => {
-        void ipcApi.request('app.relaunch')
+        void ipcApi.request('app.relaunch').catch((error) => {
+          toast.error(formatErrorMessage(error))
+        })
       }, 500)
     } catch (error) {
       logger.error('Failed to change application data path', error as Error)

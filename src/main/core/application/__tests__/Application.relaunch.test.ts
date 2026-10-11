@@ -1,7 +1,8 @@
-import { app } from 'electron'
+import { app, ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { bootConfigService } from '@main/data/bootConfig'
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { BaseService } from '../../lifecycle/BaseService'
 import { Injectable } from '../../lifecycle/decorators'
@@ -27,11 +28,14 @@ describe('Application relaunch persistence', () => {
   beforeEach(() => {
     resetApplication()
     vi.clearAllMocks()
+    relaunch.mockReset()
+    exit.mockReset()
     Object.assign(app, { isPackaged: true, relaunch, exit })
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
     Object.assign(app, { isPackaged: originalPackaged })
     resetApplication()
   })
@@ -51,11 +55,36 @@ describe('Application relaunch persistence', () => {
     expect(events).toEqual(['persist', 'relaunch', 'exit'])
   })
 
-  it('keeps the current process when startup settings cannot be persisted', () => {
+  it('still completes a terminal restart when pending startup settings cannot be persisted', () => {
     vi.spyOn(bootConfigService, 'persist').mockImplementation(() => {
       throw new Error('Cannot save startup settings')
     })
-    expect(() => Application.getInstance().relaunch()).toThrow('Cannot save startup settings')
+
+    expect(() => Application.getInstance().relaunch()).not.toThrow()
+    expect(relaunch).toHaveBeenCalledOnce()
+    expect(exit).toHaveBeenCalledWith(0)
+  })
+
+  it('rejects a renderer restart before entering terminal relaunch when startup settings cannot be persisted', () => {
+    const application = Application.getInstance()
+    vi.spyOn(application, 'getPath').mockReturnValue(process.cwd())
+    vi.stubEnv('ELECTRON_RENDERER_URL', 'https://cherry.test')
+    application['registerApplicationIpc']()
+    const request = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([channel]) => channel === IpcChannel.Application_Relaunch)?.[1]
+    expect(request).toBeTypeOf('function')
+    const terminalRelaunch = vi.spyOn(application, 'relaunch')
+    vi.spyOn(bootConfigService, 'persist').mockImplementation(() => {
+      throw new Error('Cannot save startup settings')
+    })
+    const event = {
+      sender: { getType: () => 'window' },
+      senderFrame: { url: 'https://cherry.test/window', parent: null }
+    } as Electron.IpcMainInvokeEvent
+
+    expect(() => request!(event)).toThrow('Cannot save startup settings')
+    expect(terminalRelaunch).not.toHaveBeenCalled()
     expect(relaunch).not.toHaveBeenCalled()
     expect(exit).not.toHaveBeenCalled()
   })

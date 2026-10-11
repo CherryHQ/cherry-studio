@@ -16,6 +16,8 @@ import {
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 import type { OutputFor } from '@shared/ipc/types'
@@ -120,7 +122,10 @@ const ScreenshotSettings: FC = () => {
   }
 
   const relaunch = () => {
-    ipcApi.request('app.relaunch').catch((error) => logger.warn('Failed to relaunch the app', error as Error))
+    ipcApi.request('app.relaunch').catch((error) => {
+      logger.warn('Failed to relaunch the app', error as Error)
+      toast.error(formatErrorMessage(error))
+    })
   }
 
   const permissionView = resolvePermissionView(permissionStatus, restartRequired, promptUnavailable)

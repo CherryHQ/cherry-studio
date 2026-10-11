@@ -5,6 +5,7 @@ import { app, BrowserWindow } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { bootConfigService } from '@main/data/bootConfig'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
 import { regionService } from '@main/services/RegionService'
@@ -44,7 +45,10 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   },
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
   'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),
-  'app.relaunch': async () => application.relaunch(),
+  'app.relaunch': async () => {
+    bootConfigService.persist()
+    application.relaunch()
+  },
   'app.adjust_zoom': async ({ delta, reset = false }) => {
     handleZoomFactor(BrowserWindow.getAllWindows(), delta, reset)
     return application.get('PreferenceService').get('app.zoom_factor')

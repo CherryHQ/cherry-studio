@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { popup } from '@renderer/services/popup'
@@ -20,9 +20,13 @@ vi.mock('@renderer/i18n/resolver', () => ({
   default: i18nMock
 }))
 
-const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  request: vi.fn(),
+  setTimeoutTimer: vi.fn<(key: string, callback: () => void, delay: number) => void>()
+}))
 const themeMocks = vi.hoisted(() => ({ setTheme: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+vi.mock('@renderer/utils/platform', () => ({ isLinux: true, isMac: false }))
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
@@ -167,7 +171,7 @@ vi.mock('@renderer/hooks/useUserTheme', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
-    setTimeoutTimer: vi.fn()
+    setTimeoutTimer: mocks.setTimeoutTimer
   })
 }))
 
@@ -281,10 +285,34 @@ describe('AppearanceSettings menu presentation mode', () => {
     expect(setTimeoutTimer).not.toHaveBeenCalled()
     expect(window.api.application.relaunch).not.toHaveBeenCalled()
   })
+
+  it('shows a boot-config write failure from the confirmed menu-mode restart', async () => {
+    const error = new Error('Failed to persist boot configuration: EACCES')
+    const relaunch = vi.mocked(window.api.application.relaunch)
+    relaunch.mockRejectedValueOnce(error)
+
+    await confirmMenuPresentationModeChange({
+      currentMode: 'cherry',
+      mode: 'native',
+      setMenuPresentationMode,
+      setTimeoutTimer,
+      t
+    })
+    expect(setMenuPresentationMode).toHaveBeenCalledWith('native')
+    expect(setTimeoutTimer).toHaveBeenCalledWith('handleMenuPresentationModeChange', expect.any(Function), 500)
+    expect(relaunch).not.toHaveBeenCalled()
+
+    setTimeoutTimer.mock.calls[0][1]()
+    await expect(relaunch.mock.results[0].value).rejects.toThrow(error.message)
+
+    expect(relaunch).toHaveBeenCalledOnce()
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith(error.message)
+  })
 })
 
 describe('AppearanceSettings selectors', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
     i18nMock.language = 'zh-CN'
     i18nMock.resolvedLanguage = 'zh-CN'
@@ -295,6 +323,32 @@ describe('AppearanceSettings selectors', () => {
       if (route === 'app.adjust_zoom') return Promise.resolve(1)
       return Promise.resolve(undefined)
     })
+  })
+
+  it('shows a boot-config write failure from the confirmed system-title-bar restart', async () => {
+    const error = new Error('Failed to persist boot configuration: EACCES')
+    const relaunch = vi.mocked(window.api.application.relaunch)
+    relaunch.mockRejectedValueOnce(error)
+    vi.mocked(popup.confirm).mockResolvedValueOnce(true)
+    MockUsePreferenceUtils.setPreferenceValue('app.use_system_title_bar', false)
+    render(<AppearanceSettings />)
+
+    const row = screen.getByText('settings.use_system_title_bar.title').parentElement
+    expect(row).not.toBeNull()
+    fireEvent.click(within(row!).getByRole('checkbox'))
+
+    await waitFor(() =>
+      expect(mocks.setTimeoutTimer).toHaveBeenCalledWith('handleUseSystemTitleBarChange', expect.any(Function), 500)
+    )
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.use_system_title_bar')).toBe(true)
+    expect(relaunch).not.toHaveBeenCalled()
+    await act(async () => {
+      mocks.setTimeoutTimer.mock.calls[0][1]()
+      await expect(relaunch.mock.results[0].value).rejects.toThrow(error.message)
+    })
+
+    expect(relaunch).toHaveBeenCalledOnce()
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith(error.message)
   })
 
   it('shows the resolved i18n language when no app language preference is saved', async () => {

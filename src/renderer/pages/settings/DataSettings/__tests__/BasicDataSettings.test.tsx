@@ -170,4 +170,56 @@ describe('BasicDataSettings', () => {
     })
     expect(requestMock).toHaveBeenCalledExactlyOnceWith('app.data_reset.request')
   })
+
+  it('shows a boot-config write failure from the delayed restart after staging a data relocation', async () => {
+    const error = new Error('Failed to persist boot configuration: EACCES')
+    const originalPath = 'D:/CherryData/original'
+    const newPath = 'D:/CherryData/relocated'
+    const defaultRequest = requestMock.getMockImplementation()!
+    requestMock.mockImplementation((route: string) => {
+      if (route === 'app.get_info') return Promise.resolve({ appDataPath: originalPath })
+      if (route === 'app.user_data_relocation.inspect') return Promise.resolve({ valid: true, targetEmpty: true })
+      if (route === 'app.relaunch') return Promise.reject(error)
+      return defaultRequest(route)
+    })
+    vi.mocked(popup.confirm).mockResolvedValueOnce(true)
+
+    const originalFileApi = window.api.file
+    window.api.file = { ...originalFileApi, selectFolder: vi.fn().mockResolvedValue(newPath) }
+    const nativeSetTimeout = globalThis.setTimeout.bind(globalThis)
+    let restart: (() => void) | undefined
+    const timer = vi.spyOn(window, 'setTimeout').mockImplementation((handler, timeout, ...args) => {
+      if (timeout === 500 && typeof handler === 'function') {
+        restart = () => handler(...args)
+        const handle = nativeSetTimeout(() => undefined, timeout)
+        globalThis.clearTimeout(handle)
+        return handle
+      }
+      return nativeSetTimeout(handler, timeout, ...args)
+    })
+
+    try {
+      await renderSettings()
+      await screen.findByText(originalPath)
+      // The existing folder icon is the page's selection control; the tooltip identifies its row.
+      const selectFolder = screen.getByText('settings.data.app_data.select').parentElement?.querySelector('svg')
+      expect(selectFolder).not.toBeNull()
+      fireEvent.click(selectFolder!)
+
+      await waitFor(() => expect(restart).toBeDefined())
+      expect(requestMock).toHaveBeenCalledWith('app.user_data_relocation.request', { path: newPath, copy: true })
+      expect(requestMock).not.toHaveBeenCalledWith('app.relaunch')
+
+      await act(async () => {
+        restart!()
+        await expect(requestMock.mock.results.at(-1)!.value).rejects.toThrow(error.message)
+      })
+
+      expect(requestMock).toHaveBeenLastCalledWith('app.relaunch')
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith(error.message)
+    } finally {
+      timer.mockRestore()
+      window.api.file = originalFileApi
+    }
+  })
 })

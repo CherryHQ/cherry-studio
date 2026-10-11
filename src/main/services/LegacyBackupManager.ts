@@ -33,6 +33,7 @@ import type { CreateDirectoryOptions, FileStat } from 'webdav'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
+import { bootConfigService } from '@main/data/bootConfig'
 import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
@@ -1127,6 +1128,7 @@ class BackupManager {
           },
           fileResources
         }
+        bootConfigService.persist()
         writeRestoreJournal(journal)
         journalCommitted = true
 
