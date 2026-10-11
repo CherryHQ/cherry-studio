@@ -243,25 +243,28 @@ export class RuntimeExecutor<
         ? this.registry.rerankingModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
         : modelOrId
 
-    const observedModel: RerankingModelV3 = {
-      specificationVersion: rerankingModel.specificationVersion,
-      provider: rerankingModel.provider,
-      modelId: rerankingModel.modelId,
-      doRerank: async (callOptions) => {
-        const handler = startProviderCall(onProviderCallStart, onProviderCall)
-        const startedAt = performance.now()
-        const result = await rerankingModel.doRerank(callOptions)
-        emitProviderCall(handler, {
-          modality: 'rerank',
-          requestId: `ai-core:rerank:${crypto.randomUUID()}`,
-          providerId: this.config.providerId,
-          modelId: rerankingModel.modelId,
-          metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
-          completedAt: Date.now()
-        })
-        return result
-      }
-    }
+    const observedModel: RerankingModelV3 =
+      onProviderCall || onProviderCallStart
+        ? {
+            specificationVersion: rerankingModel.specificationVersion,
+            provider: rerankingModel.provider,
+            modelId: rerankingModel.modelId,
+            doRerank: async (callOptions) => {
+              const handler = startProviderCall(onProviderCallStart, onProviderCall)
+              const startedAt = performance.now()
+              const result = await rerankingModel.doRerank(callOptions)
+              emitProviderCall(handler, {
+                modality: 'rerank',
+                requestId: `ai-core:rerank:${crypto.randomUUID()}`,
+                providerId: this.config.providerId,
+                modelId: rerankingModel.modelId,
+                metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
+                completedAt: Date.now()
+              })
+              return result
+            }
+          }
+        : rerankingModel
     return _rerank<VALUE>({ model: observedModel, ...options })
   }
 
