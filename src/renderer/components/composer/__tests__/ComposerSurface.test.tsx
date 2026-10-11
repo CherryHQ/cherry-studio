@@ -5030,6 +5030,38 @@ describe('ComposerSurface', () => {
     expect(onSendDraft).toHaveBeenCalledTimes(1)
   })
 
+  it('saves on the edit shortcut while keeping regenerate on the explicit action', async () => {
+    const onSave = vi.fn()
+    const onSendDraft = vi.fn()
+    mocks.preferences['chat.input.send_message_shortcut'] = 'Shift+Enter'
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'edited draft' }] }]
+    })
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onSendDraft={onSendDraft}
+        editingState={{ messageId: 'message-1', onCancel: vi.fn(), onSave, sendLabel: 'Regenerate' }}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(event.defaultPrevented).toBe(true)
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ text: 'edited draft' }))
+    expect(onSendDraft).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }))
+    expect(onSendDraft).toHaveBeenCalledWith(expect.objectContaining({ text: 'edited draft' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ text: 'edited draft' }))
+  })
+
   it('suppresses repeated keydown events for the configured send shortcut', async () => {
     const onSendDraft = vi.fn()
     render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)

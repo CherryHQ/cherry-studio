@@ -331,6 +331,8 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
                   showBlockedSendReason()
                 } else if (isSteerPressed) {
                   void props.onSendDraft(getFallbackDraft(), { steer: true })
+                } else if (props.editingState?.onSave) {
+                  void props.editingState.onSave(getFallbackDraft())
                 } else {
                   void props.onSendDraft(getFallbackDraft())
                 }

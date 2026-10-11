@@ -1607,7 +1607,7 @@ const ChatComposerInner = ({
     [files, selectedKnowledgeBasesInScope]
   )
 
-  /** `resend` = fork the user message and regenerate; otherwise save the edit in place. */
+  /** `resend` is invoked only by the explicit primary action; the shortcut and check control save in place. */
   const commitEditedMessage = useCallback(
     async (draft: ComposerSerializedDraft, resend: boolean) => {
       if (!editingMessageForCurrentTopic) return
@@ -1627,6 +1627,7 @@ const ChatComposerInner = ({
 
       editSaveInFlightSessionIdRef.current = editingSessionId
       setSavingEditingSessionId(editingSessionId)
+      let editWasSaved = false
       try {
         const edited = await buildEditedMessageParts(draft)
         if (!edited) return
@@ -1639,8 +1640,12 @@ const ChatComposerInner = ({
               edited.parts
             )
           : edited.parts
-        if (isAssistantReply || !resend) {
+        if (!resend) {
           await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
+        } else if (isAssistantReply) {
+          await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
+          editWasSaved = true
+          await chatWrite.regenerate(editingMessageForCurrentTopic.message.id)
         } else {
           const editedTurnOptions = isMentionedModelSelectorLocked
             ? undefined
@@ -1666,8 +1671,12 @@ const ChatComposerInner = ({
           stopEditing()
         }
       } catch (error) {
-        logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
-        toast.error(t('message.error.operation_unavailable'))
+        logger.warn(editWasSaved ? 'edited message regeneration failed' : 'edited message save failed', {
+          error,
+          messageId: editingMessageForCurrentTopic.message.id,
+          role: editingMessageForCurrentTopic.message.role
+        })
+        toast.error(t(editWasSaved ? 'chat.input.send_failed' : 'message.error.operation_unavailable'))
       } finally {
         if (editSaveInFlightSessionIdRef.current === editingSessionId) {
           editSaveInFlightSessionIdRef.current = null
@@ -1913,9 +1922,8 @@ const ChatComposerInner = ({
                   highlightKey: editingMessageForCurrentTopic.editingSessionId,
                   onLocate: handleLocateEditingMessage,
                   onCancel: handleCancelEditing,
-                  // Assistant edits already save in place on send; only user edits need a save-only path.
-                  onSave:
-                    editingMessageForCurrentTopic.message.role === 'assistant' ? undefined : handleSaveEditedMessage
+                  onSave: handleSaveEditedMessage,
+                  sendLabel: t('common.regenerate')
                 }
               : undefined
           }
