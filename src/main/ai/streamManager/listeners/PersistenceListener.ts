@@ -5,9 +5,9 @@
  */
 
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
+import { terminalSentinel } from '@data/services/utils/terminalSentinel'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { terminalSentinel } from '@main/ai/utils/terminalSentinel'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   CherryMessagePart,
