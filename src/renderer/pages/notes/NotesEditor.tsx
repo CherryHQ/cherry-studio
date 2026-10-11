@@ -153,6 +153,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   fontFamily={settings.fontFamily}
                   fontSize={settings.fontSize}
                   enableSpellCheck={enableSpellCheck}
+                  trackImagePastesForRelocation
                   disabledCommands={DISABLED_RICH_EDITOR_COMMANDS}
                 />
               )}

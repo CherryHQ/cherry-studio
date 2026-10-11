@@ -105,13 +105,15 @@ export function isPathInside(childPath: string, parentPath: string): boolean {
       return true
     }
 
-    // Get relative path from parent to child
     const relativePath = path.relative(normalizedParent, normalizedChild)
 
-    // If relative path is empty, they are the same
-    // If relative path starts with '..', child is not inside parent
-    // If relative path is absolute, child is not inside parent
-    return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
+    // Reject only real parent traversal (`..` as a segment), not legal names like `..archive`.
+    return (
+      relativePath !== '' &&
+      relativePath !== '..' &&
+      !relativePath.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relativePath)
+    )
   } catch (error) {
     logger.error('Failed to check path relationship:', error as Error)
     return false

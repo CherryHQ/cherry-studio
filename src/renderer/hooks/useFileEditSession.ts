@@ -137,10 +137,11 @@ const isAmbiguousMtime = (mtime: number) => mtime % 1000 === 0
  */
 export function useFileEditSession(
   handle: FileHandle | undefined,
-  options?: { suppressAutosave?: () => boolean }
+  options?: { suppressAutosave?: () => boolean; trackDepartingWritesForRelocation?: boolean }
 ): FileEditSession {
   const suppressAutosaveRef = useRef(options?.suppressAutosave)
   suppressAutosaveRef.current = options?.suppressAutosave
+  const trackDepartingWritesForRelocation = options?.trackDepartingWritesForRelocation ?? false
   const { mutate } = useSWRConfig()
   const handleKey = handle ? keyOf(handle) : null
   const { data, error, isLoading } = useSWR<FileEditSnapshot, Error>(handleKey, () => readFile(handle!), {
@@ -315,13 +316,15 @@ export function useFileEditSession(
       const model = modelRef.current
       if (model && !model.conflict && model.draft !== model.snapshot.content) {
         requestWrite(model, { force: true })
-        trackDepartingNotesFileWrite(
-          model.chain.then(() => {
-            if (model.draft !== model.snapshot.content) {
-              throw model.lastWriteError ?? new Error('Pending edit could not be saved')
-            }
-          })
-        )
+        if (trackDepartingWritesForRelocation) {
+          trackDepartingNotesFileWrite(
+            model.chain.then(() => {
+              if (model.draft !== model.snapshot.content) {
+                throw model.lastWriteError ?? new Error('Pending edit could not be saved')
+              }
+            })
+          )
+        }
       }
       modelRef.current = null
       setDraftState('')
@@ -332,7 +335,7 @@ export function useFileEditSession(
       setIsSaving(false)
       setReady(false)
     }
-  }, [handleKey, debouncedWrite, requestWrite])
+  }, [handleKey, debouncedWrite, requestWrite, trackDepartingWritesForRelocation])
 
   const setDraft = useCallback(
     (next: string) => {

@@ -72,6 +72,46 @@ describe('notesRelocation', () => {
     expect(fs.readFileSync(path.join(source, 'note-a.md'), 'utf8')).toBe('# A')
   })
 
+  it('copies a top-level source folder whose name starts with two dots', async () => {
+    const source = path.join(tempRoot, 'source-notes-dotdot')
+    const target = path.join(tempRoot, 'target-notes-dotdot')
+    fs.mkdirSync(path.join(source, '..archive'), { recursive: true })
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, '..archive', 'note.md'), '# Archived')
+
+    const result = await migrateWithPreferenceSource(source, target, { merge: false })
+    expect(result.target.markdownFileCount).toBe(1)
+    expect(fs.readFileSync(path.join(target, '..archive', 'note.md'), 'utf8')).toBe('# Archived')
+  })
+
+  it('rejects migration when the destination root becomes a symlink during copying', async () => {
+    const source = path.join(tempRoot, 'source-notes-symlink-root')
+    const target = path.join(tempRoot, 'target-notes-symlink-root')
+    const outside = path.join(tempRoot, 'outside-notes-symlink-root')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.mkdirSync(outside)
+    fs.writeFileSync(path.join(source, 'note.md'), '# Note')
+
+    const realLstat = fs.promises.lstat.bind(fs.promises)
+    let targetRootChecks = 0
+    const lstatSpy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (entryPath) => {
+      if (path.resolve(String(entryPath)) === path.resolve(target)) {
+        targetRootChecks += 1
+        if (targetRootChecks === 2) {
+          await fs.promises.rm(target, { recursive: true, force: true })
+          await fs.promises.symlink(outside, target, 'dir')
+        }
+      }
+      return realLstat(entryPath)
+    })
+
+    await expect(migrateWithPreferenceSource(source, target, { merge: false })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_INVALID'
+    })
+    lstatSpy.mockRestore()
+  })
+
   it('copies into a target that only contains an empty folder without merge', async () => {
     const source = path.join(tempRoot, 'source-notes-empty-folder')
     const target = path.join(tempRoot, 'target-notes-empty-folder')

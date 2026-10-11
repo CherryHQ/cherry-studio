@@ -6,6 +6,7 @@ import {
   registerNotesEditFlush,
   runStructuralNotesFilesystemWrite,
   trackDepartingNotesFileWrite,
+  trackPendingNotesImagePaste,
   unlockNotesEditsForRelocation,
   waitForStructuralNotesWritesToSettle
 } from '../notesFileEditFlush'
@@ -47,6 +48,28 @@ describe('notesFileEditFlush structural writes', () => {
 
     await flushAllNotesEdits()
     expect(departingFinished).toBe(true)
+    expect(flush).toHaveBeenCalledOnce()
+  })
+
+  it('waits for pending image pastes during flush', async () => {
+    unlockNotesEditsForRelocation()
+
+    let pasteFinished = false
+    const paste = trackPendingNotesImagePaste(
+      new Promise<void>((resolve) => {
+        setTimeout(() => {
+          pasteFinished = true
+          resolve()
+        }, 20)
+      })
+    )
+
+    const flush = vi.fn().mockResolvedValue(undefined)
+    registerNotesEditFlush(flush)
+
+    await flushAllNotesEdits()
+    await paste
+    expect(pasteFinished).toBe(true)
     expect(flush).toHaveBeenCalledOnce()
   })
 

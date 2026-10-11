@@ -19,7 +19,8 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
   )
   const editsLockedForRelocation = useNotesEditsLockedForRelocation()
   const session = useFileEditSession(activeFileHandle, {
-    suppressAutosave: () => editsLockedForRelocation
+    suppressAutosave: () => editsLockedForRelocation,
+    trackDepartingWritesForRelocation: true
   })
 
   useEffect(() => registerNotesEditFlush(session.flush), [session.flush])

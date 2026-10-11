@@ -32,6 +32,13 @@ async function isDirectoryTreeEmpty(directoryPath: string): Promise<boolean> {
   return true
 }
 
+async function assertMigrationTargetRootIsDirectory(targetRoot: string): Promise<void> {
+  const stats = await fs.promises.lstat(targetRoot)
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'target directory changed during migration')
+  }
+}
+
 async function assertCanonicalTargetPath(targetRoot: string, absolutePath: string): Promise<void> {
   const relative = path.relative(targetRoot, absolutePath)
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
@@ -261,6 +268,7 @@ export async function migrateNotesDirectory(
   }
 
   try {
+    await assertMigrationTargetRootIsDirectory(resolvedTarget)
     for (const entry of entries) {
       if (entry.isSymbolicLink()) {
         continue
@@ -319,6 +327,7 @@ export async function migrateNotesDirectory(
       }
     }
 
+    await assertMigrationTargetRootIsDirectory(resolvedTarget)
     await verifySourceCopied(resolvedSource, resolvedTarget)
     const targetAfter = await scanNotesDirectory(resolvedTarget)
 

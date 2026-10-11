@@ -4,6 +4,7 @@ type NotesEditFlush = () => Promise<void>
 
 const flushCallbacks = new Set<NotesEditFlush>()
 const departingWriteChains = new Set<Promise<void>>()
+const pendingImagePasteOperations = new Set<Promise<void>>()
 const autosaveCancelCallbacks = new Set<() => void>()
 const relocationEditLockListeners = new Set<() => void>()
 let relocationEditLockDepth = 0
@@ -110,6 +111,25 @@ export function trackDepartingNotesFileWrite(chain: Promise<void>): void {
   })
 }
 
+export function trackPendingNotesImagePaste<T>(operation: Promise<T>): Promise<T> {
+  const tracked = operation.then(
+    () => undefined,
+    () => undefined
+  )
+  pendingImagePasteOperations.add(tracked)
+  void tracked.finally(() => {
+    pendingImagePasteOperations.delete(tracked)
+  })
+  return operation
+}
+
+export async function waitForPendingNotesImagePastes(): Promise<void> {
+  while (pendingImagePasteOperations.size > 0) {
+    await Promise.all([...pendingImagePasteOperations])
+  }
+}
+
 export async function flushAllNotesEdits(): Promise<void> {
+  await waitForPendingNotesImagePastes()
   await Promise.all([...[...flushCallbacks].map((flush) => flush()), ...[...departingWriteChains]])
 }
