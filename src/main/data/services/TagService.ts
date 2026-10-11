@@ -236,7 +236,7 @@ export class TagService {
    * is identical regardless of which helper loaded it.
    *
    * Pass `tx` from inside a transaction to read freshly-synced bindings
-   * atomically (e.g. after `syncEntityTagsTx`).
+   * atomically.
    */
   getTagsByEntitiesTx(tx: Pick<DbType, 'select'>, entityType: EntityType, entityIds: string[]): Map<string, Tag[]> {
     const result = new Map<string, Tag[]>()
@@ -318,91 +318,6 @@ export class TagService {
     })
 
     logger.info('Synced entity tags', { entityType, entityId, tagCount: desiredTagIds.length })
-  }
-
-  /**
-   * Tx-aware diff-sync of entity_tag bindings for an entity.
-   *
-   * Owning services (AssistantService, …) call this from inside their own
-   * transaction so the assistant row write and its tag binding land atomically.
-   * The public `syncEntityTags` wraps this in its own transaction.
-   *
-   * - `tagIds` is de-duplicated by the caller (e.g. via `new Set`).
-   * - Missing tag rows cause `NOT_FOUND` to roll the whole tx back.
-   *
-   * **Logging contract**: this helper emits NO log — the owning service's own
-   * "Updated / Created assistant" log line already records that tags changed
-   * (via `Object.keys(dto)`), and double-logging from here would confuse
-   * per-operation log correlation. The public `syncEntityTags` wrapper keeps
-   * its "Synced entity tags" log for direct-entry PUT /tags/entities calls.
-   */
-  syncEntityTagsTx(
-    tx: Pick<DbType, 'select' | 'insert' | 'delete'>,
-    entityType: EntityType,
-    entityId: string,
-    tagIds: string[]
-  ): void {
-    const desiredTagIds = [...new Set(tagIds)]
-
-    const existing = tx
-      .select({ tagId: entityTagTable.tagId })
-      .from(entityTagTable)
-      .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
-      .all()
-
-    const existingIds = new Set(existing.map((row) => row.tagId))
-    const desiredIds = new Set(desiredTagIds)
-
-    const toRemove = existing.filter((row) => !desiredIds.has(row.tagId)).map((row) => row.tagId)
-    const toAdd = desiredTagIds.filter((tagId) => !existingIds.has(tagId))
-
-    if (toRemove.length > 0) {
-      tx.delete(entityTagTable)
-        .where(
-          and(
-            eq(entityTagTable.entityType, entityType),
-            eq(entityTagTable.entityId, entityId),
-            inArray(entityTagTable.tagId, toRemove)
-          )
-        )
-        .run()
-    }
-
-    if (toAdd.length > 0) {
-      this.assertTagsExistTx(tx, toAdd)
-      tx.insert(entityTagTable)
-        .values(toAdd.map((tagId) => ({ entityType, entityId, tagId })))
-        .run()
-    }
-  }
-
-  /**
-   * Get tag IDs for multiple entities of the same type (batch query).
-   * Used by other services (e.g., AssistantService) to efficiently load tags.
-   */
-  getTagIdsByEntities(entityType: EntityType, entityIds: string[]): Map<string, string[]> {
-    const result = new Map<string, string[]>()
-
-    if (entityIds.length === 0) {
-      return result
-    }
-
-    for (const id of entityIds) {
-      result.set(id, [])
-    }
-
-    const rows = this.db
-      .select({ entityId: entityTagTable.entityId, tagId: entityTagTable.tagId })
-      .from(entityTagTable)
-      .where(and(eq(entityTagTable.entityType, entityType), inArray(entityTagTable.entityId, entityIds)))
-      .orderBy(asc(entityTagTable.entityId), asc(entityTagTable.createdAt), asc(entityTagTable.tagId))
-      .all()
-
-    for (const row of rows) {
-      result.get(row.entityId)?.push(row.tagId)
-    }
-
-    return result
   }
 
   /**
