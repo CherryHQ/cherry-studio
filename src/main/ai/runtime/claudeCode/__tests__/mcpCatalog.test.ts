@@ -158,4 +158,24 @@ describe('buildMcpToolMetadata', () => {
     expect(metadata?.['mcp__docs__run']).toMatchObject({ serverId: 'id-a', name: 'run' })
     expect(metadata?.['mcp__id-b__run']).toMatchObject({ serverId: 'id-b', name: 'run' })
   })
+
+  it('gives two flattening pairs distinct metadata identities', async () => {
+    // `docs` exposing `search__all` and `docs__search` exposing `all` both write the exact
+    // string `mcp__docs__search__all` when `docs__search` mounts verbatim — first claim wins,
+    // and streamAdapter stamps the surviving metadata onto the other server's calls. The
+    // allocator sanitizes `__` out of keys, so each pair keeps its own exact identity.
+    const servers = new Map([
+      ['id-a', server('id-a', 'docs')],
+      ['id-b', server('id-b', 'docs__search')]
+    ])
+    mockFindByIdOrName.mockImplementation((idOrName: string) => servers.get(idOrName))
+    mockListTools.mockImplementation((serverId: string) => [
+      tool(`${serverId}-1`, serverId === 'id-a' ? 'search__all' : 'all')
+    ])
+
+    const metadata = await buildMcpToolMetadata({ id: 'agent-1', mcps: ['id-a', 'id-b'] } as unknown as AgentEntity)
+
+    expect(metadata?.['mcp__docs__search__all']).toMatchObject({ serverId: 'id-a', name: 'search__all' })
+    expect(metadata?.['mcp__docs_search__all']).toMatchObject({ serverId: 'id-b', name: 'all' })
+  })
 })

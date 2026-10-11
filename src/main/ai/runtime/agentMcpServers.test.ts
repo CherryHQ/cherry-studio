@@ -61,15 +61,50 @@ describe('buildAgentMcpServers key allocation', () => {
     expect(Object.keys(servers)).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory']))
   })
 
-  it('keeps a server named __proto__ as an own enumerable key instead of mutating the prototype', () => {
+  it('keeps a server named __proto__ on a sanitized own enumerable key', () => {
     const id = '11111111-1111-4111-8111-111111111111'
     const servers = build([[id, { id, name: '__proto__', isActive: true }]])
 
-    expect(servers['__proto__']).toMatchObject({ id, name: '__proto__' })
+    // `__` runs collapse in the key, so the hazardous name never reaches the record at all.
+    expect(servers['_proto_']).toMatchObject({ id, name: '_proto_' })
     // Claude/DSH enumerate via Object.entries and Pi via Object.values — the entry must be own
     // and enumerable or the server silently disappears from every runtime.
-    expect(Object.keys(servers)).toContain('__proto__')
-    expect(Object.entries(servers).map(([key]) => key)).toContain('__proto__')
+    expect(Object.keys(servers)).toContain('_proto_')
+    expect(Object.entries(servers).map(([key]) => key)).toContain('_proto_')
+    expect(Object.prototype.hasOwnProperty.call(servers, '__proto__')).toBe(false)
+  })
+
+  it('keeps `__` out of allocated keys so flattened tool identities stay unambiguous', () => {
+    const idA = '22222222-2222-4222-8222-222222222222'
+    const idB = '33333333-3333-4333-8333-333333333333'
+    // `docs` exposing `search__all` and `docs__search` exposing `all` both flatten to the
+    // SDK-derived id `mcp__docs__search__all` when both keys mount verbatim — the CLI keeps
+    // one callable and metadata cannot say which. Sanitized keys keep the identity injective.
+    const servers = build([
+      [idA, { id: idA, name: 'docs', isActive: true }],
+      [idB, { id: idB, name: 'docs__search', isActive: true }]
+    ])
+
+    expect(servers['docs']).toMatchObject({ id: idA })
+    expect(servers['docs_search']).toMatchObject({ id: idB })
+    expect(servers['docs__search']).toBeUndefined()
+  })
+
+  it("does not let a sanitized key take another server's literal name", () => {
+    const idA = '22222222-2222-4222-8222-222222222222'
+    const idB = '33333333-3333-4333-8333-333333333333'
+    const idC = '55555555-5555-4555-8555-555555555555'
+    // `docs__search` sanitizes onto idC's literal `docs_search` name — the sanitizer must
+    // respect taken keys, so the second server falls back to its own id.
+    const servers = build([
+      [idA, { id: idA, name: 'docs', isActive: true }],
+      [idC, { id: idC, name: 'docs_search', isActive: true }],
+      [idB, { id: idB, name: 'docs__search', isActive: true }]
+    ])
+
+    expect(servers['docs']).toMatchObject({ id: idA })
+    expect(servers['docs_search']).toMatchObject({ id: idC })
+    expect(servers[idB]).toMatchObject({ id: idB })
   })
 
   it('keeps every mounted server when a fallback id collides with another server key', () => {

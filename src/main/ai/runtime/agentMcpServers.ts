@@ -55,14 +55,28 @@ export interface AgentNotificationContext {
 }
 
 /**
+ * Runtime record keys host SDK-derived tool ids (`mcp__<key>__<tool>`), so a key containing the
+ * delimiter (`docs__search`) lets one pair's identity flatten onto another's (`docs` +
+ * `search__all` → `mcp__docs__search__all`): the CLI keeps one tool callable under the contested
+ * string while metadata and denial matching cannot say which. Collapsing `__` runs makes the
+ * key set delimiter-free, which makes the flattened identity injective — the first `__` after
+ * `mcp__` marks the key boundary for every mounted pair, regardless of tool names.
+ */
+function sanitizeServerKey(name: string): string {
+  return name.replace(/_{2,}/g, '_')
+}
+
+/**
  * Resolve the agent's mounted servers once: parse each `agent.mcps` entry (id or name), skip the
  * browser builtin, and allocate the runtime record key. The SDK derives tool names
  * (`mcp__<key>__<tool>`, 64-char cap) and routes tool calls from the record key, so a 36-char UUID
  * key leaves ~21 chars for the tool name and truncates the rest into unreadable hashes
  * (issue #21321) — register under the configured short name; fall back to the id when the name is
- * unknown or taken (`mcp_server.name` is not unique). Single source shared by the record builder
- * and legacy denial-rule translation, so a saved rule always translates to the exact key the
- * server registers under.
+ * unknown or taken (`mcp_server.name` is not unique). Keys are sanitized (see
+ * {@link sanitizeServerKey}), and the sanitized forms are reserved up front, so a name candidate
+ * can never take another mounted server's key and every flattened tool identity stays unique.
+ * Single source shared by the record builder and legacy denial-rule translation, so a saved rule
+ * always translates to the exact key the server registers under.
  */
 export function resolveMountedAgentMcpServers(
   agent: Pick<AgentEntity, 'mcps'>,
@@ -70,10 +84,10 @@ export function resolveMountedAgentMcpServers(
 ): Array<{ mcpId: string; legacyServer: McpServerEntity; key: string }> {
   // Built-in entries are added first; a user server must never take their keys.
   const takenServerNames = new Set<string>(Object.values(CHERRY_MCP_SERVER))
-  // Mounted ids are reserved before any name allocation so the id fallback below can never
-  // collide with another mounted server's configured name (and vice versa): each server keeps
-  // its own key even when names and ids cross-import each other (`mcp_server.name` is not unique).
-  for (const mcpId of agent.mcps ?? []) takenServerNames.add(mcpId)
+  // Mounted ids are reserved in their sanitized form before any name allocation so an id
+  // fallback can never collide with another mounted server's configured name (and vice versa):
+  // each server keeps its own key even when names and ids cross-import each other.
+  for (const mcpId of agent.mcps ?? []) takenServerNames.add(sanitizeServerKey(mcpId))
 
   const resolved: Array<{ mcpId: string; legacyServer: McpServerEntity; key: string }> = []
   for (const mcpId of agent.mcps ?? []) {
@@ -90,9 +104,11 @@ export function resolveMountedAgentMcpServers(
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
       if (!legacyServer) throw new Error(`MCP server not found: ${mcpId}`)
-      const serverName = legacyServer.name && !takenServerNames.has(legacyServer.name) ? legacyServer.name : mcpId
-      takenServerNames.add(serverName)
-      resolved.push({ mcpId, legacyServer, key: serverName })
+      const serverName =
+        legacyServer.name && !takenServerNames.has(sanitizeServerKey(legacyServer.name)) ? legacyServer.name : mcpId
+      const key = sanitizeServerKey(serverName)
+      takenServerNames.add(key)
+      resolved.push({ mcpId, legacyServer, key })
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
     }
