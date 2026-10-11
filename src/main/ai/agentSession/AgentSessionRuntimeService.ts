@@ -2196,7 +2196,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (!accumulator.openParts.has(key)) {
           // The start raced persistence: the seed still holds this part as streaming.
           // Close it in place (the orphan end itself is spent) and converge the overlay.
-          if (this.completeSeedStreamingPart(accumulator, kind, flowOwnerToolCallId, routedRootToolCallId))
+          if (this.completeSeedStreamingPart(accumulator, kind, flowOwnerToolCallId))
             this.publishBackgroundFlowSnapshot(entry, accumulator)
           break
         }
@@ -2267,8 +2267,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private completeSeedStreamingPart(
     accumulator: BackgroundFlowAccumulator,
     kind: 'text' | 'reasoning',
-    flowOwnerToolCallId: string,
-    routedRootToolCallId: string
+    flowOwnerToolCallId: string
   ): boolean {
     const parts = accumulator.latest?.parts
     const seedIndexes = accumulator.seedPartIndexes
@@ -2285,12 +2284,9 @@ export class AgentSessionRuntimeService extends BaseService {
     const parent = getPartParentToolCallId(match)
     if (parent && parent !== flowOwnerToolCallId) return false
     const anchorToolCallId = getBackgroundFlowAnchorToolCallId(parts)
-    if (
-      routedRootToolCallId !== flowOwnerToolCallId &&
-      parent === flowOwnerToolCallId &&
-      anchorToolCallId &&
-      flowOwnerToolCallId === anchorToolCallId
-    ) {
+    if (parent === flowOwnerToolCallId && anchorToolCallId && flowOwnerToolCallId === anchorToolCallId) {
+      // DSH descendants route through the spawn anchor id; an orphan end cannot identify
+      // which sibling flow ended, so terminal flush must settle ambiguous seed parts.
       return false
     }
     if (match.type !== 'text' && match.type !== 'reasoning') return false

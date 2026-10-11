@@ -550,8 +550,13 @@ export class ClaudeCodeStreamAdapter {
    */
   private createTurnContext(sink = this.sink): StreamContext {
     const systemReminderBodies = new Set<string>()
+    const streamPartParentMetadata = new Map<string, Record<string, JSONObject>>()
     return {
-      sink: this.createSystemReminderFilteringSink(this.createActivityTrackingSink(sink), systemReminderBodies),
+      sink: this.createSystemReminderFilteringSink(
+        this.createActivityTrackingSink(sink),
+        systemReminderBodies,
+        streamPartParentMetadata
+      ),
       systemReminderBodies,
       options: this.streamOptions,
       toolStates: new Map(),
@@ -572,14 +577,15 @@ export class ClaudeCodeStreamAdapter {
       hasStreamedJson: false,
       textStreamedViaContentBlock: false,
       messageParentToolUseId: undefined,
-      streamPartParentMetadata: new Map()
+      streamPartParentMetadata
     }
   }
 
   /** Filter at the SDK adapter boundary so live rendering and persisted snapshots consume the same text. */
   private createSystemReminderFilteringSink(
     sink: StreamSink,
-    reminderBodies: ReadonlySet<string>
+    reminderBodies: ReadonlySet<string>,
+    streamPartParentMetadata: Map<string, Record<string, JSONObject>>
   ): StreamContext['sink'] {
     let destination = sink
     const textFilters = new Map<string, SystemReminderTextFilter>()
@@ -600,7 +606,15 @@ export class ClaudeCodeStreamAdapter {
           const filter = textFilters.get(chunk.id)
           if (filter) {
             const delta = filter.flush()
-            if (delta) destination.enqueue({ type: 'text-delta', id: chunk.id, delta })
+            if (delta) {
+              const parentMetadata = streamPartParentMetadata.get(chunk.id)
+              destination.enqueue({
+                type: 'text-delta',
+                id: chunk.id,
+                delta,
+                ...(parentMetadata ? { providerMetadata: parentMetadata } : {})
+              })
+            }
             textFilters.delete(chunk.id)
           }
         }
