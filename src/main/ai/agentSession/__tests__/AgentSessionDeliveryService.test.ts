@@ -793,10 +793,7 @@ describe('AgentSessionDeliveryService', () => {
 
     await expect(service.purgeSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
 
-    expect(mocks.purgeSystemWorkspace).toHaveBeenCalledWith(
-      '/mock/feature.agents.system_workspaces',
-      workspacePath
-    )
+    expect(mocks.purgeSystemWorkspace).toHaveBeenCalledWith('/mock/feature.agents.system_workspaces', workspacePath)
     expect(order).toEqual(['forks-cancelled', 'runtime-closed', 'workspace-removed'])
   })
 
