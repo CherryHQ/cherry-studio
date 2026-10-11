@@ -18,7 +18,7 @@ const logger = loggerService.withContext('BackupRestoreGate')
  * renames and must hold the single-instance lock) and after the path registry
  * is frozen (all journal paths resolve against the final userData).
  *
- * No return value: whatever happens, boot continues — promotion success means
+ * Boot continues after a promotion or recoverable failure — promotion success means
  * the new DB is live, any refusal or failure means the old DB is. An
  * unexpected crash of the promotion logic is logged and handed to
  * markRestoreFailedAfterCrash, which restores the live DB from the aside if
@@ -26,17 +26,14 @@ const logger = loggerService.withContext('BackupRestoreGate')
  * resumable) so the next boot does not retry a promotion that just proved
  * itself poisonous.
  *
- * This shell never throws — a preboot exception falls into startApp's
- * fail-fast catch (forceExit) and dead-loops the app into "Unable to Start" —
- * with exactly ONE exception: when even the crash net could not put a live
- * DB in place (isLiveDbStranded), booting on would silently CREATE a fresh
- * empty database while the user's data sits in the aside. That is the one
- * outcome worse than the fail-fast dialog, so the gate refuses to boot and
- * leaves the aside, the journal, and the staging tree as repair artifacts.
+ * An unreadable/invalid journal or a stranded live DB refuses boot. Without
+ * a trustworthy journal, recovery cannot decide which copies are safe to
+ * consume; keep the canonical journal and staging tree for a later retry.
  */
 export async function runBackupRestoreGate(): Promise<void> {
+  let journalUnavailable = false
   try {
-    await runRestorePromotion()
+    journalUnavailable = (await runRestorePromotion()) === 'journal-unavailable'
   } catch (error) {
     logger.error('Restore promotion crashed unexpectedly — attempting last-resort recovery', error as Error)
     try {
@@ -49,6 +46,9 @@ export async function runBackupRestoreGate(): Promise<void> {
         'Restore recovery failed: the live database is missing while the previous database is still parked aside — refusing to boot into an empty database'
       )
     }
+  }
+  if (journalUnavailable) {
+    throw new Error('Restore journal cannot be read or validated — refusing to boot; recovery artifacts are preserved')
   }
   cleanupTerminalRestoreArtifacts()
 }

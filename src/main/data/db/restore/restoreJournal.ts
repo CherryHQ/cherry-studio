@@ -92,7 +92,7 @@ const commonFields = {
  * transitions to promoting), promoting requires one, terminal states may keep
  * the last step for diagnostics. Strict objects + literal version: a future
  * journal v2 read by this version fails validation → corrupt → the gate
- * cleans up instead of misinterpreting it (fail-safe downgrade).
+ * preserves recovery artifacts and refuses to boot instead of misinterpreting it.
  */
 export const RestoreJournalSchema = z.discriminatedUnion('state', [
   z.strictObject({ ...commonFields, state: z.literal('staged') }),
@@ -191,7 +191,7 @@ export function removeRestoreJournal(): void {
 /**
  * Whether a restore is staged or mid-promotion — the signal orphan sweep uses
  * to stand aside. Corrupt journals count as pending (fail-safe: one skipped
- * sweep is harmless; the next boot's gate cleans the corrupt journal up).
+ * sweep is harmless; the preboot gate preserves the journal until it is readable).
  */
 export function hasPendingRestore(): boolean {
   const result = readRestoreJournal()
