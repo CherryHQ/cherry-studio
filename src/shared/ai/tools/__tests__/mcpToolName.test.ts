@@ -320,10 +320,7 @@ describe('translateLegacyMcpToolRules', () => {
       ['U', 'github'],
       ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'U__x']
     ])
-    expect(translateLegacyMcpToolRules(['mcp__U__x__y'], ambiguous)).toEqual([
-      'mcp__U__x__y',
-      'mcp__github__x__y'
-    ])
+    expect(translateLegacyMcpToolRules(['mcp__U__x__y'], ambiguous)).toEqual(['mcp__U__x__y', 'mcp__github__x__y'])
     // A legacy rule with no such overlap still rewrites exactly once.
     expect(translateLegacyMcpToolRules(['mcp__bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb__run'], ambiguous)).toEqual([
       'mcp__U__x__run'
@@ -399,9 +396,7 @@ describe('translateMcpToolRulesToRuntimeNames', () => {
       ['mcp__U__x__y', ['mcp__U__x__y']],
       ['U__x\u0000y', ['mcp__U__x__y']]
     ])
-    expect(translateMcpToolRulesToRuntimeNames(['mcp__U__x__y'], byIdPrefix, runtimeNames)).toEqual([
-      'mcp__U__x__y'
-    ])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__U__x__y'], byIdPrefix, runtimeNames)).toEqual(['mcp__U__x__y'])
   })
 
   it('merges both interpretations when the id-owner also exposes the flattened tool', () => {
@@ -416,6 +411,31 @@ describe('translateMcpToolRulesToRuntimeNames', () => {
     expect(translateMcpToolRulesToRuntimeNames(['mcp__U__x__y'], byIdPrefix, runtimeNames)).toEqual([
       'mcp__U__x__y',
       'mcp__github__x__y'
+    ])
+  })
+
+  it("keeps the saved string's own candidates when the rewritten rule strips to a registered base", () => {
+    // B (key `U__x`, tool `y_123456789abc`) has a runtime name whose tail parses as a
+    // disambiguator. Saving it denies B exactly, but the legacy rewrite maps the string onto
+    // A (id `U`, key `github`), and the rewritten string strips to A's registered name — that
+    // stripped hit must merge with B's own registered candidates or B executes under
+    // bypassPermissions despite the explicit denial.
+    const U = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const savedDenial = `mcp__${U}__x__y_123456789abc`
+    const byId = new Map([
+      [U, 'github'],
+      ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', `${U}__x`]
+    ])
+    const runtimeNames = new Map([
+      [savedDenial, [savedDenial]],
+      [`${U}__x\u0000y_123456789abc`, [savedDenial]],
+      ['github\u0000x__y', ['mcp__github__x__y']],
+      ['mcp__github__x__y', ['mcp__github__x__y']],
+      [`mcp__${U}__x__y`, ['mcp__github__x__y']]
+    ])
+    expect(translateMcpToolRulesToRuntimeNames([savedDenial], byId, runtimeNames)).toEqual([
+      'mcp__github__x__y',
+      savedDenial
     ])
   })
 })

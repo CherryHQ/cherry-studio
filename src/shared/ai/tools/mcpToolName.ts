@@ -244,10 +244,14 @@ export function translateMcpToolRulesToRuntimeNames(
     // (`<plain name>_<disambiguator>` — the deterministic pair hash, or any counter depth when
     // even that was taken). The full string dies with the old allocation, but the stripped
     // plain name still resolves; mapping it beats letting an explicitly disabled tool execute.
+    // The stripped hit must merge with the candidates already resolved from the original
+    // string: a saved name whose own tail parses as a disambiguator (`y_123456789abc`) rewrites
+    // onto another server first, and returning only the stripped base would strip the original
+    // string's registered denial — letting that tool execute under an exact-match policy.
     const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
     if (stripped !== candidate) {
       const baseNames = runtimeNameByRule.get(stripped)
-      if (baseNames) return [...baseNames]
+      if (baseNames) return [...new Set([...baseNames, ...candidates])]
     }
     return candidates.size > 0 ? [...candidates] : [candidate]
   })
