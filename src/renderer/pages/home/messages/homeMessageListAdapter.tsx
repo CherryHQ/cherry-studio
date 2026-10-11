@@ -564,16 +564,27 @@ export function useHomeMessageListProviderValue({
           logger.warn('Skipping error dismissal for a live message', { messageId })
           return
         }
+
+        const displayParts = displayPartsByMessageIdRef.current[messageId] ?? []
+        const displayResolved = resolvePartFromParts({ [messageId]: displayParts }, partId)
+        if (!displayResolved || displayResolved.messageId !== messageId || displayResolved.part.type !== 'data-error') {
+          return
+        }
+        const displayClickedSnapshot = JSON.stringify(displayResolved.part)
+
         const persistedMessage = await dataApiService.get(`/messages/${messageId}`)
         const persistedParts = persistedMessage.data.parts ?? []
-        const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
-        if (resolved && resolved.messageId === messageId && resolved.part.type === 'data-error') {
-          // Part ids encode the index, so a same-index error from a retry that
-          // replaced the parts would pass a type-only check. Dismiss only the
-          // exact part that was clicked.
-          const clickedPartSnapshot = JSON.stringify(resolved.part)
-          // Re-read before writing: an in-place retry reuses the message id and
-          // may have replaced the parts after the first read.
+        const persistedResolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
+
+        if (
+          persistedResolved &&
+          persistedResolved.messageId === messageId &&
+          persistedResolved.part.type === 'data-error'
+        ) {
+          if (JSON.stringify(persistedResolved.part) !== displayClickedSnapshot) {
+            logger.warn('Skipping error dismissal for superseded parts', { messageId })
+            return
+          }
           const freshMessage = await dataApiService.get(`/messages/${messageId}`)
           const freshParts = freshMessage.data.parts ?? []
           const freshResolved = resolvePartFromParts({ [messageId]: freshParts }, partId)
@@ -581,14 +592,12 @@ export function useHomeMessageListProviderValue({
             !freshResolved ||
             freshResolved.messageId !== messageId ||
             freshResolved.part.type !== 'data-error' ||
-            JSON.stringify(freshResolved.part) !== clickedPartSnapshot
+            JSON.stringify(freshResolved.part) !== displayClickedSnapshot
           ) {
             logger.warn('Skipping error dismissal for superseded parts', { messageId })
             return
           }
           const filtered = freshParts.filter((_, index) => index !== freshResolved.index)
-          // Removing the last visible error from an otherwise empty failed turn would
-          // recreate a synthetic no-response block on the next render.
           const wouldReshowFallback =
             !filtered.some((part) => part.type === 'data-error') && !hasRenderableContent(filtered)
           const durableParts = wouldReshowFallback ? [...filtered, createDismissedNoResponsePart()] : filtered
@@ -611,15 +620,6 @@ export function useHomeMessageListProviderValue({
           return
         }
 
-        // Synthetic fallback error is display-only: resolve it from the display
-        // map, then persist the dismissal against freshly re-read parts. The
-        // display snapshot may predate an in-place retry, so writing it back
-        // would overwrite the retried parts — drop the edit instead when the
-        // persisted parts no longer need the fallback.
-        const displayParts = displayPartsByMessageIdRef.current[messageId] ?? []
-        const displayResolved = resolvePartFromParts({ [messageId]: displayParts }, partId)
-        if (!displayResolved || displayResolved.messageId !== messageId || displayResolved.part.type !== 'data-error')
-          return
         const freshMessage = await dataApiService.get(`/messages/${messageId}`)
         const freshParts = freshMessage.data.parts ?? []
         if (!canPersistSyntheticFallbackEdit(freshParts)) {

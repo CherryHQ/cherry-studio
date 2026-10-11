@@ -754,6 +754,44 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     vi.mocked(resolvePartFromParts).mockReset()
   })
 
+  it('drops a synthetic error dismissal when a retry lands before the first persistence read', async () => {
+    const retryParts = [
+      { type: 'data-error', data: { name: 'ApiError', message: 'rate limited' } }
+    ] as CherryMessagePart[]
+    const emptyMessage = {
+      id: 'retry-message',
+      role: 'assistant',
+      metadata: { status: 'error' },
+      parts: []
+    } as CherryUIMessage
+    vi.mocked(dataApiService.get).mockResolvedValueOnce({ data: { parts: retryParts } })
+    vi.mocked(resolvePartFromParts).mockImplementation((partsMap, partId) => {
+      const dash = partId.lastIndexOf('-part-')
+      if (dash === -1) return null
+      const messageId = partId.slice(0, dash)
+      const index = Number.parseInt(partId.slice(dash + 6), 10)
+      const parts = partsMap[messageId] ?? []
+      const part = parts[index]
+      if (!part) return null
+      return { part, messageId, index }
+    })
+    let value: MessageListProviderValue | undefined
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[emptyMessage]}
+        partsByMessageId={{ 'retry-message': [] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    await value?.actions.removeMessageErrorPart?.({ messageId: 'retry-message', partId: 'retry-message-part-0' })
+
+    expect(vi.mocked(chatWriteMock.editMessage)).not.toHaveBeenCalled()
+    vi.mocked(resolvePartFromParts).mockReset()
+  })
+
   it('skips a synthetic error dismissal while the message is being retried', async () => {
     const retryMessage = {
       id: 'retry-message',

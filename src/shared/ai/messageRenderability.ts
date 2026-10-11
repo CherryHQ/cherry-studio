@@ -301,6 +301,42 @@ export function isHiddenMarkerPart(part: CherryMessagePart): boolean {
   return HIDDEN_MARKER_PART_TYPES.has(part.type)
 }
 
+function isEllipsisOnlyTextPart(part: CherryMessagePart): boolean {
+  if (part.type !== 'text') return false
+  return /^(?:\.{3}|…)$/.test(part.text?.trim() ?? '')
+}
+
+function isIgnorableEmptyTextPart(part: CherryMessagePart): boolean {
+  if (part.type !== 'text' && part.type !== 'reasoning') return false
+  return !part.text?.trim()
+}
+
+/** Mirrors completed `isProcessFillerText(..., holdTrailingLiveCandidate: false)` in messagePartLayouts. */
+function isCompletedProcessFillerText(parts: CherryMessagePart[], position: number): boolean {
+  if (!isEllipsisOnlyTextPart(parts[position])) return false
+  const next = findAdjacentMeaningfulPart(parts, position, 1)
+  return isProcessContentPart(next)
+}
+
+function findAdjacentMeaningfulPart(
+  parts: CherryMessagePart[],
+  position: number,
+  direction: -1 | 1
+): CherryMessagePart | undefined {
+  for (let index = position + direction; index >= 0 && index < parts.length; index += direction) {
+    const part = parts[index]
+    if (isHiddenMarkerPart(part) || isIgnorableEmptyTextPart(part) || isEllipsisOnlyTextPart(part)) continue
+    return part
+  }
+  return undefined
+}
+
+function isProcessContentPart(part: CherryMessagePart | undefined): boolean {
+  if (!part) return false
+  if (part.type === 'reasoning') return true
+  return part.type === 'dynamic-tool' || part.type.startsWith('tool-')
+}
+
 export function isRenderablePart(part: CherryMessagePart): boolean {
   if (isHiddenMarkerPart(part)) return false
   if (part.type === 'text' || part.type === 'reasoning') return !!part.text?.trim()
@@ -337,7 +373,13 @@ export function isRenderablePart(part: CherryMessagePart): boolean {
 }
 
 export function hasRenderableContent(parts: CherryMessagePart[]): boolean {
-  return parts.some((part) => isRenderablePart(part))
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index]
+    if (isHiddenMarkerPart(part)) continue
+    if (isCompletedProcessFillerText(parts, index)) continue
+    if (isRenderablePart(part)) return true
+  }
+  return false
 }
 
 /** Whether an assistant row still carries user-visible or failed-turn payload (retry eligibility). */

@@ -218,6 +218,24 @@ describe('hasRenderableContent', () => {
     expect(isHiddenMarkerPart(part({ type: 'data-no-response-dismissed', data: {} }))).toBe(true)
   })
 
+  it('ignores process-bound ellipsis before a non-renderable read_file tool', () => {
+    expect(
+      hasRenderableContent([
+        part({ type: 'text', text: '...' }),
+        part({ type: 'tool-read_file', toolCallId: 'call-1' })
+      ])
+    ).toBe(false)
+  })
+
+  it('keeps a trailing ellipsis answer after process history', () => {
+    expect(
+      hasRenderableContent([
+        part({ type: 'tool-read_file', toolCallId: 'call-1' }),
+        part({ type: 'text', text: '...' })
+      ])
+    ).toBe(true)
+  })
+
   it('treats dismissal markers as non-substantive for retry eligibility', () => {
     const dismissed = createDismissedNoResponsePart() as unknown as CherryMessagePart
     expect(hasSubstantiveAssistantParts([])).toBe(false)
