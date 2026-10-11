@@ -1,10 +1,5 @@
 import { StringEnum, Type } from '@earendil-works/pi-ai'
-import {
-  type AgentToolResult,
-  type ExtensionContext,
-  type ExtensionFactory,
-  type SessionEntry
-} from '@earendil-works/pi-coding-agent'
+import { type AgentToolResult, type ExtensionContext, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
 import {
   createGoal,
@@ -14,6 +9,7 @@ import {
   GOAL_STATE_TYPE,
   type GoalBudget,
   GoalError,
+  type GoalNotice,
   type GoalSnapshot,
   type GoalStopCode,
   goalView,
@@ -62,10 +58,24 @@ export const GOAL_TOOL_NAMES = ['get_goal', 'create_goal', 'update_goal'] as con
 
 const ACTIONS = ['edit', 'pause', 'resume', 'complete', 'blocked'] as const
 const CONTROL_WORDS = new Set(['pause', 'resume', 'clear'])
+const NUMBER = /^-?\d+(?:\.\d+)?$/
 
 const text = (value: string) => ({ type: 'text' as const, text: value })
 const hasText = (value: string | undefined): value is string => typeof value === 'string' && value.trim().length > 0
-const hasNumber = (value: number | undefined): value is number => typeof value === 'number' && value > 0
+// 0 counts as omitted (weak models fill optional fields with it); negatives reach the limit checks.
+const hasNumber = (value: number | undefined): value is number => value !== undefined && value !== 0
+
+function statusText(goal: GoalSnapshot, armed: boolean): string {
+  const stop = goal.lastStop
+    ? ` (${goal.lastStop.code}${goal.lastStop.message ? ` — ${goal.lastStop.message}` : ''})`
+    : ''
+  return [
+    `Goal: ${goal.objective}`,
+    `Phase: ${goal.phase}${stop} · ${armed ? 'armed' : 'disarmed'}`,
+    `Rounds: ${goal.roundsStarted}/${goal.maxGoalRounds} · Tokens: ${goal.tokensUsed}` +
+      (goal.costUsed > 0 ? ` · Cost: $${goal.costUsed}` : '')
+  ].join('\n')
+}
 
 const createParams = Type.Object({
   objective: Type.String({ description: 'The concrete completion objective from the direct human request.' }),
@@ -96,7 +106,6 @@ const updateParams = Type.Object({
 interface Runtime {
   goal: GoalSnapshot | undefined
   armed: boolean
-  ctx: ExtensionContext | undefined
   /** The turn(s) since the last admitted round belong to a goal round. */
   inGoalRound: boolean
   reservation: RoundDetails | undefined
@@ -122,7 +131,6 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     const runtime: Runtime = {
       goal: undefined,
       armed: false,
-      ctx: undefined,
       inGoalRound: false,
       reservation: undefined,
       noProgressRounds: 0,
@@ -139,11 +147,21 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       budget: port.defaults.budget
     })
     const now = () => Date.now()
-    const branch = (): SessionEntry[] => runtime.ctx?.sessionManager.getBranch() ?? []
 
-    /** Every persisted change goes through here; pending usage rides along. */
+    /** Per-goal runtime state starts over whenever the goal changes identity or re-arms. */
+    const resetGoalRuntime = () => {
+      runtime.pendingUsage = { tokens: 0, usd: 0 }
+      runtime.reservation = undefined
+      runtime.noProgressRounds = 0
+      runtime.previousText = undefined
+      runtime.repeat = { key: undefined, count: 0 }
+      runtime.stopRequest = undefined
+      runtime.blockedRounds = { revision: 0, rounds: new Set() }
+      runtime.lastRoundProgressed = undefined
+    }
+    /** Every persisted change goes through here; pending usage rides along when it is the same goal's. */
     const commit = (next: GoalSnapshot) => {
-      const withUsage = recordUsage(next, runtime.pendingUsage, false)
+      const withUsage = next.id === runtime.goal?.id ? recordUsage(next, runtime.pendingUsage, false) : next
       runtime.pendingUsage = { tokens: 0, usd: 0 }
       runtime.goal = withUsage
       pi.appendEntry(GOAL_STATE_TYPE, withUsage)
@@ -163,9 +181,30 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       })
       runtime.goal = undefined
       runtime.armed = false
+      resetGoalRuntime()
     }
-    const notice = (value: string, level: 'info' | 'error' = 'info') =>
-      pi.appendEntry(GOAL_NOTICE_TYPE, { text: value, level })
+    const notice = (value: string, level: GoalNotice['level'] = 'info') =>
+      pi.appendEntry(GOAL_NOTICE_TYPE, { text: value, level } satisfies GoalNotice)
+    const create = (goal: GoalSnapshot) => {
+      commit(goal)
+      resetGoalRuntime()
+      runtime.armed = true
+    }
+    /** Returns false when the goal already was paused. */
+    const pause = (goal: GoalSnapshot): boolean => {
+      if (goal.phase === 'complete') throw new GoalError('invalid_action', 'the goal is complete; create a new one')
+      if (goal.phase === 'paused') return false
+      stop('paused_by_user')
+      return true
+    }
+    /** Returns false when the goal already was active and armed; a complete goal throws in `resumeGoal`. */
+    const resume = (goal: GoalSnapshot): boolean => {
+      if (goal.phase === 'active' && runtime.armed) return false
+      if (goal.phase !== 'active') commit(resumeGoal(goal, now()))
+      resetGoalRuntime()
+      runtime.armed = true
+      return true
+    }
 
     const requireGoal = (): GoalSnapshot => {
       if (!runtime.goal) throw new GoalError('no_goal', 'No goal is set.')
@@ -180,8 +219,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
         )
       return goal
     }
-    const requireHumanTurn = (what: string) => {
-      if (!isHumanTurn(branch()))
+    const requireHumanTurn = (ctx: ExtensionContext, what: string) => {
+      if (!isHumanTurn(ctx.sessionManager.getBranch()))
         throw new GoalError('not_human_turn', `${what} needs a direct human request in this turn.`)
     }
     const budgetFrom = (params: { budget_tokens?: number; budget_usd?: number }): GoalBudget | undefined => {
@@ -194,21 +233,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       content: [text(JSON.stringify(goalView(runtime.goal, runtime.armed)))],
       details: undefined
     })
-    const fail = (error: unknown): AgentToolResult<unknown> => ({
-      content: [text(error instanceof Error ? error.message : String(error))],
-      details: undefined,
-      isError: true
-    })
-    const guarded = (run: () => AgentToolResult<unknown> | Promise<AgentToolResult<unknown>>) => async () => {
-      try {
-        return await run()
-      } catch (error) {
-        return fail(error)
-      }
-    }
 
     pi.on('session_start', (_event, ctx) => {
-      runtime.ctx = ctx
       runtime.goal = currentGoal(ctx.sessionManager.getBranch())
       runtime.armed = false
       runtime.inGoalRound = false
@@ -223,7 +249,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       exposure: 'model-only',
       executionMode: 'sequential',
       annotations: { readOnlyHint: true, openWorldHint: false },
-      execute: guarded(() => ok())
+      execute: async () => ok()
     })
 
     pi.registerTool({
@@ -235,25 +261,23 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       exposure: 'model-only',
       executionMode: 'sequential',
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-      execute: (_id, params) =>
-        guarded(() => {
-          requireHumanTurn('create_goal')
-          if (runtime.goal && runtime.goal.phase !== 'complete')
-            throw new GoalError('goal_exists', 'A goal is already set; edit, pause or clear it first.')
-          commit(
-            createGoal(
-              params.objective,
-              limits(),
-              {
-                maxGoalRounds: hasNumber(params.max_goal_rounds) ? params.max_goal_rounds : undefined,
-                budget: budgetFrom(params)
-              },
-              now()
-            )
+      execute: async (_id, params, _signal, _onUpdate, ctx) => {
+        requireHumanTurn(ctx, 'create_goal')
+        if (runtime.goal && runtime.goal.phase !== 'complete')
+          throw new GoalError('goal_exists', 'A goal is already set; edit, pause or clear it first.')
+        create(
+          createGoal(
+            params.objective,
+            limits(),
+            {
+              maxGoalRounds: hasNumber(params.max_goal_rounds) ? params.max_goal_rounds : undefined,
+              budget: budgetFrom(params)
+            },
+            now()
           )
-          runtime.armed = true
-          return ok()
-        })()
+        )
+        return ok()
+      }
     })
 
     pi.registerTool({
@@ -264,49 +288,52 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       exposure: 'model-only',
       executionMode: 'sequential',
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-      execute: (_id, params, signal) =>
-        guarded(async () => {
-          const goal = requireRevision(params.goal_id, params.revision)
-          const extras =
-            hasText(params.objective) ||
-            hasNumber(params.max_goal_rounds) ||
-            hasNumber(params.budget_tokens) ||
-            hasNumber(params.budget_usd)
-          if (params.action !== 'edit' && extras)
-            throw new GoalError('invalid_action', 'objective and limits are valid only with action edit')
-          if (params.action !== 'blocked' && hasText(params.blocked_reason))
-            throw new GoalError('invalid_action', 'blocked_reason is valid only with action blocked')
-          switch (params.action) {
-            case 'edit':
-              requireHumanTurn('edit')
-              commit(
-                editGoal(
-                  goal,
-                  {
-                    objective: hasText(params.objective) ? params.objective : undefined,
-                    maxGoalRounds: hasNumber(params.max_goal_rounds) ? params.max_goal_rounds : undefined,
-                    budget: budgetFrom(params)
-                  },
-                  port.defaults.maxGoalRoundsCeiling,
-                  now()
-                )
+      execute: async (_id, params, signal, _onUpdate, ctx) => {
+        const goal = requireRevision(params.goal_id, params.revision)
+        const extras =
+          hasText(params.objective) ||
+          hasNumber(params.max_goal_rounds) ||
+          hasNumber(params.budget_tokens) ||
+          hasNumber(params.budget_usd)
+        if (params.action !== 'edit' && extras)
+          throw new GoalError('invalid_action', 'objective and limits are valid only with action edit')
+        if (params.action !== 'blocked' && hasText(params.blocked_reason))
+          throw new GoalError('invalid_action', 'blocked_reason is valid only with action blocked')
+        switch (params.action) {
+          case 'edit':
+            requireHumanTurn(ctx, 'edit')
+            if (!extras)
+              throw new GoalError(
+                'invalid_action',
+                'edit needs an objective, max_goal_rounds, budget_tokens or budget_usd'
               )
-              return ok()
-            case 'pause':
-              requireHumanTurn('pause')
-              stop('paused_by_user')
-              return ok()
-            case 'resume':
-              requireHumanTurn('resume')
-              commit(resumeGoal(goal, now()))
-              runtime.armed = true
-              return ok()
-            case 'complete':
-              return completeGoal(goal, params.evidence, signal)
-            case 'blocked':
-              return blockGoal(goal, params.blocked_reason)
-          }
-        })()
+            commit(
+              editGoal(
+                goal,
+                {
+                  objective: hasText(params.objective) ? params.objective : undefined,
+                  maxGoalRounds: hasNumber(params.max_goal_rounds) ? params.max_goal_rounds : undefined,
+                  budget: budgetFrom(params)
+                },
+                port.defaults.maxGoalRoundsCeiling,
+                now()
+              )
+            )
+            return ok()
+          case 'pause':
+            requireHumanTurn(ctx, 'pause')
+            pause(goal)
+            return ok()
+          case 'resume':
+            requireHumanTurn(ctx, 'resume')
+            resume(goal)
+            return ok()
+          case 'complete':
+            return completeGoal(goal, params.evidence, signal)
+          case 'blocked':
+            return blockGoal(goal, params.blocked_reason)
+        }
+      }
     })
 
     // Tasks 5–9 fill these in; the skeleton keeps the model-facing contract compilable.
@@ -326,48 +353,51 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       description:
         'Set or manage the session goal: [<objective> | edit <objective> | pause | resume | clear | rounds <n> | budget <tokens|$usd>]',
       handler: async (args, ctx) => {
-        runtime.ctx = ctx
         const input = args.trim()
         try {
           if (input === '') {
             notice(
               runtime.goal
-                ? `Goal: ${JSON.stringify(goalView(runtime.goal, runtime.armed))}`
+                ? statusText(runtime.goal, runtime.armed)
                 : 'No goal is set. Use /goal <objective> to create one.'
             )
             return
           }
-          if (CONTROL_WORDS.has(input)) {
+          const word = input.split(/\s+/, 1)[0]
+          const keyword = word.toLowerCase()
+          const value = input.slice(word.length).trim()
+          if (CONTROL_WORDS.has(keyword) && value === '') {
             const goal = requireGoal()
-            if (input === 'pause') {
-              stop('paused_by_user')
-              if (!ctx.isIdle()) ctx.abort()
-              notice('Goal paused.')
-            } else if (input === 'clear') {
+            // A goal that is not active drives no turn, so a running turn is the human's to keep.
+            const stopTurn = () => {
+              if (goal.phase === 'active' && !ctx.isIdle()) ctx.abort()
+            }
+            if (keyword === 'pause') {
+              if (pause(goal)) {
+                stopTurn()
+                notice('Goal paused.')
+              } else notice('Goal is already paused.')
+            } else if (keyword === 'clear') {
               clear()
-              if (!ctx.isIdle()) ctx.abort()
+              stopTurn()
               notice('Goal cleared.')
             } else {
-              commit(resumeGoal(goal, now()))
-              runtime.armed = true
-              notice('Goal resumed.')
+              notice(resume(goal) ? 'Goal resumed.' : 'Goal is already active.')
               // Task 5 starts the first round from here when the agent is idle.
             }
             return
           }
-          const [word, ...rest] = input.split(/\s+/)
-          const value = rest.join(' ')
-          if (word === 'edit') {
+          if (keyword === 'edit') {
             commit(editGoal(requireGoal(), { objective: value }, port.defaults.maxGoalRoundsCeiling, now()))
             notice('Goal objective updated.')
             return
           }
-          if (word === 'rounds') {
+          if (keyword === 'rounds' && NUMBER.test(value)) {
             commit(editGoal(requireGoal(), { maxGoalRounds: Number(value) }, port.defaults.maxGoalRoundsCeiling, now()))
             notice(`Round cap set to ${runtime.goal!.maxGoalRounds}.`)
             return
           }
-          if (word === 'budget') {
+          if (keyword === 'budget' && NUMBER.test(value.replace(/^\$/, ''))) {
             const budget = value.startsWith('$') ? { usd: Number(value.slice(1)) } : { tokens: Number(value) }
             commit(editGoal(requireGoal(), { budget }, port.defaults.maxGoalRoundsCeiling, now()))
             notice('Budget updated.')
@@ -378,8 +408,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
               'goal_exists',
               'A goal is already set; use /goal edit, /goal pause or /goal clear first.'
             )
-          commit(createGoal(input, limits(), {}, now()))
-          runtime.armed = true
+          create(createGoal(input, limits(), {}, now()))
           notice('Goal created.')
           // Task 5 starts the first round from here when the agent is idle.
         } catch (error) {
