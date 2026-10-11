@@ -72,10 +72,12 @@ describe('goal tools', () => {
     const [, , stale] = toolResults(s)
     expect(stale.isError).toBe(true)
     expect(textOf(stale)).toMatch(/stale/i)
+    expect(textOf(stale)).toContain('"revision":2')
+    expect(textOf(stale)).toContain('"objective":"g2"')
     expect(readGoal(calls[3].prompt).goal).toMatchObject({ revision: 2, objective: 'g2', phase: 'active' })
   })
 
-  it('refuses a second goal while one is unfinished and allows it after completion', async () => {
+  it('refuses a second goal while one is unfinished', async () => {
     const { session: s } = await session([
       () => [toolCall('c1', 'create_goal', { objective: 'first' }), finish('tool-calls')],
       () => [toolCall('c2', 'create_goal', { objective: 'second' }), finish('tool-calls')],
@@ -93,11 +95,26 @@ describe('goal tools', () => {
         toolCall('c1', 'create_goal', { objective: 'g', max_goal_rounds: 0, budget_tokens: 0 }),
         finish('tool-calls')
       ],
+      (prompt) => [
+        toolCall('c2', 'update_goal', {
+          goal_id: readGoal(prompt).goal!.id,
+          revision: readGoal(prompt).goal!.revision,
+          action: 'pause',
+          objective: '',
+          blocked_reason: '',
+          max_goal_rounds: 0
+        }),
+        finish('tool-calls')
+      ],
       () => say('ok')
     ])
     await s.prompt('go')
     expect(readGoal(calls[1].prompt).goal).toMatchObject({ maxGoalRounds: 100 })
     expect(readGoal(calls[1].prompt).goal?.budget).toBeUndefined()
+
+    const [, paused] = toolResults(s)
+    expect(paused.isError).toBe(false)
+    expect(readGoal(calls[2].prompt).goal).toMatchObject({ phase: 'paused' })
   })
 })
 
@@ -105,25 +122,25 @@ describe('/goal command', () => {
   it('answers control words and edits with a notice when no goal exists, without a model turn', async () => {
     const port = goalPort()
     const host = hostStore()
-    const { model } = goalModel([() => say('unused')])
+    const { model, calls } = goalModel([() => say('unused')])
     const { session: s } = await createTestSession({
       port: streamTextPort(model).port,
       extensionFactories: [createGoalExtension(port)],
       onEvent: host.onEvent
     })
-    // Commands execute without a model request; continuation is wired in Task 5, so autonomy
-    // is irrelevant here: a command that arms the goal pauses it again before any model call.
-    await s.prompt('/goal pause')
-    expect(notices(host.entries).at(-1)).toMatch(/no goal/i)
+    for (const command of ['pause', 'resume', 'clear', 'edit nothing', 'rounds 2000', ''])
+      await s.prompt(`/goal ${command}`.trim())
 
-    await s.prompt('/goal edit nothing')
-    expect(notices(host.entries).at(-1)).toMatch(/no goal/i)
-
-    await s.prompt('/goal rounds 2000')
-    expect(notices(host.entries).at(-1)).toMatch(/no goal/i)
-
-    await s.prompt('/goal')
-    expect(notices(host.entries).at(-1)).toMatch(/no goal/i)
+    // Matching the whole list catches a command that answers with no notice, or with two.
+    expect(notices(host.entries)).toEqual([
+      'No goal is set.',
+      'No goal is set.',
+      'No goal is set.',
+      'No goal is set.',
+      'No goal is set.',
+      'No goal is set. Use /goal <objective> to create one.'
+    ])
+    expect(calls).toHaveLength(0)
   })
 
   it('reports a cap above the ceiling and an empty objective as errors', async () => {
