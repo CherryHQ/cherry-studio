@@ -2008,7 +2008,7 @@ describe('SkillService', () => {
       }
     })
 
-    it('refuses to overwrite a bare-URL sibling sharing the derived reserved folder', async () => {
+    it('replaces a legacy bare-URL row in place when the derived reserved folder matches', async () => {
       const root = await createTempDir('github-reserved-direct-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
       const mirrorRoot = path.join(root, '.claude', 'skills')
@@ -2016,8 +2016,7 @@ describe('SkillService', () => {
         const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
         return filename ? path.join(base, filename) : base
       })
-      // A bare repo URL is shared across skills.sh siblings, so a `CON` install deriving
-      // `CON-skill` cannot prove the stored `CON-skill` row is the same skill: refuse it.
+      // Sanitized folder name is skill identity: same folder + same origin replaces in place.
       const sourceUrl = 'https://github.com/owner/repo'
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_1,
@@ -2047,15 +2046,17 @@ describe('SkillService', () => {
       const skillService = new SkillService()
 
       try {
-        await expect(skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)).rejects.toThrow(
-          /already used/
-        )
+        const installed = await skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)
+
+        expect(installed.id).toBe(SKILL_ID_1)
+        expect(installed.folderName).toBe('CON-skill')
         const rows = await dbh.db.select().from(agentGlobalSkillTable)
         expect(rows).toHaveLength(1)
         expect(rows.find((row) => row.id === SKILL_ID_1)).toMatchObject({
           folderName: 'CON-skill',
-          contentHash: 'old-hash'
+          description: 'Reserved-name skill'
         })
+        expect(rows.find((row) => row.id === SKILL_ID_1)?.contentHash).not.toBe('old-hash')
       } finally {
         getPathSpy.mockRestore()
         vi.mocked(parseSkillMetadata).mockReset()
@@ -2192,7 +2193,7 @@ describe('SkillService', () => {
       }
     })
 
-    it('refuses a bare-URL reserved-name install whose folder differs only by case', async () => {
+    it('updates a legacy bare-URL reserved-name skill when metadata differs only by case', async () => {
       const root = await createTempDir('github-reserved-case-sibling-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
       const mirrorRoot = path.join(root, '.claude', 'skills')
@@ -2200,8 +2201,6 @@ describe('SkillService', () => {
         const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
         return filename ? path.join(base, filename) : base
       })
-      // A sibling directory (`con` vs `CON`) derives a folder that matches only by case. The bare
-      // repo URL cannot tell it apart from a case-only rename, so refuse rather than overwrite it.
       const sourceUrl = 'https://github.com/owner/repo'
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_1,
@@ -2231,15 +2230,13 @@ describe('SkillService', () => {
       const skillService = new SkillService()
 
       try {
-        await expect(skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)).rejects.toThrow(
-          /already used/
-        )
+        const installed = await skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)
+
+        expect(installed.id).toBe(SKILL_ID_1)
+        expect(installed.folderName).toBe('CON-skill')
         const rows = await dbh.db.select().from(agentGlobalSkillTable)
         expect(rows).toHaveLength(1)
-        expect(rows.find((row) => row.id === SKILL_ID_1)).toMatchObject({
-          folderName: 'CON-skill',
-          contentHash: 'old-hash'
-        })
+        expect(rows.find((row) => row.id === SKILL_ID_1)?.contentHash).not.toBe('old-hash')
       } finally {
         getPathSpy.mockRestore()
         vi.mocked(parseSkillMetadata).mockReset()
@@ -2247,7 +2244,7 @@ describe('SkillService', () => {
       }
     })
 
-    it('refuses a bare-URL sibling whose case-only name match comes from the suffixed directory', async () => {
+    it('replaces in place when a suffixed directory maps to the same reserved folder', async () => {
       const root = await createTempDir('github-reserved-sibling-dir-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
       const mirrorRoot = path.join(root, '.claude', 'skills')
@@ -2255,9 +2252,6 @@ describe('SkillService', () => {
         const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
         return filename ? path.join(base, filename) : base
       })
-      // Directories `CON` and `CON-skill` with frontmatter names `CON` and `con` both derive
-      // `CON-skill` and match case-insensitively, but the raw directory IS the stored folder,
-      // so this is the sibling overwriting the original — refuse it instead of allowing it.
       const sourceUrl = 'https://github.com/owner/repo'
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_1,
@@ -2287,15 +2281,17 @@ describe('SkillService', () => {
       const skillService = new SkillService()
 
       try {
-        await expect(skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)).rejects.toThrow(
-          /already used/
-        )
+        const installed = await skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)
+
+        expect(installed.id).toBe(SKILL_ID_1)
+        expect(installed.folderName).toBe('CON-skill')
         const rows = await dbh.db.select().from(agentGlobalSkillTable)
         expect(rows).toHaveLength(1)
         expect(rows.find((row) => row.id === SKILL_ID_1)).toMatchObject({
           folderName: 'CON-skill',
-          contentHash: 'old-hash'
+          description: 'Sibling skill'
         })
+        expect(rows.find((row) => row.id === SKILL_ID_1)?.contentHash).not.toBe('old-hash')
       } finally {
         getPathSpy.mockRestore()
         vi.mocked(parseSkillMetadata).mockReset()
