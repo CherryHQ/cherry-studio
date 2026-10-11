@@ -77,9 +77,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
           titleBarOverlay: { height: 42 }
         },
         win: {
-          // Frameless + renderer-drawn WindowControls (mirrors SubWindow). Windows is
-          // always frameless; backgroundMaterial stays runtime-computed → args.options.
-          frame: false
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { height: 44 }
         }
         // linux: WCO vs system frame honors `app.use_system_title_bar`, icon is nativeImage
         //        → both injected via args.options
@@ -230,7 +229,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
           titleBarOverlay: { height: 42 }
         },
         win: {
-          frame: false
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { height: SUB_WINDOW_TITLE_BAR_HEIGHT }
           // backgroundColor is theme-dependent → injected via args.options (non-mac only)
         },
         linux: {

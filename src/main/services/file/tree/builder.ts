@@ -353,10 +353,13 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
           if (ev.kind === 'error' && !ready) {
             reject(ev.error)
           }
-          // Defer watcher events until the initial scan completes so we
-          // don't apply a mutation for a path the scan is about to insert.
+          // Queue events behind the scan. The factory reports scan failures,
+          // so discard queued events when initialization fails.
           if (this.initialScanPromise) {
-            void this.initialScanPromise.then(() => this.handleWatcherEvent(ev))
+            void this.initialScanPromise.then(
+              () => this.handleWatcherEvent(ev),
+              () => undefined
+            )
           } else {
             void this.handleWatcherEvent(ev)
           }
@@ -536,15 +539,8 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     const newNorm = normalizePath(newPath)
     if (oldNorm === newNorm) return false
     const node = this.map.get(oldNorm)
-    if (!node) {
-      // Race: chokidar's unlink already fired and removed the node. The
-      // renderer has applied `removed`; the matching `added` for newNorm is
-      // either pending or already applied. Identity is lost but we keep
-      // the dedup window armed so the still-pending events don't
-      // double-apply over what the renderer is about to receive.
-      this.markRenamed(oldNorm, newNorm)
-      return false
-    }
+    // If unlink won the race, let the pending add recreate the target node.
+    if (!node) return false
 
     if (this.shouldIgnorePath(newNorm)) {
       this.markRenamed(oldNorm, newNorm)
@@ -658,6 +654,11 @@ export async function createDirectoryTree(
 ): Promise<DirectoryTreeBuilder> {
   const resolved = resolveOptions(options)
   const builder = new DirectoryTreeBuilderImpl(rootPath, resolved)
-  await builder.init()
-  return builder
+  try {
+    await builder.init()
+    return builder
+  } catch (error) {
+    await builder.disposeAsync()
+    throw error
+  }
 }

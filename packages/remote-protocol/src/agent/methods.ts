@@ -2,6 +2,7 @@ import * as z from 'zod'
 
 import { remoteFailureSchema } from '../errors'
 import { decimal, digest, opaqueId, pageOf, pageParams, timestamp, unicodeText } from '../values'
+import { attachmentSelectionSchema, attachmentDraftSubmissionSchema } from './attachmentDrafts'
 import { agentCheckpointDescriptorSchema, agentCheckpointPageSchema } from './checkpoints'
 import {
   agentCursorSchema,
@@ -14,6 +15,14 @@ import {
   partSchema,
   sessionSchema
 } from './resources'
+import {
+  uploadMetadataSchema,
+  uploadReferenceSchema,
+  uploadReferencesSchema,
+  uploadStateSchema,
+  uploadResumeSchema,
+  uploadWriterSchema
+} from './uploads'
 
 const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) => ({
   params,
@@ -89,8 +98,26 @@ export const agentMethods = {
       sha256: digest
     })
   ),
+  'agent.attachments.present': method(attachmentSelectionSchema, z.strictObject({ accepted: z.boolean() })),
+  'agent.uploads.prepare': method(uploadMetadataSchema, uploadStateSchema),
+  'agent.uploads.get': method(uploadReferenceSchema, uploadStateSchema),
+  'agent.uploads.resume': method(uploadResumeSchema, uploadStateSchema),
+  'agent.uploads.complete': method(uploadWriterSchema, uploadStateSchema),
+  'agent.uploads.cancel': method(uploadReferenceSchema, z.looseObject({ cancelled: z.literal(true) })),
   'agent.messages.send': method(
-    z.strictObject({ ...command, text: unicodeText.min(1).max(32_768), expectedIdleRevision: decimal }),
+    z
+      .strictObject({
+        ...command,
+        text: unicodeText.max(32_768),
+        expectedIdleRevision: decimal,
+        attachments: uploadReferencesSchema.optional(),
+        selectionId: opaqueId.optional(),
+        attachmentDraft: attachmentDraftSubmissionSchema.optional()
+      })
+      .refine(
+        (input) => Boolean(input.text.trim()) || Boolean(input.attachments?.length) || Boolean(input.attachmentDraft)
+      )
+      .refine((input) => !(input.attachments && input.attachmentDraft)),
     commandReceiptSchema
   ),
   'agent.executions.cancel': method(
