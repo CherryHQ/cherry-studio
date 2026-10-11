@@ -2,16 +2,6 @@ import type { ComponentPropsWithoutRef } from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 
-/**
- * Inner padded container for the chat list. Used by `MessageVirtualList`
- * consumers that want consistent padding inside the virtualized
- * scroller. Flex-direction is now natural (column) — `MessageVirtualList`
- * handles its own scroll-to-bottom semantics.
- */
-export const ScrollContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-col px-2.5 pt-2.5 pb-5 in-[.multi-select-mode]:pb-15', className)} {...props} />
-)
-
 interface ContainerProps {
   $right?: boolean
 }
