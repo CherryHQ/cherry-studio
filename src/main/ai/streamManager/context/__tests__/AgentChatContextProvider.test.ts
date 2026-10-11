@@ -80,7 +80,7 @@ function openReq(overrides: Partial<MainDispatchRequest> = {}): MainDispatchRequ
   } as MainDispatchRequest
 }
 
-function makeDeliveryEnvelope(overrides: { replyPolicy?: 'none' | 'completion' } = {}): Record<string, unknown> {
+function makeDeliveryEnvelope(): Record<string, unknown> {
   return {
     status: 'accepted',
     version: 1,
@@ -88,7 +88,7 @@ function makeDeliveryEnvelope(overrides: { replyPolicy?: 'none' | 'completion' }
     receiver: { agentId: 'agent-1', sessionId: 'session-1' },
     senderSnapshot: { agentName: 'Sender Agent', sessionName: 'Sender Session' },
     receiverSnapshot: { agentName: 'My Agent', sessionName: 'session-1' },
-    replyPolicy: overrides.replyPolicy ?? 'none',
+    replyPolicy: 'none',
     sourceMessageId: null,
     outcome: null,
     error: null,
@@ -429,13 +429,13 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', deliveryMessage.data)
   })
 
-  it('prepends the delivery-turn context to the runtime user message of a delivery dispatch', async () => {
+  it('hands the runtime the durable delivery row verbatim so naming reads raw sender text', async () => {
     const deliveryMessage = {
       id: 'delivery-1',
       sessionId: 'session-1',
       role: 'user',
       data: { parts: [{ type: 'text', text: 'delegated work' }] },
-      delivery: makeDeliveryEnvelope({ replyPolicy: 'completion' })
+      delivery: makeDeliveryEnvelope()
     }
 
     await provider.prepareDispatch(makeSubscriber(), openReq({ agentDeliveryMessage: deliveryMessage as never }))
@@ -447,19 +447,11 @@ describe('AgentChatContextProvider', () => {
       data: { parts: [{ type: 'text', text: 'delegated work' }] }
     })
 
-    // The runtime message teaches the receiver the delivery contract ahead of the sender's content.
+    // The runtime derives the summary-naming text from this exact message, so it must be the raw
+    // durable row — a reminder-prefixed one makes naming skip the AI summary title.
     expect(mocks.runtimeBeginTurn).toHaveBeenCalledTimes(1)
     const turnUserMessage = mocks.runtimeBeginTurn.mock.calls[0][0].userMessage
-    expect(turnUserMessage.data.parts).toHaveLength(2)
-    const [contextPart, originalPart] = turnUserMessage.data.parts
-    expect(originalPart).toEqual({ type: 'text', text: 'delegated work' })
-    expect(contextPart.type).toBe('text')
-    expect(contextPart.text).toContain('<system-reminder>')
-    expect(contextPart.text).toContain('cross-Session delivery')
-    expect(contextPart.text).toContain('Sender: Agent "Sender Agent" / Session "Sender Session"')
-    expect(contextPart.text).toContain('sessionId sender-session')
-    expect(contextPart.text).toContain('returned to the sender')
-    expect(contextPart.text).toContain('session_send, session_create')
+    expect(turnUserMessage.data.parts).toEqual([{ type: 'text', text: 'delegated work' }])
   })
 
   it('keeps a plain interactive turn user message unwrapped', async () => {

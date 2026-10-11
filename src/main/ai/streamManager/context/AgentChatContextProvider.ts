@@ -22,7 +22,6 @@ import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@share
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { withDeliveryTurnContext } from '../../agentSession/deliveryTurnContext'
 import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
@@ -252,10 +251,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
         serviceTier: validated.serviceTier,
         fastMode: validated.fastMode,
         assistantMessageId,
-        // The runtime message carries the delivery-turn context so the receiver knows the reply
-        // contract and never attempts delegation tools; naming, persistence, and trace below
-        // keep the sender's raw content.
-        userMessage: withDeliveryTurnContext(userMessage, validated.deliveryMessage?.delivery),
+        // The raw durable row: the runtime derives the summary-naming text from this message, and
+        // the delivery-turn context is injected later, when the driver materializes its input.
+        userMessage,
         headless: validated.headless,
         trustedNotifyChannels: validated.trustedNotifyChannels,
         traceId,

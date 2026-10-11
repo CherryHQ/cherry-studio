@@ -1,11 +1,9 @@
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { defangSystemReminderTags, sanitizeUntrustedText } from '../untrustedContent'
 
 /**
- * Host-authored context prepended to the runtime user message of a delivery-triggered turn.
+ * Host-authored context for the runtime user message of a delivery-triggered turn.
  *
  * The durable delivery row keeps the sender's content verbatim (it is what the renderer and
  * `session_deliveries` show), so the receiver model would otherwise see a bare user message and
@@ -15,7 +13,10 @@ import { defangSystemReminderTags, sanitizeUntrustedText } from '../untrustedCon
  * headless guard, then burns further channels (built-in messengers, notifications) before
  * falling back to asking the human user to intervene.
  *
- * The text rides the turn's runtime message only — it is never persisted into the message row.
+ * The text is materialized only when a driver builds its runtime input
+ * (`wrapAgentSessionDeliveryContent`), from the host-owned `delivery` metadata on the row — it is
+ * never written into the message parts, so persistence, naming, and trace keep reading raw
+ * sender content.
  */
 export function buildDeliveryTurnContextText(delivery: AgentSessionDelivery): string {
   // Names are user-editable display snapshots placed inside a trusted reminder boundary, so
@@ -38,21 +39,4 @@ export function buildDeliveryTurnContextText(delivery: AgentSessionDelivery): st
     "Cross-Session delegation tools (session_send, session_create) are denied in delivery-triggered turns: this turn has no interactive responder to grant their required live per-call user approval, so calling them cannot succeed. Do not try them, built-in messengers, or other cross-Session channels to answer — everything the sender needs goes into this turn's final output.",
     '</system-reminder>'
   ].join('\n')
-}
-
-/**
- * Clone a durable delivery message with the delivery-turn context prepended for the runtime.
- * The envelope is passed explicitly: the persisted-row projection that reaches this call does not
- * carry the `delivery` metadata, which lives on the durable request row the dispatcher validated.
- */
-export function withDeliveryTurnContext(
-  message: AgentSessionMessageEntity,
-  delivery: AgentSessionDelivery | null | undefined
-): AgentSessionMessageEntity {
-  if (!delivery) return message
-  const parts: CherryMessagePart[] = [
-    { type: 'text', text: buildDeliveryTurnContextText(delivery) },
-    ...(message.data.parts ?? [])
-  ]
-  return { ...message, data: { ...message.data, parts } }
 }
