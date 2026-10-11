@@ -41,3 +41,18 @@ export function nextFreeKnowledgeRelativePath(
     }
   }
 }
+
+/**
+ * The identity two `raw/` slot names share when the filesystem holding them cannot tell
+ * them apart — the key occupancy is decided on, never a name to store or read back.
+ *
+ * Folded unconditionally rather than probed: whether *this* host is case-sensitive says
+ * nothing about the host a backup gets restored onto, and letting `report.pdf` and
+ * `Report.pdf` coexist because Linux allows it is what collapses them into one file (the
+ * later write winning) on APFS or NTFS. Separators survive both operations, so the whole
+ * path folds in one step. `toLowerCase`, not `toLocaleLowerCase`, to stay clear of tr-TR's
+ * I→ı; same rule as the migrator's `foldPathSegment`.
+ */
+export function foldKnowledgeRelativePath(relativePath: string): string {
+  return relativePath.normalize('NFC').toLowerCase()
+}
