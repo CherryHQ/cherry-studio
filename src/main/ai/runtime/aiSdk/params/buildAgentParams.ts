@@ -716,7 +716,7 @@ function buildAgentOptions(
         peelBodyRoutedFromAssistantProviderParams(
           customParameters.providerParams,
           provider.id,
-          providerOptions as Record<string, Record<string, unknown>>,
+          providerOptions,
           bodyRoutedTargets
         )
       customBodyParams = {
