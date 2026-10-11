@@ -1601,6 +1601,202 @@ describe('document-wide heading slugs', () => {
   })
 })
 
+describe('a definition shape that is paragraph text', () => {
+  // A link definition cannot interrupt a paragraph, so the shape is prose wherever a paragraph is
+  // still open — and first-definition precedence means carrying it would redirect every reference.
+  it('does not carry a definition shape a container marker only continues', () => {
+    // `> [label]: /wrong` repeats the marker of the paragraph above it rather than opening a block,
+    // so it is one quoted paragraph; micromark renders `[label]: /wrong` as text and `see [label]`
+    // as a link to `/right`.
+    const content = ['> paragraph', '> [label]: /wrong', '', '[label]: /right', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    // The carried prefix is what every chunk renders ahead of its own lines, so it holds the
+    // definition the document's references resolve to — and no other.
+    for (const chunk of chunks) {
+      expect(chunk.text.startsWith('[label]: /right\n\n')).toBe(true)
+    }
+  })
+
+  it('carries a definition a deeper quote marker does open', () => {
+    const content = ['> paragraph', '> > [label]: /right', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: /right')
+    }
+  })
+
+  it('carries a definition a list marker opens even inside a quote', () => {
+    // `- [label]: /right` opens a fresh item, which ends the paragraph above it.
+    const content = ['> - item', '> - [label]: /right', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: /right')
+    }
+  })
+
+  it('carries the definition below a completed heading', () => {
+    // `# heading` is a leaf block complete where it stands, so the line under it opens freely.
+    const content = ['# heading', '[label]: /right', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: /right')
+    }
+  })
+
+  it('carries the definition below a heading that follows a long stretch of paragraphs', () => {
+    const content = [
+      ...Array<string>(30).fill('x'.repeat(1000)).join('\n\n').split('\n'),
+      '',
+      '# heading',
+      '[label]: /right',
+      '',
+      'see [label]'
+    ].join('\n')
+
+    const chunks = chunksOf(content, 24)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [label]'))
+    expect(referencing).toHaveLength(1)
+    // The heading is complete where it stands, so the definition below it is carried into a chunk
+    // that does not hold the line it was written on.
+    expect(referencing[0].text.startsWith('[label]: /right\n\n')).toBe(true)
+  })
+
+  it('carries the definition below a setext heading', () => {
+    const content = ['Title', '=====', '[label]: /right', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: /right')
+    }
+  })
+})
+
+describe('a definition shape inside a fence a container holds', () => {
+  it('does not carry a definition out of a fence opened behind a list marker', () => {
+    // `- ``` ` opens a fence the item holds; micromark renders the definition line as code and
+    // `see [label]` as a link to `/right`.
+    const content = ['- ```', '', '  [label]: /wrong', '  ```', '', '[label]: /right', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text.startsWith('[label]: /right\n\n')).toBe(true)
+    }
+  })
+
+  it('does not carry a definition out of a fence opened behind a nested list marker', () => {
+    const content = ['> - ```', '>', '>   [label]: /wrong', '>   ```', '', '[label]: /right', '', 'see [label]'].join(
+      '\n'
+    )
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text.startsWith('[label]: /right\n\n')).toBe(true)
+    }
+  })
+
+  it('does not treat the closing fence of a list-held fence as an opening one', () => {
+    // The closing ``` behind a list marker used to open a fence that swallowed the real definition.
+    const content = ['- ```', '  code', '  ```', '', '[label]: /right', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text.startsWith('[label]: /right\n\n')).toBe(true)
+    }
+  })
+})
+
+describe('a footnote definition behind a container', () => {
+  it('does not start a footnote definition inside indented code', () => {
+    // Five spaces past the marker leave the label in indented code; micromark shows `right`.
+    const content = ['-     [^n]: wrong', '', 'see [^n]', '', '[^n]: right'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text.startsWith('[^n]: right\n\n')).toBe(true)
+    }
+  })
+
+  it('starts a footnote definition a list marker legally holds', () => {
+    const content = ['- [^n]: right', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^n]: right')
+    }
+  })
+
+  it('holds a quoted continuation to four columns past the container', () => {
+    // `>  second` carries two columns inside the quote, so it is an ordinary quoted paragraph
+    // rather than a continuation: micromark renders it as a blockquote paragraph of its own.
+    const content = ['> [^n]: first', '>', '>  second', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    // The definition and the blank marker line it spans, and nothing past that blank.
+    for (const chunk of chunks) {
+      expect(chunk.text.startsWith('[^n]: first\n\n\n')).toBe(true)
+    }
+  })
+
+  it('carries a quoted continuation that reaches four columns past the container', () => {
+    const content = ['> [^n]: first', '>', '>     second', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('second')
+    }
+  })
+})
+
+describe('document-wide heading slugs across heading syntaxes', () => {
+  // The slug a heading renders comes from the text the renderer parses, so the scan has to read
+  // setext headings and strip containers the same way — or a setext `Title` and an ATX `Title` are
+  // counted once between them and both render `title`, leaving `#title-1` with no target.
+  it('numbers a setext heading and an ATX heading of the same text separately', () => {
+    const content = ['Title', '=====', '', '# Title', '', '[jump](#title-1)'].join('\n')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].headingSlugs?.get('title')).toEqual(['title', 'title-1'])
+  })
+
+  it('numbers a heading behind a list marker toward the same base', () => {
+    const content = ['- # Title', '', '# Title', ''].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks[0].headingSlugs?.get('title')).toEqual(['title'])
+    expect(chunks[1].headingSlugs?.get('title')).toEqual(['title-1'])
+  })
+
+  it('numbers a setext heading behind quote markers toward the same base', () => {
+    const content = ['> Title', '> =====', '', '# Title', ''].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks[0].headingSlugs?.get('title')).toEqual(['title'])
+    expect(chunks[1].headingSlugs?.get('title')).toEqual(['title-1'])
+  })
+})
+
 describe('a title left open across a long document', () => {
   it('reads each line below an unterminated title once', () => {
     // An unterminated title once rescanned and rebuilt the accumulated title for every line below
