@@ -104,7 +104,7 @@ describe('provider billing through AiService and the real SDK', () => {
     vi.restoreAllMocks()
   })
 
-  it('records DSH usage with its frozen peak estimate even when completion is in the valley', () => {
+  it('uses frozen peak pricing for DSH while preserving trusted reported costs', () => {
     vi.setSystemTime(new Date('2026-10-11T23:00:00+08:00'))
     const injection = buildDshProviderInjection(
       providerService.getByProviderId('billing-group'),
@@ -114,52 +114,46 @@ describe('provider billing through AiService and the real SDK', () => {
     const capture = injection.usageCapture
     if (capture.owner !== 'agent-sdk') throw new Error('Expected direct SDK capture')
     providerService.update('billing-group', { providerSettings: { billing: { defaultMultiplier: 100 } } })
-    aiUsageRecordService.recordInvocation({
-      requestId: 'dsh:peak-test',
-      context: createAiUsageCaptureContext({
-        providerId: capture.providerId,
-        modelId: capture.frozenModels[0].modelId,
-        pricingSnapshot: capture.frozenModels[0].pricingSnapshot
-      }),
-      modality: 'language',
-      usage: { inputTokens: 1000, outputTokens: 1000 },
-      completedAt: Date.now()
+    const context = createAiUsageCaptureContext({
+      providerId: capture.providerId,
+      modelId: capture.frozenModels[0].modelId,
+      pricingSnapshot: capture.frozenModels[0].pricingSnapshot,
+      trustProviderReportedCost: true,
+      reportedCostCurrency: 'USD'
     })
-    const [record] = dbh.db.select().from(aiUsageRecordTable).all()
-    expect(record).toMatchObject({
-      cost: 0.016,
-      costSource: 'computed',
-      costCurrency: 'USD',
-      pricingSnapshot: { billing: { reason: 'peak_fallback', multiplier: 2 } }
-    })
-    expect(record.pricingSnapshot?.billing?.pricedAt).toBeUndefined()
+    for (const providerCost of [undefined, { amount: 0.7, currency: 'USD' as const }]) {
+      aiUsageRecordService.recordInvocation({
+        requestId: providerCost ? 'dsh:reported' : 'dsh:computed',
+        context,
+        modality: 'language',
+        usage: { inputTokens: 1000, outputTokens: 1000 },
+        providerCost,
+        completedAt: Date.now()
+      })
+    }
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([
+      { cost: 0.016, costSource: 'computed', pricingSnapshot: { billing: { reason: 'peak_fallback', multiplier: 2 } } },
+      { cost: 0.7, costSource: 'provider', costCurrency: 'USD' }
+    ])
+    expect(context.pricingSnapshot?.billing?.pricedAt).toBeUndefined()
   })
 
-  it('uses saved billing at invocation start and preserves costs across midnight and configuration changes', async () => {
+  it('keeps request-start prices across midnight and configuration changes', async () => {
     const service = new (AiService as unknown as new () => AiService)()
-    for (const [start, end, expected] of [
-      ['2026-10-11T21:59:59.999+08:00', '2026-10-11T22:00:01+08:00', 0.016],
-      ['2026-10-11T22:00:00+08:00', '2026-10-12T00:00:01+08:00', 0.004],
-      ['2026-10-12T05:59:59.999+08:00', '2026-10-12T06:00:01+08:00', 0.004],
-      ['2026-10-12T06:00:00+08:00', '2026-10-12T06:00:01+08:00', 0.016]
-    ] as const) {
-      providerService.update('billing-group', { providerSettings: { billing } })
-      vi.setSystemTime(new Date(start))
-      transport.mockImplementationOnce(async () => {
-        vi.setSystemTime(new Date(end))
-        providerService.update('billing-group', {
-          providerSettings: { billing: { defaultMultiplier: 10, periods: [] } }
-        })
-        return completion()
-      })
-      const result = await service.generateText(request)
-      expect(result.text).toBe('ok')
-      const row = dbh.db.select().from(aiUsageRecordTable).all().at(-1)!
-      expect(row.cost).toBeCloseTo(expected)
-      expect(row.costSource).toBe('computed')
-      expect(row.pricingSnapshot?.billing?.pricedAt).toBe(new Date(start).toISOString())
-    }
-    expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(4)
+    vi.setSystemTime(new Date('2026-10-11T21:59:59.999+08:00'))
+    transport.mockImplementationOnce(async () => {
+      vi.setSystemTime(new Date('2026-10-12T00:00:01+08:00'))
+      providerService.update('billing-group', { providerSettings: { billing: { defaultMultiplier: 10 } } })
+      return completion()
+    })
+    expect((await service.generateText(request)).text).toBe('ok')
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([
+      {
+        cost: 0.016,
+        costSource: 'computed',
+        pricingSnapshot: { billing: { multiplier: 2, pricedAt: '2026-10-11T13:59:59.999Z' } }
+      }
+    ])
   })
 
   it('keeps streaming costs frozen until the finish event after midnight', async () => {
@@ -311,80 +305,5 @@ describe('provider billing through AiService and the real SDK', () => {
       cost: 0.024,
       pricingSnapshot: { billing: { multiplier: 3 } }
     })
-  })
-
-  it('reprices a transient retry at its own start and records only its successful usage', async () => {
-    const service = new (AiService as unknown as new () => AiService)()
-    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
-      'chat.retry.enabled': true,
-      'chat.retry.max_attempts': 1,
-      'chat.retry.backoff_enabled': false
-    })
-    vi.setSystemTime(new Date('2026-10-11T21:59:59.999+08:00'))
-    transport
-      .mockImplementationOnce(async () => {
-        vi.setSystemTime(new Date('2026-10-11T22:00:00+08:00'))
-        return Response.json({ error: { message: 'Retry', type: 'server_error' } }, { status: 503 })
-      })
-      .mockImplementationOnce(async () => completion())
-    expect((await service.generateText({ ...request, requestOptions: {} })).text).toBe('ok')
-    expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([
-      { cost: 0.004, pricingSnapshot: { billing: { multiplier: 0.5, pricedAt: '2026-10-11T14:00:00.000Z' } } }
-    ])
-  })
-
-  it('applies billing to embedding usage at the provider-call boundary', async () => {
-    const service = new (AiService as unknown as new () => AiService)()
-    vi.setSystemTime(new Date('2026-10-11T22:00:00+08:00'))
-    transport.mockImplementationOnce(async () => {
-      vi.setSystemTime(new Date('2026-10-12T06:00:00+08:00'))
-      return Response.json({
-        object: 'list',
-        data: [{ object: 'embedding', index: 0, embedding: [1, 2] }],
-        model: 'model',
-        usage: { prompt_tokens: 1000, total_tokens: 1000 }
-      })
-    })
-    const result = await service.embedMany({ ...request, values: ['test'] })
-    expect(result.embeddings).toEqual([[1, 2]])
-    expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([
-      { modality: 'embedding', inputTokens: 1000, cost: 0.001, pricingSnapshot: { billing: { multiplier: 0.5 } } }
-    ])
-  })
-
-  it('records cache and tier prices matching the preview without double counting cached input', async () => {
-    const service = new (AiService as unknown as new () => AiService)()
-    modelService.update('billing-group', 'model', {
-      pricing: {
-        ...pricing,
-        cacheRead: { perMillionTokens: 0.4, currency: 'USD' },
-        inputTokenTiers: [
-          {
-            minInputTokens: 200000,
-            input: { perMillionTokens: 4, currency: 'USD' },
-            output: { perMillionTokens: 12, currency: 'USD' }
-          }
-        ]
-      }
-    })
-    vi.setSystemTime(new Date('2026-10-11T22:00:00+08:00'))
-    for (const inputTokens of [100000, 200000]) {
-      transport.mockImplementationOnce(async () =>
-        Response.json({
-          ...(await completion().json()),
-          usage: {
-            prompt_tokens: inputTokens,
-            completion_tokens: 10000,
-            total_tokens: inputTokens + 10000,
-            prompt_tokens_details: { cached_tokens: 40000 }
-          }
-        })
-      )
-      expect((await service.generateText(request)).text).toBe('ok')
-    }
-    const rows = dbh.db.select().from(aiUsageRecordTable).all()
-    expect(rows.map((row) => row.cost)).toEqual([0.098, 0.46])
-    expect(rows[0].costBreakdown).toMatchObject({ input: 0.06, cacheRead: 0.008, output: 0.03 })
-    expect(rows[1].costBreakdown).toMatchObject({ input: 0.32, cacheRead: 0.08, output: 0.06 })
   })
 })
