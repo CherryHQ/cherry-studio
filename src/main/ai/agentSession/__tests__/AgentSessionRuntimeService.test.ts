@@ -3292,6 +3292,42 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.getInteractionState('session-1').userResponse).toBe('unavailable')
     })
 
+    // The session-tool boundary is the one place the headless responder must still win: a
+    // detached headless child forwards its calls under the root Session id, so a desktop
+    // follow-up going interactive must not hand the still-running child session-tool access.
+    it('keeps detached headless work denied session tools under an interactive follow-up turn', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const headlessEntry = getEntry(service)
+      headlessEntry.connection = warmConnection()
+      ;(service as any).handleRuntimeEvent(headlessEntry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      // Foreground interaction follows the desktop turn; the detached child's authorization does not.
+      expect(service.getInteractionState('session-1')).toMatchObject({
+        currentTurn: 'interactive',
+        userResponse: 'stream'
+      })
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+
+      // Once the headless work drains, the desktop turn's own authorization applies again.
+      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: false })
+      await vi.waitFor(() => expect(getEntry(service).runtimeState.connection.occupancy).toEqual({}))
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({
+        currentTurn: 'interactive',
+        userResponse: 'stream'
+      })
+    })
+
     it('resolves a headless follow-up as unavailable even while interactive detached work holds the responder', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)

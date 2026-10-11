@@ -312,8 +312,11 @@ function assertCurrentSessionIdentity(ctx: AutonomyToolsContext): void {
 }
 
 function assertSessionToolsAuthorized(ctx: AutonomyToolsContext): void {
-  const interaction = application.get('AgentSessionRuntimeService').getInteractionState(ctx.sessionId)
-  if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') {
+  // Resolve through the detached-dispatch authorization, not the foreground turn's interaction
+  // state: a desktop follow-up stays interactive for approvals, but a still-running headless
+  // child's calls arrive under the same root Session id and must keep the headless denial.
+  const authorization = application.get('AgentSessionRuntimeService').getSessionToolsAuthorization(ctx.sessionId)
+  if (authorization.currentTurn === 'headless' || authorization.userResponse === 'unavailable') {
     throw new AgentSessionDeliveryRoutingError(
       'SESSION_TOOL_FORBIDDEN',
       'Cross-Session discovery and delegation require an interactive user turn'
