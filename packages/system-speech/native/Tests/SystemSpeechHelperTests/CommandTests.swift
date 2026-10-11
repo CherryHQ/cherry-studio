@@ -4,6 +4,19 @@ import Testing
 
 @Suite("Native command contract")
 struct CommandTests {
+    @Test
+    func encodesUnsupportedLocaleAsExplicitNull() throws {
+        let result = CapabilitiesResult(
+            osVersion: "26.0", requestedLocale: "unsupported", supportedLocale: nil,
+            appleAssetStatus: .unsupported, voices: []
+        )
+        let data = try JSONEncoder().encode(result)
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        #expect(object["supportedLocale"] is NSNull)
+        #expect(object["appleAssetStatus"] as? String == "unsupported")
+    }
+
     @Test(arguments: [
         #"{"operation":"capabilities","locale":"zh-CN"}"#,
         #"{"operation":"list_asr_locales"}"#,
