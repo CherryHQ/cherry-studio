@@ -8,7 +8,11 @@ import { loggerService } from '@logger'
 import { useNotesFileEditSession } from '@renderer/components/notes/NotesFileEditSessionProvider'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { runStructuralNotesFilesystemWrite, useNotesEditsLockedForRelocation } from '@renderer/hooks/notesFileEditFlush'
+import {
+  hasPendingNotesImagePastes,
+  runStructuralNotesFilesystemWrite,
+  useNotesEditsLockedForRelocation
+} from '@renderer/hooks/notesFileEditFlush'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNote } from '@renderer/hooks/useNote'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
@@ -262,7 +266,7 @@ const NotesPage: FC = () => {
 
   const handleMarkdownChange = useCallback(
     (newMarkdown: string) => {
-      if (editsLockedForRelocation) {
+      if (editsLockedForRelocation && !hasPendingNotesImagePastes()) {
         return
       }
       if (contentLoadError) {

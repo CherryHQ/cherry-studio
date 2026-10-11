@@ -109,6 +109,7 @@ describe('notesRelocation', () => {
     await expect(migrateWithPreferenceSource(source, target, { merge: false })).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_INVALID'
     })
+    expect(fs.existsSync(path.join(outside, 'note.md'))).toBe(false)
     lstatSpy.mockRestore()
   })
 

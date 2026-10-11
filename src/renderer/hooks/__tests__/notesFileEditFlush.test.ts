@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   flushAllNotesEdits,
+  hasPendingNotesImagePastes,
   lockNotesEditsForRelocation,
   registerNotesEditFlush,
   runStructuralNotesFilesystemWrite,
   trackDepartingNotesFileWrite,
   trackPendingNotesImagePaste,
   unlockNotesEditsForRelocation,
+  waitForPendingNotesImagePastes,
   waitForStructuralNotesWritesToSettle
 } from '../notesFileEditFlush'
 
@@ -49,6 +51,23 @@ describe('notesFileEditFlush structural writes', () => {
     await flushAllNotesEdits()
     expect(departingFinished).toBe(true)
     expect(flush).toHaveBeenCalledOnce()
+  })
+
+  it('reports pending image pastes until the tracked operation settles', async () => {
+    unlockNotesEditsForRelocation()
+
+    let resolvePaste!: () => void
+    const paste = trackPendingNotesImagePaste(
+      new Promise<void>((resolve) => {
+        resolvePaste = resolve
+      })
+    )
+    expect(hasPendingNotesImagePastes()).toBe(true)
+
+    resolvePaste()
+    await paste
+    await waitForPendingNotesImagePastes()
+    expect(hasPendingNotesImagePastes()).toBe(false)
   })
 
   it('waits for pending image pastes during flush', async () => {

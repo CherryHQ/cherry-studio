@@ -8,7 +8,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
-import { trackPendingNotesImagePaste } from '@renderer/hooks/notesFileEditFlush'
+import {
+  areNotesEditsLockedForRelocation,
+  hasPendingNotesImagePastes,
+  trackPendingNotesImagePaste
+} from '@renderer/hooks/notesFileEditFlush'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 
 import { createRichEditorExtensions } from './createExtensions'
@@ -307,6 +311,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         const htmlHasImage = htmlDoc?.querySelector('img') != null
 
         if (imageItem && enableImageInsertion) {
+          if (trackImagePastesForRelocation && areNotesEditsLockedForRelocation()) {
+            return true
+          }
           const file = imageItem.getAsFile()
           if (file) {
             const paste = handleImagePaste(file)
@@ -393,7 +400,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onUpdate: ({ editor, transaction }) => {
       // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
       // to avoid re-serializing markdown while switching view modes.
-      if (!editable || !transaction.docChanged || !editor.isFocused) return
+      const drainInFlightImagePaste =
+        trackImagePastesForRelocation && areNotesEditsLockedForRelocation() && hasPendingNotesImagePastes()
+      if ((!editable && !drainInFlightImagePaste) || !transaction.docChanged || !editor.isFocused) return
 
       const content = editor.getText()
       try {

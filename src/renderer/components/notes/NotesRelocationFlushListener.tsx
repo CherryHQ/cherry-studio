@@ -32,10 +32,10 @@ export const NotesRelocationFlushListener: FC = () => {
   })
 
   useIpcOn('app.notes_relocation.flush_edits', async ({ requestId }) => {
-    lockNotesEditsForRelocation()
     let ok = true
     try {
       await waitForStructuralNotesWritesToSettle()
+      lockNotesEditsForRelocation()
       await flushAllNotesEdits()
     } catch (error) {
       ok = false

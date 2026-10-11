@@ -123,6 +123,10 @@ export function trackPendingNotesImagePaste<T>(operation: Promise<T>): Promise<T
   return operation
 }
 
+export function hasPendingNotesImagePastes(): boolean {
+  return pendingImagePasteOperations.size > 0
+}
+
 export async function waitForPendingNotesImagePastes(): Promise<void> {
   while (pendingImagePasteOperations.size > 0) {
     await Promise.all([...pendingImagePasteOperations])

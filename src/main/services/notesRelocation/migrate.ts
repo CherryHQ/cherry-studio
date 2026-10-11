@@ -270,6 +270,7 @@ export async function migrateNotesDirectory(
   try {
     await assertMigrationTargetRootIsDirectory(resolvedTarget)
     for (const entry of entries) {
+      await assertMigrationTargetRootIsDirectory(resolvedTarget)
       if (entry.isSymbolicLink()) {
         continue
       }

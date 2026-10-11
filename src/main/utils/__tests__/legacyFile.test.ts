@@ -321,7 +321,8 @@ describe('file', () => {
           return ''
         }
 
-        const result = ['..'.repeat(upLevels), ...downPath].filter((p) => p).join('/')
+        const upPath = Array(upLevels).fill('..').join('/')
+        const result = [upPath, ...downPath].filter((p) => p).join('/')
         return result || '.'
       })
 

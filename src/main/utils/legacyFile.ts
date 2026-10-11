@@ -106,14 +106,10 @@ export function isPathInside(childPath: string, parentPath: string): boolean {
     }
 
     const relativePath = path.relative(normalizedParent, normalizedChild)
+    const firstSegment = relativePath.split(/[/\\]/).filter(Boolean)[0]
 
     // Reject only real parent traversal (`..` as a segment), not legal names like `..archive`.
-    return (
-      relativePath !== '' &&
-      relativePath !== '..' &&
-      !relativePath.startsWith(`..${path.sep}`) &&
-      !path.isAbsolute(relativePath)
-    )
+    return relativePath !== '' && firstSegment !== '..' && !path.isAbsolute(relativePath)
   } catch (error) {
     logger.error('Failed to check path relationship:', error as Error)
     return false

@@ -26,6 +26,13 @@ type CopyDirectoryRecursiveOptions = {
   exclusiveFileCopies?: boolean
 }
 
+async function assertDestinationRootIsDirectory(destinationRoot: string): Promise<void> {
+  const stats = await fs.promises.lstat(destinationRoot)
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new Error(`Destination root is not a directory: ${destinationRoot}`)
+  }
+}
+
 async function assertDestinationPathHasNoSymlinkComponents(basePath: string, absolutePath: string): Promise<void> {
   const relative = path.relative(basePath, absolutePath)
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
@@ -77,6 +84,7 @@ export async function copyDirectoryRecursive(
     throw new Error(`Destination path is outside allowed directory: ${destination}`)
   }
   if (allowedDestinationBasePath) {
+    await assertDestinationRootIsDirectory(allowedDestinationBasePath)
     await assertDestinationPathHasNoSymlinkComponents(allowedDestinationBasePath, destination)
   }
 
@@ -100,6 +108,7 @@ export async function copyDirectoryRecursive(
       const destPath = path.join(destination, entry.name)
 
       if (allowedDestinationBasePath) {
+        await assertDestinationRootIsDirectory(allowedDestinationBasePath)
         await assertDestinationPathHasNoSymlinkComponents(allowedDestinationBasePath, destPath)
       }
 
