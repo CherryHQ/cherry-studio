@@ -41,6 +41,15 @@ function captureRange(target: RegisteredVoiceTarget): VoiceReplaceRange | null {
 export class VoiceTargetManager {
   private readonly targets = new Map<string, RegisteredVoiceTarget>()
   private current?: RegisteredVoiceTarget
+  private snapshot: CapturedVoiceTarget | null = null
+  private readonly listeners = new Set<() => void>()
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  getSnapshot = (): CapturedVoiceTarget | null => this.snapshot
 
   bind(registration: VoiceTargetRegistration): () => void {
     const previous = this.targets.get(registration.targetId)
@@ -48,6 +57,7 @@ export class VoiceTargetManager {
 
     const target: RegisteredVoiceTarget = { ...registration, bindingToken: Symbol(registration.targetId) }
     this.targets.set(target.targetId, target)
+    this.publish()
 
     return () => {
       if (this.targets.get(target.targetId) !== target) return
@@ -59,9 +69,11 @@ export class VoiceTargetManager {
     const target = this.targets.get(targetId)
     if (!target || target.owner.closed) {
       if (this.current?.targetId === targetId) this.current = undefined
+      this.publish()
       return false
     }
     this.current = target
+    this.publish()
     return true
   }
 
@@ -101,6 +113,21 @@ export class VoiceTargetManager {
   private remove(target: RegisteredVoiceTarget): void {
     this.targets.delete(target.targetId)
     if (this.current === target) this.current = undefined
+    this.publish()
+  }
+
+  private publish(): void {
+    const target = this.current
+    if (this.snapshot?.bindingToken === target?.bindingToken) return
+    this.snapshot = target
+      ? Object.freeze({
+          targetId: target.targetId,
+          owner: target.owner,
+          sourceEntityId: target.sourceEntityId,
+          bindingToken: target.bindingToken
+        })
+      : null
+    this.listeners.forEach((listener) => listener())
   }
 }
 
