@@ -558,6 +558,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       return false
     }
 
+    this.pendingAdds.delete(newNorm)
     if (this.shouldIgnorePath(newNorm)) {
       this.markRenamed(oldNorm, newNorm)
       this.removeNode(oldNorm, /* emit */ true)
@@ -600,7 +601,6 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
    *  `unlink(oldPath)` / `add(newPath)` events get dropped. */
   private markRenamed(oldPath: string, newPath: string): void {
     this.invalidatePendingAdds(oldPath)
-    this.pendingAdds.delete(newPath)
     const expireAt = Date.now() + DirectoryTreeBuilderImpl.RENAME_DEDUP_MS
     this.recentlyRenamed.set(oldPath, expireAt)
     this.recentlyRenamed.set(newPath, expireAt)

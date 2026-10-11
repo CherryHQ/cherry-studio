@@ -189,4 +189,25 @@ describe.skipIf(tryTestRipgrepPath() === null)('directory tree pending watcher s
       `${renamed}/note.md`
     ])
   })
+
+  it('keeps a pending destination add when unlink wins explicit rename coordination', async () => {
+    const original = `${root}/original.md`
+    const target = `${root}/renamed.md`
+    await writeFile(original, 'retained note')
+    await vi.waitFor(() => expect(builder.getNode(original)?.stats).toBeDefined(), { timeout: 4000 })
+    delayedStat.path = target
+    await rename(original, target)
+    await waitForRaw('unlink', original)
+    await vi.waitFor(() => expect(delayedStat.entered).toBe(true), { timeout: 4000 })
+    expect(builder.getNode(original)).toBeNull()
+    expect(builder.getNode(target)).toBeNull()
+    expect(builder.rename(original, target)).toBe(false)
+    await releaseStat()
+    expect(builder.getNode(target)?.stats).toBeDefined()
+    expect(builder.root.hasChild('original.md')).toBe(false)
+    expect(builder.root.hasChild('renamed.md')).toBe(true)
+    expect(await readFile(target, 'utf8')).toBe('retained note')
+    expect(events.map((event) => event.type)).toEqual(['added', 'removed', 'added'])
+    expect(events.filter((event) => event.type === 'added').map((event) => event.path)).toEqual([original, target])
+  })
 })
