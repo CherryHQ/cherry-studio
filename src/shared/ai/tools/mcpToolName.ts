@@ -151,18 +151,27 @@ export type McpFunctionCallToolNameParts = {
  * whose server segment is a known id into the current server key; name-form rules (and rules naming
  * unknown servers) pass through unchanged. Ids contain no underscores, so splitting on the first
  * `__` is exact for legacy rules and never mis-splits a `__`-bearing server name.
+ *
+ * A configured name can extend another server's id (`U__x`): the saved string is then also that
+ * server's current-form rule, so the rewrite emits both forms — stripping the literal form would
+ * remove an explicit denial from the server that owns it under an exact-match policy.
  */
 export function translateLegacyMcpToolRules(
   rules: readonly string[] | null | undefined,
   serverNameById: ReadonlyMap<string, string> = new Map()
 ): string[] {
-  return (rules ?? []).map((rule) => {
-    if (!rule.startsWith('mcp__')) return rule
+  const mountedKeys = new Set(serverNameById.values())
+  return (rules ?? []).flatMap((rule) => {
+    if (!rule.startsWith('mcp__')) return [rule]
     const rest = rule.slice('mcp__'.length)
     const delimiterIndex = rest.indexOf('__')
-    if (delimiterIndex <= 0) return rule
+    if (delimiterIndex <= 0) return [rule]
     const mapped = serverNameById.get(rest.slice(0, delimiterIndex))
-    return mapped === undefined ? rule : `mcp__${mapped}${rest.slice(delimiterIndex)}`
+    if (mapped === undefined) return [rule]
+    const rewritten = `mcp__${mapped}${rest.slice(delimiterIndex)}`
+    if (rewritten === rule) return [rule]
+    const nameFormOwner = [...mountedKeys].some((key) => rest.startsWith(`${key}__`))
+    return nameFormOwner ? [rule, rewritten] : [rewritten]
   })
 }
 
@@ -174,6 +183,11 @@ export function translateLegacyMcpToolRules(
  * After the legacy id rewrite, any rule whose name-form string matches a registered identity is
  * replaced by the allocated runtime name(s); a flattened string maps to every candidate
  * (fail-closed). Rules with no registered identity pass through unchanged.
+ *
+ * Every interpretation of the saved string contributes candidates: a configured name can extend
+ * another server's id (`U__x`), making the string simultaneously the current name-form of one
+ * pair and the legacy id form of another — the rewrite must never strip the original string's
+ * registered candidates.
  */
 export function translateMcpToolRulesToRuntimeNames(
   rules: readonly string[] | null | undefined,
@@ -181,6 +195,17 @@ export function translateMcpToolRulesToRuntimeNames(
   runtimeNameByRule: ReadonlyMap<string, readonly string[]> = new Map()
 ): string[] {
   return (rules ?? []).flatMap((rule) => {
+    const candidates = new Set<string>()
+    const addAll = (names: readonly string[] | undefined) => {
+      for (const name of names ?? []) candidates.add(name)
+    }
+    // The saved string as-is is itself a registered form (name-form rule, runtime identity,
+    // historical collision/counter name, pre-name id alias). A configured name can extend
+    // another server's id (`U__x`), making the string simultaneously the current name-form of
+    // one pair and the legacy id form of another — the legacy rewrite below must never strip
+    // these candidates, so every interpretation merges (fail-closed).
+    addAll(runtimeNameByRule.get(rule))
+
     let candidate = rule
     if (candidate.startsWith('mcp__')) {
       const rest = candidate.slice('mcp__'.length)
@@ -195,9 +220,10 @@ export function translateMcpToolRulesToRuntimeNames(
             // match names the NEW tool exactly) while the originally disabled identity moved to
             // the stripped plain name. Merge the stripped-base candidates instead of
             // short-circuiting; rules without a disambiguator tail keep their exact pair match.
+            addAll(pairNames)
             const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
-            const baseNames = stripped !== candidate ? runtimeNameByRule.get(stripped) : undefined
-            return baseNames ? [...new Set([...pairNames, ...baseNames])] : [...pairNames]
+            if (stripped !== candidate) addAll(runtimeNameByRule.get(stripped))
+            if (candidates.size > 0) return [...candidates]
           }
           candidate = `mcp__${mapped}${rest.slice(delimiterIndex)}`
         }
@@ -211,20 +237,19 @@ export function translateMcpToolRulesToRuntimeNames(
       // Merge the stripped-base candidates (fail-closed) instead of short-circuiting.
       const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
       const baseNames = stripped !== candidate ? runtimeNameByRule.get(stripped) : undefined
-      if (!baseNames) return [...names]
-      return [...new Set([...names, ...baseNames])]
+      if (!baseNames) return [...new Set([...names, ...candidates])]
+      return [...new Set([...names, ...baseNames, ...candidates])]
     }
     // A denial can be saved under a collision-allocated name from an earlier topology
     // (`<plain name>_<disambiguator>` — the deterministic pair hash, or any counter depth when
     // even that was taken). The full string dies with the old allocation, but the stripped
-    // plain name still resolves; mapping it (merged fail-closed like every other ambiguous
-    // form) beats letting an explicitly disabled tool execute.
+    // plain name still resolves; mapping it beats letting an explicitly disabled tool execute.
     const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
     if (stripped !== candidate) {
       const baseNames = runtimeNameByRule.get(stripped)
       if (baseNames) return [...baseNames]
     }
-    return [candidate]
+    return candidates.size > 0 ? [...candidates] : [candidate]
   })
 }
 

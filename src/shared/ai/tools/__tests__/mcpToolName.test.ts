@@ -310,6 +310,25 @@ describe('translateLegacyMcpToolRules', () => {
     expect(translateLegacyMcpToolRules(undefined, byId)).toEqual([])
     expect(translateLegacyMcpToolRules(null, byId)).toEqual([])
   })
+
+  it('keeps a rule that is simultaneously another mounted server current form', () => {
+    // A configured name can extend another server's id (`U__x`): the saved string is then both
+    // B's current-form rule (key `U__x`, tool `y`) and A's legacy id form (id `U`, tool `x__y`).
+    // Rewriting it away would strip B's explicit denial under an exact-match policy, so the
+    // ambiguous rule emits both forms.
+    const ambiguous = new Map([
+      ['U', 'github'],
+      ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'U__x']
+    ])
+    expect(translateLegacyMcpToolRules(['mcp__U__x__y'], ambiguous)).toEqual([
+      'mcp__U__x__y',
+      'mcp__github__x__y'
+    ])
+    // A legacy rule with no such overlap still rewrites exactly once.
+    expect(translateLegacyMcpToolRules(['mcp__bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb__run'], ambiguous)).toEqual([
+      'mcp__U__x__run'
+    ])
+  })
 })
 
 describe('translateMcpToolRulesToRuntimeNames', () => {
@@ -367,6 +386,36 @@ describe('translateMcpToolRulesToRuntimeNames', () => {
     expect(translateMcpToolRulesToRuntimeNames(['mcp__ghost__run', 'Bash'], byId, new Map())).toEqual([
       'mcp__ghost__run',
       'Bash'
+    ])
+  })
+
+  // A configured server name can extend another mounted server's id (`U__x`): the saved denial
+  // `mcp__U__x__y` is then simultaneously B's current name-form (key `U__x`, tool `y`) and A's
+  // legacy id form (id `U`, tool `x__y`). The legacy rewrite must never strip the registered
+  // candidates of the original string.
+  it('preserves registered candidates when the id-prefix rewrite names another server', () => {
+    const byIdPrefix = new Map([['U', 'github']])
+    const runtimeNames = new Map([
+      ['mcp__U__x__y', ['mcp__U__x__y']],
+      ['U__x\u0000y', ['mcp__U__x__y']]
+    ])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__U__x__y'], byIdPrefix, runtimeNames)).toEqual([
+      'mcp__U__x__y'
+    ])
+  })
+
+  it('merges both interpretations when the id-owner also exposes the flattened tool', () => {
+    // A (id `U`, key `github`) exposes `x__y`: the pre-name id alias and B's name-form share the
+    // string, and the pair match must not drop B — deny both (fail-closed).
+    const byIdPrefix = new Map([['U', 'github']])
+    const runtimeNames = new Map([
+      ['mcp__U__x__y', ['mcp__U__x__y', 'mcp__github__x__y']],
+      ['U__x\u0000y', ['mcp__U__x__y']],
+      ['github\u0000x__y', ['mcp__github__x__y']]
+    ])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__U__x__y'], byIdPrefix, runtimeNames)).toEqual([
+      'mcp__U__x__y',
+      'mcp__github__x__y'
     ])
   })
 })
