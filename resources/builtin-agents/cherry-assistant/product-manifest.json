@@ -496,8 +496,8 @@
     }
   ],
   "providers": {
-    "version": "a97aae2405a78d18",
-    "count": 65,
+    "version": "3416349586ffa541",
+    "count": 66,
     "entries": [
       {
         "id": "cherryin",
@@ -590,6 +590,10 @@
       {
         "id": "lmstudio",
         "name": "LM Studio"
+      },
+      {
+        "id": "litellm",
+        "name": "LiteLLM"
       },
       {
         "id": "anthropic",
