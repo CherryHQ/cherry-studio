@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
       text: string
       mode: string
       sourceEntityId: string
+      signal: AbortSignal
       isCurrent: () => boolean
       focusOnClose: () => void
     }) => Promise<void>
@@ -200,6 +201,7 @@ describe('Notes manual read-aloud', () => {
     const request = mocks.read.mock.calls[0][0]
     expect(request.isCurrent()).toBe(true)
     oldEditor.unmount()
+    expect(request.signal.aborted).toBe(true)
     render(<NotesEditor {...props} activeNodeId="/private/other.md" voiceNoteId="opaque-note-2" />)
     await screen.findByRole('textbox', { name: 'rich draft' })
     const mode = screen.getByRole('combobox', { name: 'view mode' })
@@ -251,5 +253,27 @@ describe('Notes manual read-aloud', () => {
     storageWrite.mockRestore()
     pushState.mockRestore()
     replaceState.mockRestore()
+  })
+
+  it('cancels a read when its note, content, or editor mode changes', async () => {
+    const user = userEvent.setup()
+    const view = render(<NotesEditor {...props} />)
+    await screen.findByRole('textbox', { name: 'rich draft' })
+    await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+    const first = mocks.read.mock.calls.at(-1)![0].signal
+    expect(first.aborted).toBe(false)
+
+    view.rerender(<NotesEditor {...props} currentContent="updated draft" />)
+    expect(first.aborted).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+    const second = mocks.read.mock.calls.at(-1)![0].signal
+    await user.selectOptions(screen.getByRole('combobox', { name: 'view mode' }), 'source')
+    expect(second.aborted).toBe(true)
+
+    await screen.findByRole('textbox', { name: 'source draft' })
+    await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+    const third = mocks.read.mock.calls.at(-1)![0].signal
+    view.rerender(<NotesEditor {...props} voiceNoteId="opaque-note-2" />)
+    expect(third.aborted).toBe(true)
   })
 })

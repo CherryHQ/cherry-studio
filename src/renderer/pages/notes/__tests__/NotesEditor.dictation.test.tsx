@@ -195,6 +195,22 @@ describe('Notes dictation integration', () => {
 
     act(() => editorRef.current!.focus())
     await waitFor(() => expect(screen.getByRole('button', { name: 'Insert transcript' })).toBeEnabled())
+    const unbindOther = voiceTargetManager.bind({
+      targetId: 'other-editor',
+      owner: window,
+      sourceEntityId: 'other',
+      captureReplaceRange: () => ({ from: 0, to: 0 }),
+      replaceRange: () => true
+    })
+    act(() => {
+      voiceTargetManager.markCurrent('other-editor')
+    })
+    expect(screen.getByRole('button', { name: 'Insert transcript' })).toBeDisabled()
+    act(() => {
+      voiceTargetManager.markCurrent('notes:opaque-note-1:preview')
+    })
+    expect(screen.getByRole('button', { name: 'Insert transcript' })).toBeEnabled()
+    unbindOther()
     await user.click(screen.getByRole('button', { name: 'Insert transcript' }))
 
     await waitFor(() => expect(screen.getByLabelText('saved draft')).toHaveTextContent('recovered text'))

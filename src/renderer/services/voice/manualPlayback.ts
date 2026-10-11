@@ -15,6 +15,7 @@ export interface ReadTextAloudInput {
   readonly sourceEntityId: string
   readonly focusOnClose?: () => void
   readonly isCurrent?: () => boolean
+  readonly signal?: AbortSignal
 }
 
 const settingsRecoveryReasons: ReadonlySet<VoiceErrorReason> = new Set([
@@ -64,9 +65,10 @@ export async function readTextAloud({
   sourceLabel,
   sourceEntityId,
   focusOnClose,
-  isCurrent
+  isCurrent,
+  signal
 }: ReadTextAloudInput): Promise<void> {
-  if (!text.trim() || isCurrent?.() === false) return
+  if (!text.trim() || signal?.aborted || isCurrent?.() === false) return
 
   const startInput = {
     text,
@@ -74,12 +76,13 @@ export async function readTextAloud({
     mode,
     confirmed: false,
     sourceLabel,
-    sourceEntityId
+    sourceEntityId,
+    ...(signal && { signal })
   }
 
   try {
     const result = await speechPlaybackService.start(startInput)
-    if (result.status !== 'confirmation_required' || isCurrent?.() === false) return
+    if (result.status !== 'confirmation_required' || signal?.aborted || isCurrent?.() === false) return
 
     const confirmed = await popup.confirm({
       title: i18n.t('settings.voice.playback.long_text.title'),
@@ -88,12 +91,12 @@ export async function readTextAloud({
       cancelText: i18n.t('common.cancel'),
       focusOnClose
     })
-    if (!confirmed || isCurrent?.() === false) return
+    if (!confirmed || signal?.aborted || isCurrent?.() === false) return
 
     await speechPlaybackService.start({ ...startInput, confirmed: true })
   } catch (error) {
-    if (isCurrent?.() !== false) showPlaybackError(error)
+    if (!signal?.aborted && isCurrent?.() !== false) showPlaybackError(error)
   } finally {
-    if (isCurrent?.() !== false) focusOnClose?.()
+    if (!signal?.aborted && isCurrent?.() !== false) focusOnClose?.()
   }
 }

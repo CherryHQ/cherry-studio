@@ -1,6 +1,6 @@
 import { Check, Copy, NotebookPen, Volume2 } from 'lucide-react'
 import type { Ref } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Scrollbar } from '@cherrystudio/ui'
@@ -34,6 +34,8 @@ const TranslateOutputPane = ({
   const readButtonRef = useRef<HTMLButtonElement>(null)
   const currentResultRef = useRef({ translatedContent, translating })
   currentResultRef.current = { translatedContent, translating }
+  const playbackRef = useRef<AbortController | undefined>(undefined)
+  useLayoutEffect(() => () => playbackRef.current?.abort(), [translatedContent, translating])
   const mountedRef = useRef(true)
   useEffect(() => {
     mountedRef.current = true
@@ -78,19 +80,23 @@ const TranslateOutputPane = ({
           aria-label={t('chat.message.read_aloud.label')}
           disabled={translating || !translatedContent.trim()}
           className="ml-auto"
-          onClick={() =>
+          onClick={() => {
+            playbackRef.current?.abort()
+            const controller = new AbortController()
+            playbackRef.current = controller
             void readTextAloud({
               text: translatedContent,
               mode: 'document',
               sourceLabel: 'document',
               sourceEntityId: 'translate-page-result',
+              signal: controller.signal,
               isCurrent: () =>
                 mountedRef.current &&
                 !currentResultRef.current.translating &&
                 currentResultRef.current.translatedContent === translatedContent,
               focusOnClose: () => readButtonRef.current?.focus()
             })
-          }>
+          }}>
           <Volume2 className="size-4" />
         </Button>
         <IconButton

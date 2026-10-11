@@ -35,6 +35,7 @@ export function DictationControls({
 }) {
   const { t } = useTranslation()
   const snapshot = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
+  const target = useSyncExternalStore(voiceTargetManager.subscribe, voiceTargetManager.getSnapshot)
   const run = (action: () => Promise<unknown>) => {
     void action()
       .catch(() => undefined)
@@ -135,7 +136,7 @@ export function DictationControls({
             variant="ghost"
             size="icon-sm"
             aria-label={t('settings.voice.action.insert_recovery')}
-            disabled={disabled || voiceTargetManager.captureCurrent()?.targetId !== targetId}
+            disabled={disabled || target?.targetId !== targetId}
             onClick={() => {
               dictationService.insertRecovery()
               focusInput()

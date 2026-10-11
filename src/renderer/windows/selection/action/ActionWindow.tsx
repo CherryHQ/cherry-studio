@@ -11,10 +11,9 @@ import { usePreference } from '@data/hooks/usePreference'
 import SelectionActionIcon from '@renderer/components/selection/SelectionActionIcon'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi } from '@renderer/ipc'
-import { speechPlaybackService } from '@renderer/services/voice'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { SelectionActionSession } from '@shared/types/selection'
 
 import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
@@ -28,7 +27,7 @@ import ActionTranslate from './components/ActionTranslate'
  * `useEffect([action])` inside the content component.
  */
 const ActionWindow: FC = () => {
-  const action = useWindowInitData<SelectionActionItem>()
+  const action = useWindowInitData<SelectionActionSession>()
   if (!action) return null
   return <SelectionActionContent action={action} />
 }
@@ -41,7 +40,7 @@ const ActionWindow: FC = () => {
  * slider, scroll) so old state doesn't bleed into the new session, even when
  * the next action happens to be the same type as the previous one.
  */
-const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action }) => {
+const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action }) => {
   const { t } = useTranslation()
 
   const [isAutoClose] = usePreference('feature.selection.auto_close')
@@ -58,22 +57,11 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
   // (not in an effect) so the remount lands before ActionGeneral sends.
   const [prevAction, setPrevAction] = useState(action)
   const [sessionId, setSessionId] = useState(0)
-  const [sourceEntityId, setSourceEntityId] = useState(() => crypto.randomUUID())
+  const sourceEntityId = action.sessionId
   if (action !== prevAction) {
     setPrevAction(action)
     setSessionId((n) => n + 1)
-    setSourceEntityId(crypto.randomUUID())
   }
-
-  useEffect(
-    () => () => {
-      const snapshot = speechPlaybackService.getSnapshot()
-      if (snapshot.phase !== 'idle' && (snapshot.sourceLabel === 'selection' || snapshot.sourceLabel === 'preview')) {
-        void speechPlaybackService.stop().catch(() => undefined)
-      }
-    },
-    [action]
-  )
 
   const shouldCloseWhenBlur = useRef(false)
   const contentElementRef = useRef<HTMLDivElement>(null)

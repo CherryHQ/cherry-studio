@@ -157,7 +157,8 @@ describe('TranslateOutputPane', () => {
         mode: 'document',
         confirmed: false,
         sourceLabel: 'document',
-        sourceEntityId: 'translate-page-result'
+        sourceEntityId: 'translate-page-result',
+        signal: expect.any(AbortSignal)
       })
     )
     start.mockRestore()
@@ -166,6 +167,30 @@ describe('TranslateOutputPane', () => {
   it('keeps the read control disabled for whitespace output', () => {
     render(<TranslateOutputPane {...baseProps()} translatedContent="   " />)
     expect(screen.getByRole('button', { name: 'chat.message.read_aloud.label' })).toBeDisabled()
+  })
+
+  it('cancels its request when translation restarts, changes content, or unmounts', async () => {
+    const start = vi.spyOn(speechPlaybackService, 'start').mockResolvedValue({ status: 'started' })
+    const props = { ...baseProps(), translatedContent: 'first result' }
+    const view = render(<TranslateOutputPane {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.read_aloud.label' }))
+    const first = start.mock.calls.at(-1)![0].signal!
+    expect(first.aborted).toBe(false)
+
+    view.rerender(<TranslateOutputPane {...props} translating />)
+    expect(first.aborted).toBe(true)
+    view.rerender(<TranslateOutputPane {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.read_aloud.label' }))
+    const second = start.mock.calls.at(-1)![0].signal!
+    expect(second.aborted).toBe(false)
+
+    view.rerender(<TranslateOutputPane {...props} translatedContent="next result" />)
+    expect(second.aborted).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.read_aloud.label' }))
+    const third = start.mock.calls.at(-1)![0].signal!
+    view.unmount()
+    expect(third.aborted).toBe(true)
+    start.mockRestore()
   })
 
   it('does not confirm playback of a result replaced while the long-text dialog is open', async () => {

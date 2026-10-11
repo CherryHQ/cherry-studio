@@ -1,6 +1,6 @@
 import { SpellCheck, Volume2 } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
@@ -82,7 +82,11 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     voiceIdentityRef.current = voiceNoteId
     const [richEditorReady, setRichEditorReady] = useState(false)
     const [sourceEditorReady, setSourceEditorReady] = useState(false)
-    const [, refreshVoiceTarget] = useReducer((version: number) => version + 1, 0)
+    const playbackRef = useRef<AbortController | undefined>(undefined)
+    useLayoutEffect(
+      () => () => playbackRef.current?.abort(),
+      [voiceNoteId, currentContent, tmpViewMode, contentLoadError]
+    )
     const voiceTargetId = voiceNoteId ? `notes:${voiceNoteId}:${tmpViewMode}` : ''
     const voiceEditorReady = tmpViewMode === 'source' ? sourceEditorReady : richEditorReady
     const setRichEditorRef = useCallback(
@@ -101,7 +105,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     )
     const markVoiceTargetCurrent = () => {
       if (voiceTargetManager.captureCurrent()?.targetId === voiceTargetId) return
-      if (voiceTargetManager.markCurrent(voiceTargetId)) refreshVoiceTarget()
+      voiceTargetManager.markCurrent(voiceTargetId)
     }
     const focusCurrentEditor = () => {
       if (voiceIdentityRef.current !== voiceNoteId || !readButtonRef.current) return
@@ -154,11 +158,15 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       if (!text.trim()) return
       const mode = selectedText.trim() ? 'selection' : 'document'
       const isCurrent = () => voiceIdentityRef.current === voiceNoteId && readButtonRef.current !== null
+      playbackRef.current?.abort()
+      const controller = new AbortController()
+      playbackRef.current = controller
       void readTextAloud({
         text,
         mode,
         sourceLabel: mode,
         sourceEntityId: voiceNoteId,
+        signal: controller.signal,
         isCurrent,
         focusOnClose: focusCurrentEditor
       })

@@ -16,18 +16,7 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: vi.fn()
 }))
 
-const readTextAloud = (
-  voice as typeof voice & {
-    readTextAloud: (input: {
-      text: string
-      mode: 'selection' | 'document'
-      sourceLabel: 'selection' | 'document' | 'preview'
-      sourceEntityId: string
-      focusOnClose?: () => void
-      isCurrent?: () => boolean
-    }) => Promise<void>
-  }
-).readTextAloud
+const { readTextAloud } = voice
 
 describe('readTextAloud', () => {
   beforeEach(() => {
@@ -98,6 +87,47 @@ describe('readTextAloud', () => {
     })
 
     expect(start).toHaveBeenCalledOnce()
+  })
+
+  it('keeps cancellation attached to both attempts of confirmed playback', async () => {
+    const start = vi
+      .spyOn(speechPlaybackService, 'start')
+      .mockResolvedValueOnce({ status: 'confirmation_required', normalizedLength: 5_001 })
+      .mockResolvedValueOnce({ status: 'started' })
+    vi.mocked(popup.confirm).mockResolvedValueOnce(true)
+    const controller = new AbortController()
+
+    await readTextAloud({
+      text: 'x'.repeat(5_001),
+      mode: 'document',
+      sourceLabel: 'document',
+      sourceEntityId: 'note',
+      signal: controller.signal
+    })
+
+    expect(start.mock.calls.map(([input]) => input.signal)).toEqual([controller.signal, controller.signal])
+  })
+
+  it('ignores confirmation and feedback after its owner cancels', async () => {
+    const start = vi
+      .spyOn(speechPlaybackService, 'start')
+      .mockResolvedValue({ status: 'confirmation_required', normalizedLength: 5_001 })
+    const controller = new AbortController()
+    vi.mocked(popup.confirm).mockImplementationOnce(async () => {
+      controller.abort()
+      return true
+    })
+
+    await readTextAloud({
+      text: 'x'.repeat(5_001),
+      mode: 'document',
+      sourceLabel: 'document',
+      sourceEntityId: 'note',
+      signal: controller.signal
+    })
+
+    expect(start).toHaveBeenCalledOnce()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('does not start or show an old action after its source context is replaced', async () => {
