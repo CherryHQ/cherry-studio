@@ -353,10 +353,13 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
           if (ev.kind === 'error' && !ready) {
             reject(ev.error)
           }
-          // Defer watcher events until the initial scan completes so we
-          // don't apply a mutation for a path the scan is about to insert.
+          // Queue events behind the scan. The factory reports scan failures,
+          // so discard queued events when initialization fails.
           if (this.initialScanPromise) {
-            void this.initialScanPromise.then(() => this.handleWatcherEvent(ev))
+            void this.initialScanPromise.then(
+              () => this.handleWatcherEvent(ev),
+              () => undefined
+            )
           } else {
             void this.handleWatcherEvent(ev)
           }
@@ -658,6 +661,11 @@ export async function createDirectoryTree(
 ): Promise<DirectoryTreeBuilder> {
   const resolved = resolveOptions(options)
   const builder = new DirectoryTreeBuilderImpl(rootPath, resolved)
-  await builder.init()
-  return builder
+  try {
+    await builder.init()
+    return builder
+  } catch (error) {
+    await builder.disposeAsync()
+    throw error
+  }
 }
