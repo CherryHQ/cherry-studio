@@ -212,14 +212,38 @@ JsonObject listAsrLocales() {
     return success(L"list_asr_locales", result);
 }
 
-JsonObject transcribe(const JsonObject& request) {
-    const auto locale = requiredString(request, L"locale");
-    const auto inputPath = requiredString(request, L"inputPath");
+ComPtr<ISpRecognizer> createRecognizer(const std::wstring& locale) {
     const auto engine = recognizerFor(locale);
     ComPtr<ISpRecognizer> recognizer;
     require(CoCreateInstance(CLSID_SpInprocRecognizer, nullptr, CLSCTX_INPROC_SERVER,
                              IID_PPV_ARGS(recognizer.GetAddressOf())), "transcription_failed");
     require(recognizer->SetRecognizer(engine.Get()), "transcription_failed");
+    return recognizer;
+}
+
+ComPtr<ISpRecoGrammar> loadDictation(ISpRecoContext* context) {
+    ComPtr<ISpRecoGrammar> grammar;
+    require(context->CreateGrammar(1, grammar.GetAddressOf()), "transcription_failed");
+    require(grammar->LoadDictation(nullptr, SPLO_STATIC), "transcription_failed");
+    return grammar;
+}
+
+JsonObject probeAsr(const JsonObject& request) {
+    const auto locale = requiredString(request, L"locale");
+    const auto recognizer = createRecognizer(locale);
+    // An in-process recognizer has no default audio input. Do not set input or activate dictation here.
+    ComPtr<ISpRecoContext> context;
+    require(recognizer->CreateRecoContext(context.GetAddressOf()), "transcription_failed");
+    loadDictation(context.Get());
+    auto result = object();
+    put(result, L"locale", localeName(requestedLcid(locale)));
+    return success(L"probe_asr", result);
+}
+
+JsonObject transcribe(const JsonObject& request) {
+    const auto locale = requiredString(request, L"locale");
+    const auto inputPath = requiredString(request, L"inputPath");
+    const auto recognizer = createRecognizer(locale);
     ComPtr<ISpStream> input;
     require(SPBindToFile(inputPath.c_str(), SPFM_OPEN_READONLY, input.GetAddressOf()), "transcription_failed");
     require(recognizer->SetInput(input.Get(), TRUE), "transcription_failed");
@@ -228,9 +252,7 @@ JsonObject transcribe(const JsonObject& request) {
     const auto interest = SPFEI(SPEI_RECOGNITION) | SPFEI(SPEI_END_SR_STREAM);
     require(context->SetInterest(interest, interest), "transcription_failed");
     require(context->SetNotifyWin32Event(), "transcription_failed");
-    ComPtr<ISpRecoGrammar> grammar;
-    require(context->CreateGrammar(1, grammar.GetAddressOf()), "transcription_failed");
-    require(grammar->LoadDictation(nullptr, SPLO_STATIC), "transcription_failed");
+    const auto grammar = loadDictation(context.Get());
     require(grammar->SetDictationState(SPRS_ACTIVE), "transcription_failed");
 
     std::wstring transcript;
@@ -344,6 +366,7 @@ JsonObject execute(const JsonObject& request) {
     const auto operation = requiredString(request, L"operation");
     if (operation == L"capabilities") return capabilities(request);
     if (operation == L"list_asr_locales") return listAsrLocales();
+    if (operation == L"probe_asr") return probeAsr(request);
     if (operation == L"transcribe") return transcribe(request);
     if (operation == L"synthesize") return synthesize(request);
     throw HelperError("invalid_request");
