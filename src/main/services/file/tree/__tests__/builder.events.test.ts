@@ -210,4 +210,31 @@ describe.skipIf(tryTestRipgrepPath() === null)('directory tree pending watcher s
     expect(events.map((event) => event.type)).toEqual(['added', 'removed', 'added'])
     expect(events.filter((event) => event.type === 'added').map((event) => event.path)).toEqual([original, target])
   })
+
+  it('keeps a pending replacement source add when rename coordination arrives after unlink', async () => {
+    const original = `${root}/original.md`
+    const target = `${root}/renamed.md`
+    await writeFile(original, 'renamed note')
+    await vi.waitFor(() => expect(builder.getNode(original)?.stats).toBeDefined(), { timeout: 4000 })
+    await rename(original, target)
+    await waitForRaw('unlink', original)
+    await vi.waitFor(() => expect(builder.getNode(target)?.stats).toBeDefined(), { timeout: 4000 })
+    expect(builder.getNode(original)).toBeNull()
+    await pauseAdd(original)
+    expect(builder.getNode(original)).toBeNull()
+    expect(builder.rename(original, target)).toBe(false)
+    await releaseStat()
+    expect(builder.getNode(original)?.stats).toBeDefined()
+    expect(builder.getNode(target)?.stats).toBeDefined()
+    expect(builder.root.hasChild('original.md')).toBe(true)
+    expect(builder.root.hasChild('renamed.md')).toBe(true)
+    expect(await readFile(original, 'utf8')).toBe('note')
+    expect(await readFile(target, 'utf8')).toBe('renamed note')
+    expect(events.map((event) => event.type)).toEqual(['added', 'removed', 'added', 'added'])
+    expect(events.filter((event) => event.type === 'added').map((event) => event.path)).toEqual([
+      original,
+      target,
+      original
+    ])
+  })
 })
