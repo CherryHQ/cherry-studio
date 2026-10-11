@@ -1,14 +1,24 @@
+import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import {
   admitRound,
   createGoal,
+  currentGoal,
   editGoal,
+  GOAL_ROUND_TYPE,
+  GOAL_STATE_TYPE,
+  goalView,
   hasCapacity,
+  isHumanTurn,
   phaseForStop,
   recordUsage,
+  renderRoundPrompt,
   resumeGoal,
-  stopGoal
+  stopGoal,
+  tailRound,
+  toolCallKey,
+  turnProgress
 } from '../src/goalState'
 
 const limits = { maxGoalRounds: 100, maxGoalRoundsCeiling: 1000 }
@@ -177,4 +187,126 @@ describe('goal limit rules', () => {
       expect(editGoal(goal, { maxGoalRounds: 3 }, 1000, 4)).toMatchObject({ phase: 'paused', maxGoalRounds: 3 })
     }
   )
+})
+
+const base = (id: string) => ({ id, parentId: null, timestamp: new Date(1).toISOString() })
+const userEntry = (id: string, text: string): SessionEntry => ({
+  ...base(id),
+  type: 'message',
+  message: { role: 'user', content: text, timestamp: 1 }
+})
+const assistantEntry = (id: string, text: string): Extract<SessionEntry, { type: 'message' }> => ({
+  ...base(id),
+  type: 'message',
+  message: {
+    role: 'assistant',
+    content: [{ type: 'text', text }],
+    api: 'x',
+    provider: 'x',
+    model: 'x',
+    usage: {
+      input: 1,
+      output: 1,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 2,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    },
+    stopReason: 'stop',
+    timestamp: 1
+  }
+})
+const roundEntry = (id: string, round: number): SessionEntry => ({
+  ...base(id),
+  type: 'custom_message',
+  customType: GOAL_ROUND_TYPE,
+  content: 'go',
+  display: false,
+  details: { goalId: 'g1', revision: 2, round, kind: 'work' }
+})
+const stateEntry = (id: string, data: unknown): SessionEntry => ({
+  ...base(id),
+  type: 'custom',
+  customType: GOAL_STATE_TYPE,
+  data
+})
+
+describe('goal branch reading', () => {
+  const goal = createGoal('g', limits, {}, 1)
+
+  it('returns the last snapshot and nothing after a clear tombstone', () => {
+    expect(
+      currentGoal([stateEntry('a', goal), stateEntry('b', { ...goal, revision: 2, phase: 'paused' })])
+    ).toMatchObject({ revision: 2, phase: 'paused' })
+    expect(
+      currentGoal([stateEntry('a', goal), stateEntry('b', { id: goal.id, revision: 3, cleared: true, at: 2 })])
+    ).toBeUndefined()
+    expect(currentGoal([userEntry('u', 'hi')])).toBeUndefined()
+  })
+
+  it('tells a human turn from a goal round by the last user-side entry', () => {
+    expect(isHumanTurn([userEntry('u', 'do it'), assistantEntry('a', 'ok')])).toBe(true)
+    expect(
+      isHumanTurn([
+        userEntry('u', 'do it'),
+        assistantEntry('a', 'ok'),
+        roundEntry('r', 1),
+        assistantEntry('b', 'working')
+      ])
+    ).toBe(false)
+    expect(
+      isHumanTurn([
+        roundEntry('r', 1),
+        assistantEntry('b', 'working'),
+        userEntry('u2', 'stop'),
+        assistantEntry('c', 'ok')
+      ])
+    ).toBe(true)
+  })
+
+  it('reads a round only when it is the branch tail', () => {
+    expect(tailRound([userEntry('u', 'x'), roundEntry('r', 3)])).toMatchObject({ round: 3, goalId: 'g1' })
+    expect(tailRound([roundEntry('r', 3), assistantEntry('a', 'y')])).toBeUndefined()
+  })
+})
+
+describe('progress and prompts', () => {
+  const assistant = (text: string) => assistantEntry('a', text).message as any
+  const result = (toolName: string, isError = false) =>
+    ({ role: 'toolResult', toolCallId: 'c', toolName, content: [], isError, timestamp: 1 }) as any
+
+  it('counts a successful non-read tool call or a changed reply as progress', () => {
+    expect(turnProgress(assistant('same'), [result('read')], 'same')).toBe(false)
+    expect(turnProgress(assistant('same'), [result('todo_write')], 'same')).toBe(false)
+    expect(turnProgress(assistant('same'), [result('edit', true)], 'same')).toBe(false)
+    expect(turnProgress(assistant('same'), [result('edit')], 'same')).toBe(true)
+    expect(turnProgress(assistant('different now'), [], 'same')).toBe(true)
+    expect(turnProgress(assistant('  same \n'), [], 'same')).toBe(false)
+  })
+
+  it('keys tool calls by name and argument content, not object key order', () => {
+    expect(toolCallKey('read', { path: 'a', offset: 1 })).toBe(toolCallKey('read', { offset: 1, path: 'a' }))
+    expect(toolCallKey('read', { path: 'a' })).not.toBe(toolCallKey('read', { path: 'b' }))
+  })
+
+  it('renders the objective as untrusted data with round, cap and the blocked threshold', () => {
+    const goal = createGoal('Fix <docs>', limits, { maxGoalRounds: 5 }, 1)
+    const text = renderRoundPrompt(goal, { goalId: goal.id, revision: 1, round: 2, kind: 'work' }, 3, 0)
+    expect(text).toContain('<untrusted_objective>Fix <docs></untrusted_objective>')
+    expect(text).toContain('Round: 2/5')
+    expect(text).toContain('3 consecutive')
+    expect(renderRoundPrompt(goal, { goalId: goal.id, revision: 1, round: 3, kind: 'hint' }, 3, 2)).toMatch(
+      /previous 2 rounds made no observable progress/
+    )
+    expect(renderRoundPrompt(goal, { goalId: goal.id, revision: 1, round: 5, kind: 'wrap-up' }, 3, 0)).toMatch(
+      /Do not start new work/
+    )
+  })
+
+  it('exposes the view the tools return', () => {
+    expect(goalView(undefined, false)).toEqual({ goal: null })
+    const view = goalView(createGoal('g', limits, {}, 1), true)
+    expect(view).toMatchObject({ activation: 'armed', goal: { objective: 'g', phase: 'active' } })
+    expect('wrapUpDone' in (view as any).goal).toBe(false)
+  })
 })
