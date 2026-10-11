@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -13,8 +14,8 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 
 import { buildAgentSessionTopicId } from '../agentSession/topic'
-import { removeAgentStorageSubdirectory } from './agentDataDirectory'
 import { sweepAgentOrphans } from './agentOrphanSweep'
+import { archiveSystemWorkspace, purgeSystemWorkspace, restoreSystemWorkspace } from './agentWorkspaceArchive'
 import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentLifecycleService')
@@ -76,21 +77,31 @@ export class AgentLifecycleService extends BaseService {
 
   restoreAgent(agentId: string) {
     return this.runOperation('restore-agent:' + agentId, () =>
-      this.agentLocks.runExclusive(agentId, () => {
-        const { agent, scheduleIds, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => {
-          const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId)
-          return {
-            agent,
-            restoredSessionIds,
-            scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
+      this.agentLocks.runExclusive(agentId, () =>
+        this.withOperationLocks(agentSessionService.listIdsByAgent(agentId), async () => {
+          const root = application.getPath('feature.agents.system_workspaces')
+          for (const workspace of agentSessionService.listSystemWorkspaceSessions(
+            agentSessionService.listIdsByAgent(agentId)
+          )) {
+            if (workspace.deletedAt !== null && workspace.deletedAt === workspace.agentDeletedAt) {
+              await restoreSystemWorkspace(root, workspace.path)
+            }
           }
+          const { agent, scheduleIds, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => {
+            const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId)
+            return {
+              agent,
+              restoredSessionIds,
+              scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
+            }
+          })
+          this.syncSchedules(scheduleIds)
+          application.get('ChannelManager').reconcileAgent(agentId)
+          agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
+          agentService.notifyReadModelChange([agentId], 'membership')
+          return agent
         })
-        this.syncSchedules(scheduleIds)
-        application.get('ChannelManager').reconcileAgent(agentId)
-        agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
-        agentService.notifyReadModelChange([agentId], 'membership')
-        return agent
-      })
+      )
     )
   }
 
@@ -114,7 +125,14 @@ export class AgentLifecycleService extends BaseService {
 
   restoreSession(id: string) {
     return this.runOperation('restore-session:' + id, () =>
-      this.sessionLocks.runExclusive(id, () => agentSessionService.restore(id))
+      this.sessionLocks.runExclusive(id, async () => {
+        for (const workspace of agentSessionService.listSystemWorkspaceSessions([id])) {
+          if (workspace.deletedAt !== null) {
+            await restoreSystemWorkspace(application.getPath('feature.agents.system_workspaces'), workspace.path)
+          }
+        }
+        return agentSessionService.restore(id)
+      })
     )
   }
 
@@ -160,7 +178,19 @@ export class AgentLifecycleService extends BaseService {
   }
 
   sweepOrphans(signal?: AbortSignal) {
-    return this.runOperation('sweep-agent-orphans', () => sweepAgentOrphans(signal))
+    return this.runOperation('sweep-agent-orphans', async () => {
+      if (hasPendingRestore()) return sweepAgentOrphans(signal)
+      for (const { id, deletedAt } of agentSessionService.listSystemWorkspaceSessions()) {
+        signal?.throwIfAborted()
+        if (deletedAt === null) continue
+        await this.sessionLocks.runExclusive(id, async () => {
+          if (agentSessionService.listSystemWorkspaceSessions([id]).some((workspace) => workspace.deletedAt !== null)) {
+            await this.finishDeletion([id], [])
+          }
+        })
+      }
+      return sweepAgentOrphans(signal)
+    })
   }
 
   pauseIngress(reason?: string): Disposable {
@@ -301,6 +331,7 @@ export class AgentLifecycleService extends BaseService {
         const failedDrain = drains.find((result): result is PromiseRejectedResult => result.status === 'rejected')
         if (failedDrain) throw failedDrain.reason
 
+        const workspaces = agentSessionService.listSystemWorkspaceSessions(expiredSessionIds)
         const purgedIds =
           expiredSessionIds.length === 0
             ? []
@@ -308,6 +339,9 @@ export class AgentLifecycleService extends BaseService {
                 .get('DbService')
                 .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
         agentSessionService.notifyPurged(purgedIds)
+        await this.removePurgedSystemWorkspaces(
+          workspaces.filter(({ id }) => purgedIds.includes(id)).map(({ path }) => path)
+        )
         return { purgedIds, hasMore: sessionIds.length === limit }
       } finally {
         for (const release of releases.reverse()) release()
@@ -406,9 +440,21 @@ export class AgentLifecycleService extends BaseService {
     const root = application.getPath('feature.agents.system_workspaces')
     for (const workspacePath of paths) {
       try {
-        await removeAgentStorageSubdirectory(root, workspacePath)
+        await purgeSystemWorkspace(root, workspacePath)
       } catch (error) {
         logger.warn('Failed to remove purged Agent Session workspace', { workspacePath, error })
+      }
+    }
+  }
+
+  private async archiveSystemWorkspaces(ids: string[]): Promise<void> {
+    const root = application.getPath('feature.agents.system_workspaces')
+    for (const workspace of agentSessionService.listSystemWorkspaceSessions(ids)) {
+      if (workspace.deletedAt === null) continue
+      try {
+        await archiveSystemWorkspace(root, workspace.path)
+      } catch (error) {
+        logger.warn('Failed to archive system workspace; retained for retry', { workspacePath: workspace.path, error })
       }
     }
   }
@@ -465,6 +511,7 @@ export class AgentLifecycleService extends BaseService {
         error: result.reason
       })
     })
+    await this.archiveSystemWorkspaces(sessionIds.filter((_, index) => closed[index].status === 'fulfilled'))
   }
 
   private async withStableSessions<T>(

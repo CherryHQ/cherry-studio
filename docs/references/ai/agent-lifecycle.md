@@ -7,6 +7,7 @@ sources:
   - src/main/data/services/AgentTaskService.ts
   - src/main/ai/agents/AgentJobsService.ts
   - src/main/ai/agents/agentOrphanSweep.ts
+  - src/main/ai/agents/agentWorkspaceArchive.ts
   - src/main/services/LegacyBackupManager.ts
 ---
 
@@ -141,10 +142,24 @@ deletion shares the Agent deletion transaction, and subscription removal follows
 the existing FK cascade. File reclamation happens after DB commit and can retry.
 
 `agentOrphanSweep` belongs to the AI domain. Archived rows still claim their
-Agent directories, system workspaces, and native resume artifacts. Runtime-owned
+Agent directories, system workspace archives, and native resume artifacts. Runtime-owned
 live tokens also protect native artifacts. The sweep preserves its freshness
 gate and pending-backup-restore exclusion. User-selected workspace directories
 are never recursively deleted by this workflow.
+
+After a Session is archived and its runtime closes, its system workspace is
+compressed to a sibling `<sessionId>.tar.gz`. User workspace rows and directories
+are retained unchanged. Compression uses an `.archiving` directory and a temporary
+archive; the original contents are removed only after the archive is validated
+and published. Failures retain the files for a later lifecycle sweep to retry.
+Linked or special files prevent compression rather than being silently omitted.
+
+Restore extracts into a `.restoring` directory and publishes the complete directory
+at its original path before restoring the Session's database state. Agent restore
+does this only for Sessions archived together with that Agent. Interrupted archive
+and restore artifacts remain claimed while the workspace row exists. Explicit
+purge and retention cleanup remove both the workspace and its archive artifacts;
+the orphan sweep reclaims residue after their database rows have disappeared.
 
 ## Backup and shutdown
 

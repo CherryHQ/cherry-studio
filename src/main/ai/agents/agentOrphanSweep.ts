@@ -11,6 +11,8 @@ import { listEntries, reclaimStale } from '@main/ai/runtime/orphanSessionReclaim
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 
+import { WORKSPACE_ARCHIVE_SUFFIXES } from './agentWorkspaceArchive'
+
 const logger = loggerService.withContext('AgentOrphanSweep')
 
 /** Per-agent dirs are named by `agent.id` (uuid v4). */
@@ -41,8 +43,8 @@ export interface AgentSweepReport {
  *  - each runtime driver's own session persistence, claimed by the union of
  *    resume tokens on surviving `agent_session_message` rows and the live runtime snapshot.
  *
- * Trashed agents/sessions keep everything: their rows (and tokens) are still
- * there, so restore stays lossless. Removal failures are logged for the next run.
+ * Trashed sessions claim compressed workspaces and interrupted-operation artifacts
+ * too, so restore stays lossless. Removal failures are logged for the next run.
  *
  * Every pass is freshness-gated: the keep-sets are one snapshot, so a dir created
  * before its claiming row commits would otherwise read as an orphan and be lost.
@@ -72,7 +74,7 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       .select({ path: agentWorkspaceTable.path })
       .from(agentWorkspaceTable)
       .all()
-      .map((row) => path.resolve(row.path))
+      .flatMap((row) => ['', ...WORKSPACE_ARCHIVE_SUFFIXES].map((suffix) => path.resolve(`${row.path}${suffix}`)))
   )
 
   const removed: string[] = []
@@ -92,7 +94,11 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
     const dateDir = path.resolve(workspacesRoot, dateEntry.name)
     for (const sessionEntry of await listEntries(dateDir)) {
       signal?.throwIfAborted()
-      if (!sessionEntry.isDirectory()) continue
+      if (
+        !sessionEntry.isDirectory() &&
+        !WORKSPACE_ARCHIVE_SUFFIXES.some((suffix) => sessionEntry.name.endsWith(suffix))
+      )
+        continue
       const sessionDir = path.resolve(dateDir, sessionEntry.name)
       if (claimedWorkspaces.has(sessionDir)) continue
       if (await reclaim(sessionDir, removed, options)) workspaceDirs++
