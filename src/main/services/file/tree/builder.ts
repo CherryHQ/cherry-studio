@@ -536,15 +536,8 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     const newNorm = normalizePath(newPath)
     if (oldNorm === newNorm) return false
     const node = this.map.get(oldNorm)
-    if (!node) {
-      // Race: chokidar's unlink already fired and removed the node. The
-      // renderer has applied `removed`; the matching `added` for newNorm is
-      // either pending or already applied. Identity is lost but we keep
-      // the dedup window armed so the still-pending events don't
-      // double-apply over what the renderer is about to receive.
-      this.markRenamed(oldNorm, newNorm)
-      return false
-    }
+    // If unlink won the race, let the pending add recreate the target node.
+    if (!node) return false
 
     if (this.shouldIgnorePath(newNorm)) {
       this.markRenamed(oldNorm, newNorm)
