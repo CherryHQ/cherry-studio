@@ -131,6 +131,71 @@ describe('useProviderDeepLinkImport', () => {
     expect(toast.success).toHaveBeenCalledTimes(1)
   })
 
+  it('waits for provider list hydration before updating an existing provider', async () => {
+    const onSelectProvider = vi.fn()
+    providersFixture = []
+
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'anthropic',
+        name: 'Anthropic',
+        type: 'anthropic',
+        apiKey: 'sk-anthropic',
+        apiHost: 'https://api.anthropic.com'
+      },
+      isNew: false,
+      displayName: 'Anthropic'
+    })
+
+    const { rerender } = renderHook(({ data }) => useProviderDeepLinkImport(data, onSelectProvider), {
+      initialProps: {
+        data: JSON.stringify({
+          id: 'anthropic',
+          apiKey: 'sk-anthropic',
+          baseUrl: 'https://api.anthropic.com',
+          type: 'anthropic',
+          name: 'Anthropic'
+        })
+      }
+    })
+
+    await waitFor(() => expect(popupShowMock).toHaveBeenCalledTimes(1))
+    expect(updateProviderByIdMock).not.toHaveBeenCalled()
+
+    providersFixture = [
+      {
+        id: 'anthropic',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            baseUrl: 'https://old.example.com',
+            reasoningFormat: { type: 'self-hosted' }
+          }
+        }
+      }
+    ]
+    rerender({
+      data: JSON.stringify({
+        id: 'anthropic',
+        apiKey: 'sk-anthropic',
+        baseUrl: 'https://api.anthropic.com',
+        type: 'anthropic',
+        name: 'Anthropic'
+      })
+    })
+
+    await waitFor(() => expect(updateProviderByIdMock).toHaveBeenCalledTimes(1))
+    expect(updateProviderByIdMock).toHaveBeenCalledWith('anthropic', {
+      name: 'Anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://api.anthropic.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+  })
+
   it('updates an existing provider when the deep link resolves to an existing entry', async () => {
     const onSelectProvider = vi.fn()
 
