@@ -223,6 +223,31 @@ describe('ErrorBlock', () => {
     expect(screen.queryByRole('button', { name: 'Retry smaller' })).not.toBeInTheDocument()
   })
 
+  it('hides the reduced-context retry when no recovery action is available', () => {
+    const i18nKey = 'ollama_context_memory'
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+    mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
+    mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
+    mocks.actions = {}
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: 'out of memory',
+          stack: null,
+          i18nKey,
+          ollamaTrainedNumCtx: 131_072,
+          ollamaEffectiveNumCtx: 65_536
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'Retry smaller' })).not.toBeInTheDocument()
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')

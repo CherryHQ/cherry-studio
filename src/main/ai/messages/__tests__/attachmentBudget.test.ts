@@ -1,8 +1,28 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { createUniqueModelId } from '@shared/data/types/model'
 
-import { allocateAttachmentBudget, allocateInlineCaps } from '../attachmentBudget'
+import { makeModel, makeProvider } from '../../__tests__/fixtures'
+import { allocateAttachmentBudget, allocateInlineCaps, resolveAttachmentBudgetContextWindow } from '../attachmentBudget'
+
+vi.mock('node:os', () => ({
+  default: { freemem: () => 8 * 1024 ** 3, totalmem: () => 16 * 1024 ** 3 }
+}))
+
+const { mockGetProviderById, mockGetModelByKey } = vi.hoisted(() => ({
+  mockGetProviderById: vi.fn(),
+  mockGetModelByKey: vi.fn()
+}))
+
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: { getByProviderId: mockGetProviderById }
+}))
+
+vi.mock('@main/data/services/ModelService', () => ({
+  modelService: { getByKey: mockGetModelByKey }
+}))
 
 /** One token per character, so allocations read directly as character counts. */
 const charTokenizer = { id: 'chars', count: (text: string) => text.length }
@@ -97,3 +117,57 @@ describe('allocateInlineCaps', () => {
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0)
 }
+
+describe('resolveAttachmentBudgetContextWindow', () => {
+  beforeEach(() => {
+    mockGetProviderById.mockReset()
+    mockGetModelByKey.mockReset()
+  })
+
+  it('budgets against the smallest window among configured fallbacks', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({
+      id: 'openai::gpt-4',
+      providerId: 'openai',
+      contextWindow: 131_072
+    })
+    const fallbackUniqueId = createUniqueModelId('ollama', 'qwen3')
+    const fallbackProvider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const fallbackModel = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 131_072
+    })
+
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'ollama') return fallbackProvider
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'ollama' && modelId === 'qwen3') return fallbackModel
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: []
+      })
+    ).toBe(131_072)
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId]
+      })
+    ).toBe(32_768)
+  })
+})

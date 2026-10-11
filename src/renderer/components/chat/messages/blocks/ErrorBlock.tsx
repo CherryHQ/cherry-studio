@@ -244,7 +244,9 @@ const MessageErrorInfo: React.FC<{
   const ollamaRetryCurrentCtx = readOllamaRetryNumCtx(error)
   const ollamaRetryReducedCtx =
     ollamaRetryCurrentCtx != null ? suggestReducedOllamaNumCtx(ollamaRetryCurrentCtx) : undefined
+  const canRecoverOllamaContext = Boolean(regenerateMessageUsingModel || regenerateMessage || notifyInfo)
   const canRetryOllamaContext =
+    canRecoverOllamaContext &&
     errorI18nKey === 'ollama_context_memory' &&
     ollamaRetryCurrentCtx != null &&
     ollamaRetryReducedCtx != null &&

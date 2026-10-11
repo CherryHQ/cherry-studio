@@ -14,6 +14,7 @@ import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import type * as EndpointModule from '@main/ai/provider/endpoint'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -63,7 +64,7 @@ vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProviderById }
 }))
 vi.mock('@main/ai/provider/endpoint', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@main/ai/provider/endpoint')>()
+  const actual = await importOriginal<typeof EndpointModule>()
   return {
     ...actual,
     resolveEffectiveEndpoint: mockResolveEffectiveEndpoint

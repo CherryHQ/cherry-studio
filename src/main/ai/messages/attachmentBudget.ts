@@ -14,15 +14,20 @@ import type { ToolSet, UIMessage } from 'ai'
  */
 import { ATTACHMENT_INPUT_SAFETY_RATIO } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
+import { resolveMinContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveModelTokenDialect } from '@main/ai/tokens/dialect'
 import { countToolTokens, estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
 import { serializeToolSchema } from '@main/ai/tools/adapters/aiSdk/meta/schemaStub'
-import { resolveModelRequestContextWindow } from '@main/ai/utils/ollamaRequestNumCtx'
+import { resolveModelRequestContextWindow, resolveRequestContextWindow } from '@main/ai/utils/ollamaRequestNumCtx'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
-import type { EndpointType, Model } from '@shared/data/types/model'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
+import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
+import { isUniqueModelId, type EndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { MediaCapabilities } from './messageCapabilities'
@@ -32,6 +37,50 @@ import { toModelMessages } from './messageRules'
 export interface AttachmentBudget {
   tokens: number
   tokenizer: TextTokenizer
+}
+
+/** Smallest effective window across the primary and configured retry fallbacks. */
+export function resolveAttachmentBudgetContextWindow(input: {
+  provider: Provider
+  model: Model
+  endpointType?: EndpointType
+  runtimeProviderId?: string
+  ollamaNumCtx?: OllamaNumCtxRequestSnapshot | null
+  fallbackModelIds: readonly string[]
+}): number | undefined {
+  const endpoint = input.endpointType ?? resolveEffectiveEndpoint(input.provider, input.model).endpointType
+  const runtimeProviderId = input.runtimeProviderId ?? resolveAiSdkProviderId(input.provider, endpoint)
+  const windows: number[] = []
+  const primary = resolveRequestContextWindow(
+    input.model,
+    input.provider,
+    endpoint,
+    runtimeProviderId,
+    input.ollamaNumCtx
+  )
+  if (primary != null) windows.push(primary)
+
+  for (const configuredId of input.fallbackModelIds) {
+    if (!isUniqueModelId(configuredId)) continue
+    try {
+      const { providerId, modelId } = parseUniqueModelId(configuredId)
+      const fallbackProvider = providerService.getByProviderId(providerId)
+      const fallbackModel = modelService.getByKey(providerId, modelId)
+      const fallbackEndpoint = resolveEffectiveEndpoint(fallbackProvider, fallbackModel)
+      const fallbackRuntimeId = resolveAiSdkProviderId(fallbackProvider, fallbackEndpoint.endpointType)
+      const window = resolveRequestContextWindow(
+        fallbackModel,
+        fallbackProvider,
+        fallbackEndpoint.endpointType,
+        fallbackRuntimeId
+      )
+      if (window != null) windows.push(window)
+    } catch {
+      // Unknown fallbacks are skipped at retry time too.
+    }
+  }
+
+  return resolveMinContextWindow(windows) ?? undefined
 }
 
 export interface AttachmentBudgetInput {

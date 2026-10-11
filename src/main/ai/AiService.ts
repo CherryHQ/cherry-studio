@@ -70,7 +70,7 @@ import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
-import { resolveAttachmentBudget } from './messages/attachmentBudget'
+import { resolveAttachmentBudget, resolveAttachmentBudgetContextWindow } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { applyHttpTrace } from './observability'
@@ -658,6 +658,8 @@ export class AiService extends BaseService {
     repairUsagePlugins.current = [usagePlugin]
 
     const mediaCapabilities = resolveMediaCapabilities(model)
+    const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
+    const effectiveEndpoint = resolveEffectiveEndpoint(provider, model)
 
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file). The cap is
@@ -673,9 +675,16 @@ export class AiService extends BaseService {
           ? ((await resolveAttachmentBudget({
               provider,
               model,
-              endpointType: resolveEffectiveEndpoint(provider, model).endpointType,
+              endpointType: effectiveEndpoint.endpointType,
               runtimeProviderId: sdkConfig.providerId,
-              requestContextWindow: requestContext?.ollamaNumCtx?.numCtx,
+              requestContextWindow: resolveAttachmentBudgetContextWindow({
+                provider,
+                model,
+                endpointType: effectiveEndpoint.endpointType,
+                runtimeProviderId: sdkConfig.providerId,
+                ollamaNumCtx: requestContext?.ollamaNumCtx ?? null,
+                fallbackModelIds: retryDisabledForRequest ? [] : readRetryPolicy().fallbackModelIds
+              }),
               system,
               tools,
               maxOutputTokens: options.maxOutputTokens,
@@ -688,7 +697,6 @@ export class AiService extends BaseService {
 
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
-    const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
     const agentRef: { current?: Agent } = {}
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
