@@ -72,7 +72,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/services/voice', () => ({
-  autoReadCoordinator: {
+  autoReadService: {
     consume: mocks.autoReadConsume,
     setEnabled: mocks.autoReadSetEnabled
   }

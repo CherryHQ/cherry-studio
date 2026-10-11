@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
 
-import { AutoReadCoordinator } from '../AutoReadCoordinator'
+import { AutoReadService } from '../AutoReadService'
 import type { SpeechPlaybackStartResult } from '../SpeechPlaybackService'
 import { VoiceDomainError } from '../VoiceService'
 
@@ -23,11 +23,11 @@ function createHarness() {
     stopAutoRead: vi.fn(async () => true)
   }
   const reportError = vi.fn()
-  const coordinator = new AutoReadCoordinator({ playback, reportError })
+  const coordinator = new AutoReadService({ playback, reportError })
   return { coordinator, playback, reportError }
 }
 
-describe('AutoReadCoordinator', () => {
+describe('AutoReadService', () => {
   beforeEach(() => vi.restoreAllMocks())
 
   it('plays only natural-language text for an eligible live completion', async () => {

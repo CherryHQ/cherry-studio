@@ -17,7 +17,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
-import { autoReadCoordinator, readMessageAloud, voiceTargetManager } from '@renderer/services/voice'
+import { autoReadService, readMessageAloud, voiceTargetManager } from '@renderer/services/voice'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -163,7 +163,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   )
 
   useEffect(() => {
-    void autoReadCoordinator.setEnabled(autoReadEnabled)
+    void autoReadService.setEnabled(autoReadEnabled)
   }, [autoReadEnabled])
 
   useEffect(() => {
@@ -197,7 +197,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         return
       }
 
-      void autoReadCoordinator.consume({
+      void autoReadService.consume({
         enabled: autoReadEnabled,
         message,
         attemptId,

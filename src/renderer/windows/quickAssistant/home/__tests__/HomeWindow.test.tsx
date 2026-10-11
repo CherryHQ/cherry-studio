@@ -133,7 +133,7 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 }))
 
 vi.mock('@renderer/services/voice', () => ({
-  autoReadCoordinator: {
+  autoReadService: {
     consume: state.autoReadConsume,
     setEnabled: state.autoReadSetEnabled
   },
