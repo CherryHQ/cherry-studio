@@ -2,12 +2,20 @@
 
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CodeEditor from '../code-editor'
 import type { CodeEditorHandles } from '../types'
 
-afterEach(cleanup)
+beforeEach(() => {
+  // Text replacement and undo do not depend on layout, which jsdom cannot measure.
+  vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 describe('CodeEditor range replacement', () => {
   it('inserts at an empty document caret', async () => {
