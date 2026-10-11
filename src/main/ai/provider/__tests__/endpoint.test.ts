@@ -419,6 +419,30 @@ describe('resolveEffectiveEndpoint', () => {
     )
   })
 
+  it('keeps the configured chat route when image-generation lacks the newapi adapter family (#21443)', () => {
+    const provider = makeProvider({
+      id: 'relay',
+      presetProviderId: 'new-api',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://relay.example.com',
+          adapterFamily: 'newapi'
+        },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+          baseUrl: 'https://relay.example.com'
+        }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gpt-image-1',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'image').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+  })
+
   it('keeps the OpenAI image route for chat-primary New API Gemini image models when resolving for image (#21443)', () => {
     const provider = makeProvider({
       id: 'aionly',

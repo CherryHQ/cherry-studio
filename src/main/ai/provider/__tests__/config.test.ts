@@ -1924,5 +1924,40 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('newapi')
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://relay.example.com/v1')
     })
+
+    it('routes image generation through the New API chat endpoint when image-generation is configured without newapi (#21443)', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
+      const provider = makeProvider({
+        id: 'relay',
+        presetProviderId: 'new-api',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://relay.example.com',
+            adapterFamily: 'newapi'
+          },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+            baseUrl: 'https://relay.example.com'
+          }
+        }
+      })
+      const model = makeModel({
+        apiModelId: 'gpt-image-1',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+      const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, undefined, 'image')
+
+      const { config } = await resolveProviderAiSdkConfig(provider, model, { resolvedEndpoint })
+      const settings = config.providerSettings as { baseURL: string; fetch: typeof fetch }
+
+      expect(resolvedEndpoint.endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      expect(config.providerId).toBe('newapi')
+      expect(settings.baseURL).toBe('https://relay.example.com/v1')
+      await settings.fetch(`${settings.baseURL}/images/generations`, { method: 'POST' })
+      expect(net.fetch).toHaveBeenCalledWith(
+        'https://relay.example.com/v1/images/generations',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
   })
 })

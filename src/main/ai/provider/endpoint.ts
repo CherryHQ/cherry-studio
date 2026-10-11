@@ -60,7 +60,7 @@ function resolveNewApiModelEndpoint(
     const imageEndpoint = endpointTypes.find(
       (endpointType) =>
         endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION &&
-        provider.endpointConfigs?.[endpointType]
+        provider.endpointConfigs?.[endpointType]?.adapterFamily === 'newapi'
     )
     return imageEndpoint ?? primaryEndpoint
   }
