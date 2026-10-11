@@ -130,4 +130,50 @@ describe('assistant editor notification reconciliation', () => {
     expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Later external edit')
     expect(patches).toEqual([{ description: 'Local draft' }])
   })
+
+  it('acknowledges a normalized save before a later external name and description update', async () => {
+    const user = userEvent.setup()
+    await openEditor()
+    const name = screen.getByRole('textbox', { name: 'Name' })
+    await user.clear(name)
+    await user.type(name, 'Local ')
+    await settleAutoSave()
+    expect(persisted.name).toBe('Local')
+
+    persisted = { ...persisted, name: 'External', description: 'Remote' }
+    await act(async () => emit())
+    await settleAutoSave()
+    expect(name).toHaveValue('External')
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Remote')
+    expect(persisted.name).toBe('External')
+    expect(patches).toEqual([{ name: 'Local' }])
+  })
+
+  it('retains new input entered while a normalized name save is in flight', async () => {
+    const user = userEvent.setup()
+    const request = bridge.request.getMockImplementation()!
+    let started = false
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    bridge.request.mockImplementation(async (input: DataRequest) => {
+      if (input.method === 'PATCH' && UpdateAssistantSchema.parse(input.body).name === 'Local') {
+        started = true
+        await gate
+      }
+      return request(input)
+    })
+    await openEditor()
+    const name = screen.getByRole('textbox', { name: 'Name' })
+    await user.clear(name)
+    await user.type(name, 'Local ')
+    await waitFor(() => expect(started).toBe(true))
+    await user.type(name, 'draft')
+    await act(async () => release())
+    expect(name).toHaveValue('Local draft')
+    await settleAutoSave()
+    expect(persisted.name).toBe('Local draft')
+    expect(patches).toEqual([{ name: 'Local' }, { name: 'Local draft' }])
+  })
 })

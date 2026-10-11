@@ -277,15 +277,20 @@ function AssistantEditDialogContent({
     if (!justOpened && resource === baselineResource) return
 
     // Rebase untouched fields while retaining only changes made against the editing snapshot.
+    const nextDefaultValues = defaultValuesForAssistant(resource)
     const localValues = justOpened
       ? {}
       : Object.fromEntries(
-          Object.entries(form.getValues()).filter(
-            ([name, value]) =>
-              JSON.stringify(value) !== JSON.stringify(defaultValues[name as keyof AssistantEditFormValues])
-          )
+          Object.entries(form.getValues()).filter(([name, value]) => {
+            const key = name as keyof AssistantEditFormValues
+            const persistedValue = name === 'name' && typeof value === 'string' ? value.trim() : value
+            return (
+              JSON.stringify(value) !== JSON.stringify(defaultValues[key]) &&
+              JSON.stringify(persistedValue) !== JSON.stringify(nextDefaultValues[key])
+            )
+          })
         )
-    form.reset(defaultValuesForAssistant(resource), { keepErrors: !justOpened })
+    form.reset(nextDefaultValues, { keepErrors: !justOpened })
     setFormValues(form, localValues)
     setBaselineResource(resource)
     if (!justOpened) {
