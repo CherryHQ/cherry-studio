@@ -911,13 +911,28 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     input: AgentRuntimeUserInput,
     previousMessage: SDKUserMessage
   ): Promise<boolean> {
+    // The replay re-opens the same host turn, so it keeps that turn's live permission mode — the
+    // one mid-turn reconciliation freezes (a row save defers to the next turn boundary). A mode
+    // saved during the backoff must not reach the rebuilt query's SDK settings or the shared
+    // approval snapshot; a baseline that cannot prove the live mode cannot preserve it — decline.
+    const livePermissionMode = (this.connectionConfig?.live.toolPolicy.permissionMode ??
+      null) as AgentPermissionMode | null
+    const turnActive = this.adapter?.isTurnActive === true
+    if (turnActive && this.connectionConfig === undefined) {
+      logger.warn('Declining the fallback replay: the live turn permission mode cannot be read', {
+        sessionId: this.input.sessionId,
+        fallbackModelId: decision.fallbackModelId
+      })
+      return false
+    }
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
       decision.fallbackModelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      turnActive ? livePermissionMode : undefined
     ).catch((cause) => {
       logger.warn('Failed to build the fallback-model query request; surfacing the original turn error', {
         sessionId: this.input.sessionId,

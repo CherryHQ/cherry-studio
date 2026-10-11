@@ -28,7 +28,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -480,18 +480,32 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Fast selection frozen when the turn was submitted. */
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /**
+   * The permission mode the replayed turn was admitted under. A fallback rebuild carries it into
+   * the SDK settings, the shared approval snapshot, and the baseline, so a mode saved mid-backoff
+   * cannot re-admit the replay under it — the same change mid-turn reconciliation itself defers.
+   * `null` pins "no stored mode" (the SDK default); omitted ⇒ the builder reads the agent row.
+   */
+  pinnedPermissionMode?: AgentPermissionMode | null
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 
-  const agent = agentService.getAgent(session.agentId)
-  if (!agent?.model) return undefined
+  const agentRow = agentService.getAgent(session.agentId)
+  if (!agentRow?.model) return undefined
+  const agent: AgentEntity =
+    pinnedPermissionMode !== undefined
+      ? {
+          ...agentRow,
+          configuration: { ...agentRow.configuration, permission_mode: pinnedPermissionMode ?? undefined }
+        }
+      : agentRow
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
-  const uniqueModelId = connectionModelId ?? agent.model
+  const uniqueModelId = connectionModelId ?? agentRow.model
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
