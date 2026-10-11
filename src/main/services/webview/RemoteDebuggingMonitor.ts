@@ -1,3 +1,6 @@
+import { get, type IncomingMessage } from 'node:http'
+import { json } from 'node:stream/consumers'
+
 import type { Protocol } from 'devtools-protocol'
 import WebSocket from 'ws'
 
@@ -70,10 +73,16 @@ export class RemoteDebuggingMonitor {
     this.request = request
     try {
       const port = await this.getPort()
-      const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
-        signal: AbortSignal.any([request.signal, AbortSignal.timeout(1000)])
+      // Fetch rejects some valid CDP ports (for example 6000) before making a request.
+      const response = await new Promise<IncomingMessage>((resolve, reject) => {
+        get(`http://127.0.0.1:${port}/json/version`, {
+          agent: false,
+          signal: AbortSignal.any([request.signal, AbortSignal.timeout(1000)])
+        })
+          .on('response', resolve)
+          .on('error', reject)
       })
-      const version = (await response.json()) as { webSocketDebuggerUrl: string }
+      const version = (await json(response)) as { webSocketDebuggerUrl: string }
       if (this.stopped || generation !== this.generation) return
       const address = new URL(version.webSocketDebuggerUrl)
       if (

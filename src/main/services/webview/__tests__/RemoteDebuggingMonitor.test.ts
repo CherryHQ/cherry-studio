@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws'
 
 import { RemoteDebuggingMonitor } from '../RemoteDebuggingMonitor'
 
-describe('RemoteDebuggingMonitor', () => {
+describe.each([0, 6000])('RemoteDebuggingMonitor on port %i', (listenPort) => {
   let server: Server
   let sockets: WebSocketServer
   let monitor: RemoteDebuggingMonitor
@@ -37,7 +37,10 @@ describe('RemoteDebuggingMonitor', () => {
         )
       })
     })
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(listenPort, '127.0.0.1', resolve)
+    })
     port = (server.address() as AddressInfo).port
     monitor = new RemoteDebuggingMonitor(async () => port, changes)
   })
@@ -45,6 +48,7 @@ describe('RemoteDebuggingMonitor', () => {
   afterEach(async () => {
     monitor.stop()
     for (const client of sockets.clients) client.terminate()
+    server.closeAllConnections()
     await new Promise<void>((resolve) => sockets.close(() => resolve()))
     await new Promise<void>((resolve) => server.close(() => resolve()))
   })
@@ -78,5 +82,45 @@ describe('RemoteDebuggingMonitor', () => {
     monitor.stop()
     expect(monitor.isAttached('page-one')).toBe(false)
     expect(changes).toHaveBeenLastCalledWith('page-one', false)
+  })
+
+  it.each([false, true])('cancels discovery on stop (response body started: %s)', async (bodyStarted) => {
+    const received = vi.fn()
+    const closed = vi.fn()
+    server.removeAllListeners('request')
+    server.on('request', (_request, response) => {
+      received()
+      response.on('close', closed)
+      if (bodyStarted) response.write('{"webSocketDebuggerUrl":')
+    })
+
+    monitor.start()
+    await vi.waitFor(() => expect(received).toHaveBeenCalledTimes(1))
+    monitor.stop()
+
+    await vi.waitFor(() => expect(closed).toHaveBeenCalledTimes(1))
+    expect(sockets.clients.size).toBe(0)
+    expect(monitor.getAttachedTargetIds()).toEqual([])
+  })
+
+  it.each([false, true])('retries after a discovery timeout (response body started: %s)', async (bodyStarted) => {
+    let requests = 0
+    const closed = vi.fn()
+    server.removeAllListeners('request')
+    server.on('request', (_request, response) => {
+      if (++requests === 1) {
+        response.on('close', closed)
+        if (bodyStarted) response.write('{"webSocketDebuggerUrl":')
+        return
+      }
+      response.end(JSON.stringify({ webSocketDebuggerUrl: `ws://127.0.0.1:${port}/devtools/browser/test` }))
+    })
+
+    monitor.start()
+
+    await vi.waitFor(() => expect(monitor.isAttached('page-one')).toBe(true), { timeout: 4500 })
+    expect(closed).toHaveBeenCalledTimes(1)
+    expect(requests).toBe(2)
+    expect(commands).toEqual(['Target.setDiscoverTargets'])
   })
 })
