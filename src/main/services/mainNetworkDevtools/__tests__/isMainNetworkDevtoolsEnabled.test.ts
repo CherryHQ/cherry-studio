@@ -1,21 +1,15 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { preferenceTable } from '@data/db/schemas/preference'
 
 const platformMock = vi.hoisted(() => ({ isDev: false }))
-const applicationMock = vi.hoisted(() => ({
-  getPath: vi.fn()
-}))
 
 vi.mock('@main/core/platform', () => ({
   get isDev() {
     return platformMock.isDev
   }
-}))
-
-vi.mock('@application', () => ({
-  application: applicationMock
 }))
 
 import { isDeveloperModeEnabledAtStartup, isMainNetworkDevtoolsEnabled } from '../isMainNetworkDevtoolsEnabled'
@@ -25,7 +19,7 @@ describe('isMainNetworkDevtoolsEnabled', () => {
 
   beforeEach(() => {
     platformMock.isDev = false
-    applicationMock.getPath.mockImplementation((key: string) => {
+    vi.spyOn(application, 'getPath').mockImplementation((key: string) => {
       if (key === 'app.database.file') return dbh.sqlite.name
       throw new Error(`unexpected path key: ${key}`)
     })
