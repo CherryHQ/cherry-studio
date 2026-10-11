@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { ASSISTANT_DATA_CHANGE_DIMENSIONS } from '@shared/data/api/schemas/assistants'
 import type { DataApiDataChangeEffect, DataRequest } from '@shared/data/api/types'
 import type { Assistant } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -93,7 +94,16 @@ describe('assistant read-model convergence', () => {
         expect(receiver.result.current.detail.assistant?.name).toBe('Renamed')
       })
     assistants.reverse()
-    await act(async () => emit([{ endpoint: '/assistants', kind: 'projection', entityIds: ['added'] }]))
+    await act(async () =>
+      emit([
+        {
+          endpoint: '/assistants',
+          kind: 'order',
+          dimension: ASSISTANT_DATA_CHANGE_DIMENSIONS.order.orderKey,
+          entityIds: ['added']
+        }
+      ])
+    )
     for (const receiver of receivers)
       await waitFor(() =>
         expect(receiver.result.current.list.assistants.map((item) => item.id)).toEqual(['target', 'added'])
@@ -150,7 +160,16 @@ describe('assistant read-model convergence', () => {
     await waitFor(() => expect(catalog.result.current.isLoading).toBe(false))
     expect(catalog.result.current.data).toEqual([])
     assistants = [assistant('target', 'Renamed')]
-    await act(async () => emit([{ endpoint: '/assistants', kind: 'projection', entityIds: ['target'] }]))
+    await act(async () =>
+      emit([
+        {
+          endpoint: '/assistants',
+          kind: 'membership',
+          dimension: ASSISTANT_DATA_CHANGE_DIMENSIONS.membership.search,
+          entityIds: ['target']
+        }
+      ])
+    )
     await waitFor(() => expect(catalog.result.current.data.map((item) => item.name)).toEqual(['Renamed']))
   })
 })

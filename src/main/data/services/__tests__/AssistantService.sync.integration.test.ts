@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
-import { ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
+import { groupService } from '@data/services/GroupService'
+import { ASSISTANT_DATA_CHANGE_DIMENSIONS, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -28,6 +29,14 @@ describe('assistant post-commit read-model notifications', () => {
     expect(effects).toContainEqual({ endpoint: '/assistants/:id', entityIds: [id] })
   }
 
+  function assertFacet(id: string, kind: 'membership' | 'order', dimension: string) {
+    expect(effects).toContainEqual({ endpoint: '/assistants', kind, dimension, entityIds: [id] })
+    const canonical = ASSISTANT_DATA_CHANGE_DIMENSIONS[kind]
+    expect(Object.values(canonical)).toContain(dimension)
+    if (kind === 'membership') expect(Object.keys(ListAssistantsQuerySchema.shape)).toContain(dimension)
+    else expect(ListAssistantsQuerySchema.shape.sortBy.unwrap().options).toContain(dimension)
+  }
+
   it.each(['create', 'duplicate', 'import'] as const)('publishes committed membership after %s', (operation) => {
     const source = assistantDataService.create({ name: 'Source', modelId: null })
     effects = []
@@ -49,8 +58,40 @@ describe('assistant post-commit read-model notifications', () => {
     effects = []
     assistantDataService.update(source.id, { name: 'Renamed', settings: { temperature: 0.3 } })
     assertPublished(source.id, 'projection')
+    assertFacet(source.id, 'membership', 'search')
+    assertFacet(source.id, 'order', 'name')
+    assertFacet(source.id, 'order', 'updatedAt')
+    assertFacet(source.id, 'membership', 'updatedAtFrom')
     expect(observedNames).toContain('Renamed')
     expect(assistantDataService.getById(source.id).settings.temperature).toBe(0.3)
+  })
+
+  it('publishes group membership without claiming a name-order change', () => {
+    const group = groupService.create({ entityType: 'assistant', name: 'Destination' })
+    const source = assistantDataService.create({ name: 'Source', modelId: null })
+    const query = ListAssistantsQuerySchema.parse({ groupId: group.id })
+    expect(assistantDataService.list(query).items).toEqual([])
+    effects = []
+
+    assistantDataService.update(source.id, { groupId: group.id })
+
+    assertFacet(source.id, 'membership', 'groupId')
+    assertFacet(source.id, 'order', 'updatedAt')
+    expect(effects.some((effect) => effect.kind === 'order' && effect.dimension === 'name')).toBe(false)
+    expect(assistantDataService.list(query).items.map((item) => item.id)).toEqual([source.id])
+  })
+
+  it('publishes search membership for a description edit and no unrelated group or name facets', () => {
+    const source = assistantDataService.create({ name: 'Source', modelId: null })
+    const query = ListAssistantsQuerySchema.parse({ search: 'keyword' })
+    expect(assistantDataService.list(query).items).toEqual([])
+    effects = []
+
+    assistantDataService.update(source.id, { description: 'keyword' })
+
+    assertFacet(source.id, 'membership', 'search')
+    expect(effects.some((effect) => effect.dimension === 'name' || effect.dimension === 'groupId')).toBe(false)
+    expect(assistantDataService.list(query).items.map((item) => item.id)).toEqual([source.id])
   })
 
   it.each(['single', 'batch'] as const)('publishes committed order after %s reorder', (operation) => {
@@ -60,6 +101,9 @@ describe('assistant post-commit read-model notifications', () => {
     if (operation === 'single') assistantDataService.reorder(second.id, { position: 'first' })
     else assistantDataService.reorderBatch([{ id: second.id, anchor: { before: first.id } }])
     assertPublished(second.id, 'projection')
+    assertFacet(second.id, 'order', 'orderKey')
+    assertFacet(second.id, 'order', 'updatedAt')
+    assertFacet(second.id, 'membership', 'updatedAtFrom')
     expect(observedNames).toEqual(['Second', 'First'])
   })
 

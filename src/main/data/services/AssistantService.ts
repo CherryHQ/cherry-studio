@@ -17,14 +17,16 @@ import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type {
-  CreateAssistantDto,
-  DuplicateAssistantDto,
-  ImportAssistantDto,
-  ListAssistantsQuery,
-  UpdateAssistantDto
+import {
+  ASSISTANT_DATA_CHANGE_DIMENSIONS,
+  type CreateAssistantDto,
+  type DuplicateAssistantDto,
+  type ImportAssistantDto,
+  type ListAssistantsQuery,
+  type UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -42,6 +44,11 @@ type AssistantRow = typeof assistantTable.$inferSelect
 
 type AssistantRelationIds = Pick<Assistant, 'mcpServerIds' | 'knowledgeBaseIds'>
 type AssistantEntitySearchItem = Extract<EntitySearchItem, { type: 'assistant' }>
+type AssistantChangeDimensions = typeof ASSISTANT_DATA_CHANGE_DIMENSIONS
+type AssistantReadModelFacets = {
+  membership?: readonly AssistantChangeDimensions['membership'][keyof AssistantChangeDimensions['membership']][]
+  order?: readonly AssistantChangeDimensions['order'][keyof AssistantChangeDimensions['order']][]
+}
 type AssistantRowWithModelName = {
   assistant: AssistantRow
   modelName: string | null
@@ -94,13 +101,24 @@ function rethrowAssistantOrderError(error: unknown): never {
 }
 
 export class AssistantDataService {
-  notifyReadModelChange(assistantIds: readonly string[], kind: 'membership' | 'projection'): void {
+  notifyReadModelChange(
+    assistantIds: readonly string[],
+    kind: 'membership' | 'projection',
+    facets: AssistantReadModelFacets = {}
+  ): void {
     if (assistantIds.length === 0) return
     const entityIds = [...new Set(assistantIds)]
-    notifyDataApiDataChange([
+    const effects: DataApiDataChangeEffect[] = [
       { endpoint: '/assistants', kind, entityIds },
       { endpoint: '/assistants/:id', entityIds }
-    ])
+    ]
+    for (const dimension of facets.membership ?? []) {
+      effects.push({ endpoint: '/assistants', kind: 'membership', dimension, entityIds })
+    }
+    for (const dimension of facets.order ?? []) {
+      effects.push({ endpoint: '/assistants', kind: 'order', dimension, entityIds })
+    }
+    notifyDataApiDataChange(effects)
   }
 
   private get db() {
@@ -582,7 +600,20 @@ export class AssistantDataService {
     })
 
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
-    this.notifyReadModelChange([id], 'projection')
+    const nameChanged = dto.name !== undefined && dto.name !== current.name
+    const searchChanged = nameChanged || (dto.description !== undefined && dto.description !== current.description)
+    const dimensions = ASSISTANT_DATA_CHANGE_DIMENSIONS
+    this.notifyReadModelChange([id], 'projection', {
+      membership: [
+        ...(searchChanged ? [dimensions.membership.search] : []),
+        ...(dto.groupId !== undefined && dto.groupId !== current.groupId ? [dimensions.membership.groupId] : []),
+        ...(hasColumnUpdates ? [dimensions.membership.updatedAtFrom] : [])
+      ],
+      order: [
+        ...(nameChanged ? [dimensions.order.name] : []),
+        ...(hasColumnUpdates ? [dimensions.order.updatedAt] : [])
+      ]
+    })
 
     return rowToAssistant(row, nextRelations, modelName)
   }
@@ -599,7 +630,10 @@ export class AssistantDataService {
     } catch (error) {
       rethrowAssistantOrderError(error)
     }
-    this.notifyReadModelChange([id], 'projection')
+    this.notifyReadModelChange([id], 'projection', {
+      membership: [ASSISTANT_DATA_CHANGE_DIMENSIONS.membership.updatedAtFrom],
+      order: [ASSISTANT_DATA_CHANGE_DIMENSIONS.order.orderKey, ASSISTANT_DATA_CHANGE_DIMENSIONS.order.updatedAt]
+    })
   }
 
   /** Apply multiple assistant moves atomically within the active assistant list. */
@@ -618,7 +652,11 @@ export class AssistantDataService {
     }
     this.notifyReadModelChange(
       moves.map((move) => move.id),
-      'projection'
+      'projection',
+      {
+        membership: [ASSISTANT_DATA_CHANGE_DIMENSIONS.membership.updatedAtFrom],
+        order: [ASSISTANT_DATA_CHANGE_DIMENSIONS.order.orderKey, ASSISTANT_DATA_CHANGE_DIMENSIONS.order.updatedAt]
+      }
     )
   }
 

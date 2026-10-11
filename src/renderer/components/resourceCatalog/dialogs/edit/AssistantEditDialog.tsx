@@ -207,6 +207,7 @@ export function AssistantEditDialog({
 
   return (
     <AssistantEditDialogContent
+      key={resource.id}
       resource={resource}
       open={open}
       onOpenChange={onOpenChange}
@@ -231,16 +232,17 @@ function AssistantEditDialogContent({
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
-  const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
+  const [baselineResource, setBaselineResource] = useState(resource)
+  const defaultValues = useMemo(() => defaultValuesForAssistant(baselineResource), [baselineResource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
-    const baseline = initialAssistantFormState(resource)
-    return diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, resource)
-  }, [resource, values])
+    const baseline = initialAssistantFormState(baselineResource)
+    return diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, baselineResource)
+  }, [baselineResource, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -272,9 +274,24 @@ function AssistantEditDialogContent({
       setCreateGroupDialogOpen(false)
       return
     }
-    if (!justOpened) return
+    if (!justOpened && resource === baselineResource) return
 
-    form.reset(defaultValues)
+    // Rebase untouched fields while retaining only changes made against the editing snapshot.
+    const localValues = justOpened
+      ? {}
+      : Object.fromEntries(
+          Object.entries(form.getValues()).filter(
+            ([name, value]) =>
+              JSON.stringify(value) !== JSON.stringify(defaultValues[name as keyof AssistantEditFormValues])
+          )
+        )
+    form.reset(defaultValuesForAssistant(resource), { keepErrors: !justOpened })
+    setFormValues(form, localValues)
+    setBaselineResource(resource)
+    if (!justOpened) {
+      if (!('modelId' in localValues)) setModelLabels(modelLabelsForAssistant(resource))
+      return
+    }
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
@@ -285,7 +302,7 @@ function AssistantEditDialogContent({
     // hold in useResourceCatalogController) must not silently discard a new,
     // coincidentally-identical edit as if it were a repeated close.
     failedSaveKeyRef.current = null
-  }, [defaultValues, form, initialTab, open, resource])
+  }, [baselineResource, defaultValues, form, initialTab, open, resource])
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
@@ -314,10 +331,7 @@ function AssistantEditDialogContent({
     }
   }
 
-  // Key the debounce on the form values (user input), not on saveIntent: the
-  // update mutation refreshes /assistants/* → resource refetches → saveIntent's
-  // baseline moves, but the values are unchanged, so this never re-fires from our
-  // own save (prevents a save→refetch→save loop).
+  // External refreshes rebase the editing snapshot; only remaining local changes arm autosave.
   const flush = useDebouncedAutoSave({
     enabled: open,
     changeKey,
