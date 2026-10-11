@@ -128,6 +128,15 @@ Example:
     expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
   })
 
+  it('preserves fenced scratchpad literals inside list-item fences', () => {
+    const input = `<summary>
+- \`\`\`xml
+  <thinking>literal example</thinking>
+  \`\`\`
+</summary>`
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
+  })
+
   it('preserves fenced scratchpad literals inside nested blockquote-indented fences', () => {
     const input = `<summary>
 > > ~~~xml

@@ -2736,6 +2736,36 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).toBe(reply)
     })
 
+    it('suppresses scratchpad wrappers that appear after visible text in later deltas', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '<thinking>a</thinking>Visible' }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '<analysis>b</analysis>End' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('VisibleEnd')
+      expect(text).not.toContain('<analysis>')
+    })
+
     it('suppresses consecutive scratchpad wrappers split across stream deltas', () => {
       const { adapter, parts } = createAdapter()
 
