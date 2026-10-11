@@ -101,6 +101,22 @@ describe('buildInitialAgentFormState', () => {
 })
 
 describe('applyAgentFormPatch', () => {
+  it('drops a removed write grant so a re-added binding defaults to read', () => {
+    const baseline = buildInitialAgentFormState(
+      createAgent({
+        knowledgeBaseIds: ['kb-1'],
+        knowledgeBaseAccess: { 'kb-1': 'read-write' }
+      })
+    )
+    const removed = applyAgentFormPatch(baseline, { knowledgeBaseIds: [] })
+    expect(diffAgentUpdate(baseline, removed)?.dto).toEqual({ knowledgeBaseIds: [], knowledgeBaseAccess: {} })
+    const readded = applyAgentFormPatch(removed, { knowledgeBaseIds: ['kb-1'] })
+    expect(diffAgentUpdate(removed, readded)?.dto).toEqual({
+      knowledgeBaseIds: ['kb-1'],
+      knowledgeBaseAccess: { 'kb-1': 'read' }
+    })
+  })
+
   it('normalizes the patched permission mode', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' })

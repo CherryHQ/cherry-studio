@@ -1761,7 +1761,36 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('defaults a re-added binding to read after its write binding removal has saved', async () => {
+    const user = userEvent.setup()
+    const boundAgent = { ...AGENT, knowledgeBaseIds: ['kb-1'], knowledgeBaseAccess: { 'kb-1': 'read-write' as const } }
+    const props = { open: true, onOpenChange: vi.fn(), initialTab: 'tools.knowledge' }
+    const { rerender } = render(<AgentEditDialog {...props} resource={boundAgent} />)
+
+    expect(screen.getByRole('combobox', { name: 'Knowledge One access' })).toHaveTextContent('Read and write')
+    await user.click(screen.getByRole('button', { name: 'Remove knowledge base' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({
+        body: { knowledgeBaseIds: [], knowledgeBaseAccess: {} }
+      })
+    )
+    rerender(<AgentEditDialog {...props} resource={{ ...boundAgent, knowledgeBaseIds: [], knowledgeBaseAccess: {} }} />)
+    await waitFor(() =>
+      expect(screen.queryByRole('combobox', { name: 'Knowledge One access' })).not.toBeInTheDocument()
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Add knowledge base' }))
+    await user.click(screen.getByText('Knowledge One'))
+    expect(screen.getByRole('combobox', { name: 'Knowledge One access' })).toHaveTextContent('Read only')
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({
+        body: { knowledgeBaseIds: ['kb-1'], knowledgeBaseAccess: { 'kb-1': 'read' } }
+      })
+    )
+  })
+
   it('preserves a knowledge-base re-selection made while its removal is saving', async () => {
+    const user = userEvent.setup()
     let resolveFirstSave: (() => void) | undefined
     updateAgentMock.mockImplementationOnce(
       () =>
@@ -1773,17 +1802,17 @@ describe('edit dialogs', () => {
     const props = { open: true, onOpenChange: vi.fn(), initialTab: 'tools.knowledge' }
     const { rerender } = render(<AgentEditDialog {...props} resource={boundAgent} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove knowledge base' }))
+    await user.click(screen.getByRole('button', { name: 'Remove knowledge base' }))
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
-    fireEvent.click(screen.getByText('Knowledge One'))
+    await user.click(screen.getByRole('button', { name: 'Add knowledge base' }))
+    await user.click(screen.getByText('Knowledge One'))
     rerender(<AgentEditDialog {...props} resource={{ ...boundAgent, knowledgeBaseIds: [] }} />)
 
     selectTab('Built-in tools')
     expect(screen.getByText('Knowledge Search')).toBeInTheDocument()
 
-    resolveFirstSave?.()
+    await act(async () => resolveFirstSave?.())
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenLastCalledWith({
         body: expect.objectContaining({ knowledgeBaseIds: ['kb-1'] })

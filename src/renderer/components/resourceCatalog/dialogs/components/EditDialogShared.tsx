@@ -284,6 +284,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   disabled = false,
   accessById,
   onAccessChange,
+  onKnowledgeBaseIdsChange,
   onOpenKnowledgePage
 }: {
   form: UseFormReturn<TValues>
@@ -293,6 +294,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   disabled?: boolean
   accessById?: Readonly<Record<string, 'read' | 'read-write'>>
   onAccessChange?: (id: string, access: 'read' | 'read-write') => void
+  onKnowledgeBaseIdsChange?: (ids: string[]) => void
   onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
@@ -320,8 +322,10 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
     return { catalog: items, linkedItems: linked }
   }, [bases, t, value])
 
-  const setKnowledgeBaseIds = (nextValue: string[]) =>
-    form.setValue(fieldName, nextValue as never, { shouldDirty: true })
+  const setKnowledgeBaseIds = (nextValue: string[]) => {
+    if (onKnowledgeBaseIdsChange) onKnowledgeBaseIdsChange(nextValue)
+    else form.setValue(fieldName, nextValue as never, { shouldDirty: true })
+  }
   const remove = (id: string) => setKnowledgeBaseIds(value.filter((itemId) => itemId !== id))
   const add = (id: string) => setKnowledgeBaseIds([...value, id])
 

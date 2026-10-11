@@ -129,6 +129,12 @@ function initialLanguageFields(language: unknown): Pick<AgentFormState, 'languag
 export function applyAgentFormPatch(current: AgentFormState, patch: Partial<AgentFormState>): AgentFormState {
   const next: AgentFormState = { ...current, ...patch }
 
+  if (Object.prototype.hasOwnProperty.call(patch, 'knowledgeBaseIds')) {
+    next.knowledgeBaseAccess = Object.fromEntries(
+      next.knowledgeBaseIds.map((id) => [id, next.knowledgeBaseAccess[id] ?? 'read'])
+    )
+  }
+
   if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
     next.permissionMode = normalizePermissionMode(patch.permissionMode)
   }

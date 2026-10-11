@@ -133,11 +133,7 @@ export function registerKnowledgeTools(server: McpServer, { getKnowledgeAccess }
       const access = getKnowledgeAccess()
       return modelOutputToMcpResult(
         knowledgeManageModelOutput(
-          await manageKnowledge(
-            input,
-            allowedIds(KB_MANAGE_TOOL_NAME, access),
-            access.allKnowledgeBases ? undefined : access.accessByBaseId
-          )
+          await manageKnowledge(input, allowedIds(KB_MANAGE_TOOL_NAME, access), access.accessByBaseId)
         )
       )
     }
