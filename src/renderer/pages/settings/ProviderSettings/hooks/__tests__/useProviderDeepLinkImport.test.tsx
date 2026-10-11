@@ -248,6 +248,61 @@ describe('useProviderDeepLinkImport', () => {
     })
   })
 
+  it('does not reopen the confirmation popup when providers refresh during import', async () => {
+    const onSelectProvider = vi.fn()
+    const payload = JSON.stringify({
+      id: 'anthropic',
+      apiKey: 'sk-anthropic',
+      baseUrl: 'https://api.anthropic.com',
+      type: 'anthropic',
+      name: 'Anthropic'
+    })
+
+    let resolvePopup!: (value: unknown) => void
+    popupShowMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePopup = resolve
+        })
+    )
+
+    const { rerender } = renderHook(({ data }) => useProviderDeepLinkImport(data, onSelectProvider), {
+      initialProps: { data: payload }
+    })
+
+    await waitFor(() => expect(popupShowMock).toHaveBeenCalledTimes(1))
+
+    providersFixture = [
+      {
+        id: 'anthropic',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            baseUrl: 'https://old.example.com',
+            reasoningFormat: { type: 'self-hosted' }
+          }
+        }
+      }
+    ]
+    rerender({ data: payload })
+
+    expect(popupShowMock).toHaveBeenCalledTimes(1)
+
+    resolvePopup({
+      updatedProvider: {
+        id: 'anthropic',
+        name: 'Anthropic',
+        type: 'anthropic',
+        apiKey: 'sk-anthropic',
+        apiHost: 'https://api.anthropic.com'
+      },
+      isNew: false,
+      displayName: 'Anthropic'
+    })
+
+    await waitFor(() => expect(updateProviderByIdMock).toHaveBeenCalledTimes(1))
+    expect(popupShowMock).toHaveBeenCalledTimes(1)
+  })
+
   it('runs a deep-link import only once while the same search payload stays mounted', async () => {
     const onSelectProvider = vi.fn()
     const payload = JSON.stringify({

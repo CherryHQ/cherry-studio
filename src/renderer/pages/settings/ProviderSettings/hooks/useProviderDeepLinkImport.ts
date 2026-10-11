@@ -10,9 +10,10 @@ import { toast } from '@renderer/services/toast'
 import { ProviderTypeSchema } from '@renderer/types/provider'
 import { validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import UrlSchemaInfoPopup from '../UrlSchemaInfoPopup'
-import { withEndpointConfigWriteLock } from './providerSetting/useProviderEndpointActions'
+import { awaitEndpointConfigWrites, withEndpointConfigWriteLock } from './providerSetting/useProviderEndpointActions'
 
 const logger = loggerService.withContext('useProviderDeepLinkImport')
 
@@ -43,6 +44,14 @@ const ImportedProviderSearchDataSchema = z.object({
 
 type ImportedProviderSearchData = z.infer<typeof ImportedProviderSearchDataSchema>
 
+type ImportPopupResult = Awaited<ReturnType<typeof UrlSchemaInfoPopup.show>>
+
+type ImportSession = {
+  payload: string
+  parsed: ImportedProviderSearchData
+  popupResult?: ImportPopupResult
+}
+
 /** Consumes one provider deep-link import payload from the URL into create/update + add-api-key calls. */
 export function useProviderDeepLinkImport(
   searchAddProviderData: string | undefined,
@@ -51,8 +60,11 @@ export function useProviderDeepLinkImport(
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { createProvider, providers } = useProviders()
+  const providersRef = useRef(providers)
   const { updateProviderById } = useProviderActions()
-  const importPayloadRef = useRef<string | null>(null)
+  const importConsumedRef = useRef<string | null>(null)
+  const importSessionRef = useRef<ImportSession | null>(null)
+  const importRunningRef = useRef(false)
   const { trigger: addApiKeyTrigger } = useMutation('POST', '/providers/:providerId/api-keys', {
     refresh: ({ args }) => [
       '/providers',
@@ -62,23 +74,59 @@ export function useProviderDeepLinkImport(
   })
 
   useEffect(() => {
+    providersRef.current = providers
+  }, [providers])
+
+  useEffect(() => {
     if (!searchAddProviderData) {
-      importPayloadRef.current = null
+      importConsumedRef.current = null
+      importSessionRef.current = null
       return
     }
 
-    if (importPayloadRef.current === searchAddProviderData) {
+    if (importConsumedRef.current === searchAddProviderData) {
       return
     }
 
-    const importProvider = async (providerData: ImportedProviderSearchData) => {
+    let parsed: ImportedProviderSearchData
+    try {
+      const result = ImportedProviderSearchDataSchema.safeParse(JSON.parse(searchAddProviderData))
+
+      if (!result.success) {
+        toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+        void navigate({ to: '/settings/provider' })
+        importConsumedRef.current = searchAddProviderData
+        return
+      }
+      parsed = result.data
+    } catch (error) {
+      logger.error('Failed to parse provider deep link import data', error as Error)
+      toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+      void navigate({ to: '/settings/provider' })
+      return
+    }
+
+    if (!importSessionRef.current || importSessionRef.current.payload !== searchAddProviderData) {
+      importSessionRef.current = { payload: searchAddProviderData, parsed }
+    }
+
+    if (importRunningRef.current) {
+      return
+    }
+
+    importRunningRef.current = true
+
+    const importProvider = async (session: ImportSession) => {
       try {
-        const popupResult = await UrlSchemaInfoPopup.show(providerData)
-        const { updatedProvider, isNew, nameOnly, displayName } = popupResult
+        if (!session.popupResult) {
+          session.popupResult = await UrlSchemaInfoPopup.show(session.parsed)
+        }
+        const { updatedProvider, isNew, nameOnly, displayName } = session.popupResult
 
         if (!updatedProvider) {
           void navigate({ to: '/settings/provider' })
-          importPayloadRef.current = searchAddProviderData
+          importConsumedRef.current = searchAddProviderData
+          importSessionRef.current = null
           return
         }
 
@@ -88,41 +136,57 @@ export function useProviderDeepLinkImport(
           logger.warn('Rejected deep-link apiHost with invalid scheme', { providerId })
           toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
           void navigate({ to: '/settings/provider' })
-          importPayloadRef.current = searchAddProviderData
+          importConsumedRef.current = searchAddProviderData
+          importSessionRef.current = null
           return
         }
-        const existingProvider = providers.find((entry) => entry.id === providerId)
+
+        const existingProvider = providersRef.current.find((entry) => entry.id === providerId)
         if (!isNew && !existingProvider) {
           return
         }
-        const endpointConfigs = updatedProvider.apiHost
-          ? {
-              ...(isNew ? undefined : existingProvider?.endpointConfigs),
-              [defaultChatEndpoint]: {
-                ...(isNew ? undefined : existingProvider?.endpointConfigs?.[defaultChatEndpoint]),
-                baseUrl: updatedProvider.apiHost
-              }
-            }
-          : isNew
-            ? undefined
-            : existingProvider?.endpointConfigs
 
         if (isNew) {
+          const endpointConfigs = updatedProvider.apiHost
+            ? {
+                [defaultChatEndpoint]: {
+                  baseUrl: updatedProvider.apiHost
+                }
+              }
+            : undefined
+
           await createProvider({
             providerId,
-            name: updatedProvider.name || providerData.id,
+            name: updatedProvider.name || session.parsed.id,
             defaultChatEndpoint,
             endpointConfigs
           })
         } else {
-          await withEndpointConfigWriteLock(providerId, () =>
-            updateProviderById(
+          let persisted = false
+          await awaitEndpointConfigWrites(providerId)
+          await withEndpointConfigWriteLock(providerId, async () => {
+            const liveProvider = providersRef.current.find((entry) => entry.id === providerId)
+            if (!liveProvider) {
+              return
+            }
+
+            const endpointConfigs = buildDeepLinkEndpointConfigs(
+              liveProvider,
+              defaultChatEndpoint,
+              updatedProvider.apiHost
+            )
+
+            await updateProviderById(
               providerId,
               nameOnly
                 ? { name: updatedProvider.name }
                 : { name: updatedProvider.name, defaultChatEndpoint, endpointConfigs }
             )
-          )
+            persisted = true
+          })
+          if (!persisted) {
+            return
+          }
         }
 
         if (updatedProvider.apiKey.trim()) {
@@ -135,31 +199,20 @@ export function useProviderDeepLinkImport(
         onSelectProvider(providerId)
         void navigate({ to: '/settings/provider', search: { id: providerId } })
         toast.success(t('settings.models.provider_key_added', { provider: displayName }))
-        importPayloadRef.current = searchAddProviderData
+        importConsumedRef.current = searchAddProviderData
+        importSessionRef.current = null
       } catch (error) {
         logger.error('Failed to import provider deep link data', error as Error)
         toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         void navigate({ to: '/settings/provider' })
-        importPayloadRef.current = searchAddProviderData
+        importConsumedRef.current = searchAddProviderData
+        importSessionRef.current = null
       }
     }
 
-    try {
-      const parsed = ImportedProviderSearchDataSchema.safeParse(JSON.parse(searchAddProviderData))
-
-      if (!parsed.success) {
-        toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-        void navigate({ to: '/settings/provider' })
-        importPayloadRef.current = searchAddProviderData
-        return
-      }
-
-      void importProvider(parsed.data)
-    } catch (error) {
-      logger.error('Failed to parse provider deep link import data', error as Error)
-      toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-      void navigate({ to: '/settings/provider' })
-    }
+    void importProvider(importSessionRef.current).finally(() => {
+      importRunningRef.current = false
+    })
   }, [
     addApiKeyTrigger,
     createProvider,
@@ -170,4 +223,22 @@ export function useProviderDeepLinkImport(
     t,
     updateProviderById
   ])
+}
+
+function buildDeepLinkEndpointConfigs(
+  liveProvider: Provider,
+  defaultChatEndpoint: EndpointType,
+  apiHost: string | undefined
+): Provider['endpointConfigs'] {
+  if (!apiHost) {
+    return liveProvider.endpointConfigs
+  }
+
+  return {
+    ...liveProvider.endpointConfigs,
+    [defaultChatEndpoint]: {
+      ...liveProvider.endpointConfigs?.[defaultChatEndpoint],
+      baseUrl: apiHost
+    }
+  }
 }
