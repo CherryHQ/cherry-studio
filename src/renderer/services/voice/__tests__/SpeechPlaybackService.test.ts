@@ -146,6 +146,58 @@ describe('SpeechPlaybackService planning and playback', () => {
     }
   )
 
+  it.each(['initialize', 'resolveSpeechPreferences'] as const)(
+    'cancels a source while waiting for %s',
+    async (stage) => {
+      const { service, voice } = createHarness()
+      const controller = new AbortController()
+      let resolve!: (value: any) => void
+      voice[stage].mockReturnValueOnce(new Promise<any>((done) => (resolve = done)))
+      const starting = service.start({ ...baseInput, signal: controller.signal })
+      const aborted = expect(starting).rejects.toMatchObject({ reason: 'aborted' })
+      await vi.waitFor(() => expect(voice[stage]).toHaveBeenCalled())
+      controller.abort()
+      resolve({ modelId: 'local-voice::apple-system-tts', voice: 'configured-voice', speed: 1 })
+      await aborted
+      expect(voice.generateSpeech).not.toHaveBeenCalled()
+      expect(service.getSnapshot().phase).toBe('idle')
+    }
+  )
+
+  it('releases audio that ends before Main acknowledges playback and completes each chunk once', async () => {
+    const { service, voice, audios } = createHarness({ chunks: ['first', 'second'] })
+    let acknowledge!: () => void
+    voice.updatePlayback.mockImplementationOnce(
+      () => new Promise<any>((done) => (acknowledge = () => done({ phase: 'playing' })))
+    )
+    const starting = service.start(baseInput)
+    await vi.waitFor(() => expect(acknowledge).toBeTypeOf('function'))
+    audios[0].dispatchEvent(new Event('ended'))
+    audios[0].dispatchEvent(new Event('ended'))
+    acknowledge()
+    await starting
+    await vi.waitFor(() => expect(audios).toHaveLength(2))
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
+    audios[1].dispatchEvent(new Event('ended'))
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
+    expect(voice.events.filter((event) => event.startsWith('release:'))).toEqual(['release:file-1', 'release:file-2'])
+    expect(voice.updatePlayback).toHaveBeenCalledWith({ sessionId, phase: 'completed' })
+  })
+
+  it('cancels active playback and detaches cancellation after completion', async () => {
+    const { service, voice, audios, revokeObjectURL } = createHarness()
+    const controller = new AbortController()
+    await service.start({ ...baseInput, signal: controller.signal })
+    controller.abort()
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
+    expect(audios[0].paused).toBe(true)
+    expect(revokeObjectURL).toHaveBeenCalledOnce()
+    expect(voice.discardSession).toHaveBeenCalledWith(sessionId)
+    await service.start(baseInput)
+    expect(service.getSnapshot().phase).toBe('playing')
+    await service.stop()
+  })
+
   it('invalidates a start waiting for preferences when Main reports a power interruption', async () => {
     const { service, voice } = createHarness()
     let resolve!: (value: any) => void

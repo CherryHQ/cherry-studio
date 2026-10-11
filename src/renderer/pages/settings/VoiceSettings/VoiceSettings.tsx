@@ -211,36 +211,59 @@ function VoiceSettings() {
   const dictationRunRef = useRef<ReturnType<typeof dictationService.startScoped> | undefined>(undefined)
   const previewGenerationRef = useRef(0)
   const speechStatusCheckRef = useRef<Promise<void>>(Promise.resolve())
+  const loadedCatalogs = useRef(new Set<string>())
+  const catalogAttempt = useRef(-1)
+  const [queryRevision, setQueryRevision] = useState(0)
+  const [catalogFailed, setCatalogFailed] = useState(false)
+  const [catalogLoading, setCatalogLoading] = useState(false)
 
   transcriptValueRef.current = transcript
 
   useEffect(() => {
     let current = true
+    if (catalogAttempt.current === queryRevision) loadedCatalogs.current.clear()
+    catalogAttempt.current = queryRevision
+    setCatalogLoading(true)
+    const load = async (key: string, query: () => Promise<void>) => {
+      if (loadedCatalogs.current.has(key)) return
+      await query()
+      if (current) loadedCatalogs.current.add(key)
+    }
     void voiceService
       .initialize()
       .then(async () => {
-        const [modelResult, localeResult, voiceResult, microphoneResult] = await Promise.allSettled([
-          voiceService.listModels(),
-          voiceService.listTranscriptionLocales(),
-          voiceService.listVoices(),
-          voiceService.getMicrophoneStatus()
+        const results = await Promise.allSettled([
+          load('models', async () => {
+            const result = await voiceService.listModels()
+            if (!current) return
+            setModels(result.models)
+            setDefaultAsrModel(result.defaultAsrModelId)
+          }),
+          load('locales', async () => {
+            const result = await voiceService.listTranscriptionLocales()
+            if (current) setAsrLocales(result)
+          }),
+          load('voices', async () => {
+            const result = await voiceService.listVoices()
+            if (current) setVoices(result)
+          }),
+          load('microphone', async () => {
+            const result = await voiceService.getMicrophoneStatus()
+            if (current) setMicrophoneStatus(result)
+          })
         ])
-        if (!current) return
-        if (modelResult.status === 'fulfilled') {
-          setModels(modelResult.value.models)
-          setDefaultAsrModel(modelResult.value.defaultAsrModelId)
-        }
-        if (localeResult.status === 'fulfilled') setAsrLocales(localeResult.value)
-        if (voiceResult.status === 'fulfilled') setVoices(voiceResult.value)
-        if (microphoneResult.status === 'fulfilled') setMicrophoneStatus(microphoneResult.value)
+        if (current) setCatalogFailed(results.some((result) => result.status === 'rejected'))
       })
       .catch(() => {
-        if (current) setActionFailed(true)
+        if (current) setCatalogFailed(true)
+      })
+      .finally(() => {
+        if (current) setCatalogLoading(false)
       })
     return () => {
       current = false
     }
-  }, [])
+  }, [queryRevision])
 
   const configuredRecognitionModel = transcriptionModelId(recognitionModel)
   const hasConfiguredRecognitionModel = optionalValue(recognitionModel) !== undefined
@@ -365,7 +388,8 @@ function VoiceSettings() {
     configuredRecognitionModel,
     effectiveRecognitionLanguage,
     effectiveRecognitionModel,
-    hasConfiguredRecognitionModel
+    hasConfiguredRecognitionModel,
+    queryRevision
   ])
 
   useEffect(() => {
@@ -389,7 +413,7 @@ function VoiceSettings() {
     return () => {
       current = false
     }
-  }, [configuredSpeechLanguage, configuredSpeechModel, configuredSpeechVoice])
+  }, [configuredSpeechLanguage, configuredSpeechModel, configuredSpeechVoice, queryRevision])
 
   const microphonePermissionFailed = dictation.error === 'microphone_permission'
   const needsMicrophoneRecovery =
@@ -575,6 +599,17 @@ function VoiceSettings() {
 
   return (
     <SettingsContentColumn theme={theme}>
+      {catalogFailed || recognitionStatus.status === 'failed' || speechStatus.status === 'failed' ? (
+        <div className="flex items-center gap-2">
+          <SettingDescription>{t('settings.voice.status.operation_failed')}</SettingDescription>
+          <Button
+            variant="outline"
+            disabled={catalogLoading}
+            onClick={() => setQueryRevision((revision) => revision + 1)}>
+            {t('common.retry')}
+          </Button>
+        </div>
+      ) : null}
       <h1 className="text-xl font-semibold text-foreground">{t('settings.voice.title')}</h1>
       <SettingDescription>{t('settings.voice.description')}</SettingDescription>
 
@@ -724,9 +759,8 @@ function VoiceSettings() {
               disabled={
                 dictationProcessing ||
                 dictationHasPendingResult ||
-                microphoneBlocked ||
-                !effectiveRecognitionModel ||
-                (!dictationRecording && recognitionStatus.status !== 'ready')
+                (!dictationRecording &&
+                  (microphoneBlocked || !effectiveRecognitionModel || recognitionStatus.status !== 'ready'))
               }
               onClick={toggleDictation}>
               {dictationRecording ? <Square className="size-4" /> : <Mic className="size-4" />}
