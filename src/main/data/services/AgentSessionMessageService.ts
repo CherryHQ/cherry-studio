@@ -21,8 +21,8 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionReadModelEffects, agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { type TerminalSentinelKey, withTerminalErrorPart } from '@data/services/utils/terminalSentinel'
 import { loggerService } from '@logger'
-import { withTerminalErrorPart, type TerminalSentinelKey } from '@main/ai/utils/terminalSentinel'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
   extractFtsTokens,

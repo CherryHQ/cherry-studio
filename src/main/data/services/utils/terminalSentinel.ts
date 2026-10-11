@@ -11,6 +11,10 @@
  * Cross-process: `main` writes them, the renderer's `ErrorBlock` renders them —
  * but every producer is main-side, so this module is main-owned; only the
  * serialized {@link SerializedError} contract it emits is shared.
+ *
+ * Placed in the data layer because the terminalized row is written here: the
+ * services that flip `status` and the `ai/` callers both depend downward on
+ * this module rather than data reaching up into the AI business tier.
  */
 
 import type { CherryMessagePart } from '@shared/data/types/message'
