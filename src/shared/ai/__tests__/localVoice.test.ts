@@ -9,6 +9,7 @@ import {
   LOCAL_VOICE_MODELS,
   resolveDefaultAsrModel,
   resolveDefaultSpeechModel,
+  WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID
 } from '../localVoice'
 import * as localVoice from '../localVoice'
@@ -36,6 +37,7 @@ describe('local voice model facts and default resolution', () => {
       APPLE_ASR_MODEL_ID
     )
     expect(resolveDefaultAsrModel({ platform: 'linux' }, APPLE_ASR_MODEL_ID)).toBe(APPLE_ASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'win32' }, WINDOWS_ASR_MODEL_ID)).toBe(WINDOWS_ASR_MODEL_ID)
   })
 
   it('does not guess a default for an unknown macOS version or undeclared platform', () => {
@@ -51,7 +53,7 @@ describe('local voice model facts and default resolution', () => {
     expect(speech.capabilities).toEqual([MODEL_CAPABILITY.AUDIO_GENERATION])
     expect(speech.inputModalities).toEqual([MODALITY.TEXT])
     expect(speech.outputModalities).toEqual([MODALITY.AUDIO])
-    for (const id of [APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID]) {
+    for (const id of [APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID, FUNASR_MODEL_ID]) {
       const model = LOCAL_VOICE_MODELS.find((candidate) => candidate.id === id)!
       expect(model.capabilities).toEqual([MODEL_CAPABILITY.AUDIO_TRANSCRIPT])
       expect(model.inputModalities).toEqual([MODALITY.AUDIO])

@@ -2,17 +2,22 @@ import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '../types'
 
-export type ArchiveDomain = 'topics' | 'assistants' | 'agents' | 'sessions' | 'paintings' | 'files'
+export const ARCHIVE_DOMAINS = ['topics', 'assistants', 'agents', 'sessions', 'paintings', 'files'] as const
+
+export type ArchiveDomain = (typeof ARCHIVE_DOMAINS)[number]
 
 export interface ArchiveEntry {
   id: string
   entityId: string
   domain: ArchiveDomain
   name: string
+  /** Name of the owning assistant (topics) or agent (sessions); null for ownerless domains. */
+  parentName: string | null
   deletedAt: number
 }
 
 export const ListArchivesQuerySchema = z.strictObject({
+  domain: z.enum(ARCHIVE_DOMAINS).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).default(20)
 })
@@ -20,7 +25,7 @@ export const ListArchivesQuerySchema = z.strictObject({
 export type ArchiveSchemas = {
   '/archives': {
     GET: {
-      query: { cursor?: string; limit?: number }
+      query: { domain?: ArchiveDomain; cursor?: string; limit?: number }
       response: CursorPaginationResponse<ArchiveEntry>
     }
   }

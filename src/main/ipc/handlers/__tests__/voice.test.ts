@@ -166,15 +166,18 @@ describe('Voice handlers through real IpcRouter', () => {
     expect(boundary.listTranscriptionLocales).toHaveBeenCalledWith(owner)
   })
 
-  it('dispatches a FileEntry transcription with the managed owner', async () => {
-    const webContents = { id: 10, isDestroyed: () => false }
-    const owner = { windowId: 'owner', webContents }
-    boundary.window.mockReturnValue({ webContents })
+  it.each(['local-voice::apple-system-asr', 'local-voice::windows-system-asr'])(
+    'dispatches a FileEntry transcription with the managed owner for %s',
+    async (modelId) => {
+      const webContents = { id: 10, isDestroyed: () => false }
+      const owner = { windowId: 'owner', webContents }
+      boundary.window.mockReturnValue({ webContents })
 
-    await router.dispatch('ai.transcription.generate', transcription, { senderId: 'owner' })
+      await router.dispatch('ai.transcription.generate', { ...transcription, modelId }, { senderId: 'owner' })
 
-    expect(boundary.transcribe).toHaveBeenCalledWith(owner, transcription)
-  })
+      expect(boundary.transcribe).toHaveBeenCalledWith(owner, { ...transcription, modelId })
+    }
+  )
 
   it('dispatches speech and abort operations with the managed owner', async () => {
     const webContents = { id: 10, isDestroyed: () => false }

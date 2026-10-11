@@ -335,5 +335,18 @@ describe('markdown', () => {
     `
       expect(purifyMarkdownImages(input)).toBe(expected)
     })
+
+    it('should handle whitespace-separated base64 chunks', () => {
+      const input = '![wrapped](data:image/png;base64,AAAA\n  BBBB CCCC)'
+      expect(purifyMarkdownImages(input)).toBe('![wrapped](image_url)')
+    })
+
+    it('should give up quickly on a base64 image missing its closing parenthesis', () => {
+      const input = `![cut](data:image/png;base64,${'A'.repeat(30)}`
+      const startedAt = performance.now()
+
+      expect(purifyMarkdownImages(input)).toBe(input)
+      expect(performance.now() - startedAt).toBeLessThan(1_000)
+    })
   })
 })

@@ -39,6 +39,7 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
+  WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
   type LocalSpeechModelId,
   type LocalVoiceModelFacts,
@@ -82,6 +83,7 @@ const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [APPLE_ASR_MODEL_ID]: 'settings.voice.model.apple_asr',
   [APPLE_TTS_MODEL_ID]: 'settings.voice.model.apple_tts',
   [FUNASR_MODEL_ID]: 'settings.voice.model.funasr',
+  [WINDOWS_ASR_MODEL_ID]: 'settings.voice.model.windows_asr',
   [WINDOWS_TTS_MODEL_ID]: 'settings.voice.model.windows_tts'
 }
 const DICTATION_PHASE_LABEL_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
@@ -127,7 +129,7 @@ function languageLabel(language: string, displayNames: Intl.DisplayNames, worldL
 }
 
 function transcriptionModelId(value: string | null | undefined): LocalTranscriptionModelId | undefined {
-  return value === APPLE_ASR_MODEL_ID || value === FUNASR_MODEL_ID ? value : undefined
+  return value === APPLE_ASR_MODEL_ID || value === WINDOWS_ASR_MODEL_ID || value === FUNASR_MODEL_ID ? value : undefined
 }
 
 function VoiceSettings() {
@@ -386,7 +388,7 @@ function VoiceSettings() {
     []
   )
 
-  const transcriptionModels = models.filter((model) => model.id === APPLE_ASR_MODEL_ID || model.id === FUNASR_MODEL_ID)
+  const transcriptionModels = models.filter((model) => transcriptionModelId(model.id) !== undefined)
   const speechModels = models.filter((model) => model.id === APPLE_TTS_MODEL_ID || model.id === WINDOWS_TTS_MODEL_ID)
   const canInstallApple =
     effectiveRecognitionModel === APPLE_ASR_MODEL_ID &&
@@ -530,7 +532,12 @@ function VoiceSettings() {
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
           <Select
             value={funAsrSelected ? 'auto' : (languageValue(recognitionLanguage) ?? EMPTY_VALUE)}
-            disabled={funAsrSelected || effectiveRecognitionModel !== APPLE_ASR_MODEL_ID || !asrLocales || installing}
+            disabled={
+              (effectiveRecognitionModel !== APPLE_ASR_MODEL_ID &&
+                effectiveRecognitionModel !== WINDOWS_ASR_MODEL_ID) ||
+              !asrLocales ||
+              installing
+            }
             onValueChange={(value) => savePreference(() => setRecognitionLanguage(value === EMPTY_VALUE ? '' : value))}>
             <SelectTrigger className="w-64" aria-label={t('settings.voice.recognition.language')}>
               <SelectValue placeholder={t('common.select')} />

@@ -24,6 +24,7 @@
     "smoke:packaged": "node scripts/smoke-packaged.cjs",
     "smoke:packaged:windows": "node scripts/smoke-windows.cjs --tts --packaged",
     "smoke:windows": "node scripts/smoke-windows.cjs",
+    "smoke:windows:asr": "node scripts/smoke-windows.cjs --asr",
     "smoke:windows:tts": "node scripts/smoke-windows.cjs --tts",
     "test": "vitest run",
     "test:native": "swift test --package-path native",

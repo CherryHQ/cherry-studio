@@ -155,7 +155,10 @@ vi.mock('@main/utils/commandResolver', () => ({
   autoDiscoverGitBash: mocks.autoDiscoverGitBash,
   validateGitBashPath: mocks.validateGitBashPath
 }))
-vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
+vi.mock('@main/ai/runtime/agentMcpServers', () => ({
+  buildAgentMcpServers: mocks.buildAgentMcpServers,
+  warmAgentMcpToolCatalogs: mocks.warmMcpToolCatalogs
+}))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
 vi.mock('@main/ai/agents/prompt', () => ({
@@ -166,7 +169,6 @@ vi.mock('@main/ai/agents/prompt', () => ({
 // The MCP adapter needs the full MCP service graph; mock it to a wiring seam so this suite asserts
 // only how the complete server set becomes customTools and how the approval gate treats those names.
 vi.mock('./piMcpExtension', () => ({
-  warmMcpToolCatalogs: mocks.warmMcpToolCatalogs,
   createPiMcpExtension: mocks.createPiMcpExtension,
   buildPiMcpToolName: (serverName: string, toolName: string) =>
     `mcp__${serverName}__${toolName}`.replace(/[^A-Za-z0-9_]/g, '_')
@@ -1818,6 +1820,46 @@ describe('PiRuntimeConnection', () => {
     await expect(
       approvalGateHandler()({ type: 'tool_call', toolName, toolCallId: 'tc-mcp-live', input: {} }, {})
     ).resolves.toMatchObject({ block: true })
+  })
+
+  describe('skill installation approval', () => {
+    const installSkill = {
+      type: 'tool_call',
+      toolName: 'mcp__skills__install_skill',
+      toolCallId: 'tc-skill',
+      input: {}
+    }
+    const startWithMode = (permission_mode: string) => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { permission_mode } })
+      return new PiRuntimeConnection(input).start()
+    }
+
+    it('blocks an auto-mode install on a channel or scheduled turn', async () => {
+      mocks.getInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+      const conn = await startWithMode('auto')
+
+      await expect(approvalGateHandler()(installSkill, {})).resolves.toMatchObject({ block: true })
+      expect(toolApprovalRegistry.size()).toBe(0)
+      await conn.close()
+    })
+
+    it('asks before an interactive auto-mode install', async () => {
+      const conn = await startWithMode('auto')
+
+      void approvalGateHandler()(installSkill, {})
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(toolApprovalRegistry.size()).toBe(1)
+      toolApprovalRegistry.abort(SESSION_ID, 'test-boundary')
+      await conn.close()
+    })
+
+    it('installs unattended under bypassPermissions', async () => {
+      mocks.getInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+      const conn = await startWithMode('bypassPermissions')
+
+      await expect(approvalGateHandler()(installSkill, {})).resolves.toBeUndefined()
+      await conn.close()
+    })
   })
 
   describe('MCP bridging', () => {
