@@ -27,6 +27,9 @@ const mocks = vi.hoisted(() => ({
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
+  readEditSnapshotTx: vi.fn(),
+  replaceEditTailTx: vi.fn(),
+  dbWithWriteTx: vi.fn(),
   findCrashOrphanedAssistantMessages: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
   updateSessionDeliveryStatus: vi.fn(),
@@ -105,6 +108,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
+    readEditSnapshotTx: mocks.readEditSnapshotTx,
+    replaceEditTailTx: mocks.replaceEditTailTx,
     getNativeSessionId: vi.fn(),
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages,
@@ -506,6 +511,7 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
     mocks.applyToolApprovalDecision.mockReturnValue(true)
+    mocks.dbWithWriteTx.mockImplementation((fn: (tx: unknown) => unknown) => fn({}))
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
     mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
@@ -516,6 +522,7 @@ describe('AgentSessionRuntimeService', () => {
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
     mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'DbService') return { withWriteTx: mocks.dbWithWriteTx }
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
@@ -881,6 +888,207 @@ describe('AgentSessionRuntimeService', () => {
 
       await firstReader.cancel().catch(() => undefined)
       await secondReader.cancel().catch(() => undefined)
+    })
+
+    it('starts the replacement connection with plan policy after a first-message edit', async () => {
+      const firstEvents = createAsyncQueue<any>()
+      const secondEvents = createAsyncQueue<any>()
+      const thirdEvents = createAsyncQueue<any>()
+      const connections = [firstEvents, secondEvents, thirdEvents].map((events) => ({
+        events: events.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }))
+      const connect = vi
+        .fn()
+        .mockResolvedValueOnce(connections[0])
+        .mockResolvedValueOnce(connections[1])
+        .mockResolvedValueOnce(connections[2])
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([]),
+        fork: vi.fn()
+      })
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-edit',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-edit',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      // Turn 1: the plan-approval turn.
+      const first = service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-plan-edit',
+        userMessage: userMessage('user-1')
+      })
+      const firstReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: first.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connections[0].send).toHaveBeenCalled())
+
+      // Approve the plan for a different execution model: the overlay records the approved exit.
+      const result = service.respondToolApproval('approval-plan-edit', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+
+      // Turn 2: the execution follow-up reconnects with the approved exit, then settles.
+      const second = service.beginTurn({
+        ...baseTurnInput,
+        modelId: switchedModelId,
+        assistantMessageId: 'assistant-execution-edit',
+        userMessage: userMessage('user-2')
+      })
+      const secondReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: second.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connections[1].send).toHaveBeenCalled())
+      expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ planExitApproved: true }))
+      secondEvents.push({ type: 'turn-complete' })
+      await secondReader.read()
+      await terminalListener(second).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(service.isSessionBusy('session-1')).toBe(false))
+
+      // First-message edit: the history is replaced from an empty prefix, so the retained
+      // history contains no approved plan for the overlay to speak for.
+      mocks.readEditSnapshotTx.mockReturnValue({
+        session: { agentId: 'agent-1', type: 'conversation' },
+        workspace: { path: '/tmp/workspace' },
+        rows: [],
+        user: { id: 'user-1', role: 'user', data: { parts: [{ type: 'text', text: 'revised hello' }] } },
+        prefix: [],
+        version: 'version-edit-1'
+      })
+      const persist = vi.fn().mockReturnValue('persisted-edit')
+      await expect(
+        service.editSession('session-1', { messageId: 'user-1', version: 'version-edit-1' }, persist)
+      ).resolves.toBe('persisted-edit')
+      expect(mocks.replaceEditTailTx).toHaveBeenCalledWith(
+        expect.anything(),
+        'session-1',
+        { messageId: 'user-1', version: 'version-edit-1' },
+        []
+      )
+      expect((service as any).planExitedSessions.has('session-1')).toBe(false)
+
+      // Turn 3: the resubmitted first message must start under plan policy — the revised request
+      // has no approved plan, so admitting its mutations without Plan would bypass the boundary.
+      const third = service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-retry',
+        userMessage: userMessage('user-1')
+      })
+      const thirdReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: third.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(thirdReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connections[2].send).toHaveBeenCalled())
+      expect(connect).toHaveBeenNthCalledWith(3, expect.not.objectContaining({ planExitApproved: true }))
+
+      await Promise.allSettled([
+        firstReader.cancel(),
+        secondReader.cancel(),
+        thirdReader.cancel(),
+        service.closeSession('session-1')
+      ])
+    })
+
+    it('keeps the approved plan exit for an ordinary reconnect after the execution settles', async () => {
+      const firstEvents = createAsyncQueue<any>()
+      const secondEvents = createAsyncQueue<any>()
+      const thirdEvents = createAsyncQueue<any>()
+      const connections = [firstEvents, secondEvents, thirdEvents].map((events) => ({
+        events: events.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }))
+      const connect = vi
+        .fn()
+        .mockResolvedValueOnce(connections[0])
+        .mockResolvedValueOnce(connections[1])
+        .mockResolvedValueOnce(connections[2])
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-reconnect',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-reconnect',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const first = service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-plan-reconnect',
+        userMessage: userMessage('user-1')
+      })
+      const firstReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: first.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connections[0].send).toHaveBeenCalled())
+
+      const result = service.respondToolApproval('approval-plan-reconnect', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+
+      const second = service.beginTurn({
+        ...baseTurnInput,
+        modelId: switchedModelId,
+        assistantMessageId: 'assistant-execution-reconnect',
+        userMessage: userMessage('user-2')
+      })
+      const secondReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: second.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connections[1].send).toHaveBeenCalled())
+      secondEvents.push({ type: 'turn-complete' })
+      await secondReader.read()
+      await terminalListener(second).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(service.isSessionBusy('session-1')).toBe(false))
+
+      // An idle close with the history unchanged must not retire the approved exit: the next
+      // ordinary reconnect still opens with plan folded inactive.
+      await service.closeSession('session-1')
+      const third = service.beginTurn({
+        ...baseTurnInput,
+        modelId: switchedModelId,
+        assistantMessageId: 'assistant-follow-up',
+        userMessage: userMessage('user-3')
+      })
+      const thirdReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: third.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(thirdReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connections[2].send).toHaveBeenCalled())
+      expect(connect).toHaveBeenNthCalledWith(3, expect.objectContaining({ planExitApproved: true }))
+
+      await Promise.allSettled([
+        firstReader.cancel(),
+        secondReader.cancel(),
+        thirdReader.cancel(),
+        service.closeSession('session-1')
+      ])
     })
   })
 

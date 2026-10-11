@@ -413,18 +413,25 @@ export class AgentSessionRuntimeService extends BaseService {
     persist: (tx: DbOrTx, nativeSessionId: string) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
-    return this.forks.edit(
-      sessionId,
-      target,
-      async () => {
-        this.assertSessionEditable(sessionId, true)
-        const entry = this.entries.get(sessionId)
-        const connection = entry && this.closeConnection(entry)
-        await this.closeRuntimeConnection(connection, sessionId, true)
-        await this.closeSession(sessionId)
-      },
-      persist
-    )
+    return this.forks
+      .edit(
+        sessionId,
+        target,
+        async () => {
+          this.assertSessionEditable(sessionId, true)
+          const entry = this.entries.get(sessionId)
+          const connection = entry && this.closeConnection(entry)
+          await this.closeRuntimeConnection(connection, sessionId, true)
+          await this.closeSession(sessionId)
+        },
+        persist
+      )
+      .then((result) => {
+        // The replacement history cannot inherit the recorded plan exit: a first-message edit
+        // drops the approved plan entirely, and a forked prefix's fold is the runtime's to re-commit.
+        this.planExitedSessions.delete(sessionId)
+        return result
+      })
   }
 
   forkSession(sourceSessionId: string, messageId: string): Promise<string> {
