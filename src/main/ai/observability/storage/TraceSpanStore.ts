@@ -143,17 +143,6 @@ export class TraceSpanStore {
     this.enforceSpanLimit()
   }
 
-  deleteSpan(spanId: string): void {
-    const span = this.spans.get(spanId)
-    if (!span) return
-    const revision = this.nextRevision()
-    this.spans.delete(spanId)
-    this.spanRevisions.delete(spanId)
-    this.untrackBytes(spanId)
-    this.markTraceReset(span.traceId, revision)
-    this.untrackSpan(span.traceId, spanId)
-  }
-
   getSpans(query: TraceSpanQuery): SpanEntity[] {
     const spans: SpanEntity[] = []
     for (const spanId of this.traceSpanIds.get(query.traceId) ?? []) {
