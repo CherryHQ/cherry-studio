@@ -1,111 +1,59 @@
 {
-  "generated_at": "2026-10-10T00:00:00Z",
-  "snapshot_date": "2026-10-10",
+  "generated_at": "2026-10-11T18:00:00Z",
   "v2_branch_status": {
     "open_prs": 0,
-    "merged_prs_all_time": "100+",
-    "note": "v2 branch PRs are now merged into main; v2 is effectively the current mainline as of v2.1.5"
+    "merged_prs_30d": 0,
+    "note": "No PRs currently targeting the v2 base branch. Active development is on main."
   },
-  "latest_release": "v2.1.5",
-  "recent_main_merges_today": [
-    {
-      "number": 21474,
-      "title": "fix(provider): retire legacy Tencent TI and Hunyuan providers",
-      "merged_date": "2026-10-10"
-    },
-    {
-      "number": 21472,
-      "title": "fix(search): anchor heading strip regex to line starts",
-      "merged_date": "2026-10-10"
-    },
-    {
-      "number": 21470,
-      "title": "fix(assistant-relations): deduplicate linked IDs",
-      "merged_date": "2026-10-10"
-    },
-    {
-      "number": 21469,
-      "title": "fix(chat-updates): treat empty patches as no-ops",
-      "merged_date": "2026-10-10"
-    },
-    {
-      "number": 21468,
-      "title": "fix(temporary-chat): preserve file references when saving chats",
-      "merged_date": "2026-10-10"
-    }
-  ],
-  "active_feature_branches": [
-    "DeJeune/native-tool-search-code-mode (2 PRs)",
-    "feature/agent-runtime-transcript-context",
-    "feature/agent-runtime-ai-sdk-bridge",
-    "codex/voice-runtime-foundation",
-    "DeJeune/ai-sdk-v7-upgrade",
-    "DeJeune/ai-sdk-v7-research"
-  ],
-  "open_p1_v2_issues": [
-    {
-      "number": 21085,
-      "title": "File/KB scopes inline large tool schemas and overflow context",
-      "labels": [
-        "bug",
-        "p1",
-        "rag",
-        "v2",
-        "chat"
-      ]
-    },
-    {
-      "number": 20940,
-      "title": "Responses API stream events fail TypeValidation",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "v2",
-        "chat"
-      ]
-    },
-    {
-      "number": 20941,
-      "title": "Work and Agent conversations terminate with empty response",
-      "labels": [
-        "bug",
-        "p1",
-        "v2",
-        "agent",
-        "chat"
-      ]
-    },
-    {
-      "number": 20937,
-      "title": "DSH cannot read dsh-bridge under Program Files (EPERM)",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "v2",
-        "agent"
-      ]
-    },
+  "v2_labeled_open_issues": [
     {
       "number": 19753,
-      "title": "DeepSeek Harness repeatedly crashes during Agent sessions",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "v2",
-        "agent"
-      ]
+      "title": "DeepSeek Harness runtime repeatedly crashes during Agent sessions",
+      "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
+      "created_at": "2026-08-30",
+      "comments": 15,
+      "priority": "P1 -- Critical stability"
+    },
+    {
+      "number": 21051,
+      "title": "Windows restore fails with EPERM renaming Local Storage after restart",
+      "labels": ["bug", "p2", "windows", "data", "v2"],
+      "created_at": "2026-09-25",
+      "comments": 5,
+      "priority": "P2 -- Data safety"
+    },
+    {
+      "number": 20028,
+      "title": "Managed update feed remains on 2.0.9 after newer production releases",
+      "labels": ["bug", "p2", "v2"],
+      "created_at": "2026-09-05",
+      "comments": 12,
+      "priority": "P2 -- Distribution"
     }
   ],
-  "key_milestones": [],
-  "next_priorities": [
-    "Resolve DSH/agent stability issues (P1 cluster: #19753, #20937, #20315)",
-    "Fix Responses API TypeValidation failures (#20940, #20941)",
-    "Unblock FTS index reclaim after chat deletion (#21428)",
-    "Backup/restore reliability: EPERM + corruption (#21418, #21473)",
-    "AI SDK v7 upgrade (active branch: DeJeune/ai-sdk-v7-upgrade)",
-    "Voice runtime foundation (codex/voice-runtime-foundation)"
-  ]
+  "voice_feature_branches": [
+    "codex/voice-runtime-foundation",
+    "codex/voice-renderer-foundation",
+    "codex/voice-funasr-runtime",
+    "codex/voice-primary-consumers"
+  ],
+  "active_feature_branches": [
+    "feature/agent-runtime-ai-sdk-bridge",
+    "feature/agent-runtime-transcript-context",
+    "feat/qwencloud-intl",
+    "DeJeune/native-tool-search-code-mode"
+  ],
+  "upcoming_features_tracked": [
+    {"number": 15244, "title": "Cherry CLI -- Terminal Tool with Full GUI Feature Parity", "priority": "Long-term"},
+    {"number": 15340, "title": "Marketplace Connectors -- Third-Party Integrations via OAuth or MCP", "priority": "Long-term"},
+    {"number": 19772, "title": "Remember or configure default MCP selection for new Assistants", "priority": "P2"},
+    {"number": 19441, "title": "Video generation feature", "priority": "P1"},
+    {"number": 21060, "title": "Per-call settle step when tool answers HTTP 402 Payment Required", "priority": "Medium"}
+  ],
+  "v2_blockers": [
+    "P1: DeepSeek harness crash on Windows Agent sessions (#19753)",
+    "P2: Windows restore EPERM on Local Storage rename (#21051)",
+    "P2: Update feed stuck at 2.0.9 (#20028)"
+  ],
+  "summary": "V2 foundation merged into main. Voice feature development active across 4 branches. Agent-runtime AI SDK bridge and transcript context are key in-flight features. 3 v2-labeled bugs remain open. 91 open PRs on main covering agent, voice, provider, and UI work."
 }

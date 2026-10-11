@@ -1,11 +1,60 @@
 {
-  "generated_at": "2026-10-10T00:00:00Z",
-  "snapshot_date": "2026-10-10",
-  "note": "Discussion data from GitHub GraphQL API — latest 100 discussions by updated_at",
-  "summary": {},
-  "top_categories": [],
-  "trending_topics": [],
-  "unanswered_count": 0,
-  "high_engagement": [],
-  "data_freshness": "Carried over from 2026-10-09; GraphQL endpoint not re-queried this run"
+  "generated_at": "2026-10-11T18:00:00Z",
+  "note": "Discussion data sourced from high-comment issues; GitHub Discussions GraphQL API not available in this run.",
+  "high_engagement_issues": [
+    {
+      "number": 6505,
+      "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
+      "comments": 372,
+      "label": "assistant",
+      "created_at": "2025-05-27",
+      "status": "Ongoing community discussion — high activity"
+    },
+    {
+      "number": 20692,
+      "title": "Agent compaction summary leaks into chat transcript",
+      "comments": 17,
+      "labels": ["bug", "p1", "agent"],
+      "created_at": "2026-09-17",
+      "status": "Active P1 bug with high community engagement"
+    },
+    {
+      "number": 19753,
+      "title": "DeepSeek Harness crashes during Agent sessions",
+      "comments": 15,
+      "labels": ["bug", "p1", "windows", "v2", "agent"],
+      "created_at": "2026-08-30",
+      "status": "Active crash report — needs repro"
+    },
+    {
+      "number": 20028,
+      "title": "Managed update feed remains on 2.0.9 after newer releases",
+      "comments": 12,
+      "labels": ["bug", "p2", "v2"],
+      "created_at": "2026-09-05",
+      "status": "Active — ongoing update distribution issue"
+    },
+    {
+      "number": 21307,
+      "title": "Model card Vision chip renders ON while stored row has no image value",
+      "comments": 8,
+      "labels": ["bug"],
+      "created_at": "2026-10-03",
+      "status": "Active — render vs state mismatch"
+    }
+  ],
+  "trending_topics": [
+    "Windows backup/restore reliability (multiple issues, recurring theme)",
+    "Agent MCP integration failures (bridge, auth, UUID naming)",
+    "Model API compatibility (max_tokens, tool calls, image modality)",
+    "Selection Assistant / Quick Assistant UX improvements",
+    "Provider ecosystem expansion (DemonRoute, TrustedRouter, SkyAccess, Datacircle)"
+  ],
+  "unanswered_community_questions": [
+    {"number": 21447, "title": "How do I delete an Agent? No delete entry point found"},
+    {"number": 21391, "title": "[Discussion]: (empty title — needs moderation)"},
+    {"number": 21368, "title": "How to make Cherry automatically connect to Codex"},
+    {"number": 21257, "title": "Drawing feature ref images not usable in Agent"},
+    {"number": 21177, "title": "Time Machine data backup recovery after hardware failure"}
+  ]
 }
