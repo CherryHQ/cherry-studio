@@ -1,3 +1,4 @@
+import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import {
   cleanupTerminalRestoreArtifacts,
   isLiveDbStranded,
@@ -18,21 +19,10 @@ const logger = loggerService.withContext('BackupRestoreGate')
  * renames and must hold the single-instance lock) and after the path registry
  * is frozen (all journal paths resolve against the final userData).
  *
- * No return value: whatever happens, boot continues — promotion success means
- * the new DB is live, any refusal or failure means the old DB is. An
- * unexpected crash of the promotion logic is logged and handed to
- * markRestoreFailedAfterCrash, which restores the live DB from the aside if
- * needed and freezes the journal to failed (or leaves a committed promotion
- * resumable) so the next boot does not retry a promotion that just proved
- * itself poisonous.
- *
- * This shell never throws — a preboot exception falls into startApp's
- * fail-fast catch (forceExit) and dead-loops the app into "Unable to Start" —
- * with exactly ONE exception: when even the crash net could not put a live
- * DB in place (isLiveDbStranded), booting on would silently CREATE a fresh
- * empty database while the user's data sits in the aside. That is the one
- * outcome worse than the fail-fast dialog, so the gate refuses to boot and
- * leaves the aside, the journal, and the staging tree as repair artifacts.
+ * Boot continues after promotion or complete rollback. Unexpected failures
+ * invoke the last-resort recovery net. A stranded database or a surviving
+ * pending journal blocks boot: services must not write or sweep data while
+ * recovery is incomplete. The next launch retries with the retained artifacts.
  */
 export async function runBackupRestoreGate(): Promise<void> {
   try {
@@ -51,4 +41,7 @@ export async function runBackupRestoreGate(): Promise<void> {
     }
   }
   cleanupTerminalRestoreArtifacts()
+  if (hasPendingRestore()) {
+    throw new Error('Restore recovery is incomplete — refusing to boot while recovery artifacts are still pending')
+  }
 }

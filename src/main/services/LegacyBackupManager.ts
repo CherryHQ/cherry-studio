@@ -942,12 +942,14 @@ class BackupManager {
     }
     if (
       existingJournal.kind === 'ok' &&
-      (existingJournal.journal.state === 'staged' || existingJournal.journal.state === 'promoting')
+      (existingJournal.journal.state === 'staged' ||
+        existingJournal.journal.state === 'promoting' ||
+        existingJournal.journal.state === 'failed')
     ) {
       throw new Error('Another restore is already pending. Restart Cherry Studio before trying again.')
     }
 
-    // No restore is pending: terminal journals have already released their
+    // No restore is pending: completed/expired journals have released their
     // staging tree, and any remaining directory is an orphan from a crash
     // before the durable journal commit.
     await fs.remove(stagingRoot)

@@ -29,7 +29,9 @@ staged ──gate passed──▶ promoting ──▶ completed (work promoted, 
 - `staged` — written by the backup staging pipeline after offline merge + verification.
 - `promoting` — set by the preboot gate; `step` is the write-ahead marker (see `PROMOTION_STEP_ORDER`; ordering comparisons MUST use `indexOf` on that table, never string comparison).
 - Markers are recovery hints, not ground truth: around the commit boundary the gate decides from filesystem reality (`work` / `live` / `aside` existence) — a landed commit rename with a lagging or unwritable marker resumes forward, an interrupted revert (cleared aside) finishes the revert.
-- Terminal states (`completed` / `failed` / `expired`) remain durable through the stranded-DB safety check, then the preboot gate logs and removes them before database boot continues.
+- Rollback restores the old database before undoing resources. All resource inverses are attempted; any failure retains the active journal and staging tree for the next launch. Restoring the DB aside first also makes an interrupted rollback distinguishable from a forward resume.
+- Terminal states (`completed` / `failed` / `expired`) remain durable through the stranded-DB safety check, then the preboot gate logs and removes them before database boot continues. A legacy `failed` journal can still hold original resource asides: terminal cleanup restores these before deleting staging. It does not undo add targets, because terminal cleanup may already have removed the staging sources that proved ownership.
+- A surviving `staged`, `promoting`, or `failed` journal (and a corrupt journal) counts as pending for orphan sweep and new restore staging. The preboot gate refuses to start services while recovery remains pending; remove the I/O obstruction and relaunch to retry. No journal format change is required.
 
 ## Ownership
 

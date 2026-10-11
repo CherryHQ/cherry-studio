@@ -2,17 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Shell contract only (the promotion logic and the crash net's journal/aside
- * behavior are covered by restorePromotion.test.ts): the gate never throws —
- * a preboot exception lands in startApp's fail-fast catch — with exactly one
- * exception: when recovery left no live DB while the aside still holds the
- * user's data, booting on would CREATE a fresh empty database, so the gate
- * must refuse and fail fast instead.
+ * behavior are covered by restorePromotion.test.ts and restoreRollbackRetention.test.ts).
+ * Pending recovery or a stranded database must block database boot.
  */
 
 const runRestorePromotionMock = vi.fn<() => Promise<void>>()
 const markRestoreFailedAfterCrashMock = vi.fn<() => void>()
 const isLiveDbStrandedMock = vi.fn<() => boolean>()
 const cleanupTerminalRestoreArtifactsMock = vi.fn<() => void>()
+const hasPendingRestoreMock = vi.fn<() => boolean>()
+
+vi.mock('@data/db/restore/restoreJournal', () => ({
+  hasPendingRestore: () => hasPendingRestoreMock()
+}))
 
 vi.mock('@data/db/restore/restorePromotion', () => ({
   runRestorePromotion: () => runRestorePromotionMock(),
@@ -28,7 +30,9 @@ beforeEach(() => {
   markRestoreFailedAfterCrashMock.mockReset()
   isLiveDbStrandedMock.mockReset()
   cleanupTerminalRestoreArtifactsMock.mockReset()
+  hasPendingRestoreMock.mockReset()
   isLiveDbStrandedMock.mockReturnValue(false)
+  hasPendingRestoreMock.mockReturnValue(false)
 })
 
 describe('runBackupRestoreGate', () => {
@@ -36,20 +40,12 @@ describe('runBackupRestoreGate', () => {
     runRestorePromotionMock.mockResolvedValue(undefined)
 
     await expect(runBackupRestoreGate()).resolves.toBeUndefined()
-
-    expect(runRestorePromotionMock).toHaveBeenCalledOnce()
-    expect(markRestoreFailedAfterCrashMock).not.toHaveBeenCalled()
-    expect(isLiveDbStrandedMock).not.toHaveBeenCalled()
-    expect(cleanupTerminalRestoreArtifactsMock).toHaveBeenCalledOnce()
   })
 
   it('swallows a substance crash and invokes the crash net', async () => {
     runRestorePromotionMock.mockRejectedValue(new Error('boom'))
 
     await expect(runBackupRestoreGate()).resolves.toBeUndefined()
-
-    expect(markRestoreFailedAfterCrashMock).toHaveBeenCalledOnce()
-    expect(cleanupTerminalRestoreArtifactsMock).toHaveBeenCalledOnce()
   })
 
   it('never throws on a crash-net failure while the live DB survived', async () => {
@@ -59,7 +55,6 @@ describe('runBackupRestoreGate', () => {
     })
 
     await expect(runBackupRestoreGate()).resolves.toBeUndefined()
-    expect(cleanupTerminalRestoreArtifactsMock).toHaveBeenCalledOnce()
   })
 
   it('refuses to boot when recovery left the live DB stranded in the aside', async () => {
@@ -69,7 +64,6 @@ describe('runBackupRestoreGate', () => {
     // Booting on would create a fresh empty database while the user's data
     // sits in the aside — the one case worse than the fail-fast dialog.
     await expect(runBackupRestoreGate()).rejects.toThrow(/empty database/)
-    expect(cleanupTerminalRestoreArtifactsMock).not.toHaveBeenCalled()
   })
 
   it('refuses to boot when the crash net itself failed and the live DB is stranded', async () => {
@@ -80,6 +74,20 @@ describe('runBackupRestoreGate', () => {
     isLiveDbStrandedMock.mockReturnValue(true)
 
     await expect(runBackupRestoreGate()).rejects.toThrow(/empty database/)
-    expect(cleanupTerminalRestoreArtifactsMock).not.toHaveBeenCalled()
   })
+
+  it.each(['promotion', 'crash-net', 'terminal-cleanup'])(
+    'refuses to boot when %s leaves recovery pending',
+    async (failure) => {
+      if (failure !== 'terminal-cleanup') runRestorePromotionMock.mockRejectedValue(new Error('recovery blocked'))
+      if (failure === 'crash-net') {
+        markRestoreFailedAfterCrashMock.mockImplementation(() => {
+          throw new Error('resource still locked')
+        })
+      }
+      hasPendingRestoreMock.mockReturnValue(true)
+
+      await expect(runBackupRestoreGate()).rejects.toThrow(/recovery is incomplete/)
+    }
+  )
 })

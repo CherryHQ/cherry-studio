@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
 import {
   hasPendingRestore,
@@ -12,24 +13,7 @@ import {
   writeRestoreJournal
 } from '@data/db/restore/restoreJournal'
 
-/**
- * The journal path is resolved through `application.getPath`; shadow the global
- * mock so it points into a per-test throwaway userData dir (mirrors the
- * v2MigrationGate.test.ts strategy — real FS, fake path registry).
- */
 let userDataDir = ''
-
-vi.mock('@application', () => ({
-  application: {
-    getPath: vi.fn((key: string, filename?: string) => {
-      if (key !== 'feature.backup.restore.file') {
-        throw new Error(`Unexpected path key in restoreJournal test: ${key}`)
-      }
-      const base = join(userDataDir, 'restore-journal.json')
-      return filename ? join(base, filename) : base
-    })
-  }
-}))
 
 function journalPath(): string {
   return join(userDataDir, 'restore-journal.json')
@@ -65,9 +49,17 @@ function stagedJournal(): RestoreJournal {
 describe('restoreJournal', () => {
   beforeEach(() => {
     userDataDir = mkdtempSync(join(tmpdir(), 'cs-restore-journal-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+      if (key !== 'feature.backup.restore.file') {
+        throw new Error(`Unexpected path key in restoreJournal test: ${key}`)
+      }
+      const base = journalPath()
+      return filename ? join(base, filename) : base
+    })
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     rmSync(userDataDir, { recursive: true, force: true })
   })
 
@@ -157,7 +149,7 @@ describe('restoreJournal', () => {
       ['staged', true],
       ['promoting', true],
       ['completed', false],
-      ['failed', false],
+      ['failed', true],
       ['expired', false]
     ] as const)('state %s → %s', (state, expected) => {
       const journal =
