@@ -74,25 +74,6 @@ export class DataApiService extends BaseService {
   }
 
   /**
-   * Get system status and statistics
-   */
-  public getSystemStatus() {
-    if (!this.isReady) {
-      return {
-        initialized: false,
-        error: 'DataApiService not initialized'
-      }
-    }
-
-    const systemInfo = this.apiServer.getSystemInfo()
-
-    return {
-      initialized: true,
-      ...systemInfo
-    }
-  }
-
-  /**
    * Get API server instance (for advanced usage)
    */
   public getApiServer(): ApiServer {
