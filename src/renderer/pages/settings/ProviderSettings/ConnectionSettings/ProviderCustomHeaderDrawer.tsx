@@ -353,6 +353,10 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   }, [applyJsonToRowsOrToast, headersUiMode, syncListToJson])
 
   const handleSave = useCallback(async () => {
+    if (!provider) {
+      return
+    }
+
     // Other whole-endpoint-snapshot writers (API host, reasoning format) may be
     // mid-flight; let them land, pull their result, and join the same write lock
     // so this snapshot can't erase a concurrent field.
@@ -441,7 +445,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    if (defaultEndpointChanged || defaultEndpointDraft !== previousDefaultBaseUrl) {
+    if (savedProvider && (defaultEndpointChanged || defaultEndpointDraft !== previousDefaultBaseUrl)) {
       syncProviderModels({
         ...savedProvider,
         endpointConfigs: savedEndpointConfigs,
