@@ -76,6 +76,7 @@ const providerKeyMap = {
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
   together: 'provider.together',
   tokendance: 'provider.tokendance',
+  tokendos: 'provider.tokendos',
   tokenhub: 'provider.tokenhub',
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',

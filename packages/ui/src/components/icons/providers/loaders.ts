@@ -154,6 +154,7 @@ export const PROVIDER_ICON_LOADERS = {
   tng: () => import('./tng').then(({ TngIcon }) => TngIcon),
   together: () => import('./together').then(({ TogetherIcon }) => TogetherIcon),
   tokendance: () => import('./tokendance').then(({ TokendanceIcon }) => TokendanceIcon),
+  tokendos: () => import('./tokendos').then(({ TokendosIcon }) => TokendosIcon),
   twitter: () => import('./twitter').then(({ TwitterIcon }) => TwitterIcon),
   upstage: () => import('./upstage').then(({ UpstageIcon }) => UpstageIcon),
   vercel: () => import('./vercel').then(({ VercelIcon }) => VercelIcon),
