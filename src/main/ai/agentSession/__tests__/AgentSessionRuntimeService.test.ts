@@ -56,6 +56,7 @@ const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
+  listIdsByAgent: vi.fn<(agentId: string) => string[]>(() => []),
   recordUsage: vi.fn(),
   trackTokenUsage: vi.fn()
 }))
@@ -92,7 +93,8 @@ vi.mock('../fork/resources', async (importOriginal) => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
-    ensureTraceId: mocks.ensureTraceId
+    ensureTraceId: mocks.ensureTraceId,
+    listIdsByAgent: mocks.listIdsByAgent
   }
 }))
 
@@ -1089,6 +1091,81 @@ describe('AgentSessionRuntimeService', () => {
         thirdReader.cancel(),
         service.closeSession('session-1')
       ])
+    })
+
+    it('retires the remembered plan exit when the agent explicitly returns to Plan while disconnected', async () => {
+      const firstEvents = createAsyncQueue<any>()
+      const secondEvents = createAsyncQueue<any>()
+      const connections = [firstEvents, secondEvents].map((events) => ({
+        events: events.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }))
+      const connect = vi.fn().mockResolvedValueOnce(connections[0]).mockResolvedValueOnce(connections[1])
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-replan',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-replan',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const first = service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-plan-replan',
+        userMessage: userMessage('user-1')
+      })
+      const firstReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: first.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connections[0].send).toHaveBeenCalled())
+
+      const result = service.respondToolApproval('approval-plan-replan', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      expect((service as any).planExitedSessions.has('session-1')).toBe(true)
+
+      // The user then saves Default and finally Plan in the Agent editor while the session has no
+      // entry: the explicit Plan re-entry must retire the remembered approval, not let the next
+      // connection open with plan folded inactive.
+      await service.closeSession('session-1')
+      mocks.listIdsByAgent.mockReturnValue(['session-1'])
+      await (service as any).handleAgentUpdated(
+        'agent-1',
+        { configuration: { permission_mode: 'plan' } },
+        {
+          id: 'agent-1',
+          configuration: { permission_mode: 'plan' }
+        }
+      )
+      expect((service as any).planExitedSessions.has('session-1')).toBe(false)
+
+      const second = service.beginTurn({
+        ...baseTurnInput,
+        modelId: switchedModelId,
+        assistantMessageId: 'assistant-after-replan',
+        userMessage: userMessage('user-2')
+      })
+      const secondReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: second.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connections[1].send).toHaveBeenCalled())
+      expect(connect).toHaveBeenNthCalledWith(2, expect.not.objectContaining({ planExitApproved: true }))
+
+      await Promise.allSettled([firstReader.cancel(), secondReader.cancel(), service.closeSession('session-1')])
     })
   })
 
