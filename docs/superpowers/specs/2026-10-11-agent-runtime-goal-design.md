@@ -39,7 +39,7 @@ Cherry 正把 Pi 做成唯一的 agent runtime（L1 #21436 桥接、L2 #21437 tr
 
 1. 目标对象与状态机（沿用 DSH：`active / paused / blocked / complete`，revision 做 compare-and-set）。
 2. 续跑决策只在 `agent_before_settle` 做；`turn_end` 记账；`agent_settled` 不续跑。
-3. 运行时硬停止：每个 goal 的轮数上限（默认由宿主给）、宿主级绝对上限、可选 token 预算。触顶前给一次收尾轮。
+3. 运行时硬停止：每个 goal 的轮数上限（默认由宿主给）、宿主级绝对上限、可选预算（token 数或金额）。触顶前给一次收尾轮。
 4. 停止压过续跑：中止、暂停、清除立即生效；三者在 UI 上是三个操作。
 5. "需要人"即停：自主轮里审批被拒、用户关掉提问、或处于无人值守 → 停下并给出原因码。
 6. 运行时侧无进展检测：轮级（连续无成功动作或输出重复）和轮内（同一工具调用重复）。先提示，再停。
@@ -101,8 +101,9 @@ interface GoalSnapshot {
   phase: 'active' | 'paused' | 'blocked' | 'complete'
   roundsStarted: number      // 已被接纳的轮数
   maxGoalRounds: number      // 本 goal 的轮数上限
-  tokenBudget?: number       // 本 goal 的 token 预算（input + output + cacheRead + cacheWrite 之和）
-  tokensUsed: number
+  budget?: { tokens?: number; usd?: number }   // 本 goal 的预算，任一项越过即触发
+  tokensUsed: number         // input + output + cacheRead + cacheWrite 之和
+  costUsed: number           // Pi 的 usage.cost.total 累计（L1 已把模型定价传给 Pi）；无定价的模型恒为 0
   wrapUpDone: boolean        // 收尾轮是否已经跑过
   lastStop?: { code: GoalStopCode; message?: string; at: number }
   createdAt: number
@@ -123,7 +124,7 @@ type GoalStopCode =
   | 'complete'               // 模型报完成且通过核验
   | 'model_blocked'          // 模型报受阻（满足 3 轮门槛）
   | 'round_limit'            // 轮数上限
-  | 'token_budget'           // token 预算
+  | 'budget_exhausted'       // token 或金额预算
   | 'no_progress'            // 运行时判定无进展
   | 'approval_denied'        // 自主轮里审批被拒
   | 'awaiting_approval'      // 无人值守下出现审批请求
@@ -186,7 +187,7 @@ repeated output). Change approach, or report the concrete blocker.
 `kind: 'wrap-up'` 把正文换成：
 
 ```
-The round or token budget for this goal is exhausted. Do not start new work.
+The round, token or cost budget for this goal is exhausted. Do not start new work.
 Summarize what is done, what is verified, and what remains, then stop.
 ```
 
@@ -211,7 +212,7 @@ Summarize what is done, what is verified, and what remains, then stop.
 每个 turn 结束时记录（只在内存里，随快照持久化的只有累计 token）：
 
 - `progress`：本轮是否有成功的非只读工具调用（`toolResults` 里存在 `isError !== true` 且工具不在集合 `read / grep / find / ls / tool_search / vcc_recall / get_goal / todo_write / AskUserQuestion` 中的结果），或 assistant 文本与上一轮归一化后不同。`todo_write` 和 `AskUserQuestion` 不算进展，否则只改 todo 或只提问的轮会绕过无进展检测。
-- `tokensUsed += usage.input + usage.output + usage.cacheRead + usage.cacheWrite`。
+- `tokensUsed += usage.input + usage.output + usage.cacheRead + usage.cacheWrite`；`costUsed += usage.cost.total`（L1 在 `toPiUsage` 里用模型的 `cost` 单价算出，无定价时为 0）。
 - `truncated`：assistant `stopReason === 'length'`。
 
 ### 6.2 `agent_before_settle`：按顺序判断
@@ -231,14 +232,15 @@ Summarize what is done, what is verified, and what remains, then stop.
 9. 无进展计数 ≥ 3                               → phase=blocked, code=no_progress；不续跑
 10. 预算判断：
     wrapUpDone                                 → phase=blocked, code=round_limit（轮数已到上限）
-                                                 或 token_budget（其余情况）；不续跑
+                                                 或 budget_exhausted（其余情况）；不续跑
     roundsStarted + 1 ≥ maxGoalRounds
-      或 tokensUsed ≥ tokenBudget               → 预约一轮 kind=wrap-up（这一轮计入轮数）
+      或 tokensUsed ≥ budget.tokens
+      或 costUsed ≥ budget.usd                  → 预约一轮 kind=wrap-up（这一轮计入轮数）
     否则                                       → 预约一轮 kind=work（无进展计数 == 2 时 kind=hint）
 11. 预约：entries=[轮消息]，continue=true；记录 reservation={revision, round: roundsStarted+1}
 ```
 
-第 10 条的效果：轮数上限为 N 时，第 N 轮就是收尾轮，不多跑；token 预算越过后多跑一轮收尾，然后停。`confirm-each-round` 模式下 `/goal resume` 只重新武装一次，第 6 条保证它恰好跑一轮。
+第 10 条的效果：轮数上限为 N 时，第 N 轮就是收尾轮，不多跑；预算越过后多跑一轮收尾，然后停。`confirm-each-round` 模式下 `/goal resume` 只重新武装一次，第 6 条保证它恰好跑一轮。
 
 第 7 条让路时，用户消息处理完后 Pi 会再次到达 `agent_before_settle`，goal 在那里继续判断；这保证了用户插话不会取消 goal，也不会被 goal 抢先。
 
@@ -248,7 +250,7 @@ Summarize what is done, what is verified, and what remains, then stop.
 
 Pi 的处理器按加载顺序串行组合，后加载的扩展可以覆盖 `entries` 和 `continue`，提出方不会收到回执。所以 `roundsStarted` 不在返回 `continue: true` 时递增，而在确认被接纳时递增：
 
-- 下一个 `turn_start`：检查 `ctx.sessionManager.getBranch()` 末尾是否是本扩展的 `cherry.goal-round` 条目，且 `details` 与预约一致。一致则追加快照 `roundsStarted + 1`（wrap-up 轮同时置 `wrapUpDone = true`），清空预约。`edit` 调高 `maxGoalRounds` 或 `tokenBudget` 时把 `wrapUpDone` 重置为 `false`，触顶后的目标才能再次续跑。
+- 下一个 `turn_start`：检查 `ctx.sessionManager.getBranch()` 末尾是否是本扩展的 `cherry.goal-round` 条目，且 `details` 与预约一致。一致则追加快照 `roundsStarted + 1`（wrap-up 轮同时置 `wrapUpDone = true`），清空预约。`edit` 调高 `maxGoalRounds` 或 `budget` 时把 `wrapUpDone` 重置为 `false`，触顶后的目标才能再次续跑。
 - 若先到的是 `agent_settled`：预约作废，追加快照 `lastStop = continuation_rejected`，`armed = false`，phase 不变。宿主据此在 UI 上提示"续跑被拒绝"。
 
 这和 DSH 的"只有被接纳的 goal 消息才推进轮数"一致。
@@ -263,13 +265,15 @@ Pi 的处理器按加载顺序串行组合，后加载的扩展可以覆盖 `ent
 
 | 项 | 来源 | 默认 | 触发时 |
 |---|---|---|---|
-| `maxGoalRounds` | 创建时指定，否则 `port.defaults.maxGoalRounds` | 30（宿主可改） | 第 N 轮以 wrap-up 跑，之后 `blocked / round_limit` |
-| 绝对上限 | `port.defaults.maxGoalRoundsCeiling` | 500 | `create_goal` / `edit` 超过即拒绝 |
-| `tokenBudget` | 创建时指定，否则 `port.defaults.tokenBudget` | 不设 | 越过后下一轮以 wrap-up 跑，之后 `blocked / token_budget` |
+| `maxGoalRounds` | 创建时指定，否则 `port.defaults.maxGoalRounds` | 100（宿主可改） | 第 N 轮以 wrap-up 跑，之后 `blocked / round_limit` |
+| 绝对上限 | `port.defaults.maxGoalRoundsCeiling` | 1000 | `create_goal` / `edit` 超过即拒绝 |
+| `budget.tokens` / `budget.usd` | 创建时指定，否则 `port.defaults.budget` | 不设 | 任一越过后下一轮以 wrap-up 跑，之后 `blocked / budget_exhausted` |
 
-触顶之后的出路：`update_goal(edit, max_goal_rounds)` 或 `/goal edit` 调高上限，再 `resume`。`resume` 在没有余量时返回明确错误，告诉用户先调高。
+触顶之后的出路：`update_goal(edit, …)` 或 `/goal rounds` / `/goal budget` 调高，再 `resume`。`resume` 在没有余量时返回明确错误，告诉用户先调高。
 
-默认 30 的依据：文献给不出数字（10 到 10007 都有），Pi 社区包收敛在 25–50 次模型响应，DSH 的 256 是按强模型调的。V1 用保守值加 token 预算兜底，靠第 10 节的遥测修正。
+一轮的单位：模型自己停下（不再调工具）后 goal 推它一次，算一轮；一轮内的工具循环可以含任意多次模型请求。这和 DSH 相同，和 Pi 社区包按"每次模型响应"计的 25 不可比。默认 100 的依据：V1 已有无进展检测（卡住 3 轮即停）和预算兜底，轮数上限只负责给"有用但没完没了"的工作封顶，可以放宽；文献给不出数字（10 到 10007 都有），靠第 10 节的遥测修正。
+
+金额预算只对 Cherry 模型目录里有定价的模型有意义；本地或自定义模型 `costUsed` 恒为 0，只能用 token 预算。宿主可以按 agent 配置默认预算，例如用模型单价把一个金额换算成 token 数。
 
 ### 7.2 无进展
 
@@ -314,8 +318,8 @@ Pi 的处理器按加载顺序串行组合，后加载的扩展可以覆盖 `ent
 
 ```
 get_goal()
-create_goal(objective, max_goal_rounds?, token_budget?)
-update_goal(goal_id, revision, action, objective?, max_goal_rounds?, token_budget?,
+create_goal(objective, max_goal_rounds?, budget_tokens?, budget_usd?)
+update_goal(goal_id, revision, action, objective?, max_goal_rounds?, budget_tokens?, budget_usd?,
             blocked_reason?, evidence?)
   action: 'edit' | 'pause' | 'resume' | 'complete' | 'blocked'
 ```
@@ -330,10 +334,10 @@ update_goal(goal_id, revision, action, objective?, max_goal_rounds?, token_budge
 | `complete`、`blocked` | 人类回合或 goal 轮都可以 |
 | `create` | 当前没有目标，或当前目标已 `complete` |
 | `resume` | phase 为 `paused` 或 `blocked`，且有余量（轮数和预算都未触顶）；`active` 但 disarmed 时只重新武装 |
-| `edit` | 可改 objective、`max_goal_rounds`、`token_budget`；调高上限时重置 `wrapUpDone`，并把 `round_limit` / `token_budget` 导致的 `blocked` 恢复为 `active`（仍需 `resume` 才武装） |
+| `edit` | 可改 objective、`max_goal_rounds`、`budget_tokens`、`budget_usd`；调高上限时重置 `wrapUpDone`，并把 `round_limit` / `budget_exhausted` 导致的 `blocked` 恢复为 `active`（仍需 `resume` 才武装） |
 | 所有变更 | `goal_id` 和 `revision` 与当前一致，否则返回 stale 错误并附当前视图 |
 
-模型调用 `create_goal` 需要用户确认：宿主把 `create_goal` 的审批策略设为"询问"（而不是 DSH 声明的 auto），由现有审批 UI 完成确认。包内不做。
+模型调用 `create_goal` 需要用户确认：宿主把 `create_goal` 的审批策略设为"询问"（而不是 DSH 声明的 auto），现有审批卡片会把 objective 作为工具入参展示。包内不做；这是成本最低的方案。
 
 ### 8.2 `/goal` 命令
 
@@ -347,7 +351,7 @@ update_goal(goal_id, revision, action, objective?, max_goal_rounds?, token_budge
 | `/goal pause` | phase=paused，中止当前轮 |
 | `/goal resume` | 重新武装；`confirm-each-round` 模式下只跑一轮；无余量时报错 |
 | `/goal clear` | 写墓碑，中止当前轮 |
-| `/goal rounds <n>` / `/goal budget <tokens>` | 调上限（受绝对上限约束） |
+| `/goal rounds <n>` / `/goal budget <tokens>` / `/goal budget $<usd>` | 调上限或预算（轮数受绝对上限约束） |
 
 控制词只在占满整个输入时生效；其余非空输入都是 objective。命令返回的文本由宿主作为系统提示展示，不进入模型上下文。
 
@@ -378,9 +382,9 @@ interface GoalVerifier {
 ```ts
 interface GoalPort {
   defaults: {
-    maxGoalRounds: number            // 30
-    maxGoalRoundsCeiling: number     // 500
-    tokenBudget?: number
+    maxGoalRounds: number            // 100
+    maxGoalRoundsCeiling: number     // 1000
+    budget?: { tokens?: number; usd?: number }   // 宿主可按模型定价换算
     blockedAfter: number             // 3
     autonomy: () => 'auto' | 'confirm-each-round'   // 每次决策时读取，宿主可中途改
   }
@@ -414,9 +418,9 @@ interface GoalPort {
 
 | 项 | 值 | 可改 |
 |---|---|---|
-| `maxGoalRounds` | 30 | 每个 goal；宿主默认 |
-| `maxGoalRoundsCeiling` | 500 | 宿主 |
-| `tokenBudget` | 不设 | 每个 goal；宿主默认 |
+| `maxGoalRounds` | 100 | 每个 goal；宿主默认 |
+| `maxGoalRoundsCeiling` | 1000 | 宿主 |
+| `budget.tokens` / `budget.usd` | 不设 | 每个 goal；宿主默认 |
 | `blockedAfter` | 3 轮 | 宿主 |
 | 无进展：提示 / 停止 | 2 轮 / 3 轮 | 固定 |
 | 轮内重复：提示 / 停止 | 3 次 / 5 次 | 固定 |
@@ -434,7 +438,7 @@ interface GoalPort {
 | 另一个后加载扩展覆盖 `continue: false` → `continuation_rejected`，轮数不变 | 不检查接纳 |
 | 用户消息在 `pendingMessages` 里 → 本次不续跑，处理后再续 | 抢先于用户消息，或让路后忘记目标 |
 | 第 N 轮为 wrap-up，之后 `blocked / round_limit`；`edit` 调高后 `resume` 可继续 | 少跑或多跑一轮；触顶后无路可走 |
-| token 预算越过后一轮 wrap-up，之后 `blocked / token_budget` | 不计 token 或不收尾 |
+| token 或金额预算越过后一轮 wrap-up，之后 `blocked / budget_exhausted`；无定价模型只按 token 计 | 不计 token、不计 cost，或不收尾 |
 | 连续两轮无进展 → 第三轮带 hint；三轮 → `no_progress` | 计数不清零或不提示 |
 | 同一工具调用第 3 次被 block 并提示，第 5 次后本轮结束即停 | 轮内检测缺失 |
 | 审批被拒 → 本轮结束 `approval_denied`，不计入 blocked 门槛 | 拒绝被当作"再试一次" |
@@ -450,12 +454,12 @@ interface GoalPort {
 | `modelSupportsTools() === false` 时不注册工具和命令 | 门控缺失 |
 | 压缩把早期轮消息折叠后，下一轮提示仍含目标全文，模型请求与重建一致 | 目标依赖历史 |
 
-## 14. 需要确认的决定
+## 14. 决定记录
 
-1. 默认 `maxGoalRounds = 30`、绝对上限 500。调研给不出依据，这是保守起点。
-2. `tokenBudget` 默认不设。另一个选择是宿主按模型给一个默认值。
-3. `create_goal` 需要用户确认：实现为审批策略"询问"，还是单独的确认卡片。
-4. 两个 L4 注入点的最终形状，等 #19591 的模式统一落地后再定。
+1. 默认 `maxGoalRounds = 100`、绝对上限 1000。一轮按"模型停下后推一次"计，V1 已有无进展检测和预算兜底，上限只封顶"有用但没完没了"的工作。
+2. 预算支持 token 数和金额两种，默认不设；金额依赖 L1 已传给 Pi 的模型定价，无定价的模型只能用 token。
+3. 模型创建目标的确认用审批策略"询问"，包内无代码。
+4. `GoalPort.onApproval` 和 `hasRunningChildren` 的形状现在就定（第 10 节）；只有宿主侧适配等 L4 的权限统一（#19591）和子 agent 生命周期落地，不影响包内实现。
 
 ## 15. 实施顺序
 
