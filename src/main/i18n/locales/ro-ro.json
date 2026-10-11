@@ -1,5 +1,6 @@
 {
   "agent.builtin.cherry_assistant.description": "Consilier integrat Cherry Studio. Diagnostichează probleme, oferă îndrumări, colectează întrebări frecvente, trimite rapoarte de erori și solicitări de funcții și caută sau creează abilități",
+  "agent.builtin.cherry_doctor.description": "Analist integrat al diagnosticului de sistem. Citește raportul de diagnostic și starea de execuție, explică cauza principală și propune remedieri limitate",
   "agent.builtin.cherry_support.description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback",
   "agent.session.dsh.bun_unavailable": "DSH nu a putut porni deoarece mediul de execuție inclus nu este disponibil. Reinstalați Cherry Studio și încercați din nou.",
   "agent.session.dsh.bun_unavailable_dev": "DSH nu a putut porni deoarece mediul de execuție inclus nu este disponibil. Rulați pnpm download:binaries în copia locală a depozitului de dezvoltare și încercați din nou.",
@@ -169,6 +170,9 @@
   "settings.mcp.oauth.callback.listen_error": "Nu s-a putut asculta pentru răspunsul OAuth la 127.0.0.1:{{port}} ({{reason}}). Verificați dacă portul este disponibil și încercați din nou.",
   "settings.mcp.oauth.callback.message": "Poți închide această pagină și te poți întoarce la Cherry Studio",
   "settings.mcp.oauth.callback.title": "Autentificare reușită",
+  "settings.mcp.oauth.cancelled": "Autorizarea a fost anulată.",
+  "settings.mcp.oauth.not_completed": "Autorizarea în browser nu a fost finalizată.",
+  "settings.mcp.oauth.required": "Este necesară autentificarea.",
   "settings.title": "Setări",
   "tray.quit": "Ieșire",
   "tray.show_quick_assistant": "Asistent rapid",

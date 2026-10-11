@@ -1,7 +1,7 @@
 # Private local Voice adapters
 
 `voiceAudioProcess` declares the `voice.audio` utility process. VoiceSessionService
-registers it; Apple requests `decode` with Main-read FileEntry bytes and a combined
+registers it; Apple, Windows and FunASR ASR request `decode` with Main-read FileEntry bytes and a combined
 owner/caller/timeout AbortSignal. The process uses terminate cancellation, so the
 caller cannot release its operation lease before the old generation exits.
 
