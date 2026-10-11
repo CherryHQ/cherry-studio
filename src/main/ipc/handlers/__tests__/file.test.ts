@@ -68,7 +68,16 @@ vi.mock('@main/services/file', async () => {
   }
 })
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { ContentCommittedMetadataPendingError, DirectoryTreeStoppedError } from '@main/services/file'
+import {
+  NotesMigrationWriteBlockedError,
+  releaseNotesMigrationSession,
+  setNotesMigrationBlockedRoots
+} from '@main/services/notesRelocation'
 import { PathStaleVersionError } from '@main/utils/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -439,6 +448,32 @@ describe('fileHandlers', () => {
     expect(fileManager.rename).toHaveBeenCalledWith(ids[0], 'renamed')
     expect(fileManager.open).toHaveBeenCalledWith(ids[0])
     expect(fileManager.showInFolder).toHaveBeenCalledWith(ids[0])
+  })
+
+  it('blocks external-entry renames under migration roots instead of swallowing the barrier error', async () => {
+    const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rename-src-'))
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-rename-tgt-'))
+    const notesFile = path.join(source, 'report.pdf')
+    fs.writeFileSync(notesFile, 'pdf')
+
+    setNotesMigrationBlockedRoots(source, target)
+    fileManager.getPhysicalPath.mockReturnValue(notesFile)
+
+    try {
+      await expect(fileHandlers['file.rename']({ id: ids[0], newName: 'renamed.pdf' }, ctx)).rejects.toBeInstanceOf(
+        NotesMigrationWriteBlockedError
+      )
+      expect(fileManager.rename).not.toHaveBeenCalled()
+    } finally {
+      appGetMock.mockImplementation((name: string) => {
+        if (name === 'IpcApiService') return { broadcast: vi.fn() }
+        if (name === 'FileManager') return fileManager
+        if (name === 'DirectoryTreeManager') return directoryTreeManager
+        if (name === 'WindowManager') return windowManager
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      releaseNotesMigrationSession()
+    }
   })
 
   it('dispatches path system commands without FileManager entry lookup', async () => {

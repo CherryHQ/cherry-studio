@@ -137,6 +137,28 @@ describe('useRichEditor autoFocus', () => {
     expect(isSelectionAtEnd(result.current.editor)).toBe(true)
   })
 
+  it('ignores link save and remove while the editor is not editable', async () => {
+    const { result, rerender } = renderHook(
+      ({ editable }) => useRichEditor({ initialContent: '[hello](https://old.example)', editable }),
+      { initialProps: { editable: true } }
+    )
+
+    await waitFor(() => expect(result.current.editor).toBeTruthy())
+    const editor = result.current.editor!
+    const before = editor.getHTML()
+
+    rerender({ editable: false })
+    await waitFor(() => expect(editor.isEditable).toBe(false))
+
+    act(() => {
+      result.current.linkEditor.onSave('https://new.example', 'hello')
+      result.current.linkEditor.onRemove()
+    })
+
+    expect(editor.getHTML()).toBe(before)
+    expect(result.current.linkEditor.show).toBe(false)
+  })
+
   it('keeps the selection when the editor becomes editable and autoFocus is false', async () => {
     const { result, rerender } = renderHook(
       ({ editable }) => useRichEditor({ initialContent: CONTENT, editable, autoFocus: false }),

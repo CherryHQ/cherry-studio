@@ -11,7 +11,11 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
-import { assertNotesPathNotMutatingDuringMigration, withNotesFilesystemMutation } from '@main/services/notesRelocation'
+import {
+  assertNotesPathNotMutatingDuringMigration,
+  NotesMigrationWriteBlockedError,
+  withNotesFilesystemMutation
+} from '@main/services/notesRelocation'
 import { copyNew, PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -146,7 +150,10 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       try {
         const physicalPath = fileManager.getPhysicalPath(id)
         assertNotesPathNotMutatingDuringMigration(physicalPath)
-      } catch {
+      } catch (error) {
+        if (error instanceof NotesMigrationWriteBlockedError) {
+          throw error
+        }
         // Internal entries use managed storage paths outside the notes roots.
       }
       return fileManager.rename(id, newName)

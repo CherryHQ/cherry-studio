@@ -504,10 +504,20 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     }
   }, [editor, editable, autoFocus])
 
+  useEffect(() => {
+    if (!editable) {
+      setLinkEditorState({
+        show: false,
+        position: { x: 0, y: 0 },
+        link: { href: '', text: '' }
+      })
+    }
+  }, [editable])
+
   // Link editor callbacks (after editor is defined)
   const handleLinkSave = useCallback(
     (href: string, text: string) => {
-      if (!editor || editor.isDestroyed) return
+      if (!editor || editor.isDestroyed || !editor.isEditable) return
 
       const { linkRange } = linkEditorState
 
@@ -532,7 +542,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   )
 
   const handleLinkRemove = useCallback(() => {
-    if (!editor || editor.isDestroyed) return
+    if (!editor || editor.isDestroyed || !editor.isEditable) return
 
     const { linkRange } = linkEditorState
 
