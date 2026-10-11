@@ -30,7 +30,7 @@ import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@rendere
 import { ipcApi } from '@renderer/ipc'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
-import { autoReadCoordinator } from '@renderer/services/voice'
+import { autoReadService } from '@renderer/services/voice'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
@@ -152,9 +152,6 @@ export function useAgentChatRuntimeState({
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
-  useEffect(() => {
-    void autoReadCoordinator.setEnabled(autoReadEnabled)
-  }, [autoReadEnabled])
   const { t } = useTranslation()
   const [editDraft, setEditDraft] = useState<AgentSessionEditDraft & { sessionId: string }>()
   const editing = editDraft?.sessionId === sessionId ? editDraft : undefined
@@ -273,7 +270,7 @@ export function useAgentChatRuntimeState({
     (_executionId: string, event: ExecutionFinishEvent) => {
       const projectedMessage = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
       const turnOrigin = projectedMessage?.metadata?.turnOrigin ?? event.message.metadata?.turnOrigin
-      void autoReadCoordinator.consume({
+      void autoReadService.consume({
         enabled: autoReadEnabled,
         message: event.message,
         attemptId: event.attemptId,

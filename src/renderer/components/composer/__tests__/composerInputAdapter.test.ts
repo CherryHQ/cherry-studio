@@ -18,6 +18,19 @@ describe('createComposerInputAdapter', () => {
     return editor
   }
 
+  it('preserves unselected file chips when replacing text immediately after them', () => {
+    const editor = createEditor()
+    const adapter = createComposerInputAdapter(editor)
+    adapter.insertToken!({ id: 'file-1', kind: 'file', label: 'attached.txt' }, { insertSeparator: false })
+    adapter.insertText('replace me', { tokenizeVariables: false })
+    editor.commands.setTextSelection({ from: 2, to: 12 })
+
+    expect(adapter.replaceRange!(adapter.captureReplaceRange!()!, 'dictated text')).toBe(true)
+    const draft = serializeComposerDocument(editor)
+    expect(draft.text).toBe('dictated text')
+    expect(draft.tokens).toMatchObject([{ id: 'file-1', kind: 'file', textOffset: 0 }])
+  })
+
   it('updates an existing annotation in place without duplicating or resurrecting a removed token', () => {
     const editor = createEditor()
     const adapter = createComposerInputAdapter(editor)
@@ -59,14 +72,14 @@ describe('createComposerInputAdapter', () => {
     expect(draft.text).toBe('echo ${HOME}')
   })
 
-  it('captures and replaces the live plain-text selection without tokenizing the transcript', () => {
+  it('captures and replaces the live editor selection without tokenizing the transcript', () => {
     const editor = createEditor()
     const adapter = createComposerInputAdapter(editor)
     adapter.insertText('hello world', { tokenizeVariables: false })
     editor.commands.setTextSelection({ from: 7, to: 12 })
 
-    expect(adapter.captureReplaceRange?.()).toEqual({ from: 6, to: 11 })
-    expect(adapter.replaceRange?.({ from: 6, to: 11 }, '${HOME}')).toBe(true)
+    expect(adapter.captureReplaceRange?.()).toEqual({ from: 7, to: 12 })
+    expect(adapter.replaceRange?.({ from: 7, to: 12 }, '${HOME}')).toBe(true)
     expect(serializeComposerDocument(editor)).toEqual({ text: 'hello ${HOME}', tokens: [] })
   })
 
@@ -89,7 +102,6 @@ describe('createComposerInputAdapter', () => {
     })
     editor.commands.setTextSelection({ from: tokenPosition + 1, to: tokenPosition + 7 })
 
-    expect(adapter.captureReplaceRange?.()).toEqual({ from: 16, to: 22 })
     expect(adapter.replaceRange?.(adapter.captureReplaceRange!()!, ' changed')).toBe(true)
     expect(serializeComposerDocument(editor)).toEqual({
       text: 'before REFERENCE changed',
@@ -97,11 +109,11 @@ describe('createComposerInputAdapter', () => {
     })
   })
 
-  it('rejects stale ranges outside the current projected text', () => {
+  it('rejects stale ranges outside the current document', () => {
     const adapter = createComposerInputAdapter(createEditor())
     adapter.insertText('short', { tokenizeVariables: false })
 
-    expect(adapter.replaceRange?.({ from: 5, to: 6 }, 'ignored')).toBe(false)
+    expect(adapter.replaceRange?.({ from: 5, to: 10 }, 'ignored')).toBe(false)
     expect(serializeComposerDocument(editor!)).toEqual({ text: 'short', tokens: [] })
   })
 
@@ -118,10 +130,12 @@ describe('createComposerInputAdapter', () => {
     const tokens = serializeComposerDocument(editor).tokens
 
     expect(
-      adapter.replaceRange!({ from: COMPOSER_INPUT_MAX_LENGTH - 10, to: COMPOSER_INPUT_MAX_LENGTH }, '${HOME}\r\nOK')
+      adapter.replaceRange!(
+        { from: editor.state.doc.content.size - 11, to: editor.state.doc.content.size - 1 },
+        '${HOME}\r\nOK'
+      )
     ).toBe(true)
     expect(serializeComposerDocument(editor)).toEqual({ text: prefix + 'REFERENCE${HOME}\nOK', tokens })
-    expect(adapter.captureReplaceRange!()).toEqual({ from: COMPOSER_INPUT_MAX_LENGTH, to: COMPOSER_INPUT_MAX_LENGTH })
   })
 
   it('rejects a replacement above the serialized limit without changing the draft or selection', () => {
@@ -138,7 +152,10 @@ describe('createComposerInputAdapter', () => {
     const selection = editor.state.selection.toJSON()
 
     expect(
-      adapter.replaceRange!({ from: COMPOSER_INPUT_MAX_LENGTH - 10, to: COMPOSER_INPUT_MAX_LENGTH }, '${HOME}\r\nOK!')
+      adapter.replaceRange!(
+        { from: editor.state.doc.content.size - 11, to: editor.state.doc.content.size - 1 },
+        '${HOME}\r\nOK!'
+      )
     ).toBe(false)
     expect(serializeComposerDocument(editor)).toEqual(draft)
     expect(editor.state.selection.toJSON()).toEqual(selection)

@@ -50,7 +50,6 @@ const state = vi.hoisted(() => ({
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
   autoReadEnabled: false,
   autoReadConsume: vi.fn(),
-  autoReadSetEnabled: vi.fn(),
   readMessageAloud: vi.fn(),
   isMac: false,
   theme: 'light',
@@ -133,9 +132,8 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 }))
 
 vi.mock('@renderer/services/voice', () => ({
-  autoReadCoordinator: {
-    consume: state.autoReadConsume,
-    setEnabled: state.autoReadSetEnabled
+  autoReadService: {
+    consume: state.autoReadConsume
   },
   readMessageAloud: state.readMessageAloud,
   voiceTargetManager: {
@@ -313,7 +311,6 @@ describe('HomeWindow', () => {
     state.overlayOnFinish = null
     state.autoReadEnabled = false
     state.autoReadConsume.mockReset()
-    state.autoReadSetEnabled.mockReset()
     state.readMessageAloud.mockReset()
     state.isMac = false
     state.theme = 'light'

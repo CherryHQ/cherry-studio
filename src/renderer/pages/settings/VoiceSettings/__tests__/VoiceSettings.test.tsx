@@ -173,6 +173,36 @@ describe('VoiceSettings', () => {
     vi.clearAllMocks()
   })
 
+  it('recovers failed catalogs and model status without remounting settings', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.recognition.model_id': APPLE_ASR_MODEL_ID,
+      'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
+      'feature.voice.speech.voice_id': 'voice.exact'
+    })
+    voice.listVoices.mockRejectedValueOnce(new VoiceDomainError('busy'))
+    voice.getModelStatus.mockRejectedValueOnce(new VoiceDomainError('busy'))
+    render(<VoiceSettings />)
+    const retry = await screen.findByRole('button', { name: /^retry$/i })
+    await waitFor(() => expect(retry).toBeEnabled())
+    await user.click(retry)
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^retry$/i })).not.toBeInTheDocument())
+    await user.click(screen.getByRole('combobox', { name: /speech voice/i }))
+    expect(await screen.findByRole('option', { name: 'Exact Voice' })).toBeInTheDocument()
+    expect(voice.listModels).toHaveBeenCalledOnce()
+  })
+
+  it('keeps Stop available after the recording model is cleared', async () => {
+    const user = userEvent.setup()
+    voice.dictation = { phase: 'recording', elapsedMs: 1000, recoveryAvailable: false }
+    voice.listModels.mockResolvedValue({ models })
+    render(<VoiceSettings />)
+    const stop = await screen.findByRole('button', { name: /stop recording/i })
+    expect(stop).toBeEnabled()
+    await user.click(stop)
+    expect(voice.dictationStop).toHaveBeenCalledOnce()
+  })
+
   it('follows the interface for unset languages without saving the derived default', async () => {
     voice.listModels.mockResolvedValue({ models, defaultAsrModelId: APPLE_ASR_MODEL_ID })
     voice.listVoices.mockResolvedValue([

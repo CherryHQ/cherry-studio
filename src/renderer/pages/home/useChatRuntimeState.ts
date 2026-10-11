@@ -29,7 +29,7 @@ import {
   useTopicOverlayHandoffOnTerminal,
   useTopicStreamStatus
 } from '@renderer/hooks/useTopicStreamStatus'
-import { autoReadCoordinator } from '@renderer/services/voice'
+import { autoReadService } from '@renderer/services/voice'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
@@ -119,9 +119,6 @@ export function useChatRuntimeState({
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
-  useEffect(() => {
-    void autoReadCoordinator.setEnabled(autoReadEnabled)
-  }, [autoReadEnabled])
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
@@ -399,7 +396,7 @@ export function useChatRuntimeState({
 
   const handleExecutionFinish = useCallback(
     (executionId: string, { attemptId, message, isAbort, isError }: ExecutionFinishEvent) => {
-      void autoReadCoordinator.consume({
+      void autoReadService.consume({
         enabled: autoReadEnabled,
         message,
         attemptId,

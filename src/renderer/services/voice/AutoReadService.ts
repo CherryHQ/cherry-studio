@@ -29,7 +29,7 @@ export type AutoReadResult =
     }
   | { status: 'failed'; key: string; reason: VoiceErrorReason }
 
-interface AutoReadCoordinatorOptions {
+interface AutoReadServiceOptions {
   playback?: AutoReadPlayback
   reportError?: (reason: VoiceErrorReason) => void
 }
@@ -47,13 +47,13 @@ function reportAutoReadError(reason: VoiceErrorReason): void {
   toast.error(i18n.t(key))
 }
 
-export class AutoReadCoordinator {
+export class AutoReadService {
   readonly #playback: AutoReadPlayback
   readonly #reportError: (reason: VoiceErrorReason) => void
   readonly #completionKeys = new Set<string>()
   #enabled: boolean | undefined
 
-  constructor(options: AutoReadCoordinatorOptions = {}) {
+  constructor(options: AutoReadServiceOptions = {}) {
     this.#playback = options.playback ?? speechPlaybackService
     this.#reportError = options.reportError ?? reportAutoReadError
   }
@@ -112,4 +112,4 @@ export class AutoReadCoordinator {
   }
 }
 
-export const autoReadCoordinator = new AutoReadCoordinator()
+export const autoReadService = new AutoReadService()
