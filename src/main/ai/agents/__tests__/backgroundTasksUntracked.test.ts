@@ -15,7 +15,9 @@ vi.mock('node:fs', async (importOriginal) => ({
 
 import {
   BACKGROUND_TASK_RECORD_EXT,
+  BACKGROUND_TASK_SENTINEL_EXT,
   type BackgroundTaskRecord,
+  getDetachedBackgroundTask,
   isPidAlive,
   listDetachedBackgroundTasks,
   startDetachedBackgroundTask,
@@ -40,8 +42,22 @@ describe('a task whose record write fails', () => {
 
   afterEach(async () => {
     writeFileSyncMock.mockReset()
-    await rm(storageDir, { recursive: true, force: true })
-  })
+    // A recovered task's completion (record + sentinel) can land while the directory is being
+    // removed, and the sweep a released task triggers races the same way — an ENOTEMPTY here is a
+    // lost race, not a leak. Retry briefly, then leave the dir to the disposable machine.
+    const deadline = Date.now() + 5_000
+    for (;;) {
+      try {
+        await rm(storageDir, { recursive: true, force: true })
+        return
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code !== 'ENOTEMPTY' && code !== 'EBUSY' && code !== 'EPERM') throw error
+        if (Date.now() >= deadline) return
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    }
+  }, 10_000)
 
   // The recovery record read straight off disk. `listDetachedBackgroundTasks` reconciles, and a pid
   // that has already exited folds to `unknown`, so going through it races the task's own exit —
@@ -237,6 +253,106 @@ describe('a task whose record write fails', () => {
       expect(record.status).toBe('running')
       await held.release()
       await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'reports the task stopped when the cleanup kill drains the whole group',
+    async () => {
+      // The drain check must not swing the other way either: a group kill whose every member dies
+      // is a stopped task, and reporting it still running would send the caller polling — and
+      // retrying — a pid that is gone. Nothing survived, so no recovery record is owed either.
+      const failure = await startDetachedBackgroundTask({
+        storageDir,
+        command: `${nodeBin} -e "setInterval(() => {}, 1000)"`,
+        cwd: storageDir
+      }).then(
+        () => {
+          throw new Error('expected the start to fail')
+        },
+        (error: Error) => error
+      )
+
+      const stopped = /was stopped \(pid (\d+)\)/.exec(failure.message)
+      expect(stopped).not.toBeNull()
+      const pid = stopped ? Number(stopped[1]) : 0
+      try {
+        await vi.waitFor(() => expect(isPidAlive(pid)).toBe(false), { timeout: 10_000 })
+        expect((await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_RECORD_EXT))).toEqual([])
+      } finally {
+        try {
+          if (pid > 0) process.kill(-pid, 'SIGKILL')
+        } catch {
+          // already reaped
+        }
+      }
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'keeps a survivor of the cleanup kill owned, recorded, and reported as running',
+    async () => {
+      // A successful group kill is not a per-member proof: a privileged worker (an authorized
+      // noninteractive sudo) fails the credential check and survives while the shell dies. The
+      // shell's close event lands inside the drain verification window, and neither it nor the
+      // kill may close the task: ownership has to come back with the recovery record so the
+      // survivor stays stoppable, and the start must say the task still runs so a retry cannot
+      // duplicate the work the survivor is doing. Simulated by a group signal that "succeeds"
+      // without reaching any member — the state the verification must key on either way.
+      const onExit = vi.fn()
+      const realKill = process.kill.bind(process)
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+        if (pid < 0) return true
+        return realKill(pid, signal)
+      })
+      const workerCommand = `${nodeBin} -e "process.stdout.write(String(process.pid)); setInterval(() => {}, 60_000)" &`
+      let recoveryPid = 0
+      try {
+        const failure = await startDetachedBackgroundTask({
+          storageDir,
+          command: workerCommand,
+          cwd: storageDir,
+          onExit
+        }).then(
+          () => {
+            throw new Error('expected the start to fail')
+          },
+          (error: Error) => error
+        )
+        killSpy.mockRestore()
+
+        expect(failure.message).toMatch(/is still running/)
+        expect(failure.message).not.toMatch(/was stopped/)
+        const record = await readRecoveryRecord()
+        recoveryPid = record.pid
+        expect(record.status).toBe('running')
+
+        // The leader closed during the verification window; its close is not the group's exit.
+        await vi.waitFor(
+          async () => {
+            expect((await readFile(record.logFile, 'utf8')).trim()).toMatch(/^\d+$/)
+          },
+          { timeout: 10_000 }
+        )
+        const workerPid = Number((await readFile(record.logFile, 'utf8')).trim())
+        await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+        expect(isPidAlive(workerPid)).toBe(true)
+        expect((await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toEqual([])
+        expect(onExit).not.toHaveBeenCalled()
+
+        // Ownership, not the record alone, is what keeps a leaderless group controllable.
+        expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+        const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
+        expect(stopped?.status).toBe('stopped')
+        await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+      } finally {
+        killSpy.mockRestore()
+        try {
+          if (recoveryPid > 0) process.kill(-recoveryPid, 'SIGKILL')
+        } catch {
+          // already drained
+        }
+      }
     }
   )
 

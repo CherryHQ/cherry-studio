@@ -239,6 +239,9 @@ export async function startDetachedBackgroundTask(
       settled = true
       activeTaskPids.delete(id)
       let cleaned = record.pid <= 0
+      // A group member that survived the cleanup kill — a privileged worker failing the credential
+      // check while the shell died. It outranks the leader's own exit in the message below.
+      let survivor = false
       try {
         if (!cleaned) {
           if (process.platform === 'win32') {
@@ -254,6 +257,14 @@ export async function startDetachedBackgroundTask(
               if ((killError as NodeJS.ErrnoException).code !== 'EPERM' || groupHasLiveMember(record.pid)) {
                 throw killError
               }
+            }
+            // A delivered group SIGKILL still proves nothing per member, so the forced-stop path
+            // verifies the drain too: a privileged worker survives while the shell dies, and this
+            // path has already disabled ownership and finalization — a survivor read as cleaned
+            // would run on with nothing tracking it and nothing able to stop it.
+            if (!(await waitForGroupDrain(record.pid))) {
+              survivor = true
+              throw new Error(`process group ${record.pid} still holds live members after SIGKILL`)
             }
           }
           cleaned = true
@@ -273,13 +284,14 @@ export async function startDetachedBackgroundTask(
           // This record is real and reads `running`, so it owes the completion `settled` spent
           // before it existed — otherwise the task never reports and the record sits at `running`.
           settled = false
+          // Ownership returns before any replay: a live group member keeps it — the group, not
+          // the leader, is the task — so the leader's close event having fired must not suppress
+          // it, or a leaderless group folds to `unknown` and loses Stop/Kill. The drain-gated
+          // settle releases it again once the group is empty.
+          activeTaskPids.set(id, record.pid)
           if (observedCompletion) {
             const { status, exitCode, signal } = observedCompletion
             finalize(status, exitCode, signal)
-          } else {
-            // `finalize` is spent, so nothing else would release this ownership; keeping it would let
-            // a stop aim at whatever process the OS later hands the recycled pid to.
-            activeTaskPids.set(id, record.pid)
           }
         } catch (recordError) {
           logger.error('Detached background task is untracked and could not be recorded', {
@@ -293,11 +305,11 @@ export async function startDetachedBackgroundTask(
       // running, so the task may only be described as still running while that holds. Both of the
       // facts it rests on are about the process rather than the record, and neither depends on the
       // write above succeeding: `cleaned` means this call killed it, `observedCompletion` means the
-      // one close listener — spent, so it will not fire again — saw it exit. Deriving it from the
-      // record instead let a task that provably exited be announced as running, because the entry
-      // condition of this whole recovery is a write failing, and one failing write rarely means the
-      // next succeeds.
-      const stillRunning = !cleaned && !observedCompletion
+      // one close listener — spent, so it will not fire again — saw it exit, and `survivor` outranks
+      // that observation, which reports the leader only. Deriving it from the record instead let a
+      // task that provably exited be announced as running, because the entry condition of this
+      // whole recovery is a write failing, and one failing write rarely means the next succeeds.
+      const stillRunning = (!cleaned && !observedCompletion) || survivor
       throw new Error(
         stillRunning
           ? `Detached background task ${id} is still running (pid ${record.pid}) and its record could not be written`
