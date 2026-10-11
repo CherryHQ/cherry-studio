@@ -413,6 +413,7 @@ export class AssistantDataService {
     this.validateName(dto.name)
 
     const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
+    this.notifyReadModelChange([row.id], 'membership')
 
     logger.info('Created assistant', { id: row.id, name: row.name })
 
@@ -456,6 +457,7 @@ export class AssistantDataService {
     })
 
     logger.info('Duplicated assistant', { id: row.id, sourceId: id })
+    this.notifyReadModelChange([row.id], 'membership')
     if (clonedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
     return rowToAssistant(row, relations, modelName)
   }
@@ -488,6 +490,7 @@ export class AssistantDataService {
     })
 
     logger.info('Imported assistant', { id: row.id, name: row.name })
+    this.notifyReadModelChange([row.id], 'membership')
     if (importedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
 
     return rowToAssistant(row, createEmptyRelations(), modelName)
@@ -579,6 +582,7 @@ export class AssistantDataService {
     })
 
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
+    this.notifyReadModelChange([id], 'projection')
 
     return rowToAssistant(row, nextRelations, modelName)
   }
@@ -595,6 +599,7 @@ export class AssistantDataService {
     } catch (error) {
       rethrowAssistantOrderError(error)
     }
+    this.notifyReadModelChange([id], 'projection')
   }
 
   /** Apply multiple assistant moves atomically within the active assistant list. */
@@ -611,6 +616,10 @@ export class AssistantDataService {
     } catch (error) {
       rethrowAssistantOrderError(error)
     }
+    this.notifyReadModelChange(
+      moves.map((move) => move.id),
+      'projection'
+    )
   }
 
   /** Archive by default; active permanent deletion must explicitly select the active state. */
