@@ -29,6 +29,10 @@ export function isRendererNotesEditsFlushWindowRegistered(windowId: string): boo
   return registeredFlushWindowIds.has(windowId)
 }
 
+export function isNotesRelocationFlushRequestPending(requestId: string): boolean {
+  return pendingByRequestId.has(requestId)
+}
+
 export function unregisterRendererNotesEditsFlushWindow(windowId: string): void {
   registeredFlushWindowIds.delete(windowId)
 

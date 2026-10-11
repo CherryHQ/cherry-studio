@@ -33,24 +33,39 @@ export const NotesRelocationFlushListener: FC = () => {
 
   useIpcOn('app.notes_relocation.flush_edits', async ({ requestId }) => {
     let ok = true
+    let lockedForThisFlush = false
     try {
       await waitForStructuralNotesWritesToSettle()
+      const { pending } = await ipcApi.request('app.notes_relocation.flush_edits_pending', { requestId })
+      if (!pending) {
+        return
+      }
       lockNotesEditsForRelocation()
+      lockedForThisFlush = true
       await flushAllNotesEdits()
     } catch (error) {
       ok = false
       logger.error('Failed to flush notes edits before relocation', error as Error)
     }
 
-    if (!ok) {
+    if (lockedForThisFlush && !ok) {
       unlockNotesEditsForRelocation()
     }
 
     try {
+      const { pending } = await ipcApi.request('app.notes_relocation.flush_edits_pending', { requestId })
+      if (!pending) {
+        if (lockedForThisFlush && ok) {
+          unlockNotesEditsForRelocation()
+        }
+        return
+      }
       await ipcApi.request('app.notes_relocation.flush_edits_ack', { requestId, ok })
     } catch (error) {
       logger.error('Failed to acknowledge notes edit flush', error as Error)
-      unlockNotesEditsForRelocation()
+      if (lockedForThisFlush) {
+        unlockNotesEditsForRelocation()
+      }
     }
   })
 

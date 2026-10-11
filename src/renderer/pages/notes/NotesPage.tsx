@@ -10,6 +10,7 @@ import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
 import {
   hasPendingNotesImagePastes,
+  registerNotesEditPreFlush,
   runStructuralNotesFilesystemWrite,
   useNotesEditsLockedForRelocation
 } from '@renderer/hooks/notesFileEditFlush'
@@ -314,6 +315,20 @@ const NotesPage: FC = () => {
       // The session keeps the current draft and error visible.
     }
   }, [flushFileDraft])
+
+  useEffect(() => {
+    return registerNotesEditPreFlush(() => {
+      const sourceContent = codeEditorRef.current?.getContent?.()
+      if (sourceContent !== undefined) {
+        setFileDraft(sourceContent)
+        return
+      }
+      const richMarkdown = editorRef.current?.getMarkdown?.()
+      if (richMarkdown !== undefined) {
+        setFileDraft(richMarkdown)
+      }
+    })
+  }, [setFileDraft])
 
   useEffect(() => {
     if (contentLoadError) {

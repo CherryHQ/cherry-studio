@@ -780,4 +780,17 @@ describe('useFileEditSession', () => {
     await waitFor(() => expect(result.current.status).toBe('unsupported'))
     expect(result.current.unsupportedReason).toBe('mixed-line-endings')
   })
+
+  it('accepts draft updates while autosave is suppressed without scheduling a write', async () => {
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+    const suppressAutosave = vi.fn(() => true)
+    const { result } = renderHook(() => useFileEditSession(handle, { suppressAutosave }), { wrapper })
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+
+    act(() => result.current.setDraft('with image\n'))
+    expect(result.current.draft).toBe('with image\n')
+    expect(result.current.isDirty).toBe(true)
+    expect(writeCalls()).toHaveLength(0)
+    expect(suppressAutosave).toHaveBeenCalled()
+  })
 })

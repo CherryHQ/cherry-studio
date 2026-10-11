@@ -18,6 +18,7 @@ import {
   handleNotesRelocationOwnerWindowGone,
   inspectNotesRelocation,
   isNotesRelocationBarrierActive,
+  isNotesRelocationFlushRequestPending,
   migrateNotesDirectory,
   registerRendererNotesEditsFlushWindow,
   releaseNotesRelocationSession,
@@ -97,6 +98,9 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.notes_relocation.flush_edits_ack': async ({ requestId, ok }, { senderId }) => {
     acknowledgeRendererNotesEditsFlush(requestId, senderId, ok)
   },
+  'app.notes_relocation.flush_edits_pending': async ({ requestId }) => ({
+    pending: isNotesRelocationFlushRequestPending(requestId)
+  }),
   'app.notes_relocation.begin_barrier': async (_input, { senderId }) => {
     if (senderId == null) {
       throw new IpcError(

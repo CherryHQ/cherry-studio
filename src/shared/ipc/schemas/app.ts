@@ -115,6 +115,10 @@ export const appRequestSchemas = {
     input: z.object({ requestId: z.string().min(1), ok: z.boolean() }),
     output: z.void()
   }),
+  'app.notes_relocation.flush_edits_pending': defineRoute({
+    input: z.object({ requestId: z.string().min(1) }),
+    output: z.object({ pending: z.boolean() })
+  }),
   'app.notes_relocation.begin_barrier': defineRoute({
     input: z.void(),
     output: notesRelocationSessionEpochSchema

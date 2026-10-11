@@ -30,6 +30,7 @@ vi.mock('electron', () => ({
 
 import {
   acknowledgeRendererNotesEditsFlush,
+  isNotesRelocationFlushRequestPending,
   registerRendererNotesEditsFlushWindow,
   requestRendererNotesEditsFlush,
   unregisterRendererNotesEditsFlushWindow
@@ -94,5 +95,18 @@ describe('requestRendererNotesEditsFlush', () => {
       code: notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED
     })
     await expect(flushPromise).rejects.toBeInstanceOf(IpcError)
+  })
+
+  it('tracks whether a flush request is still pending', async () => {
+    registerRendererNotesEditsFlushWindow('window-a')
+
+    const flushPromise = requestRendererNotesEditsFlush()
+    const requestId = broadcastMock.mock.calls[0]?.[1]?.requestId as string
+    expect(isNotesRelocationFlushRequestPending(requestId)).toBe(true)
+
+    acknowledgeRendererNotesEditsFlush(requestId, 'window-a', true)
+    await flushPromise
+
+    expect(isNotesRelocationFlushRequestPending(requestId)).toBe(false)
   })
 })

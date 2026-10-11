@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 type NotesEditFlush = () => Promise<void>
 
 const flushCallbacks = new Set<NotesEditFlush>()
+const preFlushCallbacks = new Set<() => void | Promise<void>>()
 const departingWriteChains = new Set<Promise<void>>()
 const pendingImagePasteOperations = new Set<Promise<void>>()
 const autosaveCancelCallbacks = new Set<() => void>()
@@ -104,6 +105,13 @@ export function registerNotesEditFlush(flush: NotesEditFlush): () => void {
   }
 }
 
+export function registerNotesEditPreFlush(preFlush: () => void | Promise<void>): () => void {
+  preFlushCallbacks.add(preFlush)
+  return () => {
+    preFlushCallbacks.delete(preFlush)
+  }
+}
+
 export function trackDepartingNotesFileWrite(chain: Promise<void>): void {
   departingWriteChains.add(chain)
   void chain.finally(() => {
@@ -135,5 +143,8 @@ export async function waitForPendingNotesImagePastes(): Promise<void> {
 
 export async function flushAllNotesEdits(): Promise<void> {
   await waitForPendingNotesImagePastes()
+  for (const preFlush of preFlushCallbacks) {
+    await preFlush()
+  }
   await Promise.all([...[...flushCallbacks].map((flush) => flush()), ...[...departingWriteChains]])
 }

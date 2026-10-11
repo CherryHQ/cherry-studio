@@ -5,6 +5,7 @@ import {
   hasPendingNotesImagePastes,
   lockNotesEditsForRelocation,
   registerNotesEditFlush,
+  registerNotesEditPreFlush,
   runStructuralNotesFilesystemWrite,
   trackDepartingNotesFileWrite,
   trackPendingNotesImagePaste,
@@ -90,6 +91,21 @@ describe('notesFileEditFlush structural writes', () => {
     await paste
     expect(pasteFinished).toBe(true)
     expect(flush).toHaveBeenCalledOnce()
+  })
+
+  it('runs pre-flush hooks before registered flush callbacks', async () => {
+    unlockNotesEditsForRelocation()
+
+    const order: string[] = []
+    registerNotesEditPreFlush(async () => {
+      order.push('pre')
+    })
+    registerNotesEditFlush(async () => {
+      order.push('flush')
+    })
+
+    await flushAllNotesEdits()
+    expect(order).toEqual(['pre', 'flush'])
   })
 
   it('blocks new structural writes while relocation edits are locked', async () => {

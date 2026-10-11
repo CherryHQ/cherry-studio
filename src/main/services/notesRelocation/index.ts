@@ -20,6 +20,7 @@ export {
 } from './notesRelocationOwnerLifecycle'
 export {
   acknowledgeRendererNotesEditsFlush,
+  isNotesRelocationFlushRequestPending,
   isRendererNotesEditsFlushWindowRegistered,
   registerRendererNotesEditsFlushWindow,
   requestRendererNotesEditsFlush,

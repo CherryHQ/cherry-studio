@@ -342,6 +342,8 @@ export function useFileEditSession(
       const model = modelRef.current
       if (!model) return
       if (suppressAutosaveRef.current?.()) {
+        model.draft = next
+        setDraftState(next)
         return
       }
       model.draft = next
