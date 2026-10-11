@@ -189,8 +189,9 @@ export function removeRestoreJournal(): void {
 }
 
 /**
- * Whether a restore is staged or mid-promotion — the signal orphan sweep uses
- * to stand aside. Corrupt journals count as pending (fail-safe: one skipped
+ * Whether a restore is staged, mid-promotion, or awaiting failed-restore
+ * cleanup — the signal orphan sweep uses to stand aside.
+ * Corrupt journals count as pending (fail-safe: one skipped
  * sweep is harmless; the next boot's gate cleans the corrupt journal up).
  */
 export function hasPendingRestore(): boolean {
@@ -198,5 +199,8 @@ export function hasPendingRestore(): boolean {
   if (result.kind === 'corrupt') {
     return true
   }
-  return result.kind === 'ok' && (result.journal.state === 'staged' || result.journal.state === 'promoting')
+  return (
+    result.kind === 'ok' &&
+    (result.journal.state === 'staged' || result.journal.state === 'promoting' || result.journal.state === 'failed')
+  )
 }

@@ -1531,10 +1531,10 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
   })
 
-  it('does not clobber a pending restore journal', async () => {
+  it.each(['staged', 'promoting', 'failed'])('does not clobber a %s restore journal', async (state) => {
     mockReadRestoreJournal.mockReturnValue({
       kind: 'ok',
-      journal: { state: 'staged' }
+      journal: { state }
     })
 
     await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow('Another restore is already pending')

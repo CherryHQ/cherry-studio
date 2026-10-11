@@ -21,6 +21,7 @@ function assertNever(x: never): never {
 
 type StagedJournal = Extract<RestoreJournal, { state: 'staged' }>
 type PromotingJournal = Extract<RestoreJournal, { state: 'promoting' }>
+type FailedJournal = Extract<RestoreJournal, { state: 'failed' }>
 type FileResource = RestoreJournal['fileResources'][number]
 
 /**
@@ -31,7 +32,7 @@ type FileResource = RestoreJournal['fileResources'][number]
 const COMMIT_STEP: PromotionStep = 'work-promoted'
 
 interface PromotionContext {
-  readonly journal: StagedJournal | PromotingJournal
+  readonly journal: StagedJournal | PromotingJournal | FailedJournal
   readonly userData: string
   readonly livePath: string
   readonly workPath: string
@@ -43,12 +44,9 @@ interface PromotionContext {
  * shell, after the path registry is frozen and the single instance lock is
  * held, before the v2 migration gate opens the DB.
  *
- * Every exit converges to one of two states — old DB intact and live, or new
- * DB complete and live — and any terminal outcome deletes the staging tree.
- * This function may throw only on truly unexpected failures; the shell
- * (backupRestoreGate.ts) swallows those — unless recovery left no live DB at
- * all (see isLiveDbStranded) — because a preboot exception would dead-loop
- * the "Unable to Start" fail-fast path.
+ * Completed recovery leaves either the old DB and resources or the complete
+ * restored data live. Incomplete rollback throws and retains its journal and
+ * staging tree; the shell refuses to boot until recovery can finish.
  */
 export async function runRestorePromotion(): Promise<void> {
   const read = readRestoreJournal()
@@ -74,8 +72,9 @@ export async function runRestorePromotion(): Promise<void> {
 }
 
 /**
- * Consume terminal restore artifacts after the gate has proved that no live
- * database is stranded. Active and corrupt journals remain untouched.
+ * Consume terminal restore artifacts. A failed journal from an earlier build
+ * may still hold original resources, so finish its inverse before cleanup.
+ * Active and corrupt journals remain untouched.
  */
 export function cleanupTerminalRestoreArtifacts(): void {
   const read = readRestoreJournal()
@@ -88,6 +87,11 @@ export function cleanupTerminalRestoreArtifacts(): void {
   }
 
   try {
+    if (journal.state === 'failed') {
+      const ctx = buildContext(journal)
+      restoreLiveFromAside(ctx)
+      inverseManifest(ctx)
+    }
     const stagingRoot = application.getPath('feature.backup.restore.staging')
     fs.rmSync(path.join(stagingRoot, journal.restoreId), { recursive: true, force: true })
     removeRestoreJournal()
@@ -116,8 +120,8 @@ export function cleanupTerminalRestoreArtifacts(): void {
  * - Otherwise, restore the cardinal invariant first: if the live slot is
  *   empty but the aside still holds the old DB, put it back — else the next
  *   boot would silently create a fresh EMPTY database while the user's data
- *   sits stranded in the aside. Then apply the standard terminal cleanup
- *   (journal write + staging tree removal).
+ *   sits stranded in the aside. Undo the manifest before terminal cleanup;
+ *   an incomplete inverse must keep its recovery artifacts.
  *
  * Must never throw beyond what the shell already guards.
  */
@@ -142,8 +146,7 @@ export function markRestoreFailedAfterCrash(): void {
     })
     return
   }
-  restoreLiveFromAside(ctx)
-  finalize(ctx, 'failed', journal.state === 'promoting' ? journal.step : undefined)
+  rollbackPreCommit(ctx)
 }
 
 /**
@@ -184,7 +187,7 @@ export function isLiveDbStranded(): boolean {
   return !fs.existsSync(livePath) && fs.existsSync(asidePath)
 }
 
-function buildContext(journal: StagedJournal | PromotingJournal): PromotionContext {
+function buildContext(journal: StagedJournal | PromotingJournal | FailedJournal): PromotionContext {
   const userData = application.getPath('app.userdata')
   return {
     journal,
@@ -522,14 +525,14 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
 // ─── rollback / revert ───
 
 /**
- * Pre-commit crash: the old DB still exists (live or aside). Undo the
- * manifest work done so far, put the old DB back, mark failed. The staged
+ * Pre-commit crash: the old DB still exists (live or aside). Put it back,
+ * undo the manifest work done so far, then mark failed. The staged
  * restore content is discarded with the staging tree — a failed restore is
  * re-run from the backup archive, never resumed from half-moved files.
  */
 function rollbackPreCommit(ctx: PromotionContext): void {
-  inverseManifest(ctx)
   restoreLiveFromAside(ctx)
+  inverseManifest(ctx)
   finalize(ctx, 'failed')
 }
 
@@ -567,16 +570,26 @@ function restoreLiveFromAside(ctx: PromotionContext): void {
  * apply direction. Idempotent by construction: adds are renamed back to
  * their staging source (only when this promotion provably moved them in),
  * overwrites are restored only while their aside exists. Best-effort per
- * entry: one stuck entry must not abort the rest of the inverse — the aside
- * restore of the live DB and the terminal bookkeeping still have to follow.
+ * entry: one stuck entry must not abort the rest of the inverse. Report all
+ * failures afterward so terminal cleanup cannot delete unrecovered copies.
  */
 function inverseManifest(ctx: PromotionContext): void {
+  const errors: unknown[] = []
   for (const entry of ctx.journal.fileResources) {
+    // Terminal cleanup may already have removed add sources, losing the proof
+    // that a live add target belonged to this promotion. Only recover asides.
+    if (ctx.journal.state === 'failed' && entry.kind !== 'overwrite' && entry.kind !== 'note-overwrite') {
+      continue
+    }
     try {
       inverseEntry(ctx, entry)
     } catch (error) {
+      errors.push(error)
       logger.error(`Manifest inverse failed for '${entry.livePath}' (${entry.kind}) — continuing`, error as Error)
     }
+  }
+  if (errors.length > 0) {
+    throw new AggregateError(errors, 'Restore resource rollback is incomplete')
   }
 }
 
