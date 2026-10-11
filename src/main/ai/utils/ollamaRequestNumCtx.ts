@@ -8,6 +8,7 @@ import {
   OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY,
   resolveEffectiveRequestContextWindow,
   resolveOllamaNumCtx,
+  type OllamaNumCtxRequestSnapshot,
   type ResolveOllamaNumCtxInput
 } from '@shared/ai/ollamaNumCtx'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
@@ -88,6 +89,20 @@ export function resolveModelRequestContextWindow(
   const resolution = resolveOllamaRequestNumCtx(model, provider, preferredEndpoint)
   if (!resolution) return model.contextWindow
   return resolveEffectiveRequestContextWindow(model.contextWindow, resolution.numCtx)
+}
+
+/** Uses a frozen Ollama snapshot when present so budgets match the wire window. */
+export function resolveRequestContextWindow(
+  model: Model,
+  provider?: Provider,
+  preferredEndpoint?: EndpointType | null,
+  runtimeProviderId?: string | null,
+  ollamaNumCtx?: OllamaNumCtxRequestSnapshot | null
+): number | undefined {
+  if (ollamaNumCtx) {
+    return resolveEffectiveRequestContextWindow(model.contextWindow, ollamaNumCtx.numCtx)
+  }
+  return resolveModelRequestContextWindow(model, provider, preferredEndpoint, runtimeProviderId)
 }
 
 export function readOllamaWireNumCtx(providerOptions: ProviderOptions): number | undefined {

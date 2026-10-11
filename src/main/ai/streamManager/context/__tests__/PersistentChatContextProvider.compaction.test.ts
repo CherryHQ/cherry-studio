@@ -62,9 +62,13 @@ vi.mock('@data/services/AssistantService', () => ({
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProviderById }
 }))
-vi.mock('@main/ai/provider/endpoint', () => ({
-  resolveEffectiveEndpoint: mockResolveEffectiveEndpoint
-}))
+vi.mock('@main/ai/provider/endpoint', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@main/ai/provider/endpoint')>()
+  return {
+    ...actual,
+    resolveEffectiveEndpoint: mockResolveEffectiveEndpoint
+  }
+})
 
 vi.mock('@data/services/FileEntryService', () => ({
   fileEntryService: { findById: mockFindFileEntryById }
