@@ -1664,9 +1664,6 @@ describe('ClaudeCodeStreamAdapter', () => {
         }
       } as any)
 
-      const backgroundChunks = statusEvents
-        .filter((event) => event.type === 'background-flow-chunk')
-        .map((event) => event.chunk)
       const flushedEvent = statusEvents.find(
         (event) =>
           event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta' && event.chunk.delta === '<'
