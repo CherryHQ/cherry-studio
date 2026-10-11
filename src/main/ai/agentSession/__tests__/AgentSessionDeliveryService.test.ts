@@ -41,7 +41,7 @@ const mocks = vi.hoisted(() => ({
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
   getPath: vi.fn(),
-  removeAgentStorageSubdirectory: vi.fn(),
+  purgeSystemWorkspace: vi.fn(),
   withDispatchLock: vi.fn(),
   hasUnsettledTopicWork: vi.fn(),
   logger: {
@@ -89,8 +89,10 @@ vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
     error instanceof Error && error.name === 'AgentSessionWorkspaceError'
 }))
 
-vi.mock('@main/ai/agents/agentDataDirectory', () => ({
-  removeAgentStorageSubdirectory: mocks.removeAgentStorageSubdirectory
+vi.mock('@main/ai/agents/agentWorkspaceArchive', () => ({
+  archiveSystemWorkspace: vi.fn(),
+  restoreSystemWorkspace: vi.fn(),
+  purgeSystemWorkspace: mocks.purgeSystemWorkspace
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -100,6 +102,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
     listActiveIdsByAgent: mocks.listActiveIdsByAgent,
     listIdsByAgent: mocks.listActiveIdsByAgent,
     listIdsByWorkspace: () => [],
+    listSystemWorkspaceSessions: () => [],
     restore: mocks.restore,
     notifyPurged: vi.fn(),
     isExpiredTrash: mocks.isExpiredTrash,
@@ -236,7 +239,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.getPath.mockReturnValue('/mock/feature.agents.system_workspaces')
-    mocks.removeAgentStorageSubdirectory.mockResolvedValue(undefined)
+    mocks.purgeSystemWorkspace.mockResolvedValue(undefined)
     mocks.getMessage.mockReturnValue(accepted)
     mocks.markTerminalError.mockReset()
     mocks.validateDispatch.mockResolvedValue({
@@ -780,7 +783,7 @@ describe('AgentSessionDeliveryService', () => {
     runtime.cancelSessionForks.mockImplementationOnce(async () => {
       order.push('forks-cancelled')
     })
-    mocks.removeAgentStorageSubdirectory.mockImplementation(async () => {
+    mocks.purgeSystemWorkspace.mockImplementation(async () => {
       order.push('workspace-removed')
     })
     const delivery = new AgentSessionDeliveryService()
@@ -790,7 +793,7 @@ describe('AgentSessionDeliveryService', () => {
 
     await expect(service.purgeSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
 
-    expect(mocks.removeAgentStorageSubdirectory).toHaveBeenCalledWith(
+    expect(mocks.purgeSystemWorkspace).toHaveBeenCalledWith(
       '/mock/feature.agents.system_workspaces',
       workspacePath
     )
@@ -819,7 +822,7 @@ describe('AgentSessionDeliveryService', () => {
       deliveryResults: [],
       purgedSystemWorkspacePaths: [workspacePath]
     })
-    mocks.removeAgentStorageSubdirectory.mockRejectedValue(cleanupError)
+    mocks.purgeSystemWorkspace.mockRejectedValue(cleanupError)
     const delivery = new AgentSessionDeliveryService()
     deliveryOwner = delivery
     const service = new AgentLifecycleService()
