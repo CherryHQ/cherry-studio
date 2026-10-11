@@ -7,7 +7,7 @@
  * state through props.
  */
 
-import { createContext, use, useMemo } from 'react'
+import { createContext } from 'react'
 
 import type { Message as SharedMessage } from '@shared/data/types/message'
 
@@ -20,27 +20,3 @@ export interface SiblingsContextValue {
 
 export const SiblingsContext = createContext<SiblingsContextValue | null>(null)
 export const SiblingsProvider = SiblingsContext.Provider
-
-/**
- * Resolve the sibling group the message belongs to, along with its index
- * within the group (0-based). The caller renders only when they are the
- * in-view branch, so the message is by construction one of the members —
- * we locate it by id.
- *
- * Returns `null` when the message has no siblings.
- */
-export function useMessageSiblings(messageId: string): {
-  group: SharedMessage[]
-  activeIndex: number
-} | null {
-  const ctx = use(SiblingsContext)
-
-  return useMemo(() => {
-    if (!ctx) return null
-    const group = ctx.siblingsMap[messageId]
-    if (!group || group.length < 2) return null
-
-    const activeIndex = group.findIndex((m) => m.id === messageId)
-    return { group, activeIndex: activeIndex >= 0 ? activeIndex : 0 }
-  }, [ctx, messageId])
-}
