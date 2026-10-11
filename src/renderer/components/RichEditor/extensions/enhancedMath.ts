@@ -1,3 +1,4 @@
+import 'katex/contrib/copy-tex'
 import { Extension, InputRule, mergeAttributes, Node } from '@tiptap/core'
 import { BlockMath, InlineMath, type MathematicsOptions } from '@tiptap/extension-mathematics'
 import { ReactNodeViewRenderer } from '@tiptap/react'
