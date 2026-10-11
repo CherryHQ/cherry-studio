@@ -38,6 +38,17 @@ afterEach(() => {
 })
 
 describe('buildPathRegistry', () => {
+  it('isolates voice scratch directories for profiles sharing the same basename', () => {
+    const voiceTemp = (profile: string) => {
+      getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
+      return buildPathRegistry()['feature.voice.temp']
+    }
+
+    const first = voiceTemp('/profiles/first/CherryStudio')
+    expect(voiceTemp('/profiles/second/CherryStudio')).not.toBe(first)
+    expect(voiceTemp('/profiles/first/./CherryStudio')).toBe(first)
+  })
+
   it.each([
     ['win32', 'x64', false, '/mock/app/packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe'],
     ['win32', 'x64', true, '/mock/resources/system-speech/cherry-system-speech.exe'],

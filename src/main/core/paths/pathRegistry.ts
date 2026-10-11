@@ -9,6 +9,7 @@
  * Helper constants must be primitives; put helper objects in a separate file.
  */
 
+import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -279,7 +280,11 @@ export function buildPathRegistry() {
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
     'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
     'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
-    'feature.voice.temp': path.join(appTemp, 'voice', path.basename(appUserData)),
+    'feature.voice.temp': path.join(
+      appTemp,
+      'voice',
+      createHash('sha256').update(path.resolve(appUserData)).digest('hex')
+    ),
     'feature.voice.helper_file': app.isPackaged
       ? path.join(appExtraResources, 'system-speech', voiceHelperFilename)
       : path.join(
