@@ -30,6 +30,7 @@ staged ──gate passed──▶ promoting ──▶ completed (work promoted, 
 - `promoting` — set by the preboot gate; `step` is the write-ahead marker (see `PROMOTION_STEP_ORDER`; ordering comparisons MUST use `indexOf` on that table, never string comparison).
 - Markers are recovery hints, not ground truth: around the commit boundary the gate decides from filesystem reality (`work` / `live` / `aside` existence) — a landed commit rename with a lagging or unwritable marker resumes forward, an interrupted revert (cleared aside) finishes the revert.
 - Terminal states (`completed` / `failed` / `expired`) remain durable through the stranded-DB safety check, then the preboot gate logs and removes them before database boot continues.
+- An unreadable, malformed, or unsupported-version journal blocks boot without renaming/deleting the canonical journal or clearing any staging tree. Orphan sweep and new restore staging remain fenced by the existing pending-journal checks. Once a transient I/O obstruction is removed, the next launch reuses the original journal; genuinely invalid content must be repaired from trustworthy recovery information before retrying. Do not discard the journal or asides merely to bypass startup protection.
 
 ## Ownership
 
@@ -39,7 +40,7 @@ staged ──gate passed──▶ promoting ──▶ completed (work promoted, 
 | Journal state transitions during promotion | promotion gate (`src/main/core/preboot/backupRestoreGate.ts`) |
 | `restore-staging/` tree content (`feature.backup.restore.staging`) | BackupService |
 | Terminal-journal deletion (after the stranded-DB check) | Preboot gate shell |
-| Quarantined corrupt journals (`restore-journal.json.corrupt-<epoch>`) GC | BackupService (kept for forensics, alongside terminal journals) |
+| Legacy quarantined corrupt journals (`restore-journal.json.corrupt-<epoch>`) GC | BackupService (new journal failures remain at the canonical path) |
 | Undo-aside retention/GC | BackupService |
 
 ## Writer requirements (staging side)

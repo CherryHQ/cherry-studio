@@ -43,21 +43,23 @@ interface PromotionContext {
  * shell, after the path registry is frozen and the single instance lock is
  * held, before the v2 migration gate opens the DB.
  *
- * Every exit converges to one of two states — old DB intact and live, or new
- * DB complete and live — and any terminal outcome deletes the staging tree.
+ * A completed recovery leaves the old DB intact and live or the restored DB
+ * complete and live; terminal outcomes delete the staging tree.
+ * An unreadable or invalid journal returns 'journal-unavailable' without
+ * changing recovery artifacts; the shell must refuse to boot in that case.
  * This function may throw only on truly unexpected failures; the shell
  * (backupRestoreGate.ts) swallows those — unless recovery left no live DB at
  * all (see isLiveDbStranded) — because a preboot exception would dead-loop
  * the "Unable to Start" fail-fast path.
  */
-export async function runRestorePromotion(): Promise<void> {
+export async function runRestorePromotion(): Promise<'journal-unavailable' | void> {
   const read = readRestoreJournal()
   if (read.kind === 'none') {
     return
   }
   if (read.kind === 'corrupt') {
-    quarantineCorruptJournal(read.error)
-    return
+    logger.error('Restore journal cannot be read or validated — preserving recovery artifacts', { error: read.error })
+    return 'journal-unavailable'
   }
   const journal = read.journal
   switch (journal.state) {
@@ -625,20 +627,6 @@ function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expire
   writeRestoreJournal({ ...ctx.journal, state, step })
   const stagingRoot = application.getPath('feature.backup.restore.staging')
   fs.rmSync(path.join(stagingRoot, ctx.journal.restoreId), { recursive: true, force: true })
-}
-
-function quarantineCorruptJournal(error: string): void {
-  const journalPath = application.getPath('feature.backup.restore.file')
-  const quarantined = `${journalPath}.corrupt-${Date.now()}`
-  logger.error('Corrupt restore journal — quarantining and clearing staging', { quarantined, error })
-  try {
-    fs.renameSync(journalPath, quarantined)
-  } catch (renameError) {
-    logger.error('Failed to quarantine corrupt journal', renameError as Error)
-    fs.rmSync(journalPath, { force: true })
-  }
-  // No trustworthy restoreId — clear the whole staging root.
-  fs.rmSync(application.getPath('feature.backup.restore.staging'), { recursive: true, force: true })
 }
 
 // ─── filesystem primitives ───

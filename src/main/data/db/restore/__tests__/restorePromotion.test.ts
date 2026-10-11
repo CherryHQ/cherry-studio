@@ -656,18 +656,16 @@ describe('runRestorePromotion', () => {
     expect(existsSync(stagingDir())).toBe(false)
   })
 
-  it('quarantines a corrupt journal and clears the staging root', async () => {
+  it('reports a corrupt journal without consuming the journal or staged files', async () => {
     makeDb(livePath(), 'old')
     mkdirSync(stagingDir(), { recursive: true })
     writeFileSync(join(stagingDir(), 'leftover.bin'), 'x')
     writeFileSync(journalPath(), '{ definitely not a journal')
 
-    await runRestorePromotion()
+    expect(await runRestorePromotion()).toBe('journal-unavailable')
 
-    expect(existsSync(journalPath())).toBe(false)
-    const quarantined = readdirSync(dataDir()).filter((name) => name.startsWith('restore-journal.json.corrupt-'))
-    expect(quarantined).toHaveLength(1)
-    expect(existsSync(join(userData, 'restore-staging'))).toBe(false)
+    expect(readFileSync(journalPath(), 'utf8')).toBe('{ definitely not a journal')
+    expect(readFileSync(join(stagingDir(), 'leftover.bin'), 'utf8')).toBe('x')
     expect(readMarker(livePath())).toBe('old')
   })
 
