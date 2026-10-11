@@ -2094,6 +2094,9 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
     } else if (result.accumulationError !== undefined) {
       const error = serializeError(result.accumulationError.error)
+      // Host layer keeps the `internal` attribution while the stage names the phase that
+      // actually failed — the persist write is separate and may still succeed.
+      error.failureStage = result.accumulationError.stage
       error.executionFailure = toExecutionFailure(error, modelId, 'host')
       await this.onExecutionError(topicId, modelId, error, exec)
     } else {
