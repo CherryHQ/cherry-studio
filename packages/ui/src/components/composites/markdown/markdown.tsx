@@ -19,6 +19,12 @@ export interface MarkdownProps {
   id: string
   /** Markdown source. */
   children: string
+  /**
+   * Heading slugs assigned at the document level, keyed by normalized heading text. A windowed
+   * preview renders pieces of one document and passes each piece its own headings' slugs, so
+   * duplicates keep the ids the unsplit document would give them.
+   */
+  headingSlugs?: ReadonlyMap<string, readonly string[]>
   /** Component overrides forwarded to Streamdown. */
   components?: Partial<Components>
   /** Streamdown plugin presets (code / cjk / math / mermaid). */
@@ -40,6 +46,7 @@ export interface MarkdownProps {
 export function Markdown({
   id,
   children,
+  headingSlugs,
   components,
   plugins,
   rehypePlugins,
@@ -54,6 +61,7 @@ export function Markdown({
     <MarkdownCore
       id={id}
       mode="static"
+      headingSlugs={headingSlugs}
       components={components}
       plugins={plugins}
       extraRehypePlugins={rehypePlugins}

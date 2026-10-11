@@ -9,6 +9,8 @@ export interface StreamingMarkdownProps {
   id: string
   /** Markdown source (the streaming tail). */
   children: string
+  /** Heading slugs assigned at the document level, keyed by normalized heading text. */
+  headingSlugs?: ReadonlyMap<string, readonly string[]>
   components?: Partial<Components>
   plugins?: PluginConfig
   rehypePlugins?: Pluggable[]
@@ -37,6 +39,7 @@ const DEFAULT_ANIMATED: AnimateOptions = {
 export function StreamingMarkdown({
   id,
   children,
+  headingSlugs,
   components,
   plugins,
   rehypePlugins,
@@ -61,6 +64,7 @@ export function StreamingMarkdown({
     <MarkdownCore
       id={id}
       mode="streaming"
+      headingSlugs={headingSlugs}
       parseIncompleteMarkdown={parseIncompleteMarkdown}
       parseMarkdownIntoBlocksFn={parseMarkdownIntoBlocksFn}
       components={components}

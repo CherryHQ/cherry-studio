@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MarkdownChunkPreview } from '../MarkdownChunkPreview'
-import type { MarkdownChunk } from '../markdownChunks'
+import { splitMarkdownChunks, type MarkdownChunk } from '../markdownChunks'
 
 // jsdom has no real layout, so — matching the convention in
 // src/renderer/components/FilePreview/plugins/spreadsheet/__tests__/grid.render.test.tsx — the
@@ -13,6 +13,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@tanstack/react-virtual', () => ({ useVirtualizer: mocks.useVirtualizer }))
+
+// The slug tests assert real rendered heading ids, so the markdown pipeline must be the actual
+// package, not the global text stub. Everything else keeps its global mock.
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 
 const virtualizerImpl = (options: { count: number }) => ({
   getVirtualItems: () => mocks.range.map((index) => ({ key: String(index), index, start: index * 30, size: 30 })),
@@ -50,5 +54,18 @@ describe('MarkdownChunkPreview', () => {
 
     expect(await screen.findByText(/block-4/)).toBeInTheDocument()
     expect(screen.queryByText(/block-1/)).not.toBeInTheDocument()
+  })
+
+  it('gives duplicate headings across chunks the document-wide ids an anchor names', async () => {
+    // Each chunk renders as its own document, so without shared assignments both headings would take
+    // `--title` and `[second](#title-1)` would name nothing — the second keeps the document's `-1`.
+    mocks.range = [0, 3]
+
+    const content = ['# Title', '', 'first', '', '[second](#title-1)', '', '# Title', ''].join('\n')
+    render(<MarkdownChunkPreview chunks={splitMarkdownChunks(content, 1).chunks} id="doc" />)
+
+    const ids = (await screen.findAllByRole('heading')).map((heading) => heading.getAttribute('id'))
+
+    expect(ids).toEqual(['heading-doc:0--title', 'heading-doc:3--title-1'])
   })
 })

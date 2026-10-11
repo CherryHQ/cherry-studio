@@ -198,6 +198,18 @@ vi.mock('@cherrystudio/ui', async () => {
     useMarkdownBlockContext: () => ({ content: '' }),
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
+    // Real implementation: chunk slug numbering keys on the same normalization the plugin uses.
+    normalizeHeadingText: (text) => {
+      const slug = (text || 'section')
+        .toLowerCase()
+        .trim()
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/["'`(){}[\]:;!?.,]/g, '')
+        .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
+        .replace(/-{2,}/g, '-')
+        .replace(/^-|-$/g, '')
+      return slug || 'section'
+    },
     BlurCancelPointerSensor: class BlurCancelPointerSensor {},
     ReorderableList: ({ items, renderItem, getId }) =>
       React.createElement(
