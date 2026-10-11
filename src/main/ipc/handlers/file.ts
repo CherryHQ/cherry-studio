@@ -68,7 +68,12 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       const fileManager = application.get('FileManager')
       return await dispatchHandle(
         handle as FileHandle,
-        (entryId) => fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash),
+        (entryId) =>
+          withNotesFilesystemMutation(async () => {
+            const physicalPath = fileManager.getPhysicalPath(entryId)
+            assertNotesPathNotMutatingDuringMigration(physicalPath)
+            return fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash)
+          }),
         (path) =>
           withNotesFilesystemMutation(async () => {
             await assertOutsideManagedStorageMutation(path)

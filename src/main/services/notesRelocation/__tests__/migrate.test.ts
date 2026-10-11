@@ -106,6 +106,25 @@ describe('notesRelocation', () => {
     })
   })
 
+  it('rejects non-merge migration when an unexpected file appears in the target during copy', async () => {
+    const source = path.join(tempRoot, 'source-notes-race')
+    const target = path.join(tempRoot, 'target-notes-race')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'note.md'), '# Source')
+
+    const copyFile = fs.promises.copyFile
+    const copyFileSpy = vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (from, to, mode) => {
+      await copyFile(from, to, mode)
+      fs.writeFileSync(path.join(target, 'extra.md'), 'from sync client')
+    })
+
+    await expect(migrateNotes(source, target, false)).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
+    })
+    copyFileSpy.mockRestore()
+  })
+
   it('merges source notes into a target that already has markdown files', async () => {
     const source = path.join(tempRoot, 'source-notes-3')
     const target = path.join(tempRoot, 'target-notes-3')

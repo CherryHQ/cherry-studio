@@ -102,8 +102,11 @@ export function assertNotesPathNotMutatingDuringMigration(filePath: string): voi
     return
   }
   const resolved = effectiveFilesystemPath(filePath)
-  if (pathUnderRoot(resolved, blockedRoots.source) || pathUnderRoot(resolved, blockedRoots.target)) {
-    throw new NotesMigrationWriteBlockedError()
+  for (const root of [blockedRoots.source, blockedRoots.target]) {
+    // Block descendants (writes inside the library) and ancestors (renames/moves of a parent folder).
+    if (pathUnderRoot(resolved, root) || pathUnderRoot(root, resolved)) {
+      throw new NotesMigrationWriteBlockedError()
+    }
   }
 }
 

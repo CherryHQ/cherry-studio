@@ -9,6 +9,7 @@ export class NotesEditFlushService {
   private callbacks = new Set<NotesEditFlush>()
   private migrationLockDepth = 0
   private migrationLockListeners = new Set<() => void>()
+  private pendingEditorMutations = new Set<Promise<unknown>>()
 
   register(flush: NotesEditFlush): () => void {
     this.callbacks.add(flush)
@@ -17,8 +18,19 @@ export class NotesEditFlushService {
     }
   }
 
+  trackEditorMutation<T>(work: Promise<T>): Promise<T> {
+    const tracked = work.finally(() => {
+      this.pendingEditorMutations.delete(tracked)
+    })
+    this.pendingEditorMutations.add(tracked)
+    return tracked
+  }
+
   async flushAll(): Promise<void> {
     await Promise.all([...this.callbacks].map((flush) => flush()))
+    if (this.pendingEditorMutations.size > 0) {
+      await Promise.all([...this.pendingEditorMutations])
+    }
   }
 
   subscribeMigrationLock(listener: () => void): () => void {

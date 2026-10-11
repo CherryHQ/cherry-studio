@@ -99,6 +99,46 @@ function listMergePathConflicts(sourceRoot: string, targetRoot: string): string[
   return conflicts
 }
 
+function listRelativeFilePaths(root: string): Set<string> {
+  const files = new Set<string>()
+
+  const walk = (current: string, relativePrefix: string) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (entry.isSymbolicLink()) {
+        continue
+      }
+      const relativePath = relativePrefix ? path.join(relativePrefix, entry.name) : entry.name
+      const entryPath = path.join(current, entry.name)
+      if (entry.isDirectory()) {
+        walk(entryPath, relativePath)
+        continue
+      }
+      if (entry.isFile()) {
+        files.add(relativePath.split(path.sep).join('/'))
+      }
+    }
+  }
+
+  walk(root, '')
+  return files
+}
+
+function verifyTargetHasOnlySourceFiles(sourceRoot: string, targetRoot: string): void {
+  const sourceFiles = listRelativeFilePaths(sourceRoot)
+  const unexpected: string[] = []
+  for (const relativePath of listRelativeFilePaths(targetRoot)) {
+    if (!sourceFiles.has(relativePath)) {
+      unexpected.push(relativePath)
+    }
+  }
+  if (unexpected.length > 0) {
+    throw new IpcError(
+      notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY,
+      `target contains ${unexpected.length} unexpected entries`
+    )
+  }
+}
+
 function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
   const unresolved: string[] = []
 
@@ -266,6 +306,9 @@ export async function migrateNotesDirectory(
     }
 
     verifySourceCopied(resolvedSource, resolvedTarget)
+    if (!options.merge) {
+      verifyTargetHasOnlySourceFiles(resolvedSource, resolvedTarget)
+    }
     const targetAfter = scanNotesDirectory(resolvedTarget)
 
     logger.info('Notes directory migrated', {

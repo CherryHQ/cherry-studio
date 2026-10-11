@@ -243,6 +243,39 @@ describe('fileHandlers', () => {
     expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith('/tmp/report.md', data, expectedVersion, undefined)
   })
 
+  it('blocks managed entry writes under migration roots', async () => {
+    const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-write-src-'))
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-write-tgt-'))
+    const notesFile = path.join(source, 'note.md')
+    fs.writeFileSync(notesFile, '# hello')
+
+    setNotesMigrationBlockedRoots(source, target)
+    fileManager.getPhysicalPath.mockReturnValue(notesFile)
+
+    try {
+      await expect(
+        fileHandlers['file.write_if_unchanged'](
+          {
+            handle: { kind: 'entry', entryId: ids[0] },
+            data: new Uint8Array([1]),
+            expectedVersion: { mtime: 1, size: 1 }
+          },
+          ctx
+        )
+      ).rejects.toBeInstanceOf(NotesMigrationWriteBlockedError)
+      expect(fileManager.writeIfUnchanged).not.toHaveBeenCalled()
+    } finally {
+      appGetMock.mockImplementation((name: string) => {
+        if (name === 'IpcApiService') return { broadcast: vi.fn() }
+        if (name === 'FileManager') return fileManager
+        if (name === 'DirectoryTreeManager') return directoryTreeManager
+        if (name === 'WindowManager') return windowManager
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      releaseNotesMigrationSession()
+    }
+  })
+
   it('writes a managed entry through FileManager', async () => {
     const data = new Uint8Array([5, 6])
     const expectedVersion = { mtime: 1, size: 4 }

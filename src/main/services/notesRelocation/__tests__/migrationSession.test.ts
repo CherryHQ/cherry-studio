@@ -51,6 +51,17 @@ describe('notes migration session', () => {
     expect(() => assertNotesPathNotMutatingDuringMigration(edgeCase)).toThrow(/migration is in progress/)
   })
 
+  it('blocks mutations of a parent directory that contains the notes root', () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-parent-'))
+    const source = path.join(parent, 'notes-lib')
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-tgt-parent-'))
+    fs.mkdirSync(source, { recursive: true })
+
+    setNotesMigrationBlockedRoots(source, target)
+
+    expect(() => assertNotesPathNotMutatingDuringMigration(parent)).toThrow(/migration is in progress/)
+  })
+
   it('blocks filesystem mutations under source and target roots during copy', () => {
     const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-src-'))
     const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-tgt-'))

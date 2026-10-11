@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { notesEditFlushService } from '@renderer/services/NotesEditFlushService'
 
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
@@ -306,7 +307,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           const file = imageItem.getAsFile()
           if (file) {
             // Handle image paste by saving to local storage
-            void handleImagePaste(file)
+            void notesEditFlushService.trackEditorMutation(handleImagePaste(file))
             return true
           }
         }
@@ -419,6 +420,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   // Handle image paste function
   const handleImagePaste = useCallback(
     async (file: File) => {
+      if (!editable || !editor || editor.isDestroyed || !editor.isEditable) {
+        return
+      }
       try {
         let processedFile: File | Blob = file
         let extension = file.type.split('/')[1] ? `.${file.type.split('/')[1]}` : '.png'
@@ -470,7 +474,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
 
         // Insert image into editor using local file path
-        if (editor && !editor.isDestroyed) {
+        if (editor && !editor.isDestroyed && editor.isEditable) {
           const imageUrl = `file://${physicalPath}`
           const alt = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}`
           editor.chain().focus().setImage({ src: imageUrl, alt }).run()
@@ -481,7 +485,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         logger.error('Failed to handle image paste:', error as Error)
       }
     },
-    [editor]
+    [editable, editor]
   )
 
   useEffect(() => {
