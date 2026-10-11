@@ -72,6 +72,18 @@ describe('mergePathPrefixes', () => {
 
     expect(env.PATH.split(':')).toEqual(['/user/mise/shims', '/usr/bin', '/mock/cherry.bin'])
   })
+
+  it('drops inherited Cherry shims from PATH when excluding the managed shims dir', () => {
+    const shims = getBinaryShimsDir()
+    const env = mergePathSuffixes(
+      { PATH: `${shims}:/user/mise/shims:/usr/bin`, MISE_DATA_DIR: '/user/mise' },
+      ['/mock/cherry.bin'],
+      [shims]
+    )
+
+    expect(env.PATH.split(':')).toEqual(['/user/mise/shims', '/usr/bin', '/mock/cherry.bin'])
+    expect(env.MISE_DATA_DIR).toBe('/user/mise')
+  })
 })
 
 describe('getBinaryIsolatedHomeEnv', () => {

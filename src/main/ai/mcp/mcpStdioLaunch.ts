@@ -1,6 +1,6 @@
 import { application } from '@application'
 import type { LoggerService } from '@logger'
-import { getBinaryExecutionEnv, mergePathSuffixes } from '@main/utils/binaryEnv'
+import { getBinaryExecutionEnv, getBinaryShimsDir, mergePathSuffixes } from '@main/utils/binaryEnv'
 import { getRawShellEnv, hasUserMiseEnv, resolveCherryPathTailDirs } from '@main/utils/shellEnv'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
@@ -57,7 +57,11 @@ export async function resolveStdioLaunch({
   // instead of the default user location, matching DSH/Pi branching.
   const rawShellEnv = await getRawShellEnv(signal)
   const hasUserMise = hasUserMiseEnv(rawShellEnv)
-  const baseShellEnv = mergePathSuffixes(rawShellEnv, resolveCherryPathTailDirs(hasUserMise))
+  const baseShellEnv = mergePathSuffixes(
+    rawShellEnv,
+    resolveCherryPathTailDirs(hasUserMise),
+    hasUserMise ? [getBinaryShimsDir()] : []
+  )
   const loginShellEnv = hasUserMise ? baseShellEnv : { ...baseShellEnv, ...getBinaryExecutionEnv() }
   const launch = await resolveLaunchCommand({
     command,
