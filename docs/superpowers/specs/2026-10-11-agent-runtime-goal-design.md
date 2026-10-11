@@ -100,6 +100,7 @@ interface GoalSnapshot {
   objective: string          // 1–4000 字符，去首尾空白
   phase: 'active' | 'paused' | 'blocked' | 'complete'
   roundsStarted: number      // 已被接纳的轮数
+  progressRounds: number     // 有进展的轮数（见 6.1）；无核验端口时 complete 的退化检查读它
   maxGoalRounds: number      // 本 goal 的轮数上限
   budget?: { tokens?: number; usd?: number }   // 本 goal 的预算，任一项越过即触发
   tokensUsed: number         // input + output + cacheRead + cacheWrite 之和
@@ -353,7 +354,7 @@ update_goal(goal_id, revision, action, objective?, max_goal_rounds?, budget_toke
 | `/goal clear` | 写墓碑，中止当前轮 |
 | `/goal rounds <n>` / `/goal budget <tokens>` / `/goal budget $<usd>` | 调上限或预算（轮数受绝对上限约束） |
 
-控制词只在占满整个输入时生效；其余非空输入都是 objective。命令返回的文本由宿主作为系统提示展示，不进入模型上下文。
+控制词只在占满整个输入时生效；其余非空输入都是 objective。命令的反馈文本写成 `cherry.goal-notice` 状态条目（`{ text, level: 'info' | 'error' }`），由 L2 作为 `state` 条目送到宿主，宿主作为一次性提示展示；它不进入模型上下文，也不参与重建。
 
 ### 8.3 能力门控
 
@@ -366,14 +367,15 @@ interface GoalVerifier {
   verify(input: {
     objective: string
     claim: { evidence?: string }
-    recentEntries: TranscriptEntry[]   // 最近 N 轮的消息和工具结果，N 由宿主定
+    /** 最近的对话，经会话模型的 replay 规则处理，与压缩摘要器收到的形状相同 */
+    messages: ConversationModelMessage[]
     signal: AbortSignal
   }): Promise<{ verdict: 'met' | 'not_met' | 'impossible'; reason: string }>
 }
 ```
 
 - 宿主提供 `port.verify` 时：`met` → 完成；`not_met` → 工具返回错误结果并带 `reason`；`impossible` → `blocked / model_blocked`，`message = reason`。核验失败（抛错、超时）按 `not_met` 处理并附原因，不放行。
-- 宿主未提供时（V1 默认）退化为两条运行时检查：本 goal 至少有一轮 `progress === true`；`evidence` 非空。两条都满足才放行。
+- 宿主未提供时（V1 默认）退化为两条运行时检查：本 goal 至少有一轮 `progress === true`（快照的 `progressRounds > 0`，或当前轮已有进展）；`evidence` 非空。两条都满足才放行。
 
 调研依据：独立评估器与人类一致率约 90%，模型自报约 70%；给模型"标记不可能"的出口能把作弊率从 54% 降到 9%。宿主侧的评估模型可以单独选择，不受会话模型能力限制，这是 Cherry 多模型架构的优势，放在二期实现。
 
