@@ -177,6 +177,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private traceContext?: AgentRuntimeTraceContext
   private _usageCapture?: AgentSessionUsageCapture
   private promptRunActive = false
+  /** True from a pinned connect until the replayed turn ends: the turn is live but not streaming
+   *  yet, so a reconcile in that window must keep the frozen mode and only tighten disabled tools. */
+  private replayTurnPending = false
   /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
    *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
   private manualCompactInFlight = false
@@ -243,6 +246,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.disabledTools = this.input.permissionPolicy
       ? new Set(this.input.permissionPolicy.disabledTools)
       : normalizeDisabledTools(agent.disabledTools, initialSnapshot)
+    this.replayTurnPending = this.input.permissionPolicy !== undefined
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
@@ -596,12 +600,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     const nextPermissionMode = agent.configuration?.permission_mode ?? 'default'
     // Changing the permission mode can alter admission for the current tool loop, so defer it until
-    // pi is idle. Disabled tools only tighten policy and still apply immediately below.
-    const applicablePermissionMode = this.session?.isStreaming ? this.permissionMode : nextPermissionMode
+    // pi is idle. Disabled tools only tighten policy and still apply immediately below. A replaying
+    // turn is live before pi reports it as streaming, so its pending window counts as mid-turn.
+    const midTurn = this.session?.isStreaming === true || this.replayTurnPending
+    const applicablePermissionMode = midTurn ? this.permissionMode : nextPermissionMode
     const nextDisabledTools = normalizeDisabledTools(agent.disabledTools, snapshot)
-    const applicableDisabledTools = this.session?.isStreaming
-      ? new Set([...this.disabledTools, ...nextDisabledTools])
-      : nextDisabledTools
+    const applicableDisabledTools = midTurn ? new Set([...this.disabledTools, ...nextDisabledTools]) : nextDisabledTools
     const policyChanged =
       applicablePermissionMode !== this.permissionMode || !setsEqual(applicableDisabledTools, this.disabledTools)
     this.permissionMode = applicablePermissionMode
@@ -706,6 +710,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private finishPromptRun(error?: unknown): void {
     if (this.closed) return
     this.promptRunActive = false
+    // The replayed turn ended: its policy freeze goes with it, so idle reconciles adopt row saves.
+    this.replayTurnPending = false
     this.maybeEmitResumeToken()
     const undelivered = this.pendingSteers.splice(0).map((pending) => pending.input)
     if (undelivered.length > 0) {
