@@ -6,8 +6,11 @@ import {
   GOAL_NOTICE_TYPE,
   GOAL_ROUND_TYPE,
   GOAL_STATE_TYPE,
+  type GoalCleared,
+  type GoalNotice,
   type GoalPort,
   type GoalSnapshot,
+  type RoundDetails,
   type TranscriptEntry
 } from '../src'
 import { finish } from './support'
@@ -72,23 +75,29 @@ export const say = (text: string): LanguageModelV3StreamPart[] => [
   finish('stop')
 ]
 
-export const snapshots = (entries: readonly TranscriptEntry[]): GoalSnapshot[] =>
+/** Every `cherry.goal` entry in order: snapshots and clear tombstones. */
+export const goalStates = (entries: readonly TranscriptEntry[]) =>
   entries.flatMap((entry) =>
-    entry.kind === 'state' && entry.type === GOAL_STATE_TYPE && !(entry.data as any)?.cleared
-      ? [entry.data as unknown as GoalSnapshot]
+    entry.kind === 'state' && entry.type === GOAL_STATE_TYPE
+      ? [entry.data as unknown as GoalSnapshot | GoalCleared]
       : []
   )
+
+export const snapshots = (entries: readonly TranscriptEntry[]): GoalSnapshot[] =>
+  goalStates(entries).filter((data): data is GoalSnapshot => !('cleared' in data))
 
 export const lastSnapshot = (entries: readonly TranscriptEntry[]) => snapshots(entries).at(-1)
 
 export const rounds = (entries: readonly TranscriptEntry[]) =>
   entries.flatMap((entry) =>
     entry.kind === 'message' && entry.custom?.type === GOAL_ROUND_TYPE
-      ? [entry.custom.details as { round: number; kind: string }]
+      ? [entry.custom.details as unknown as RoundDetails]
       : []
   )
 
-export const notices = (entries: readonly TranscriptEntry[]) =>
+export const goalNotices = (entries: readonly TranscriptEntry[]): GoalNotice[] =>
   entries.flatMap((entry) =>
-    entry.kind === 'state' && entry.type === GOAL_NOTICE_TYPE ? [(entry.data as { text: string }).text] : []
+    entry.kind === 'state' && entry.type === GOAL_NOTICE_TYPE ? [entry.data as unknown as GoalNotice] : []
   )
+
+export const notices = (entries: readonly TranscriptEntry[]) => goalNotices(entries).map((notice) => notice.text)

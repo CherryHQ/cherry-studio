@@ -106,6 +106,7 @@ describe('goal state transitions', () => {
     goal = stopGoal(goal, { code: 'round_limit' }, 3)
     goal = editGoal(goal, { maxGoalRounds: 3 }, 1000, 4)
     expect(goal).toMatchObject({ phase: 'active', wrapUpDone: false, maxGoalRounds: 3 })
+    expect(goal.lastStop).toBeUndefined()
     expect(hasCapacity(goal)).toBe(true)
   })
 
@@ -123,6 +124,7 @@ describe('goal state transitions', () => {
   it('resume only re-activates paused or blocked goals that still have capacity', () => {
     const paused = stopGoal(createGoal('g', limits, {}, 1), { code: 'paused_by_user' }, 2)
     expect(resumeGoal(paused, 3).phase).toBe('active')
+    expect(resumeGoal(paused, 3).lastStop).toBeUndefined()
     const done = stopGoal(createGoal('g', limits, {}, 1), { code: 'complete' }, 2)
     expect(() => resumeGoal(done, 3)).toThrow(expect.objectContaining({ code: 'invalid_action' }))
   })
@@ -224,6 +226,13 @@ const roundEntry = (id: string, round: number): SessionEntry => ({
   display: false,
   details: { goalId: 'g1', revision: 2, round, kind: 'work' }
 })
+const otherMessage = (id: string): SessionEntry => ({
+  ...base(id),
+  type: 'custom_message',
+  customType: 'other.extension',
+  content: 'injected',
+  display: false
+})
 const stateEntry = (id: string, data: unknown): SessionEntry => ({
   ...base(id),
   type: 'custom',
@@ -262,6 +271,13 @@ describe('goal branch reading', () => {
         assistantEntry('c', 'ok')
       ])
     ).toBe(true)
+  })
+
+  it('skips custom messages other than a goal round when deciding the turn', () => {
+    expect(
+      isHumanTurn([roundEntry('r', 1), assistantEntry('a', 'x'), otherMessage('o'), assistantEntry('b', 'y')])
+    ).toBe(false)
+    expect(isHumanTurn([userEntry('u', 'do it'), assistantEntry('a', 'ok'), otherMessage('o')])).toBe(true)
   })
 
   it('reads a round only when it is the branch tail', () => {
