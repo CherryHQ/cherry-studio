@@ -139,6 +139,46 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('carries a policy save from the replacement startup window into the replayed turn', async () => {
+    const primary = fakeConnection()
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+
+    // While the replacement startup awaits, the host still reconciles the connection it holds —
+    // the wrapper, which forwards to the old connection. The user disables a tool here: without
+    // retention, the replacement (and its replay) would never learn of the tightening.
+    await wrapper.reconcile({ modelId: 'primary::model' })
+    expect(primary.reconcile).toHaveBeenCalledWith({ modelId: 'primary::model' })
+    expect(fallback.reconcile).not.toHaveBeenCalled()
+
+    releaseConnect()
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'chunk' } })
+
+    // The retained save re-applies to the replacement before the replay is admitted, naming the
+    // fallback model; its frozen mode stays `default` and the tool tightening lands.
+    expect(fallback.reconcile).toHaveBeenCalledWith({ modelId: 'backup::model' })
+    expect(fallback.send).toHaveBeenCalled()
+    await wrapper.close()
+  })
+
   it('declines the replay when the live turn policy cannot be read', async () => {
     const primary = fakeConnection()
     const policyless = { ...primary, getPermissionPolicy: undefined }

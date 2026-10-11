@@ -134,6 +134,11 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
    *  releases only after the replacement's own shutdown settles. */
   private pendingTeardown?: Promise<void>
   private trace?: AgentRuntimeTraceContext
+  /** True while a fallback replacement is starting up: the host still reconciles the connection it
+   *  holds (the old one), so policy updates landing in that window are retained for the replacement. */
+  private replacementInFlight = false
+  /** The latest reconcile the replacement has not seen yet; re-applied before its replay is admitted. */
+  private retainedReconcile?: Parameters<AgentRuntimeConnection['reconcile']>[0]
 
   constructor(
     private readonly driver: AgentSessionRuntimeDriver,
@@ -179,6 +184,11 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   }
 
   reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]) {
+    // A replacement startup is invisible to the host: it reconciles the connection it still holds,
+    // so a policy save landing in that window (e.g. disabling a tool) is retained and re-applied to
+    // the replacement before its replay is admitted — otherwise the replay would run the turn
+    // under a policy the user has already tightened.
+    if (this.replacementInFlight) this.retainedReconcile = input
     return this.current.reconcile(input)
   }
 
@@ -280,6 +290,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       return false
     }
     this.attempted = true
+    this.replacementInFlight = true
     let connection: AgentRuntimeConnection | undefined
     try {
       await this.current.close()
@@ -308,6 +319,9 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
         return false
       }
       this.hasActivity = false
+      // Policy saves that landed while the replacement was starting must reach it before the replay
+      // is admitted: the replacement keeps the turn's frozen mode and only tightens disabled tools.
+      await this.applyRetainedReconcile(connection, fallbackModelId)
       // The swap is real only once the replay is admitted: a rejected send must leave no persisted
       // marker — and no live connection — claiming a swap that never happened. The new connection's
       // events are not pumped until this returns, so the marker still precedes them.
@@ -318,6 +332,9 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
         await this.discard(connection)
         return false
       }
+      // Anything saved while the submission was in flight still lands before the swap makes the
+      // replacement the connection the host reconciles.
+      await this.applyRetainedReconcile(connection, fallbackModelId)
       const previousModelId = this.currentModelId
       this.current = connection
       this.pendingConnection = undefined
@@ -335,6 +352,17 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       logger.warn('Pi/DSH fallback connection failed', { sessionId: this.input.sessionId, fallbackModelId, cause })
       if (connection) await this.discard(connection)
       return false
+    } finally {
+      this.replacementInFlight = false
+      this.retainedReconcile = undefined
     }
+  }
+
+  /** Re-apply the reconcile the replacement could not see, naming the model it now serves. */
+  private async applyRetainedReconcile(connection: AgentRuntimeConnection, modelId: UniqueModelId): Promise<void> {
+    const retained = this.retainedReconcile
+    this.retainedReconcile = undefined
+    if (!retained) return
+    await connection.reconcile({ ...retained, modelId })
   }
 }
