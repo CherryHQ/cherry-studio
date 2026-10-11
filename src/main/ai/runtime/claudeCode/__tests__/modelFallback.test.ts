@@ -150,6 +150,24 @@ describe('selectFallbackModelId', () => {
     ).toBe('healthy-provider::glm')
   })
 
+  // The gateway resolves a fallback's address by searching only ENABLED models, so a disabled row
+  // that passes this check still gets refused at request time — and the turn has spent its single
+  // fallback attempt without ever reaching the healthy candidate behind it.
+  it('skips a fallback whose model row is disabled', () => {
+    getByKey.mockImplementation((providerId: string, modelId: string) => ({
+      id: modelId,
+      providerId,
+      isEnabled: modelId !== 'disabled-model'
+    }))
+
+    expect(
+      selectFallbackModelId(
+        policy({ fallbackModelIds: ['healthy-provider::disabled-model', 'healthy-provider::glm'] }),
+        CURRENT_MODEL
+      )
+    ).toBe('healthy-provider::glm')
+  })
+
   it('returns undefined when every remaining fallback is unreachable', () => {
     getByProviderId.mockImplementation(() => {
       throw DataApiErrorFactory.notFound('Provider', 'gone')

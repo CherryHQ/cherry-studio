@@ -64,6 +64,8 @@ const logger = loggerService.withContext('agentSessionWarmup')
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
+  /** The System Prompt this request materialized, so installs can report it to the connection. */
+  capturedInstructions?: string | null
   settings: ClaudeCodeSettings
   sdkModelId: string
   usageCapture: AgentSessionUsageCapture
@@ -468,6 +470,24 @@ function captureMcpServerSnapshots(mcpIds: string[] | null | undefined): McpServ
   return snapshots
 }
 
+/** Live-turn facts a model-fallback rebuild must preserve instead of re-reading the agent row. */
+export interface FallbackReplayPins {
+  /**
+   * The permission mode the turn was admitted under. Carried into the SDK settings, the shared
+   * approval snapshot, and the baseline so a mode saved mid-backoff cannot re-admit the replay
+   * under it — the same change mid-turn reconciliation itself defers. `null` pins "no stored mode".
+   */
+  permissionMode?: AgentPermissionMode | null
+  /** `agent.instructions` as the turn captured it; a saved prompt applies next fresh turn. */
+  instructions?: string | null
+  /**
+   * Tools this turn has disabled, unioned onto the row's own list. A reconcile that landed while
+   * this build ran was applied to the shared snapshot the builder then re-published over; re-unioning
+   * restores that tightening so the replay cannot execute a tool the user disabled during the wait.
+   */
+  disabledTools?: readonly string[]
+}
+
 export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
   effectiveResume?: string,
@@ -482,25 +502,29 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Composer knowledge selection frozen when the turn was submitted. */
   selectedKnowledgeBaseIds: readonly string[] = [],
   /**
-   * The permission mode the replayed turn was admitted under. A fallback rebuild carries it into
-   * the SDK settings, the shared approval snapshot, and the baseline, so a mode saved mid-backoff
-   * cannot re-admit the replay under it — the same change mid-turn reconciliation itself defers.
-   * `null` pins "no stored mode" (the SDK default); omitted ⇒ the builder reads the agent row.
+   * Facts the replayed turn was admitted under, kept so a rebuild cannot pick up an edit that
+   * landed mid-backoff. Both are what the live connection already serves; omitting a field leaves
+   * that fact to the freshly read agent row.
    */
-  pinnedPermissionMode?: AgentPermissionMode | null
+  pinned?: FallbackReplayPins
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 
   const agentRow = agentService.getAgent(session.agentId)
   if (!agentRow?.model) return undefined
-  const agent: AgentEntity =
-    pinnedPermissionMode !== undefined
-      ? {
-          ...agentRow,
-          configuration: { ...agentRow.configuration, permission_mode: pinnedPermissionMode ?? undefined }
-        }
-      : agentRow
+  const agent: AgentEntity = !pinned
+    ? agentRow
+    : {
+        ...agentRow,
+        ...(pinned.permissionMode !== undefined
+          ? { configuration: { ...agentRow.configuration, permission_mode: pinned.permissionMode ?? undefined } }
+          : {}),
+        ...(pinned.instructions !== undefined ? { instructions: pinned.instructions ?? undefined } : {}),
+        ...(pinned.disabledTools !== undefined
+          ? { disabledTools: [...new Set([...(agentRow.disabledTools ?? []), ...pinned.disabledTools])] }
+          : {})
+      }
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
@@ -603,6 +627,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   return {
     connectionConfig,
+    capturedInstructions: agent.instructions ?? null,
     key: settings.warmQueryKey ?? session.id,
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,

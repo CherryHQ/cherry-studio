@@ -51,8 +51,11 @@ function isUsableFallback(candidate: UniqueModelId): boolean {
     // A disabled provider's models are refused by the gateway, so routing to one only buys an
     // opaque 404 — the same reason the chat retry path skips it (issue #20547).
     if (!provider.isEnabled) return false
-    modelService.getByKey(providerId, modelId)
-    return true
+    const model = modelService.getByKey(providerId, modelId)
+    // `getByKey` returns disabled rows too, but the gateway resolves a request's address by
+    // searching only enabled models, so a disabled one is refused there — skipping it here keeps
+    // the turn's single fallback attempt for a candidate that can actually serve it.
+    return model.isEnabled !== false
   } catch (error) {
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return false
     throw error

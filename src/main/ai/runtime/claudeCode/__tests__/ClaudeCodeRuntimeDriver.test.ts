@@ -467,6 +467,19 @@ function createAsyncQueue<T>() {
   }
 }
 
+/** Minimal stand-in for the shared, session-keyed tool-policy snapshot `canUseTool` resolves. */
+function createToolPolicySnapshot() {
+  let disallowed = new Set<string>()
+  return {
+    update(agent: any) {
+      disallowed = new Set(agent?.disabledTools ?? [])
+    },
+    isDisabled(runtimeName: string) {
+      return disallowed.has(runtimeName)
+    }
+  }
+}
+
 function createDeferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -3691,9 +3704,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'default',
       false,
       undefined,
-      // The replay pins the turn's live mode (null here — none stored) so a mid-backoff save
-      // of another mode cannot re-admit it under that mode.
-      null
+      // The replay pins the turn's live mode (null here — none stored) and its captured prompt, so
+      // a mid-backoff save of either cannot re-admit it under the new value.
+      { permissionMode: null, instructions: null, disabledTools: [] }
     ])
     const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
     expect(retrySpawn.options).toMatchObject({ model: 'haiku' })
@@ -3719,6 +3732,105 @@ describe('ClaudeCodeRuntimeDriver', () => {
         })
       })
     )
+    void connection.close()
+  })
+
+  it('keeps a tool disable that reconciled while the fallback request was being built', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    // One shared, session-keyed snapshot — exactly what `canUseTool` resolves at fire-time.
+    const snapshot = createToolPolicySnapshot()
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const baseline = {
+      rebuildSignature: 'sig-1',
+      live: { toolPolicy: { permissionMode: 'bypassPermissions', disabledTools: [], mcps: [] } }
+    }
+    let capturedAgent: any
+    const fallbackBuild = createDeferred<any>()
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: baseline,
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: { toolPolicySnapshot: snapshot },
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockImplementationOnce(() => {
+        // The builder reads the agent row when the build starts, then publishes it through
+        // `ensureToolPolicySnapshot` when the build (route, settings, skills) finally settles.
+        capturedAgent = mocks.getAgent()
+        return fallbackBuild.promise
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.buildRequest).toHaveBeenCalledTimes(2))
+
+    // The user disables Bash while that build is still in flight; the host pushes it and the live
+    // reconcile lands first, tightening the shared snapshot.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: ['Bash'] })
+    mocks.deriveConfig.mockResolvedValue({
+      ok: true,
+      config: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: 'bypassPermissions', disabledTools: ['Bash'], mcps: [] } }
+      }
+    })
+    await expect(connection.reconcile({ modelId: 'claude-code::sonnet' })).resolves.toBe('patched')
+    expect(snapshot.isDisabled('Bash')).toBe(true)
+
+    // The builder now settles and publishes the agent it captured BEFORE the disable — the
+    // reconcile's tightening is gone the moment the replay's tool calls resolve against it.
+    snapshot.update(capturedAgent)
+    expect(snapshot.isDisabled('Bash')).toBe(false)
+    fallbackBuild.resolve({
+      connectionConfig: {
+        rebuildSignature: 'sig-2',
+        live: { toolPolicy: { permissionMode: 'bypassPermissions', disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'haiku' },
+      settings: { toolPolicySnapshot: snapshot },
+      sdkModelId: 'haiku-sdk',
+      initializeTimeoutMs: 100
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    await delay(10)
+
+    // The newer restriction must survive the publication: the replay never runs Bash, without
+    // approval under bypassPermissions. The installed baseline records it too, so a later turn
+    // that re-enables Bash is still seen as a change and lifts the restriction (not stuck on).
+    expect(snapshot.isDisabled('Bash')).toBe(true)
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: [] })
+    mocks.deriveConfig.mockResolvedValue({
+      ok: true,
+      config: {
+        rebuildSignature: 'sig-2',
+        live: { toolPolicy: { permissionMode: 'bypassPermissions', disabledTools: [], mcps: [] } }
+      }
+    })
+    await expect(connection.reconcile({ modelId: 'other-provider::haiku' })).resolves.toBe('patched')
+    expect(snapshot.isDisabled('Bash')).toBe(false)
     void connection.close()
   })
 
@@ -3778,7 +3890,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
 
     // The replay rebuild carries the live mode into the builder, so the SDK settings, the shared
-    // approval snapshot, and the derived baseline all re-derive from the frozen mode.
+    // approval snapshot, and the derived baseline all re-derive from the frozen mode. The turn's
+    // captured prompt rides along: the replay stays inside the turn it was admitted for.
     expect(mocks.buildRequest.mock.calls[1]).toEqual([
       'session-1',
       'failed-session',
@@ -3786,8 +3899,64 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'default',
       false,
       undefined,
-      'default'
+      { permissionMode: 'default', instructions: null, disabledTools: [] }
     ])
+    void connection.close()
+  })
+
+  it('rebuilds the fallback replay on the prompt the turn was admitted with, not one saved mid-turn', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    // The turn was admitted with instructions A; a save while the provider is backing off must wait
+    // for the next fresh turn (agent-prompt-layers.md) — the replay stays in THIS host turn.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', instructions: 'A' })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest.mockImplementation(async () => {
+      const isFallbackBuild = mocks.buildRequest.mock.calls.length > 1
+      return {
+        connectionConfig: {
+          rebuildSignature: isFallbackBuild ? 'sig-2' : 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        capturedInstructions: 'A',
+        key: 'warm-key',
+        options: { model: isFallbackBuild ? 'haiku' : 'sonnet' },
+        settings: {},
+        sdkModelId: isFallbackBuild ? 'haiku-sdk' : 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      }
+    })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', instructions: 'B' })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+
+    // The replay must re-materialize the prompt the turn was admitted with, not the saved B.
+    expect(mocks.buildRequest.mock.calls[1][6]).toEqual({
+      permissionMode: null,
+      instructions: 'A',
+      disabledTools: []
+    })
     void connection.close()
   })
 
