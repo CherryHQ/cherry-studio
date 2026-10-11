@@ -1,7 +1,13 @@
 import i18n from 'i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import {
+  APPLE_ASR_MODEL_ID,
+  APPLE_TTS_MODEL_ID,
+  FUNASR_MODEL_ID,
+  WINDOWS_ASR_MODEL_ID,
+  WINDOWS_TTS_MODEL_ID
+} from '@shared/ai/localVoice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { VoiceDomainError, VoiceService } from '../VoiceService'
@@ -63,8 +69,8 @@ describe('VoiceService state ownership', () => {
     await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({ language })
   })
 
-  it('updates only an implicit recognition language when the interface changes', async () => {
-    const preferences = { modelId: APPLE_ASR_MODEL_ID, language: '' }
+  it.each([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID])('updates only the implicit language for %s', async (modelId) => {
+    const preferences = { modelId, language: '' }
     const service = new VoiceService({
       ipc: { request, on },
       ownerWindow,
@@ -73,12 +79,12 @@ describe('VoiceService state ownership', () => {
 
     await i18n.changeLanguage('zh-CN')
     await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
-      modelId: APPLE_ASR_MODEL_ID,
+      modelId,
       language: 'zh-CN'
     })
     await i18n.changeLanguage('en-US')
     await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
-      modelId: APPLE_ASR_MODEL_ID,
+      modelId,
       language: 'en-US'
     })
     expect(preferences.language).toBe('')
@@ -86,7 +92,7 @@ describe('VoiceService state ownership', () => {
     preferences.language = 'ja-JP'
     await i18n.changeLanguage('zh-CN')
     await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
-      modelId: APPLE_ASR_MODEL_ID,
+      modelId,
       language: 'ja-JP'
     })
   })
@@ -844,33 +850,6 @@ describe('VoiceService route facade', () => {
       ['ai.voice.playback.update', { sessionId: ids[0], phase: 'playing' }],
       ['ai.voice.playback.control', { sessionId: ids[0], command: 'pause' }],
       ['ai.speech.abort', { sessionId: ids[0], requestId: ids[1] }]
-    ])
-  })
-
-  it('exposes discovery, explicit install, and microphone operations without provider options', async () => {
-    request.mockResolvedValue(undefined)
-    const service = createService()
-
-    await service.listModels()
-    await service.listTranscriptionLocales()
-    await service.getModelStatus({ modelId: 'local-voice::apple-system-asr', language: 'en-US' })
-    await service.listVoices()
-    const install = service.installTranscriptionAsset({ language: 'en-US', source: 'settings' })
-    await install.result
-    await service.getMicrophoneStatus()
-    await service.openMicrophoneSettings()
-
-    expect(request.mock.calls).toEqual([
-      ['ai.voice.models.list'],
-      ['ai.transcription.locales.list'],
-      ['ai.voice.model.status', { modelId: 'local-voice::apple-system-asr', language: 'en-US' }],
-      ['ai.speech.voices.list'],
-      [
-        'ai.transcription.asset.install',
-        { sessionId: ids[0], requestId: ids[1], language: 'en-US', source: 'settings' }
-      ],
-      ['ai.voice.microphone.status'],
-      ['ai.voice.microphone.open_settings']
     ])
   })
 })

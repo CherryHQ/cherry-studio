@@ -3,7 +3,6 @@ import { join } from 'node:path'
 
 import type { SpeechModelV3, TranscriptionModelV3 } from '@ai-sdk/provider'
 
-import { application } from '@application'
 import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { loggerService } from '@logger'
@@ -19,8 +18,7 @@ import {
 
 import type { LocalVoiceStatus } from '../localAdapters'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
-import { checkAbort, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
-import { voiceAudioProcess } from './voiceAudioProcess'
+import { checkAbort, decodeVoiceRecording, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
 
 const logger = loggerService.withContext('AppleVoiceAdapter')
 
@@ -169,16 +167,7 @@ export function createAppleTranscriptionModel(options: TranscriptionOptions): Tr
       await requireReady(APPLE_ASR_MODEL_ID, options, input.abortSignal)
       return withScratch(
         async (directory) => {
-          const timeout = AbortSignal.timeout(30_000)
-          const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
-          const decoded = await application
-            .get('UtilityProcessManager')
-            .client(voiceAudioProcess)
-            .request('decode', { audio: input.audio as Uint8Array, mimeType: 'audio/webm;codecs=opus' }, { signal })
-            .catch((error: unknown) => {
-              if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-              throw error
-            })
+          const decoded = await decodeVoiceRecording(input.audio as Uint8Array, input.abortSignal)
           checkAbort(input.abortSignal)
           const inputPath = join(directory, 'input.wav')
           await writeFile(inputPath, decoded.wav, { mode: 0o600 })

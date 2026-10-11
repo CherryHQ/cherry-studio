@@ -41,10 +41,15 @@ app's deep strict signature, and a capabilities round trip. The helper is signed
 its dedicated empty entitlement policy rather than Electron's inherited relaxations.
 A packaged helper smoke does not replace VoiceSessionService/IpcApi integration verification.
 
-Windows x64 system TTS uses the SAPI helper under `windows/`. Its build and
+Windows x64 system ASR and TTS use the SAPI helper under `windows/`. ASR is
+explicitly selected as `local-voice::windows-system-asr`; it does not replace the
+platform's default ASR model. A `probe_asr` request initializes the installed recognizer and
+dictation grammar before transcription; it does not activate a microphone or
+install assets. Main decodes recorded WebM/Opus through the same utility process
+as Apple ASR, then sends the derived mono 16 kHz WAV to SAPI. Its build and
 packaging are architecture-gated; Windows ARM64 system speech is unsupported
 without blocking ARM64 application packages. See the [Windows helper guide](./windows/README.md)
-for build prerequisites, independent protocol and real TTS smokes, packaged
+for build prerequisites, independent protocol and real ASR/TTS smokes, packaged
 helper signature checks, and the remaining NSIS/portable device acceptance.
 The native synthesis protocol requires an explicit `speed` from 0.5 to 2;
 Apple and Windows adapters both forward the selected speed.

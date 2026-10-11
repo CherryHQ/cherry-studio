@@ -7,6 +7,7 @@ const { spawn, stat } = vi.hoisted(() => ({ spawn: vi.fn(), stat: vi.fn() }))
 vi.mock('node:child_process', () => ({ spawn }))
 vi.mock('node:fs/promises', () => ({ stat }))
 
+import type { NativeRequest } from '../src/contracts'
 import { SystemSpeechNativeClient } from '../src/SystemSpeechNativeClient'
 
 afterEach(() => {
@@ -28,6 +29,30 @@ function windowsHelper() {
 }
 
 describe('Windows native client', () => {
+  it.each([
+    [{ operation: 'probe_asr', locale: 'en-US' }, { locale: 'en-US' }],
+    [
+      { operation: 'transcribe', locale: 'en-US', inputPath: 'C:\\private\\input.wav' },
+      { locale: 'en-US', text: 'private transcript' }
+    ]
+  ] as const)('validates %j responses and sends ASR paths only over stdin', async (request, result) => {
+    const child = windowsHelper()
+    let input = ''
+    child.stdin.on('data', (chunk) => {
+      input += chunk.toString()
+    })
+    child.stdin.on('finish', () => {
+      child.stdout.write(JSON.stringify({ ok: true, value: { operation: request.operation, result } }))
+      child.emit('close', 0)
+    })
+    await expect(new SystemSpeechNativeClient({ helperPath: 'C:\\app\\speech.exe' }).request(request)).resolves.toEqual(
+      { operation: request.operation, result }
+    )
+    expect(JSON.parse(input)).toEqual(request)
+    expect(spawn.mock.calls[0][1]).toEqual([])
+    expect(spawn.mock.calls[0][2].windowsHide).toBe(true)
+  })
+
   it('accepts a Windows executable without POSIX permissions and keeps text off the command line', async () => {
     const child = windowsHelper()
     const request = {
@@ -75,27 +100,35 @@ describe('Windows native client', () => {
     ])
   })
 
-  it.each(['cancelled', 'timeout'] as const)('waits for Windows process close before reporting %s', async (code) => {
-    const child = windowsHelper()
-    const controller = new AbortController()
-    let settled = false
-    const pending = new SystemSpeechNativeClient({
-      helperPath: 'C:\\app\\speech.exe',
-      timeoutMs: code === 'timeout' ? 20 : 1000
-    })
-      .request({ operation: 'capabilities', locale: 'en-US' }, { signal: controller.signal })
-      .catch((error: unknown) => {
-        settled = true
-        return error
+  it.each([
+    ['cancelled', { operation: 'probe_asr', locale: 'en-US' }],
+    ['timeout', { operation: 'probe_asr', locale: 'en-US' }],
+    ['cancelled', { operation: 'transcribe', locale: 'en-US', inputPath: 'C:\\private\\input.wav' }],
+    ['timeout', { operation: 'transcribe', locale: 'en-US', inputPath: 'C:\\private\\input.wav' }]
+  ] satisfies [string, NativeRequest][])(
+    'waits for Windows process close before reporting %s for %j',
+    async (code, request) => {
+      const child = windowsHelper()
+      const controller = new AbortController()
+      let settled = false
+      const pending = new SystemSpeechNativeClient({
+        helperPath: 'C:\\app\\speech.exe',
+        timeoutMs: code === 'timeout' ? 20 : 1000
       })
-    await vi.waitFor(() => expect(child.stdin.writableEnded).toBe(true))
-    child.stderr.write('private speech canary')
-    if (code === 'cancelled') controller.abort(new Error('private speech canary'))
-    await vi.waitFor(() => expect(child.kill).toHaveBeenCalled())
-    expect(settled).toBe(false)
-    child.emit('close', null)
-    const error = await pending
-    expect(error).toMatchObject({ code, message: code })
-    expect((error as Error).cause).toBeUndefined()
-  })
+        .request(request, { signal: controller.signal })
+        .catch((error: unknown) => {
+          settled = true
+          return error
+        })
+      await vi.waitFor(() => expect(child.stdin.writableEnded).toBe(true))
+      child.stderr.write('private speech canary')
+      if (code === 'cancelled') controller.abort(new Error('private speech canary'))
+      await vi.waitFor(() => expect(child.kill).toHaveBeenCalled())
+      expect(settled).toBe(false)
+      child.emit('close', null)
+      const error = await pending
+      expect(error).toMatchObject({ code, message: code })
+      expect((error as Error).cause).toBeUndefined()
+    }
+  )
 })

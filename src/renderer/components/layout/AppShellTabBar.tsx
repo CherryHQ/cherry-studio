@@ -15,6 +15,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
+import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
 import { isMac } from '@renderer/utils/platform'
@@ -606,6 +607,7 @@ export const AppShellTabBar = ({
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
+  const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
   const tabTone = useMemo<TabToneProps>(
     () =>
       isMacTransparentWindow
@@ -925,7 +927,7 @@ export const AppShellTabBar = ({
           ref={stripRef}
           data-testid="app-shell-tab-strip"
           style={
-            isMac && !isFullscreen
+            (isMac || hasLeadingWindowControls) && !isFullscreen
               ? {
                   paddingLeft: isFocusedTab
                     ? 'calc(env(titlebar-area-x, 0px) + 2px)'
