@@ -59,6 +59,12 @@ export interface GoalSnapshot {
 
 export type GoalCleared = { id: string; revision: number; cleared: true; at: number }
 
+/** Data of a `cherry.goal-notice` entry. */
+export interface GoalNotice {
+  text: string
+  level: 'info' | 'error'
+}
+
 export interface GoalLimits {
   maxGoalRounds: number
   maxGoalRoundsCeiling: number
@@ -120,6 +126,13 @@ const bump = (goal: GoalSnapshot, now: number, patch: Partial<GoalSnapshot>): Go
   updatedAt: now
 })
 
+/** Back to `active` without a stop: the host counts one stop per snapshot carrying `lastStop`. */
+function reactivate(goal: GoalSnapshot): GoalSnapshot {
+  const { lastStop: _lastStop, ...rest } = goal
+  void _lastStop // Intentionally unused - dropped from the re-activated goal
+  return { ...rest, phase: 'active' }
+}
+
 export function createGoal(
   objective: string,
   limits: GoalLimits,
@@ -175,7 +188,8 @@ export function editGoal(
   if (!raised) return edited
   const closedByLimit =
     goal.phase === 'blocked' && (goal.lastStop?.code === 'round_limit' || goal.lastStop?.code === 'budget_exhausted')
-  return { ...edited, wrapUpDone: false, ...(closedByLimit ? { phase: 'active' as const } : {}) }
+  const reopened = { ...edited, wrapUpDone: false }
+  return closedByLimit ? reactivate(reopened) : reopened
 }
 
 export function stopGoal(
@@ -189,7 +203,7 @@ export function stopGoal(
 export function resumeGoal(goal: GoalSnapshot, now: number): GoalSnapshot {
   if (goal.phase === 'complete') throw new GoalError('invalid_action', 'the goal is complete; create a new one')
   if (!hasCapacity(goal)) throw new GoalError('no_capacity', 'raise max_goal_rounds or the budget before resuming')
-  return goal.phase === 'active' ? goal : bump(goal, now, { phase: 'active' })
+  return goal.phase === 'active' ? goal : reactivate(bump(goal, now, {}))
 }
 
 export function admitRound(goal: GoalSnapshot, kind: 'work' | 'hint' | 'wrap-up', now: number): GoalSnapshot {
@@ -250,7 +264,6 @@ export function isHumanTurn(entries: readonly SessionEntry[]): boolean {
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i]
     if (isRoundMessage(entry)) return false
-    if (entry.type === 'custom_message') return true
     if (entry.type === 'message' && entry.message.role === 'user') return true
   }
   return true
