@@ -74,7 +74,7 @@ describe('wrapAgentSessionDeliveryContent', () => {
 
     // The reminder is host-authored and derived from the delivery envelope, not the message parts.
     expect(content).toContain('This turn was started by a cross-Session delivery')
-    expect(content).toContain('Sender: Agent "Sender Agent" / Session "Sender Session"')
+    expect(content).toContain('Sender: Agent (id sender-agent) / Session (sessionId sender-session)')
     expect(content).toContain('Reply policy: completion')
 
     const boundary = content.match(/<<<CHERRY_SESSION_DELIVERY boundary="([a-f0-9]+)">>>/)?.[1]
