@@ -114,9 +114,14 @@ export function resolveClaudeExecutablePath(): string {
   return application.get('ClaudeCodeBinaryService').requireExecutable()
 }
 
+export type ClaudeCodeLoginShellCapture = {
+  loginShellEnv: Record<string, string | undefined>
+  rawShellEnv: Record<string, string>
+}
+
 export async function getClaudeCodeLoginShellEnvironment(
   currentProxyEnvironment: Environment
-): Promise<Record<string, string | undefined>> {
+): Promise<ClaudeCodeLoginShellCapture> {
   // MISE ownership and PATH come from one shell snapshot: separate augmented
   // and raw reads can straddle a cache refresh and mix ownership from one
   // capture with PATH from another.
@@ -140,7 +145,7 @@ export async function getClaudeCodeLoginShellEnvironment(
   if (hasUserMise) {
     applyUserMiseContract(stripped, Object.fromEntries(rawMiseEntries), getBinaryExecutionEnv())
   }
-  return stripped
+  return { loginShellEnv: stripped, rawShellEnv }
 }
 
 export async function buildEnvironment(
@@ -148,10 +153,9 @@ export async function buildEnvironment(
   agent: AgentEntity
 ): Promise<Record<string, string | undefined>> {
   const proxyEnvironment = getProxyEnvironment(process.env)
-  const loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
+  const { loginShellEnv, rawShellEnv } = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
-  // User mise ownership comes from the raw login shell, not Cherry's layered contract.
-  const hasUserMise = hasUserMiseEnv(await getRawShellEnv())
+  const hasUserMise = hasUserMiseEnv(rawShellEnv)
   const bunPath = hasUserMise ? await getStandaloneBinaryPath('bun') : await getBinaryPath('bun')
 
   // API key and base URL are injected by the agent-session runtime query builder.

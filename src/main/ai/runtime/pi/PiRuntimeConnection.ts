@@ -146,14 +146,14 @@ const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
   )
 )
 
-function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv, userOwnsMiseFromSnapshot = false): Record<string, string> {
   const definedEnv = Object.fromEntries(
     Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)
   )
   const binarySearchDirs = getBinarySearchDirs()
   const managedShimsDir = getBinaryShimsDir()
   const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
-  const callerOwnsMiseEnvironment = hasUserMiseEnv(definedEnv)
+  const callerOwnsMiseEnvironment = userOwnsMiseFromSnapshot || hasUserMiseEnv(definedEnv)
 
   if (callerOwnsMiseEnvironment) {
     // A generic shell may already be activated against the user's mise installation. Do not
@@ -456,10 +456,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             loginPathForBash === undefined
               ? definedContextEnv
               : mergePathSuffixes(definedContextEnv, loginPathForBash.split(':'))
-          const merged = mergePiBashExecutionEnv(loginLayeredEnv)
+          const userOwnsMiseForBash = hasUserMiseForBash || hasUserMiseEnv(context.env)
+          const merged = mergePiBashExecutionEnv(loginLayeredEnv, hasUserMiseForBash)
           const contextMiseEnvForBash = Object.fromEntries(getMiseEnvEntries(context.env))
           const userMiseEnvForBash = mergeMiseEnvEntries(rawMiseEnvForBash, contextMiseEnvForBash)
-          if (hasUserMiseForBash || hasUserMiseEnv(context.env)) {
+          if (userOwnsMiseForBash) {
             applyUserMiseContract(merged, userMiseEnvForBash, cherryMiseEnvForBash)
           }
           return { ...context, env: merged }

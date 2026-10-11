@@ -371,6 +371,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getRawShellEnv.mockResolvedValue({})
     mocks.refreshShellEnv.mockResolvedValue({})
     mocks.refreshRawShellEnv.mockResolvedValue({})
+    mocks.withCherryShellEnv.mockImplementation((raw: Record<string, string>) => ({ ...raw }))
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getStandaloneBinaryPath.mockResolvedValue('/cherry.bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
