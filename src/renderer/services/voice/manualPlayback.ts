@@ -96,7 +96,5 @@ export async function readTextAloud({
     await speechPlaybackService.start({ ...startInput, confirmed: true })
   } catch (error) {
     if (!signal?.aborted && isCurrent?.() !== false) showPlaybackError(error)
-  } finally {
-    if (!signal?.aborted && isCurrent?.() !== false) focusOnClose?.()
   }
 }

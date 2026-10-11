@@ -49,8 +49,11 @@ describe('readTextAloud', () => {
       .spyOn(speechPlaybackService, 'start')
       .mockResolvedValueOnce({ status: 'confirmation_required', normalizedLength: 5_001 })
       .mockResolvedValueOnce({ status: 'started' })
-    vi.mocked(popup.confirm).mockResolvedValueOnce(true)
     const focusOnClose = vi.fn()
+    vi.mocked(popup.confirm).mockImplementationOnce(async () => {
+      focusOnClose()
+      return true
+    })
 
     await readTextAloud({
       text: 'x'.repeat(5_001),
@@ -69,7 +72,31 @@ describe('readTextAloud', () => {
     })
     expect(start).toHaveBeenCalledTimes(2)
     expect(start.mock.calls[1]?.[0]).toEqual({ ...start.mock.calls[0]?.[0], confirmed: true })
-    expect(focusOnClose).toHaveBeenCalled()
+    expect(focusOnClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not restore focus when ordinary playback finishes starting asynchronously', async () => {
+    let finish!: () => void
+    vi.spyOn(speechPlaybackService, 'start').mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ status: 'started' })
+        })
+    )
+    const focusOnClose = vi.fn()
+    const playback = readTextAloud({
+      text: 'Readable content',
+      mode: 'document',
+      sourceLabel: 'document',
+      sourceEntityId: 'note',
+      focusOnClose
+    })
+
+    finish()
+    await playback
+
+    expect(focusOnClose).not.toHaveBeenCalled()
+    expect(popup.confirm).not.toHaveBeenCalled()
   })
 
   it('does not start confirmed playback when the user cancels', async () => {
