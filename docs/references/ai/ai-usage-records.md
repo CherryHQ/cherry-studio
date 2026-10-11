@@ -5,6 +5,11 @@ sources:
   - src/main/data/services/AiUsageRecordService.ts
   - src/main/ai/utils/usageCapture.ts
   - src/main/ai/hooks/billingHook.ts
+  - src/shared/data/types/providerBilling.ts
+  - src/shared/utils/providerBilling.ts
+  - src/shared/utils/usagePricing.ts
+  - src/main/ai/__tests__/providerBilling.integration.test.ts
+  - src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx
 ---
 
 # AI Usage Records
@@ -112,6 +117,87 @@ only use current configuration. If no `taskId` exists, recovery performs a new
 selection, capture, timer, and submit.
 
 ## Immutable capture context
+
+### Provider billing rules
+
+Settings > Providers > the Cost calculation icon immediately right of the model
+filter opens billing settings for that provider instance. Both icons are disabled
+when the provider has no models. Its draft is committed only on Save; Cancel discards it. Reset removes
+only `providerSettings.billing`. Disabling schedules retains their rules. The
+existing provider JSON column stores the configuration; no migration is required.
+Provider duplication copies billing with raw model IDs, database backup/restore
+preserves the JSON, and connection-only deep-link imports leave existing billing
+untouched. Legacy deep links do not carry billing rules.
+
+`resolveProviderBilling` is the shared pure resolver used by capture and preview:
+
+- Effective model prices already combine manual overrides and registry defaults.
+- The default multiplier is 1. Multipliers are finite and nonnegative; 0 makes
+  known rates free, while missing rates remain unknown.
+- A matching multiplier period replaces the default multiplier. The settings
+  editor offers only multipliers; model base prices remain in the model editor.
+- Multipliers adjust all known rates, including token tiers and cache rates.
+  Token counts, tier thresholds and currency do not change. Missing cache rates
+  fall back to that tier's input rate. Required unknown rates yield no estimate.
+- Trusted provider-reported cost with a known currency takes priority unchanged.
+- Without a reliable invocation start time, scheduled multiplier billing uses the
+  highest effective daily multiplier as a reference estimate. The default is a
+  candidate only when gaps use it; fully covered days ignore an inactive default.
+  Snapshots record `peak_fallback` and the chosen multiplier/period, without
+  inventing a `pricedAt` instant. Legacy model-price periods use the default
+  multiplier for this time-independent fallback. Missing base rates remain unknown.
+
+Periods repeat daily at the saved fixed UTC offset, initially the system's current
+offset. The UTC selector includes half-hour and quarter-hour offsets, such as
+`UTC+05:45`; the stored value is `+05:45`. Fixed offsets do not observe daylight
+saving. The time picker opens a list of whole hours with keyboard navigation and
+the selected value highlighted. It uses 24-hour `HH:00`: starts range from `00:00`
+to `23:00`, and ends also permit `24:00`. Previously saved non-hourly times remain
+unchanged until explicitly selected again. End before start crosses midnight;
+`00:00–24:00` covers a full day. Equal endpoints and overlaps are rejected.
+Intervals include start and exclude end. Gaps use the default multiplier.
+Previously stored IANA zones and per-model price rules remain readable by the
+resolver. Opening the editor converts them in the draft to the zone's current UTC
+offset and the default multiplier respectively. Save replaces these settings;
+Cancel preserves the originals. Historical snapshots are never changed.
+Period names are generated from their time range; the editor has no name field.
+
+Each observable invocation freezes effective prices at its start, including the
+rule ID/name, multiplier when applicable, time zone and `pricedAt` instant in the
+optional snapshot `billing` field. Cross-boundary requests keep this snapshot.
+Later calls, tool steps, observable retries and fallback models resolve again.
+Completion never applies current settings to a historical record. Old snapshots
+without billing metadata remain readable.
+
+| Path | Pricing boundary and support |
+| --- | --- |
+| Chat, text generation, tool loops, repair, local gateway | Language middleware freezes each `doGenerate` / `doStream`, including observable retries and fallback models/keys. |
+| Embeddings and SDK images | Freeze each provider batch / generation, below SDK batching and retry logic. |
+| Custom asynchronous images | Freeze immediately before submit, after preparing input files; polling shares the submitted invocation's prices. |
+| Rerank | Freeze each `doRerank`; the current provider contract supplies no billable quantity, so costs remain unpriced. |
+| Direct Pi | Freeze at the native `streamSimple` boundary, including tools and compaction. Retries hidden inside that SDK invocation are not separately observable. |
+| Direct DSH and Claude Code / external CLI | No reliable per-request start event is exposed to the host. Fixed multipliers and scheduled peak estimates use the connection's frozen pricing, refreshed at reconciliation; never substitute completion time. In-flight external turns cannot pick up pricing edits until the next reconciliation. |
+| Gateway-backed agents | Use normal language middleware; no duplicate Agent SDK capture. |
+
+The unit-price preview accepts a model and lists every daily pricing interval,
+including gaps using the default rate and intervals crossing midnight. It uses
+the same resolver and snapshot conversion as record persistence and shows
+base/tier input, output and cache unit prices with their currency and unit. Cache
+rates include their effective fallback. It has no date/time selection, sample
+usage inputs, multiplier summary or estimated total cost.
+When the model list loads or the selected model disappears, the preview selects
+the first available model instead of displaying missing prices for a stale selection.
+Unpriced entries retain their usage and display "Cannot estimate" in the cost
+column; a known zero cost remains a numeric zero.
+Currency conversion, historical recalculation, weekday/holiday calendars and
+per-key billing profiles are outside this contract.
+
+Billing integration tests exercise `AiService` through the real AI SDK with
+controlled transport responses and a file-backed database using production
+migrations. They cover millisecond hour boundaries, overnight generation and
+streaming, in-flight edits, tool loops, retries, provider fallbacks, embeddings,
+and cache/tier costs. Preview tests check the same rates across fixed UTC offsets,
+including half-hour and quarter-hour offsets and adjacent midnight periods.
 
 Provider/model/key selection constructs `AiUsageCaptureContext` immediately
 before invocation:
