@@ -3690,7 +3690,10 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'other-provider::haiku',
       'default',
       false,
-      undefined
+      undefined,
+      // The replay pins the turn's live mode (null here — none stored) so a mid-backoff save
+      // of another mode cannot re-admit it under that mode.
+      null
     ])
     const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
     expect(retrySpawn.options).toMatchObject({ model: 'haiku' })
@@ -3716,6 +3719,121 @@ describe('ClaudeCodeRuntimeDriver', () => {
         })
       })
     )
+    void connection.close()
+  })
+
+  it('rebuilds the fallback replay under the live turn permission mode, not a mode saved mid-backoff', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          // The failing turn was admitted under `default`; a row save mid-backoff sets
+          // bypassPermissions, which reconcile explicitly defers while the turn is active.
+          live: { toolPolicy: { permissionMode: 'default', disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          // The pinned builder derives the fallback baseline from the SAME frozen agent, so a
+          // bypassPermissions row save can no longer leak into the replay's live policy.
+          live: { toolPolicy: { permissionMode: 'default', disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+
+    // The replay rebuild carries the live mode into the builder, so the SDK settings, the shared
+    // approval snapshot, and the derived baseline all re-derive from the frozen mode.
+    expect(mocks.buildRequest.mock.calls[1]).toEqual([
+      'session-1',
+      'failed-session',
+      'other-provider::haiku',
+      'default',
+      false,
+      undefined,
+      'default'
+    ])
+    void connection.close()
+  })
+
+  it('declines the fallback replay when the live turn permission mode cannot be read', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    // A connection with no materialized baseline cannot prove what mode the turn runs under, so
+    // pinning is impossible and replaying it would adopt whatever the agent row now says.
+    mocks.buildRequest.mockResolvedValueOnce({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    // No second query is ever built: the turn surfaces the original 429 error instead of replaying
+    // under an unverifiable policy.
+    await vi.waitFor(async () => {
+      const next = await events.next()
+      expect(next.value?.type).toBe('error')
+    })
+    expect(mocks.buildRequest).toHaveBeenCalledTimes(1)
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
     void connection.close()
   })
 
