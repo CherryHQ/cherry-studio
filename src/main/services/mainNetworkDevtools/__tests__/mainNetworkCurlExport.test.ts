@@ -59,6 +59,16 @@ describe('main network cURL export', () => {
     expect(curl).toContain('Accept')
   })
 
+  it('disables curl URL globbing so bracket query params are preserved', () => {
+    const curl = buildCurlCommand({
+      method: 'GET',
+      url: 'http://127.0.0.1:1/?filter[model]=x'
+    })
+
+    expect(curl).toContain('--globoff')
+    expect(curl).toContain('filter[model]=x')
+  })
+
   it('does not send FormData display summaries as --data-raw', () => {
     const curl = buildCurlCommand({
       method: 'POST',
