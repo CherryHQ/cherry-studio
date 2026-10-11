@@ -71,6 +71,16 @@ export interface AgentRuntimePermissionPolicy {
   disabledTools: readonly string[]
 }
 
+/**
+ * The prompt-layer half of what a turn was admitted with. A model fallback reopens the same host
+ * turn, so its rebuild must materialize the System Prompt that turn was captured with rather than
+ * an edit saved while the failed provider request was backing off (see agent-prompt-layers.md).
+ */
+export interface AgentRuntimePromptPolicy {
+  /** `agent.instructions` as it stood when the turn was admitted; null ⇒ none configured. */
+  instructions?: string | null
+}
+
 export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
@@ -84,6 +94,13 @@ export interface AgentRuntimeConnectInput {
    * connection reads the agent's latest policy at startup.
    */
   permissionPolicy?: AgentRuntimePermissionPolicy
+  /**
+   * The System Prompt this connection must materialize (model fallback). A replay stays inside the
+   * turn it was admitted for, so it keeps that turn's captured prompt instead of an edit saved
+   * while the failed provider request was backing off (agent-prompt-layers.md). Absent ⇒ the
+   * connection reads `agent.instructions` at startup.
+   */
+  promptPolicy?: AgentRuntimePromptPolicy
   /** Per-turn composer knowledge selection; static Agent bindings still take precedence. */
   knowledgeBaseIds?: readonly string[]
   /** Whether this connection's turn requests Fast processing. */
@@ -261,6 +278,12 @@ export interface AgentRuntimeConnection {
    * policy it was admitted under; omitted ⇒ the driver cannot report it and the replay is declined.
    */
   getPermissionPolicy?(): AgentRuntimePermissionPolicy
+  /**
+   * The prompt this turn was admitted with, so a fallback rebuild preserves it. A live response
+   * finishes with its captured prompt and saved instructions apply on the next fresh turn; omitted
+   * ⇒ the driver cannot report it and the rebuild reads the agent row (fine outside a live turn).
+   */
+  getPromptPolicy?(): AgentRuntimePromptPolicy
   stopTask?(taskId: string): Promise<boolean>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */

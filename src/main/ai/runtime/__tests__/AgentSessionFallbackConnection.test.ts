@@ -19,6 +19,7 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimePermissionPolicy,
+  AgentRuntimePromptPolicy,
   AgentSessionRuntimeDriver
 } from '../types'
 
@@ -38,7 +39,8 @@ function fakeConnection(usageCapture = 'capture') {
         permissionMode: 'default',
         disabledTools: []
       })
-    )
+    ),
+    getPromptPolicy: vi.fn((): AgentRuntimePromptPolicy => ({ instructions: null }))
   }
 }
 
@@ -176,6 +178,67 @@ describe('Pi/DSH connection fallback', () => {
     // fallback model; its frozen mode stays `default` and the tool tightening lands.
     expect(fallback.reconcile).toHaveBeenCalledWith({ modelId: 'backup::model' })
     expect(fallback.send).toHaveBeenCalled()
+    await wrapper.close()
+  })
+
+  it('replays the turn under the prompt it was admitted with, not one saved mid-turn', async () => {
+    const primary = fakeConnection()
+    primary.getPromptPolicy = vi.fn(() => ({ instructions: 'A' }))
+    const fallback = fakeConnection()
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    // The turn was admitted with instructions A; B is saved while the provider request is in flight.
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.getPromptPolicy.mockReturnValue({ instructions: 'B' })
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'chunk' } })
+
+    // The replay still belongs to the turn admitted with A: saved instructions apply on the next
+    // fresh turn (agent-prompt-layers.md), so B must not reach the rebuilt connection.
+    expect(driver.connect).toHaveBeenCalledWith(expect.objectContaining({ promptPolicy: { instructions: 'A' } }))
+    await wrapper.close()
+  })
+
+  it('drains a policy save that lands while the replay submission is in flight', async () => {
+    const primary = fakeConnection()
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    let releaseSend!: () => void
+    // The replacement's own startup reads (skill reads, composition materialization) finish its
+    // connect, but a save can still land while the replay submission is in flight.
+    fallback.send.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        releaseSend = resolve
+      })
+    })
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(fallback.send).toHaveBeenCalled())
+
+    // A second save lands after the replay was already handed to the replacement: Pi/DSH can begin
+    // executing that prompt immediately, so the tightening must reach the replacement while send()
+    // is still in flight — waiting for it to settle lets a just-disabled tool run for the whole
+    // submission, and forwarding it to the closed primary reaches nobody.
+    await wrapper.reconcile({ modelId: 'primary::model' })
+    expect(primary.reconcile).toHaveBeenCalledTimes(1)
+    expect(fallback.reconcile).toHaveBeenCalledWith({ modelId: 'backup::model' })
+
+    releaseSend()
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'chunk' } })
+    expect(fallback.reconcile).toHaveBeenCalledTimes(1)
     await wrapper.close()
   })
 

@@ -62,6 +62,7 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimePermissionPolicy,
+  AgentRuntimePromptPolicy,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
@@ -169,6 +170,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private modelId = ''
   /** Live tool policy read by the approval extension at fire-time (plan D4). */
   private permissionMode: AgentPermissionMode = 'default'
+  /** `agent.instructions` as this turn captured it; a fallback replay keeps materializing it. */
+  private turnInstructions?: string | null
   private disabledTools = new Set<string>()
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
@@ -247,6 +250,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       ? new Set(this.input.permissionPolicy.disabledTools)
       : normalizeDisabledTools(agent.disabledTools, initialSnapshot)
     this.replayTurnPending = this.input.permissionPolicy !== undefined
+    // A replay stays inside the turn it was admitted for: it materializes that turn's System
+    // Prompt, not one saved while the failed provider request was backing off.
+    this.turnInstructions = this.input.promptPolicy?.instructions ?? initialSnapshot.agent.instructions ?? null
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
@@ -320,7 +326,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const prompt = await buildAgentRuntimePrompt({
         workspacePath,
         agentDataPath,
-        agent,
+        // The replay materializes the prompt this turn was admitted with; an edit saved mid-backoff
+        // applies on the next fresh turn (agent-prompt-layers.md).
+        agent: { ...agent, instructions: this.turnInstructions ?? undefined },
         citationsGuidance,
         effectiveLanguage: initialSnapshot.effectiveLanguage
       })
@@ -561,6 +569,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** The live policy the approval extension enforces — what a fallback replay must be pinned to. */
   getPermissionPolicy(): AgentRuntimePermissionPolicy {
     return { permissionMode: this.permissionMode, disabledTools: [...this.disabledTools] }
+  }
+
+  /** The prompt this turn was admitted with — what a fallback replay must keep materializing. */
+  getPromptPolicy(): AgentRuntimePromptPolicy {
+    return { instructions: this.turnInstructions ?? null }
   }
 
   /**

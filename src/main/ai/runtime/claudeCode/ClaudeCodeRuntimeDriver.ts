@@ -357,6 +357,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
+  /** The `agent.instructions` the current connection was built from (rebuild fact of its own). */
+  private capturedInstructions?: string | null
+  /** Instructions the live turn admitted; a fallback replay materializes this prompt. */
+  private turnInstructions?: string | null
+  /** Tool disables applied while this turn is live; their union is what the turn runs under. */
+  private turnDisabledTools: string[] = []
   private _usageCapture?: AgentSessionUsageCapture
   private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
   private readonly streamInvocationIdsByLane = new Map<string, string>()
@@ -402,6 +408,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
    */
   private async installQuery(request: ClaudeCodeAgentSessionQueryRequest): Promise<void> {
     this.connectionConfig = request.connectionConfig
+    this.capturedInstructions = request.capturedInstructions ?? null
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
@@ -519,6 +526,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.sdkInputQueue.push(sdkMessage)
     this.lastSdkUserMessage = sdkMessage
     this.lastUserInput = input
+    // What this turn was admitted with: the prompt it was built from (a System Prompt saved while
+    // the provider request is in flight applies on the NEXT fresh turn, not to this turn's replay)
+    // and the tool disables already in force — later ones union onto it during the turn.
+    this.turnInstructions = this.capturedInstructions
+    this.turnDisabledTools = [...(this.connectionConfig?.live.toolPolicy.disabledTools ?? [])]
     this.lastSdkUserMessageSupportsImages = supportsImages
   }
 
@@ -621,6 +633,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         ...baseline,
         live: { ...fresh.live, toolPolicy: applicableToolPolicy }
       }
+      // A turn's disables only ever accumulate: this is the set a fallback replay must preserve
+      // regardless of what the builder later publishes onto the shared snapshot.
+      this.turnDisabledTools = [...new Set([...this.turnDisabledTools, ...applicableToolPolicy.disabledTools])]
       patched = true
     }
 
@@ -932,7 +947,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
-      turnActive ? livePermissionMode : undefined
+      turnActive
+        ? {
+            permissionMode: livePermissionMode,
+            instructions: this.turnInstructions,
+            disabledTools: this.turnDisabledTools
+          }
+        : undefined
     ).catch((cause) => {
       logger.warn('Failed to build the fallback-model query request; surfacing the original turn error', {
         sessionId: this.input.sessionId,
@@ -983,6 +1004,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
       this.refreshTraceContext(this.input.trace)
     }
+    // The build published its captured agent onto the SHARED session snapshot, so a tool a live
+    // reconcile disabled while it ran is gone. Join the chain (a reconcile started during the build
+    // may still be in flight) and re-apply the turn's disables before the replay is admitted.
+    await this.reconcileChain
+    if (!this.sessionTornDown) await this.reapplyTurnDisabledTools(request)
     await this.installQuery(request)
     // installQuery skips registration when the connection closed mid-install; with no installed
     // query there is nothing to restart the loop on and nothing to announce.
@@ -1004,6 +1030,28 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   /**
+   * Re-apply this turn's accumulated tool disables onto the rebuilt request. The builder published
+   * its own captured agent onto the shared snapshot, which can undo a disable that reconciled while
+   * the build ran — without this, the replay executes that tool again, unapproved under
+   * bypassPermissions. The baseline carries them so the next reconcile diffs against the right set.
+   */
+  private async reapplyTurnDisabledTools(request: ClaudeCodeAgentSessionQueryRequest): Promise<void> {
+    if (!request.settings.toolPolicySnapshot || this.turnDisabledTools.length === 0) return
+    const agent = agentService.getAgent(this.input.agentId)
+    if (!agent) return
+    // Union, never replace: the row may have disabled others the turn never saw.
+    const disabledTools = [...new Set([...(agent.disabledTools ?? []), ...this.turnDisabledTools])]
+    await request.settings.toolPolicySnapshot.update({ ...agent, disabledTools })
+    request.connectionConfig = {
+      ...request.connectionConfig,
+      live: {
+        ...request.connectionConfig.live,
+        toolPolicy: { ...request.connectionConfig.live.toolPolicy, disabledTools: [...disabledTools].sort() }
+      }
+    }
+  }
+
+  /**
    * Dispose the fresh session-keyed registrations a built-but-abandoned request carries. Safe
    * alongside close's own teardown in either order: holder disposal is identity-guarded and the
    * by-id snapshot dispose drops the builder's fresh entry — a successor connection registers
@@ -1019,6 +1067,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private clearReplayInput(): void {
     this.lastUserInput = undefined
     this.lastSdkUserMessage = undefined
+    this.turnDisabledTools = []
   }
 
   /**
