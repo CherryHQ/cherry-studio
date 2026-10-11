@@ -193,6 +193,56 @@ Body text`)
     expect(tree.children[0]).toMatchObject({ type: 'code', lang: 'html' })
   })
 
+  // Nesting-aware pairing: an outer disclosure must pair with ITS OWN closing node, not the
+  // inner disclosure's close — otherwise the stray outer `</details>` falls into the artifact
+  // preview path as a closing-tag artifact and the native disclosure loses its boundary.
+  it('pairs nested disclosures with their own closing nodes', () => {
+    const source = `<details>
+<summary>Outer</summary>
+
+<details>
+<summary>Inner</summary>
+
+Inner body
+
+</details>
+
+Outer tail
+
+</details>`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(
+      expect.arrayContaining(['html', 'html', 'paragraph', 'html', 'paragraph', 'html'])
+    )
+    expect(tree.children.map((child) => child.type)).not.toContain('code')
+    const values = tree.children.map((child) => (child.type === 'html' ? (child as { value: string }).value : ''))
+    expect(values.filter((value) => value.startsWith('<details')).length).toBe(2)
+    expect(values.filter((value) => value.startsWith('</details')).length).toBe(2)
+  })
+
+  // Only the matched boundaries are exempt; the body keeps the normal processing, so an HTML
+  // document inside a disclosure still becomes an artifact code node instead of leaking into
+  // Markdown sanitization (which strips <style>).
+  it('keeps the artifact path for an HTML document inside a paired disclosure', () => {
+    const source = `<details>
+<summary>Spec</summary>
+
+<html><body><style>p { color: red; }</style><p>Doc</p></body></html>
+
+Plain tail
+
+</details>`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'paragraph', 'html'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: expect.stringContaining('<style>p { color: red; }</style>')
+    })
+  })
+
   describe('classifyHtmlArtifactSource', () => {
     it.each([
       ['<div>Fragment</div>', 'fragment'],

@@ -13,10 +13,11 @@ const LEADING_HTML_DOCTYPE_REGEX = /^(?:\s*(?:<!--[\s\S]*?-->|<\?[\s\S]*?\?>))*\
 const HTML_FRAGMENT_START_REGEX = /^<[a-z][a-z0-9-]*(?:\s[^>]*)?>/i
 // Paired container boundaries wrapping Markdown stay raw HTML (#21456): CommonMark splits
 // `<details>…</summary>` and `</details>` into two top-level html nodes around the body, and
-// converting each into an artifact iframe shatters the native disclosure. Unpaired fragments
-// keep the artifact preview path.
+// converting each into an artifact iframe shatters the native disclosure. Only the matched
+// boundaries are exempt — the body keeps the normal processing; unpaired fragments keep the
+// artifact preview path.
 const HTML_CONTAINER_OPEN_REGEX = /^<details(?=[\s>])/i
-const HTML_CONTAINER_CLOSE_REGEX = /^<\/details\b/i
+const HTML_CONTAINER_BOUNDARY_REGEX = /<\/?details(?=[\s>/])/gi
 
 interface SourceRange {
   start: number
@@ -61,7 +62,11 @@ function isHtmlDocumentBoundary(node: Html): boolean {
   return HTML_DOCUMENT_START_REGEX.test(content) || HTML_DOCUMENT_END_REGEX.test(node.value)
 }
 
-function findHtmlDocumentEnd(children: readonly RootContent[], startIndex: number): number | undefined {
+function findHtmlDocumentEnd(
+  children: readonly RootContent[],
+  startIndex: number,
+  end = children.length
+): number | undefined {
   let documentStartIndex = startIndex
 
   while (true) {
@@ -72,13 +77,14 @@ function findHtmlDocumentEnd(children: readonly RootContent[], startIndex: numbe
 
   const documentStart = children[documentStartIndex]
   if (
+    documentStartIndex >= end ||
     documentStart?.type !== 'html' ||
     !HTML_DOCUMENT_START_REGEX.test(stripLeadingHtmlMetadata(documentStart.value))
   ) {
     return undefined
   }
 
-  for (let index = documentStartIndex; index < children.length; index += 1) {
+  for (let index = documentStartIndex; index < end; index += 1) {
     const child = children[index]
     if (child?.type === 'html' && HTML_DOCUMENT_END_REGEX.test(child.value)) return index
   }
@@ -86,14 +92,41 @@ function findHtmlDocumentEnd(children: readonly RootContent[], startIndex: numbe
   return undefined
 }
 
-function findPairedContainerClose(children: readonly RootContent[], startIndex: number): number | undefined {
+// Walks every `<details` / `</details` boundary in `value`, keeping nesting depth; resolves to
+// 'closed' when a closing boundary brings the depth back to zero.
+function scanContainerBoundaries(value: string, depth: { count: number }): 'closed' | undefined {
+  HTML_CONTAINER_BOUNDARY_REGEX.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = HTML_CONTAINER_BOUNDARY_REGEX.exec(value)) !== null) {
+    if (match[0][1] === '/') {
+      depth.count -= 1
+      if (depth.count === 0) return 'closed'
+    } else {
+      // A self-closing `<details … />` opens and closes itself.
+      const tagEnd = value.indexOf('>', match.index)
+      if (tagEnd === -1 || value[tagEnd - 1] !== '/') depth.count += 1
+    }
+  }
+  return undefined
+}
+
+function findPairedContainerClose(
+  children: readonly RootContent[],
+  startIndex: number,
+  end = children.length
+): number | undefined {
   const open = children[startIndex]
   if (open?.type !== 'html' || !HTML_CONTAINER_OPEN_REGEX.test(stripLeadingHtmlMetadata(open.value))) {
     return undefined
   }
-  for (let index = startIndex + 1; index < children.length; index += 1) {
+
+  const depth = { count: 0 }
+  // A disclosure completed inside its own node needs no pairing and keeps the artifact path.
+  if (scanContainerBoundaries(open.value, depth) === 'closed') return undefined
+  for (let index = startIndex + 1; index < end; index += 1) {
     const child = children[index]
-    if (child?.type === 'html' && HTML_CONTAINER_CLOSE_REGEX.test(child.value.trim())) return index
+    if (child?.type !== 'html') continue
+    if (scanContainerBoundaries(child.value, depth) === 'closed') return index
   }
   return undefined
 }
@@ -203,38 +236,45 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
   const source = String(file)
   const children: RootContent[] = []
 
-  for (let index = 0; index < tree.children.length; index += 1) {
-    const documentEndIndex = findHtmlDocumentEnd(tree.children, index)
-    if (documentEndIndex !== undefined) {
-      const documentNodes = tree.children.slice(index, documentEndIndex + 1)
-      const codeNode = createHtmlDocumentCodeNode(documentNodes, source)
-      if (codeNode) {
-        children.push(codeNode)
-      } else {
-        children.push(...documentNodes)
+  const processRange = (from: number, to: number): void => {
+    for (let index = from; index < to; index += 1) {
+      const documentEndIndex = findHtmlDocumentEnd(tree.children, index, to)
+      if (documentEndIndex !== undefined) {
+        const documentNodes = tree.children.slice(index, documentEndIndex + 1)
+        const codeNode = createHtmlDocumentCodeNode(documentNodes, source)
+        if (codeNode) {
+          children.push(codeNode)
+        } else {
+          children.push(...documentNodes)
+        }
+        index = documentEndIndex
+        continue
       }
-      index = documentEndIndex
-      continue
-    }
 
-    const pairedEndIndex = findPairedContainerClose(tree.children, index)
-    if (pairedEndIndex !== undefined) {
-      for (let paired = index; paired <= pairedEndIndex; paired += 1) {
-        const node = tree.children[paired]
-        if (node) children.push(node)
+      const pairedEndIndex = findPairedContainerClose(tree.children, index, to)
+      if (pairedEndIndex !== undefined) {
+        // Exempt only the matched boundaries; the body re-enters normal processing so nested
+        // disclosures pair and inner artifacts/documents keep their existing paths.
+        const openBoundary = tree.children[index]
+        const closeBoundary = tree.children[pairedEndIndex]
+        if (openBoundary) children.push(openBoundary)
+        processRange(index + 1, pairedEndIndex)
+        if (closeBoundary) children.push(closeBoundary)
+        index = pairedEndIndex
+        continue
       }
-      index = pairedEndIndex
-      continue
-    }
 
-    const child = tree.children[index]
-    if (!child) continue
-    children.push(
-      child.type === 'html' && isHtmlArtifact(child) && !isHtmlDocumentBoundary(child)
-        ? createHtmlCodeNode(child)
-        : child
-    )
+      const child = tree.children[index]
+      if (!child) continue
+      children.push(
+        child.type === 'html' && isHtmlArtifact(child) && !isHtmlDocumentBoundary(child)
+          ? createHtmlCodeNode(child)
+          : child
+      )
+    }
   }
+
+  processRange(0, tree.children.length)
 
   tree.children = children
 }
