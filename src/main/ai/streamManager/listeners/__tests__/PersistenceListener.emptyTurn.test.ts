@@ -63,6 +63,17 @@ function makeListener(backend: ReturnType<typeof capturingBackend>['backend']) {
   })
 }
 
+/** Same listener, declaring that this turn IS the `/compact` the user asked for. */
+function makeExplicitCompactionListener(backend: ReturnType<typeof capturingBackend>['backend']) {
+  return new PersistenceListener({
+    topicId: 'topic-1',
+    modelId: 'openai::gpt-4o',
+    backend,
+    onPersistFailed: vi.fn(),
+    explicitCompaction: true
+  })
+}
+
 function partsOf(write: CapturedWrite | undefined) {
   return write?.parts ?? []
 }
@@ -283,7 +294,35 @@ describe('PersistenceListener — successful turn with no content (P2)', () => {
     expect(partsOf(ctx.captured[0]).some((p) => p.type === 'data-compaction-anchor')).toBe(true)
   })
 
-  /** A user-stopped turn is `paused`, never `success` — it must not be reclassified. */
+  /**
+   * The compact path that carries no anchor at all: pi resolves `session.compact()`
+   * without emitting compaction events, and the runtime settles the host turn with
+   * a bare `turn-complete`. The message is undefined, so the anchor check can't see
+   * intent — without an explicit compaction declaration this persists a
+   * `turn.no_content` error for a command that succeeded.
+   */
+  it('leaves an eventless successful /compact alone', async () => {
+    const listener = makeExplicitCompactionListener(ctx.backend)
+
+    await listener.onDone({ status: 'success', modelId: 'openai::gpt-4o' })
+
+    expect(ctx.captured).toHaveLength(1)
+    expect(ctx.captured[0].status).toBe('success')
+    expect(errorPartOf(ctx.captured[0])).toBeUndefined()
+  })
+
+  /** Same eventless compact, reached with an accumulated snapshot that has no parts. */
+  it('leaves an eventless successful /compact alone when the snapshot is empty', async () => {
+    const listener = makeExplicitCompactionListener(ctx.backend)
+    const finalMessage = { id: 'msg-5c', role: 'assistant', parts: [] } as unknown as CherryUIMessage
+
+    await listener.onDone({ status: 'success', finalMessage, modelId: 'openai::gpt-4o' })
+
+    expect(errorPartOf(ctx.captured[0])).toBeUndefined()
+  })
+
+  /**
+   * A user-stopped turn is `paused`, never `success` — it must not be reclassified.
   it('does not classify a paused turn as an empty success', async () => {
     const ctxPaused = capturingBackend()
     const pausedListener = makeListener(ctxPaused.backend)

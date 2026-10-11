@@ -44,6 +44,13 @@ export interface PersistenceListenerOptions {
    * terminal notification.
    */
   onPersistFailed: (error: SerializedError) => void
+  /**
+   * The turn is the user's explicit `/compact` request. A compaction that succeeds may
+   * produce no anchor at all, so intent has to be declared at the top rather than read
+   * back from parts. Only exempts a turn that produced nothing; a compaction-declared
+   * turn that lost a real reply is still classified.
+   */
+  explicitCompaction?: boolean
 }
 
 export class PersistenceListener implements StreamListener {
@@ -68,7 +75,7 @@ export class PersistenceListener implements StreamListener {
     // A turn that settled clean but produced nothing is a failure, not an empty
     // answer: the provider was paid and the user was given no reply. Classify it
     // before it lands as a contentless `success` row.
-    const emptyTurn = diagnoseEmptySuccessTurn(result.finalMessage)
+    const emptyTurn = diagnoseEmptySuccessTurn(result.finalMessage, this.opts.explicitCompaction === true)
     if (emptyTurn) {
       result.finalMessage = classifyEmptyTurn(
         result.finalMessage,
@@ -230,20 +237,25 @@ function mergeErrorIntoMessage(
  * is the content-discarded case. A turn whose only content is an error part is a
  * delivery/status artifact of a *previous* turn and is left alone. Turns the user
  * stopped (`paused`) never reach this path.
+ *
+ * `explicitCompaction` marks the turn as the user's own `/compact`: that command is
+ * answered by the compaction itself, which may settle without emitting any anchor —
+ * so the intent is declared by the caller instead of read back from parts. It still
+ * only excuses a turn that produced nothing; a reply that was rendered and then lost
+ * stays diagnosable whatever triggered the fold.
  */
-export function diagnoseEmptySuccessTurn(finalMessage: CherryUIMessage | undefined): EmptyTurnReason | undefined {
-  if (!finalMessage) {
-    return {
-      name: 'no-parts',
-      detail: 'The model finished the request without producing a reply.'
-    }
-  }
-  const parts = (finalMessage.parts ?? []) as CherryMessagePart[]
+export function diagnoseEmptySuccessTurn(
+  finalMessage: CherryUIMessage | undefined,
+  explicitCompaction = false
+): EmptyTurnReason | undefined {
+  const parts = (finalMessage?.parts ?? []) as CherryMessagePart[]
   if (parts.length === 0) {
-    return {
-      name: 'no-parts',
-      detail: 'The model finished the request without producing a reply.'
-    }
+    return explicitCompaction
+      ? undefined
+      : {
+          name: 'no-parts',
+          detail: 'The model finished the request without producing a reply.'
+        }
   }
   if (hasTurnContent(parts)) {
     // `hasTurnContent` only looks at part types, so whitespace-only text/reasoning
@@ -267,9 +279,9 @@ export function diagnoseEmptySuccessTurn(finalMessage: CherryUIMessage | undefin
   // answer: the compaction record IS the outcome. An anchor that automatic
   // compaction attached to an ordinary request does not answer that request —
   // exempting it here would leave the missing reply unexplained.
-  const isExplicitCompactionTurn = parts.some(
-    (part) => part.type === 'data-compaction-anchor' && part.data?.trigger === 'manual'
-  )
+  const isExplicitCompactionTurn =
+    explicitCompaction ||
+    parts.some((part) => part.type === 'data-compaction-anchor' && part.data?.trigger === 'manual')
   if (isExplicitCompactionTurn) return undefined
   return {
     name: 'blank-content',
