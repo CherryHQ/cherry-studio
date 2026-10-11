@@ -236,22 +236,29 @@ export function useProviderEndpointActions({
       const rawHost = explicitNext !== undefined ? explicitNext : anthropicApiHost
       const trimmedHost = trim(rawHost)
       try {
+        await awaitEndpointConfigWrites(provider.id)
         if (trimmedHost) {
-          const nextEndpointConfigs = {
-            ...provider.endpointConfigs,
-            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
-              ...provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-              baseUrl: trimmedHost
+          await withEndpointConfigWriteLock(provider.id, () => {
+            const liveProvider = providerRef.current ?? provider
+            const nextEndpointConfigs = {
+              ...liveProvider.endpointConfigs,
+              [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+                ...liveProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+                baseUrl: trimmedHost
+              }
             }
-          }
-          await withEndpointConfigWriteLock(provider.id, () => patchProvider({ endpointConfigs: nextEndpointConfigs }))
+            return patchProvider({ endpointConfigs: nextEndpointConfigs })
+          })
           setAnthropicApiHost(trimmedHost)
           return true
         }
 
-        const nextConfigs = { ...provider.endpointConfigs }
-        delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-        await withEndpointConfigWriteLock(provider.id, () => patchProvider({ endpointConfigs: nextConfigs }))
+        await withEndpointConfigWriteLock(provider.id, () => {
+          const liveProvider = providerRef.current ?? provider
+          const nextConfigs = { ...liveProvider.endpointConfigs }
+          delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+          return patchProvider({ endpointConfigs: nextConfigs })
+        })
         setAnthropicApiHost('')
         return true
       } catch (error) {
