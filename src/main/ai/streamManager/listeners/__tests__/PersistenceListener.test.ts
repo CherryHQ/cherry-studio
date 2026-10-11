@@ -98,7 +98,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(result.failure?.failure.reasonCode).toBe('permission')
     expect(result.persistence).toMatchObject({
       status: 'failed',
-      failure: { failure: { reasonCode: 'internal', source: { layer: 'host' } } }
+      failure: { failure: { reasonCode: 'internal', source: { layer: 'host' }, stage: 'persistence' } }
     })
   })
   beforeEach(() => {
