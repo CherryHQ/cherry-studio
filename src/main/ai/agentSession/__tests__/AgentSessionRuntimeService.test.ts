@@ -3370,6 +3370,34 @@ describe('AgentSessionRuntimeService', () => {
       )
       expect(getEntry(service).backgroundAuthor).toMatchObject({ agentId: 'agent-1' })
 
+      // The wake's stream, its persistence listener and its trace must all resolve to the same
+      // effective model — otherwise the terminal event carries a model the listener never bound to
+      // and `PersistenceListener.owns()` drops the completion instead of persisting it.
+      const started = mocks.startRuntimeTurn.mock.calls[0][0]
+      expect(started.modelId).toBe(baseTurnInput.modelId)
+      const listener = started.listeners.find((item: any) => String(item.id).startsWith('persistence:agents-db:'))
+      expect(listener.id).toContain(baseTurnInput.modelId)
+
+      const persisted = [{ type: 'text', text: 'detached completion' }]
+      await listener.onDone({
+        modelId: started.modelId,
+        finalMessage: { id: 'assistant-wake', role: 'assistant', parts: persisted },
+        status: 'success',
+        isTopicDone: true
+      })
+
+      expect(mocks.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.objectContaining({
+            id: 'assistant-wake',
+            status: 'success',
+            data: { parts: persisted },
+            modelId: baseTurnInput.modelId
+          })
+        }),
+        { publishDataChange: true }
+      )
+
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
       // Once the work drains, the attribution override is retired with it.
       expect(getEntry(service).backgroundAuthor).toBeUndefined()
@@ -3412,6 +3440,132 @@ describe('AgentSessionRuntimeService', () => {
           message: expect.objectContaining({ modelId: baseTurnInput.modelId })
         })
       )
+      void service.closeSession('session-1')
+    })
+
+    it('keeps a queued-adoption autonomous completion attributed to the agent that spawned the work', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const connection = {
+        agentId: 'agent-1',
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+      // A top-bar switch lands while A's follow-up sits queued.
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-2',
+        type: 'test-runtime',
+        name: 'Agent B',
+        model: switchedModelId
+      })
+
+      // A settles with the detached work still holding the connection; the queued drain adopts B
+      // through the state machine, bypassing service `beginTurn`.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      service.markTurnTerminal('session-1', 'success')
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      expect(getEntry(service).agentId).toBe('agent-2')
+      // The switch moved execution, so the drain must still have frozen A as the work's author.
+      expect(getEntry(service).backgroundAuthor).toMatchObject({ agentId: 'agent-1' })
+
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      expect(mocks.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.objectContaining({ modelId: baseTurnInput.modelId })
+        })
+      )
+      const started = mocks.startRuntimeTurn.mock.calls[0][0]
+      expect(started.modelId).toBe(baseTurnInput.modelId)
+
+      const listener = started.listeners.find((item: any) => String(item.id).startsWith('persistence:agents-db:'))
+      const persisted = [{ type: 'text', text: 'detached completion' }]
+      await listener.onDone({
+        modelId: started.modelId,
+        finalMessage: { id: 'assistant-wake', role: 'assistant', parts: persisted },
+        status: 'success',
+        isTopicDone: true
+      })
+
+      // A's autonomous answer reaches its own row under A's model, not B's adopted one.
+      expect(mocks.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.objectContaining({
+            id: 'assistant-wake',
+            status: 'success',
+            data: { parts: persisted },
+            modelId: baseTurnInput.modelId
+          })
+        }),
+        { publishDataChange: true }
+      )
+      void service.closeSession('session-1')
+    })
+
+    it('attributes a queued-adoption autonomous completion to the adopted agent once the work drains', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: {
+          agentId: 'agent-1',
+          send: vi.fn(),
+          close: vi.fn(),
+          events: [],
+          reconcile: vi.fn().mockResolvedValue('current')
+        },
+        occupancy: {}
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-2',
+        type: 'test-runtime',
+        name: 'Agent B',
+        model: switchedModelId
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      service.markTurnTerminal('session-1', 'success')
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+      expect(getEntry(service).backgroundAuthor).toMatchObject({ agentId: 'agent-1' })
+
+      // The detached work releases: a later wake belongs to the adopted agent, not the old author.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      expect(getEntry(service).backgroundAuthor).toBeUndefined()
+
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      expect(mocks.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.objectContaining({ modelId: switchedModelId })
+        })
+      )
+      expect(mocks.startRuntimeTurn.mock.calls[0][0].modelId).toBe(switchedModelId)
       void service.closeSession('session-1')
     })
 

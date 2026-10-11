@@ -670,23 +670,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // adopts a different agent, freeze the work's author first: its receive-only wake and
       // approval rows must stay attributed to the agent that spawned it, even though the identity
       // below adopts the new turn's agent. A same-agent rearm needs no override.
-      if (hasAgentSessionRuntimeBackgroundWork(existing.runtimeState) && existing.agentId !== input.agentId) {
-        const spawnedTurn =
-          existing.runtimeState.execution.kind === 'turn' ? existing.runtimeState.execution.turn : undefined
-        existing.backgroundAuthor = {
-          agentId: existing.agentId,
-          agentType: existing.agentType,
-          config: {
-            modelId: existing.modelId,
-            reasoningEffort: spawnedTurn?.reasoningEffort ?? 'default',
-            serviceTier: spawnedTurn?.serviceTier ?? 'standard',
-            knowledgeBaseIds: spawnedTurn?.knowledgeBaseIds ?? [],
-            fastMode: spawnedTurn?.fastMode === true,
-            trustedNotifyChannels: spawnedTurn?.trustedNotifyChannels,
-            ...(existing.messageSnapshot ? { messageSnapshot: structuredClone(existing.messageSnapshot) } : {})
-          }
-        }
-      }
+      this.captureBackgroundAuthor(existing, input.agentId)
       this.clearIdleTimer(existing)
       existing.topicId = input.topicId
       existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
@@ -1737,6 +1721,29 @@ export class AgentSessionRuntimeService extends BaseService {
         }
   }
 
+  /**
+   * The single attribution source for anything that records a turn against the connection the entry
+   * currently holds: identity, model, and every frozen turn setting, resolved once so the turn
+   * object, its stream, its persistence listener, and its trace cannot disagree. Detached work
+   * streams on the connection it was spawned under, so while it drains the effective author is the
+   * captured one — otherwise it is the entry's own agent.
+   */
+  private effectiveBackgroundTarget(entry: AgentSessionRuntimeEntry): {
+    agentId: string
+    target: AgentSessionConnectionTarget
+    messageSnapshot: MessageSnapshot | undefined
+  } {
+    const connection = this.currentConnection(entry)
+    const backgroundAuthor =
+      connection?.agentId && connection.agentId !== entry.agentId ? entry.backgroundAuthor : undefined
+    const base = this.connectionTarget(entry)
+    if (!backgroundAuthor) {
+      return { agentId: entry.agentId, target: base, messageSnapshot: entry.messageSnapshot }
+    }
+    const { messageSnapshot, ...config } = backgroundAuthor.config
+    return { agentId: backgroundAuthor.agentId, target: { ...base, ...config }, messageSnapshot }
+  }
+
   private connectionTargetEquals(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): boolean {
     const agent = agentService.getAgent(entry.agentId)
     const current = this.connectionTarget(entry, agent)
@@ -1752,6 +1759,35 @@ export class AgentSessionRuntimeService extends BaseService {
       ) &&
       notifyChannelsEqual(current.trustedNotifyChannels, target.trustedNotifyChannels)
     )
+  }
+
+  /**
+   * Freeze the author of the connection's still-held detached work before an adoption re-points the
+   * entry at another agent. The work streams on that connection, so its receive-only wake and
+   * persisted approval rows must stay attributed to the agent that spawned it. A same-agent rearm
+   * needs no override: nothing changes about who owns the work.
+   */
+  private captureBackgroundAuthor(entry: AgentSessionRuntimeEntry, nextAgentId: string): void {
+    const connection = this.currentConnection(entry)
+    if (!connection?.agentId || connection.agentId !== entry.agentId) return
+    if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) || entry.agentId === nextAgentId) return
+    // Both adoption points run at a turn boundary (execution `idle`), so the spawning turn is the
+    // one the machine retired into `lastTurn`. Freeze its settings, not just its model: the
+    // connection still serves them, and a wake overriding model alone would misstate the rest.
+    const spawnedTurn = this.currentTurn(entry)
+    entry.backgroundAuthor = {
+      agentId: entry.agentId,
+      agentType: entry.agentType,
+      config: {
+        modelId: entry.modelId,
+        reasoningEffort: spawnedTurn?.reasoningEffort ?? 'default',
+        serviceTier: spawnedTurn?.serviceTier ?? 'standard',
+        knowledgeBaseIds: spawnedTurn?.knowledgeBaseIds ?? [],
+        fastMode: spawnedTurn?.fastMode === true,
+        trustedNotifyChannels: spawnedTurn?.trustedNotifyChannels,
+        ...(entry.messageSnapshot ? { messageSnapshot: structuredClone(entry.messageSnapshot) } : {})
+      }
+    }
   }
 
   /**
@@ -1772,6 +1808,11 @@ export class AgentSessionRuntimeService extends BaseService {
     const session = agentSessionService.getById(entry.sessionId)
     if (!session?.agentId || session.agentId === entry.agentId) return
     const agent = agentService.getAgent(session.agentId)
+    // The switch moves to a different agent while detached work still holds this connection: it
+    // keeps streaming under its spawning author, so freeze that author before the identity below
+    // adopts the new one. Covers the queued drain, which creates its turn directly through the
+    // state machine instead of going through `beginTurn`.
+    this.captureBackgroundAuthor(entry, session.agentId)
     entry.agentId = session.agentId
     entry.agentType = agent?.type ?? entry.agentType
     entry.modelId = agent?.model ?? entry.modelId
@@ -2731,11 +2772,9 @@ export class AgentSessionRuntimeService extends BaseService {
     // The requesting agent outlived its parent turn. Persist a settled assistant row containing the
     // pending interaction instead of reopening a streaming turn: user follow-ups remain admissible,
     // and several subagents can wait independently without overwriting one shared live message.
-    // Attribution follows the connection's owner: a beginTurn adopting a new agent while detached
+    // Attribution follows the connection's owner: an adoption re-pointing the entry while detached
     // work drains must not restamp the requesting agent's approval row.
-    const connection = this.currentConnection(entry)
-    const backgroundAuthor =
-      connection?.agentId && connection.agentId !== entry.agentId ? entry.backgroundAuthor : undefined
+    const { target, messageSnapshot } = this.effectiveBackgroundTarget(entry)
     const part = {
       type: `tool-${request.toolName}`,
       toolCallId: request.toolCallId,
@@ -2753,8 +2792,8 @@ export class AgentSessionRuntimeService extends BaseService {
             role: 'assistant',
             status: 'success',
             data: { parts: [part] },
-            modelId: backgroundAuthor?.config.modelId ?? this.connectionTarget(entry).modelId,
-            messageSnapshot: backgroundAuthor?.config.messageSnapshot ?? entry.messageSnapshot
+            modelId: target.modelId,
+            messageSnapshot
           }
         },
         { publishDataChange: true }
@@ -3216,18 +3255,16 @@ export class AgentSessionRuntimeService extends BaseService {
     // Every facet of a receive-only turn is whatever the connection is currently targeted at:
     // reading `reasoningEffort` from anywhere else would make an autonomous wake disagree with
     // the connection it is already streaming on, and a reconcile racing that wake would report
-    // drift and close a valid warm connection.
-    const { modelId, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } =
-      this.connectionTarget(entry)
-    // Detached background work streams on the connection it was spawned under. If a same-session
-    // beginTurn adopted a new agent while that work drains, the connection's owner (and therefore
-    // every attribution this turn records) is still the previous agent — not the entry's new one.
-    const connection = this.currentConnection(entry)
-    const backgroundAuthor =
-      connection?.agentId && connection.agentId !== entry.agentId ? entry.backgroundAuthor : undefined
+    // drift and close a valid warm connection. Detached background work streams on the connection
+    // it was spawned under, so while it drains the effective author is the captured one — otherwise
+    // the entry's own agent. Resolved once: turn, stream, persistence and trace must not disagree,
+    // or the stream's terminal event carries a model the listener was never bound to and the
+    // completion is dropped instead of persisted.
+    const { agentId, target, messageSnapshot } = this.effectiveBackgroundTarget(entry)
+    const { modelId, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } = target
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
-    const rootSpan = this.startRuntimeRootSpan(entry, modelId, backgroundAuthor?.agentId ?? entry.agentId)
+    const rootSpan = this.startRuntimeRootSpan(entry, modelId, agentId)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
@@ -3236,13 +3273,8 @@ export class AgentSessionRuntimeService extends BaseService {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          // Attribution: a switched wake keeps the spawning agent's model on its row.
-          modelId: backgroundAuthor?.config.modelId ?? modelId,
-          // When a switch happened, the wake's author is the captured one — falling back to the
-          // entry's snapshot here would restamp A's output with B's author.
-          ...(backgroundAuthor
-            ? { messageSnapshot: backgroundAuthor.config.messageSnapshot }
-            : { messageSnapshot: entry.messageSnapshot })
+          modelId,
+          messageSnapshot
         }
       })
     } catch (error) {
@@ -3265,9 +3297,7 @@ export class AgentSessionRuntimeService extends BaseService {
       turnId,
       assistantMessageId,
       userMessage: syntheticMessage,
-      // A background-author wake keeps the spawning agent's model: the connection serves that
-      // config, and attributing the wake's rows to the new agent's model would mislabel usage.
-      modelId: backgroundAuthor?.config.modelId ?? modelId,
+      modelId,
       reasoningEffort,
       serviceTier,
       knowledgeBaseIds,
