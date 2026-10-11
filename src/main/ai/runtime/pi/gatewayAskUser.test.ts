@@ -93,7 +93,8 @@ describe('ask-user extension', () => {
     expect(result.details).toEqual({
       questions: state.requests[0].questions,
       answers: { 'Which database?': 'Postgres', 'Which features?': 'Auth, Billing' },
-      annotations: { 'Which database?': { notes: 'we already run it' } }
+      annotations: { 'Which database?': { notes: 'we already run it' } },
+      outcome: 'answered'
     })
     expect(toolOutputs(calls[1].prompt).ask_1).toEqual({ type: 'text', value: textOf(result) })
   })
@@ -110,23 +111,26 @@ describe('ask-user extension', () => {
     expect(textOf(result)).toContain('"__proto__" = (not answered)')
   })
 
-  it.each<{ name: string; response: AskUserResponse; text: RegExp }>([
+  it.each<{ name: string; response: AskUserResponse; text: RegExp; outcome: string }>([
     {
       name: 'declined with feedback',
       response: { status: 'declined', feedback: ' Use Postgres, stop asking. ' },
-      text: /dismissed the questions.*said:\nUse Postgres, stop asking\.$/s
+      text: /dismissed the questions.*said:\nUse Postgres, stop asking\.$/s,
+      outcome: 'declined'
     },
     {
       name: 'declined without feedback',
       response: { status: 'declined' },
-      text: /dismissed the questions.*Wait for the user's instructions/
+      text: /dismissed the questions.*Wait for the user's instructions/,
+      outcome: 'declined'
     },
     {
       name: 'unavailable',
       response: { status: 'unavailable' },
-      text: /proceed without asking the user and state your assumptions/
+      text: /proceed without asking the user and state your assumptions/,
+      outcome: 'unavailable'
     }
-  ])('reports $name as an error result and lets the run continue', async ({ response, text }) => {
+  ])('reports $name as an error result and lets the run continue', async ({ response, text, outcome }) => {
     const { port, state } = hostPort(() => response)
     const { session, calls } = await run(port, [
       [askCall('ask_1', [question('Which database?')]), finish('tool-calls')],
@@ -137,7 +141,7 @@ describe('ask-user extension', () => {
     const [result] = toolResults(session)
     expect(result.isError).toBe(true)
     expect(textOf(result)).toMatch(text)
-    expect(result.details).toEqual({ questions: state.requests[0].questions, answers: {} })
+    expect(result.details).toEqual({ questions: state.requests[0].questions, answers: {}, outcome })
     expect(calls).toHaveLength(2)
     expect(toolOutputs(calls[1].prompt).ask_1).toEqual({ type: 'text', value: textOf(result) })
   })
@@ -168,6 +172,7 @@ describe('ask-user extension', () => {
     expect(rest).toEqual([])
     expect(result.isError).toBe(true)
     expect(textOf(result)).toMatch(/withdrawn because the turn was aborted/)
+    expect(result.details).toMatchObject({ outcome: 'aborted' })
     expect(host.events.filter((event) => event.type === 'turn-complete')).toMatchObject([{ aborted: true }])
     expect(calls).toHaveLength(1)
 
