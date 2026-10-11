@@ -3431,6 +3431,24 @@ export class AgentSessionRuntimeService extends BaseService {
     return { currentTurn, userResponse: 'unavailable' }
   }
 
+  /**
+   * Authorization state for the cross-Session autonomy tools (session_list / session_search /
+   * session_read / session_deliveries / session_send / session_create). Unlike
+   * `getInteractionState` — which resolves the FOREGROUND turn so a desktop follow-up keeps
+   * approvals interactive — this preserves the detached work's own originating authorization:
+   * a still-running headless-spawned child forwards its calls under the root Session id
+   * (dsh-bridge), so the held background responder must keep denying it even while a later
+   * interactive turn is live (the headless boundary, agent-session-runtime.md § security ceiling).
+   */
+  getSessionToolsAuthorization(sessionId: string): AgentSessionInteractionState {
+    const interaction = this.getInteractionState(sessionId)
+    if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') return interaction
+    const entry = this.entries.get(sessionId)
+    const backgroundResponder = entry && getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
+    if (backgroundResponder === 'headless') return { currentTurn: 'headless', userResponse: 'unavailable' }
+    return interaction
+  }
+
   private startRuntimeRootSpan(
     entry: AgentSessionRuntimeEntry,
     modelId: UniqueModelId = entry.modelId

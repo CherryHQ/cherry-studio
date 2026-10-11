@@ -39,6 +39,7 @@ const mockAcceptSessionDelivery = vi.fn()
 const mockCreateSessionWithDelivery = vi.fn()
 const mockListSessionDeliveries = vi.fn()
 const mockGetInteractionState = vi.fn()
+const mockGetSessionToolsAuthorization = vi.fn()
 
 // Task reads stay on AgentTaskService; task commands (create / delete) go
 // through the AgentJobsService routed via the application mock below.
@@ -96,7 +97,8 @@ vi.mock('@application', async () => {
       deleteTask: mockDeleteTask
     },
     AgentSessionRuntimeService: {
-      getInteractionState: mockGetInteractionState
+      getInteractionState: mockGetInteractionState,
+      getSessionToolsAuthorization: mockGetSessionToolsAuthorization
     },
     AgentSessionDeliveryService: {
       accept: mockAcceptSessionDelivery,
@@ -195,6 +197,7 @@ describe('cherry-tools autonomy tools', () => {
     mockSearchSessionMessages.mockReturnValue([])
     mockListSessionDeliveries.mockReturnValue([])
     mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+    mockGetSessionToolsAuthorization.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   })
 
   afterEach(async () => {
@@ -266,6 +269,7 @@ describe('cherry-tools autonomy tools', () => {
       'session_send'
     ])('denies %s from a headless turn before reading or mutating another Session', async (toolName) => {
       mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+      mockGetSessionToolsAuthorization.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
       const args =
         toolName === 'session_search'
           ? { query: 'secret' }
@@ -288,6 +292,35 @@ describe('cherry-tools autonomy tools', () => {
       expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
       expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
     })
+
+    // A headless turn's detached background child forwards its calls under the root Session id,
+    // so a desktop follow-up turning the foreground interaction interactive must not authorize
+    // the still-running child: the boundary resolves the detached work's own headless origin.
+    it.each(['session_list', 'session_search', 'session_read', 'session_deliveries'])(
+      'denies %s for detached headless work while a desktop follow-up turn is interactive',
+      async (toolName) => {
+        mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+        mockGetSessionToolsAuthorization.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+        const args =
+          toolName === 'session_search'
+            ? { query: 'secret' }
+            : toolName === 'session_read'
+              ? { session_id: 'session_b' }
+              : {}
+
+        const result = await callTool(createServer(), args, toolName)
+
+        expect(result.isError).toBe(true)
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          ok: false,
+          error: { code: 'SESSION_TOOL_FORBIDDEN' }
+        })
+        expect(mockListSessions).not.toHaveBeenCalled()
+        expect(mockSearchSessionMessages).not.toHaveBeenCalled()
+        expect(mockReadConversation).not.toHaveBeenCalled()
+        expect(mockListSessionDeliveries).not.toHaveBeenCalled()
+      }
+    )
 
     it('reads a conversation through the unified session_read facade', async () => {
       mockReadConversation.mockReturnValue({
