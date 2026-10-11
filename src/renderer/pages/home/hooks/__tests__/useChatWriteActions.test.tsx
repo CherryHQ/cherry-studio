@@ -23,6 +23,7 @@ vi.mock('@renderer/services/messageUiStateCache', () => ({
 
 import type { Topic } from '@renderer/types/topic'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
 import { useChatWriteActions } from '../useChatWriteActions'
 
@@ -548,6 +549,27 @@ describe('useChatWriteActions — regenerate', () => {
       activeExecutions: [activeExecution],
       preserveActiveNode: undefined
     })
+  })
+
+  it('retries an empty historical success in place after the no-response fallback was dismissed', async () => {
+    const emptyAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
+    emptyAssistant.metadata.modelId = 'provider::model-a'
+    emptyAssistant.metadata.modelSelection = 'explicit'
+    emptyAssistant.parts = [createDismissedNoResponsePart()]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), emptyAssistant])
+
+    await actions.regenerate('a1')
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      retryMessageId: 'a1',
+      mentionedModelIds: ['provider::model-a']
+    })
+    expect(streamOpen.mock.calls[0][0]).not.toHaveProperty('appendToLiveGroupMessageId')
   })
 
   it('uses an explicit model override when retrying a failed assistant with a different provider', async () => {

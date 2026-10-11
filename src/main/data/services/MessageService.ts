@@ -20,6 +20,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { hasSubstantiveAssistantParts } from '@shared/ai/messageRenderability'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -1628,7 +1629,10 @@ export class MessageService {
       }
 
       const parts = row.data?.parts ?? []
-      if (row.status === 'pending' || (row.status !== 'error' && row.status !== 'paused' && parts.length > 0)) {
+      if (
+        row.status === 'pending' ||
+        (row.status !== 'error' && row.status !== 'paused' && hasSubstantiveAssistantParts(parts))
+      ) {
         throw DataApiErrorFactory.invalidOperation('retry message', 'the assistant message is not failed')
       }
 

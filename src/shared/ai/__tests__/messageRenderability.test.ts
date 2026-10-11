@@ -1,14 +1,23 @@
 import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
-import { hasRenderableContent, isHiddenMarkerPart, isRenderablePart } from '../messageRenderability'
+import {
+  hasRenderableContent,
+  hasSubstantiveAssistantParts,
+  isHiddenMarkerPart,
+  isRenderablePart
+} from '../messageRenderability'
 
 function part(value: Record<string, unknown>): CherryMessagePart {
   return value as unknown as CherryMessagePart
 }
 
 const cherryTransport = { callProviderMetadata: { cherry: { transport: 'claude-agent' } } }
+const piTransport = {
+  callProviderMetadata: { cherry: { transport: 'pi-agent', tool: { type: 'builtin', name: 'codemode' } } }
+}
 
 describe('isRenderablePart tool names', () => {
   it('treats pi meta registry tools as visible agent content', () => {
@@ -38,6 +47,39 @@ describe('isRenderablePart tool names', () => {
     expect(isRenderablePart(part({ type: 'tool-tool_describe', toolCallId: 'call-1', ...cherryTransport }))).toBe(true)
     expect(isRenderablePart(part({ type: 'tool-tool_call', toolCallId: 'call-1', ...cherryTransport }))).toBe(true)
     expect(isRenderablePart(part({ type: 'tool-tool_describe', toolCallId: 'call-1' }))).toBe(false)
+  })
+
+  it('treats pi codemode and vcc_recall as visible with production adapter metadata', () => {
+    expect(
+      isRenderablePart(
+        part({
+          type: 'dynamic-tool',
+          toolCallId: 'call-1',
+          toolName: 'codemode',
+          callProviderMetadata: { cherry: { transport: 'pi-agent', tool: { type: 'builtin', name: 'codemode' } } }
+        })
+      )
+    ).toBe(true)
+    expect(
+      isRenderablePart(
+        part({
+          type: 'dynamic-tool',
+          toolCallId: 'call-1',
+          toolName: 'vcc_recall',
+          callProviderMetadata: { cherry: { transport: 'pi-agent', tool: { type: 'builtin', name: 'vcc_recall' } } }
+        })
+      )
+    ).toBe(true)
+    expect(
+      isRenderablePart(
+        part({
+          type: 'dynamic-tool',
+          toolCallId: 'call-1',
+          toolName: 'codemode',
+          ...piTransport
+        })
+      )
+    ).toBe(true)
   })
 
   it('treats the historical builtin AskUserQuestion name as visible', () => {
@@ -174,5 +216,12 @@ describe('hasRenderableContent', () => {
   it('reports hidden markers and empty text as no visible content', () => {
     expect(hasRenderableContent([part({ type: 'step-start' }), part({ type: 'text', text: '   ' })])).toBe(false)
     expect(isHiddenMarkerPart(part({ type: 'data-no-response-dismissed', data: {} }))).toBe(true)
+  })
+
+  it('treats dismissal markers as non-substantive for retry eligibility', () => {
+    const dismissed = createDismissedNoResponsePart() as unknown as CherryMessagePart
+    expect(hasSubstantiveAssistantParts([])).toBe(false)
+    expect(hasSubstantiveAssistantParts([dismissed])).toBe(false)
+    expect(hasSubstantiveAssistantParts([dismissed, part({ type: 'text', text: 'answer' })])).toBe(true)
   })
 })

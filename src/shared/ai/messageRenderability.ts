@@ -11,11 +11,8 @@
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
-import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_DESCRIBE_TOOL_NAME, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
-
-/** pi code-mode wire name; not in `PI_BUILTIN_TOOLS` because it is transport-layer only. */
-const PI_TOOL_DESCRIBE_TOOL_NAME = 'tool_describe'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { tryFileUrlToPath } from '@shared/utils/file'
 
@@ -103,6 +100,21 @@ const CHERRY_AGENT_TRANSPORTS: ReadonlySet<string> = new Set(
 const CHERRY_RUNTIME_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set(
   Object.values(AGENT_RUNTIME_CAPABILITIES).flatMap((caps) => caps.builtinTools().map((tool) => tool.id))
 )
+
+const PI_RUNTIME_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set(
+  AGENT_RUNTIME_CAPABILITIES.pi.builtinTools().map((tool) => tool.id)
+)
+
+// Mirrors `META_TOOL_NAMES` in renderer `meta/metaToolNames.ts`.
+const PI_META_TOOL_WIRE_NAMES: ReadonlySet<string> = new Set([
+  'tool_search',
+  'tool_inspect',
+  'tool_invoke',
+  'tool_exec',
+  PI_TOOL_EXEC_TOOL_NAME,
+  PI_TOOL_CALL_TOOL_NAME,
+  PI_TOOL_DESCRIBE_TOOL_NAME
+])
 
 // Mirrors `AgentToolsType` in renderer `chooseTool.tsx` (`isAgentTool`).
 const AGENT_TOOL_CARD_NAMES: ReadonlySet<string> = new Set([
@@ -204,7 +216,9 @@ function resolveToolVisibilityType(
   wireName: string,
   canonicalName: string
 ): 'mcp' | 'provider' | 'builtin' {
+  if (PI_META_TOOL_WIRE_NAMES.has(wireName) && hasCherryTransport(part)) return 'builtin'
   if (isAgentToolCardName(canonicalName) && hasCherryTransport(part)) return 'provider'
+  if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(wireName) && hasCherryTransport(part)) return 'provider'
   if ((wireName === PI_TOOL_CALL_TOOL_NAME || wireName === PI_TOOL_DESCRIBE_TOOL_NAME) && hasCherryTransport(part)) {
     return 'provider'
   }
@@ -273,6 +287,8 @@ function isRenderableToolName(part: CherryMessagePart, name: string): boolean {
   if (hasCherryTransport(part)) {
     const canonical = CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(trimmed) ?? trimmed
     if (canonical !== trimmed && KNOWN_RENDERABLE_TOOL_NAMES.has(canonical)) return true
+    if (PI_META_TOOL_WIRE_NAMES.has(trimmed)) return true
+    if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(trimmed)) return true
     if (trimmed === PI_TOOL_CALL_TOOL_NAME || trimmed === PI_TOOL_DESCRIBE_TOOL_NAME) return true
     if (isAgentToolCardName(canonical)) return true
     const toolType = resolveToolVisibilityType(part, trimmed, canonical)
@@ -322,4 +338,10 @@ export function isRenderablePart(part: CherryMessagePart): boolean {
 
 export function hasRenderableContent(parts: CherryMessagePart[]): boolean {
   return parts.some((part) => isRenderablePart(part))
+}
+
+/** Whether an assistant row still carries user-visible or failed-turn payload (retry eligibility). */
+export function hasSubstantiveAssistantParts(parts: readonly CherryMessagePart[] | undefined): boolean {
+  if (!parts || parts.length === 0) return false
+  return parts.some((part) => !isHiddenMarkerPart(part))
 }

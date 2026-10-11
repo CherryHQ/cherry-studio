@@ -29,6 +29,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
 import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -600,6 +601,22 @@ describe('MessageService', () => {
       expect(invalidatedRows.find((row) => row.id === 'm-a1')?.updatedAt).toBe(Date.parse(before.updatedAt))
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.updatedAt).toBe(400)
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.updatedAt).toBe(500)
+    })
+
+    it('allows in-place retry when only a no-response dismissal marker remains', async () => {
+      await seedMultiModelTree()
+      dbh.db
+        .update(messageTable)
+        .set({
+          data: { parts: [createDismissedNoResponsePart()], modelSelection: 'explicit' },
+          status: 'success'
+        })
+        .where(eq(messageTable.id, 'm-a1'))
+        .run()
+
+      const reset = messageService.resetAssistantForRetry('m-a1')
+      expect(reset.status).toBe('pending')
+      expect(reset.data.parts).toEqual([])
     })
   })
 
