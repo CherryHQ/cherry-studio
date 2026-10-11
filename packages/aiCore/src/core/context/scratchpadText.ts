@@ -19,16 +19,57 @@ const CODE_FENCE_PLACEHOLDER_PREFIX = '\uE000CODE_FENCE_'
 const CODE_FENCE_PLACEHOLDER_SUFFIX = '\uE001'
 const CODE_FENCE_PLACEHOLDER = new RegExp(`${CODE_FENCE_PLACEHOLDER_PREFIX}(\\d+)${CODE_FENCE_PLACEHOLDER_SUFFIX}`, 'g')
 
+function isValidFenceLinePrefix(prefix: string): boolean {
+  let i = 0
+  while (i < prefix.length) {
+    if (prefix[i] === '>') {
+      i++
+      if (i < prefix.length && prefix[i] === ' ') i++
+      continue
+    }
+    if (
+      (prefix[i] === '-' || prefix[i] === '*' || prefix[i] === '+') &&
+      i + 1 < prefix.length &&
+      prefix[i + 1] === ' '
+    ) {
+      i += 2
+      continue
+    }
+    if (prefix[i] >= '0' && prefix[i] <= '9') {
+      while (i < prefix.length && prefix[i] >= '0' && prefix[i] <= '9') i++
+      if (i + 1 < prefix.length && prefix[i] === '.' && prefix[i + 1] === ' ') {
+        i += 2
+        continue
+      }
+      return false
+    }
+    if (prefix[i] === ' ') {
+      let spaces = 0
+      while (i < prefix.length && prefix[i] === ' ' && spaces < 3) {
+        i++
+        spaces++
+      }
+      if (spaces === 0) return false
+      continue
+    }
+    return false
+  }
+  return true
+}
+
 function fenceLinePrefixStart(text: string, fenceMarkerIndex: number): number {
   const lineStart = text.lastIndexOf('\n', fenceMarkerIndex - 1) + 1
   const prefix = text.slice(lineStart, fenceMarkerIndex)
-  return /^(?:> ?)+$/.test(prefix) ? lineStart : fenceMarkerIndex
+  if (prefix.length > 0 && isValidFenceLinePrefix(prefix)) {
+    return lineStart
+  }
+  return fenceMarkerIndex
 }
 
 function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolean {
   const lineStart = text.lastIndexOf('\n', markerStart - 1) + 1
   const prefix = text.slice(lineStart, markerStart)
-  if (/^(?:(?: {1,3})|(?:> ?)*)*$/.test(prefix)) {
+  if (isValidFenceLinePrefix(prefix)) {
     return true
   }
   return /<\/(?:analysis|assessment|thinking)\s*>$/i.test(prefix)

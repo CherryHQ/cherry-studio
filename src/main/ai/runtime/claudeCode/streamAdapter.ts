@@ -155,6 +155,7 @@ type StreamContext = {
   /** Parentless main-agent text may carry model scratchpad wrappers outside compaction windows. */
   filterParentlessScratchpadText: boolean
   scratchpadTextProbe: string
+  scratchpadStreamRemainder: string
   suppressActiveTextPart: boolean
   textStartDeferred: boolean
   textPartStarted: boolean
@@ -565,6 +566,7 @@ export class ClaudeCodeStreamAdapter {
       textStreamedViaContentBlock: false,
       filterParentlessScratchpadText,
       scratchpadTextProbe: '',
+      scratchpadStreamRemainder: '',
       suppressActiveTextPart: false,
       textStartDeferred: false,
       textPartStarted: false
@@ -968,6 +970,37 @@ export class ClaudeCodeStreamAdapter {
     this.enqueueVisibleTextDelta(text, ctx)
   }
 
+  private splitIncompleteTagSuffix(text: string): { emit: string; buffer: string } {
+    const lastOpen = text.lastIndexOf('<')
+    if (lastOpen === -1) {
+      return { emit: text, buffer: '' }
+    }
+    const tail = text.slice(lastOpen)
+    if (tail.includes('>') || !/^<[a-z/!?]/i.test(tail)) {
+      return { emit: text, buffer: '' }
+    }
+    return { emit: text.slice(0, lastOpen), buffer: tail }
+  }
+
+  private filterScratchpadFromOngoingDelta(text: string, ctx: StreamContext): string {
+    if (!ctx.filterParentlessScratchpadText || !ctx.textPartStarted || ctx.textStartDeferred) {
+      return text
+    }
+
+    const combined = ctx.scratchpadStreamRemainder + text
+    ctx.scratchpadStreamRemainder = ''
+
+    if (textHasUnclosedCodeFence(combined)) {
+      ctx.scratchpadStreamRemainder = combined
+      return ''
+    }
+
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(combined)
+    const { emit, buffer } = this.splitIncompleteTagSuffix(stripped)
+    ctx.scratchpadStreamRemainder = buffer
+    return emit
+  }
+
   private classifyScratchpadProbe(
     probe: string,
     atBlockEnd = false
@@ -1102,6 +1135,11 @@ export class ClaudeCodeStreamAdapter {
       ctx.scratchpadTextProbe = ''
     }
 
+    if (ctx.filterParentlessScratchpadText && ctx.textPartStarted && !ctx.textStartDeferred) {
+      text = this.filterScratchpadFromOngoingDelta(text, ctx)
+      if (!text) return
+    }
+
     if (!ctx.textPartStarted) {
       ctx.sink.enqueue({
         type: 'text-start',
@@ -1124,6 +1162,7 @@ export class ClaudeCodeStreamAdapter {
       if (!ctx.textPartId) {
         ctx.textPartId = generateId()
         ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+        ctx.textPartStarted = true
       }
       ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: partialJson })
       ctx.accumulatedText += partialJson
@@ -1162,6 +1201,14 @@ export class ClaudeCodeStreamAdapter {
     if (textId) {
       if (ctx.textPartId === textId) {
         this.flushDeferredScratchpadText(ctx)
+        if (ctx.scratchpadStreamRemainder) {
+          const pending = ctx.scratchpadStreamRemainder
+          ctx.scratchpadStreamRemainder = ''
+          const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(pending)
+          if (stripped) {
+            this.enqueueVisibleTextDelta(stripped, ctx)
+          }
+        }
       }
       if (!ctx.suppressActiveTextPart && ctx.textPartStarted && ctx.textPartId === textId) {
         ctx.sink.enqueue({ type: 'text-end', id: textId })
@@ -1170,6 +1217,7 @@ export class ClaudeCodeStreamAdapter {
       if (ctx.textPartId === textId) {
         ctx.textPartId = undefined
         ctx.scratchpadTextProbe = ''
+        ctx.scratchpadStreamRemainder = ''
         ctx.suppressActiveTextPart = false
         ctx.textStartDeferred = false
         ctx.textPartStarted = false
@@ -1335,7 +1383,11 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.hasReceivedStreamEvents) {
       const deltaText = visibleText.length > ctx.streamedTextLength ? visibleText.slice(ctx.streamedTextLength) : ''
 
-      if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
+      if (ctx.options.responseFormat?.type === 'json') {
+        ctx.accumulatedText = visibleText
+        return
+      }
+      if (deltaText) {
         this.enqueueVisibleTextDelta(deltaText, ctx, providerMetadata)
       }
       ctx.accumulatedText = visibleText
