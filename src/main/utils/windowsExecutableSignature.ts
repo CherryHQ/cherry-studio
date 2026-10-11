@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 
-import { app } from 'electron'
-
+import { application } from '@application'
 import { isWin } from '@main/core/platform'
 
 const IMAGE_DIRECTORY_ENTRY_SECURITY = 4
@@ -63,7 +62,7 @@ let cachedRunningExecutableSigned: boolean | undefined
 export function isRunningWindowsExecutableSigned(): boolean {
   if (!isWin) return false
   if (cachedRunningExecutableSigned === undefined) {
-    cachedRunningExecutableSigned = hasPeAuthenticodeSignature(app.getPath('exe'))
+    cachedRunningExecutableSigned = hasPeAuthenticodeSignature(application.getPath('app.exe_file'))
   }
   return cachedRunningExecutableSigned
 }
