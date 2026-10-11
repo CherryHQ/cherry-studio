@@ -117,3 +117,64 @@ describe('goal state transitions', () => {
     expect(() => resumeGoal(done, 3)).toThrow(expect.objectContaining({ code: 'invalid_action' }))
   })
 })
+
+describe('goal limit rules', () => {
+  const invalidLimit = expect.objectContaining({ code: 'invalid_limit' })
+  const invalidValues = [0, -1, Number.NaN, Number.POSITIVE_INFINITY]
+
+  it('an empty budget override keeps the host default budget, a real one replaces it', () => {
+    const withDefault = { ...limits, budget: { tokens: 1_000_000 } }
+    expect(createGoal('g', withDefault, {}, 1).budget).toEqual({ tokens: 1_000_000 })
+    expect(createGoal('g', withDefault, { budget: {} }, 1).budget).toEqual({ tokens: 1_000_000 })
+    expect(createGoal('g', withDefault, { budget: { tokens: undefined, usd: undefined } }, 1).budget).toEqual({
+      tokens: 1_000_000
+    })
+    expect(createGoal('g', withDefault, { budget: { usd: 5 } }, 1).budget).toEqual({ usd: 5 })
+  })
+
+  it.each(invalidValues)('refuses a tokens or usd budget of %s on create and on edit', (value) => {
+    for (const budget of [{ tokens: value }, { usd: value }]) {
+      expect(() => createGoal('g', limits, { budget }, 1)).toThrow(invalidLimit)
+      expect(() => editGoal(createGoal('g', limits, {}, 1), { budget }, 1000, 2)).toThrow(invalidLimit)
+    }
+  })
+
+  it('raising a crossed budget above the usage re-activates a budget_exhausted goal', () => {
+    const spent = (budget: { tokens?: number; usd?: number }, usage: { tokens: number; usd: number }) => {
+      let goal = admitRound(createGoal('g', limits, { budget }, 1), 'wrap-up', 2)
+      goal = recordUsage(goal, usage, true)
+      return stopGoal(goal, { code: 'budget_exhausted' }, 3)
+    }
+
+    const byTokens = editGoal(spent({ tokens: 50 }, { tokens: 60, usd: 0 }), { budget: { tokens: 100 } }, 1000, 4)
+    expect(byTokens).toMatchObject({ phase: 'active', wrapUpDone: false, budget: { tokens: 100 } })
+    expect(hasCapacity(byTokens)).toBe(true)
+
+    const byCost = editGoal(spent({ usd: 0.01 }, { tokens: 1, usd: 0.02 }), { budget: { usd: 0.05 } }, 1000, 4)
+    expect(byCost).toMatchObject({ phase: 'active', wrapUpDone: false, budget: { usd: 0.05 } })
+  })
+
+  it('raising a budget that is still crossed leaves the goal blocked with its wrap-up flag', () => {
+    let goal = admitRound(createGoal('g', limits, { budget: { tokens: 50 } }, 1), 'wrap-up', 2)
+    goal = stopGoal(recordUsage(goal, { tokens: 120, usd: 0 }, true), { code: 'budget_exhausted' }, 3)
+    const edited = editGoal(goal, { budget: { tokens: 100 } }, 1000, 4)
+    expect(edited).toMatchObject({ phase: 'blocked', wrapUpDone: true, budget: { tokens: 100 } })
+    expect(hasCapacity(edited)).toBe(false)
+  })
+
+  it.each(['no_progress', 'model_blocked', 'provider_error'] as const)(
+    'raising the cap does not re-activate a goal blocked by %s',
+    (code) => {
+      const goal = stopGoal(admitRound(createGoal('g', limits, { maxGoalRounds: 1 }, 1), 'work', 2), { code }, 3)
+      expect(editGoal(goal, { maxGoalRounds: 3 }, 1000, 4)).toMatchObject({ phase: 'blocked', maxGoalRounds: 3 })
+    }
+  )
+
+  it.each(['paused_by_user', 'aborted'] as const)(
+    'raising the cap does not re-activate a goal paused by %s',
+    (code) => {
+      const goal = stopGoal(admitRound(createGoal('g', limits, { maxGoalRounds: 1 }, 1), 'work', 2), { code }, 3)
+      expect(editGoal(goal, { maxGoalRounds: 3 }, 1000, 4)).toMatchObject({ phase: 'paused', maxGoalRounds: 3 })
+    }
+  )
+})

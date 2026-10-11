@@ -123,7 +123,7 @@ export function createGoal(
   overrides: { maxGoalRounds?: number; budget?: GoalBudget },
   now: number
 ): GoalSnapshot {
-  const budget = checkBudget(overrides.budget ?? limits.budget)
+  const budget = checkBudget(overrides.budget) ?? checkBudget(limits.budget)
   return {
     id: randomUUID(),
     revision: 1,
