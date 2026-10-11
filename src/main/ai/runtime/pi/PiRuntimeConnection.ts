@@ -344,7 +344,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // A user-owned mise installation must not see Cherry's shims in the shell
       // prefix: a Cherry shim would run under the user's MISE contract (#19738).
       const loginPathSource = hasUserMiseEnv(connectionRawShellEnv)
-        ? mergePathSuffixes(connectionRawShellEnv, resolveCherryPathTailDirs(true))
+        ? mergePathSuffixes(connectionRawShellEnv, resolveCherryPathTailDirs(true), [getBinaryShimsDir()])
         : await getShellEnv()
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(loginPathSource))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
