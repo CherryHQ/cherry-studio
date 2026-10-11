@@ -357,6 +357,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   providers={providers}
                   filter={chatModelFilter}
                   compact={compact}
+                  includeAgentOnlyModels
                   onSelect={onSelectPlanExecution}
                   noneOptionLabel={t('settings.models.plan_execution_model.none')}
                   placeholder={t('settings.models.empty')}

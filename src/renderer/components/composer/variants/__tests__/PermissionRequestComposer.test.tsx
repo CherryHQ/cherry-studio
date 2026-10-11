@@ -51,8 +51,9 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: (options?: { enabled?: boolean }) => {
-    lookupRequests.providerEnabled.push(options?.enabled)
+  useProviders: (query?: { enabled?: boolean }, options?: { enabled?: boolean }) => {
+    lookupRequests.providerQueryEnabled.push(query?.enabled)
+    lookupRequests.providerFetchEnabled.push(options?.enabled)
     return { providers: [{ id: 'anthropic', name: 'Anthropic' }] }
   }
 }))
@@ -63,7 +64,8 @@ const modelByIdFixture = vi.hoisted(() => ({
 }))
 const lookupRequests = vi.hoisted(() => ({
   modelIds: [] as unknown[],
-  providerEnabled: [] as (boolean | undefined)[]
+  providerQueryEnabled: [] as (boolean | undefined)[],
+  providerFetchEnabled: [] as (boolean | undefined)[]
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -157,7 +159,8 @@ describe('PermissionRequestComposer', () => {
     planExecutionPreference.modelId = null
     modelByIdFixture.model = undefined
     lookupRequests.modelIds.length = 0
-    lookupRequests.providerEnabled.length = 0
+    lookupRequests.providerQueryEnabled.length = 0
+    lookupRequests.providerFetchEnabled.length = 0
   })
 
   it('marks the root panel as a composer viewport inset target', () => {
@@ -454,15 +457,15 @@ describe('PermissionRequestComposer', () => {
 
     expect(lookupRequests.modelIds.length).toBeGreaterThan(0)
     expect(lookupRequests.modelIds).not.toContain('anthropic::claude-opus-5')
-    expect(lookupRequests.providerEnabled).not.toContain(true)
+    expect(lookupRequests.providerFetchEnabled).not.toContain(true)
 
     rerender(<PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} />)
     expect(lookupRequests.modelIds).not.toContain('anthropic::claude-opus-5')
-    expect(lookupRequests.providerEnabled).not.toContain(true)
+    expect(lookupRequests.providerFetchEnabled).not.toContain(true)
 
     rerender(<PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} planExecution={{}} />)
     expect(lookupRequests.modelIds).toContain('anthropic::claude-opus-5')
-    expect(lookupRequests.providerEnabled).toContain(true)
+    expect(lookupRequests.providerFetchEnabled).toContain(true)
     expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Plan execution model: Claude Opus 5')
   })
 

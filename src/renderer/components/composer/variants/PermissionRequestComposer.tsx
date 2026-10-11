@@ -203,7 +203,7 @@ export default function PermissionRequestComposer({
   const { model: configuredExecutionModel } = useModelById(
     canRequestHandoff ? (configuredExecutionModelId as UniqueModelId | undefined) : undefined
   )
-  const { providers } = useProviders({ enabled: canRequestHandoff })
+  const { providers } = useProviders({ enabled: true }, { enabled: canRequestHandoff })
   // Settings → Default models picks the execution model; the gates decide whether it may be handed
   // off to here. They are called with the model's Provider because several runtime compatibility
   // predicates are provider-aware and fail closed without one.
