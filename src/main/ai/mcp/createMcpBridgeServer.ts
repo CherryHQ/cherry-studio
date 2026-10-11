@@ -9,6 +9,7 @@ import { redactToShape } from '@main/ai/utils/redactToShape'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { McpResource, McpTool } from '@shared/types/mcp'
 
+import { readBridgeOriginMeta } from '../agentSession/bridgeOrigin'
 import type { McpInteractionContext, McpResourceObservation } from './connections/McpConnection'
 import { mcpLegacyResult } from './toolResult'
 
@@ -28,6 +29,16 @@ export interface McpBridgeOptions {
 }
 
 const CATALOG_FIELDS = ['id', 'serverId', 'serverName', 'type'] as const
+
+/** Per-request provenance: a `tools/call` `_meta` origin overrides the connection's static default. */
+function withBridgeOrigin(
+  context: McpInteractionContext | undefined,
+  meta: unknown
+): McpInteractionContext | undefined {
+  const origin = readBridgeOriginMeta(meta)
+  if (origin === undefined) return context
+  return { ...context, bridgeOrigin: origin }
+}
 
 /** Drops Cherry's catalog bookkeeping before a tool/prompt/resource goes on the wire. */
 export function stripCatalogFields<T extends object>(entry: T): Omit<T, (typeof CATALOG_FIELDS)[number]> {
@@ -256,7 +267,7 @@ export function createMcpBridgeServer(
         args: request.params.arguments,
         onProgress,
         signal,
-        interactionContext
+        interactionContext: withBridgeOrigin(interactionContext, request.params._meta)
       })
       return mcpLegacyResult(result)
     } catch (error) {

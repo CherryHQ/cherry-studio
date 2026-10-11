@@ -3328,6 +3328,50 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    // Two children, two origins, ONE aggregate occupancy edge: an interactive turn spawns A and
+    // settles, then a headless delivery reuses the connection and spawns B. DSH emits aggregate
+    // occupancy edges and the reducer keeps A's interactive responder, so the session-level state
+    // alone would authorize B and hand it the desktop follow-up's consent window.
+    it('authorizes each detached child by its own spawning turn, not the retained responder', async () => {
+      const service = new AgentSessionRuntimeService()
+      const spawn = (childId: string) => {
+        ;(service as any).handleRuntimeEvent(getEntry(service), {
+          type: 'background-task-event',
+          data: { event: 'started', taskId: childId, status: 'in_progress', taskType: 'subagent' }
+        })
+        ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: true })
+      }
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = warmConnection()
+      spawn('child-a')
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      spawn('child-b')
+      service.markTurnTerminal('session-1', 'success')
+
+      // Aggregate occupation retains A's interactive responder even though B is the newer child.
+      expect(getEntry(service).runtimeState.connection.occupancy).toEqual({
+        background: { responder: 'interactive' }
+      })
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+
+      // B was spawned headless: denied session tools, and no consent host in the follow-up's window.
+      expect(service.getSessionToolsAuthorization('session-1', 'child-b')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      expect(service.getMcpInteractionHost('session-1', 'child-b')).toBeUndefined()
+
+      // A keeps its own interactive authorization and the live desktop host.
+      expect(service.getSessionToolsAuthorization('session-1', 'child-a')).toMatchObject({ currentTurn: 'interactive' })
+      expect(service.getMcpInteractionHost('session-1', 'child-a')).toMatchObject({ windowId: 'window-1' })
+    })
+
     it('resolves a headless follow-up as unavailable even while interactive detached work holds the responder', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)

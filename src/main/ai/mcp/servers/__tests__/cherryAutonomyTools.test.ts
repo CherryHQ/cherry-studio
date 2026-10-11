@@ -7,6 +7,7 @@ import { McpServer } from '@modelcontextprotocol/server'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { BRIDGE_ORIGIN_META_KEY } from '@main/ai/agentSession/bridgeOrigin'
 import type * as ChannelsModule from '@main/ai/channels'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -180,9 +181,14 @@ async function createServer(
 async function callTool(
   server: Client | Promise<Client>,
   args: Record<string, unknown>,
-  toolName = 'cron'
+  toolName = 'cron',
+  origin?: string
 ): Promise<any> {
-  return (await server).callTool({ name: toolName, arguments: args })
+  return (await server).callTool({
+    name: toolName,
+    arguments: args,
+    ...(origin === undefined ? {} : { _meta: { [BRIDGE_ORIGIN_META_KEY]: origin } })
+  })
 }
 
 async function listTools(server: Client | Promise<Client>) {
@@ -324,6 +330,26 @@ describe('cherry-tools autonomy tools', () => {
         expect(mockSearchSessionMessages).not.toHaveBeenCalled()
         expect(mockReadConversation).not.toHaveBeenCalled()
         expect(mockListSessionDeliveries).not.toHaveBeenCalled()
+      }
+    )
+
+    // The caller's provenance rides the request itself, so one Session's tools resolve per
+    // invocation: a detached child's origin reaches the resolver instead of the root Session id
+    // standing in for whichever turn happens to be live.
+    it.each(['session_list', 'session_search', 'session_read', 'session_deliveries'])(
+      'passes %s the requesting invocation origin through to the authorization resolver',
+      async (toolName) => {
+        mockGetSessionToolsAuthorization.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+        const args =
+          toolName === 'session_search'
+            ? { query: 'secret' }
+            : toolName === 'session_read'
+              ? { session_id: 'session_b' }
+              : {}
+
+        await callTool(createServer(), args, toolName, 'child-42')
+
+        expect(mockGetSessionToolsAuthorization).toHaveBeenCalledWith('session_test', 'child-42')
       }
     )
 

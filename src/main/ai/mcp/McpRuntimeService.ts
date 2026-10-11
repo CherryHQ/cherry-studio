@@ -979,7 +979,9 @@ export class McpRuntimeService extends BaseService {
   ): McpInteractionContext | undefined {
     if (!context) return undefined
     if (context.sessionId) {
-      const host = application.get('AgentSessionRuntimeService').getMcpInteractionHost(context.sessionId)
+      const host = application
+        .get('AgentSessionRuntimeService')
+        .getMcpInteractionHost(context.sessionId, context.bridgeOrigin)
       if (!host) return undefined
       context = { ...context, ...host }
     }

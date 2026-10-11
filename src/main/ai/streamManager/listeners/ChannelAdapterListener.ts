@@ -14,11 +14,21 @@ const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
   private accumulatedText = ''
-  private settled = false
-  /** Whether the text accumulated so far has been handed to the adapter; re-armed by new output. */
+  /**
+   * Whether this turn's terminal has been handed to the adapter. Scoped to the turn, not to the
+   * listener: a chain-hold gap (`isTopicDone: false`) keeps the topic alive so the next turn
+   * arrives on this same listener, and new output re-arms it.
+   */
   private delivered = false
   /** Attempt id of the execution whose terminal was last delivered. */
   private deliveredAttemptId?: number
+  /**
+   * Tail of this listener's channel-update chain. A chain-hold gap and a background wake can both
+   * carry one listener into a successor execution while its predecessor's finalize is still
+   * pending, and every adapter keeps ONE stream controller per chat — so an overlapping update
+   * lands on the predecessor's card (Feishu) or is deleted by the predecessor's cleanup (Discord).
+   */
+  private updateChain: Promise<unknown> = Promise.resolve()
 
   constructor(
     private readonly adapter: ChannelAdapter,
@@ -46,12 +56,15 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   private completeStream(text: string, status: 'success' | 'paused'): Promise<boolean> {
-    return this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions, { status })
+    const complete = this.updateChain.then(() =>
+      this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions, { status })
+    )
+    this.updateChain = complete.catch(() => undefined)
+    return complete
   }
 
   // oxlint-disable-next-line no-unused-vars
   onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
-    if (this.settled) return
     if (chunk.type === 'text-delta' && chunk.delta) {
       this.accumulatedText += chunk.delta
       // Fresh output owes the channel a delivery — a listener outlives one settle (a chain-hold gap
@@ -67,10 +80,6 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
-<<<<<<< HEAD
-    if (this.settled) return
-    if (this.delivered) return
-=======
     await this.finish(result.status, result.isTopicDone, result.attemptId)
   }
 
@@ -91,55 +100,20 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   private async finish(status: 'success' | 'paused', isTopicDone?: boolean, attemptId?: number): Promise<void> {
+    // A predecessor's finalize can still be in flight when this execution's terminal arrives on the
+    // same listener (chain-hold gap, background wake). Its `completeStream` owns the chat's single
+    // adapter controller until it settles, so this one has to wait its turn.
+    await this.updateChain
     if (!this.owesDelivery(attemptId)) return
->>>>>>> 81124cb7df (fix(channel-adapter): re-arm terminal delivery per execution identity)
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
-    if (!text) {
-      logger.warn('ChannelAdapterListener.onDone with empty text', {
-        channelId: this.adapter.channelId,
-        chatId: this.platformChatId,
-        status: result.status
-      })
-      return
-    }
 
-    this.settled = true
     this.delivered = true
-<<<<<<< HEAD
-    if (!result.isTopicDone) {
-=======
     if (attemptId !== undefined) this.deliveredAttemptId = attemptId
     if (!isTopicDone) {
->>>>>>> 81124cb7df (fix(channel-adapter): re-arm terminal delivery per execution identity)
       // Chain-hold gap: this turn is over but the topic lives on, so the next turn starts its own
       // message rather than re-posting this one alongside it.
       this.accumulatedText = ''
     }
-    try {
-      // Adapter finalizes its streaming UI first (e.g. close Feishu card).
-      const handled = await this.completeStream(text, result.status)
-      if (!handled) {
-        await this.deliver(text)
-      }
-    } catch (err) {
-      logger.error('Failed to deliver message to channel', {
-        channelId: this.adapter.channelId,
-        chatId: this.platformChatId,
-        err
-      })
-    }
-  }
-
-  // oxlint-disable-next-line no-unused-vars
-  async onPaused(_result: StreamPausedResult): Promise<void> {
-    await this.finish('paused')
-  }
-
-  private async finish(status: 'success' | 'paused'): Promise<void> {
-    if (this.settled) return
-    this.settled = true
-    const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
-
     try {
       const handled = await this.completeStream(text, status)
       if (!handled && text) {
@@ -155,13 +129,10 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
-<<<<<<< HEAD
-    if (this.settled) return
-    this.settled = true
-    if (this.delivered) return
-=======
+    // Same ordering rule as `finish`: a predecessor's finalize owns the chat's single adapter
+    // controller until it settles.
+    await this.updateChain
     if (!this.owesDelivery(result.attemptId)) return
->>>>>>> 81124cb7df (fix(channel-adapter): re-arm terminal delivery per execution identity)
     this.delivered = true
     if (result.attemptId !== undefined) this.deliveredAttemptId = result.attemptId
     if (!result.isTopicDone) {

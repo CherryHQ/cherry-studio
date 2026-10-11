@@ -254,4 +254,43 @@ describe('ChannelAdapterListener', () => {
     alive = false
     expect(listener.isAlive()).toBe(false)
   })
+
+  // One chat holds ONE stream controller, so two generations settling on one listener must take
+  // turns in the adapter: a chain-hold gap plus a background wake is exactly that overlap, and the
+  // predecessor's cleanup otherwise owns (Discord/Slack deletes) or absorbs (Feishu writes into)
+  // the controller the wake just opened.
+  it('awaits the predecessor still finalizing before the successor touches the same chat', async () => {
+    const log: string[] = []
+    let enterIndex = 0
+    let release!: () => void
+    let entered!: (value: number) => void
+    const enterOrder = new Promise<number>((resolve) => {
+      entered = resolve
+    })
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const adapter = makeAdapter({
+      onStreamComplete: vi.fn(async (_chatId: string, text: string) => {
+        const mine = ++enterIndex
+        log.push(`enter#${mine}:${text}`)
+        entered(mine)
+        await gate
+        log.push(`leave#${mine}:${text}`)
+        return true
+      })
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'))
+    const predecessor = listener.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    await enterOrder // the predecessor's finalize is genuinely inside the adapter now
+
+    listener.onChunk(delta('Found it: 42'))
+    const successor = listener.onDone({ status: 'success', isTopicDone: true, attemptId: 2 })
+    release()
+    await Promise.all([predecessor, successor])
+
+    expect(log).toEqual(['enter#1:On it.', 'leave#1:On it.', 'enter#2:Found it: 42', 'leave#2:Found it: 42'])
+  })
 })
