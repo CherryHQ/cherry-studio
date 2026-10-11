@@ -17,6 +17,17 @@ export function buildAgentUserContent(message: AgentSessionMessageEntity): strin
   return wrapAgentSessionDeliveryContent(message, content)
 }
 
+/**
+ * Whether the user turn is an explicit `/compact` command.
+ *
+ * Driver-neutral: a compaction command is answered by the fold itself, and a runtime may
+ * settle it with no anchor at all, so the intent has to be recognized from what the user
+ * typed rather than read back from the stream.
+ */
+export function isManualCompactCommand(content: string): boolean {
+  return /^\/compact(?:\s|$)/.test(content.trim())
+}
+
 /** Append original filenames beside managed paths so agents can distinguish opaque storage names. */
 export function appendAgentAttachmentPaths(
   text: string,

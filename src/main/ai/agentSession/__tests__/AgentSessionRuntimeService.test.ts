@@ -4112,6 +4112,33 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  /**
+   * The `/compact` turn pi can settle without emitting any compaction event: it reaches
+   * the listener with no finalMessage at all, so no anchor can carry the intent. Without
+   * the declaration the listener persists a `turn.no_content` error for a command that
+   * succeeded — and an ordinary request must still be classified when it loses its reply.
+   */
+  it('tells the persistence listener that a /compact turn is not a lost reply', async () => {
+    const service = new AgentSessionRuntimeService()
+    const compactTurn = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: { ...userMessage('user-1'), data: { parts: [{ type: 'text', text: '/compact' }] } }
+    })
+    const ordinaryTurn = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+
+    const compactResult: StreamDoneResult = { status: 'success', isTopicDone: true }
+    await persistenceListener(compactTurn).onDone(compactResult)
+    expect(compactResult.emptyTurn).toBeUndefined()
+    expect(mocks.saveMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ message: expect.objectContaining({ status: 'success' }) }),
+      expect.anything()
+    )
+
+    const ordinaryResult: StreamDoneResult = { status: 'success', isTopicDone: true }
+    await persistenceListener(ordinaryTurn).onDone(ordinaryResult)
+    expect(ordinaryResult.emptyTurn?.name).toBe('no-parts')
+  })
+
   it('does not auto-name non-initial assistant turns', async () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

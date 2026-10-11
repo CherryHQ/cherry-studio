@@ -13,6 +13,7 @@ import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRunt
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { isManualCompactCommand } from '@main/ai/runtime/agentUserContent'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -3355,7 +3356,10 @@ export class AgentSessionRuntimeService extends BaseService {
         afterPersist
       }),
       onPersistFailed: (error) =>
-        application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
+        application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error),
+      // `/compact` is answered by the fold, which may settle without emitting an anchor, so the
+      // listener must know the intent up front instead of inferring it from the persisted parts.
+      explicitCompaction: isManualCompactCommand(extractMessageText(userMessage))
     })
   }
 
