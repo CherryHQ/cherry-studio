@@ -333,6 +333,21 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.filter((chunk) => chunk.text.includes('- [^1]'))).toHaveLength(1)
   })
 
+  it('carries a multi-paragraph footnote definition out of the quote that holds it, in full', () => {
+    // The definition is carried without its quote marker, so its continuation lines must lose theirs
+    // too — the carried prefix then holds both paragraphs, and the definition the parser registered
+    // first is whole rather than shadowed by a truncated copy of itself.
+    const content = ['> [^n]: first', '>', '>     second', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^n]: first\n\n    second')
+    }
+    expect(chunks.filter((chunk) => chunk.text.includes('> [^n]'))).toHaveLength(1)
+  })
+
   it('carries a definition whose title escapes its own delimiter', () => {
     // An escaped quote is part of the title, so the definition is a definition; read as a closing
     // delimiter it would fail the title shape and the reference would degrade to literal text.
@@ -507,6 +522,49 @@ describe('splitMarkdownChunks', () => {
     const chunks = chunksOf(content, 1)
 
     expect(chunks.filter((chunk) => chunk.text.includes('visible tail text'))).toHaveLength(1)
+  })
+
+  it('does not carry a definition-shaped line that continues a paragraph', () => {
+    // A link reference definition cannot interrupt a paragraph, so the line under `paragraph` is
+    // paragraph text. Hoisting it put the wrong destination above the real definition, and the
+    // first definition wins — even in a single small chunk.
+    const content = [
+      'paragraph',
+      '[label]: https://example.com/wrong',
+      '',
+      '[label]: https://example.com/right',
+      '',
+      '[label]'
+    ].join('\n')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text.startsWith('[label]: https://example.com/right\n\n')).toBe(true)
+  })
+
+  it('still carries a definition-shaped line a quote marker opens behind a paragraph', () => {
+    // The quote interrupts the paragraph, and the definition inside it is the document's own.
+    const content = ['paragraph', '> [label]: https://example.com/target', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com/target')
+    }
+  })
+
+  it('still carries a footnote definition written right after a paragraph line', () => {
+    // A footnote definition can interrupt a paragraph where a link reference definition cannot.
+    const content = ['paragraph', '[^n]: note', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^n]: note')
+    }
   })
 
   it('does not carry the indented text that follows a complete link definition', () => {
@@ -1507,6 +1565,39 @@ describe('definitions inside blocks the parser reads as raw', () => {
     for (const chunk of chunks) {
       expect(chunk.text).toContain('[label]: https://example.com/target')
     }
+  })
+})
+
+describe('document-wide heading slugs', () => {
+  // Each chunk renders as its own document, so duplicate headings in separate chunks would collide
+  // on one slug where the unsplit document numbers the second `-1` — and `[second](#title-1)` then
+  // finds no target even with both chunks mounted.
+  it('numbers duplicate headings across chunks the way the unsplit document would', () => {
+    const content = ['# Title', '', 'one', '', '# Title', '', 'two'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks[0].headingSlugs?.get('title')).toEqual(['title'])
+    expect(chunks[2].headingSlugs?.get('title')).toEqual(['title-1'])
+  })
+
+  it('counts a heading behind quote markers toward the document-wide numbering', () => {
+    const content = ['# Title', '', '> # Title', '', '# Title', ''].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks[0].headingSlugs?.get('title')).toEqual(['title'])
+    expect(chunks[1].headingSlugs?.get('title')).toEqual(['title-1'])
+    expect(chunks[2].headingSlugs?.get('title')).toEqual(['title-2'])
+  })
+
+  it('does not count a heading inside a fenced code block', () => {
+    const content = ['```', '# Title', '```', '', '# Title', ''].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks[0].headingSlugs).toBeUndefined()
+    expect(chunks[1].headingSlugs?.get('title')).toEqual(['title'])
   })
 })
 

@@ -72,7 +72,9 @@ export function MarkdownChunkPreview({ chunks, id }: MarkdownChunkPreviewProps) 
             {virtualItems.map((item) => (
               <div key={item.key} data-index={item.index} ref={virtualizer.measureElement}>
                 <div className="mx-auto w-full max-w-4xl px-4 pt-4">
-                  <StaticMarkdown id={`${id}:${item.index}`}>{chunks[item.index].text}</StaticMarkdown>
+                  <StaticMarkdown id={`${id}:${item.index}`} headingSlugs={chunks[item.index].headingSlugs}>
+                    {chunks[item.index].text}
+                  </StaticMarkdown>
                 </div>
               </div>
             ))}

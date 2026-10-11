@@ -113,6 +113,8 @@ function useStableReference<T>(value: T | undefined, isEqual: (a: T | undefined,
 export interface MarkdownCoreProps {
   id: string
   children: string
+  /** Heading slugs assigned at the document level, keyed by normalized heading text. */
+  headingSlugs?: ReadonlyMap<string, readonly string[]>
   /** Component overrides merged into Streamdown defaults at the call site. */
   components?: Partial<Components>
   /** Streamdown plugin presets (code / cjk / math / mermaid). */
@@ -138,6 +140,7 @@ export interface MarkdownCoreProps {
 export function MarkdownCore({
   id,
   children,
+  headingSlugs,
   components,
   plugins,
   extraRehypePlugins,
@@ -193,11 +196,11 @@ export function MarkdownCore({
       // Keep the author's text/alt instead of defacing it with harden's "[blocked]" placeholders.
       [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
       ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
-      [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
+      [rehypeHeadingIds, { prefix: `heading-${id}`, slugs: headingSlugs }] as Pluggable
     )
     if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
     return result
-  }, [hasSvgElement, id, stableExtraRehypePlugins, preserveFileLinkHrefs])
+  }, [hasSvgElement, id, headingSlugs, stableExtraRehypePlugins, preserveFileLinkHrefs])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value
