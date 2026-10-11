@@ -38,7 +38,11 @@ export function hasMiseInPath(pathValue: string | undefined): boolean {
     .split(delimiter)
     .map((segment) => segment.trim())
     .filter((segment) => segment && !isCherryShimsDir(segment))
-    .some((segment) => /(^|[\\/])\.?mise[\\/](shims|installs)([\\/]|$)/i.test(segment))
+    .some((segment) =>
+      isWin
+        ? /(^|[\\/])\.?mise[\\/](shims|installs)([\\/]|$)/i.test(segment)
+        : /(^|[\\/])\.?mise[\\/](shims|installs)([\\/]|$)/.test(segment)
+    )
 }
 
 export function isMiseEnvVar(key: string): boolean {

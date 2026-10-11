@@ -192,7 +192,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       'x-cherry-internal-usage-token': 'internal-token'
     })
     mocks.getProxyEnvironment.mockReturnValue({})
-    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({ loginShellEnv: {}, rawShellEnv: {} })
     mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
@@ -1326,7 +1326,7 @@ describe('deriveConnectionConfig', () => {
     })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
-    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({ loginShellEnv: {}, rawShellEnv: {} })
   })
 
   async function deriveSignature() {
@@ -1590,11 +1590,12 @@ describe('deriveConnectionConfig', () => {
     const currentProxyEnvironment = { HTTP_PROXY: 'http://current-cherry-proxy.example:7890' }
     mocks.getProxyEnvironment.mockReturnValue(currentProxyEnvironment)
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValueOnce({
-      SOCKS_PROXY: 'socks5://user-shell-proxy.example:1080'
+      loginShellEnv: { SOCKS_PROXY: 'socks5://user-shell-proxy.example:1080' },
+      rawShellEnv: {}
     })
     const withUserShellProxy = await deriveSignature()
 
-    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValueOnce({})
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValueOnce({ loginShellEnv: {}, rawShellEnv: {} })
     const withoutUserShellProxy = await deriveSignature()
 
     expect(mocks.getClaudeCodeLoginShellEnvironment).toHaveBeenCalledWith(currentProxyEnvironment)
