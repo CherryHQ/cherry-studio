@@ -79,9 +79,39 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
   async function build(config: PiSessionOptions): Promise<OperationResult<Entry>> {
     let entry: Entry | undefined
     try {
+      const subagents = config.subagents
+      const childRelations: Array<{ child: Entry; trigger: string }> = []
+      let parent: Entry | undefined = undefined
+      const publishChild = (child: Entry, trigger: string) =>
+        parent?.projection.feed.publish({
+          type: 'delegation.upsert',
+          delegation: {
+            ref: { session: parent.ref, id: runtimeId(`delegation:${trigger}:${child.ref.id}`) },
+            parent: parent.ref,
+            child: child.ref,
+            status: 'unknown'
+          }
+        })
       const owner = await createAgentRuntimeSession(
         {
           ...config,
+          sessionManager: config.sessionManager,
+          subagents: subagents && {
+            ...subagents,
+            configure: async (child) => {
+              const configured = await subagents.configure(child)
+              return {
+                ...configured,
+                onSessionCreated: (session: AgentSession) => {
+                  configured.onSessionCreated?.(session)
+                  const entry = attach(session)
+                  entries.set(session.sessionId, Promise.resolve({ status: 'confirmed', value: entry }))
+                  if (!parent) childRelations.push({ child: entry, trigger: child.parentToolCallId })
+                  publishChild(entry, child.parentToolCallId)
+                }
+              }
+            }
+          },
           onEvent: (event) => {
             try {
               config.onEvent?.(event)
@@ -91,11 +121,13 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           }
         },
         (session) => {
-          entry = attach(session)
+          entry = attach(session, undefined, Boolean(subagents))
         }
       )
-      entry!.owner = owner
-      return { status: 'confirmed', value: entry! }
+      parent = entry!
+      parent.owner = owner
+      for (const relation of childRelations) publishChild(relation.child, relation.trigger)
+      return { status: 'confirmed', value: parent }
     } catch (cause) {
       if (entry) {
         live.delete(entry)
