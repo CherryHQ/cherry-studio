@@ -79,7 +79,7 @@ export class RemoteDebuggingMonitor {
       if (
         address.protocol !== 'ws:' ||
         address.hostname !== '127.0.0.1' ||
-        address.port !== String(port) ||
+        (address.port || '80') !== String(port) ||
         !address.pathname.startsWith('/devtools/browser/')
       ) {
         throw new Error('Unexpected remote debugging endpoint')

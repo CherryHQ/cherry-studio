@@ -63,6 +63,9 @@ describe('FileManager (integration)', () => {
       if (key === 'feature.files.data') {
         return filename ? path.join(internalRoot, filename) : internalRoot
       }
+      if (key === 'feature.files.intakes') {
+        return path.join(tmp, 'intakes', filename ?? '')
+      }
       return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
     })
     electronMocks.ipcMain.handle.mockReset()

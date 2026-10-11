@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { bootConfigSchema, DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
-
 /**
  * Tests for src/main/core/preboot/chromiumFlags.ts
  *
@@ -55,15 +53,11 @@ function stubConstants(flags: PlatformFlags) {
   }))
 }
 
-function stubBootConfig(
-  opts: { disableHardwareAcceleration?: boolean; remoteDebuggingEnabled?: boolean; remoteDebuggingPort?: number } = {}
-) {
+function stubBootConfig(opts: { disableHardwareAcceleration?: boolean } = {}) {
   bootConfigGetMock.mockImplementation((key: string) => {
     if (key === 'app.disable_hardware_acceleration') {
       return opts.disableHardwareAcceleration ?? false
     }
-    if (key === 'app.remote_debugging.enabled') return opts.remoteDebuggingEnabled ?? false
-    if (key === 'app.remote_debugging.port') return opts.remoteDebuggingPort ?? 9222
     return undefined
   })
   vi.doMock('@main/data/bootConfig', () => ({
@@ -81,7 +75,7 @@ beforeEach(() => {
   vi.resetModules()
   disableHardwareAccelerationMock.mockReset()
   appendSwitchMock.mockReset()
-  hasSwitchMock.mockReset()
+  hasSwitchMock.mockReset().mockReturnValue(false)
   bootConfigGetMock.mockReset()
 })
 
@@ -93,58 +87,6 @@ afterEach(() => {
 })
 
 describe('configureChromiumFlags', () => {
-  describe('local CDP startup setting', () => {
-    it('uses a saved custom port when no startup port is supplied', async () => {
-      stubConstants({ isLinux: false, isWin: true })
-      stubElectron()
-      stubBootConfig({ remoteDebuggingEnabled: true, remoteDebuggingPort: 9342 })
-      const { configureChromiumFlags } = await loadModule()
-      configureChromiumFlags()
-      expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-port', '9342')
-      expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-address', '127.0.0.1')
-    })
-
-    it.each([0, 65535, 65536, 1.5, '9222', NaN])('rejects an invalid configured port: %s', (port) => {
-      expect(bootConfigSchema.safeParse({ ...DefaultBootConfig, 'app.remote_debugging.port': port }).success).toBe(
-        false
-      )
-    })
-
-    it.each([1, 65534])('accepts a supported port boundary: %s', (port) => {
-      expect(bootConfigSchema.safeParse({ ...DefaultBootConfig, 'app.remote_debugging.port': port }).success).toBe(true)
-    })
-
-    it('does not enable a listener by default', async () => {
-      stubConstants({ isLinux: false, isWin: true })
-      stubElectron()
-      stubBootConfig()
-      const { configureChromiumFlags } = await loadModule()
-      configureChromiumFlags()
-      expect(appendSwitchMock.mock.calls.filter(([name]) => name.startsWith('remote-debugging-'))).toEqual([])
-    })
-
-    it('opens the default port only on loopback when enabled', async () => {
-      stubConstants({ isLinux: false, isWin: true })
-      stubElectron()
-      stubBootConfig({ remoteDebuggingEnabled: true })
-      const { configureChromiumFlags } = await loadModule()
-      configureChromiumFlags()
-      expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-port', '9222')
-      expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-address', '127.0.0.1')
-    })
-
-    it('preserves an explicit startup port and constrains its address to loopback', async () => {
-      stubConstants({ isLinux: true, isWin: false })
-      stubElectron()
-      stubBootConfig({ remoteDebuggingEnabled: true })
-      hasSwitchMock.mockImplementation((name: string) => name === 'remote-debugging-port')
-      const { configureChromiumFlags } = await loadModule()
-      configureChromiumFlags()
-      expect(appendSwitchMock).not.toHaveBeenCalledWith('remote-debugging-port', expect.anything())
-      expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-address', '127.0.0.1')
-    })
-  })
-
   describe('hardware acceleration toggle', () => {
     it('calls disableHardwareAcceleration() when BootConfig flag is true', async () => {
       stubConstants({ isLinux: false, isWin: false })
@@ -236,6 +178,58 @@ describe('configureChromiumFlags', () => {
       expect(appendSwitchMock).not.toHaveBeenCalledWith('class', 'CherryStudio')
       expect(appendSwitchMock).not.toHaveBeenCalledWith('name', 'CherryStudio')
       expect(appendSwitchMock).not.toHaveBeenCalledWith('enable-features', 'GlobalShortcutsPortal')
+    })
+  })
+
+  describe('Linux key storage backend', () => {
+    function stubDesktop(desktop: string, session = '') {
+      vi.stubEnv('XDG_CURRENT_DESKTOP', desktop)
+      vi.stubEnv('DESKTOP_SESSION', session)
+      vi.stubEnv('KDE_FULL_SESSION', '')
+    }
+
+    async function configure(flags: PlatformFlags) {
+      stubConstants(flags)
+      stubElectron()
+      stubBootConfig()
+      const { configureChromiumFlags } = await loadModule()
+      configureChromiumFlags()
+    }
+
+    it('selects libsecret on desktops Chromium does not recognise (Hyprland)', async () => {
+      stubDesktop('Hyprland')
+      await configure({ isLinux: true, isWin: false })
+
+      expect(appendSwitchMock).toHaveBeenCalledWith('password-store', 'gnome-libsecret')
+    })
+
+    it('leaves KDE sessions to KWallet', async () => {
+      stubDesktop('KDE')
+      await configure({ isLinux: true, isWin: false })
+
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
+    })
+
+    it('detects KDE from DESKTOP_SESSION when XDG_CURRENT_DESKTOP is empty', async () => {
+      stubDesktop('', 'plasma-kde')
+      await configure({ isLinux: true, isWin: false })
+
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
+    })
+
+    it('respects a user-supplied --password-store', async () => {
+      stubDesktop('Hyprland')
+      hasSwitchMock.mockImplementation((name: string) => name === 'password-store')
+      await configure({ isLinux: true, isWin: false })
+
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
+    })
+
+    it('does nothing outside Linux', async () => {
+      stubDesktop('Hyprland')
+      await configure({ isLinux: false, isWin: true })
+
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
     })
   })
 

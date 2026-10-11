@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 
 import GeneralSettings from '../GeneralSettings'
@@ -18,6 +19,7 @@ vi.mock('react-i18next', () => ({
         'settings.developer.cdp.title': 'Local automation (CDP)',
         'settings.developer.cdp.description': `Local tools can connect at ${options?.address}. Requires a restart.`,
         'settings.developer.cdp.port': 'CDP port',
+        'settings.developer.cdp.invalid_port': 'Enter a whole-number port from 1 to 65534.',
         'settings.developer.enable_developer_mode': 'Developer mode'
       }
       return translations[key] ?? key
@@ -71,60 +73,54 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { error: vi.fn() }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  Flex: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  InfoTooltip: () => null,
-  Combobox: ({
-    options,
-    value,
-    onChange,
-    'aria-label': ariaLabel
-  }: {
-    options: { value: string; label: string }[]
-    value?: string | string[]
-    onChange?: (value: string | string[]) => void
-    'aria-label'?: string
-  }) => (
-    <select
-      aria-label={ariaLabel}
-      value={Array.isArray(value) ? (value[0] ?? '') : (value ?? '')}
-      onChange={(event) => onChange?.(event.target.value)}>
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  ),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  InputNumber: ({
-    onBlur,
-    ...props
-  }: Omit<InputHTMLAttributes<HTMLInputElement>, 'onBlur'> & { onBlur?: (value: number | null) => void }) => (
-    <input
-      {...props}
-      readOnly
-      onBlur={(event) => onBlur?.(event.currentTarget.value === '' ? null : Number(event.currentTarget.value))}
-    />
-  ),
-  Switch: ({
-    checked,
-    onCheckedChange,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & {
-    checked?: boolean
-    onCheckedChange?: (checked: boolean) => void
-  }) => (
-    <button type="button" role="switch" aria-checked={checked} onClick={() => onCheckedChange?.(!checked)} {...props}>
-      switch
-    </button>
-  )
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const { InputNumber } = await importOriginal<typeof CherryStudioUi>()
+  return {
+    Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Flex: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    InfoTooltip: () => null,
+    Combobox: ({
+      options,
+      value,
+      onChange,
+      'aria-label': ariaLabel
+    }: {
+      options: { value: string; label: string }[]
+      value?: string | string[]
+      onChange?: (value: string | string[]) => void
+      'aria-label'?: string
+    }) => (
+      <select
+        aria-label={ariaLabel}
+        value={Array.isArray(value) ? (value[0] ?? '') : (value ?? '')}
+        onChange={(event) => onChange?.(event.target.value)}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    ),
+    Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    InputNumber,
+    Switch: ({
+      checked,
+      onCheckedChange,
+      ...props
+    }: ButtonHTMLAttributes<HTMLButtonElement> & {
+      checked?: boolean
+      onCheckedChange?: (checked: boolean) => void
+    }) => (
+      <button type="button" role="switch" aria-checked={checked} onClick={() => onCheckedChange?.(!checked)} {...props}>
+        switch
+      </button>
+    )
+  }
+})
 
 describe('GeneralSettings', () => {
   beforeEach(() => {
@@ -152,6 +148,51 @@ describe('GeneralSettings', () => {
     rerender(<GeneralSettings />)
     expect(screen.getByRole('switch', { name: 'Local automation (CDP)' })).toBeInTheDocument()
     expect(screen.getByLabelText('CDP port')).toBeInTheDocument()
+  })
+
+  it.each(['0', '-1', '65535', '9222.9', ''])(
+    'rejects invalid port %j without changing the saved endpoint',
+    async (value) => {
+      MockUsePreferenceUtils.setMultiplePreferenceValues({
+        'app.developer_mode.enabled': true,
+        'BootConfig.app.remote_debugging.enabled': true,
+        'BootConfig.app.remote_debugging.port': 9342
+      })
+      const user = userEvent.setup()
+      render(<GeneralSettings />)
+      const port = screen.getByRole('spinbutton', { name: 'CDP port' })
+
+      await user.clear(port)
+      if (value) await user.type(port, value)
+      await user.tab()
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Enter a whole-number port from 1 to 65534.'))
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.port']).toBe(9342)
+      expect(port).toHaveValue('9342')
+    }
+  )
+
+  it.each(['1', '9342', '65534'])('saves supported port %s without changing its value', async (value) => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'BootConfig.app.remote_debugging.enabled': true
+    })
+    const user = userEvent.setup()
+    const { rerender } = render(<GeneralSettings />)
+    const port = screen.getByRole('spinbutton', { name: 'CDP port' })
+
+    await user.clear(port)
+    await user.type(port, value)
+    await user.tab()
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.port']).toBe(
+        Number(value)
+      )
+    )
+    rerender(<GeneralSettings />)
+    expect(port).toHaveValue(value)
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('saves local automation without providing or triggering an automatic restart', async () => {
@@ -195,8 +236,9 @@ describe('GeneralSettings', () => {
     rerender(<GeneralSettings />)
     const port = screen.getByLabelText('CDP port')
     expect(port).toBeEnabled()
-    expect(port).toHaveAttribute('max', '65534')
-    fireEvent.blur(port, { target: { value: '9342' } })
+    await user.clear(port)
+    await user.type(port, '9342')
+    await user.tab()
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.port']).toBe(9342)
     )

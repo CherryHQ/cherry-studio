@@ -1324,7 +1324,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
 
-    it('routes ComfyUI without selecting or attributing a stored key', async () => {
+    it('hands ComfyUI the stored key for partner nodes, never as a header', async () => {
       const provider = makeProvider({
         id: 'comfyui',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
@@ -1340,11 +1340,14 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const resolved = await resolveProviderAiSdkConfig(provider, model)
 
-      // The server takes no credential, so resolving one would attribute a key
-      // the transport never sends.
+      // The transport puts the key in the prompt's `extra_data` for the workflow's
+      // partner nodes; the server takes no credential, so no header carries it.
+      const settings = resolved.config.providerSettings as Record<string, unknown>
       expect(resolved.config.providerId).toBe('comfyui')
-      expect(resolveApiKeyMock).not.toHaveBeenCalled()
-      expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
+      expect(resolveApiKeyMock).toHaveBeenCalledWith('comfyui', undefined)
+      expect(settings.apiKey).toBe('sk-test-key')
+      expect(settings.headers).not.toHaveProperty('Authorization')
+      expect(resolved.credentialReceipt).toEqual({ attribution: 'explicit', id: 'test-key', masked: 'sk-t****-key' })
     })
 
     it.each([

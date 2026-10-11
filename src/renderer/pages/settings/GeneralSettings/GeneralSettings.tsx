@@ -161,8 +161,12 @@ const GeneralSettings: FC = () => {
     })
 
   const handleRemoteDebuggingPortChange = async (port: number | null) => {
+    if (port === null || !Number.isInteger(port) || port < 1 || port > 65534) {
+      toast.error(t('settings.developer.cdp.invalid_port'))
+      return
+    }
     try {
-      await setRemoteDebuggingPort(port ?? 9222)
+      await setRemoteDebuggingPort(port)
     } catch (error) {
       toast.error(formatErrorMessage(error))
     }
@@ -423,9 +427,6 @@ const GeneralSettings: FC = () => {
               <SettingRowTitle>{t('settings.developer.cdp.port')}</SettingRowTitle>
               <div className="w-28 shrink-0">
                 <InputNumber
-                  min={1}
-                  max={65534}
-                  step={1}
                   value={remoteDebuggingPort}
                   disabled={!remoteDebuggingEnabled || isSavingDeveloperSettings}
                   aria-label={t('settings.developer.cdp.port')}

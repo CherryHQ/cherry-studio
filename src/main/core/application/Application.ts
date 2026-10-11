@@ -398,7 +398,8 @@ export class Application {
    * Relaunch the app, with dev mode warning
    */
   public relaunch(options?: Electron.RelaunchOptions): void {
-    bootConfigService.persist()
+    // Shutdown already attempted to flush settings; teardown must not strand the process.
+    if (!this.isShuttingDown) bootConfigService.persist()
 
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
