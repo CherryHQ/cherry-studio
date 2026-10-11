@@ -111,12 +111,29 @@ type AssistantEditFormValues = {
   mcpServerIds: string[]
 }
 
+type AssistantSaveSnapshot = {
+  values: Partial<AssistantEditFormValues>
+  inFlight: boolean
+}
 type CustomParameter = AssistantFormState['customParameters'][number]
 type CustomParameterType = CustomParameter['type']
 type AssistantToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
+
+function serializedPersistedValue(name: string, value: unknown): string | undefined {
+  return JSON.stringify(name === 'name' && typeof value === 'string' ? value.trim() : value)
+}
+
+function acknowledgeSavedFields(snapshot: AssistantSaveSnapshot | null, defaults: AssistantEditFormValues) {
+  // A notification can precede PATCH completion, which can still replace newer input.
+  if (!snapshot || snapshot.inFlight) return
+  for (const [name, value] of Object.entries(snapshot.values)) {
+    const key = name as keyof AssistantEditFormValues
+    if (serializedPersistedValue(name, value) === JSON.stringify(defaults[key])) delete snapshot.values[key]
+  }
+}
 
 function isAssistantToolTab(value: string): value is AssistantToolTab {
   return value === 'tools.builtin' || value === 'tools.mcp' || value === 'tools.knowledge'
@@ -234,6 +251,8 @@ function AssistantEditDialogContent({
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
   const [baselineResource, setBaselineResource] = useState(resource)
   const defaultValues = useMemo(() => defaultValuesForAssistant(baselineResource), [baselineResource])
+  const baselineValuesRef = useRef(defaultValues)
+  const saveSnapshotRef = useRef<AssistantSaveSnapshot | null>(null)
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
@@ -283,15 +302,22 @@ function AssistantEditDialogContent({
       : Object.fromEntries(
           Object.entries(form.getValues()).filter(([name, value]) => {
             const key = name as keyof AssistantEditFormValues
-            const persistedValue = name === 'name' && typeof value === 'string' ? value.trim() : value
+            const submittedValues = saveSnapshotRef.current?.values
+            const changedSinceSave =
+              submittedValues &&
+              key in submittedValues &&
+              JSON.stringify(value) !== JSON.stringify(submittedValues[key])
             return (
-              JSON.stringify(value) !== JSON.stringify(defaultValues[key]) &&
-              JSON.stringify(persistedValue) !== JSON.stringify(nextDefaultValues[key])
+              (JSON.stringify(value) !== JSON.stringify(defaultValues[key]) || changedSinceSave) &&
+              serializedPersistedValue(name, value) !== JSON.stringify(nextDefaultValues[key])
             )
           })
         )
     form.reset(nextDefaultValues, { keepErrors: !justOpened })
     setFormValues(form, localValues)
+    baselineValuesRef.current = nextDefaultValues
+    if (justOpened) saveSnapshotRef.current = null
+    else acknowledgeSavedFields(saveSnapshotRef.current, nextDefaultValues)
     setBaselineResource(resource)
     if (!justOpened) {
       if (!('modelId' in localValues)) setModelLabels(modelLabelsForAssistant(resource))
@@ -326,13 +352,27 @@ function AssistantEditDialogContent({
     form.clearErrors('root')
     failedSaveKeyRef.current = null
 
+    const snapshot: AssistantSaveSnapshot = {
+      values: Object.fromEntries(
+        Object.entries(form.getValues()).filter(
+          ([name, value]) =>
+            JSON.stringify(value) !== JSON.stringify(defaultValues[name as keyof AssistantEditFormValues])
+        )
+      ),
+      inFlight: true
+    }
+    saveSnapshotRef.current = snapshot
     try {
       await updateAssistant(pending.payload)
     } catch (error) {
+      if (saveSnapshotRef.current === snapshot) saveSnapshotRef.current = null
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
       form.setError('root', { message: saveFailedMessage })
       toast.error(saveFailedMessage)
+    } finally {
+      snapshot.inFlight = false
+      acknowledgeSavedFields(snapshot, baselineValuesRef.current)
     }
   }
 

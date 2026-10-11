@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSWRTestWrapper } from '@renderer/data/hooks/__tests__/testUtils'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { UpdateAssistantSchema } from '@shared/data/api/schemas/assistants'
 import type { DataApiDataChangeEffect, DataRequest } from '@shared/data/api/types'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -175,5 +176,93 @@ describe('assistant editor notification reconciliation', () => {
     await settleAutoSave()
     expect(persisted.name).toBe('Local draft')
     expect(patches).toEqual([{ name: 'Local' }, { name: 'Local draft' }])
+  })
+
+  it.each([false, true])(
+    'persists a return to the original name during a save (external refresh: %s)',
+    async (refresh) => {
+      const user = userEvent.setup()
+      const request = bridge.request.getMockImplementation()!
+      let started = false
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      bridge.request.mockImplementation(async (input: DataRequest) => {
+        if (input.method === 'PATCH' && UpdateAssistantSchema.parse(input.body).name === 'Local') {
+          started = true
+          await gate
+        }
+        return request(input)
+      })
+      await openEditor()
+      const name = screen.getByRole('textbox', { name: 'Name' })
+      await user.clear(name)
+      await user.type(name, 'Local')
+      await waitFor(() => expect(started).toBe(true))
+      await user.clear(name)
+      await user.type(name, 'Original')
+      if (refresh) {
+        persisted = { ...persisted, description: 'Remote description' }
+        await act(async () => emit())
+        await waitFor(() =>
+          expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Remote description')
+        )
+      }
+      await act(async () => release())
+      expect(name).toHaveValue('Original')
+      await settleAutoSave()
+      expect(name).toHaveValue('Original')
+      expect(persisted.name).toBe('Original')
+      expect(patches).toEqual([{ name: 'Local' }, { name: 'Original' }])
+
+      persisted = { ...persisted, name: 'Later external rename', description: 'Later external description' }
+      await act(async () => emit())
+      await settleAutoSave()
+      expect(name).toHaveValue('Later external rename')
+      expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Later external description')
+      expect(persisted.name).toBe('Later external rename')
+      expect(patches).toEqual([{ name: 'Local' }, { name: 'Original' }])
+    }
+  )
+
+  it('accepts external updates after the superseded save fails', async () => {
+    const user = userEvent.setup()
+    const request = bridge.request.getMockImplementation()!
+    let started = false
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    bridge.request.mockImplementation(async (input: DataRequest) => {
+      if (input.method === 'PATCH') {
+        started = true
+        await gate
+        return {
+          id: input.id,
+          status: 422,
+          error: DataApiErrorFactory.validation({ name: ['Save rejected'] }).toJSON()
+        }
+      }
+      return request(input)
+    })
+    await openEditor()
+    const name = screen.getByRole('textbox', { name: 'Name' })
+    await user.clear(name)
+    await user.type(name, 'Local')
+    await waitFor(() => expect(started).toBe(true))
+    await user.clear(name)
+    await user.type(name, 'Original')
+    await act(async () => release())
+    expect(name).toHaveValue('Original')
+    expect(persisted.name).toBe('Original')
+
+    persisted = { ...persisted, name: 'External', description: 'Remote' }
+    await act(async () => emit())
+    await settleAutoSave()
+    expect(name).toHaveValue('External')
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Remote')
+    expect(persisted.name).toBe('External')
+    expect(patches).toEqual([])
   })
 })
