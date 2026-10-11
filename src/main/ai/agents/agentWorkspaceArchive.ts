@@ -64,12 +64,18 @@ export async function archiveSystemWorkspace(root: string, workspace: string): P
   const pending = `${workspace}.archiving`
   const temporary = `${archive}.tmp`
   if (await statIfExists(archive)) {
-    if (await statIfExists(workspace)) throw new Error(`Workspace and archive both exist: ${workspace}`)
-    if (await statIfExists(pending)) {
-      await validateArchive(archive)
+    if (await statIfExists(workspace)) {
+      await validateContents(workspace)
       await removeAgentStorageSubdirectory(root, pending)
+      // Invalidate the stale snapshot before staging newer files for crash recovery.
+      await rm(archive)
+    } else {
+      if (await statIfExists(pending)) {
+        await validateArchive(archive)
+        await removeAgentStorageSubdirectory(root, pending)
+      }
+      return
     }
-    return
   }
   if (await statIfExists(workspace)) {
     if (await statIfExists(pending)) throw new Error(`Workspace archive is already pending: ${workspace}`)

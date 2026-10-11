@@ -16,7 +16,10 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AgentLifecycleService } from '../AgentLifecycleService'
 import { sweepAgentOrphans } from '../agentOrphanSweep'
 
-const mocks = vi.hoisted(() => ({ closeSession: vi.fn().mockResolvedValue(undefined) }))
+const mocks = vi.hoisted(() => ({
+  closeSession: vi.fn().mockResolvedValue(undefined),
+  closeSessionForArchive: vi.fn().mockResolvedValue(undefined)
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -32,7 +35,8 @@ vi.mock('@application', async () => {
       cancelSessionForks: async () => {},
       recoverSessionForks: async () => {},
       isSessionBusy: () => false,
-      closeSession: mocks.closeSession
+      closeSession: mocks.closeSession,
+      closeSessionForArchive: mocks.closeSessionForArchive
     },
     AgentSessionDeliveryService: {
       pause: () => ({ dispose() {} }),
@@ -51,6 +55,7 @@ describe('Agent lifecycle workspace persistence', () => {
   beforeEach(async () => {
     BaseService.resetInstances()
     mocks.closeSession.mockResolvedValue(undefined)
+    mocks.closeSessionForArchive.mockResolvedValue(undefined)
     root = await mkdtemp(path.join(os.tmpdir(), 'lifecycle-workspace-'))
     const getPath = vi.mocked(application.getPath).getMockImplementation()!
     vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
@@ -126,6 +131,18 @@ describe('Agent lifecycle workspace persistence', () => {
     expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
   })
 
+  it('retains files across sweep retries when permissive close resolves but strict shutdown fails', async () => {
+    mocks.closeSessionForArchive.mockRejectedValue(new Error('native shutdown unconfirmed'))
+    await lifecycle.archiveSessions(['system'])
+    await lifecycle.sweepOrphans()
+    expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
+    expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
+    mocks.closeSessionForArchive.mockResolvedValue(undefined)
+    await lifecycle.sweepOrphans()
+    expect(existsSync(workspacePath(root, 'system'))).toBe(false)
+    await lifecycle.restoreSession('system')
+    expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
+  })
   it('keeps a session archived when its workspace cannot be restored', async () => {
     await lifecycle.archiveSessions(['system'])
     await writeFile(`${workspacePath(root, 'system')}.tar.gz`, 'corrupt')

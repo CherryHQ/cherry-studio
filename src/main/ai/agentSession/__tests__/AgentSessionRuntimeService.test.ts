@@ -3735,6 +3735,46 @@ describe('AgentSessionRuntimeService', () => {
     expect(onIdle).toHaveBeenCalledWith({ sessionId: 'session-1' })
   })
 
+  it('blocks archiving after native close failure even after the runtime entry disappears', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const connection = { close: vi.fn().mockRejectedValue(new Error('still running')), send: vi.fn(), events: [] }
+    getEntry(service).connection = connection
+
+    await service.closeSession('session-1')
+    expect(service.inspect('session-1')).toBeUndefined()
+    await expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+    await expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+
+    connection.close.mockResolvedValue(undefined)
+    await expect(service.closeSessionForArchive('session-1')).resolves.toBeUndefined()
+  })
+
+  it('keeps timed-out native shutdown unsafe until shutdown is positively confirmed', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const nativeClose = createDeferred<void>()
+      getEntry(service).connection = { close: () => nativeClose.promise, send: vi.fn(), events: [] }
+
+      const closing = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_000)
+      await closing
+      expect(service.inspect('session-1')).toBeUndefined()
+      const archiveClose = expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(20_000)
+      await archiveClose
+      const retry = expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(20_000)
+      await retry
+
+      nativeClose.resolve()
+      await expect(service.closeSessionForArchive('session-1')).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
     ServiceContainer.reset()
     const container = ServiceContainer.getInstance()

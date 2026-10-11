@@ -452,6 +452,7 @@ export class AgentLifecycleService extends BaseService {
     for (const workspace of agentSessionService.listSystemWorkspaceSessions(ids)) {
       if (workspace.deletedAt === null) continue
       try {
+        await application.get('AgentSessionRuntimeService').closeSessionForArchive(workspace.id)
         await archiveSystemWorkspace(root, workspace.path)
       } catch (error) {
         logger.warn('Failed to archive system workspace; retained for retry', { workspacePath: workspace.path, error })

@@ -1082,6 +1082,20 @@ export class AgentSessionRuntimeService extends BaseService {
     return barrier
   }
 
+  async closeSessionForArchive(sessionId: string): Promise<void> {
+    await this.closeSession(sessionId)
+    const attempt = this.connectionAttempts.get(sessionId)?.promise
+    if (attempt) await attempt
+    while (this.closingSessions.has(sessionId)) {
+      await this.closingSessions.get(sessionId)!.promise
+    }
+    const failed = this.failedClosures.get(sessionId)
+    if (failed) await this.closeRuntimeConnection(failed, sessionId, true)
+    if (this.failedClosures.has(sessionId) || this.entries.has(sessionId) || this.connectionAttempts.has(sessionId)) {
+      throw new AgentSessionEditError('close_failed')
+    }
+  }
+
   private trackSessionClosing(sessionId: string, closing: Promise<void>, resumeToken?: string): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const barrier = {
