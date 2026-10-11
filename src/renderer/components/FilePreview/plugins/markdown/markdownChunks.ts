@@ -55,6 +55,21 @@ function parseFence(line: string): Fence | null {
   return { marker: run[0], length: run.length }
 }
 
+/** A list item marker a fence may sit behind — `- ` ``` `` opens a fence inside the item. */
+const LIST_MARKER_PREFIX = /^ {0,3}(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)/
+
+/**
+ * A fenced code block opened behind list item markers, or null. The fence belongs to the item the
+ * marker opens, so every line indented to the item's content is its code — a definition-looking
+ * line among them is code the parser never reads. A list marker indented four columns is indented
+ * code, so no fence opens behind it.
+ */
+function openListedFence(line: string): Fence | null {
+  const marker = LIST_MARKER_PREFIX.exec(line)
+  if (!marker || leadingColumns(line) >= 4) return null
+  return parseFence(line.slice(marker[0].length))
+}
+
 function isClosingFence(line: string, fence: Fence): boolean {
   const match = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(line)
   return !!match && match[1][0] === fence.marker && match[1].length >= fence.length
@@ -96,6 +111,17 @@ const DEFINITION_CONTAINER = /^(?:(?:[ \t]*>)+[ \t]*|(?:[ \t]*[-+*]|[ \t]*\d{1,9
  */
 const QUOTE_MARKER = /^ {0,3}>[ \t]?/
 
+/** The line past its block quote markers, and how many it carried. */
+function pastQuoteMarkers(line: string): { content: string; quotes: number } {
+  let content = line
+  let quotes = 0
+  for (let marker = QUOTE_MARKER.exec(content); marker; marker = QUOTE_MARKER.exec(content)) {
+    content = content.slice(marker[0].length)
+    quotes += 1
+  }
+  return { content, quotes }
+}
+
 /**
  * A fenced code block opened behind block quote markers, or null. The fence belongs to the quote
  * its markers open: every line carrying those markers is its content — a definition-looking line
@@ -103,13 +129,8 @@ const QUOTE_MARKER = /^ {0,3}>[ \t]?/
  * line the markers do not reproduce starts a block outside, where a fence cannot follow.
  */
 function openQuotedFence(line: string): { fence: Fence; quotes: number } | null {
-  if (!QUOTE_MARKER.test(line)) return null
-  let content = line
-  let quotes = 0
-  for (let marker = QUOTE_MARKER.exec(content); marker; marker = QUOTE_MARKER.exec(content)) {
-    content = content.slice(marker[0].length)
-    quotes += 1
-  }
+  const { content, quotes } = pastQuoteMarkers(line)
+  if (quotes === 0) return null
   const fence = parseFence(content)
   return fence ? { fence, quotes } : null
 }
@@ -455,6 +476,36 @@ const PARAGRAPH_INTERRUPTING_LIST_MARKER = /^ {0,3}(?:[-+*]|1[.)])[ \t]+\S/
 const SETEXT_UNDERLINE = /^ {0,3}(?:=+|-{1,2})[ \t]*$/
 
 /**
+ * Whether the container on a definition-shaped line opens a block the paragraph above it does not
+ * continue — a deeper quote, or a list marker, which opens a fresh item even at the same depth. A
+ * marker that merely repeats the one the paragraph already sits behind does not: `> paragraph`
+ * followed by `> [label]: /wrong` is one quoted paragraph, so the definition shape in it is prose.
+ */
+function containerOpensBlock(container: string, previous: string): boolean {
+  const quotes = quoteDepth(container)
+  if (quotes !== quoteDepth(previous)) return quotes > quoteDepth(previous)
+  return /(?:[-+*]|\d{1,9}[.)])[ \t]+$/.test(container)
+}
+
+/**
+ * Whether `line` is a setext underline — including one behind block quote markers, where the
+ * parser reads it inside the quote rather than at the top level.
+ */
+function isSetextUnderline(line: string): boolean {
+  return SETEXT_UNDERLINE.test(line) || SETEXT_UNDERLINE.test(pastQuoteMarkers(line).content)
+}
+
+/**
+ * Whether a line that opens no definition is complete where it stands, so the line below starts a
+ * new block rather than continuing a paragraph: an ATX heading, the underline that makes the line
+ * above a setext heading, or a thematic break.
+ */
+function isCompletedBlock(line: string, container: string | null): boolean {
+  const content = container === null ? line : line.slice(container.length)
+  return ATX_HEADING.test(content) || isSetextUnderline(line) || THEMATIC_BREAK.test(line)
+}
+
+/**
  * Whether a line opens a block that ends a footnote definition where it appears: a marker at
  * three columns or less closes it, because the footnote holds its continuation lines only at
  * four columns of indent. An empty list item closes it too — the footnote's own continuation
@@ -540,6 +591,27 @@ function afterColumns(columns: number, line: string): string {
     index += 1
   }
   return expanded.slice(columns) + line.slice(index)
+}
+
+/**
+ * The heading a line renders, with the text the renderer gives its id, or null. An ATX heading
+ * carries its own text; a setext underline turns the line above it into one, so the heading's line
+ * is that one. Either may sit behind block quote or list markers, which the renderer parses away
+ * before it reads the text — so the markers come off here too, or `# Title` and `> # Title` would
+ * be read as different headings than the ones that render.
+ */
+function headingText(lines: string[], index: number): { line: number; text: string } | null {
+  const container = DEFINITION_CONTAINER.exec(lines[index])
+  const content = container ? lines[index].slice(container[0].length) : lines[index]
+  const atx = ATX_HEADING.exec(content)
+  if (atx) return { line: index, text: atx[1] }
+  if (!SETEXT_UNDERLINE.test(content)) return null
+  const above = index > 0 ? lines[index - 1] : undefined
+  if (above === undefined || above.trim() === '' || leadingColumns(above) >= 4) return null
+  const aboveContainer = DEFINITION_CONTAINER.exec(above)
+  // The underline has to sit in the same container as the text it turns into a heading.
+  if (quoteDepth(aboveContainer?.[0] ?? '') !== quoteDepth(container?.[0] ?? '')) return null
+  return { line: index - 1, text: aboveContainer ? above.slice(aboveContainer[0].length) : above }
 }
 
 /**
@@ -859,13 +931,31 @@ export function splitMarkdownChunks(
   let inDefinition = false
   let footnoteDefinition = false
   let run: ListRun | null = null
-  // Whether the previous content line sits inside an open paragraph: a link definition cannot
-  // interrupt one (the line is paragraph text), while a container opening (quote/list marker)
-  // or a footnote definition can. Reset on every blank line and every block opener.
-  let prevLineInParagraph = false
+  /**
+   * Whether the previous content line left a paragraph open. A link definition cannot interrupt a
+   * paragraph, so this decides whether a definition-shaped line is a definition or paragraph text —
+   * and only a paragraph still open bars one: a heading, an underline, a thematic break or a carried
+   * definition is complete where it stands, so the line below opens a definition freely.
+   */
+  let previousStatus: 'paragraph' | 'block' = 'block'
+  /** The container prefix the line was written behind, when it opened a paragraph. */
+  let paragraphContainer: string | null = null
   // The container the open footnote definition was written behind, so its continuation lines can
   // lose the markers the way the opening line did.
   let activeDefinitionContainer: DefinitionContainer | null = null
+  // Whether the open definition spans a blank line inside its container: past one, the parser holds
+  // a continuation to four columns measured inside the container.
+  let sawBlankInDefinition = false
+  /**
+   * The fenced code block open behind an enclosing container, or null. A fence opened on a list
+   * item's first line (`- ``` `) is content the item holds, so its lines reach `parseFence` only
+   * after the list marker comes away — those lines are code, and a definition-shaped one among them
+   * must not be carried.
+   */
+  let containerFence: Fence | null = null
+  // The lines the fence above was opened behind — a list item's content is indented to it, so the
+  // fence's own lines are the ones that carry that much indentation.
+  let containerFenceIndent = 0
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -901,45 +991,75 @@ export function splitMarkdownChunks(
       if (dollarFenceAtEnd(line) >= dollarFence) dollarFence = 0
       continue
     }
+    if (containerFence) {
+      // The fence's lines are the item's content, so they carry the item's indentation; a line that
+      // drops it leaves the item and ends the fence, and is read again below as an ordinary line.
+      // A blank line stays inside, which is why the fence — not the blank — decides the boundary.
+      if (!blank && leadingColumns(line) < containerFenceIndent) {
+        containerFence = null
+      } else {
+        if (isClosingFence(afterColumns(containerFenceIndent, line), containerFence)) containerFence = null
+        continue
+      }
+    }
     const opened = parseFence(line)
     if (opened) {
       fence = opened
       inDefinition = false
-      prevLineInParagraph = false
+      previousStatus = 'block'
+      paragraphContainer = null
       continue
     }
     const htmlEnd = htmlBlockTerminator(line)
     if (htmlEnd) {
       if (!htmlEnd.test(line)) htmlTerminator = htmlEnd
       inDefinition = false
-      prevLineInParagraph = false
+      previousStatus = 'block'
+      paragraphContainer = null
       continue
     }
     const dollarOpen = dollarFenceAtStart(line)
     if (dollarOpen > 0 && !dollarFenceClosesOnOwnLine(line, dollarOpen)) {
       dollarFence = dollarOpen
       inDefinition = false
-      prevLineInParagraph = false
+      previousStatus = 'block'
+      paragraphContainer = null
       continue
     }
     const math = openMathRun(line)
     if (math) {
       mathRun = math
       inDefinition = false
-      prevLineInParagraph = false
+      previousStatus = 'block'
+      paragraphContainer = null
       continue
     }
     const quoted = openQuotedFence(line)
     if (quoted) {
       quotedFence = quoted
       inDefinition = false
-      prevLineInParagraph = false
+      previousStatus = 'block'
+      paragraphContainer = null
+      continue
+    }
+    // A fence the line opens behind a list item's marker: the item holds it, so `parseFence` never
+    // sees it — `- ``` ` is three backticks behind a marker, and every line the item indents to its
+    // content column is code the parser never reads for definitions.
+    const listed = openListedFence(line)
+    if (listed) {
+      const item = LIST_ITEM.exec(line)
+      containerFence = listed
+      containerFenceIndent = item ? columnCount(item[0]) : 0
+      inDefinition = false
+      previousStatus = 'block'
+      paragraphContainer = null
       continue
     }
     if (opensHtmlBlock(line)) {
       htmlBlankBlock = true
       inDefinition = false
-      prevLineInParagraph = false
+      previousStatus = 'block'
+      paragraphContainer = null
       continue
     }
     // A multi-paragraph footnote definition continues on indented lines, including across its blank
@@ -953,10 +1073,20 @@ export function splitMarkdownChunks(
         ? // A marker-only line behind the definition's container (`>` on its own) is blank the way
           // the parser sees it: the quote reproduces the line and the definition spans it.
           insideContainer.trim() === '' ||
-          (INDENTED_LINE.test(insideContainer) && !startsBlock(insideContainer)) ||
+          (INDENTED_LINE.test(insideContainer) && !startsBlock(insideContainer) && !sawBlankInDefinition) ||
+          // Past a blank line the definition owns only lines the parser counts as indented to four
+          // columns inside the container — `>  second` behind a `>` quote carries two, so it is a
+          // quoted paragraph of its own and carrying it would print it in every chunk.
+          (sawBlankInDefinition && continuesDefinitionAfterBlank(insideContainer) && !startsBlock(insideContainer)) ||
           (blank && continuesDefinitionAfterBlank(strippedNextContent(lines, nextContent, i, definitionContainer)))
         : (INDENTED_LINE.test(line) && !startsBlock(line)) ||
           (blank && continuesDefinitionAfterBlank(lines[nextContent[i]]))
+    // A blank line the definition spans — a bare one, or the definition's own container markers on
+    // a line of their own (`>`), which is blank the way the parser sees it — ends no container, so
+    // it has to be remembered for the continuation line that follows it.
+    if (definitionContainer && insideContainer !== null && (blank || insideContainer.trim() === '')) {
+      sawBlankInDefinition = true
+    }
     if (inDefinition && indentedContinuation && (!blank || footnoteDefinition)) {
       // Continuation lines behind the definition's container carry its markers (`>` on a quoted
       // definition's blank line, or `>` plus indentation on its paragraphs). The definition was
@@ -979,11 +1109,17 @@ export function splitMarkdownChunks(
     // the chunk it was written in: carrying it would render an empty quote or list in every other.
     const container = DEFINITION_CONTAINER.exec(line)
     const uncontained = container ? line.slice(container[0].length) : line
-    if (FOOTNOTE_DEFINITION_START.test(uncontained)) {
+    // The same code checks a link definition's own start applies here: a container indented to four
+    // columns, or one whose markers leave five columns of whitespace behind them, holds its label in
+    // indented code the parser never reads as a definition.
+    const containerHoldsCode =
+      container !== null && (leadingColumns(line) >= 4 || containerWhitespaceOpensCode(container[0]))
+    if (!containerHoldsCode && FOOTNOTE_DEFINITION_START.test(uncontained)) {
       definitions.push(uncontained)
       definitionLines += 1
       inDefinition = true
       footnoteDefinition = true
+      sawBlankInDefinition = false
       // The definition keeps the container it was written behind: its continuation lines must
       // lose that container the same way the opening line did, or the carried prefix holds only
       // the first line and a truncated copy shadows the complete definition.
@@ -992,13 +1128,17 @@ export function splitMarkdownChunks(
       // may not end one — the same reason an ordinary item keeps the run alive.
       const item = LIST_ITEM.exec(line)
       if (item) run = trackListItem(run, item)
-      prevLineInParagraph = false
+      previousStatus = 'block'
+      paragraphContainer = null
       continue
     }
-    // A link definition cannot interrupt a paragraph: a definition-shaped line under a paragraph
-    // line is paragraph text, and hoisting it would shadow the real definition. A container opener
-    // (quote or list marker) on the line itself breaks the paragraph, so the definition stands.
-    const definition = prevLineInParagraph && !container ? null : linkDefinition(lines, i)
+    // A link definition cannot interrupt a paragraph: a definition-shaped line under an open
+    // paragraph is paragraph text, and hoisting it would shadow the real definition. A container
+    // opener that breaks that paragraph — a deeper quote, or a list marker, which opens a fresh
+    // item — leaves the definition standing behind it.
+    const opensBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '')
+    const definition =
+      (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode ? null : linkDefinition(lines, i)
     if (definition) {
       definitions.push(definition.text)
       definitionLines += definition.lines
@@ -1008,13 +1148,21 @@ export function splitMarkdownChunks(
       activeDefinitionContainer = null
       const item = LIST_ITEM.exec(line)
       if (item) run = trackListItem(run, item)
-      prevLineInParagraph = false
+      previousStatus = 'block'
+      paragraphContainer = null
       continue
     }
     inDefinition = false
-    // A blank line ends a paragraph; any other non-definition line here is either a block opener
-    // (which breaks the paragraph) or plain paragraph text flowing on.
-    prevLineInParagraph = !blank
+    // A blank line ends a paragraph; any other non-definition line here either opens a block that
+    // is complete where it stands — a heading, the underline that completes the line above, or a
+    // thematic break — or it is plain paragraph text flowing on.
+    if (blank) {
+      previousStatus = 'block'
+      paragraphContainer = null
+    } else {
+      previousStatus = isCompletedBlock(line, container?.[0] ?? null) ? 'block' : 'paragraph'
+      paragraphContainer = container?.[0] ?? null
+    }
 
     // A thematic break carries an item marker at its head but is a block of its own.
     const item = THEMATIC_BREAK.test(line) ? null : LIST_ITEM.exec(line)
@@ -1047,8 +1195,10 @@ export function splitMarkdownChunks(
   // whole document first (a heading behind quote markers still counts; one in a code fence does
   // not) and each chunk receives the slugs of the headings its lines render.
   const slugOrder = new Map<string, string[]>()
-  // One entry per line — the slug that line's heading renders, or undefined.
-  const lineSlugs = new Array<string | undefined>(lines.length).fill(undefined)
+  // One entry per line — the heading that line renders, as the base its slug is numbered from and
+  // the slug itself. A setext heading's text is the line above its underline, so the entry sits on
+  // that line while the base cannot be re-derived from it — the text alone is not a heading.
+  const lineHeadings = new Array<{ base: string; slug: string } | undefined>(lines.length).fill(undefined)
   let slugFence: Fence | null = null
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -1061,14 +1211,14 @@ export function splitMarkdownChunks(
       slugFence = opened
       continue
     }
-    const heading = ATX_HEADING.exec(line.replace(QUOTE_MARKER, ''))
-    if (!heading) continue
-    const base = normalizeHeadingText(heading[1])
+    const heading = headingText(lines, i)
+    if (heading === null) continue
+    const base = normalizeHeadingText(heading.text)
     const seen = slugOrder.get(base) ?? []
     const slug = seen.length === 0 ? base : `${base}-${seen.length}`
     seen.push(slug)
     slugOrder.set(base, seen)
-    lineSlugs[i] = slug
+    lineHeadings[heading.line] = { base, slug }
   }
   const chunks: MarkdownChunk[] = []
   let start = 0
@@ -1076,12 +1226,11 @@ export function splitMarkdownChunks(
     if (end <= start) continue
     const chunkSlugs = new Map<string, string[]>()
     for (let i = start; i < end; i++) {
-      const slug = lineSlugs[i]
-      if (!slug) continue
-      const base = normalizeHeadingText(ATX_HEADING.exec(lines[i].replace(QUOTE_MARKER, ''))![1])
-      const assigned = chunkSlugs.get(base) ?? []
-      assigned.push(slug)
-      chunkSlugs.set(base, assigned)
+      const heading = lineHeadings[i]
+      if (!heading) continue
+      const assigned = chunkSlugs.get(heading.base) ?? []
+      assigned.push(heading.slug)
+      chunkSlugs.set(heading.base, assigned)
     }
     chunks.push({
       text: prefix + lines.slice(start, end).join('\n'),
