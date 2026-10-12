@@ -557,12 +557,20 @@ async function stopDetachedBackgroundTaskUnlocked(
   return (await getDetachedBackgroundTask(storageDir, taskId)) ?? stopped
 }
 
+/**
+ * `lstart` right-pads the day to two columns (`Mon Oct  5 …`), and the group table is parsed
+ * field-wise, which collapses that padding. Both readings must name the instant the same way or a
+ * task started on the 1st–9th stops matching itself.
+ */
+function normalizeLstart(lstart: string): string {
+  return lstart.trim().replace(/\s+/g, ' ')
+}
+
 function getPidStartTime(pid: number): string | undefined {
   if (process.platform === 'win32') return undefined
   try {
-    return (
-      execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8', timeout: 1_000 }).trim() || undefined
-    )
+    const raw = execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8', timeout: 1_000 })
+    return normalizeLstart(raw) || undefined
   } catch {
     return undefined
   }
@@ -609,7 +617,11 @@ function readGroupMembers(pgid: number): GroupMember[] | null {
       if (fields.length < 9 || Number(fields[0]) !== pgid) continue
       const state = fields[3]
       if (!state || state.startsWith('Z')) continue
-      members.push({ pid: Number(fields[1]), ppid: Number(fields[2]), lstart: fields.slice(-5).join(' ') })
+      members.push({
+        pid: Number(fields[1]),
+        ppid: Number(fields[2]),
+        lstart: normalizeLstart(fields.slice(-5).join(' '))
+      })
     }
     return members
   } catch {
