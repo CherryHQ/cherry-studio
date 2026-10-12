@@ -319,6 +319,9 @@ type AgentSessionRuntimeEntry = {
    * — the headless boundary, agent-session-runtime.md § security ceiling.
    */
   detachedChildHeadlessOrigins?: Map<string, boolean>
+  /** Spawn lineage of descendants whose provenance is INHERITED (child id → parent session id);
+   *  the root-spawned children above hold their bindings directly. */
+  detachedChildParents?: Map<string, string>
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -2063,6 +2066,9 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'background-task-event':
         this.publishBackgroundTaskEvent(entry, event.data, connection)
         break
+      case 'background-child-provenance':
+        this.bindChildProvenance(entry, event.childSessionId, event.parentSessionId, connection)
+        break
       case 'background-flow-chunk':
         this.handleBackgroundFlowChunk(entry, event.rootToolCallId, event.chunk, connection)
         break
@@ -2655,6 +2661,32 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  /**
+   * Bind one admitted child's authorization provenance to the execution that spawned it. Emitted
+   * for EVERY descendant (dshChildFlow.bindChild) — the task-panel edges that used to carry this
+   * binding suppress grandchildren, which the bridge still forwards by their real ids.
+   */
+  private bindChildProvenance(
+    entry: AgentSessionRuntimeEntry,
+    childSessionId: string,
+    parentSessionId: string | undefined,
+    connection = this.currentConnection(entry)
+  ): void {
+    if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
+    if (parentSessionId !== undefined) {
+      // A deeper descendant holds only its lineage here; it inherits at the invocation boundary.
+      const parents = (entry.detachedChildParents ??= new Map<string, string>())
+      if (!parents.has(childSessionId)) parents.set(childSessionId, parentSessionId)
+      return
+    }
+    // Already bound keeps its origin — a later turn re-spawning or waking it must not upgrade a
+    // detached child's authority.
+    const origins = (entry.detachedChildHeadlessOrigins ??= new Map<string, boolean>())
+    if (origins.has(childSessionId)) return
+    const turn = this.currentTurn(entry)
+    origins.set(childSessionId, turn === undefined || turn.headless === true)
+  }
+
   /** Keep the latest lifecycle edge per task for the current connection. */
   private publishBackgroundTaskEvent(
     entry: AgentSessionRuntimeEntry,
@@ -2662,12 +2694,6 @@ export class AgentSessionRuntimeService extends BaseService {
     connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
-    // Bind this child to the turn that spawned it while that turn is still the current one. A child
-    // already bound keeps its original origin — detached work outlives its spawning turn, so a later
-    // turn re-spawning or waking it must not upgrade its authority.
-    const turn = this.currentTurn(entry)
-    const origins = (entry.detachedChildHeadlessOrigins ??= new Map<string, boolean>())
-    if (!origins.has(data.taskId)) origins.set(data.taskId, turn === undefined || turn.headless === true)
     const cache = application.get('CacheService')
     const key = AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)
     const events = cache.getShared(key) ?? {}
@@ -3416,7 +3442,24 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Whether `bridgeOrigin` names a child bound to a headless (unattended) spawning execution. */
   private isHeadlessBridgeOrigin(entry: AgentSessionRuntimeEntry, bridgeOrigin?: string): boolean {
     if (bridgeOrigin === undefined) return false
-    return entry.detachedChildHeadlessOrigins?.get(bridgeOrigin) === true
+    const origins = (entry.detachedChildHeadlessOrigins ??= new Map<string, boolean>())
+    const bound = origins.get(bridgeOrigin)
+    if (bound !== undefined) return bound
+    // Bound at the invocation boundary: a caller with no origin of its own inherits the nearest
+    // bound ancestor's, so the spawning execution's authority propagates through the whole
+    // descendant tree (grandchildren never reach the task-panel edges).
+    let ancestor = entry.detachedChildParents?.get(bridgeOrigin)
+    while (ancestor !== undefined) {
+      const inherited = origins.get(ancestor)
+      if (inherited !== undefined) {
+        origins.set(bridgeOrigin, inherited)
+        return inherited
+      }
+      ancestor = entry.detachedChildParents?.get(ancestor)
+    }
+    // Nothing in the lineage names a spawning turn: fail closed instead of crediting the delegated
+    // caller with whichever turn is live on the shared root Session id.
+    return true
   }
 
   getInteractionState(sessionId: string): AgentSessionInteractionState {

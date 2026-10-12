@@ -245,6 +245,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           })
         }
       },
+      emitChildProvenance: (childSessionId, parentSessionId) => {
+        if (this.closed) return
+        this.eventQueue.push({ type: 'background-child-provenance', childSessionId, parentSessionId })
+      },
       emitTasks: (tasks) => {
         if (!this.closed) this.eventQueue.push({ type: 'background-tasks', tasks })
       },
