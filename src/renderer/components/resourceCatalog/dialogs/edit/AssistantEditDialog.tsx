@@ -122,8 +122,16 @@ type AssistantToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.knowledge'
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
 
+function serializedFormValue(name: string, value: unknown): string | undefined {
+  const comparable =
+    (name === 'mcpServerIds' || name === 'knowledgeBaseIds') && Array.isArray(value)
+      ? Array.from(new Set(value)).sort()
+      : value
+  return JSON.stringify(comparable)
+}
+
 function serializedPersistedValue(name: string, value: unknown): string | undefined {
-  return JSON.stringify(name === 'name' && typeof value === 'string' ? value.trim() : value)
+  return serializedFormValue(name, name === 'name' && typeof value === 'string' ? value.trim() : value)
 }
 
 function acknowledgeSavedFields(snapshot: AssistantSaveSnapshot | null, defaults: AssistantEditFormValues) {
@@ -131,7 +139,7 @@ function acknowledgeSavedFields(snapshot: AssistantSaveSnapshot | null, defaults
   if (!snapshot || snapshot.inFlight) return
   for (const [name, value] of Object.entries(snapshot.values)) {
     const key = name as keyof AssistantEditFormValues
-    if (serializedPersistedValue(name, value) === JSON.stringify(defaults[key])) delete snapshot.values[key]
+    if (serializedPersistedValue(name, value) === serializedFormValue(name, defaults[key])) delete snapshot.values[key]
   }
 }
 
@@ -306,10 +314,11 @@ function AssistantEditDialogContent({
             const changedSinceSave =
               submittedValues &&
               key in submittedValues &&
-              JSON.stringify(value) !== JSON.stringify(submittedValues[key])
+              serializedFormValue(name, value) !== serializedFormValue(name, submittedValues[key])
             return (
-              (JSON.stringify(value) !== JSON.stringify(defaultValues[key]) || changedSinceSave) &&
-              serializedPersistedValue(name, value) !== JSON.stringify(nextDefaultValues[key])
+              (serializedFormValue(name, value) !== serializedFormValue(name, defaultValues[key]) ||
+                changedSinceSave) &&
+              serializedPersistedValue(name, value) !== serializedFormValue(name, nextDefaultValues[key])
             )
           })
         )
@@ -356,7 +365,8 @@ function AssistantEditDialogContent({
       values: Object.fromEntries(
         Object.entries(form.getValues()).filter(
           ([name, value]) =>
-            JSON.stringify(value) !== JSON.stringify(defaultValues[name as keyof AssistantEditFormValues])
+            serializedFormValue(name, value) !==
+            serializedFormValue(name, defaultValues[name as keyof AssistantEditFormValues])
         )
       ),
       inFlight: true
