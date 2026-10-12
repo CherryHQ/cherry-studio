@@ -397,11 +397,13 @@ describe('VoiceSessionService file and admission contract', () => {
         { isMainFrame: true, mediaType: 'audio', requestingUrl: 'https://evil.test' }
       ],
       [a.webContents, 'media', trustedUrl, { isMainFrame: true, mediaType: 'video', requestingUrl: trustedUrl }],
-      [a.webContents, 'media', trustedUrl, { isMainFrame: true, requestingUrl: trustedUrl }],
-      [a.webContents, 'notifications', trustedUrl, { isMainFrame: true, requestingUrl: trustedUrl }]
+      [a.webContents, 'media', trustedUrl, { isMainFrame: true, requestingUrl: trustedUrl }]
     ] as const) {
       expect(check(...(args as unknown as Parameters<typeof check>))).toBe(false)
     }
+    expect(check(a.webContents, 'notifications', trustedUrl, { isMainFrame: true, requestingUrl: trustedUrl })).toBe(
+      true
+    )
 
     const allowed = vi.fn()
     request(a.webContents, 'media', allowed, {
@@ -477,13 +479,52 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(check(a.webContents, 'media', trustedUrl, { ...details, mediaType: 'video' })).toBe(false)
     expect(check(a.webContents, 'media', trustedUrl, { ...details, mediaType: undefined })).toBe(false)
     expect(check(a.webContents, 'media', trustedUrl, { ...details, requestingUrl: 'https://evil.test' })).toBe(false)
-    expect(check(a.webContents, 'notifications', trustedUrl, details)).toBe(false)
+    expect(check(a.webContents, 'notifications', trustedUrl, details)).toBe(true)
     expect(check(null, 'media', trustedUrl, details)).toBe(false)
     const destroyed = owner()
     vi.spyOn(destroyed.webContents, 'isDestroyed').mockReturnValue(true)
     expect(check(destroyed.webContents, 'media', trustedUrl, details)).toBe(false)
     managedWindows.delete(a.windowId)
     expect(check(a.webContents, 'media', trustedUrl, details)).toBe(false)
+  })
+
+  it('allows trusted clipboard writes with no recording lease and keeps them independent of recording', async () => {
+    const trustedUrl = pathToFileURL(path.join(root, 'renderer', 'index.html')).href
+    const check = runtime.permissionCheck!
+    const request = runtime.permissionRequest!
+    const trusted = { isMainFrame: true, requestingUrl: trustedUrl }
+    const requested = (
+      contents: VoiceOwner['webContents'],
+      permission: string,
+      details: { isMainFrame: boolean; requestingUrl: string }
+    ) => {
+      let allowed: boolean | undefined
+      request(contents, permission, (result: boolean) => (allowed = result), details)
+      return allowed
+    }
+    const expectClipboard = (allowed: boolean) => {
+      expect(check(a.webContents, 'clipboard-sanitized-write', trustedUrl, trusted)).toBe(allowed)
+      expect(requested(a.webContents, 'clipboard-sanitized-write', trusted)).toBe(allowed)
+    }
+
+    expectClipboard(true)
+    expect(check(a.webContents, 'deprecated-sync-clipboard-read', trustedUrl, trusted)).toBe(false)
+    expect(requested(a.webContents, 'deprecated-sync-clipboard-read', trusted)).toBe(false)
+    const untrusted = { isMainFrame: true, requestingUrl: 'https://evil.test' }
+    expect(check(a.webContents, 'clipboard-sanitized-write', untrusted.requestingUrl, untrusted)).toBe(false)
+    expect(requested(a.webContents, 'clipboard-sanitized-write', untrusted)).toBe(false)
+    const frame = { ...trusted, isMainFrame: false }
+    expect(check(a.webContents, 'clipboard-sanitized-write', trustedUrl, frame)).toBe(false)
+    expect(requested(a.webContents, 'clipboard-sanitized-write', frame)).toBe(false)
+    expect(check(null, 'clipboard-sanitized-write', trustedUrl, trusted)).toBe(false)
+
+    const sessionId = randomUUID()
+    await service.startRecording(a, { sessionId, requestId: randomUUID(), source: 'dictation' })
+    expectClipboard(true)
+    await service.discard(a, sessionId)
+    expectClipboard(true)
+    expect(check(a.webContents, 'deprecated-sync-clipboard-read', trustedUrl, trusted)).toBe(false)
+    expect(requested(a.webContents, 'deprecated-sync-clipboard-read', trusted)).toBe(false)
   })
 
   it('queries microphone status without prompting and opens only fixed platform settings', async () => {
