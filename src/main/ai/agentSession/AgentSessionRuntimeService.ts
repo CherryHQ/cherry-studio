@@ -2119,7 +2119,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
 
-    this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId, flowOwnerToolCallId)
+    this.enqueueBackgroundFlowChunk(entry, messageId, chunk, flowOwnerToolCallId)
   }
 
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
@@ -2128,8 +2128,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!pending?.length) return
 
     entry.pendingBackgroundFlowChunks?.delete(messageId)
-    for (const { chunk, rootToolCallId, flowOwnerToolCallId } of pending)
-      this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId, flowOwnerToolCallId)
+    for (const { chunk, flowOwnerToolCallId } of pending)
+      this.enqueueBackgroundFlowChunk(entry, messageId, chunk, flowOwnerToolCallId)
     if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) void this.finishBackgroundFlows(entry)
   }
 
@@ -2137,7 +2137,6 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     messageId: string,
     chunk: UIMessageChunk,
-    routedRootToolCallId: string,
     flowOwnerToolCallId: string
   ): void {
     let accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
