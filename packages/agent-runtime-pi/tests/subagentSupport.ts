@@ -86,9 +86,9 @@ export function outputText(output: unknown): string {
   return typeof value === 'string' ? value : JSON.stringify(output)
 }
 
-/** The result Pi recorded for a tool call in a session. */
+/** The latest result Pi recorded for a tool call in a session (providers may reuse call ids). */
 export function toolResultOf(session: AgentSession, toolCallId: string): ToolResultMessage {
-  const result = session.messages.find(
+  const result = session.messages.findLast(
     (message): message is ToolResultMessage => message.role === 'toolResult' && message.toolCallId === toolCallId
   )
   if (!result) throw new Error(`no result for ${toolCallId}`)
