@@ -2,9 +2,11 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import type { ReactNode } from 'react'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@renderer/data/DataApiService'
 import { createSWRTestWrapper } from '@renderer/data/hooks/__tests__/testUtils'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { UpdateAssistantSchema, type UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { DataApiDataChangeEffect, DataRequest } from '@shared/data/api/types'
 import { type Assistant, AssistantSchema, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -116,7 +118,9 @@ describe('assistant relation reconciliation through the production editor', () =
     // JSDOM does not implement scrolling used by the real catalog command list.
     HTMLElement.prototype.scrollIntoView = () => {}
     await i18next.changeLanguage('en-us')
+    dataApiService.configureRetry({ retryDelay: 1 })
   })
+  afterAll(() => dataApiService.configureRetry({ retryDelay: 1000 }))
   afterEach(cleanup)
   beforeEach(() => {
     persisted = AssistantSchema.parse({
@@ -160,6 +164,88 @@ describe('assistant relation reconciliation through the production editor', () =
       return { id: request.id, status: 200, data: structuredClone(data) }
     })
   })
+
+  it.each([
+    { field: 'mcpServerIds' as const, laterObservation: false },
+    { field: 'knowledgeBaseIds' as const, laterObservation: false },
+    { field: 'mcpServerIds' as const, laterObservation: true },
+    { field: 'knowledgeBaseIds' as const, laterObservation: true }
+  ])(
+    'keeps the latest bindings after a retried $field write (later observation: $laterObservation)',
+    async ({ field, laterObservation }) => {
+      const request = bridge.request.getMockImplementation()!
+      let first = true
+      let started = false
+      let committed = false
+      let failDetail = false
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let releaseCommit!: () => void
+      const committedGate = new Promise<void>((resolve) => {
+        releaseCommit = resolve
+      })
+      bridge.request.mockImplementation(async (input: DataRequest) => {
+        if (input.method === 'PATCH') {
+          if (first) {
+            first = false
+            started = true
+            await gate
+            return {
+              id: input.id,
+              status: 500,
+              error: DataApiErrorFactory.internal(new Error('Not committed')).toJSON()
+            }
+          }
+          failDetail = true
+          committed = true
+          persisted = { ...persisted, updatedAt: '2026-10-12T00:00:02.000Z' }
+        }
+        if (input.method === 'GET' && input.path === `/assistants/${assistantId}` && failDetail)
+          return {
+            id: input.id,
+            status: 500,
+            error: DataApiErrorFactory.internal(new Error('Read unavailable')).toJSON()
+          }
+        const response = await request(input)
+        if (input.method === 'PATCH' && laterObservation) await committedGate
+        return response
+      })
+      await openEditor(field)
+      await toggle(field, 'B', true)
+      try {
+        await waitFor(() => expect(started).toBe(true))
+        persisted = { ...persisted, description: 'Remote', updatedAt: '2026-10-12T00:00:01.000Z' }
+        await act(async () => emit())
+        await settleAutoSave()
+      } finally {
+        await act(async () => release())
+      }
+      await waitFor(() => expect(committed).toBe(true))
+      try {
+        if (laterObservation) {
+          failDetail = false
+          persisted = { ...persisted, [field]: [...ids], updatedAt: '2026-10-12T00:00:03.000Z' }
+          await act(async () => emit())
+          await settleAutoSave()
+        }
+      } finally {
+        await act(async () => releaseCommit())
+      }
+      await settleAutoSave()
+      expect(persisted[field]).toEqual(laterObservation ? ids : [ids[0], ids[1]])
+      await expectLinked(field, 'B')
+      if (laterObservation) await expectLinked(field, 'C')
+      failDetail = false
+      persisted = { ...persisted, [field]: [...ids], updatedAt: '2026-10-12T00:00:03.000Z' }
+      await act(async () => emit())
+      await settleAutoSave()
+      await expectLinked(field, 'C')
+      expect(persisted[field]).toEqual(ids)
+      expect(patches).toEqual([{ [field]: [ids[0], ids[1]] }])
+    }
+  )
 
   it.each<RelationField>(['mcpServerIds', 'knowledgeBaseIds'])(
     'accepts an external addition after canonical reordering of %s',

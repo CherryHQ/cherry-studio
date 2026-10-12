@@ -548,6 +548,8 @@ export class AssistantDataService {
     if (!hasColumnUpdates && !hasRelationUpdates) {
       return current
     }
+    // Junction writes also modify the aggregate; let the row's timestamp helper record them.
+    if (!hasColumnUpdates) updates.settings = current.settings
 
     const nextRelations: AssistantRelationIds = {
       mcpServerIds: mcpServerIds ?? current.mcpServerIds,
@@ -570,22 +572,9 @@ export class AssistantDataService {
         this.validateAssistantGroupTx(tx, dto.groupId)
       }
 
-      let next: AssistantRow
-      if (hasColumnUpdates) {
-        const [updated] = tx.update(assistantTable).set(updates).where(aliveFilter).returning().all()
-        if (!updated) {
-          throw DataApiErrorFactory.notFound('Assistant', id)
-        }
-        next = updated
-      } else {
-        // Relation-only edits still need the same liveness guard,
-        // otherwise a concurrent soft-delete would let us write junction rows
-        // against a deleted assistant.
-        const [existing] = tx.select().from(assistantTable).where(aliveFilter).limit(1).all()
-        if (!existing) {
-          throw DataApiErrorFactory.notFound('Assistant', id)
-        }
-        next = existing
+      const [next] = tx.update(assistantTable).set(updates).where(aliveFilter).returning().all()
+      if (!next) {
+        throw DataApiErrorFactory.notFound('Assistant', id)
       }
 
       // Sync junction table rows if relation fields are provided
@@ -607,12 +596,9 @@ export class AssistantDataService {
       membership: [
         ...(searchChanged ? [dimensions.membership.search] : []),
         ...(dto.groupId !== undefined && dto.groupId !== current.groupId ? [dimensions.membership.groupId] : []),
-        ...(hasColumnUpdates ? [dimensions.membership.updatedAtFrom] : [])
+        dimensions.membership.updatedAtFrom
       ],
-      order: [
-        ...(nameChanged ? [dimensions.order.name] : []),
-        ...(hasColumnUpdates ? [dimensions.order.updatedAt] : [])
-      ]
+      order: [...(nameChanged ? [dimensions.order.name] : []), dimensions.order.updatedAt]
     })
 
     return rowToAssistant(row, nextRelations, modelName)

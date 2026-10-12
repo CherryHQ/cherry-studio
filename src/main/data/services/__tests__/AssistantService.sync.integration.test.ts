@@ -2,6 +2,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { assistantDataService } from '@data/services/AssistantService'
 import { groupService } from '@data/services/GroupService'
 import { ASSISTANT_DATA_CHANGE_DIMENSIONS, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
@@ -65,6 +67,55 @@ describe('assistant post-commit read-model notifications', () => {
     expect(observedNames).toContain('Renamed')
     expect(assistantDataService.getById(source.id).settings.temperature).toBe(0.3)
   })
+
+  it.each(['mcpServerIds', 'knowledgeBaseIds'] as const)(
+    'updates aggregate freshness and query facets after %s writes',
+    (field) => {
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(5000)
+      try {
+        const source = assistantDataService.create({ name: 'Source', modelId: null })
+        const other = assistantDataService.create({ name: 'Other', modelId: null })
+        const id = '10000000-0000-4000-8000-000000000001'
+        if (field === 'mcpServerIds') dbh.db.insert(mcpServerTable).values({ id, name: 'MCP' }).run()
+        else
+          dbh.db
+            .insert(knowledgeBaseTable)
+            .values({ id, name: 'Knowledge', status: 'completed', chunkSize: 1024, chunkOverlap: 200 })
+            .run()
+        clock.mockReturnValue(5010)
+        assistantDataService.update(source.id, { description: 'Remote' })
+        clock.mockReturnValue(5017)
+        assistantDataService.update(other.id, { description: 'Other' })
+        effects = []
+        const query = ListAssistantsQuerySchema.parse({ updatedAtFrom: new Date(5015).toISOString() })
+        expect(assistantDataService.list(query).items.map((item) => item.id)).toEqual([other.id])
+        clock.mockReturnValue(5020)
+        const result = assistantDataService.update(source.id, { [field]: [id] })
+        expect(result.updatedAt).toBe(new Date(5020).toISOString())
+        expect(assistantDataService.getById(source.id)[field]).toEqual([id])
+        expect(
+          assistantDataService
+            .list(query)
+            .items.map((item) => item.id)
+            .sort()
+        ).toEqual([source.id, other.id].sort())
+        const sorted = assistantDataService.list(
+          ListAssistantsQuerySchema.parse({ sortBy: 'updatedAt', sortOrder: 'desc' })
+        )
+        expect(sorted.items[0]?.id).toBe(source.id)
+        assertFacet(source.id, 'membership', 'updatedAtFrom')
+        assertFacet(source.id, 'order', 'updatedAt')
+        effects = []
+        clock.mockReturnValue(5030)
+        expect(() => assistantDataService.update(source.id, { [field]: ['missing'] })).toThrow()
+        expect(assistantDataService.getById(source.id).updatedAt).toBe(result.updatedAt)
+        expect(assistantDataService.getById(source.id)[field]).toEqual([id])
+        expect(effects).toEqual([])
+      } finally {
+        clock.mockRestore()
+      }
+    }
+  )
 
   it('publishes group membership without claiming a name-order change', () => {
     const group = groupService.create({ entityType: 'assistant', name: 'Destination' })
