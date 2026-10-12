@@ -17,7 +17,7 @@ import { claudeBinaryTarget, ClaudeCodeBinaryService } from '../ClaudeCodeBinary
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromises>()
-  return { ...actual, rm: vi.fn(actual.rm) }
+  return { ...actual, rm: vi.fn(actual.rm), mkdtemp: vi.fn(actual.mkdtemp) }
 })
 
 vi.mock('../binaryManifest', () => ({ claudeCodeBinaryManifest: { version: '1.2.3', packages: {} } }))
@@ -303,6 +303,14 @@ describe('Claude runtime acquisition', () => {
   it('does not download an unsupported architecture', () => {
     claudeCodeBinaryManifest.packages = {}
     expect(service.ensure()).toMatchObject({ phase: 'error', error: 'unsupported' })
+    expect(() => service.requireExecutable()).toThrow()
+    expect(vi.mocked(net.fetch).mock.calls).toHaveLength(0)
+  })
+
+  it.each(['ENOENT', 'EINVAL', 'EEXIST'])('reports staging directory failures as storage errors (%s)', async (code) => {
+    vi.mocked(mkdtemp).mockRejectedValueOnce(Object.assign(new Error('Cannot create staging directory'), { code }))
+    service.ensure()
+    expect(await settled()).toMatchObject({ phase: 'error', error: 'storage' })
     expect(() => service.requireExecutable()).toThrow()
     expect(vi.mocked(net.fetch).mock.calls).toHaveLength(0)
   })

@@ -105,13 +105,15 @@ export class ClaudeCodeBinaryService extends BaseService {
         this.publish({
           phase: 'error',
           receivedBytes: this.status.receivedBytes,
-          error: ['ENOSPC', 'EACCES', 'EPERM', 'EROFS', 'EIO', 'ENOTDIR'].includes(code ?? '')
-            ? 'storage'
-            : error instanceof BinaryIntegrityError
-              ? 'integrity'
-              : this.status.phase === 'installing'
-                ? 'installation'
-                : 'network'
+          error:
+            error instanceof BinaryStorageError ||
+            ['ENOSPC', 'EACCES', 'EPERM', 'EROFS', 'EIO', 'ENOTDIR'].includes(code ?? '')
+              ? 'storage'
+              : error instanceof BinaryIntegrityError
+                ? 'integrity'
+                : this.status.phase === 'installing'
+                  ? 'installation'
+                  : 'network'
         })
       })
       .finally(() => {
@@ -128,7 +130,9 @@ export class ClaudeCodeBinaryService extends BaseService {
 
   private async install(signal: AbortSignal): Promise<void> {
     const root = application.getPath('feature.claude_code.binary')
-    const staging = await mkdtemp(path.join(root, '.download-'))
+    const staging = await mkdtemp(path.join(root, '.download-')).catch((error) => {
+      throw new BinaryStorageError('Could not create runtime staging directory', { cause: error })
+    })
     try {
       const pkg = manifest.packages[this.target]
       const china = await regionService.isInChina(signal)
@@ -250,3 +254,4 @@ export class ClaudeCodeBinaryService extends BaseService {
 }
 
 class BinaryIntegrityError extends Error {}
+class BinaryStorageError extends Error {}
