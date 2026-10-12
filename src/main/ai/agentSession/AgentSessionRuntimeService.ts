@@ -969,9 +969,36 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'failed':
         // The retained connection can no longer be trusted (owner gone, or a failed tighten may
         // have left the old policy live) — fail closed on it without touching the entry's turn.
-        this.closeConnectionAsync(entry)
+        this.closeRetainedConnection(entry)
         return
     }
+  }
+
+  /**
+   * Fail-closed teardown of a connection retained past a top-bar switch. Closing it releases the
+   * retained agent's autonomous reply (`ownership: 'released'`), but a release alone is not a
+   * settlement: `resumeAfterAutonomous` needs a persistence-confirmed status, and whatever the reply
+   * was streaming died with the connection, so its row would stay `pending` and the next turn's
+   * deferred input would never resume. Terminalize the interrupted reply first so the deferred input
+   * is handed back.
+   */
+  private closeRetainedConnection(entry: AgentSessionRuntimeEntry): void {
+    const interrupted = this.interruptAutonomousReply(entry)
+    this.closeConnectionAsync(entry)
+    if (interrupted) this.markTurnTerminal(entry.sessionId, 'paused', interrupted.turnId)
+  }
+
+  /**
+   * The retained connection is about to die, so the autonomous reply streaming on it can never
+   * settle on its own. Record the interruption through the machine and return that reply's identity:
+   * its stream is closed (the persistence listener's terminal callback for the dead stream is what
+   * must not be waited for), and the caller marks it terminal so `resumeAfterAutonomous` can hand
+   * the deferred input back.
+   */
+  private interruptAutonomousReply(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
+    if (!isAgentSessionRuntimeAutonomous(entry.runtimeState)) return undefined
+    this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
+    return this.currentTurn(entry)
   }
 
   /**
