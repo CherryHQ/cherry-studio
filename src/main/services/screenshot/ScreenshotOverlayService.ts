@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 
 import dayjs from 'dayjs'
@@ -121,6 +122,38 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Monotonic session id; a callback carrying an older one must not act. */
   private sessionGeneration = 0
+  private chatTargets = new Map<WindowId, string>()
+  private captureChatTarget: { windowId: WindowId; scopeKey: string } | null = null
+
+  public setChatTarget(windowId: WindowId, scopeKey: string | null): void {
+    if (scopeKey === null) this.chatTargets.delete(windowId)
+    else this.chatTargets.set(windowId, scopeKey)
+  }
+
+  public sendToChat(result: ScreenshotResultData & { text: string }): void {
+    const target = this.captureChatTarget
+    const window = target && application.get('WindowManager').getWindow(target.windowId)
+    if (!target || !window || window.isDestroyed() || this.chatTargets.get(target.windowId) !== target.scopeKey) {
+      throw new Error('The capture chat is no longer available')
+    }
+    if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
+      throw new Error('The screenshot could not be decoded')
+    }
+    const name = `screenshot_${dayjs().format('YYYYMMDD_HHmmss')}.png`
+    const path = application.getPath('app.temp', `${randomUUID()}_${name}`)
+    writeFileSync(path, result.pngBytes)
+    application.get('IpcApiService').send(target.windowId, 'screenshot.chat_attachment', {
+      path,
+      name,
+      size: result.pngBytes.byteLength,
+      text: result.text,
+      scopeKey: target.scopeKey
+    })
+    this.dismiss()
+    if (window.isMinimized()) window.restore()
+    window.show()
+    window.focus()
+  }
 
   /** Overlays whose renderer reported a painted frame. Gates the Escape rescue below. */
   private renderersReady = new Set<WindowId>()
@@ -204,6 +237,7 @@ export class ScreenshotOverlayService extends BaseService {
 
   protected onDestroy(): void {
     this.dismiss()
+    this.chatTargets.clear()
   }
 
   /**
@@ -213,7 +247,7 @@ export class ScreenshotOverlayService extends BaseService {
    * screen, when the feature is off, or when screen recording is not granted (guiding
    * the user instead).
    */
-  public async startCapture(): Promise<void> {
+  public async startCapture(sourceWindowId?: WindowId): Promise<void> {
     // `capturing` carries the guard across the capture await, during which
     // `overlayWindowIds` is still empty and a second hotkey press would otherwise pass.
     if (this.capturing || this.overlayWindowIds.length > 0) return
@@ -232,6 +266,18 @@ export class ScreenshotOverlayService extends BaseService {
       // Advance only once a session is definitely starting: bumping it above the guards
       // would let a blocked second attempt freeze the FIRST session's overlays at opacity 0.
       const generation = ++this.sessionGeneration
+      const manager = application.get('WindowManager')
+      const focusedWindow = BrowserWindow.getFocusedWindow()
+      const preferredId = sourceWindowId ?? (focusedWindow && manager.getWindowId(focusedWindow))
+      const targetId =
+        preferredId && this.chatTargets.has(preferredId)
+          ? preferredId
+          : sourceWindowId
+            ? undefined
+            : [...this.chatTargets.keys()]
+                .reverse()
+                .find((id) => manager.getWindow(id) && !manager.getWindow(id)?.isDestroyed())
+      this.captureChatTarget = targetId ? { windowId: targetId, scopeKey: this.chatTargets.get(targetId)! } : null
 
       const t0 = performance.now()
       this.overlaysCreated = 0
@@ -299,6 +345,7 @@ export class ScreenshotOverlayService extends BaseService {
           const windowId = windowManager.open<ScreenshotInitData>(WindowType.Screenshot, {
             options: bounds,
             initData: {
+              canSendToChat: this.captureChatTarget !== null,
               imageUrl: mediaProtocol.getUrl(MediaKind.Image, mediaId),
               mediaId,
               display: {
@@ -721,6 +768,7 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Release every session resource. Pairs with, but is not a substitute for, closing the windows. */
   private cleanup(): void {
+    this.captureChatTarget = null
     // Makes any callback still in flight a no-op; it cannot make timers disappear,
     // which is what the loop below is for.
     this.sessionGeneration++

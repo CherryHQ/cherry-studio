@@ -5,13 +5,14 @@
  * Groups, left to right: annotation tools · undo/redo · OCR affordance · save/cancel/ok.
  */
 
-import { Check, Download, MoveUpRight, Pencil, Redo2, Square, Type, Undo2, X } from 'lucide-react'
+import { Check, Download, MessageSquare, MoveUpRight, Pencil, Redo2, Square, Type, Undo2, X } from 'lucide-react'
 import type { ComponentType, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
-import { memo, useRef } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, NormalTooltip } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { ipcApi } from '@renderer/ipc'
 
 import { PROPERTY_PANEL_HEIGHT, Z_INDEX } from '../constants'
 import type { AnnotationTool, SelectionRect } from '../types'
@@ -27,6 +28,7 @@ interface ToolbarProps {
   onRedo: () => void
   onOk: () => void
   onSave: () => void
+  onSendToChat?: (text: string) => Promise<void>
   onCancel: () => void
   /**
    * OCR affordance, rendered with its own divider when present.
@@ -90,6 +92,7 @@ export const Toolbar = memo(function Toolbar({
   onRedo,
   onOk,
   onSave,
+  onSendToChat,
   onCancel,
   ocrSlot,
   onLayout
@@ -179,6 +182,7 @@ export const Toolbar = memo(function Toolbar({
 
       <ToolbarDivider />
 
+      {onSendToChat && <SendToChat onSend={onSendToChat} />}
       <ToolbarButton icon={<Download className="size-5" />} label={t('screenshot.action.save')} onClick={onSave} />
       <ToolbarButton
         icon={<X className="size-5" />}
@@ -195,6 +199,74 @@ export const Toolbar = memo(function Toolbar({
     </div>
   )
 })
+
+function SendToChat({ onSend }: { onSend: (text: string) => Promise<void> }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [pending, setPending] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const sending = useRef(false)
+
+  useEffect(() => {
+    if (!open) return
+    void ipcApi.request('screenshot.text_editing', { editing: true })
+    return () => {
+      void ipcApi.request('screenshot.text_editing', { editing: false })
+    }
+  }, [open])
+
+  const send = async () => {
+    if (sending.current) return
+    sending.current = true
+    setPending(true)
+    setFailed(false)
+    try {
+      await onSend(text)
+      setOpen(false)
+    } catch {
+      setFailed(true)
+    } finally {
+      sending.current = false
+      setPending(false)
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <NormalTooltip content={t('screenshot.action.send_to_chat')}>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" className="size-8" aria-label={t('screenshot.action.send_to_chat')}>
+            <MessageSquare className="size-5" />
+          </Button>
+        </PopoverTrigger>
+      </NormalTooltip>
+      <PopoverContent
+        align="end"
+        className="space-y-2 p-3"
+        onPointerDown={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}>
+        <Textarea.Input
+          value={text}
+          maxLength={10000}
+          disabled={pending}
+          aria-label={t('screenshot.chat.message')}
+          placeholder={t('screenshot.chat.message')}
+          onValueChange={setText}
+        />
+        {failed && (
+          <p role="alert" className="text-sm text-destructive">
+            {t('common.error')}
+          </p>
+        )}
+        <Button className="w-full" disabled={pending} onClick={() => void send()}>
+          {t('screenshot.action.send_to_chat')}
+        </Button>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 function ToolbarDivider() {
   return <div className="mx-0.5 h-4 w-px bg-muted-foreground/20" />

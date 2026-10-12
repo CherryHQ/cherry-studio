@@ -63,7 +63,7 @@ const electron = vi.hoisted(() => ({
 }))
 vi.mock('electron', () => ({
   app: electron.app,
-  BrowserWindow: { getAllWindows: () => electron.browserWindows },
+  BrowserWindow: { getAllWindows: () => electron.browserWindows, getFocusedWindow: () => null },
   clipboard: electron.clipboard,
   ClipboardItem: class {
     constructor(readonly data: Record<string, Blob>) {}
@@ -120,6 +120,8 @@ function createFakeWindow() {
     hide: vi.fn(),
     focus: vi.fn(),
     isDestroyed: vi.fn(() => false),
+    isMinimized: vi.fn(() => false),
+    restore: vi.fn(),
     isVisible: vi.fn(() => true),
     webContents: new EventEmitter()
   }
@@ -364,6 +366,52 @@ describe('ScreenshotOverlayService', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  describe('chat delivery', () => {
+    it('does not redirect an unregistered source window to another window chat', async () => {
+      singleDisplaySetup()
+      container.windows.set('other-window', createFakeWindow())
+      service.setChatTarget('other-window', 'topic-b')
+      await service.startCapture('source-window')
+      expect(container.openCalls[0].args.initData.canSendToChat).toBe(false)
+      expect(() => service.sendToChat({ pngBytes: PNG_BYTES, text: '' })).toThrow('no longer available')
+      expect(writeFileSyncMock).not.toHaveBeenCalled()
+    })
+
+    it('delivers the annotated PNG and message only to the capture source chat', async () => {
+      singleDisplaySetup()
+      container.windows.set('chat-window', createFakeWindow())
+      service.setChatTarget('chat-window', 'topic-a')
+      await service.startCapture('chat-window')
+      expect(container.openCalls[0].args.initData.canSendToChat).toBe(true)
+      service.sendToChat({ pngBytes: PNG_BYTES, text: 'Explain this' })
+      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'screenshot.chat_attachment')
+      expect(delivery).toEqual([
+        'chat-window',
+        'screenshot.chat_attachment',
+        {
+          path: expect.stringMatching(/screenshot_.*\.png$/),
+          name: expect.stringMatching(/^screenshot_.*\.png$/),
+          size: PNG_BYTES.byteLength,
+          scopeKey: 'topic-a',
+          text: 'Explain this'
+        }
+      ])
+      expect(writeFileSyncMock).toHaveBeenCalledWith(delivery![2].path, PNG_BYTES)
+      expect(container.mediaEntries.size).toBe(0)
+    })
+
+    it('keeps the capture open and does not deliver to a different chat after the target changes', async () => {
+      singleDisplaySetup()
+      container.windows.set('chat-window', createFakeWindow())
+      service.setChatTarget('chat-window', 'topic-a')
+      await service.startCapture('chat-window')
+      service.setChatTarget('chat-window', 'topic-b')
+      expect(() => service.sendToChat({ pngBytes: PNG_BYTES, text: '' })).toThrow('no longer available')
+      expect(writeFileSyncMock).not.toHaveBeenCalled()
+      expect(container.mediaEntries.size).toBe(1)
+    })
   })
 
   describe('session lifecycle', () => {

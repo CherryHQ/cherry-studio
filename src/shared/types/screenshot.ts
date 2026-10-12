@@ -9,6 +9,8 @@ export interface DetectedWindow {
 
 /** Init data handed to one overlay window. */
 export interface ScreenshotInitData {
+  /** Whether this session has an active chat composer to receive its result. */
+  canSendToChat?: boolean
   /** `cherry-media://image/{id}` URL of this display's frozen capture. */
   imageUrl: string
   /** Id of the same entry, so region requests can name it without re-parsing the URL. */

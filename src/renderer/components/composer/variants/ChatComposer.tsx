@@ -1,4 +1,4 @@
-import { Eraser } from 'lucide-react'
+import { Eraser, ScanLine } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -47,12 +47,15 @@ import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import { FILE_TYPE } from '@renderer/types/file'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getComposerShortcutLabel, resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
   isGPT5SeriesReasoningModel,
@@ -71,6 +74,7 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
@@ -502,7 +506,15 @@ const ChatComposerInner = ({
   forceNarrowLayout = false,
   deferQuickPanel = false
 }: ChatComposerInnerProps) => {
+  const { t } = useTranslation()
   const streamScopeKey = topicId ?? scopeKey
+  const [screenshotEnabled] = usePreference('feature.screenshot.enabled')
+  const startScreenshot = useCallback(() => {
+    void ipcApi.request('screenshot.capture').catch((error) => {
+      logger.error('Failed to start screenshot capture', error)
+      toast.error(t('common.error'))
+    })
+  }, [t])
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
   const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
@@ -545,7 +557,6 @@ const ChatComposerInner = ({
   const layerActive = useComposerLayerActive()
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
-  const { t } = useTranslation()
   const chatWrite = useChatWrite()
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
@@ -1293,6 +1304,20 @@ const ChatComposerInner = ({
 
   const rootPanelLeadingItems = useMemo<QuickPanelListItem[]>(() => {
     const items: QuickPanelListItem[] = []
+    if (screenshotEnabled) {
+      const label = t('settings.shortcuts.screenshot_capture')
+      items.push({
+        id: 'composer:screenshot',
+        label,
+        icon: <ScanLine size={16} />,
+        filterText: label,
+        searchAliases: getQuickPanelSearchAliases(t, 'settings.shortcuts.screenshot_capture', [
+          'screenshot',
+          'capture'
+        ]),
+        action: startScreenshot
+      })
+    }
 
     if (hasNewTopicAction) {
       const label = t('chat.conversation.new')
@@ -1310,10 +1335,22 @@ const ChatComposerInner = ({
     }
 
     return items
-  }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
+  }, [addNewTopic, hasNewTopicAction, newTopicDisabled, screenshotEnabled, startScreenshot, t])
   const mcpToolbarActive = isMcpToolbarActive({ scope: TopicType.Chat, assistant })
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(
     () => [
+      ...(screenshotEnabled
+        ? [
+            {
+              id: 'composer:screenshot',
+              label: t('settings.shortcuts.screenshot_capture'),
+              icon: <ScanLine size={18} />,
+              requiresPanel: false,
+              availableWithoutModel: true,
+              onSelect: startScreenshot
+            }
+          ]
+        : []),
       ...(hasNewTopicAction
         ? [
             {
@@ -1357,6 +1394,8 @@ const ChatComposerInner = ({
       hasNewTopicAction,
       mcpToolbarActive,
       newTopicDisabled,
+      screenshotEnabled,
+      startScreenshot,
       t
     ]
   )
@@ -1406,6 +1445,34 @@ const ChatComposerInner = ({
   useComposerQuoteInsertion(actionsRef)
 
   const isActiveTab = useIsActiveTab()
+  useEffect(() => {
+    if (!isActiveTab || !layerActive) return
+    void ipcApi.request('screenshot.chat_target', { scopeKey: streamScopeKey }).catch((error) => {
+      logger.error('Failed to register screenshot chat target', error)
+    })
+    return () => {
+      void ipcApi.request('screenshot.chat_target', { scopeKey: null }).catch((error) => {
+        logger.error('Failed to clear screenshot chat target', error)
+      })
+    }
+  }, [isActiveTab, layerActive, streamScopeKey])
+  useIpcOn('screenshot.chat_attachment', ({ path, name, size, text: message, scopeKey: targetScopeKey }) => {
+    if (!isActiveTab || !layerActive || targetScopeKey !== streamScopeKey) return
+    setFiles((previous) => [
+      ...previous,
+      {
+        fileTokenSourceId: createComposerFileTokenSourceId(),
+        path: AbsoluteFilePathSchema.parse(path),
+        name,
+        origin_name: name,
+        ext: '.png',
+        size,
+        type: FILE_TYPE.IMAGE
+      }
+    ])
+    if (message) actionsRef.current.onTextChange((previous) => (previous ? `${previous}\n${message}` : message))
+    actionsRef.current.focus('end')
+  })
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
   useCommandHandler('chat.context.toggle_new', () => void handleStartNewContext(), {
     enabled: isActiveTab && Boolean(chatWrite) && !clearContextDisabled

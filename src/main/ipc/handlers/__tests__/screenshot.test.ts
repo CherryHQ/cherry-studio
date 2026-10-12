@@ -11,6 +11,7 @@ const overlayService = {
   startCapture: vi.fn(),
   commit: vi.fn(),
   save: vi.fn(async () => {}),
+  sendToChat: vi.fn(),
   dismiss: vi.fn(),
   markOverlayActive: vi.fn(),
   focusOverlay: vi.fn(),
@@ -70,6 +71,11 @@ describe('screenshotHandlers', () => {
     it('save refuses an overlay that is no longer the active one', async () => {
       await guardedRoutes['screenshot.save']()
       expect(overlayService.save).not.toHaveBeenCalled()
+    })
+
+    it('cannot send a stale overlay image to chat', async () => {
+      await screenshotHandlers['screenshot.send_to_chat']({ ...captureResult, text: 'message' }, ctx('overlay-a'))
+      expect(overlayService.sendToChat).not.toHaveBeenCalled()
     })
 
     it('recognize_text refuses an overlay that is no longer the active one', async () => {

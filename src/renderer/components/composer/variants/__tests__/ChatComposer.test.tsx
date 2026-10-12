@@ -148,7 +148,17 @@ const modelBWithFunctionCall = {
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 // Send-time attachment metadata (buildFileParts) resolves through IpcApi.
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock },
+  useIpcOn: (event: string, callback: (payload: unknown) => void) => {
+    useEffect(() => {
+      mocks.eventListeners.set(event, callback)
+      return () => {
+        mocks.eventListeners.delete(event)
+      }
+    }, [event, callback])
+  }
+}))
 
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
@@ -814,6 +824,39 @@ describe('ChatComposer', () => {
 
   afterEach(() => {
     globalThis.ResizeObserver = originalResizeObserver
+  })
+
+  it('appends a screenshot and its message to the draft without sending', async () => {
+    const onSend = vi.fn()
+    const metadata = {
+      path: 'C:/screenshots/capture.png',
+      name: 'capture.png',
+      origin_name: 'capture.png',
+      ext: '.png',
+      size: 42,
+      type: 'image'
+    }
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+    act(() => mocks.surfaceProps?.onTextChange('Existing draft'))
+    await act(async () => {
+      mocks.eventListeners.get('screenshot.chat_attachment')?.({
+        ...metadata,
+        text: 'Explain this',
+        scopeKey: topic.id
+      })
+    })
+    expect(mocks.surfaceProps?.text).toBe('Existing draft\nExplain this')
+    expect(mocks.files).toEqual([expect.objectContaining({ path: metadata.path, type: 'image' })])
+    expect(onSend).not.toHaveBeenCalled()
+    await act(async () => {
+      mocks.eventListeners.get('screenshot.chat_attachment')?.({
+        path: metadata.path,
+        text: 'Wrong chat',
+        scopeKey: 'another-topic'
+      })
+    })
+    expect(mocks.surfaceProps?.text).toBe('Existing draft\nExplain this')
+    expect(mocks.files).toHaveLength(1)
   })
 
   it('puts the tool menu at the far right of the left toolbar in the modern layout', () => {

@@ -211,7 +211,7 @@ const CaptureOverlay: FC = () => {
   }, [])
 
   const handleExport = useCallback(
-    async (action: 'commit' | 'save') => {
+    async (action: 'commit' | 'save' | 'chat', text = '') => {
       if (!imageRef.current || !state.selection || !initData) return
       try {
         const pngBytes = await generateSelectionPng(
@@ -220,9 +220,11 @@ const CaptureOverlay: FC = () => {
           initData.display.scaleFactor,
           annotationCanvasRef.current
         )
-        await ipcApi.request(action === 'commit' ? 'screenshot.commit' : 'screenshot.save', { pngBytes })
+        if (action === 'chat') await ipcApi.request('screenshot.send_to_chat', { pngBytes, text })
+        else await ipcApi.request(action === 'commit' ? 'screenshot.commit' : 'screenshot.save', { pngBytes })
       } catch (error) {
         logger.error('Failed to export the selection', error as Error)
+        if (action === 'chat') throw error
       }
     },
     [state.selection, initData]
@@ -230,6 +232,7 @@ const CaptureOverlay: FC = () => {
 
   const handleOk = useCallback(() => void handleExport('commit'), [handleExport])
   const handleSave = useCallback(() => void handleExport('save'), [handleExport])
+  const handleSendToChat = useCallback((text: string) => handleExport('chat', text), [handleExport])
   const handleCancel = useCallback(() => {
     void ipcApi.request('screenshot.cancel')
   }, [])
@@ -290,6 +293,7 @@ const CaptureOverlay: FC = () => {
           onFirstPaint={handleFirstPaint}
           onOk={handleOk}
           onSave={handleSave}
+          onSendToChat={initData.canSendToChat ? handleSendToChat : undefined}
           onCancel={handleCancel}
         />
       )}
@@ -314,6 +318,7 @@ function OverlayContent({
   onFirstPaint,
   onOk,
   onSave,
+  onSendToChat,
   onCancel
 }: {
   image: HTMLImageElement
@@ -331,6 +336,7 @@ function OverlayContent({
   onFirstPaint: () => void
   onOk: () => void
   onSave: () => void
+  onSendToChat?: (text: string) => Promise<void>
   onCancel: () => void
 }) {
   const fullDisplayRect = useMemo<SelectionRect>(
@@ -469,6 +475,7 @@ function OverlayContent({
           onRedo={annotation.redo}
           onOk={onOk}
           onSave={onSave}
+          onSendToChat={onSendToChat}
           onCancel={onCancel}
           onLayout={setToolbarLayout}
           ocrSlot={
