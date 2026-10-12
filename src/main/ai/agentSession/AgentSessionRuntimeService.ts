@@ -130,6 +130,8 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
+/** How long the handoff waits for the approved plan tool's result to reach persistence. */
+const PLAN_TOOL_SETTLE_TIMEOUT_MS = 5_000
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -1560,7 +1562,10 @@ export class AgentSessionRuntimeService extends BaseService {
     // A `message` presentation is the requesting agent outliving its parent turn (background work or
     // subagents); its session entry also carries unrelated turns, so a handoff would stop them too.
     if (dispatched.presentation !== 'stream') return { dispatched: true, handoff: 'refused' }
-    return { dispatched: true, handoff: this.stopTurnForModelHandoff(dispatched.sessionId, executionModelId) }
+    return {
+      dispatched: true,
+      handoff: this.stopTurnForModelHandoff(dispatched.sessionId, executionModelId, dispatched.toolCallId)
+    }
   }
 
   /**
@@ -1573,7 +1578,11 @@ export class AgentSessionRuntimeService extends BaseService {
    * instead of re-arming it. `already-current` when the turn runs that model already; `refused`
    * when there is no live turn to stop — the caller must not report a handoff that cannot happen.
    */
-  private stopTurnForModelHandoff(sessionId: string, executionModelId: string): PlanModelHandoffResult {
+  private stopTurnForModelHandoff(
+    sessionId: string,
+    executionModelId: string,
+    toolCallId: string
+  ): PlanModelHandoffResult {
     const entry = this.entries.get(sessionId)
     // Without a live turn nothing can be restarted, and closing the session would tear down
     // unrelated work for a handoff that can never happen.
@@ -1590,9 +1599,30 @@ export class AgentSessionRuntimeService extends BaseService {
     // The approved exit must survive the teardown below: the follow-up turn reconnects with plan
     // still folded inactive (mutation tools admitted), not re-armed plan mode.
     this.planExitedSessions.add(sessionId)
-    application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
-    void this.closeSession(sessionId)
+    void this.stopApprovedPlanTurn(entry, turn, toolCallId)
     return 'started'
+  }
+
+  /**
+   * Tear the approved plan's turn down once the plan tool's successful result settles in the
+   * persistence accumulator (the approval dispatch resolved its continuation, so the result is on
+   * its way). Pausing first shuts the stream before the result lands, and persistence saves the
+   * approved plan as `output-error` "Interrupted by user". The wait is bounded: a result that never
+   * comes really was interrupted, so the teardown proceeds and that record stands.
+   */
+  private async stopApprovedPlanTurn(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    toolCallId: string
+  ): Promise<void> {
+    const streamManager = application.get('AiStreamManager')
+    await streamManager.awaitToolSettled(entry.topicId, toolCallId, PLAN_TOOL_SETTLE_TIMEOUT_MS)
+    // The entry may have closed (or been replaced) while the result settled — this approval must
+    // never pause a successor turn's stream.
+    if (!this.isCurrentEntry(entry)) return
+    if (this.liveTurn(entry) && this.liveTurn(entry) !== turn) return
+    streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
+    await this.closeSession(entry.sessionId)
   }
 
   /**
