@@ -53,6 +53,14 @@ Before each update check, the client preserves existing updater headers and sets
 
 The selected electron-updater channel determines which edition-specific manifest the client requests; no separate release-channel header is sent.
 
+## Differential Downloads
+
+NSIS builds generate differential packages and companion `.blockmap` assets. The existing release workflow uploads these assets and mirrors them to GitCode alongside the installers. Global, China edition and development generic feeds use single-range requests (`useMultipleRangeRequest: false`); HTTP 206 support does not imply multipart-range support.
+
+The client enables electron-updater's native differential downloader while keeping the existing managed feed, target-version selection and regional mirror routing. Where the platform updater supports differential downloading, it reuses its cached base and fetches changed ranges to reconstruct a complete package. Missing blockmaps, missing base packages or differential download errors fall back to the updater's full download path. Existing installations without usable base metadata may need a full update before benefiting from differential downloads.
+
+Both old and new version blockmap URLs must remain available through the existing download routes. Validate redirects and Range responses on GitHub and GitCode before rollout; an installer accepting Range requests alone is insufficient. This change reduces download traffic, not the full extraction/replacement work performed after application exit. It does not change installer identity, data migration or the explicit installation action.
+
 ## Check Lifecycle
 
 Manual checks are available in development and packaged, non-portable builds. Portable builds do not perform update checks. Packaged, non-portable builds also schedule automatic checks in the main process. Successful checks return to the normal cadence, while failed scheduled checks use exponential backoff before retrying. Update events and download progress continue to reach the main window through IpcApi.

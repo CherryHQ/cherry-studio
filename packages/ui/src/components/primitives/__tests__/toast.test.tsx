@@ -131,6 +131,40 @@ describe('Toast', () => {
     expect(onAction).toHaveBeenCalledTimes(1)
   })
 
+  it('runs the secondary action without disturbing the primary one, then dismisses the toast', async () => {
+    // The archive action navigates instead of restoring, so it must not also fire the
+    // primary action or the toast's own click handler.
+    const user = userEvent.setup()
+    const onSecondaryAction = vi.fn(() => {
+      expect(toast.getToastQueue().toasts).toHaveLength(0)
+    })
+    const onAction = vi.fn()
+    const onToastClick = vi.fn()
+
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.success({
+        action: { label: 'Undo', onClick: onAction },
+        key: 'archived-item',
+        onClick: onToastClick,
+        secondaryAction: { label: 'View in Archive', onClick: onSecondaryAction },
+        title: 'Archived Draft'
+      })
+    })
+
+    const secondaryButton = screen.getByRole('button', { name: 'View in Archive' })
+
+    expect(secondaryButton).toHaveAttribute('data-variant', 'link')
+
+    await user.click(secondaryButton)
+
+    expect(onSecondaryAction).toHaveBeenCalledTimes(1)
+    expect(onAction).not.toHaveBeenCalled()
+    expect(onToastClick).not.toHaveBeenCalled()
+    expect(screen.queryByText('Archived Draft')).not.toBeInTheDocument()
+  })
+
   it('aligns actionable toast controls to the primary content row', () => {
     render(<ToastViewport />)
 
