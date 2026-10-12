@@ -117,6 +117,8 @@ import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMent
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('ChatComposer')
+// Only one capture session can exist. Keep its receipt across composer remounts in this window.
+let acceptedScreenshotDeliveryId: string | undefined
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
   'file'
@@ -1445,9 +1447,14 @@ const ChatComposerInner = ({
   useComposerQuoteInsertion(actionsRef)
 
   const isActiveTab = useIsActiveTab()
+  const editingSessionId = editingMessageForCurrentTopic?.editingSessionId
+  const screenshotTarget = useMemo(
+    () => JSON.stringify([streamScopeKey, editingSessionId, isActiveTab, layerActive, crypto.randomUUID()]),
+    [streamScopeKey, editingSessionId, isActiveTab, layerActive]
+  )
   useEffect(() => {
     if (!isActiveTab || !layerActive) return
-    void ipcApi.request('screenshot.chat_target', { scopeKey: streamScopeKey }).catch((error) => {
+    void ipcApi.request('screenshot.chat_target', { scopeKey: screenshotTarget }).catch((error) => {
       logger.error('Failed to register screenshot chat target', error)
     })
     return () => {
@@ -1455,24 +1462,46 @@ const ChatComposerInner = ({
         logger.error('Failed to clear screenshot chat target', error)
       })
     }
-  }, [isActiveTab, layerActive, streamScopeKey])
-  useIpcOn('screenshot.chat_attachment', ({ path, name, size, text: message, scopeKey: targetScopeKey }) => {
-    if (!isActiveTab || !layerActive || targetScopeKey !== streamScopeKey) return
-    setFiles((previous) => [
-      ...previous,
-      {
-        fileTokenSourceId: createComposerFileTokenSourceId(),
-        path: AbsoluteFilePathSchema.parse(path),
-        name,
-        origin_name: name,
-        ext: '.png',
-        size,
-        type: FILE_TYPE.IMAGE
+  }, [isActiveTab, layerActive, screenshotTarget])
+  useIpcOn(
+    'screenshot.chat_attachment',
+    ({ deliveryId, path, name, size, text: message, scopeKey: targetScopeKey }) => {
+      const report = (accepted: boolean) => {
+        void ipcApi.request('screenshot.chat_received', { deliveryId, accepted }).catch((error) => {
+          logger.error('Failed to acknowledge screenshot delivery', error)
+        })
       }
-    ])
-    if (message) actionsRef.current.onTextChange((previous) => (previous ? `${previous}\n${message}` : message))
-    actionsRef.current.focus('end')
-  })
+      if (acceptedScreenshotDeliveryId === deliveryId) {
+        report(true)
+        return
+      }
+      if (!isActiveTab || !layerActive) return
+      if (targetScopeKey !== screenshotTarget || isSavingEdit) {
+        report(false)
+        return
+      }
+      const parsedPath = AbsoluteFilePathSchema.safeParse(path)
+      if (!parsedPath.success || !actionsRef.current.appendText(message)) {
+        report(false)
+        return
+      }
+      setFiles((previous) => [
+        ...previous,
+        {
+          fileTokenSourceId: createComposerFileTokenSourceId(),
+          path: parsedPath.data,
+          name,
+          origin_name: name,
+          ext: '.png',
+          size,
+          type: FILE_TYPE.IMAGE
+        }
+      ])
+      acceptedScreenshotDeliveryId = deliveryId
+      report(true)
+      actionsRef.current.focus('end')
+    }
+  )
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
   useCommandHandler('chat.context.toggle_new', () => void handleStartNewContext(), {
     enabled: isActiveTab && Boolean(chatWrite) && !clearContextDisabled

@@ -173,6 +173,12 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         replaceDraft: mocks.replaceDraft,
+        appendText: (message) => {
+          const next = message ? (props.text ? `${props.text}\n${message}` : message) : props.text
+          if (next.length > 40000) return false
+          props.onTextChange(next)
+          return true
+        },
         // Bind the draft getter to this surface instance; during topic switches the old surface can unmount after the new renders.
         // Avoid reading shared `surfaceProps`, which would point at the new topic.
         getDraft: () => mocks.getDraft(props)
@@ -842,12 +848,23 @@ describe('ChatComposer', () => {
       mocks.eventListeners.get('screenshot.chat_attachment')?.({
         ...metadata,
         text: 'Explain this',
-        scopeKey: topic.id
+        scopeKey: ipcRequestMock.mock.calls.findLast(([route]) => route === 'screenshot.chat_target')?.[1].scopeKey,
+        deliveryId: 'capture-1'
       })
     })
     expect(mocks.surfaceProps?.text).toBe('Existing draft\nExplain this')
     expect(mocks.files).toEqual([expect.objectContaining({ path: metadata.path, type: 'image' })])
     expect(onSend).not.toHaveBeenCalled()
+    await act(async () => {
+      mocks.eventListeners.get('screenshot.chat_attachment')?.({
+        ...metadata,
+        text: 'Explain this',
+        scopeKey: ipcRequestMock.mock.calls.findLast(([route]) => route === 'screenshot.chat_target')?.[1].scopeKey,
+        deliveryId: 'capture-1'
+      })
+    })
+    expect(mocks.files).toHaveLength(1)
+    expect(mocks.surfaceProps?.text).toBe('Existing draft\nExplain this')
     await act(async () => {
       mocks.eventListeners.get('screenshot.chat_attachment')?.({
         path: metadata.path,
@@ -857,6 +874,55 @@ describe('ChatComposer', () => {
     })
     expect(mocks.surfaceProps?.text).toBe('Existing draft\nExplain this')
     expect(mocks.files).toHaveLength(1)
+  })
+
+  it('rejects a screenshot message that would overflow without adding its image', async () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    act(() => mocks.surfaceProps?.onTextChange('a'.repeat(39995)))
+    const scopeKey = ipcRequestMock.mock.calls.findLast(([route]) => route === 'screenshot.chat_target')?.[1].scopeKey
+    await act(async () => {
+      mocks.eventListeners.get('screenshot.chat_attachment')?.({
+        deliveryId: 'overflow',
+        path: 'C:/screenshots/capture.png',
+        name: 'capture.png',
+        size: 42,
+        text: 'Explain this',
+        scopeKey
+      })
+    })
+    expect(mocks.surfaceProps?.text).toBe('a'.repeat(39995))
+    expect(mocks.files).toHaveLength(0)
+    expect(ipcRequestMock).toHaveBeenCalledWith('screenshot.chat_received', { deliveryId: 'overflow', accepted: false })
+  })
+
+  it('rejects a capture started before entering message editing in the same chat', async () => {
+    const message = { id: 'edit-target', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message} parts={[{ type: 'text', text: 'Old message' }]} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+    const scopeKey = ipcRequestMock.mock.calls.findLast(([route]) => route === 'screenshot.chat_target')?.[1].scopeKey
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('edit-target'))
+    const before = mocks.surfaceProps?.text
+    await act(async () => {
+      mocks.eventListeners.get('screenshot.chat_attachment')?.({
+        deliveryId: 'stale-edit',
+        path: 'C:/screenshots/capture.png',
+        name: 'capture.png',
+        size: 42,
+        text: 'Explain this',
+        scopeKey
+      })
+    })
+    expect(mocks.files).toHaveLength(0)
+    expect(mocks.surfaceProps?.text).toBe(before)
+    expect(ipcRequestMock).toHaveBeenCalledWith('screenshot.chat_received', {
+      deliveryId: 'stale-edit',
+      accepted: false
+    })
   })
 
   it('puts the tool menu at the far right of the left toolbar in the modern layout', () => {

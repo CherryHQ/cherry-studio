@@ -37,7 +37,12 @@ import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import { useComposerLayerActive } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
-import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
+import {
+  appendComposerText,
+  createComposerInputAdapter,
+  insertComposerTokenAtCursor,
+  updateComposerToken
+} from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -118,6 +123,7 @@ export interface ComposerSurfaceActions {
   focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
   replaceDraft: (draft: ComposerSerializedDraft) => void
+  appendText: (text: string) => boolean
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
   insertToken: (token: ComposerDraftToken, updateOnly?: boolean) => void
@@ -917,6 +923,11 @@ export default function ComposerSurfaceRuntime({
     return serializeComposerDocument(editor)
   }, [])
 
+  const appendText = useCallback((text: string) => {
+    const editor = editorRef.current
+    return Boolean(editor && appendComposerText(editor, text))
+  }, [])
+
   const replaceDraft = useCallback((draft: ComposerSerializedDraft) => {
     const editor = editorRef.current
     if (!editor || editor.isDestroyed) return
@@ -932,6 +943,7 @@ export default function ComposerSurfaceRuntime({
       focus: focusEditor,
       onTextChange: handleTextChangeFromTool,
       replaceDraft,
+      appendText,
       toggleExpanded: toggleEditorExpanded,
       removeToken,
       insertToken,
@@ -945,6 +957,7 @@ export default function ComposerSurfaceRuntime({
     onActionsChange,
     removeToken,
     replaceDraft,
+    appendText,
     toggleEditorExpanded
   ])
 

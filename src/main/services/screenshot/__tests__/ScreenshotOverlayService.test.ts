@@ -63,7 +63,10 @@ const electron = vi.hoisted(() => ({
 }))
 vi.mock('electron', () => ({
   app: electron.app,
-  BrowserWindow: { getAllWindows: () => electron.browserWindows, getFocusedWindow: () => null },
+  BrowserWindow: {
+    getAllWindows: () => electron.browserWindows,
+    getFocusedWindow: () => electron.browserWindows[0] ?? null
+  },
   clipboard: electron.clipboard,
   ClipboardItem: class {
     constructor(readonly data: Record<string, Blob>) {}
@@ -166,6 +169,7 @@ const container = vi.hoisted(() => {
       return id
     }),
     getWindow: vi.fn((id: string) => windows.get(id)),
+    getWindowId: vi.fn((window: unknown) => [...windows].find(([, candidate]) => candidate === window)?.[0]),
     behavior: { setAlwaysOnTopLevel: vi.fn() },
     close: vi.fn(() => true),
     setInitData: vi.fn(),
@@ -369,13 +373,69 @@ describe('ScreenshotOverlayService', () => {
   })
 
   describe('chat delivery', () => {
+    it('does not use another chat when the shortcut source has no composer', async () => {
+      singleDisplaySetup()
+      const focused = createFakeWindow()
+      electron.browserWindows = [focused] as any
+      container.windows.set('focused', focused)
+      container.windows.set('other', createFakeWindow())
+      service.setChatTarget('other', 'topic-b')
+      await service.startCapture()
+      expect(container.openCalls[0].args.initData.canSendToChat).toBe(false)
+    })
+
+    it('keeps a rejected capture available for correction and retry', async () => {
+      singleDisplaySetup()
+      container.windows.set('chat', createFakeWindow())
+      service.setChatTarget('chat', 'draft')
+      await service.startCapture('chat')
+      const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: 'too long' })
+      const result = expect(sending).rejects.toThrow('complete screenshot')
+      const payload = container.ipcApiService.send.mock.calls.findLast(
+        (call) => call[1] === 'screenshot.chat_attachment'
+      )![2]
+      service.receiveChatResult('chat', payload.deliveryId, false)
+      await result
+      expect(container.mediaEntries.size).toBe(1)
+      const retry = service.sendToChat({ pngBytes: PNG_BYTES, text: '' })
+      const retried = container.ipcApiService.send.mock.calls.findLast(
+        (call) => call[1] === 'screenshot.chat_attachment'
+      )![2]
+      service.receiveChatResult('chat', retried.deliveryId, true)
+      await retry
+      expect(container.mediaEntries.size).toBe(0)
+    })
+
+    it('reuses the delivery id and file after an unconfirmed timeout', async () => {
+      singleDisplaySetup()
+      container.windows.set('chat', createFakeWindow())
+      service.setChatTarget('chat', 'draft')
+      await service.startCapture('chat')
+      vi.useFakeTimers()
+      const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: 'note' })
+      const result = expect(sending).rejects.toThrow('not been confirmed')
+      const payload = container.ipcApiService.send.mock.calls.findLast(
+        (call) => call[1] === 'screenshot.chat_attachment'
+      )![2]
+      await vi.advanceTimersByTimeAsync(10000)
+      await result
+      expect(container.mediaEntries.size).toBe(1)
+      const retry = service.sendToChat({ pngBytes: PNG_BYTES, text: 'note' })
+      const retried = container.ipcApiService.send.mock.calls.findLast(
+        (call) => call[1] === 'screenshot.chat_attachment'
+      )![2]
+      expect(retried).toEqual(payload)
+      service.receiveChatResult('chat', retried.deliveryId, true)
+      await retry
+      expect(writeFileSyncMock).toHaveBeenCalledTimes(1)
+    })
     it('does not redirect an unregistered source window to another window chat', async () => {
       singleDisplaySetup()
       container.windows.set('other-window', createFakeWindow())
       service.setChatTarget('other-window', 'topic-b')
       await service.startCapture('source-window')
       expect(container.openCalls[0].args.initData.canSendToChat).toBe(false)
-      expect(() => service.sendToChat({ pngBytes: PNG_BYTES, text: '' })).toThrow('no longer available')
+      await expect(service.sendToChat({ pngBytes: PNG_BYTES, text: '' })).rejects.toThrow('no longer available')
       expect(writeFileSyncMock).not.toHaveBeenCalled()
     })
 
@@ -385,12 +445,13 @@ describe('ScreenshotOverlayService', () => {
       service.setChatTarget('chat-window', 'topic-a')
       await service.startCapture('chat-window')
       expect(container.openCalls[0].args.initData.canSendToChat).toBe(true)
-      service.sendToChat({ pngBytes: PNG_BYTES, text: 'Explain this' })
+      const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: 'Explain this' })
       const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'screenshot.chat_attachment')
       expect(delivery).toEqual([
         'chat-window',
         'screenshot.chat_attachment',
         {
+          deliveryId: expect.any(String),
           path: expect.stringMatching(/screenshot_.*\.png$/),
           name: expect.stringMatching(/^screenshot_.*\.png$/),
           size: PNG_BYTES.byteLength,
@@ -399,6 +460,11 @@ describe('ScreenshotOverlayService', () => {
         }
       ])
       expect(writeFileSyncMock).toHaveBeenCalledWith(delivery![2].path, PNG_BYTES)
+      expect(container.mediaEntries.size).toBe(1)
+      service.receiveChatResult('wrong-window', delivery![2].deliveryId, true)
+      expect(container.mediaEntries.size).toBe(1)
+      service.receiveChatResult('chat-window', delivery![2].deliveryId, true)
+      await sending
       expect(container.mediaEntries.size).toBe(0)
     })
 
@@ -408,7 +474,7 @@ describe('ScreenshotOverlayService', () => {
       service.setChatTarget('chat-window', 'topic-a')
       await service.startCapture('chat-window')
       service.setChatTarget('chat-window', 'topic-b')
-      expect(() => service.sendToChat({ pngBytes: PNG_BYTES, text: '' })).toThrow('no longer available')
+      await expect(service.sendToChat({ pngBytes: PNG_BYTES, text: '' })).rejects.toThrow('no longer available')
       expect(writeFileSyncMock).not.toHaveBeenCalled()
       expect(container.mediaEntries.size).toBe(1)
     })

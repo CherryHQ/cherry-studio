@@ -19,7 +19,7 @@ import {
   requestScreenCapturePermission,
   type ScreenCapturePermissionStatus
 } from '@main/utils/screenCapturePermission'
-import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
+import type { OcrRecognitionResult, ScreenshotEventSchemas } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
 
@@ -124,32 +124,86 @@ export class ScreenshotOverlayService extends BaseService {
   private sessionGeneration = 0
   private chatTargets = new Map<WindowId, string>()
   private captureChatTarget: { windowId: WindowId; scopeKey: string } | null = null
+  private chatDelivery: {
+    payload: ScreenshotEventSchemas['screenshot.chat_attachment']
+    bytes: Uint8Array
+    settle?: (accepted: boolean) => void
+  } | null = null
 
   public setChatTarget(windowId: WindowId, scopeKey: string | null): void {
     if (scopeKey === null) this.chatTargets.delete(windowId)
     else this.chatTargets.set(windowId, scopeKey)
   }
 
-  public sendToChat(result: ScreenshotResultData & { text: string }): void {
+  public async sendToChat(result: ScreenshotResultData & { text: string }): Promise<void> {
     const target = this.captureChatTarget
     const window = target && application.get('WindowManager').getWindow(target.windowId)
-    if (!target || !window || window.isDestroyed() || this.chatTargets.get(target.windowId) !== target.scopeKey) {
+    if (
+      !target ||
+      !window ||
+      window.isDestroyed() ||
+      (!this.chatDelivery && this.chatTargets.get(target.windowId) !== target.scopeKey)
+    ) {
       throw new Error('The capture chat is no longer available')
     }
     if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
       throw new Error('The screenshot could not be decoded')
     }
-    const name = `screenshot_${dayjs().format('YYYYMMDD_HHmmss')}.png`
-    const path = application.getPath('app.temp', `${randomUUID()}_${name}`)
-    writeFileSync(path, result.pngBytes)
-    application.get('IpcApiService').send(target.windowId, 'screenshot.chat_attachment', {
-      path,
-      name,
-      size: result.pngBytes.byteLength,
-      text: result.text,
-      scopeKey: target.scopeKey
+    if (this.chatDelivery?.settle) throw new Error('Screenshot delivery is already pending')
+    if (
+      this.chatDelivery &&
+      (this.chatDelivery.payload.text !== result.text ||
+        !Buffer.from(this.chatDelivery.bytes).equals(Buffer.from(result.pngBytes)))
+    ) {
+      throw new Error('Retry the original screenshot while its delivery is unconfirmed')
+    }
+    if (!this.chatDelivery) {
+      const name = `screenshot_${dayjs().format('YYYYMMDD_HHmmss')}.png`
+      const path = application.getPath('app.temp', `${randomUUID()}_${name}`)
+      writeFileSync(path, result.pngBytes)
+      this.chatDelivery = {
+        bytes: result.pngBytes,
+        payload: {
+          deliveryId: randomUUID(),
+          path,
+          name,
+          size: result.pngBytes.byteLength,
+          text: result.text,
+          scopeKey: target.scopeKey
+        }
+      }
+    }
+    const delivery = this.chatDelivery
+    const accepted = await new Promise<boolean>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        delivery.settle = undefined
+        reject(new Error('Screenshot delivery has not been confirmed; retry without changing the content'))
+      }, 10000)
+      delivery.settle = (accepted) => {
+        clearTimeout(timer)
+        resolve(accepted)
+      }
+      try {
+        application.get('IpcApiService').send(target.windowId, 'screenshot.chat_attachment', delivery.payload)
+      } catch (error) {
+        clearTimeout(timer)
+        delivery.settle = undefined
+        reject(error)
+      }
     })
+    if (!accepted) throw new Error('The chat could not accept the complete screenshot and message')
+  }
+
+  public receiveChatResult(windowId: WindowId, deliveryId: string, accepted: boolean): void {
+    const target = this.captureChatTarget
+    const delivery = this.chatDelivery
+    if (!target || target.windowId !== windowId || delivery?.payload.deliveryId !== deliveryId) return
+    delivery.settle?.(accepted)
+    this.chatDelivery = null
+    if (!accepted) return
+    const window = application.get('WindowManager').getWindow(windowId)
     this.dismiss()
+    if (!window || window.isDestroyed()) return
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()
@@ -269,14 +323,7 @@ export class ScreenshotOverlayService extends BaseService {
       const manager = application.get('WindowManager')
       const focusedWindow = BrowserWindow.getFocusedWindow()
       const preferredId = sourceWindowId ?? (focusedWindow && manager.getWindowId(focusedWindow))
-      const targetId =
-        preferredId && this.chatTargets.has(preferredId)
-          ? preferredId
-          : sourceWindowId
-            ? undefined
-            : [...this.chatTargets.keys()]
-                .reverse()
-                .find((id) => manager.getWindow(id) && !manager.getWindow(id)?.isDestroyed())
+      const targetId = preferredId && this.chatTargets.has(preferredId) ? preferredId : undefined
       this.captureChatTarget = targetId ? { windowId: targetId, scopeKey: this.chatTargets.get(targetId)! } : null
 
       const t0 = performance.now()
@@ -768,6 +815,8 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Release every session resource. Pairs with, but is not a substitute for, closing the windows. */
   private cleanup(): void {
+    this.chatDelivery?.settle?.(false)
+    this.chatDelivery = null
     this.captureChatTarget = null
     // Makes any callback still in flight a no-op; it cannot make timers disappear,
     // which is what the loop below is for.
