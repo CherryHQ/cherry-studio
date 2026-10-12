@@ -4,12 +4,12 @@ import { defineRoute } from '../define'
 
 export const quickChatInputSchema = z.object({
   prompt: z.string().max(16_000).default(''),
-  temporary: z.boolean().default(false),
+  temporary: z.boolean().optional(),
   submit: z.boolean().default(false)
 })
 
 export type QuickChatInput = z.infer<typeof quickChatInputSchema>
-export type QuickChatRequest = QuickChatInput & { kind: 'chat'; requestId: string }
+export type QuickChatRequest = QuickChatInput & { kind: 'chat'; requestId: string; temporary: boolean }
 
 /**
  * Quick Assistant IPC schemas — kept an independent domain (NOT down-sunk into

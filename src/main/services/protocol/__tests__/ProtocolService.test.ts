@@ -223,7 +223,7 @@ describe('ProtocolService', () => {
     service.onMainRendererReady('main-1')
     expect(quickAssistantServiceMock.openChat).toHaveBeenCalledExactlyOnceWith({
       prompt: 'where is paris',
-      temporary: false,
+      temporary: undefined,
       submit: true
     })
     expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
@@ -455,7 +455,7 @@ describe('ProtocolService', () => {
 
       expect(quickAssistantServiceMock.openChat).toHaveBeenCalledWith({
         prompt: 'Paris',
-        temporary: false,
+        temporary: undefined,
         submit: true
       })
       expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()

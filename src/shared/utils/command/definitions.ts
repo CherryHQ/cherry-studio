@@ -192,7 +192,18 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.chat',
     scope: 'main',
     keybinding: {
-      defaultBinding: ['CommandOrControl', 'Shift', 'N']
+      defaultBinding: ['CommandOrControl', 'Shift', 'N'],
+      global: true
+    }
+  }),
+  defineCommand({
+    id: 'chat.saved.open',
+    titleKey: 'quickAssistant.chat.new_saved',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'main',
+    keybinding: {
+      defaultBinding: [],
+      global: true
     }
   }),
   defineCommand({

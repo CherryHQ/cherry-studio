@@ -25,7 +25,7 @@ export function parseChatProtocolUrl(url: URL): QuickChatInput | null {
 
   const result = quickChatInputSchema.safeParse({
     prompt: url.searchParams.get('prompt') ?? '',
-    temporary: url.searchParams.get('temporary') === 'true',
+    temporary: url.searchParams.has('temporary') ? url.searchParams.get('temporary') === 'true' : undefined,
     submit: url.searchParams.get('submit') === 'true'
   })
   return result.success ? result.data : null

@@ -28,7 +28,8 @@ const {
   },
   openSettingsInMainWindowMock: vi.fn(),
   quickAssistantServiceMock: {
-    toggleQuickAssistant: vi.fn()
+    toggleQuickAssistant: vi.fn(),
+    openChat: vi.fn()
   },
   selectionServiceMock: {
     toggleEnabled: vi.fn(),
@@ -103,6 +104,14 @@ describe('CommandService', () => {
     service.execute('app.window.show')
 
     expect(windowServiceMock.toggleMainWindow).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['chat.temporary.open', true],
+    ['chat.saved.open', false]
+  ] as const)('opens the explicit mode for %s', (command, temporary) => {
+    service.execute(command)
+    expect(quickAssistantServiceMock.openChat).toHaveBeenCalledWith({ prompt: '', temporary, submit: false })
   })
 
   it('blocks commands when enablement is not satisfied', () => {

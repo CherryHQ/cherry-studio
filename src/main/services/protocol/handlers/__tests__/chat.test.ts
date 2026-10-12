@@ -3,9 +3,17 @@ import { describe, expect, it } from 'vitest'
 import { parseChatProtocolUrl } from '../chat'
 
 describe('launcher chat protocol', () => {
-  it('defaults to saved chats and requires explicit submission', () => {
+  it('leaves mode to the user preference and requires explicit submission', () => {
     expect(parseChatProtocolUrl(new URL('cherrystudio://chat/new?prompt=where+is+paris'))).toEqual({
       prompt: 'where is paris',
+      temporary: undefined,
+      submit: false
+    })
+  })
+
+  it('keeps an explicit saved mode distinct from the default', () => {
+    expect(parseChatProtocolUrl(new URL('cherrystudio://chat/new?temporary=false'))).toEqual({
+      prompt: '',
       temporary: false,
       submit: false
     })

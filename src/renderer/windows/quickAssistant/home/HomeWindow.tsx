@@ -90,6 +90,7 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
 }
 
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
+  const [defaultTemporary] = usePreference('feature.quick_assistant.default_temporary')
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
   const [windowStyle] = usePreference('ui.window_style')
@@ -103,7 +104,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [selectedModel, setSelectedModel] = useState<Model | undefined>()
   const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
   const [savedTopicId, setSavedTopicId] = useState<string | null>(null)
-  const [saveOnSend, setSaveOnSend] = useState(false)
+  const [saveOnSend, setSaveOnSend] = useState(!defaultTemporary)
   const [pendingLaunch, setPendingLaunch] = useState<(QuickChatRequest & { previousTopicId: string | null }) | null>(
     null
   )
@@ -266,11 +267,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   useEffect(() => {
     if (route === 'home') {
+      setSaveOnSend(!defaultTemporary)
       setIsFirstMessage(true)
       setFlowError(null)
       clear()
     }
-  }, [route, clear])
+  }, [route, clear, defaultTemporary])
 
   const focusInput = useCallback(() => {
     if (!inputBarRef.current) return
@@ -365,8 +367,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     resetTemporaryTopic()
     clear()
     setSavedTopicId(null)
-    setSaveOnSend(false)
-  }, [clear, resetTemporaryTopic])
+    setSaveOnSend(!defaultTemporary)
+  }, [clear, resetTemporaryTopic, defaultTemporary])
 
   const receiveLauncherChat = useEffectEvent(async (request: QuickChatRequest) => {
     if (!isSavedChat && chatMessages.some((message) => message.role === 'user')) {
@@ -560,7 +562,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       return (
         <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
           <QuickChatToolbar
-            saved={isSavedChat}
+            saved={isSavedChat || saveOnSend}
             loading={isLoading || !isTopicReady || pendingLaunch !== null}
             onNewTemporaryChat={() =>
               void ipcApi.request('quick_assistant.chat.open', { prompt: '', temporary: true, submit: false })

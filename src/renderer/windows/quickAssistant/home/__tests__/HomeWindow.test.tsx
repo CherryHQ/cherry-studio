@@ -19,6 +19,7 @@ type TestModel = {
 
 const state = vi.hoisted(() => ({
   quickAssistantId: '',
+  defaultTemporary: false,
   defaultModel: {
     id: 'cherryai::qwen',
     modelId: 'qwen',
@@ -86,6 +87,7 @@ vi.mock('@data/hooks/usePreference', () => ({
     const values: Record<string, unknown> = {
       'feature.quick_assistant.read_clipboard_at_startup': false,
       'feature.quick_assistant.assistant_id': state.quickAssistantId,
+      'feature.quick_assistant.default_temporary': state.defaultTemporary,
       'app.language': 'en-US',
       'ui.window_style': state.windowStyle
     }
@@ -248,6 +250,7 @@ describe('finalizeLiveMessages', () => {
 describe('HomeWindow', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
+    state.defaultTemporary = false
     state.quickModel = {
       id: 'anthropic::claude-sonnet',
       modelId: 'claude-sonnet',
@@ -278,7 +281,7 @@ describe('HomeWindow', () => {
     state.windowStyle = 'default'
   })
 
-  it('uses the configured quick model in model-only mode', () => {
+  it('uses the configured quick model in model-only mode', async () => {
     const quickModelId = state.quickModel!.id
     render(<HomeWindow draggable={false} />)
 
@@ -288,7 +291,18 @@ describe('HomeWindow', () => {
     fireEvent.change(input, { target: { value: 'hello' } })
     fireEvent.keyDown(input, { code: 'Enter', key: 'Enter' })
 
-    expect(state.sendMessage).toHaveBeenCalledWith({ text: 'hello' }, { body: { mentionedModels: [quickModelId] } })
+    await waitFor(() =>
+      expect(state.sendMessage).toHaveBeenCalledWith({ text: 'hello' }, { body: { mentionedModels: [quickModelId] } })
+    )
+  })
+
+  it.each([false, true])('uses the configured default for a fresh normal opening (%s)', async (temporary) => {
+    state.defaultTemporary = temporary
+    render(<HomeWindow />)
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalled())
+    expect(state.persistTemporaryTopic).toHaveBeenCalledTimes(temporary ? 0 : 1)
   })
 
   it('does not fall back to the default model while the quick model is unresolved', () => {
@@ -371,7 +385,7 @@ describe('HomeWindow', () => {
     }
     const view = render(<HomeWindow draggable={false} />)
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('quickAssistant.chat.saved'))
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalled())
     state.isPending = true
     view.rerender(<HomeWindow draggable={false} />)
     state.isPending = false
@@ -473,6 +487,16 @@ describe('HomeWindow', () => {
     await screen.findByText('Disk is full')
     expect(ipcApi.request).not.toHaveBeenCalledWith('quick_assistant.hide')
     expect(screen.getByTestId('quick-input')).toHaveValue('keep this chat')
+  })
+
+  it.each([false, true])('labels an empty explicitly selected chat mode (temporary=%s)', async (temporary) => {
+    state.launchRequest = { kind: 'chat', requestId: 'empty-mode', prompt: '', temporary, submit: false }
+    render(<HomeWindow />)
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        temporary ? 'quickAssistant.chat.temporary' : 'quickAssistant.chat.saved'
+      )
+    )
   })
 
   it('minimize cannot promote an active temporary stream but Escape can hide it', async () => {

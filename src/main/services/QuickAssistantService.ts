@@ -378,7 +378,13 @@ export class QuickAssistantService extends BaseService implements Activatable {
   public async openChat(input: QuickChatInput): Promise<void> {
     await this.activate()
     const wm = application.get('WindowManager')
-    const request: QuickChatRequest = { ...input, kind: 'chat', requestId: randomUUID() }
+    const request: QuickChatRequest = {
+      ...input,
+      temporary:
+        input.temporary ?? application.get('PreferenceService').get('feature.quick_assistant.default_temporary'),
+      kind: 'chat',
+      requestId: randomUUID()
+    }
     this.windowId = wm.open(WindowType.QuickAssistant, { initData: request })
     this.proceedShow(true)
   }

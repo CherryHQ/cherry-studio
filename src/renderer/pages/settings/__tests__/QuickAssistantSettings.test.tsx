@@ -157,6 +157,22 @@ describe('QuickAssistantSettings', () => {
     navigateMock.mockClear()
   })
 
+  it('persists the default floating mode and opens each shortcut editor', async () => {
+    const user = userEvent.setup()
+    const view = render(<QuickAssistantSettings />)
+    const mode = screen.getByRole('radiogroup', { name: 'settings.quickAssistant.default_chat_mode' })
+    await user.click(within(mode).getByRole('radio', { name: 'quickAssistant.chat.temporary' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.default_temporary')).toBe(true)
+    view.rerender(<QuickAssistantSettings />)
+    await user.click(within(mode).getByRole('radio', { name: 'quickAssistant.chat.saved' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.default_temporary')).toBe(false)
+    const links = screen.getAllByRole('button', { name: 'settings.shortcuts.title' })
+    await user.click(links[0])
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/shortcut', search: { command: 'chat.temporary.open' } })
+    await user.click(links[1])
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/shortcut', search: { command: 'chat.saved.open' } })
+  })
+
   it('separates default-model mode from its model configuration', async () => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', '')
