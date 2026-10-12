@@ -1979,3 +1979,79 @@ describe('a definition shape inside a type-7 HTML block', () => {
     expect(chunks[0].text.split('\n\n')[0]).not.toContain('/wrong')
   })
 })
+
+/**
+ * The ids a source's headings render with — the target a `#fragment` link resolves against. Chunks
+ * are read with the slugs the splitter assigned, so the whole path from source to rendered id is
+ * under test, and the unsplit document is the oracle: its ids are the ones the user asked for.
+ */
+const headingIds = (source: string, slugs?: ReadonlyMap<string, readonly string[]>): string[] => {
+  const root = {
+    type: 'root',
+    children: parsed(source)
+      .children.filter((node) => node.type === 'heading')
+      .map((node) => ({
+        type: 'element',
+        tagName: `h${(node as unknown as { depth: number }).depth}`,
+        properties: {} as { id?: unknown },
+        children: node.children
+      }))
+  }
+  rehypeHeadingIds({ prefix: 'doc', slugs })(root as never)
+  return root.children.map((element) => String((element as { properties: { id?: unknown } }).properties.id))
+}
+
+/** The ids every chunk of a document renders, in document order. */
+const chunkedHeadingIds = (content: string, budgetChars?: number): string[] =>
+  chunksOf(content, budgetChars).flatMap((chunk) => headingIds(chunk.text, chunk.headingSlugs))
+
+describe('a heading an inline construct only partly renders', () => {
+  it('bases a heading id on the text the renderer reads, not its source', () => {
+    // micromark reads `*bar*` as emphasis, so the heading renders `Foobar` and the unsplit document
+    // numbers it `foobar-1` on the same base. The scanner kept the markers and keyed it `foo-bar`,
+    // so both headings rendered `--foobar` and the link lost its target across the boundary.
+    const filler = ['', 'x'.repeat(300)]
+    const content = ['# Foo*bar*', ...filler, '# Foobar', '', 'see [second](#doc--foobar-1)'].join('\n')
+
+    const chunks = chunksOf(content, 400)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunkedHeadingIds(content, 400)).toEqual(headingIds(content))
+    expect(headingIds(content)).toEqual(['doc--foobar', 'doc--foobar-1'])
+  })
+})
+
+describe('a definition beside indented code', () => {
+  it('carries a definition that indented code does not absorb', () => {
+    // micromark opens indented code at `    code` and reads `[label]: /right` as the document's
+    // definition, so the chunk that says `see [label]` renders a link. The scanner treated the code
+    // as an open paragraph, suppressed the definition, and rendered the reference literally.
+    const paragraphs = Array.from({ length: 4 }, (_, index) => `para ${index}`)
+    const content = ['    code', '[label]: /right', '', ...paragraphs.join('\n\n').split('\n'), '', 'see [label]'].join(
+      '\n'
+    )
+
+    const chunks = chunksOf(content, 40)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [label]'))
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(referencing).toHaveLength(1)
+    expect(referencing[0].text.startsWith('[label]: /right\n\n')).toBe(true)
+  })
+})
+
+describe('a heading whose source the parser cannot close', () => {
+  it('does not rescan an unmatched bracket run once per character', () => {
+    // Each failure rescanned the rest of the line while the outer walk advanced one character, so
+    // the scan cost the run's length squared: a 64K-bracket heading blocked the renderer seconds,
+    // on a file well inside the preview's size ceiling and one the plain-text fallback never sees.
+    const content = `# ${'['.repeat(65_536)}\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks).toHaveLength(1)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+})
