@@ -111,12 +111,13 @@ settings) plus the extensions the host returns from `SubagentPort.configure(suba
 with `session.prompt()` so `before_agent_start` handlers run as in any turn, waits for it to settle
 and disposes it. It shares the parent's `sideChannel`, so its requests' errors and unmapped parts
 reach the parent's side channel, told apart by the request `sessionId`; the parent's
-`extensionFactories` and `onEvent` are not inherited. The call blocks: the subagent's final message is the call's result, `details` is
-`{ sessionId, fork, outcome }`, and the result's `usage` is the sum of the subagent's replies (for
-budgets; the host already accounted each request). Its transcript events go only to the `onEvent`
-the host returned; `onSessionCreated` receives its session before its first request. Its session id
-is `<parent session id>.<call id>`, characters Pi rejects in the call id replaced by `-`. Subagent
-calls of one step run at the same time, and a fresh subagent has no `subagent` tool of its own.
+`extensionFactories` and `onEvent` are not inherited. The call blocks: the subagent's final message
+is the call's result, `details` is `{ sessionId, fork, outcome }`, and the result's `usage` is the
+sum of the subagent's replies (for budgets; the host already accounted each request). Its transcript
+events go only to the `onEvent` the host returned; `onSessionCreated` receives its session before
+its first request. Its session id is `<parent session id>.<call id>`, characters Pi rejects in the
+call id replaced by `-`. Subagent calls of one step run at the same time, and a fresh subagent has
+no `subagent` tool of its own.
 
 A subagent's session holds a `cherry.subagent-origin` state entry (`{ parentToolCallId, fork }`),
 never sent to the model; `AskUserQuestion` ends there as `unavailable` without asking the port.
@@ -127,12 +128,11 @@ prefix and can share the prompt cache. A fork keeps the parent's tools, `subagen
 host must return the parent's extensions for it; calls a subagent may not make (another `subagent`,
 `AskUserQuestion`) fail or end as `unavailable` instead of being removed.
 
-A subagent that fails, is cut off by its output limit, is aborted with the parent's turn or reaches
-200 model requests returns an `isError` result with the reason, its last partial output, `details`
-and `usage`; `outcome` is `failed`, `truncated`, `aborted` or `limit_reached`. A host whose
-`configure` throws fails that call only. The bridge never hands the port a request whose signal is
-already aborted. When a provider reuses a call id across turns, the later subagents' session ids end
-in `-2`, `-3` and so on.
+A subagent that fails, is cut off by its output limit, is aborted with the parent's turn or would
+start a 201st model request returns an `isError` result with the reason, its last partial output,
+`details` and `usage`; `outcome` is `failed`, `truncated`, `aborted` or `limit_reached`. A host
+whose `configure` throws fails that call only. When a provider reuses a call id across turns, the
+later subagents' session ids end in `-2`, `-3` and so on.
 
 ## Extensions
 
@@ -152,8 +152,9 @@ handles.
   answers are keyed by them, and so must the option labels of a question, since answers name them).
   The tool waits on `AskUserPort.ask`, which resolves `answered` (`answers`, optional `annotations`
   notes), `declined` (optional `feedback`) or `unavailable` (no one can answer, e.g. a channel or
-  scheduled run). The result text tells the model what happened; only `answered` is a success. Every
-  result the tool returns, aborted included, has `details` `{ questions, answers, annotations? }`;
+  scheduled run); inside a subagent's session it ends as `unavailable` without asking the port. The
+  result text tells the model what happened; only `answered` is a success. Every result the tool
+  returns, aborted included, has `details` `{ questions, answers, annotations? }`;
   invalid input and a rejecting port fail the call with empty `details`. Calls in
   one model step run one at a time. When the turn aborts, the tool stops waiting at once and the
   request's `signal` aborts so the host can withdraw the question; a late answer is ignored. A

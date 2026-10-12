@@ -65,7 +65,10 @@ function forkTranscript(entries: readonly TranscriptEntry[], toolCallId: string)
 
 /** Host side of `subagent`: gives each subagent its extensions and listeners. */
 export interface SubagentPort {
-  /** Called once per subagent, before its session is built. A throw fails the call. */
+  /**
+   * Called once per subagent, before its session is built. A throw fails the call. For a fork,
+   * `extensionFactories` must yield the parent's tools: the same tools, in the same order.
+   */
   configure(subagent: Subagent): SubagentSessionOptions | Promise<SubagentSessionOptions>
 }
 
@@ -90,7 +93,10 @@ export interface SubagentSessionOptions {
   onSessionCreated?: (session: AgentSession) => void
 }
 
-/** `details` of every result the tool returns once the host configured the subagent. */
+/**
+ * `details` of every result the tool returns once the subagent's session is built, and of a call
+ * aborted before then. Calls that throw carry none, `onSessionCreated` throwing included.
+ */
 export interface SubagentDetails {
   sessionId: string
   fork: boolean
@@ -293,7 +299,7 @@ export function subagentExtension({ port, createSession, parentTranscript }: Sub
           sessionId: subagentSessionId(ctx.sessionManager.getSessionId(), toolCallId, occurrence),
           fork
         }
-        // Built before `configure`, so the host never configures a subagent that cannot start.
+        // Built before `configure`, so a failure building the fork transcript never reaches the host.
         const transcript = [...(fork ? forkTranscript(parent, toolCallId) : []), originEntry(subagent)]
         const options = await port.configure(subagent)
         const base = { sessionId: subagent.sessionId, fork }
