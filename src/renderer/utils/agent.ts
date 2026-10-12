@@ -10,6 +10,17 @@ import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 export const DEFAULT_AGENT_AVATAR = '🤖'
 
+const AGENT_RUNTIME_NAMES = new Map([
+  ['claude-code', 'Claude Code'],
+  ['pi', 'Pi'],
+  ['dsh', 'DSH']
+])
+
+export function getAgentRuntimeModeLabel(type: string | null | undefined, t: TFunction): string {
+  const mode = AGENT_RUNTIME_NAMES.get(type ?? '') ?? t('common.unknown')
+  return t('agent.runtime_mode.label', { mode })
+}
+
 export function getAgentAvatar(avatar?: unknown) {
   return typeof avatar === 'string' ? avatar.trim() || DEFAULT_AGENT_AVATAR : DEFAULT_AGENT_AVATAR
 }

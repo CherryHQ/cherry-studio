@@ -58,7 +58,7 @@ import {
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
-import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
+import { getAgentModelFallbackSnapshot, getAgentRuntimeModeLabel } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
@@ -1943,9 +1943,21 @@ const Sessions = ({
         return group.id !== SESSION_NO_WORKDIR_GROUP_ID && group.id !== SESSION_NO_PROJECT_GROUP_ID
       }
 
-      return displayMode === 'agent' && group.id !== SESSION_UNKNOWN_AGENT_GROUP_ID && assistantIconType !== 'none'
+      if (displayMode !== 'agent' || group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return false
+
+      return assistantIconType !== 'none'
     },
     [assistantIconType, displayMode]
+  )
+
+  const getGroupHeaderAriaDescription = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent') return undefined
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      const agent = agentId ? agentById.get(agentId) : undefined
+      return agent ? getAgentRuntimeModeLabel(agent.type, t) : undefined
+    },
+    [agentById, displayMode, t]
   )
 
   // Only the pseudo-group gets a tooltip: it needs explaining. Real agent rows don't — a hint about
@@ -2117,6 +2129,7 @@ const Sessions = ({
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}
       getGroupHeaderIcon={getGroupHeaderIcon}
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}
+      getGroupHeaderAriaDescription={getGroupHeaderAriaDescription}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
       getGroupHeaderKind={getGroupHeaderKind}
       groupHeaderClickBehavior={getGroupHeaderClickBehavior}
