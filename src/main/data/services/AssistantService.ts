@@ -6,9 +6,10 @@
  * - Listing with optional filters
  */
 
-import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
@@ -68,6 +69,7 @@ function rowToAssistant(
     knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined,
     modelName
   }
 }
@@ -92,6 +94,15 @@ function rethrowAssistantOrderError(error: unknown): never {
 }
 
 export class AssistantDataService {
+  notifyReadModelChange(assistantIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (assistantIds.length === 0) return
+    const entityIds = [...new Set(assistantIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/assistants', kind, entityIds },
+      { endpoint: '/assistants/:id', entityIds }
+    ])
+  }
+
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -276,7 +287,10 @@ export class AssistantDataService {
     const { page, limit } = query
     const offset = (page - 1) * limit
 
-    const conditions: SQL[] = [isNull(assistantTable.deletedAt)]
+    const conditions: SQL[] = [
+      query.inTrash === true ? isNotNull(assistantTable.deletedAt) : isNull(assistantTable.deletedAt)
+    ]
+    if (query.ids) conditions.push(inArray(assistantTable.id, query.ids))
     if (query.id !== undefined) {
       conditions.push(eq(assistantTable.id, query.id))
     }
@@ -599,41 +613,70 @@ export class AssistantDataService {
     }
   }
 
-  /**
-   * Soft-delete an assistant (sets deletedAt timestamp).
-   * The row is preserved so topic.assistantId FK remains valid
-   * and junction table data (mcpServers, knowledgeBases) is retained.
-   * The group assignment is cleared so restoring a soft-deleted assistant
-   * does not restore its previous classification.
-   */
-  delete(id: string, options: { deleteTopics?: boolean } = {}): { deleted: boolean; deletedTopicIds?: string[] } {
-    let deletedTopicIds: string[] | undefined
-    const deleted = application.get('DbService').withWriteTx((tx) => {
-      const didDelete = this.deleteTx(tx, id)
-      if (!didDelete) return false
+  /** Archive by default; active permanent deletion must explicitly select the active state. */
+  delete(
+    id: string,
+    options: { deleteTopics?: boolean; permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
+  ): { deleted: boolean; deletedTopicIds?: string[] } {
+    const shouldDeleteTopics =
+      options.deleteTopics === true && (options.permanent !== true || options.targetState === 'active')
+    const { deleted, deletedTopicIds, projectedTopicIds } = application.get('DbService').withWriteTx((tx) => {
+      const predicate =
+        options.permanent === true && options.targetState !== 'active'
+          ? and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt))
+          : and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
+      const [existing] = tx.select({ id: assistantTable.id }).from(assistantTable).where(predicate).limit(1).all()
+      if (!existing) throw DataApiErrorFactory.notFound('Assistant', id)
 
-      if (options.deleteTopics === true) {
-        deletedTopicIds = topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
+      if (options.permanent === true) {
+        const deletedTopicIds = shouldDeleteTopics
+          ? topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false, permanent: true })
+          : undefined
+        const projectedTopicIds = topicService.listIdsByAssistantTx(tx, id)
+        return {
+          deleted: this.permanentlyDeleteTx(tx, id),
+          deletedTopicIds,
+          projectedTopicIds
+        }
       }
 
-      return true
+      const deletedAt = Date.now()
+      const deletedTopicIds = shouldDeleteTopics
+        ? topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false, deletedAt })
+        : undefined
+
+      return {
+        deleted: this.deleteTx(tx, id, { deletedAt }),
+        deletedTopicIds,
+        projectedTopicIds: undefined
+      }
     })
 
     if (!deleted) {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
+    if (options.permanent === true) {
+      topicService.notifyReadModelChange(projectedTopicIds ?? [], 'projection')
+    }
     topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
+    this.notifyReadModelChange([id], 'membership')
     pinService.notifyPurged()
 
-    logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+    logger.info(options.permanent === true ? 'Permanently deleted assistant' : 'Moved assistant to Recycle Bin', {
+      id,
+      deleteTopics: shouldDeleteTopics
+    })
     promptService.notifyTargetBindingsChanged()
     return { deleted, deletedTopicIds }
   }
 
-  deleteTx(tx: DbOrTx, id: string): boolean {
+  deleteTx(tx: DbOrTx, id: string, options: { deletedAt?: number } = {}): boolean {
     const [row] = tx
       .update(assistantTable)
-      .set({ deletedAt: Date.now(), groupId: null })
+      .set({
+        deletedAt: options.deletedAt ?? Date.now(),
+        groupId: null
+      })
       .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
       .returning({ id: assistantTable.id })
       .all()
@@ -644,6 +687,50 @@ export class AssistantDataService {
     promptService.purgeForTargetTx(tx, 'assistant', id)
 
     return true
+  }
+
+  private permanentlyDeleteTx(tx: DbOrTx, id: string): boolean {
+    const [row] = tx.delete(assistantTable).where(eq(assistantTable.id, id)).returning({ id: assistantTable.id }).all()
+    if (!row) return false
+    pinService.purgeForEntityTx(tx, 'assistant', id)
+    promptService.purgeForTargetTx(tx, 'assistant', id)
+    return true
+  }
+
+  /** Restore one trashed assistant. Related topics remain independently restorable. */
+  restore(id: string): Assistant {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .update(assistantTable)
+      .set({ deletedAt: null })
+      .where(and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt)))
+      .returning()
+      .all()
+    if (!row) throw DataApiErrorFactory.notFound('Assistant', id)
+
+    this.notifyReadModelChange([id], 'membership')
+    logger.info('Restored assistant', { id })
+    const relations = this.getRelationIdsByAssistantIds([id])
+    return rowToAssistant(row, relations.get(id), this.getModelNameById(this.db, row.modelId))
+  }
+
+  /** Hard-delete trashed assistants older than the retention cutoff. */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ id: assistantTable.id })
+      .from(assistantTable)
+      .where(and(isNotNull(assistantTable.deletedAt), lt(assistantTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    const ids = rows.map((row) => row.id)
+    if (ids.length === 0) return ids
+
+    pinService.purgeForEntitiesTx(tx, 'assistant', ids)
+    // Rows moved to the Recycle Bin before this release were soft-deleted without a binding purge.
+    promptService.purgeForTargetsTx(tx, 'assistant', ids)
+    tx.delete(assistantTable).where(inArray(assistantTable.id, ids)).run()
+    return ids
   }
 
   /**

@@ -3,10 +3,10 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { settingsMenu } from '@renderer/components/settingsMenu'
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
-import { settingsMenu } from '../../settingsMenu'
 import { settingsSearchSections } from '../aggregate'
 import { rankEntries } from '../searchEngine'
 import { getSettingDomId } from '../types'
@@ -135,6 +135,12 @@ describe('settings search index aliases', () => {
     ['字体', 'use-serif-font'],
     ['衬线', 'use-serif-font'],
     ['serif', 'use-serif-font'],
+    ['bubble', 'message-style'],
+    ['bubble mode', 'message-style'],
+    ['message style', 'message-style'],
+    ['conversation bubbles', 'message-style'],
+    ['serif font', 'use-serif-font'],
+    ['message font', 'use-serif-font'],
     ['气泡', 'message-style'],
     ['气泡样式', 'message-style'],
     ['对话样式', 'message-style'],

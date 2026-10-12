@@ -172,6 +172,10 @@ export class MockMainCacheService {
     return mockPersistCache.has(key) && !isEqual(mockPersistCache.get(key), DefaultMainPersistCache[key])
   })
 
+  public deletePersist = vi.fn(<K extends MainPersistCacheKey>(key: K): void => {
+    this.setPersist(key, DefaultMainPersistCache[key])
+  })
+
   // ============ Subscription Methods ============
   // These are call-tracking stubs — the mock does NOT replicate fire semantics.
   // Each call returns a fresh vi.fn() unsubscribe stub, useful for verifying

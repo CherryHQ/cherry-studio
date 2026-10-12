@@ -9,6 +9,7 @@ import type { Model } from '@shared/data/types/model'
 
 import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
+import type * as ScrollOwnershipContextModule from '../list/ScrollOwnershipContext'
 import type { MessageGroupRuntime, MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   editMessageBlocks: vi.fn(),
   resendUserMessageWithEdit: vi.fn(),
   scrollIntoView: vi.fn(),
+  scrollByWheel: vi.fn(() => false),
   setTimeoutTimer: vi.fn(),
   settings: vi.fn().mockReturnValue({
     multiModelMessageStyle: 'horizontal',
@@ -194,6 +196,15 @@ vi.mock('../list/MessageGroupMenuBar', () => ({
   default: mocks.MessageGroupMenuBar
 }))
 
+vi.mock('../list/ScrollOwnershipContext', async () => {
+  const actual = await vi.importActual<typeof ScrollOwnershipContextModule>('../list/ScrollOwnershipContext')
+  return {
+    ...actual,
+    useScrollRuntimeBoundary: () => ({ getScrollContainer: () => null, scrollByWheel: mocks.scrollByWheel }),
+    useScrollRuntimeNavigation: () => () => false
+  }
+})
+
 vi.mock('../MessageListProvider', () => ({
   useMessageListActions: () => mocks.messageListActions(),
   useMessageRenderConfig: () => {
@@ -277,6 +288,7 @@ const setElementSize = (
     clientWidth: number
     scrollHeight: number
     scrollLeft: number
+    scrollTop: number
     scrollWidth: number
   }>
 ) => {
@@ -315,6 +327,7 @@ describe('MessageGroup', () => {
     mocks.messageListSelection.mockReturnValue(undefined)
     mocks.messageListEditingId.mockReturnValue(null)
     mocks.messageListUiSelectors.mockReturnValue({})
+    mocks.scrollByWheel.mockReturnValue(false)
   })
 
   it('renders a clear-context divider and routes clicks through the injected action', () => {
@@ -749,7 +762,7 @@ describe('MessageGroup', () => {
     expect(getComputedStyle(horizontalGroup).overflowY).toBe('hidden')
   })
 
-  it('prevents vertical wheel on non-content areas from bubbling to the outer chat scroll in horizontal layout', () => {
+  it('lets vertical wheel input on non-content areas bubble to the outer chat scroll in horizontal layout', () => {
     const parentWheel = vi.fn()
     const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
 
@@ -776,7 +789,140 @@ describe('MessageGroup', () => {
     const wheelEvent = createEvent.wheel(horizontalGroup, { deltaY: 120 })
     fireEvent(horizontalGroup, wheelEvent)
 
+    expect(wheelEvent.defaultPrevented).toBe(false)
+    expect(parentWheel).toHaveBeenCalledOnce()
+  })
+
+  it('forwards dominant vertical trackpad input with a small horizontal delta to the outer scroll runtime', () => {
+    const parentWheel = vi.fn()
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} />
+      </div>
+    )
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    setElementSize(horizontalGroup, {
+      clientWidth: 500,
+      scrollLeft: 0,
+      scrollWidth: 1000
+    })
+
+    const wheelEvent = createEvent.wheel(horizontalGroup, { deltaX: 2, deltaY: -120 })
+    fireEvent(horizontalGroup, wheelEvent)
+
+    expect(mocks.scrollByWheel).toHaveBeenCalledWith(-120)
+    expect(wheelEvent.defaultPrevented).toBe(true)
     expect(parentWheel).not.toHaveBeenCalled()
+    expect(horizontalGroup.scrollLeft).toBe(0)
+  })
+
+  // #20090: nested column top + overflow-y:hidden group must not trap upward wheel.
+  it('forwards upward wheel from a top-boundary message column to the outer scroll runtime', () => {
+    const parentWheel = vi.fn()
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} />
+      </div>
+    )
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    setElementSize(contentContainer, {
+      clientHeight: 300,
+      scrollHeight: 600,
+      scrollTop: 0
+    })
+
+    const wheelEvent = createEvent.wheel(contentContainer, { deltaX: 0, deltaY: -120 })
+    fireEvent(contentContainer, wheelEvent)
+
+    expect(mocks.scrollByWheel).toHaveBeenCalledWith(-120)
+    expect(wheelEvent.defaultPrevented).toBe(true)
+    expect(parentWheel).not.toHaveBeenCalled()
+  })
+
+  it('pans the horizontal model row for dominant-horizontal wheels at a column boundary', () => {
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    setElementSize(horizontalGroup, {
+      clientWidth: 500,
+      scrollLeft: 0,
+      scrollWidth: 1000
+    })
+    setElementSize(contentContainer, {
+      clientHeight: 300,
+      scrollHeight: 600,
+      scrollTop: 0
+    })
+
+    const wheelEvent = createEvent.wheel(contentContainer, { deltaX: 160, deltaY: -4 })
+    fireEvent(contentContainer, wheelEvent)
+
+    expect(mocks.scrollByWheel).not.toHaveBeenCalled()
+    expect(wheelEvent.defaultPrevented).toBe(true)
+    expect(horizontalGroup.scrollLeft).toBe(160)
+  })
+
+  it('keeps upward wheel inside a message column while that column can still scroll', () => {
+    const parentWheel = vi.fn()
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} />
+      </div>
+    )
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    setElementSize(contentContainer, {
+      clientHeight: 300,
+      scrollHeight: 600,
+      scrollTop: 140
+    })
+
+    const wheelEvent = createEvent.wheel(contentContainer, { deltaX: 0, deltaY: -120 })
+    fireEvent(contentContainer, wheelEvent)
+
+    expect(mocks.scrollByWheel).not.toHaveBeenCalled()
+    expect(wheelEvent.defaultPrevented).toBe(false)
+  })
+
+  it('normalizes Windows line-mode wheel deltas before forwarding from a column boundary', () => {
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    setElementSize(contentContainer, {
+      clientHeight: 300,
+      scrollHeight: 600,
+      scrollTop: 0
+    })
+
+    const wheelEvent = createEvent.wheel(contentContainer, {
+      deltaMode: WheelEvent.DOM_DELTA_LINE,
+      deltaX: 0,
+      deltaY: -3
+    })
+    fireEvent(contentContainer, wheelEvent)
+
+    expect(mocks.scrollByWheel).toHaveBeenCalledWith(-48)
+    expect(wheelEvent.defaultPrevented).toBe(true)
   })
 
   it('supports horizontal wheel scrolling on non-content areas in horizontal layout', () => {
@@ -798,6 +944,50 @@ describe('MessageGroup', () => {
     fireEvent(horizontalGroup, wheelEvent)
 
     expect(horizontalGroup.scrollLeft).toBe(160)
+  })
+
+  it('contains Shift+wheel input at the horizontal scroll boundary', () => {
+    const parentWheel = vi.fn()
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} />
+      </div>
+    )
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    setElementSize(horizontalGroup, {
+      clientWidth: 500,
+      scrollLeft: 500,
+      scrollWidth: 1000
+    })
+
+    const wheelEvent = createEvent.wheel(horizontalGroup, { deltaY: 120, shiftKey: true })
+    fireEvent(horizontalGroup, wheelEvent)
+
+    expect(wheelEvent.defaultPrevented).toBe(true)
+    expect(parentWheel).not.toHaveBeenCalled()
+    expect(horizontalGroup.scrollLeft).toBe(500)
+    expect(mocks.scrollByWheel).not.toHaveBeenCalled()
+  })
+
+  it('registers horizontal wheel handling as a native non-passive listener', () => {
+    const addEventListenerSpy = vi.spyOn(HTMLElement.prototype, 'addEventListener')
+
+    try {
+      render(
+        <MessageGroup messages={[createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]} />
+      )
+
+      expect(addEventListenerSpy).toHaveBeenCalledWith('wheel', expect.any(Function), {
+        capture: true,
+        passive: false
+      })
+    } finally {
+      addEventListenerSpy.mockRestore()
+    }
   })
 
   it('preserves visible content overflow for non-horizontal layouts', () => {

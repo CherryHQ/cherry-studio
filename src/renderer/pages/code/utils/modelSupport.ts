@@ -28,6 +28,7 @@ export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
     case CodeCli.OPENCLAW:
     case CodeCli.DEEPSEEK_HARNESS:
     case CodeCli.HERMES:
+    case CodeCli.MINIMAX_CODE:
       return hasAnyModelEndpoint(model, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ...OPENAI_LIKE_ENDPOINTS])
     case CodeCli.GEMINI_CLI:
     case CodeCli.ANTIGRAVITY_CLI:

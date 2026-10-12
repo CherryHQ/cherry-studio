@@ -1,18 +1,18 @@
 import { Document, FileReader, type Metadata } from '@vectorstores/core'
+import { HTMLReader } from '@vectorstores/readers/html'
 import EPub from 'epub'
 
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('KnowledgeEpubReader')
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 export class EpubReader extends FileReader<Document<Metadata>> {
+  /**
+   * An EPUB chapter is XHTML: a regex strip kept the `<style>` and `<script>` contents, and without the
+   * reader's own options entities are decoded first, so an escaped `&lt;div&gt;` is cut as a tag.
+   */
+  private readonly htmlReader = new HTMLReader()
+
   async loadDataAsContent(fileContent: Uint8Array, filename?: string): Promise<Document<Metadata>[]> {
     const epub = new EPub(Buffer.from(fileContent))
     await epub.parse()
@@ -24,7 +24,7 @@ export class EpubReader extends FileReader<Document<Metadata>> {
     for (const chapter of chapters) {
       try {
         const content = await epub.getChapter(chapter.id)
-        const text = stripHtml(content)
+        const text = (await this.htmlReader.parseContent(content, this.htmlReader.getOptions())).trim()
 
         if (!text) {
           continue

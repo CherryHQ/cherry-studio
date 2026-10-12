@@ -791,6 +791,99 @@ describe('ExportService', () => {
     })
   })
 
+  describe('force dollar math', () => {
+    beforeEach(async () => {
+      await preferenceService.set('data.export.markdown.force_dollar_math', true)
+    })
+
+    afterEach(async () => {
+      await preferenceService.set('data.export.markdown.force_dollar_math', false)
+    })
+
+    it('converts math delimiters in prose but leaves inline and fenced code untouched', async () => {
+      const message = createExportView([
+        {
+          type: 'text',
+          text: [
+            'Euler: \\(e^{i\\pi}+1=0\\) and inline `re.match(r"\\(\\d+\\)", s)`',
+            '```bash',
+            'if \\[ -f x \\]; then echo "\\(ok\\)"; fi',
+            '```',
+            '\\[ a^2+b^2=c^2 \\]'
+          ].join('\n')
+        }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('Euler: $e^{i\\pi}+1=0$')
+      expect(markdown).toContain('$$ a^2+b^2=c^2 $$')
+      expect(markdown).toContain('`re.match(r"\\(\\d+\\)", s)`')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo "\\(ok\\)"; fi')
+    })
+
+    it('leaves code inside the reasoning trace untouched', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'Check \\(x\\) first\n```bash\nif \\[ -f x \\]; then echo hi; fi\n```' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('Check $x$ first')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo hi; fi')
+    })
+
+    it('keeps a stray backtick in the reasoning trace from pairing with a later fence', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'the ` char\nmath \\(x\\)\n```bash\nif \\[ -f x \\]; fi\n```' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('math $x$')
+      expect(markdown).toContain('if \\[ -f x \\]; fi')
+    })
+
+    it('leaves a tilde-fenced block in the reasoning trace untouched', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'Check \\(x\\) first\n~~~bash\nif \\[ -f x \\]; then echo hi; fi\n~~~' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('Check $x$ first')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo hi; fi')
+    })
+
+    it('converts prose between code blocks when the first block contains a literal fence', async () => {
+      const message = createExportView([
+        {
+          type: 'text',
+          text: [
+            '```python',
+            'print("```")',
+            '```',
+            '',
+            'Formula: \\(x\\)',
+            '',
+            '```python',
+            're.match(r"\\(\\d+\\)", s)',
+            '```'
+          ].join('\n')
+        }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('Formula: $x$')
+      expect(markdown).toContain('print("```")')
+      expect(markdown).toContain('re.match(r"\\(\\d+\\)", s)')
+    })
+  })
+
   describe('messagesToMarkdown', () => {
     beforeEach(() => {
       // Use the specific Block type required by createBlock

@@ -1,9 +1,12 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { ipcApi } from '@renderer/ipc'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { isHttpUrl } from '@shared/utils/url'
 
 const logger = loggerService.withContext('SelectionContextMenu')
 
@@ -11,6 +14,7 @@ const TEXT_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H
 
 interface SelectionContextMenuProps {
   children: React.ReactNode
+  openBrowserUrl?: (url: string) => void
 }
 
 /**
@@ -78,29 +82,10 @@ function extractSelectedText(selection: Selection): string {
 }
 
 /**
- * Right-click menu for selected text regions: copy the current selection or quote it
- * back to the main window. No selection means no selection-specific actions.
+ * Right-click actions for website links and selected text in conversation content.
  */
-const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children }) => {
+const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl }) => {
   const { t } = useTranslation()
-  const [selectedText, setSelectedText] = useState('')
-
-  const getSelectedText = useCallback((): string => {
-    const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      return ''
-    }
-    return extractSelectedText(selection)
-  }, [])
-
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open) return
-      setSelectedText(getSelectedText())
-    },
-    [getSelectedText]
-  )
-
   const handleCopy = useCallback(
     (text: string) => {
       navigator.clipboard
@@ -140,19 +125,55 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children })
     [handleCopy, handleQuote, t]
   )
 
-  const extraItems = useMemo(() => getMenuItems(selectedText), [getMenuItems, selectedText])
-  const getExtraItems = useCallback(() => {
-    const text = getSelectedText()
-    setSelectedText(text)
-    return getMenuItems(text)
-  }, [getMenuItems, getSelectedText])
+  const getExtraItems = useCallback(
+    (event: React.MouseEvent): CommandContextMenuExtraItem[] => {
+      const selection = window.getSelection()
+      const selectedText = selection ? extractSelectedText(selection) : ''
+      const target = event.target instanceof Element ? event.target : null
+      const anchor = target?.closest('a[href]')
+      const href = anchor?.getAttribute('href')
+      if (href && isHttpUrl(href)) {
+        const selectedLinkText =
+          selectedText && selection && anchor && selection.getRangeAt(0).intersectsNode(anchor) ? selectedText : ''
+        const linkItems: CommandContextMenuExtraItem[] = [
+          {
+            type: 'item',
+            id: 'link.openBrowser',
+            label: t('common.link.open_browser'),
+            onSelect: () => {
+              if (openBrowserUrl) openBrowserUrl(href)
+              else openRoute('/app/browser', { url: href })
+            }
+          },
+          {
+            type: 'item',
+            id: 'link.openExternal',
+            label: t('webview.navigation.open_external'),
+            onSelect: () => {
+              void ipcApi.request('system.shell.open_external_website', href).catch((error) => {
+                logger.error('Failed to open external website', error as Error)
+                toast.error(t('chat.artifacts.preview.openExternal.error.content'))
+              })
+            }
+          },
+          { type: 'separator' },
+          {
+            type: 'item',
+            id: 'link.copy',
+            label: t('common.link.copy'),
+            onSelect: () => handleCopy(href)
+          }
+        ]
+        return selectedLinkText ? [...getMenuItems(selectedLinkText), { type: 'separator' }, ...linkItems] : linkItems
+      }
+
+      return getMenuItems(selectedText)
+    },
+    [getMenuItems, handleCopy, openBrowserUrl, t]
+  )
 
   return (
-    <CommandContextMenu
-      location="chat.message.context"
-      extraItems={extraItems}
-      getExtraItems={getExtraItems}
-      onOpenChange={handleOpenChange}>
+    <CommandContextMenu location="chat.message.context" getExtraItems={getExtraItems}>
       {children}
     </CommandContextMenu>
   )

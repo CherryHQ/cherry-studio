@@ -46,18 +46,20 @@ describe('buildModelListSyncPreview', () => {
         isHidden: false
       }
     ])
-    vi.mocked(fetchResolvedProviderModels).mockResolvedValue([
-      {
-        id: 'openai::gpt-5',
-        providerId: 'openai',
-        apiModelId: 'gpt-5',
-        name: 'GPT-5',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
-        supportsStreaming: true,
-        isEnabled: true,
-        isHidden: false
-      }
-    ])
+    vi.mocked(fetchResolvedProviderModels).mockResolvedValue({
+      models: [
+        {
+          id: 'openai::gpt-5',
+          providerId: 'openai',
+          apiModelId: 'gpt-5',
+          name: 'GPT-5',
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+          supportsStreaming: true,
+          isEnabled: true,
+          isHidden: false
+        }
+      ]
+    })
 
     const preview = await buildModelListSyncPreview({
       providerId: 'openai'
@@ -86,19 +88,21 @@ describe('buildModelListSyncPreview', () => {
         isDeprecated: false
       }
     ])
-    vi.mocked(fetchResolvedProviderModels).mockResolvedValue([
-      {
-        id: 'openai::gpt-4o',
-        providerId: 'openai',
-        apiModelId: 'gpt-4o',
-        presetModelId: 'gpt-4o',
-        name: 'GPT-4o',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
-        supportsStreaming: true,
-        isEnabled: true,
-        isHidden: false
-      }
-    ])
+    vi.mocked(fetchResolvedProviderModels).mockResolvedValue({
+      models: [
+        {
+          id: 'openai::gpt-4o',
+          providerId: 'openai',
+          apiModelId: 'gpt-4o',
+          presetModelId: 'gpt-4o',
+          name: 'GPT-4o',
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+          supportsStreaming: true,
+          isEnabled: true,
+          isHidden: false
+        }
+      ]
+    })
 
     const preview = await buildModelListSyncPreview({
       providerId: 'openai'
@@ -122,7 +126,7 @@ describe('buildModelListSyncPreview', () => {
         isDeprecated: true
       }
     ])
-    vi.mocked(fetchResolvedProviderModels).mockResolvedValue([])
+    vi.mocked(fetchResolvedProviderModels).mockResolvedValue({ models: [] })
 
     const preview = await buildModelListSyncPreview({
       providerId: 'openai'

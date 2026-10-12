@@ -43,7 +43,7 @@ describe('AgentTabRuntime', () => {
     expect(runtimeMocks.useTabSelfVisuals).toHaveBeenCalledWith({
       title: 'Session A',
       emoji: 'agent-avatar',
-      appId: 'agents',
+      routePrefix: '/app/agents',
       preserveVisuals: false
     })
     expect(runtimeMocks.useCommandHandler).toHaveBeenCalledWith('app.sidebar.toggle', onToggleSidebar, {

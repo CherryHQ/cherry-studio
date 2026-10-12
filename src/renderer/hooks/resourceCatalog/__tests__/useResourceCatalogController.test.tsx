@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -13,6 +14,7 @@ const controllerMocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
   createGroup: vi.fn(),
+  closeConversationTabs: vi.fn(),
   dataApiGet: vi.fn(),
   duplicateAssistant: vi.fn(),
   groups: [] as Array<{
@@ -23,6 +25,8 @@ const controllerMocks = vi.hoisted(() => ({
     createdAt: string
     updatedAt: string
   }>,
+  invalidate: vi.fn(),
+  ipcRequest: vi.fn(),
   refetch: vi.fn(),
   resourceLibraryOptions: [] as unknown[],
   resourceLibraryState: {
@@ -31,7 +35,8 @@ const controllerMocks = vi.hoisted(() => ({
     isLoading: false,
     resources: [] as ResourceItem[]
   },
-  saveFile: vi.fn()
+  saveFile: vi.fn(),
+  showRecycleBinBatchUndo: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -40,6 +45,23 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: { get: controllerMocks.dataApiGet }
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => controllerMocks.invalidate
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => controllerMocks.closeConversationTabs
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: controllerMocks.ipcRequest }
+}))
+
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
+  showRecycleBinBatchUndo: controllerMocks.showRecycleBinBatchUndo
 }))
 
 vi.mock('../useResourceLibrary', () => ({
@@ -97,12 +119,47 @@ const assistantResource = {
   raw: { id: 'assistant-to-duplicate', name: 'Assistant to duplicate', groupId: null }
 } as unknown as ResourceItem
 
+function createSkillResource(id: string, folderName: string, source: string): Extract<ResourceItem, { type: 'skill' }> {
+  return {
+    id,
+    type: 'skill',
+    name: folderName,
+    description: '',
+    avatar: 'S',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    raw: {
+      id,
+      name: folderName,
+      description: null,
+      folderName,
+      source,
+      sourceUrl: null,
+      namespace: null,
+      author: null,
+      version: null,
+      sourceTags: [],
+      contentHash: 'hash',
+      isGlobalEnabled: true,
+      isEnabled: false,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z'
+    }
+  }
+}
+
 describe('useResourceCatalogController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
     controllerMocks.dataApiGet.mockResolvedValue([])
+    controllerMocks.invalidate.mockResolvedValue(undefined)
+    controllerMocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'ai.agent.sessions.delete') return Promise.resolve({ deletedIds: ['session-1', 'session-2'] })
+      if (route === 'ai.agent.session.restore') return Promise.resolve(undefined)
+      return Promise.reject(new Error(`Unexpected IPC route: ${route}`))
+    })
     controllerMocks.refetch.mockResolvedValue(undefined)
     controllerMocks.resourceLibraryOptions.length = 0
     controllerMocks.groups.length = 0
@@ -199,6 +256,43 @@ describe('useResourceCatalogController', () => {
       kind: 'assistant',
       id: 'assistant-to-duplicate'
     })
+  })
+
+  it('opens and launches a Skill through the shared callbacks', async () => {
+    const skill = createSkillResource('skill-1', 'writer', 'local')
+    const onOpenSkill = vi.fn()
+    const onLaunchSkill = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useResourceCatalogController('skill', { onOpenSkill, onLaunchSkill }))
+
+    act(() => result.current.gridProps.onEdit(skill))
+    act(() => result.current.gridProps.onLaunchSkill?.(skill))
+
+    expect(onOpenSkill).toHaveBeenCalledExactlyOnceWith(skill.raw)
+    expect(onLaunchSkill).toHaveBeenCalledExactlyOnceWith(skill.raw)
+  })
+
+  it('launches only the exact builtin skill-creator from the unfiltered catalog', () => {
+    const localImpostor = createSkillResource('local-creator', 'skill-creator', 'local')
+    const builtinCreator = createSkillResource('builtin-creator', 'skill-creator', 'builtin')
+    controllerMocks.resourceLibraryState.allResources = [localImpostor, builtinCreator]
+    controllerMocks.resourceLibraryState.resources = []
+    const onLaunchSkill = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useResourceCatalogController('skill', { onLaunchSkill }))
+
+    act(() => result.current.gridProps.onCreateSkillWithAgent?.())
+
+    expect(onLaunchSkill).toHaveBeenCalledExactlyOnceWith(builtinCreator.raw)
+  })
+
+  it('does not create a session when the builtin skill-creator is unavailable', () => {
+    controllerMocks.resourceLibraryState.allResources = [createSkillResource('local-creator', 'skill-creator', 'local')]
+    const onLaunchSkill = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useResourceCatalogController('skill', { onLaunchSkill }))
+
+    act(() => result.current.gridProps.onCreateSkillWithAgent?.())
+
+    expect(onLaunchSkill).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('settings.skills.creatorUnavailable')
   })
 
   it('reports assistant export failures without throwing', async () => {
@@ -299,6 +393,51 @@ describe('useResourceCatalogController', () => {
       expect(controllerMocks.resourceLibraryOptions.at(-1)).toEqual(
         expect.objectContaining({ activeGroupId: null, resourceType: 'assistant' })
       )
+    })
+  })
+
+  it('moves protected Agent sessions directly without opening the owner confirmation', async () => {
+    const protectedAgent = {
+      id: 'agent-protected',
+      type: 'agent',
+      name: 'Cherry Assistant',
+      description: '',
+      avatar: 'C',
+      createdAt: '2026-09-16T00:00:00.000Z',
+      updatedAt: '2026-09-16T00:00:00.000Z',
+      raw: {
+        id: 'agent-protected',
+        name: 'Cherry Assistant',
+        configuration: { builtin_role: 'assistant' }
+      }
+    } as unknown as ResourceItem
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+
+    act(() => {
+      result.current.gridProps.onDelete(protectedAgent)
+    })
+
+    expect(result.current.dialogs.deleteConfirm).toBeNull()
+    await waitFor(() =>
+      expect(controllerMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', {
+        agentId: 'agent-protected'
+      })
+    )
+    expect(controllerMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-2'])
+    expect(controllerMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 2,
+      onUndo: expect.any(Function)
+    })
+
+    await expect(controllerMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['session-1', 'session-2'],
+      failed: []
+    })
+    expect(controllerMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.session.restore', {
+      sessionId: 'session-1'
+    })
+    expect(controllerMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.session.restore', {
+      sessionId: 'session-2'
     })
   })
 })

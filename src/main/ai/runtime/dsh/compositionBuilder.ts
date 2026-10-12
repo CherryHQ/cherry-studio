@@ -35,7 +35,7 @@ export function toDshPluginUrl(pluginPath: string, windows = isWin): string {
   return pathToFileURL(pluginPath, { windows }).href
 }
 
-/** Resolve Cherry's DSH runtime bin spawned via `ELECTRON_RUN_AS_NODE`. */
+/** Resolve Cherry's DSH runtime bin spawned by bundled Bun. */
 export function resolveDshRuntimeBinPath(): string {
   return resolveDshPluginPath('@cherrystudio/dsh-bridge/bin')
 }

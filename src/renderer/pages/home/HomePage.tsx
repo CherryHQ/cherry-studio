@@ -201,9 +201,13 @@ const HomePage: FC = () => {
     setActiveTopicId
   })
   const reenterChatRoute = useCallback(() => {
+    const staleTopicId = activeTopicId ?? routeTopicId
+    if (staleTopicId) {
+      cacheService.setPersist('ui.chat.last_used_topic_id', (current) => (current === staleTopicId ? null : current))
+    }
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
-  }, [clearActiveTopic, navigate])
+  }, [activeTopicId, routeTopicId, clearActiveTopic, navigate])
   // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -518,16 +522,19 @@ const HomePage: FC = () => {
     toggleHistoryRecords()
   }, [toggleHistoryRecords])
   const handleHistoryRecordsTopicSelect = useCallback(
-    (topic: Topic | null) => {
+    (topic: Topic) => {
       closeHistoryRecords()
-      if (!topic) {
-        void createAndActivateEmptyTopic()
-        return
-      }
-
       handleHistoryTopicSelect(topic)
     },
-    [closeHistoryRecords, createAndActivateEmptyTopic, handleHistoryTopicSelect]
+    [closeHistoryRecords, handleHistoryTopicSelect]
+  )
+  const handleHistoryActiveTopicChange = useCallback(
+    (topic: Topic | null) => {
+      clearLocate()
+      if (topic) setActiveTopic(topic)
+      else reenterChatRoute()
+    },
+    [clearLocate, reenterChatRoute, setActiveTopic]
   )
   const handleGlobalSearchTopicSelect = useEffectEvent((topic: Topic, messageId?: string) => {
     handleHistoryTopicSelect(topic, messageId)
@@ -589,6 +596,7 @@ const HomePage: FC = () => {
             activeRecordId={activeTopicId}
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsTopicSelect}
+            onActiveRecordChange={handleHistoryActiveTopicChange}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton
@@ -625,6 +633,7 @@ const HomePage: FC = () => {
     isClassicTopicLayout && topicListPosition === 'right' ? (
       <AssistantResourceList
         activeAssistantId={visibleAssistantId ?? null}
+        activeTopicId={visibleTopic?.id ?? null}
         dataEnabled={shellPaneOpen}
         assistantTopicsSource={assistantTopicsSource}
         onAddAssistant={() => {

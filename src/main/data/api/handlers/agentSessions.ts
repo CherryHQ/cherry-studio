@@ -45,10 +45,12 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
 
   '/agent-sessions/:sessionId': {
     GET: async ({ params }) => {
-      return agentSessionService.getById(params.sessionId)
+      return agentSessionService.getConversationById(params.sessionId)
     },
 
     PATCH: async ({ params, body }) => {
+      // Mutations scope like reads: background sessions are not addressable here.
+      agentSessionService.getConversationById(params.sessionId)
       const parsed = UpdateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.update(params.sessionId, parsed.data)
@@ -57,6 +59,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
 
   '/agent-sessions/:sessionId/workspace': {
     PUT: async ({ params, body }) => {
+      agentSessionService.getConversationById(params.sessionId)
       const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.setWorkspace(params.sessionId, parsed.data)
@@ -65,6 +68,8 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
 
   '/agent-sessions/:id/order': {
     PATCH: async ({ params, body }) => {
+      // Mutations scope like reads: background sessions are not addressable here.
+      agentSessionService.getConversationById(params.id)
       const parsed = OrderRequestSchema.parse(body)
       agentSessionService.reorder(params.id, parsed)
       return undefined
@@ -74,6 +79,8 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
+      // Mutations scope like reads: background sessions are not addressable here.
+      parsed.moves.forEach((move) => agentSessionService.getConversationById(move.id))
       agentSessionService.reorderBatch(parsed.moves)
       return undefined
     }

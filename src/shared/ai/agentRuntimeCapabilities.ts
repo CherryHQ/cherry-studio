@@ -124,7 +124,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     modelTiers: false,
     heartbeat: true,
     knowledgeBases: true,
-    // The complete session MCP set is bridged into approval-gated Pi custom tools.
+    // Native Pi MCP tools retain Cherry's approval gate.
     mcp: true,
     skills: true,
     claudeRegistryTools: false,

@@ -1,0 +1,49 @@
+diff --git a/lib/index.js b/lib/index.js
+index b4530537ab2b5e79e131fe4e801da51368fa75e4..c7c78a9a27c3e65024b7c318422961a9bd84cfe3 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -390,7 +390,7 @@ function scopeArgs(unitBase, invocation, argv) {
+ 		`--unit=${unitBase}`,
+ 		"--",
+ 		...invocation,
+-		"--",
++		...process.versions.bun ? ["--", "--"] : ["--"],
+ 		...argv
+ 	];
+ }
+@@ -593,7 +593,7 @@ function launchWindowsJob(spec, targetEnv, internals = {}) {
+ 	try {
+ 		child = (internals.spawn ?? spawn)(command, [
+ 			...prefix,
+-			"--",
++			...process.versions.bun ? ["--", "--"] : ["--"],
+ 			...spec.argv
+ 		], {
+ 			cwd: process.cwd(),
+diff --git a/lib/runner-launch-B2zsQ1Dz.js b/lib/runner-launch-B2zsQ1Dz.js
+index 538e41477639a4bebaf1137eed7b3cdd97201fd0..03a7fa572f5a492231117bb0ff25b0e6b236998e 100644
+--- a/lib/runner-launch-B2zsQ1Dz.js
++++ b/lib/runner-launch-B2zsQ1Dz.js
+@@ -1,6 +1,6 @@
+ import { OutputCollector, prepareManagedProcessBinding } from "./output.js";
+ import { accessSync, chmodSync, closeSync, constants, existsSync, lstatSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+-import { tmpdir } from "node:os";
++import { devNull, tmpdir } from "node:os";
+ import { basename, dirname, extname, isAbsolute, join } from "node:path";
+ import { createLazyRequire } from "@deepseek-ai/dsh-lazy-require";
+ import { scrubbedParentEnv } from "@deepseek-ai/dsh-subprocess";
+@@ -1309,11 +1309,13 @@ const RUNNER_CONTROL_ENV_PREFIXES = ["NODE_", "TSX_"];
+ */
+ function spawnRunnerInvocation() {
+ 	if ("pkg" in process) return [process.execPath];
++	const runtimeArgs = process.versions.bun ? ["--no-env-file", `--config=${devNull}`] : [];
+ 	/* v8 ignore next -- built-artifact smoke imports the emitted JavaScript runner entry;
+ 	* source-unit coverage cannot change import.meta.url. */
+-	if (extname(fileURLToPath(import.meta.url)) !== ".ts") return [process.execPath, fileURLToPath(import.meta.resolve("@deepseek-ai/dsh-subprocess-local/runner"))];
++	if (extname(fileURLToPath(import.meta.url)) !== ".ts") return [process.execPath, ...runtimeArgs, fileURLToPath(import.meta.resolve("@deepseek-ai/dsh-subprocess-local/runner"))];
+ 	return [
+ 		process.execPath,
++		...runtimeArgs,
+ 		"--import",
+ 		import.meta.resolve("tsx/esm"),
+ 		fileURLToPath(new URL("./bin.ts", import.meta.url))

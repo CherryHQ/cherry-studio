@@ -57,12 +57,15 @@ export const handlePaste = async (
   try {
     const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
     // Windows screenshot clipboards can expose both a text flavor and image bytes. Prefer the
-    // supported image in that case; letting the editor handle the text flavor can render a preview
-    // without ever adding an attachment to composer state.
-    const shouldPreferClipboardImage = hasSupportedClipboardImage(clipboardFiles, supportExts)
+    // supported image when no rich text representation is present; letting the editor handle the
+    // text flavor can render a preview without ever adding an attachment to composer state.
+    const clipboardText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
+    const clipboardHtml = event.clipboardData?.getData('text/html') || ''
+    const hasTextualClipboardRepresentation = Boolean(clipboardText && clipboardHtml)
+    const shouldPreferClipboardImage =
+      !hasTextualClipboardRepresentation && hasSupportedClipboardImage(clipboardFiles, supportExts)
 
     // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
-    const clipboardText = event.clipboardData?.getData('text')
     if (clipboardText && !shouldPreferClipboardImage) {
       // 1. 文本粘贴（仅在用户开启“长文本转文件”时生效）
       if (pasteLongTextAsFile && clipboardText.length > (pasteLongTextThreshold ?? LONG_TEXT_PASTE_THRESHOLD)) {
@@ -82,6 +85,8 @@ export const handlePaste = async (
           }
           setFiles((prevFiles) => [...prevFiles, toComposerAttachment(pastedTextFile)])
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
+        } else if (t) {
+          toast.info(t('chat.input.file_not_supported'))
         }
         return true
       }
@@ -99,6 +104,12 @@ export const handlePaste = async (
         }))
         const pathBackedEntries = clipboardEntries.filter((entry): entry is { file: File; filePath: string } =>
           Boolean(entry.filePath)
+        )
+        const hasPathlessClipboardImage = clipboardEntries.some(
+          (entry) =>
+            !entry.filePath &&
+            entry.file.type.startsWith('image/') &&
+            supportExts.includes(getFileExtension(entry.file.name))
         )
 
         if (pathBackedEntries.length === clipboardEntries.length) {
@@ -118,6 +129,8 @@ export const handlePaste = async (
               }
             } else if (result.value.kind === 'attachment') {
               attachments.push(result.value.attachment)
+            } else if (t) {
+              toast.info(t('chat.input.file_not_supported'))
             }
           }
 
@@ -148,7 +161,8 @@ export const handlePaste = async (
                     origin_name: removeFileExtension(file.name)
                   })
                 ])
-                break
+              } else if (t) {
+                toast.info(t('chat.input.file_not_supported'))
               }
             } else {
               if (t) {
@@ -161,7 +175,7 @@ export const handlePaste = async (
           const result = await readPathBackedClipboardEntry(filePath, extensionSet)
           if (result.kind === 'attachment') {
             setFiles((prevFiles) => [...prevFiles, result.attachment])
-          } else if (result.kind === 'unsupported' && t) {
+          } else if (!hasPathlessClipboardImage && t) {
             toast.info(t('chat.input.file_not_supported'))
           }
         }

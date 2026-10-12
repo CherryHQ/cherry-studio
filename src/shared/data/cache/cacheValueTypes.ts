@@ -1,5 +1,7 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { DoctorState } from '@shared/types/doctor'
+import type { DoctorAgentState } from '@shared/types/doctorAgent'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
 
@@ -39,6 +41,8 @@ export type McpRuntimeStatus = {
   state: 'disabled' | 'connecting' | 'connected' | 'error'
   lastCheckedAt: number
   lastError?: string
+  /** Set while `connecting` waits for the user to finish OAuth in the browser. */
+  authorizing?: boolean
 }
 
 /**
@@ -134,7 +138,7 @@ export interface ChatScrollAnchor {
 
 export interface CacheComposerSerializedToken {
   id: string
-  kind: ComposerMessageTokenKind | 'promptVariable'
+  kind: ComposerMessageTokenKind | 'promptVariable' | 'messagePart'
   label: string
   icon?: string
   description?: string
@@ -173,6 +177,13 @@ export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   workspaceKey: string
   agentId: string
   shouldValidateSkills?: boolean
+}
+
+/** Unsubmitted AskUserQuestion answers, keyed per question index. Survives composer remounts. */
+export interface CacheAskUserQuestionDraft {
+  selectedAnswers: Record<number, string[]>
+  customAnswers: Record<number, string>
+  currentIndex: number
 }
 
 export type ExternalOpenTargetPreferences = Record<string, string>
@@ -228,3 +239,8 @@ export type CacheMiniAppAttention = {
   /** An update in flight: the version landing, and how far its download is (`null` = not measurable yet). */
   updating: { version: string; fraction: number | null } | null
 }
+
+/** System Doctor run state; see `@shared/types/doctor`. */
+export type CacheDoctorState = DoctorState
+/** Doctor Agent analysis state; see `@shared/types/doctorAgent`. */
+export type CacheDoctorAgentState = DoctorAgentState

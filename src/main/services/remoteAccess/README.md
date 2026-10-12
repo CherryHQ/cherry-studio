@@ -1,0 +1,143 @@
+# Remote access
+
+Direct remote access over the API Gateway's existing HTTP listener, using reachable LAN,
+company or VPN addresses. The lifecycle
+service owns encrypted WebSocket connections, pairing invitations and delivery.
+Agent and configuration capabilities share identity and transport, and are approved
+together during pairing. Each capability has an independent authorization grant.
+
+The remote stream listener coalesces adjacent deltas for the same message and part for
+up to 50 ms or 2048 UTF-16 units. Part changes and structural/terminal events flush pending
+text first. Appends maintain UTF-8 offsets incrementally; completion still verifies the
+full content digest. Journal disposal cancels pending delivery.
+
+Append offsets come from the protocol's `textByteLength`, a memory-only cache keyed by
+immutable part objects; replacements and completion never inherit a prior object's cache. Events and checkpoints add no fields.
+Compatibility tests feed journal checkpoints and events to the published protocol 0.1.0
+package, pinned as the test-only `@cherrystudio/remote-protocol-v0` alias.
+
+Session deletion goes through `AgentLifecycleService`: ordinary deletion rejects unsettled
+execution; destructive cleanup drains execution before deleting rows, so the terminal
+listener flushes pending text while the session still exists.
+
+| File | Owns |
+|---|---|
+| `RemoteAccessService.ts` | Accepts sockets from the gateway's `/v1/remote/connect` ws route, identity, sweep, connection registry |
+| `RemoteAdvertisement.ts` | Publishes the actual Gateway port and public identity while LAN access is enabled; refreshes interface changes and withdraws on shutdown |
+| `RemoteConnection.ts` | Per-connection RPC: hello/authenticate/refresh/ping, pairing, configuration export |
+| `RemotePairing.ts` / `RemoteTokens.ts` / `deviceIdentity.ts` | Invitation + claim state, access tokens, Ed25519 identity file |
+| `agentHandlers.ts` | Every `agent.*` method, including durable command receipts |
+| `agentQueries.ts` | Persisted sessions/messages/parts/interactions projected onto wire DTOs |
+| `agentJournal.ts` | Shared per-session journal: stream listener → protocol events, checkpoints, epoch |
+| `agentSubscriptions.ts` | Connection-private subscriptions: prepare, activate, ack credit, reset |
+
+Deviations from the design doc, kept deliberately small:
+
+- Session creation commits its receipt and session in one transaction. Sends first record
+  deduplication intake; their execution/message identities are then committed with the
+  reserved messages before runtime activation. A receipt still `accepted` at startup
+  becomes `interrupted`, retaining those identities. No external action is automatically replayed.
+- Locally started executions are discovered by a one-second poll of `hasLiveStream`, then
+  attached through `addListener` replay. Remote sends pass the listener at run start.
+- Approval cards persisted after a turn ended are listed and answerable, but not streamed as
+  `interaction.updated`; only stream-presented approvals enter the live projection.
+- Legacy files retain metadata-only `data` parts. Remote uploads expose revision-bound file content references.
+
+The desktop identity is sealed with `safeStorage`. Without an OS key store (Linux `basic_text`), it is
+stored unencrypted with mode `0600`. An existing identity is never regenerated: a sealed identity whose
+key store disappears is an error, since replacing it would unpair every device.
+
+SQLite writes stay in their owning data services. Agent execution stays in the
+existing stream manager and runtime. No relay service is provided here.
+
+Discovery publishes only the eligible interface addresses passed to Bonjour, excluding scoped and link-local IPv6.
+The pinned Bonjour patch adds an optional address allowlist to record generation; the same list is used for publication and withdrawal.
+
+`connection.endpoints` requires an authenticated, current capability and returns the
+Gateway's actual IPv4 / IPv6 interface addresses (excluding scoped link-local IPv6) and port without creating an invitation.
+The mobile owns candidate verification and address persistence. Any reachable network can
+carry a connection; VPN clients are configured outside Cherry Studio.
+
+Execution failures use the shared failure snapshot in both live terminal events and historical
+messages. The persistence listener supplies the actual saved message identity and revisions before
+the journal declares `durable` or removes the final overlay. Save failures remain separate from
+model failures. Terminal events retain the failure and message identity even when history commit
+and live-message removal arrive in the same batch; clients can display the result before loading
+history. Provider rejection never revokes the device grant or rewrites an applied command receipt.
+
+Question interactions are declared in live events, checkpoints and persisted views. Their form
+stays in the input resource. `agent.interactions.respond` validates the revision/execution/digest
+and complete answer keys, then forwards original input plus answers (or denial reason) to the
+existing Agent runtime. It never accepts caller-supplied replacement tool input.
+
+Workspace catalogs advertise system creation. `agent.sessions.create` resolves explicit system or
+registered selections through `AgentSessionService`; the phone cannot supply a directory. Responses
+include the actual workspace ID and kind. Legacy mutation forms remain accepted for existing
+clients and persisted command recovery. See the [protocol package](../../../../packages/remote-protocol/README.md).
+
+Agent catalogs include the configured emoji, falling back to the desktop's robot avatar when it
+is empty or exceeds the wire limit. They never expose desktop avatar file paths.
+
+Known dispatch target validation failures settle commands as rejected with `TARGET_UNAVAILABLE`
+and a sanitized diagnostic message. They are distinct from interrupted commands with an unknown
+outcome and from model failures after execution admission. Replaying the same command returns the
+recorded rejection; it never starts another execution.
+
+`agentUsage.ts` projects host-owned message stats into the portable usage summary. Historical
+queries and persisted terminal events read the same materialized row; unsaved terminal messages
+retain available final metadata and runtime timing. Overlapping tool/wait spans are unioned before
+sending durations. Missing provider data is never estimated from text. This endpoint does not
+expose the accounting ledger or claim main-model latency from multi-model aggregates.
+
+Model display metadata follows its owner: Agent catalogs use `AgentService`'s current model/name,
+while message history and terminal events use the persisted model identity and matching immutable
+snapshot. A changed or removed Agent model never rewrites historical message identity. Unsaved
+terminal answers retain final message metadata or the terminal producing model ID.
+
+Resource limits preserve recovery semantics: replay events share a 64 MiB desktop budget
+in addition to the per-session 8 MiB / five-minute window. The hub retains at most 128
+journals, evicts unused idle journals after five minutes (or earlier under count pressure),
+and keeps prepared/active subscriptions and running executions attached. Evicted cursors
+recover through checkpoints. This is a replay budget, not a bound on all runtime memory.
+
+Command receipts are retained until their paired device is removed. New admission stops
+at 10,000 receipts per device or 100,000 per desktop with `RESOURCE_EXHAUSTED`; grant rotation
+does not reset this limit. Identical retries and receipt queries still work at capacity.
+Removing a paired device cascades its receipts. Receipts are not aged out: silently forgetting
+an old command would allow its side effect to run again on retry.
+
+Cancellation checks the expected execution inside the stream manager's dispatch lock.
+An identical pending pairing claim can be retried by the same proven device key; changed
+claim contents or another key still conflict. Settings reads pending claims on entry and
+ignores responses superseded by later pairing events or a stopped LAN listener.
+
+## Attachment ownership
+
+The file module owns checkpoint-based recovery and retention. Selection is disposable presentation; new sends carry
+explicit upload references. Intake/draft tables and their unpublished development migrations were removed.
+
+`FileIntakeService` owns durable staging under `feature.files.intakes`; `RemoteUploads`
+binds its operations to the current device grant.
+File data is synced before the atomically replaced checkpoint is acknowledged. Recovery
+truncates uncommitted tails; a shorter file fails verification. Shutdown drains work and
+retains resumable records. Each upload is serialized independently and fenced by writer epoch.
+
+Upload capability 1 exposes a single `agent.uploads.prepare` without draft membership;
+binary DATA carries at most 1 MiB per record with two outstanding blocks. ACK notifications
+report durable offsets independently of RPC admission. JSON control remains limited to 64 KiB.
+There is no legacy upload format: desktop computes the final hash after receiving authenticated
+Noise data. Mobile uses native bulk crypto; Electron uses Noise's built-in cipher because
+its Node crypto does not expose ChaCha20-Poly1305. The shared transport owns framing and negotiation.
+
+Verified files enter FileManager before Send. Checkpoints retain them while waiting;
+message references retain accepted files after submission. Agent tools use the same managed
+path and file identity; sending does not create a workspace copy or a second entry.
+Command receipts precede staging lookup, so replay survives expiry. Upload-time digests still
+need a separate preview-revision policy when native tools modify the managed bytes.
+
+File pages require session/message/revision identity; callers cannot choose arbitrary paths or
+entry IDs. The phone reads images for thumbnails and ordinary documents on demand.
+
+Large-file verification: set `REMOTE_UPLOAD_TEST_BYTES=1073741824` when running the
+`RemoteUploads.test.ts` streaming test to exercise 1 GiB and a receiver restart midway.
+This filesystem/RPC validation does not replace device, VPN throughput or OS-background tests.

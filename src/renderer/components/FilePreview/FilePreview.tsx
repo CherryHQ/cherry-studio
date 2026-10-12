@@ -3,6 +3,7 @@ import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 're
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
+import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
@@ -12,11 +13,9 @@ import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/util
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
-import { FilePreviewLayout } from './FilePreviewLayout'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
-import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
-import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewType } from './types'
+import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewPluginProps, FilePreviewType } from './types'
 
 const logger = loggerService.withContext('FilePreview')
 const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
@@ -68,7 +67,7 @@ function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
   const openablePath = kind === 'unsupported' ? filePath : undefined
   const handleOpenWithDefaultApp = () => {
     if (!openablePath) return
-    void safeOpen(createFilePathHandle(openablePath)).catch(() => toast.error(t('file_preview.unsupported.open_error')))
+    void safeOpen(createFilePathHandle(openablePath)).catch(() => toast.error(t('file_preview.open_error')))
   }
 
   return (
@@ -110,6 +109,7 @@ interface FilePreviewPluginRendererProps {
   fileName: string
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
+  onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
   plugin: PreloadedFilePreviewPlugin
   refreshKey: number
   type: FilePreviewType
@@ -127,33 +127,11 @@ function preloadFilePreviewPlugin(descriptor: FilePreviewPlugin): PreloadedFileP
   return { descriptor, modulePromise }
 }
 
-interface FilePreviewShellProps {
-  children: ReactNode
-  header?: ReactNode
-}
-
-function FilePreviewShell({ children, header }: FilePreviewShellProps) {
-  if (header === undefined) return children
-
-  return (
-    <FilePreviewToolbarPortalProvider>
-      <FilePreviewLayout.Frame>
-        <div
-          data-testid="file-preview-header"
-          className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
-          <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
-          <FilePreviewToolbarPortalHost />
-        </div>
-        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
-      </FilePreviewLayout.Frame>
-    </FilePreviewToolbarPortalProvider>
-  )
-}
-
 function FilePreviewPluginRenderer({
   fileName,
   filePath,
   metadata,
+  onSelectionReference,
   plugin,
   refreshKey,
   type
@@ -170,6 +148,7 @@ function FilePreviewPluginRenderer({
           filePath={filePath}
           fileName={fileName}
           metadata={metadata}
+          onSelectionReference={onSelectionReference}
           refreshKey={refreshKey}
           type={type}
         />
@@ -183,6 +162,8 @@ export interface FilePreviewProps {
   header?: ReactNode
   refreshKey?: number
   type?: FilePreviewType
+  /** See {@link FilePreviewPluginProps.onSelectionReference}; forwarded to the active plugin as-is. */
+  onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
 }
 
 interface NormalizedFilePreviewTarget {
@@ -202,7 +183,13 @@ type FilePreviewResolution =
       status: 'ready'
     }
 
-export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }: FilePreviewProps) {
+export function FilePreview({
+  filePath,
+  header,
+  refreshKey = 0,
+  type = 'file',
+  onSelectionReference
+}: FilePreviewProps) {
   const file = useMemo(() => {
     try {
       const normalizedPath = normalizeFilePreviewPath(filePath)
@@ -275,6 +262,7 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
       <FilePreviewPluginRenderer
         {...resolution.file}
         metadata={resolution.metadata}
+        onSelectionReference={onSelectionReference}
         plugin={resolution.plugin}
         refreshKey={refreshKey}
         type={type}
@@ -284,5 +272,5 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
     preview = <FilePreviewState kind="unsupported" filePath={resolution.file.filePath} />
   }
 
-  return <FilePreviewShell header={header}>{preview}</FilePreviewShell>
+  return <FilePreviewLayout.Shell header={header}>{preview}</FilePreviewLayout.Shell>
 }

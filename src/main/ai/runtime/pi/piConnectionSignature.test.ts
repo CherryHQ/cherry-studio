@@ -1,3 +1,4 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
@@ -15,25 +16,26 @@ const mocks = vi.hoisted(() => ({
   getSkillDirectory: vi.fn(),
   findMcp: vi.fn(),
   listTools: vi.fn(),
+  getInstructions: vi.fn(),
   findBySessionId: vi.fn(),
-  preferenceGet: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   usesPiGateway: vi.fn(),
   gatewayFingerprint: 'gateway-1'
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
-      if (name === 'McpCatalogService') return { listTools: mocks.listTools }
-      if (name === 'AgentSessionRuntimeService') {
-        return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
-      }
-      throw new Error(`Unexpected service: ${name}`)
-    }
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const get = result.application.getContainer().get.bind(result.application.getContainer())
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'McpCatalogService') return { listTools: mocks.listTools }
+    if (name === 'McpRuntimeService') return { getConnectedServerInstructions: mocks.getInstructions }
+    if (name === 'AgentSessionRuntimeService')
+      return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+    return get(name)
+  })
+  return result
+})
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getSession } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/ProviderService', () => ({
@@ -68,6 +70,7 @@ const agent = {
 } as unknown as AgentEntity
 
 beforeEach(() => {
+  mocks.getInstructions.mockReturnValue(undefined)
   mocks.getAgent.mockReturnValue(agent)
   mocks.getSession.mockReturnValue({
     id: 'session-1',
@@ -75,8 +78,8 @@ beforeEach(() => {
     workspaceId: 'workspace-1',
     workspace: { id: 'workspace-1', path: '/workspace', type: 'user' }
   })
-  mocks.getProvider.mockResolvedValue({ id: 'provider', updatedAt: 1 })
-  mocks.getModel.mockResolvedValue({ id: 'provider::model', updatedAt: 1 })
+  mocks.getProvider.mockReturnValue({ id: 'provider', updatedAt: 1 })
+  mocks.getModel.mockReturnValue({ id: 'provider::model', updatedAt: 1 })
   mocks.getApiKeys.mockReturnValue([{ id: 'key-1', key: 'secret', enabled: true }])
   mocks.listSkills.mockResolvedValue([{ id: 'skill-1', isEnabled: true, updatedAt: 1 }])
   mocks.listLocalSkillPaths.mockResolvedValue([])
@@ -84,13 +87,30 @@ beforeEach(() => {
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
-  mocks.preferenceGet.mockReturnValue(null)
+  MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', null)
   mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
   mocks.usesPiGateway.mockReturnValue(false)
   mocks.gatewayFingerprint = 'gateway-1'
 })
 
 describe('capturePiConnectionSnapshot', () => {
+  it('rebuilds a warm connection when server instructions arrive or disappear', async () => {
+    const cold = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getInstructions.mockReturnValue({
+      serverId: 'mcp-1',
+      serverName: 'server',
+      text: 'Read before writing.',
+      truncated: false
+    })
+    const connected = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(connected.mcpInstructions).toContain('Read before writing.')
+    expect(connected.signature).not.toBe(cold.signature)
+    mocks.getInstructions.mockReturnValue(undefined)
+    const disconnected = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(disconnected.mcpInstructions).toBeUndefined()
+    expect(disconnected.signature).not.toBe(connected.signature)
+  })
+
   it('ignores the live permission mode but covers every reconcilable external input', async () => {
     const baseline = (await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
     mocks.getAgent.mockReturnValueOnce({
@@ -109,8 +129,8 @@ describe('capturePiConnectionSnapshot', () => {
           workspaceId: 'workspace-2',
           workspace: { id: 'workspace-2', path: '/other', type: 'user' }
         }),
-      () => mocks.getProvider.mockResolvedValueOnce({ id: 'provider', updatedAt: 2 }),
-      () => mocks.getModel.mockResolvedValueOnce({ id: 'provider::model', updatedAt: 2 }),
+      () => mocks.getProvider.mockReturnValueOnce({ id: 'provider', updatedAt: 2 }),
+      () => mocks.getModel.mockReturnValueOnce({ id: 'provider::model', updatedAt: 2 }),
       () => mocks.getApiKeys.mockReturnValueOnce([{ id: 'key-2', key: 'rotated', enabled: true }]),
       () => mocks.listSkills.mockResolvedValueOnce([{ id: 'skill-2', isEnabled: true, updatedAt: 1 }]),
       () => mocks.listLocalSkillPaths.mockResolvedValueOnce(['/workspace/.agents/skills/review']),
@@ -126,7 +146,7 @@ describe('capturePiConnectionSnapshot', () => {
         }),
       // Rebuild fact via the global preference alone: the Agent is unchanged, only
       // `agent.language` moves — this input is not hashed through agent.configuration.
-      () => mocks.preferenceGet.mockReturnValueOnce('English')
+      () => MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     ]
 
     for (const mutate of mutations) {
@@ -204,8 +224,8 @@ describe('capturePiConnectionSnapshot', () => {
 
   it('rebuilds a Cloud route when the gateway connection identity changes', async () => {
     mocks.usesPiGateway.mockReturnValue(true)
-    mocks.getProvider.mockResolvedValue({ id: CHERRY_CLOUD_PROVIDER_ID })
-    mocks.getModel.mockResolvedValue({
+    mocks.getProvider.mockReturnValue({ id: CHERRY_CLOUD_PROVIDER_ID })
+    mocks.getModel.mockReturnValue({
       id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
       providerId: CHERRY_CLOUD_PROVIDER_ID,
       group: CHERRY_CLOUD_MODEL_GROUP
@@ -217,5 +237,16 @@ describe('capturePiConnectionSnapshot', () => {
     mocks.gatewayFingerprint = 'gateway-2'
 
     expect((await captureCloud()).signature).not.toBe(initialSignature)
+  })
+  it('invalidates cached tools when Agent browser control changes', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    const disabled = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+    const enabled = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(enabled.signature).not.toBe(disabled.signature)
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    expect((await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).toBe(
+      disabled.signature
+    )
   })
 })

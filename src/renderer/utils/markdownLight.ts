@@ -20,19 +20,6 @@ export const findCitationInChildren = (children: any): string => {
 }
 
 /**
- * 转换数学公式格式：
- * - 将 LaTeX 格式的 '\\[' 和 '\\]' 转换为 '$$$$'。
- * - 将 LaTeX 格式的 '\\(' 和 '\\)' 转换为 '$$'。
- * @param {string} input 输入字符串
- * @returns {string} 转换后的字符串
- */
-export function convertMathFormula(input: string): string {
-  return input
-    ? input.replaceAll('\\[', '$$$$').replaceAll('\\]', '$$$$').replaceAll('\\(', '$$').replaceAll('\\)', '$$')
-    : input
-}
-
-/**
  * 移除 Markdown 文本中每行末尾的两个空格。
  * @param {string} markdown 输入的 Markdown 文本
  * @returns {string} 处理后的文本
@@ -104,7 +91,8 @@ export function isHtmlCode(code: string | null): boolean {
  */
 export function purifyMarkdownImages(markdown: string): string {
   return markdown.replace(
-    /(!\[[^\]]*\]\()\s*data:image\/[\w+.-]+;base64\s*,[\w+/=]+(?:\s*[\w+/=]+)*\s*\)/gi,
+    // `\s+` (not `\s*`) between base64 chunks: an optional separator backtracks exponentially when `)` is missing.
+    /(!\[[^\]]*\]\()\s*data:image\/[\w+.-]+;base64\s*,[\w+/=]+(?:\s+[\w+/=]+)*\s*\)/gi,
     '$1image_url)'
   )
 }

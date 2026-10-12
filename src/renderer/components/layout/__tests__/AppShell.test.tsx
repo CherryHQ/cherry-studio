@@ -38,7 +38,8 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return mocks.platformState.isMac
-  }
+  },
+  isLinux: false
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -596,5 +597,42 @@ describe('AppShell', () => {
 
     expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: true })
     expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: true })
+  })
+
+  it('closes the active tab from the tab-close shortcut', () => {
+    mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
+    mocks.activeTabId = 'tab2'
+
+    render(<AppShell />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+
+    expect(mocks.closeTab).toHaveBeenCalledWith('tab2')
+  })
+
+  it('closes the window from the tab-close shortcut when only the last tab remains', () => {
+    render(<AppShell />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+
+    // Closing the final tab would strand the shell in the empty Launchpad state;
+    // the shortcut must close the window instead, like the last-tab close in browsers.
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('window.close')
+    expect(mocks.closeTab).not.toHaveBeenCalled()
+  })
+
+  it('keeps the last-tab close via the tab bar on the empty-state fallback', () => {
+    render(<AppShell />)
+    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closeTab?.('home')
+
+    expect(mocks.closeTab).toHaveBeenCalledWith('home')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
+  })
+
+  it('disables the tab-close shortcut when no tab is active', () => {
+    mocks.activeTabId = 'missing'
+
+    render(<AppShell />)
+
+    expect(mocks.commandHandlers.get('tab.close')?.options).toEqual({ enabled: false })
   })
 })

@@ -78,7 +78,8 @@ export const SHORTCUT_NAMED_KEYS = [
   'Left',
   'Right',
   'numadd',
-  'numsub'
+  'numsub',
+  'numenter'
 ] as const
 
 export type ShortcutModifier = (typeof SHORTCUT_MODIFIERS)[number]
@@ -161,7 +162,9 @@ const keyAliases: Record<string, ShortcutToken> = {
 }
 
 const domCodeToToken: Record<string, ShortcutToken> = {
-  NumpadEnter: 'Enter',
+  // Keypad Enter keeps its own token so it can display as "Enter" (its printed label)
+  // while main Return displays as "Return" on macOS; matching treats the two as one key.
+  NumpadEnter: 'numenter',
   NumpadAdd: 'numadd',
   NumpadSubtract: 'numsub'
 }
@@ -337,6 +340,13 @@ export const convertAcceleratorToHotkey = (accelerator: ShortcutBinding): string
     .join('+')
 }
 
+/**
+ * Keypad Enter and main Return are one trigger: matching and accelerator
+ * generation canonicalize `numenter` to `Enter`, while display keeps the
+ * keypad's own label (its printed key says "Enter" on every platform).
+ */
+export const canonicalTriggerToken = (token: ShortcutToken): ShortcutToken => (token === 'numenter' ? 'Enter' : token)
+
 export const formatKeyDisplay = (key: ShortcutToken, isMac: boolean): string => {
   switch (key.toLowerCase()) {
     case 'ctrl':
@@ -355,6 +365,12 @@ export const formatKeyDisplay = (key: ShortcutToken, isMac: boolean): string => 
       return isMac ? '⇧' : 'Shift'
     case 'meta':
       return isMac ? '⌘' : 'Win'
+    case 'enter':
+      // macOS keyboards label the key "return" (Apple HIG); other platforms label it "Enter".
+      return isMac ? 'Return' : 'Enter'
+    case 'numenter':
+      // The keypad key is printed "Enter" on every platform.
+      return 'Enter'
     default:
       return key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()
   }

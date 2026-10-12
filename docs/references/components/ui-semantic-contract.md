@@ -204,8 +204,7 @@ made public.
 
 - Semantic roles are lowercase dot-separated identifiers, not descriptions of current copy or appearance.
 - Semantic roles are set-valued coordinates, not unique IDs; selectors and locators may match multiple nodes.
-- Explicit semantic roles and `part:*` tokens are maintained public API. Rename them only with a compatibility alias and
-  a breaking-change entry.
+- Explicit semantic roles and `part:*` tokens are maintained public API. Rename them only with a compatibility alias.
 - Inferred roles are deterministic but best-effort and may change when files, components, or DOM responsibilities move.
 - Internal descendant selectors are supported CSS but are not promised to survive structural refactors.
 - Tests and automation should start from semantic or `part:*` tokens, then use accessible roles for the intended

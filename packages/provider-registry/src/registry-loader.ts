@@ -40,17 +40,18 @@ export { ProviderModelListSchema } from './schemas/provider-models'
  * a new modality / capability / effort is dropped by v2 clients and honored by
  * newer ones. New optional fields were always safe (`z.object` strips unknown
  * keys). Structural changes (field rename / retype / required-field removal)
- * still bump. Values a client can parse but cannot *execute* are gated by
- * {@link REGISTRY_MIN_APP_VERSION} instead.
+ * still bump. New runtime wire behavior also gets a new stream when it requires
+ * raising {@link REGISTRY_MIN_APP_VERSION}, so older streams keep their existing
+ * version floor and continue receiving compatible catalog updates.
  */
-export const REGISTRY_SCHEMA_VERSION = 2
+export const REGISTRY_SCHEMA_VERSION = 3
 
 /**
  * Oldest application version whose runtime understands the semantic values in
  * the current remote catalog. Bump when data starts using a new adapter family,
  * endpoint type, wire behavior, or other value that older runtime code cannot execute.
  */
-export const REGISTRY_MIN_APP_VERSION = '2.0.13'
+export const REGISTRY_MIN_APP_VERSION = '2.1.4'
 
 /**
  * The three JSON data files this package emits (`packages/provider-registry/data/`).

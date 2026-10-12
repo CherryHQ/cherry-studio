@@ -304,9 +304,11 @@ export class LoggerService {
       // Bounded name/message/stack plus small diagnostic tags only: custom
       // enumerable props (e.g. AI SDK requestBodyValues) never reach disk (#20363).
       Object.assign(entry, toSafeError(first))
+      entry.errorMessage = entry.message
       fileMessage = `${message} ${String(entry.message)}`
     } else if (first !== null && typeof first === 'object') {
       Object.assign(entry, sanitizeLogValue(first) as Record<string, unknown>)
+      if (typeof entry.errorMessage === 'string') fileMessage = `${message} ${entry.errorMessage}`
     } else if (first !== undefined) {
       rest.push(first)
     }

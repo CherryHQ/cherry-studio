@@ -30,6 +30,6 @@ export class SequencerByKey<K> {
   }
 
   async flush(key?: K): Promise<void> {
-    await Promise.all(key === undefined ? this.pending.values() : [this.pending.get(key)])
+    await (key === undefined ? Promise.all(this.pending.values()) : this.pending.get(key))
   }
 }

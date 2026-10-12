@@ -81,7 +81,9 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
 
-  const isEditable = isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts)
+  const isEditable =
+    actions.canEditMessage?.(message) ??
+    (isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts))
 
   const hasTranslationBlocks = hasTranslationParts(messageParts)
   const isSelectedForContext = !!message.isActiveBranch

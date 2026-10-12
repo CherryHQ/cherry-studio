@@ -1,6 +1,6 @@
 # FilePreview
 
-`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy; the matching plugin owns file I/O, format rendering, toolbar controls, and format-specific state.
+`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown and text remain local plugins.
 
 The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), PDF, Word (`.docx`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
@@ -100,7 +100,13 @@ Embedded and tab previews are host composition choices, not `FilePreview` displa
 
 ## Plugin Structure
 
-Each format is an independent plugin under `plugins/<format>/`:
+The public package has a static registry for its five formats. `ElectronFilePreview` supplies
+`PreviewSource` through file IPC, forwards PDF resource reads and diagnostics, and builds
+`SelectionReference` from its own path and metadata props. The desktop registry routes those formats through
+that adapter. Only HTML, Markdown and text keep application-owned plugins under `plugins/`.
+All formats reuse layout and toolbar components exported by the package.
+
+For a desktop-only plugin, use this structure:
 
 ```text
 plugins/example/
@@ -131,7 +137,7 @@ Descriptor rules:
 - `load` must resolve to a module with a default React component export. Keep large rendering libraries inside the lazy module rather than the descriptor.
 - The registry is static configuration. There is no runtime registration, priority, or caller override API.
 
-The plugin component receives the normalized path, extracted filename, preflighted file metadata, and a required refresh key:
+The plugin component receives the normalized path, extracted filename, preflighted file metadata, a required refresh key, and an optional callback for reporting the user's selection (see [Selection references](#selection-references)):
 
 ```ts
 interface FilePreviewPluginProps {
@@ -140,13 +146,18 @@ interface FilePreviewPluginProps {
   metadata: FilePreviewFileMetadata
   refreshKey: number
   type?: 'artifact' | 'file'
+  onSelectionReference?: (reference: SelectionReference | null) => void
 }
 ```
+
+A plugin that honours `onSelectionReference` also sets `supportsSelectionReference: true` on its
+descriptor. Hosts use `canProduceSelectionReference(filePath)` (exported from this module) to decide
+whether to offer selection capture for a file at all.
 
 The preview component must use a default export, read the file, and compose the module's internal layout:
 
 ```tsx
-import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import type { FilePreviewPluginProps } from '../../types'
 import { ExampleFilePreviewToolbar } from './ExampleFilePreviewToolbar'
 
@@ -165,18 +176,18 @@ export default function ExampleFilePreview({ filePath, fileName, metadata, refre
 }
 ```
 
-After implementing the plugin, explicitly import it in `filePreviewRegistry.ts` and add it to `extensionPlugins`:
+After implementing a desktop-only plugin, explicitly add it to `extensionPlugins`:
 
 ```ts
 export const filePreviewRegistry = createFilePreviewRegistry({
-  extensionPlugins: [imageFilePreviewPlugin, exampleFilePreviewPlugin]
+  extensionPlugins: [exampleFilePreviewPlugin]
 })
 ```
 
 ## Composition Rules
 
-Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, and optional `type`.
-Follow these boundaries when adding formats or capabilities:
+Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, optional `type`, and
+optional `onSelectionReference`. Follow these boundaries when adding formats or capabilities:
 
 - Express format differences as independent plugins. Do not add booleans such as `isPdf` or `isImage` to `FilePreview`.
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.
@@ -192,6 +203,58 @@ Follow these boundaries when adding formats or capabilities:
   centered in its own row for Tab and standalone previews.
 
 This composition lets the same plugin work in embedded and tab hosts without format-specific branches.
+
+## Selection References
+
+`onSelectionReference` is an optional pass-through channel for reporting the user's selection as a
+`SelectionReference` (`@renderer/types/selectionReference`) — an anchor into the document's own structural
+coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixel coordinates.
+
+- A plugin that owns a view → structure inverse mapping declares `supportsSelectionReference` and, while
+  the callback is present, lets the user pick one addressable unit (docx body paragraph, pptx slide, pdf page,
+  xlsx cell range) and reports it; it reports `null` when the pick is cleared, and the pdf producer
+  reports `null` again the moment a new page pick starts, before that page's text has arrived. The callback's
+  presence is the capture switch: the embedding surface passes it only while its picker is on, so a plugin never needs a
+  separate mode flag. Plugins without such a mapping ignore the prop entirely.
+- The xlsx grid follows the same picker model as the block producers: while the callback is present it starts
+  from an empty selection, highlights the cell or merged range under the pointer, and commits on click or drag.
+  It also picks from the keyboard — an arrow moves the cursor and commits the new cell, Shift+Arrow extends
+  the range and commits it on key release, and Enter or Space commits the cursor cell — which the block
+  producers do not: their pickers are pointer-only.
+- Unlike the block producers, the xlsx grid holds a selection whether or not capture is on — a cell clicked
+  to read a value stays selected. Capture therefore arms empty: the commit that switches capture on reports
+  nothing, so a browsing selection never becomes a pick the user did not make, and every selection after it
+  reports as usual, including re-picking the same range. Arming resets only when capture is switched off.
+  The shared `Preview` stabilizes callbacks internally, so inline host callbacks do not repeat selection
+  notifications on rerender; callback presence still controls capture.
+- The desktop adapter converts the package's structural selection into a `SelectionReference` using the
+  file path and metadata. What to do with a reference (show an action, inject it into a conversation) is the
+  embedding surface's concern; neither the host nor the plugin renders reference UI.
+- The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
+  surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
+  `fileStamp`), which keeps holding one safe.
+- The embedding surface, not the host, reports `null` when it turns capture off (it stops passing the
+  callback, so the plugin cannot). Text selection is never the capture gesture: most previews render
+  inside the app-wide `user-select: none` (the PDF viewer is the exception — it opts back in with
+  `.selectable` so its text layer stays copyable), and a block pick does not depend on it either way.
+- Known limitation: a click on an in-document jump link picks nothing. The PDF and PPTX renderers both
+  navigate from their own listener before the pick handler runs — pdf.js binds an internal destination
+  with `link.onclick`, and the PPTX renderer's in-deck links are `role="link"` spans that stop
+  propagation — so those links jump instead. External hyperlinks are intercepted and pick normally.
+  A press on a floating chart or image in the xlsx grid picks nothing either: the cell beneath it is reachable
+  only from the keyboard.
+- The docx excerpt is not the paragraph's `textContent`: it is walked so that docx-preview's `<br>` and
+  `<wbr>` become the `\n` and `-` python-docx's `Paragraph.text` spells, because the office-transform
+  skill checks the excerpt against that string. Two gaps remain — docx-preview drops `w:cr` and `w:ptab`
+  while python emits `\n` and `\t`, so a paragraph containing either can still fail that check; and page
+  and column breaks are never rendered inline (a page break splits the paragraph into a new section),
+  which the skill's patch-copy script refuses to rewrite anyway.
+- Producers must fill `excerpt` (plain-text snapshot) and `fileStamp` (size + mtime at capture). A reference
+  travels into the conversation as message text, so the only thing that acts on it is the `office-transform`
+  skill, and the staleness rule lives in that skill's prompt: it tells the model to `stat` the file, compare
+  size and mtime against `fileStamp`, and ask the user to re-select on a mismatch rather than re-anchoring.
+  No code on either side performs that check, so the renderer's job is only to stamp references accurately —
+  if an in-app consumer ever needs the comparison, it belongs with that consumer.
 
 ## File I/O, States, and Errors
 
@@ -209,19 +272,28 @@ This composition lets the same plugin work in embedded and tab hosts without for
 | Missing or inaccessible path | Unavailable | Explanation without an open action |
 | Invalid or non-absolute path | Invalid | Explanation without an open action |
 
-- Use `window.api.fs.readText` for text. Use `window.api.fs.read` only for full binary reads that the plugin bounds
-  using the preflighted file size. Large or on-demand binary formats must use typed `ipcApi.request('file.read', ...)`
-  range reads instead of loading the entire file.
-- Transports that combine multiple range reads must cap the assembled range before allocating it and reject responses
-  whose `version` changes between reads or whose `version.size` differs from the preflighted `metadata.size`.
-- The PDF transport caps each assembled pdf.js range at 16 MiB. This is not a PDF file-size limit: larger files can
-  preview while every requested range stays within the cap. A PDF that requires a larger contiguous range must offer
-  an explicit external-open fallback; removing this cap requires a transport that streams without renderer assembly.
-- Use the preflighted `metadata` prop for size guards. Do not issue a second metadata request from a plugin.
-- Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
+- Local text plugins use `window.api.fs.readText`. Shared plugins read through `PreviewDocument`;
+  they never access Electron APIs. The adapter serves whole-document reads with one full
+  `file.read` and PDF ranges with 1 MiB range requests, checking every response against the
+  metadata version. Size/mtime consistency checks apply to DOCX, PPTX, XLSX and images as
+  well as PDF. A file changed after metadata was read fails the session; refresh to read new metadata.
+- Shared full reads enforce source budgets: DOCX/PPTX 25 MiB, XLSX 20 MiB, images 64 MiB.
+  PDF keeps a 16 MiB assembled-range cap, not a whole-file size cap, and delegates its external
+  fallback to the host.
+- The public preview closes sessions on replacement, refresh, failure and unmount, including late
+  opens. Abort signals discard the result of an in-flight IPC read; they do not stop that request
+  or its byte copy. PDF range reads also check cancellation between 1 MiB requests.
+  Synchronous parsing cannot be interrupted.
+- Local loading effects depend on `filePath` and `refreshKey`. Shared plugins reload when their
+  opened document changes. Do not request metadata again inside a format plugin.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
-- Log read failures through `loggerService`, and expose enough diagnostic detail in the error state to make failures actionable.
+- The desktop adapter routes package `onDiagnostic` events to `loggerService`, preserving `Error`
+  values for error reporting. Terminal failures emit one diagnostic; `onError` is a state notification,
+  not a second logging channel. Expected size limits are warnings. Keep raw diagnostics out of UI copy.
+- Images load as whole-document bytes through IPC and a Blob URL, with a 64 MiB limit; they no
+  longer load directly from a file URL. Oversized images have the same explicit external-open action
+  as Office documents. Unsupported formats also open externally only after a user click.
 - Cancel, disconnect, or destroy file reads, workers, listeners, and third-party instances when the component unmounts, `filePath` changes, or `refreshKey` changes.
 
 ## UI and Copy

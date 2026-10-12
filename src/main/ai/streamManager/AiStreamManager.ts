@@ -7,6 +7,7 @@ import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
@@ -23,6 +24,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -1000,6 +1002,17 @@ export class AiStreamManager extends BaseService {
     return (this.terminalPersistenceCounts.get(topicId) ?? 0) > 0
   }
 
+  /** True while archiving this topic could strand an admitted or queued chat turn. */
+  hasUnsettledTopicWork(topicId: string): boolean {
+    const status = this.activeStreams.get(topicId)?.status
+    if (status === 'pending' || status === 'streaming' || status === 'awaiting-approval') return true
+    if (this.hasTerminalPersistenceInFlight(topicId)) return true
+    if (this.terminalDispatchInFlight.has(topicId)) return true
+    if (this.pendingSteers.has(topicId) || this.startingNextChatTopicIds.has(topicId)) return true
+    if (this.inFlightChatContinuations.has(topicId)) return true
+    return [...this.inFlightDispatches.values()].includes(topicId)
+  }
+
   /** Resolves once this topic's in-flight terminal dispatch (listeners + lifecycle) has settled. */
   whenTerminalDispatchSettled(topicId: string): Promise<void> {
     return this.terminalDispatchInFlight.get(topicId)?.settled ?? Promise.resolve()
@@ -1131,6 +1144,15 @@ export class AiStreamManager extends BaseService {
 
   // ── Public: listener management ───────────────────────────────────
 
+  getInteractionWindow(topicId: string): string | undefined {
+    const listeners = this.activeStreams.get(topicId)?.listeners.values()
+    if (!listeners) return undefined
+    for (const listener of listeners) {
+      if (listener.isAlive() && listener.windowId) return listener.windowId
+    }
+    return undefined
+  }
+
   addListener(topicId: string, listener: StreamListener): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
@@ -1217,8 +1239,9 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
-  async abortAndDrain(topicId: string, reason: string): Promise<void> {
+  async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
     await this.withDispatchLock(topicId, async () => {
+      beforeAbort?.()
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
@@ -1575,7 +1598,7 @@ export class AiStreamManager extends BaseService {
       isTopicDone
     }
     for (const listener of stream.listeners.values()) {
-      if (listener.id.startsWith('persistence:')) continue
+      if (listener.terminalPhase) continue
       try {
         void listener.onError(result)
       } catch (err) {
@@ -1963,7 +1986,9 @@ export class AiStreamManager extends BaseService {
         }
       })
     } catch (err) {
-      if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
+      if (!signal.aborted) {
+        logger.error('streamText failed before stream start', { topicId, modelId, err: chatErrorContext(err) })
+      }
       await this.onExecutionError(topicId, modelId, serializeError(err), exec)
       return
     }
@@ -2002,13 +2027,21 @@ export class AiStreamManager extends BaseService {
 
     exec.timings.completedAt = result.broadcastCompletedAt
 
+    if (result.accumulationError !== undefined) {
+      logger.error('Message accumulation failed', {
+        topicId,
+        modelId,
+        err: chatErrorContext(result.accumulationError.error)
+      })
+    }
+
     if (result.threw !== undefined) {
+      const fromThrow = serializeError(result.threw.error)
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('Execution loop error', { topicId, modelId, err: result.threw.error })
+        logger.error('Execution loop error', { topicId, modelId, err: chatErrorContext(result.threw.error) })
       }
-      const fromThrow = serializeError(result.threw.error)
       const serialized =
         result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow)
           ? errorFromStreamChunk(result.streamErrorText)
@@ -2026,6 +2059,10 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+    } else if (result.accumulationError !== undefined) {
+      const error = serializeError(result.accumulationError.error)
+      error.executionFailure = toExecutionFailure(error, modelId, 'host')
+      await this.onExecutionError(topicId, modelId, error, exec)
     } else {
       await this.onExecutionDone(topicId, modelId, exec)
     }

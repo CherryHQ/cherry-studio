@@ -64,6 +64,17 @@ describe('error', () => {
     )
   })
 
+  it('maps Agent Session archive busy errors to localized guidance without the internal message', () => {
+    const error = new IpcError(aiErrorCodes.AI_AGENT_SESSION_ARCHIVE_BUSY, 'internal session IDs', {
+      sessionIds: ['session-a']
+    })
+
+    expect(getErrorMessage(error)).toBe('recycle_bin.move.blocked_generation')
+    expect(formatErrorMessageWithPrefix(error, 'Failed to delete the session')).toBe(
+      'recycle_bin.move.blocked_generation'
+    )
+  })
+
   describe('getErrorDetails', () => {
     it('should handle null or non-object values', () => {
       expect(getErrorDetails(null)).toBeNull()

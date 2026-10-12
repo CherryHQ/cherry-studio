@@ -1,9 +1,10 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, symlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -297,33 +298,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('skill-install', () => {
-    const install = 'mcp__skills__install_skill'
-
-    it('denies headless installation outside bypass', async () => {
-      const decision = await evaluate(
-        makeCtx({ toolName: install, interaction: { currentTurn: 'headless', userResponse: 'stream' } })
-      )
-      expect(decision?.ruleId).toBe('skill-install')
-    })
-
-    it('lifts the headless deny under bypassPermissions (explicit unattended opt-in)', async () => {
-      await expect(
-        evaluate(
-          makeCtx({
-            toolName: install,
-            permissionMode: 'bypassPermissions',
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-      ).resolves.toBeUndefined()
-    })
-
-    it('does not gate interactive installation (canUseTool handles it)', async () => {
-      await expect(evaluate(makeCtx({ toolName: install }))).resolves.toBeUndefined()
-    })
-  })
-
   describe('interactive-headless + ask-user-question', () => {
     it('denies interactive tools with no responder in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {
@@ -576,6 +550,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
 
+    it.skipIf(process.platform === 'win32')('asks for a dangling symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-file')
+      await symlink(path.join(root, 'missing.txt'), link)
+      const decision = await evaluate(makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: link } }))
+      expect(decision?.ruleId).toBe('workspace-escape')
+    })
+
+    it('asks for a new file below a dangling directory symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-dir')
+      await symlink(path.join(root, 'missing-dir'), link, process.platform === 'win32' ? 'junction' : 'dir')
+      const decision = await evaluate(
+        makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: path.join(link, 'new.txt') } })
+      )
+      expect(decision?.ruleId).toBe('workspace-escape')
+    })
+
     it('is lifted by bypassPermissions (matches the pierced ask it replaces)', async () => {
       await expect(
         evaluate(
@@ -596,4 +586,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
   })
+})
+
+describe('Browser control permission', () => {
+  it.each(['default', 'bypassPermissions'] as const)(
+    'uses the persistent browser grant in %s mode',
+    async (permissionMode) => {
+      const pref = application.get('PreferenceService')
+      await pref.set('app.browser.agent_control.enabled', true)
+      const context = makeCtx({
+        toolName: 'mcp__browser__click',
+        mountedServers: new Set(['browser']),
+        permissionMode
+      })
+      expect(await evaluate(context)).toBeUndefined()
+      await pref.set('app.browser.agent_control.enabled', false)
+      expect(await evaluate(context)).toMatchObject({ effect: 'deny' })
+    }
+  )
 })

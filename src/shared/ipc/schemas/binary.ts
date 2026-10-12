@@ -79,7 +79,11 @@ const binaryApplicationSchema: z.ZodType<BinaryApplication> = z.discriminatedUni
   z.object({ status: z.literal('broken'), version: z.string().optional() }),
   z.object({ status: z.literal('absent') }),
   z.object({ status: z.literal('conflict') }),
-  z.object({ status: z.literal('unknown'), reason: z.enum(['backend_unavailable', 'query_failed']) })
+  z.object({
+    status: z.literal('unknown'),
+    reason: z.enum(['backend_unavailable', 'query_failed']),
+    message: z.string().optional()
+  })
 ])
 
 const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminatedUnion('status', [

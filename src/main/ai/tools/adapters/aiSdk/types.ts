@@ -20,6 +20,7 @@ export interface ToolOutputCodec extends EntityToolOutputCodec {
  */
 export interface ToolApplyScope {
   readonly assistant?: Assistant
+  readonly browserEnabled?: boolean
   /** Painting model resolved once for this request; dynamic builtins derive their schema from it. */
   readonly paintingModel?: {
     readonly uniqueModelId: UniqueModelId
