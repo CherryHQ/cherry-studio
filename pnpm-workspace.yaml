@@ -100,7 +100,6 @@ patchedDependencies:
   "@tiptap/markdown@3.26.1": patches/@tiptap__markdown@3.26.1.patch
   "@openrouter/ai-sdk-provider@2.10.0": patches/@openrouter__ai-sdk-provider@2.10.0.patch
   onnxruntime-node@1.25.1: patches/onnxruntime-node@1.25.1.patch
-  emoji-picker-react@4.19.1: patches/emoji-picker-react@4.19.1.patch
   "@ai-sdk/openai-compatible@2.0.72": patches/@ai-sdk__openai-compatible@2.0.72.patch
   "@ai-sdk/open-responses@1.0.34": patches/@ai-sdk__open-responses@1.0.34.patch
   ai@6.0.185: patches/ai@6.0.185.patch
@@ -303,3 +302,4 @@ minimumReleaseAgeExclude:
   - "@deepseek-ai/node-addon-system-linux-x64@0.1.2"
   - "@deepseek-ai/schemastery@3.18.4"
   - "@earendil-works/pi-ai@0.87.1"
+  - emoji-picker-react@5.0.0
