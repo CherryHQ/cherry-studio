@@ -24,11 +24,6 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
-import {
-  EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY,
-  EMPTY_SUCCESS_NO_RESPONSE_MESSAGE
-} from '@shared/ai/agentSessionNoResponse'
-import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -74,6 +69,7 @@ import type {
   StreamErrorResult,
   StreamExecution,
   StreamListener,
+  StreamPausedResult,
   TransportTimings
 } from './types'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
@@ -2127,40 +2123,41 @@ export class AiStreamManager extends BaseService {
     result: StreamDoneResult | StreamPausedResult
   ): Promise<void> {
     await this.dispatchToListeners(stream, event, (listener) => {
-      const settled = this.settleTerminalOutcome(event, result)
+      const settled = this.settleTerminalOutcome(result)
       return settled
         ? listener.onError(settled)
         : event === 'onDone'
           ? listener.onDone(result as StreamDoneResult)
           : listener.onPaused(result as StreamPausedResult)
     })
-    const settled = this.settleTerminalOutcome(event, result)
+    const settled = this.settleTerminalOutcome(result)
     if (settled) this.markExecutionError(stream, settled)
   }
 
   /**
-   * The settled terminal result when storage classified the turn worse than the SDK finished it —
-   * a persistence backend that downgraded an empty success to `error`. Normalizing here, before
-   * terminal callbacks are chosen, is what keeps the stored row, the topic status and every
-   * subscriber on one classification; fixing the status inside an already-dispatched `onDone`
-   * would leave the task sentinel resolving against a failed row.
+   * The error-result view of a successful terminal that storage downgraded, when there is one.
+   *
+   * Normalizing before terminal callbacks are chosen is what keeps the stored row, the topic status
+   * and every subscriber on one classification — flipping the status inside an already-dispatched
+   * `onDone` would still let the task sentinel resolve successfully against a failed row.
    */
-  private settleTerminalOutcome(
-    event: 'onDone' | 'onPaused',
-    result: StreamDoneResult | StreamPausedResult
-  ): StreamErrorResult | undefined {
-    if (event !== 'onDone') return undefined
-    const settled = result as StreamDoneResult & Partial<StreamErrorResult>
-    if (settled.status !== 'error') return undefined
-    const error: SerializedError = settled.error ?? {
-      name: 'AgentRuntimeError',
-      message: EMPTY_SUCCESS_NO_RESPONSE_MESSAGE,
-      stack: null,
-      i18nKey: EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY
+  private settleTerminalOutcome(result: StreamDoneResult | StreamPausedResult): StreamErrorResult | undefined {
+    const downgradedTo = result.downgradedTo
+    if (result.status !== 'success' || !downgradedTo) return undefined
+    return {
+      error: downgradedTo.error,
+      failure: downgradedTo.failure,
+      finalMessage: result.finalMessage,
+      status: 'error',
+      modelId: result.modelId,
+      attemptId: result.attemptId,
+      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
+      anchorMessageId: result.anchorMessageId,
+      isTopicDone: result.isTopicDone,
+      timings: result.timings,
+      runtimeTiming: result.runtimeTiming,
+      persistence: result.persistence as StreamErrorResult['persistence']
     }
-    settled.error = error
-    settled.failure ??= toExecutionFailure(error, result.modelId, 'runtime')
-    return settled as StreamErrorResult
   }
 
   private async broadcastExecutionPaused(
