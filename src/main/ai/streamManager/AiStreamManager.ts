@@ -24,6 +24,10 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import {
+  EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY,
+  EMPTY_SUCCESS_NO_RESPONSE_MESSAGE
+} from '@shared/ai/agentSessionNoResponse'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   ActiveExecution,
@@ -1563,6 +1567,23 @@ export class AiStreamManager extends BaseService {
     }
   }
 
+  /**
+   * Fold a persistence backend's downgraded classification into the execution and stream. Storage
+   * owns the outcome once it has written the row, so the topic status and the terminal lifecycle
+   * have to follow it — otherwise the status cache keeps the turn green while the row is red.
+   */
+  private markExecutionError(stream: ActiveStream, result: StreamErrorResult): void {
+    const exec = result.modelId ? stream.executions.get(result.modelId) : undefined
+    if (exec) {
+      exec.status = 'error'
+      exec.error = result.error
+      exec.pendingApprovalToolCallIds?.clear()
+      exec.runtimeTiming.closeOpenSpans()
+      exec.runtimeTiming.complete()
+    }
+    stream.status = this.computeTopicStatus(stream)
+  }
+
   /** Drop a topic's queued steers on a non-clean terminal, surfacing the discard. Their persisted
    *  user rows stay in history as dangling messages the user can resend; surfacing those orphaned
    *  rows in the renderer is the renderer slice's responsibility, not handled here. */
@@ -2090,7 +2111,56 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
+    await this.dispatchTerminalOutcome(stream, 'onDone', result)
+  }
+
+  /**
+   * Publish one terminal event, rerouting the consumers notified after persistence to whichever
+   * callback matches the settled outcome. A backend may store the row worse than the SDK finished
+   * it — an agent turn with no renderable content is downgraded to `error` — and claims that on the
+   * shared result; rerouting here keeps every subscriber, the topic status and the stored row on one
+   * classification. Persistence listeners run first, so nothing is notified twice.
+   */
+  private async dispatchTerminalOutcome(
+    stream: ActiveStream,
+    event: 'onDone' | 'onPaused',
+    result: StreamDoneResult | StreamPausedResult
+  ): Promise<void> {
+    await this.dispatchToListeners(stream, event, (listener) => {
+      const settled = this.settleTerminalOutcome(event, result)
+      return settled
+        ? listener.onError(settled)
+        : event === 'onDone'
+          ? listener.onDone(result as StreamDoneResult)
+          : listener.onPaused(result as StreamPausedResult)
+    })
+    const settled = this.settleTerminalOutcome(event, result)
+    if (settled) this.markExecutionError(stream, settled)
+  }
+
+  /**
+   * The settled terminal result when storage classified the turn worse than the SDK finished it —
+   * a persistence backend that downgraded an empty success to `error`. Normalizing here, before
+   * terminal callbacks are chosen, is what keeps the stored row, the topic status and every
+   * subscriber on one classification; fixing the status inside an already-dispatched `onDone`
+   * would leave the task sentinel resolving against a failed row.
+   */
+  private settleTerminalOutcome(
+    event: 'onDone' | 'onPaused',
+    result: StreamDoneResult | StreamPausedResult
+  ): StreamErrorResult | undefined {
+    if (event !== 'onDone') return undefined
+    const settled = result as StreamDoneResult & Partial<StreamErrorResult>
+    if (settled.status !== 'error') return undefined
+    const error: SerializedError = settled.error ?? {
+      name: 'AgentRuntimeError',
+      message: EMPTY_SUCCESS_NO_RESPONSE_MESSAGE,
+      stack: null,
+      i18nKey: EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY
+    }
+    settled.error = error
+    settled.failure ??= toExecutionFailure(error, result.modelId, 'runtime')
+    return settled as StreamErrorResult
   }
 
   private async broadcastExecutionPaused(
