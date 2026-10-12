@@ -159,11 +159,11 @@ Linked or special files prevent compression rather than being silently omitted.
 Workspace registration and storage reclamation share a synchronous reservation
 boundary in AgentWorkspaceService. Registered overlapping workspaces protect the
 whole system tree, including user directories nested below it; logical Session
-archival still succeeds. Archive, purge, and orphan sweep hold the reservation
+archival still succeeds. Archive, restore, purge, and orphan sweep hold the reservation
 through their filesystem work, so new overlapping registrations fail with a
 retryable conflict until it completes. Checks resolve existing path aliases and
 include temporary archive and restore paths. Protected directories remain intact
-even after the owning system Session is permanently removed.
+even after the owning system Session is permanently removed. Session and Agent restore reject storage conflicts before activating database rows; a skipped reservation is never treated as a successful restore.
 
 Restore extracts into a `.restoring` directory and publishes the complete directory
 at its original path before restoring the Session's database state. Agent restore

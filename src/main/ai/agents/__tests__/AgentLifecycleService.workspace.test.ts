@@ -17,6 +17,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { AgentLifecycleService } from '../AgentLifecycleService'
 import { sweepAgentOrphans } from '../agentOrphanSweep'
+import * as workspaceArchive from '../agentWorkspaceArchive'
 
 const mocks = vi.hoisted(() => ({
   closeSession: vi.fn().mockResolvedValue(undefined),
@@ -171,6 +172,94 @@ describe('Agent lifecycle workspace persistence', () => {
       await archiving
     }
     expect(agentWorkspaceService.findOrCreateByPath(nested).path).toBe(nested)
+  })
+  it.each([
+    ['session', '.restoring'],
+    ['agent', '.restoring'],
+    ['session', '.archiving'],
+    ['agent', '.archiving'],
+    ['session', ''],
+    ['agent', '']
+  ] as const)('blocks %s restore when user files occupy the %s storage path', async (mode, suffix) => {
+    const parent = workspacePath(root, 'system')
+    if (mode === 'agent') await lifecycle.archiveAgent('agent', { archiveSessions: true })
+    else await lifecycle.archiveSessions(['system'])
+    const originalArchive = await readFile(`${parent}.tar.gz`)
+    const nested = path.join(`${parent}${suffix}`, 'project')
+    await mkdir(nested, { recursive: true })
+    await writeFile(path.join(nested, 'keep.txt'), 'created after archival')
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'other-agent', name: 'Other', type: 'claude-code', instructions: '', orderKey: 'a1' })
+      .run()
+    const workspace = agentWorkspaceService.findOrCreateByPath(nested)
+    const otherSession = agentSessionService.create({
+      agentId: 'other-agent',
+      name: 'Other',
+      workspace: { type: 'user', workspaceId: workspace.id }
+    })
+
+    const restore = () => (mode === 'agent' ? lifecycle.restoreAgent('agent') : lifecycle.restoreSession('system'))
+    await expect(restore()).rejects.toThrow('cannot safely restore')
+    expect(await readFile(path.join(nested, 'keep.txt'), 'utf8')).toBe('created after archival')
+    expect(await readFile(`${parent}.tar.gz`)).toEqual(originalArchive)
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+    ).not.toBeNull()
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, otherSession.id)).get()?.deletedAt
+    ).toBeNull()
+    if (mode === 'agent')
+      expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent')).get()?.deletedAt).not.toBeNull()
+  })
+
+  it.each(['session', 'agent'] as const)('holds the storage reservation throughout %s restoration', async (mode) => {
+    const parent = workspacePath(root, 'system')
+    if (mode === 'agent') await lifecycle.archiveAgent('agent', { archiveSessions: true })
+    else await lifecycle.archiveSessions(['system'])
+    const entered = Promise.withResolvers<void>()
+    const resume = Promise.withResolvers<void>()
+    const restoreFiles = workspaceArchive.restoreSystemWorkspace
+    vi.spyOn(workspaceArchive, 'restoreSystemWorkspace').mockImplementationOnce(async (root, workspace) => {
+      entered.resolve()
+      await resume.promise
+      await restoreFiles(root, workspace)
+    })
+    const restoring = mode === 'agent' ? lifecycle.restoreAgent('agent') : lifecycle.restoreSession('system')
+    await entered.promise
+    try {
+      expect(() => agentWorkspaceService.findOrCreateByPath(path.join(`${parent}.restoring`, 'project'))).toThrow()
+      expect(() => agentWorkspaceService.findOrCreateByPath(path.join(parent, 'project'))).toThrow()
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+      ).not.toBeNull()
+    } finally {
+      resume.resolve()
+      await restoring
+    }
+    expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
+    expect(agentWorkspaceService.findOrCreateByPath(path.join(parent, 'project')).path).toBe(
+      path.join(parent, 'project')
+    )
+  })
+  it('rejects restore while storage is reserved and permits it after release', async () => {
+    const parent = workspacePath(root, 'system')
+    await lifecycle.archiveSessions(['system'])
+    const release = agentWorkspaceService.reserveStorageMutation([parent], parent)!
+    try {
+      await expect(lifecycle.restoreSession('system')).rejects.toThrow('cannot safely restore')
+      expect(existsSync(parent)).toBe(false)
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+      ).not.toBeNull()
+    } finally {
+      release()
+    }
+    await lifecycle.restoreSession('system')
+    expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+    ).toBeNull()
   })
   it('archives only system files and restores them before making the session active', async () => {
     await lifecycle.archiveSessions(['system', 'user'])

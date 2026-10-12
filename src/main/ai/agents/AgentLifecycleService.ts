@@ -7,6 +7,7 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   ReusableAgentSessionPlaceholdersResponse,
@@ -80,12 +81,11 @@ export class AgentLifecycleService extends BaseService {
     return this.runOperation('restore-agent:' + agentId, () =>
       this.agentLocks.runExclusive(agentId, () =>
         this.withOperationLocks(agentSessionService.listIdsByAgent(agentId), async () => {
-          const root = application.getPath('feature.agents.system_workspaces')
           for (const workspace of agentSessionService.listSystemWorkspaceSessions(
             agentSessionService.listIdsByAgent(agentId)
           )) {
             if (workspace.deletedAt !== null && workspace.deletedAt === workspace.agentDeletedAt) {
-              await restoreSystemWorkspace(root, workspace.path)
+              await this.restoreWorkspace(workspace.path)
             }
           }
           const { agent, scheduleIds, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => {
@@ -129,7 +129,7 @@ export class AgentLifecycleService extends BaseService {
       this.sessionLocks.runExclusive(id, async () => {
         for (const workspace of agentSessionService.listSystemWorkspaceSessions([id])) {
           if (workspace.deletedAt !== null) {
-            await restoreSystemWorkspace(application.getPath('feature.agents.system_workspaces'), workspace.path)
+            await this.restoreWorkspace(workspace.path)
           }
         }
         return agentSessionService.restore(id)
@@ -434,6 +434,16 @@ export class AgentLifecycleService extends BaseService {
       deleteAgent,
       permanent && targetState === 'trashed'
     )
+  }
+
+  private async restoreWorkspace(workspacePath: string): Promise<void> {
+    const restored = await withSystemWorkspaceStorage(workspacePath, async () => {
+      await restoreSystemWorkspace(application.getPath('feature.agents.system_workspaces'), workspacePath)
+      return true
+    })
+    if (!restored) {
+      throw DataApiErrorFactory.conflict('Workspace storage is in use; cannot safely restore this session', 'Workspace')
+    }
   }
 
   private async removePurgedSystemWorkspaces(paths: string[]): Promise<void> {
