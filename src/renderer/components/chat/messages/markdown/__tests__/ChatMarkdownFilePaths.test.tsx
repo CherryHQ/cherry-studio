@@ -169,12 +169,44 @@ describe('ChatMarkdown code entries', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
+  it.each([
+    ['text', 'WWWW  x\niiii  x\n\tindented'],
+    ['python', 'if ready:\n    run()'],
+    ['javascript', path]
+  ])(
+    'preserves the preformatted surface for %s fences while streaming and after completion',
+    async (language, text) => {
+      const content = '```' + language + '\n' + text
+      const { rerender } = render(
+        <ChatMarkdownRuntime block={{ id: 'ordinary-fence', content, status: 'streaming' }} />
+      )
+
+      // The pre surface owns the configured code font, tab stops, whitespace and block spacing.
+      expect((await screen.findByRole('code')).closest('pre')).not.toBeNull()
+
+      rerender(<ChatMarkdownRuntime block={{ id: 'ordinary-fence', content: content + '\n```', status: 'success' }} />)
+      expect((await screen.findByRole('code')).closest('pre')).not.toBeNull()
+      expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    }
+  )
+
+  it('preserves the preformatted surface for file fences on Windows', async () => {
+    mocks.isWin = true
+    render(
+      <ChatMarkdownRuntime block={{ id: 'windows-fence', content: '```text\n' + path + '\n```', status: 'success' }} />
+    )
+    expect((await screen.findByRole('code')).closest('pre')).not.toBeNull()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
   it('promotes a path only when its fence closes, even while the message is streaming', async () => {
     const content = '```text\n' + path
     const { rerender } = render(
       <ChatMarkdownRuntime block={{ id: 'streaming-code-path', content, status: 'streaming' }} />
     )
-    expect(await screen.findByRole('code')).toHaveTextContent(path)
+    const code = await screen.findByRole('code')
+    expect(code).toHaveTextContent(path)
+    expect(code.closest('pre')).not.toBeNull()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
 
     rerender(

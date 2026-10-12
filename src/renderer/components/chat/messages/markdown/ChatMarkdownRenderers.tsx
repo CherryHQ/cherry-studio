@@ -25,14 +25,20 @@ function ChatCitationSupRenderer(props: MarkdownRendererProps<'sup'>) {
   return <CitationSup {...props} citationRegistry={citationRegistry} />
 }
 
+function getCodeFilePath({ text, language, isIncomplete }: ReturnType<typeof useMarkdownCode>) {
+  if (isIncomplete || (language !== null && language !== 'text')) return null
+  const path = normalizeInlineFilePath(text)
+  return path && (isKnownNavigationPath(path) || (!isWin && isInlineFilePath(text))) ? path : null
+}
+
 function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
   const { blockId, inlineHtmlPreviewMode, isStreaming } = useChatMarkdownRenderContext()
-  const { text, language, isIncomplete } = useMarkdownCode(props.children, props.className)
+  const code = useMarkdownCode(props.children, props.className)
 
   // Keep growing fences as code until Streamdown finishes rebuilding their animated spans.
-  const path = !isIncomplete && (language === null || language === 'text') ? normalizeInlineFilePath(text) : null
+  const path = getCodeFilePath(code)
   if (path && isKnownNavigationPath(path)) return <NavigateToolInline input={{ path }} />
-  if (!isWin && path && isInlineFilePath(text)) return <ClickableFilePath path={path} />
+  if (path) return <ClickableFilePath path={path} />
 
   return (
     <CodeBlock
@@ -46,8 +52,11 @@ function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
 
 function ChatPreRenderer({ node, children, ...props }: MarkdownRendererProps<'pre'>) {
   const child = node?.children.length === 1 ? node.children[0] : undefined
-  // Only the code renderer supplies a replacement surface; raw HTML still needs preformatted whitespace.
-  if (child?.type === 'element' && child.tagName === 'code') return <>{children}</>
+  const codeChild = child?.type === 'element' && child.tagName === 'code' ? child : undefined
+  const className = codeChild?.properties.className
+  const code = useMarkdownCode(children, Array.isArray(className) ? className.join(' ') : String(className ?? ''))
+  // Ordinary code and raw HTML retain the pre surface's typography, whitespace and spacing.
+  if (codeChild && getCodeFilePath(code)) return <>{children}</>
   return (
     <pre style={{ overflow: 'visible' }} {...props}>
       {children}

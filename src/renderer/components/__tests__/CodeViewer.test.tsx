@@ -215,15 +215,4 @@ describe('CodeViewer', () => {
     expect(lineContent).toHaveClass('[&_*]:whitespace-pre-wrap!')
     expect(lineContent).toHaveClass('[&_*]:break-words!')
   })
-
-  it('preserves unwrapped code whitespace without relying on a pre ancestor', () => {
-    const { getByText } = render(
-      <div className="markdown">
-        <CodeViewer value={'if ready:\n    run()\nname    value'} language="python" wrapped={false} />
-      </div>
-    )
-
-    // The code line must override the later app layer's `.markdown span { white-space: inherit }`.
-    expect(getByText('run()').closest('.line-content')).toHaveClass('whitespace-pre!')
-  })
 })
