@@ -3713,6 +3713,81 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    /**
+     * A's model is cleared while A's detached work still holds the retained connection and B's
+     * accepted input already waits for it. `closeConnectionAsync` releases A's ownership but must
+     * still settle A's reply — `resumeAfterAutonomous` needs a persistence-confirmed settlement, and
+     * the disconnected connection's later events are ignored, so an unsettled A strand B's input
+     * until the idle TTL closes the session instead of running it.
+     */
+    it("settles the retained agent's interrupted reply so a deferred switch continues", async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const retained = {
+        agentId: 'agent-1',
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('invalid')
+      }
+      entry.runtimeState.connection = { kind: 'connected', connection: retained, occupancy: {} }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, retained)
+      service.markTurnTerminal('session-1', 'success')
+
+      // A same-runtime top-bar switch submits under B while A's detached work still holds A's
+      // connection: the entry names B, but the work — and its author — stay frozen to A.
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId })
+      service.beginTurn({
+        ...baseTurnInput,
+        agentId: 'agent-2',
+        modelId: switchedModelId,
+        assistantMessageId: 'assistant-2',
+        messageSnapshot: { agentName: 'Agent B' } as any,
+        userMessage: userMessage('user-2')
+      })
+      expect(getEntry(service).backgroundAuthor).toMatchObject({ agentId: 'agent-1' })
+
+      // A's detached work wakes mid-switch: B's accepted input is deferred behind A's reply.
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+      ;(service as any).handleRuntimeEvent(
+        entry,
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        retained
+      )
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'autonomous-turn',
+        ownership: 'active',
+        deferredTurn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+      })
+
+      // Clearing A's model invalidates the retained connection. It must close WITH A's reply
+      // terminalized: `resumeAfterAutonomous` only hands B's deferred input back on a settlement,
+      // and a disconnected connection never delivers one.
+      mocks.getAgent.mockImplementation((agentId: string) =>
+        agentId === 'agent-1'
+          ? { id: 'agent-1', type: 'test-runtime', model: null }
+          : { id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId }
+      )
+      await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+
+      expect(retained.close).toHaveBeenCalled()
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+      })
+      expect(entry.runtimeState.lastTerminal).toBe('paused')
+
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
+      const resumed = mocks.startRuntimeTurn.mock.calls[1][0]
+      expect(resumed.request.messages[0]).toMatchObject({ id: 'user-2' })
+      expect(resumed.modelId).toBe(switchedModelId)
+      void service.closeSession('session-1')
+    })
+
     it("keeps a detached wake on the spawning turn's model after a mid-turn model edit", async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
