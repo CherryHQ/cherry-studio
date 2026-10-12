@@ -23,6 +23,7 @@ import { MarketplaceTemplates } from './MarketplaceTemplates'
 import { SkillSubscriptionBar } from './SkillSubscriptionBar'
 import { useMarketplace } from './useMarketplace'
 
+// The personal library is not released yet; keep the "My Resources" navigation entry hidden.
 const MyResourcesPage = lazy(() => import('./MyResourcesPage'))
 const RESOURCE_TYPES = [
   { id: 'all', label: 'common.all', icon: Layers },

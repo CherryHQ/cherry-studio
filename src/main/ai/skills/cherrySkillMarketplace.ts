@@ -7,6 +7,7 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { findAllSkillDirectories, parseSkillMetadata } from '@main/utils/markdownParser'
+import { fetchRemoteFile } from '@main/utils/remoteFetch'
 import {
   CherrySkillDetailSchema,
   CherrySkillPageSchema,
@@ -127,31 +128,7 @@ export async function downloadSkillPackage(url: string, collection = false) {
   const tempDir = await createTempDir('skill-package')
   try {
     const zipPath = path.join(tempDir, 'package.zip')
-    await readMarketplace(
-      url,
-      async (response) => {
-        if (!response.body) throw new Error('Empty skill download')
-        const reader = response.body.getReader()
-        const file = await fs.open(zipPath, 'wx')
-        let size = 0
-        try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            size += value.byteLength
-            if (size > MAX_ARCHIVE_SIZE) throw new Error('Skill download exceeds the size limit')
-            await file.writeFile(value)
-          }
-        } finally {
-          try {
-            await reader.cancel()
-          } finally {
-            await file.close()
-          }
-        }
-      },
-      60_000
-    )
+    await fetchRemoteFile(url, zipPath, { timeoutMs: 60_000, maxBytes: MAX_ARCHIVE_SIZE, maxRedirects: 5 })
     await validatePortableArchive(zipPath)
     const contentDir = path.join(tempDir, 'content')
     await fs.mkdir(contentDir)

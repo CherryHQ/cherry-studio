@@ -25,6 +25,7 @@ import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@m
 import type * as MarkdownParserModule from '@main/utils/markdownParser'
 import type * as ProcessRunnerModule from '@main/utils/processRunner'
 import { CommandOutputLimitError } from '@main/utils/processRunner'
+import * as remoteFetch from '@main/utils/remoteFetch'
 import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
@@ -2119,6 +2120,7 @@ describe('SkillService', () => {
   describe('CherryIN marketplace packages', () => {
     let root: string
     let restorePaths: () => void
+    let restoreDownload: () => void
     const itemId = 'sample skill/collection'
 
     beforeEach(async () => {
@@ -2132,10 +2134,13 @@ describe('SkillService', () => {
         .spyOn(application, 'getPath')
         .mockImplementation((key: string, filename?: string) => path.join(root, key, ...(filename ? [filename] : [])))
       restorePaths = () => spy.mockRestore()
+      const downloadSpy = vi.spyOn(remoteFetch, 'fetchRemoteFile')
+      restoreDownload = () => downloadSpy.mockRestore()
     })
 
     afterEach(() => {
       restorePaths()
+      restoreDownload()
       vi.mocked(findSkillMdPath).mockReset()
       vi.mocked(findAllSkillDirectories).mockReset().mockResolvedValue([])
       vi.mocked(parseSkillMetadata).mockReset()
@@ -2163,9 +2168,11 @@ describe('SkillService', () => {
         downloads: 1,
         releaseDate: '2026-09-22'
       }
-      vi.mocked(net.fetch).mockImplementation(async (url) =>
-        String(url).includes('/download') ? new Response(new Uint8Array(zip.toBuffer())) : Response.json(item)
-      )
+      vi.mocked(net.fetch).mockImplementation(async () => Response.json(item))
+      vi.mocked(remoteFetch.fetchRemoteFile).mockImplementation(async (url, destination) => {
+        expect(url).toBe(item.downloadUrl)
+        await fs.promises.writeFile(destination, zip.toBuffer(), { flag: 'wx' })
+      })
       return item
     }
 
@@ -2207,7 +2214,7 @@ describe('SkillService', () => {
       expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([])
       expect(await fs.promises.readdir(path.join(root, 'feature.agents.skills.install.temp'))).toEqual([])
       expect((await getMarketplaceSkill(itemId, true)).members).toEqual(detail.members)
-      expect(vi.mocked(net.fetch).mock.calls.filter(([url]) => String(url).endsWith('/download'))).toHaveLength(1)
+      expect(remoteFetch.fetchRemoteFile).toHaveBeenCalledOnce()
     })
 
     it.each([404, 429])('surfaces HTTP %s instead of treating an unavailable resource as empty', async (status) => {
@@ -2221,13 +2228,11 @@ describe('SkillService', () => {
       const result = await new SkillService().installMarketplace(itemId)
       expect(result.failed).toEqual([])
       expect(result.members).toEqual([{ path: '', name: 'one' }])
-      expect(
-        vi
-          .mocked(net.fetch)
-          .mock.calls.some(
-            ([url]) => String(url) === `https://skills.cherryin.ai/api/skills/${encodeURIComponent(itemId)}/download`
-          )
-      ).toBe(true)
+      expect(remoteFetch.fetchRemoteFile).toHaveBeenCalledWith(
+        `https://skills.cherryin.ai/api/skills/${encodeURIComponent(itemId)}/download`,
+        expect.any(String),
+        { timeoutMs: 60_000, maxBytes: skillArchive.MAX_ARCHIVE_SIZE, maxRedirects: 5 }
+      )
       expect(result.installed).toMatchObject([{ folderName: 'one', namespace: `cherryin:${itemId}`, isEnabled: false }])
       expect(dbh.db.select().from(agentSkillTable).all()).toHaveLength(0)
       expect(await fs.promises.readFile(path.join(root, 'feature.agents.skills', 'one', 'SKILL.md'), 'utf8')).toContain(
