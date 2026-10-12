@@ -162,12 +162,76 @@ describe('resolveAttachmentBudgetContextWindow', () => {
       })
     ).toBe(131_072)
 
+    const fallbackSnapshots = new Map([
+      [
+        fallbackUniqueId,
+        {
+          uniqueModelId: fallbackUniqueId,
+          trainedContextWindow: 131_072,
+          numCtx: 32_768
+        }
+      ]
+    ])
+
     expect(
       resolveAttachmentBudgetContextWindow({
         provider: primaryProvider,
         model: primaryModel,
-        fallbackModelIds: [fallbackUniqueId]
+        fallbackModelIds: [fallbackUniqueId],
+        fallbackOllamaSnapshots: fallbackSnapshots
       })
     ).toBe(32_768)
+  })
+
+  it('uses frozen fallback snapshots instead of re-sampling Ollama RAM', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({
+      id: 'openai::gpt-4',
+      providerId: 'openai',
+      contextWindow: 131_072
+    })
+    const fallbackUniqueId = createUniqueModelId('ollama', 'qwen3')
+    const fallbackProvider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const fallbackModel = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 131_072
+    })
+
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'ollama') return fallbackProvider
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'ollama' && modelId === 'qwen3') return fallbackModel
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    const frozenCap = 16_384
+    const fallbackSnapshots = new Map([
+      [
+        fallbackUniqueId,
+        {
+          uniqueModelId: fallbackUniqueId,
+          trainedContextWindow: 131_072,
+          numCtx: frozenCap
+        }
+      ]
+    ])
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId],
+        fallbackOllamaSnapshots: fallbackSnapshots
+      })
+    ).toBe(frozenCap)
   })
 })

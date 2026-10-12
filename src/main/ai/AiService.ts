@@ -70,7 +70,11 @@ import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
-import { resolveAttachmentBudget, resolveAttachmentBudgetContextWindow } from './messages/attachmentBudget'
+import {
+  buildFallbackOllamaNumCtxSnapshots,
+  resolveAttachmentBudget,
+  resolveAttachmentBudgetContextWindow
+} from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { applyHttpTrace } from './observability'
@@ -90,7 +94,9 @@ import {
   buildApiKeyFallbackModels,
   buildFallbackModels,
   createRetryableWrap,
-  readRetryPolicy
+  hasApiKeyFallbackCandidates,
+  readRetryPolicy,
+  resolveEffectiveFallbackModelIds
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
@@ -660,6 +666,15 @@ export class AiService extends BaseService {
     const mediaCapabilities = resolveMediaCapabilities(model)
     const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
     const effectiveEndpoint = resolveEffectiveEndpoint(provider, model)
+    const hasApiKeyFallbacks = retryDisabledForRequest
+      ? false
+      : hasApiKeyFallbackCandidates({ request, provider, primaryCredentialReceipt: credentialReceipt })
+    const attachmentFallbackModelIds = resolveEffectiveFallbackModelIds(
+      request.requestOptions?.maxRetries,
+      retryDisabledForRequest,
+      hasApiKeyFallbacks
+    )
+    const fallbackOllamaSnapshots = buildFallbackOllamaNumCtxSnapshots(attachmentFallbackModelIds)
 
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file). The cap is
@@ -683,7 +698,8 @@ export class AiService extends BaseService {
                 endpointType: effectiveEndpoint.endpointType,
                 runtimeProviderId: sdkConfig.providerId,
                 ollamaNumCtx: requestContext?.ollamaNumCtx ?? null,
-                fallbackModelIds: retryDisabledForRequest ? [] : readRetryPolicy().fallbackModelIds
+                fallbackModelIds: attachmentFallbackModelIds,
+                fallbackOllamaSnapshots
               }),
               system,
               tools,
@@ -740,6 +756,7 @@ export class AiService extends BaseService {
           requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
           extraFeatures,
           retryPolicy,
+          fallbackOllamaSnapshots,
           createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
             createAiUsagePlugin(
               createCaptureContext({

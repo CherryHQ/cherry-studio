@@ -19,6 +19,7 @@ import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isAbortError } from '@main/utils/error'
+import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -50,6 +51,8 @@ export interface BuildFallbackModelsArgs {
   requiredNativeFileSupport: NativeFileSupport
   extraFeatures: readonly RequestFeature[]
   retryPolicy: RetryPolicy
+  /** Frozen when attachments were budgeted; avoids re-sampling Ollama RAM on activation. */
+  fallbackOllamaSnapshots?: ReadonlyMap<UniqueModelId, OllamaNumCtxRequestSnapshot>
   createUsagePlugin: (input: {
     provider: Provider
     model: Model
@@ -160,7 +163,8 @@ async function resolveFallback(
     model,
     assistant: args.assistant,
     extraFeatures: args.extraFeatures,
-    getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
+    getRepairUsagePlugins: () => repairUsagePlugins.current ?? [],
+    frozenOllamaNumCtx: args.fallbackOllamaSnapshots?.get(uniqueModelId)
   })
   const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
     (type) => required[type] && !nativeFileSupport[type]
