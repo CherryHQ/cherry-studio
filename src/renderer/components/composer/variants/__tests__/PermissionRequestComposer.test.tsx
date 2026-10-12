@@ -54,13 +54,16 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (query?: { enabled?: boolean }, options?: { enabled?: boolean }) => {
     lookupRequests.providerQueryEnabled.push(query?.enabled)
     lookupRequests.providerFetchEnabled.push(options?.enabled)
-    return { providers: [{ id: 'anthropic', name: 'Anthropic' }] }
+    return { providers: providersFixture.providers }
   }
 }))
 
 const planExecutionPreference = vi.hoisted(() => ({ modelId: null as string | null }))
 const modelByIdFixture = vi.hoisted(() => ({
-  model: undefined as { id: string; name: string; providerId: string } | undefined
+  model: undefined as { id: string; name: string; providerId: string; isEnabled?: boolean } | undefined
+}))
+const providersFixture = vi.hoisted(() => ({
+  providers: [{ id: 'anthropic', name: 'Anthropic' }] as Array<{ id: string; name: string }>
 }))
 const lookupRequests = vi.hoisted(() => ({
   modelIds: [] as unknown[],
@@ -147,8 +150,16 @@ function makeCollidingMcpRequest(): PermissionRequestComposerRequest {
   })
 }
 
-function configurePlanExecutionModel(overrides: Partial<{ id: string; name: string; providerId: string }> = {}) {
-  const model = { id: 'anthropic::claude-opus-5', name: 'Claude Opus 5', providerId: 'anthropic', ...overrides }
+function configurePlanExecutionModel(
+  overrides: Partial<{ id: string; name: string; providerId: string; isEnabled: boolean }> = {}
+) {
+  const model = {
+    id: 'anthropic::claude-opus-5',
+    name: 'Claude Opus 5',
+    providerId: 'anthropic',
+    isEnabled: true,
+    ...overrides
+  }
   planExecutionPreference.modelId = model.id
   modelByIdFixture.model = model
   return model
@@ -158,6 +169,7 @@ describe('PermissionRequestComposer', () => {
   beforeEach(() => {
     planExecutionPreference.modelId = null
     modelByIdFixture.model = undefined
+    providersFixture.providers = [{ id: 'anthropic', name: 'Anthropic' }]
     lookupRequests.modelIds.length = 0
     lookupRequests.providerQueryEnabled.length = 0
     lookupRequests.providerFetchEnabled.length = 0
@@ -419,6 +431,35 @@ describe('PermissionRequestComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
     expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+  })
+
+  // A disabled target cannot run the plan at all — the gateway rejects it, so the card must fall
+  // back to the current model instead of stopping the turn onto it.
+  it('continues on the current model when the configured execution model is disabled', async () => {
+    configurePlanExecutionModel({ isEnabled: false })
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makePlanRequest()
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} planExecution={{}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Claude Opus 5 cannot be used here')
+  })
+
+  // `useProviders({ enabled: true })` is the enabled-provider list: an execution model whose
+  // provider is absent from it is a disabled target too, even though the model itself resolves.
+  it('continues on the current model when the execution model runs on a disabled provider', async () => {
+    configurePlanExecutionModel()
+    providersFixture.providers = [{ id: 'openai', name: 'OpenAI' }]
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makePlanRequest()
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} planExecution={{}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Claude Opus 5 cannot be used here')
   })
 
   // Main refuses a handoff that is not a plan approval — but only after the approval has already
