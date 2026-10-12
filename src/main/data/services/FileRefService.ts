@@ -56,6 +56,8 @@ export interface FileRefService {
   /** Ref-count aggregation for a batch of entry ids. */
   countByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number>
 
+  countConversationRefsByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number>
+
   /** Persistent-ref count for one entry, inside the caller's tx (cleanup pass §5.4). */
   countPersistentRefsByEntryIdTx(tx: DbOrTx, id: FileEntryId): number
 }
@@ -348,6 +350,22 @@ class FileRefServiceImpl implements FileRefService {
       }
     }
 
+    return counts
+  }
+
+  countConversationRefsByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number> {
+    const counts = new Map<FileEntryId, number>()
+    for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
+      for (const table of [chatMessageFileRefTable, agentSessionMessageFileRefTable]) {
+        const rows = this.getDb()
+          .select({ entryId: table.fileEntryId, refCount: count() })
+          .from(table)
+          .where(inArray(table.fileEntryId, ids.slice(i, i + SQLITE_INARRAY_CHUNK)))
+          .groupBy(table.fileEntryId)
+          .all()
+        for (const row of rows) counts.set(row.entryId, (counts.get(row.entryId) ?? 0) + row.refCount)
+      }
+    }
     return counts
   }
 

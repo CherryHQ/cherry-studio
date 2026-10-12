@@ -63,9 +63,10 @@ cache index; it never deletes the user's file.
 
 ### 4.3 Renderer Visibility
 
-`cleanupPolicy` remains part of the `FileEntry` data shape, but the Files page exposes no cleanup
-toggle, pending badge, or drain action. Retention is assigned by the creation flow and applied by
-the background task.
+`cleanupPolicy` remains part of the `FileEntry` data shape. The Files page labels and filters files
+by conversation references, other references, or no references. References from archived
+conversations still protect files from deletion. Retention is assigned by the creation flow;
+there is no cleanup-policy toggle or drain action.
 
 ## 5. Cleanup Pass
 
@@ -82,16 +83,23 @@ The anti-join conditions are generated from that registry rather than hand-maint
 registration of a new reference source part of the same source of truth used by reference counts
 and cleanup. Candidates are ordered by `createdAt`.
 
-`deletedAt` is not a filter: an unreferenced auto-policy internal entry remains eligible even if it
-was moved to trash. A manual entry is never a candidate, whether present, missing, active, or
-trashed.
+Trashed entries are excluded: the Recycle Bin retention policy owns their eventual removal.
+A manual entry is never a candidate, whether present, missing, active, or trashed.
+
+Archiving a topic or Agent session also archives its internal auto-policy attachments when no
+active conversation or other persistent source still uses them. References remain intact so
+restoring a conversation restores its attachments in the same transaction. Library imports
+(`manual`) and external files remain untouched. Permanently deleting a conversation leaves its
+exclusive internal attachments recoverable in the Recycle Bin. Explicitly restoring an individual
+file upgrades it to `manual`, retaining it independently of its former conversation.
 
 The query is equivalent to:
 
 ```sql
 SELECT file_entry.*
 FROM file_entry
-WHERE cleanup_policy = 'delete_when_unreferenced'
+WHERE deleted_at IS NULL
+  AND cleanup_policy = 'delete_when_unreferenced'
   AND created_at < :now_minus_one_hour
   AND NOT EXISTS (:one anti-join per registered persistent ref table)
 ORDER BY created_at
@@ -111,7 +119,7 @@ Discovery is only a hint. Each candidate is rechecked inside its own synchronous
 `DbService.withWriteTx` callback:
 
 1. re-read the entry;
-2. stop if it vanished or is now `manual`;
+2. stop if it vanished, is now `manual`, or was moved to the Recycle Bin;
 3. count persistent refs again inside the transaction;
 4. stop if a ref appeared;
 5. delete the row.

@@ -45,7 +45,12 @@ export function FileContextMenu({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <FileContextMenuContent file={file} actions={actions} showRename={showRename} deleteDisabled={deleteDisabled} />
+      <FileContextMenuContent
+        file={file}
+        actions={actions}
+        showRename={showRename}
+        deleteDisabled={deleteDisabled || file.usage !== 'unreferenced'}
+      />
     </ContextMenu>
   )
 }
@@ -89,7 +94,10 @@ function FileContextMenuContent({
         </ContextMenuItem>
       )}
       {(hasPrimaryAction || hasSidebarAction) && <ContextMenuSeparator />}
-      <ContextMenuItem disabled={deleteDisabled} variant="destructive" onSelect={() => actions.onDelete(file.id)}>
+      <ContextMenuItem
+        disabled={deleteDisabled || file.usage !== 'unreferenced'}
+        variant="destructive"
+        onSelect={() => actions.onDelete(file.id)}>
         <ContextMenuItemContent icon={<Trash2 size={12} />}>
           {file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
         </ContextMenuItemContent>

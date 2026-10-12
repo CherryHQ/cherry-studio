@@ -663,6 +663,9 @@ describe('AgentSessionService', () => {
         { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [duplicate.id] },
         { endpoint: '/agent-sessions/:sessionId', entityIds: [duplicate.id] },
         { endpoint: '/agent-sessions/latest' },
+        { endpoint: '/files/entries', kind: 'membership' },
+        { endpoint: '/files/entries/stats' },
+        { endpoint: '/files/entries/ref-counts', kind: 'projection' },
         { endpoint: '/agent-workspaces', kind: 'membership' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
@@ -738,6 +741,9 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/files/entries', kind: 'membership' },
+      { endpoint: '/files/entries/stats' },
+      { endpoint: '/files/entries/ref-counts', kind: 'projection' },
       { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
     expect(session.workspaceId).toBe(workspace.id)
@@ -1149,6 +1155,9 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/files/entries', kind: 'membership' },
+      { endpoint: '/files/entries/stats' },
+      { endpoint: '/files/entries/ref-counts', kind: 'projection' },
       { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
     expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])

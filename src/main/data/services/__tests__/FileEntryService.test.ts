@@ -2001,7 +2001,7 @@ describe('FileEntryService', () => {
       })
     }
 
-    it('returns only auto-policy, zero-ref entries past grace; includes trashed; excludes manual/young/referenced', async () => {
+    it('returns only auto-policy, zero-ref entries past grace; excludes trashed/manual/young/referenced', async () => {
       const auto = '019606a0-0000-7000-8000-0000000cc001' as FileEntryId
       const manual = '019606a0-0000-7000-8000-0000000cc002' as FileEntryId
       const young = '019606a0-0000-7000-8000-0000000cc003' as FileEntryId
@@ -2015,7 +2015,7 @@ describe('FileEntryService', () => {
       await seedRef(referenced)
 
       const ids = fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)
-      expect(ids.sort()).toEqual([auto, trashed].sort())
+      expect(ids).toEqual([auto])
     })
 
     it('respects the batch limit', async () => {

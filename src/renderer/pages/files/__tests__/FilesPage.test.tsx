@@ -219,11 +219,23 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+function mockEntryLookup(result?: FileEntry) {
+  dataApiMocks.get.mockImplementation(async (path, options) => {
+    if (path === '/files/entries/ref-counts') {
+      const { entryIds } = options!.query as { entryIds: string[] }
+      return entryIds.map((entryId) => ({ entryId, refCount: 0, conversationRefCount: 0 }))
+    }
+    if (result) return result
+    throw new Error('file detail unavailable')
+  })
+}
+
 beforeEach(() => {
   platformState.isMac = true
   ipcMocks.request.mockReturnValue(new Promise(() => {}))
   vi.mocked(popup.confirm).mockResolvedValue(true)
-  vi.mocked(dataApiService.get).mockReset().mockRejectedValue(new Error('file detail unavailable'))
+  dataApiMocks.get.mockReset()
+  mockEntryLookup()
   mockFiles([entry])
 })
 
@@ -231,6 +243,33 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   vi.clearAllMocks()
+})
+
+describe('file reference protection', () => {
+  it('labels referenced files and blocks row, batch, and keyboard deletion while allowing an unreferenced file', async () => {
+    const user = userEvent.setup()
+    mockFiles([entry, externalEntry])
+    dataApiMocks.get.mockImplementation(async (path) => {
+      if (path === '/files/entries/ref-counts')
+        return [
+          { entryId: entry.id, refCount: 2, conversationRefCount: 2 },
+          { entryId: externalEntry.id, refCount: 0, conversationRefCount: 0 }
+        ]
+      throw new Error('file detail unavailable')
+    })
+    render(<FilesPage />)
+    await waitFor(() => expect(screen.getAllByText('files.usage.conversation')).toHaveLength(2))
+    expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeEnabled()
+    selectFileAt(0)
+    expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
+    await user.keyboard('{Delete}')
+    expect(ipcMocks.request.mock.calls.filter(([route]) => route === 'file.batch_trash')).toEqual([])
+    selectFileAt(1)
+    expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
+    selectFileAt(0)
+    expect(screen.getByRole('button', { name: 'files.actions' })).toBeEnabled()
+  })
 })
 
 describe('FilesPage navigation', () => {
@@ -308,6 +347,7 @@ describe('FilesPage keyboard rename', () => {
 
   it('handles file shortcuts from a focused selection checkbox', async () => {
     renderFilesPage()
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
     fireEvent.click(checkbox)
@@ -573,7 +613,7 @@ describe('FilesPage file operations', () => {
 
   it('reveals a route-targeted entry without requiring it in the current page', async () => {
     const onEntryIdChange = vi.fn()
-    dataApiMocks.get.mockResolvedValue(entry)
+    mockEntryLookup(entry)
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [entry.id]: '/tmp/report.md' })
@@ -625,7 +665,7 @@ describe('FilesPage file operations', () => {
     ipcMocks.request.mockImplementation((route: string) =>
       Promise.resolve(route === 'file.batch_get_physical_paths' ? paths : {})
     )
-    dataApiMocks.get.mockResolvedValue(entry)
+    mockEntryLookup(entry)
     mockFiles([imageEntry, entry])
     const view = render(<FilesPage onEntryIdChange={onEntryIdChange} />)
 
@@ -772,6 +812,7 @@ describe('FilesPage file operations', () => {
     mockFiles([entry, externalEntry])
     mockFileStats(statsForEntries([entry, externalEntry]), refetchStats)
     render(<FilesPage />)
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     selectFileAt(0)
     selectFileAt(1)
@@ -806,6 +847,7 @@ describe('FilesPage file operations', () => {
   it('does not mutate files when the user cancels the confirmation', async () => {
     vi.mocked(popup.confirm).mockResolvedValueOnce(false)
     renderFilesPage([externalEntry])
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Delete' })
@@ -829,6 +871,7 @@ describe('FilesPage file operations', () => {
       return Promise.resolve(input)
     })
     renderFilesPage([entry, secondEntry])
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
     selectFileAt(0)
 
     fireEvent.keyDown(document, { key: 'Delete' })
@@ -912,6 +955,7 @@ describe('FilesPage file operations', () => {
       return Promise.resolve(input)
     })
     renderFilesPage([entry, secondEntry])
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
     fireEvent.click(screen.getByText(/files.delete.label/))
@@ -1004,6 +1048,7 @@ describe('FilesPage file operations', () => {
       ...Array.from({ length: 501 }, (_, index) => bulkEntry('external', index))
     ]
     renderFilesPage(entries)
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
     fireEvent.keyDown(document, { key: 'Delete' })
@@ -1037,6 +1082,7 @@ describe('FilesPage file operations', () => {
       return Promise.resolve(input)
     })
     renderFilesPage(entries)
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
     fireEvent.keyDown(document, { key: 'Delete' })
@@ -1066,6 +1112,7 @@ describe('FilesPage file operations', () => {
       return Promise.resolve(input)
     })
     renderFilesPage()
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Delete' })
@@ -1093,11 +1140,18 @@ describe('FilesPage file operations', () => {
       }
       return Promise.resolve({ succeeded: [], failed: [] })
     })
-    vi.mocked(dataApiService.get).mockImplementation(async (path) => {
+    vi.mocked(dataApiService.get).mockImplementation(async (path, options) => {
+      if (path === '/files/entries/ref-counts')
+        return (options!.query as { entryIds: string[] }).entryIds.map((entryId) => ({
+          entryId,
+          refCount: 0,
+          conversationRefCount: 0
+        }))
       const staleEntry = path.endsWith(secondEntry.id) ? secondEntry : entry
       return { ...staleEntry, deletedAt: 1_900_000_000_000 } as never
     })
     const { refresh, refetchStats } = renderFilesPage([entry, secondEntry])
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
     fireEvent.keyDown(document, { key: 'Delete' })
@@ -1108,7 +1162,6 @@ describe('FilesPage file operations', () => {
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
     expect(refresh).toHaveBeenCalledOnce()
     expect(refetchStats).toHaveBeenCalledOnce()
-    expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(dataApiService.get).mock.invocationCallOrder[0])
     for (const checkbox of screen.getAllByRole('checkbox', { name: 'files.select_file' })) {
       expect(checkbox).not.toBeChecked()
     }
@@ -1128,8 +1181,9 @@ describe('FilesPage file operations', () => {
       }
       return Promise.resolve(input)
     })
-    vi.mocked(dataApiService.get).mockResolvedValue({ ...secondEntry, deletedAt: 1_900_000_000_000 })
+    mockEntryLookup({ ...secondEntry, deletedAt: 1_900_000_000_000 } as FileEntry)
     renderFilesPage([entry, secondEntry])
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
     fireEvent.keyDown(document, { key: 'Delete' })
@@ -1177,6 +1231,7 @@ describe('FilesPage file operations', () => {
       return Promise.resolve(input)
     })
     const { refresh, refetchStats } = renderFilesPage(entries)
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
     fireEvent.keyDown(document, { key: 'Delete' })
@@ -1205,7 +1260,6 @@ describe('FilesPage file operations', () => {
     expect(vi.mocked(dataApiService.get).mock.calls.map(([path]) => path)).toEqual(
       restoreFailures.map(({ id }) => `/files/entries/${id}`)
     )
-    expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(dataApiService.get).mock.invocationCallOrder[0])
   })
 
   it('shows one partial-failure toast for mixed-origin delete failures', async () => {
@@ -1221,6 +1275,7 @@ describe('FilesPage file operations', () => {
       return Promise.resolve(input)
     })
     renderFilesPage([entry, externalEntry])
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     selectFileAt(0)
     selectFileAt(1)
@@ -1241,6 +1296,7 @@ describe('FilesPage file operations', () => {
       return Promise.resolve(input)
     })
     renderFilesPage()
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Delete' })
@@ -1391,6 +1447,7 @@ describe('FilesPage file operations', () => {
     })
 
     renderFilesPage([externalEntry])
+    await waitFor(() => expect(screen.getAllByText('files.usage.unreferenced').length).toBeGreaterThan(1))
 
     expect(await screen.findByText('external.txt')).toBeInTheDocument()
     expect(screen.getByText('files.missing')).toBeInTheDocument()

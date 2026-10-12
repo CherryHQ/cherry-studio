@@ -1,5 +1,16 @@
 import type { TFunction } from 'i18next'
-import { FileCode, FileQuestion, Files, FileText, Image as ImageIcon, Music, Video } from 'lucide-react'
+import {
+  FileCode,
+  FileQuestion,
+  Files,
+  FileText,
+  Image as ImageIcon,
+  Link,
+  MessageSquare,
+  Music,
+  Unlink,
+  Video
+} from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,6 +18,7 @@ import { MenuDivider, MenuItem, MenuList, PageHeader, Scrollbar } from '@cherrys
 
 export type SidebarFilter =
   | { kind: 'library'; value: 'all' }
+  | { kind: 'usage'; value: 'conversation' | 'other' | 'unreferenced' }
   | { kind: 'type'; value: 'image' | 'video' | 'audio' | 'text' | 'document' | 'other' }
 
 type SidebarEntry = {
@@ -27,7 +39,22 @@ const TYPE_ENTRIES: SidebarEntry[] = [
 ]
 
 const LIBRARY_ENTRIES: SidebarEntry[] = [
-  { kind: 'library', value: 'all', label: (t) => t('files.all'), icon: Files, countKey: 'all' }
+  { kind: 'library', value: 'all', label: (t) => t('files.all'), icon: Files, countKey: 'all' },
+  {
+    kind: 'usage',
+    value: 'conversation',
+    label: (t) => t('files.usage.conversation'),
+    icon: MessageSquare,
+    countKey: 'conversation'
+  },
+  { kind: 'usage', value: 'other', label: (t) => t('files.usage.other'), icon: Link, countKey: 'other' },
+  {
+    kind: 'usage',
+    value: 'unreferenced',
+    label: (t) => t('files.usage.unreferenced'),
+    icon: Unlink,
+    countKey: 'unreferenced'
+  }
 ]
 
 export function FileSidebar({

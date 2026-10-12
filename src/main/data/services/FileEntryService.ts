@@ -29,6 +29,7 @@ import {
   isNull,
   lt,
   notInArray,
+  not,
   or,
   type SQL,
   sql,
@@ -39,8 +40,17 @@ import * as z from 'zod'
 import { ZodError } from 'zod'
 
 import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { persistentRefAbsenceConditions } from '@data/db/schemas/fileRelations'
+import {
+  agentSessionMessageFileRefTable,
+  chatMessageFileRefTable,
+  persistentFileRefTablesBySourceType,
+  persistentRefAbsenceConditions
+} from '@data/db/schemas/fileRelations'
+import { messageTable } from '@data/db/schemas/message'
+import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -133,6 +143,7 @@ export interface ListCursorQuery {
   readonly origin?: FileEntryOrigin
   readonly inTrash?: boolean
   readonly fileType?: FileType
+  readonly usage?: 'conversation' | 'other' | 'unreferenced'
   readonly sortBy?: ListFilesSortBy
   readonly sortOrder?: 'asc' | 'desc'
   readonly cursor?: string
@@ -259,7 +270,7 @@ export interface FileEntryService {
    */
   findManualUnreferenced(query?: { origin?: FileEntryOrigin }): FileEntry[]
 
-  /** Auto-policy entries past grace with zero persistent refs (trashed included) — backs the GC pass. */
+  /** Active auto-policy entries past grace with zero persistent refs — backs the GC pass. */
   findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[]
 
   /**
@@ -294,6 +305,13 @@ export interface FileEntryService {
 
   /** Remove the row (CASCADE drops dependent persistent file refs). No-op if already gone. */
   delete(id: FileEntryId): void
+
+  setConversationFilesTrashTx(
+    tx: DbOrTx,
+    source: 'topic' | 'session',
+    ids: readonly string[],
+    deletedAt: number | null
+  ): void
 
   /** Hard-delete trashed entries older than the retention cutoff. */
   purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): FileEntryId[]
@@ -666,6 +684,22 @@ class FileEntryServiceImpl implements FileEntryService {
       filterConditions.push(getFileTypeFilterCondition(query.fileType))
     }
 
+    if (query.usage) {
+      const conversationRef = or(
+        ...[chatMessageFileRefTable, agentSessionMessageFileRefTable].map(
+          (table) => sql`EXISTS (SELECT 1 FROM ${table} WHERE ${table.fileEntryId} = ${fileEntryTable.id})`
+        )
+      )!
+      const unreferenced = and(...persistentRefAbsenceConditions())!
+      filterConditions.push(
+        query.usage === 'conversation'
+          ? conversationRef
+          : query.usage === 'unreferenced'
+            ? unreferenced
+            : and(not(conversationRef), not(unreferenced))!
+      )
+    }
+
     const sortBy = query.sortBy ?? DEFAULT_LIST_SORT_BY
     const sortOrder = query.sortOrder ?? DEFAULT_LIST_SORT_ORDER
     const sortExpression = getListSortExpression(sortBy)
@@ -744,7 +778,7 @@ class FileEntryServiceImpl implements FileEntryService {
 
   findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[] {
     const conditions: SQL[] = [
-      // NOTE: no deletedAt filter — trashed auto entries are reclaimed too (spec §5.1)
+      isNull(fileEntryTable.deletedAt),
       eq(fileEntryTable.cleanupPolicy, 'delete_when_unreferenced'),
       lt(fileEntryTable.createdAt, Date.now() - opts.graceMs),
       ...persistentRefAbsenceConditions()
@@ -757,6 +791,57 @@ class FileEntryServiceImpl implements FileEntryService {
       .limit(opts.limit)
       .all()
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
+  }
+
+  setConversationFilesTrashTx(
+    tx: DbOrTx,
+    source: 'topic' | 'session',
+    ids: readonly string[],
+    deletedAt: number | null
+  ): void {
+    const noActiveRefs = [
+      sql`NOT EXISTS (SELECT 1 FROM ${chatMessageFileRefTable}
+        INNER JOIN ${messageTable} ON ${messageTable.id} = ${chatMessageFileRefTable.sourceId}
+        INNER JOIN ${topicTable} ON ${topicTable.id} = ${messageTable.topicId}
+        WHERE ${chatMessageFileRefTable.fileEntryId} = ${fileEntryTable.id} AND ${topicTable.deletedAt} IS NULL)`,
+      sql`NOT EXISTS (SELECT 1 FROM ${agentSessionMessageFileRefTable}
+        INNER JOIN ${agentSessionMessageTable} ON ${agentSessionMessageTable.id} = ${agentSessionMessageFileRefTable.sourceId}
+        INNER JOIN ${agentSessionTable} ON ${agentSessionTable.id} = ${agentSessionMessageTable.sessionId}
+        WHERE ${agentSessionMessageFileRefTable.fileEntryId} = ${fileEntryTable.id} AND ${agentSessionTable.deletedAt} IS NULL)`,
+      ...Object.entries(persistentFileRefTablesBySourceType)
+        .filter(([type]) => type !== 'chat_message' && type !== 'agent_session_message')
+        .map(([, table]) => sql`NOT EXISTS (SELECT 1 FROM ${table} WHERE ${table.fileEntryId} = ${fileEntryTable.id})`)
+    ]
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500)
+      const entryIds =
+        source === 'topic'
+          ? tx
+              .select({ id: chatMessageFileRefTable.fileEntryId })
+              .from(chatMessageFileRefTable)
+              .innerJoin(messageTable, eq(messageTable.id, chatMessageFileRefTable.sourceId))
+              .where(inArray(messageTable.topicId, chunk))
+          : tx
+              .select({ id: agentSessionMessageFileRefTable.fileEntryId })
+              .from(agentSessionMessageFileRefTable)
+              .innerJoin(
+                agentSessionMessageTable,
+                eq(agentSessionMessageTable.id, agentSessionMessageFileRefTable.sourceId)
+              )
+              .where(inArray(agentSessionMessageTable.sessionId, chunk))
+      tx.update(fileEntryTable)
+        .set({ deletedAt })
+        .where(
+          and(
+            inArray(fileEntryTable.id, entryIds),
+            eq(fileEntryTable.origin, 'internal'),
+            eq(fileEntryTable.cleanupPolicy, 'delete_when_unreferenced'),
+            deletedAt === null ? isNotNull(fileEntryTable.deletedAt) : isNull(fileEntryTable.deletedAt),
+            ...(deletedAt === null ? [] : noActiveRefs)
+          )
+        )
+        .run()
+    }
   }
 
   listAllIds(): Set<FileEntryId> {

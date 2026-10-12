@@ -107,6 +107,7 @@ export async function runEntryCleanup(
           if (
             row === null ||
             row.cleanupPolicy !== 'delete_when_unreferenced' ||
+            (row.origin === 'internal' && row.deletedAt != null) ||
             intakeProtection?.isProtected(candidate.id)
           ) {
             return { kind: 'gone-or-pinned' }

@@ -7,6 +7,7 @@ import { Button } from '@cherrystudio/ui'
 
 import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
+import { getFileUsageLabel } from './fileDisplay'
 import { getFormatLabel, typeBgColors, typeIconColors, typeIcons } from './fileDisplay'
 import { InlineRename } from './InlineRename'
 
@@ -110,7 +111,11 @@ export const FileGrid = memo(function FileGrid({
               const previewUrl = isImage && !file.isMissing ? file.previewUrl : undefined
               const shapeClass = isImage ? 'aspect-square' : 'h-24'
               return (
-                <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
+                <FileContextMenu
+                  key={file.id}
+                  file={file}
+                  actions={menuActions}
+                  deleteDisabled={deleteDisabled || file.usage !== 'unreferenced'}>
                   <div
                     onClick={() => {
                       if (isRenaming || file.isMissing) return
@@ -143,7 +148,7 @@ export const FileGrid = memo(function FileGrid({
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          disabled={deleteDisabled}
+                          disabled={deleteDisabled || file.usage !== 'unreferenced'}
                           onClick={(e) => {
                             e.stopPropagation()
                             onDelete(file.id)
@@ -166,9 +171,14 @@ export const FileGrid = memo(function FileGrid({
                           className="w-full px-1.5 text-center"
                         />
                       ) : (
-                        <p className="truncate text-sm leading-5 font-medium text-foreground" title={file.name}>
-                          {file.name}
-                        </p>
+                        <>
+                          <p className="truncate text-sm leading-5 font-medium text-foreground" title={file.name}>
+                            {file.name}
+                          </p>
+                          {file.usage && (
+                            <p className="text-xs text-muted-foreground">{getFileUsageLabel(t, file.usage)}</p>
+                          )}
+                        </>
                       )}
                       <div className="flex items-center gap-1">
                         <span className="text-xs leading-4 text-muted-foreground">{file.size}</span>

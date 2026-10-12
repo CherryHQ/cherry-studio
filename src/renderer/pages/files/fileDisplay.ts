@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 import { File, FileCode, FileText, Image as ImageIcon, Music, Video } from 'lucide-react'
 import type { FC } from 'react'
 
@@ -12,6 +13,7 @@ type FileItemCore = {
   sizeBytes: number
   createdAt: string
   updatedAt: string
+  usage?: 'conversation' | 'other' | 'unreferenced'
   trashed: boolean
   danglingState?: DanglingState
   isMissing?: boolean
@@ -108,4 +110,15 @@ export const typeBgColors: Record<FileType, string> = {
   text: 'bg-muted',
   document: 'bg-muted',
   other: 'bg-muted'
+}
+
+export function getFileUsageLabel(t: TFunction, usage: NonNullable<FileItem['usage']>): string {
+  switch (usage) {
+    case 'conversation':
+      return t('files.usage.conversation')
+    case 'other':
+      return t('files.usage.other')
+    case 'unreferenced':
+      return t('files.usage.unreferenced')
+  }
 }

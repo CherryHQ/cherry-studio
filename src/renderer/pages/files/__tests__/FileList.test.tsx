@@ -50,6 +50,7 @@ const file: FileItem = {
   createdAt: '2026-06-24 10:00',
   updatedAt: '2026-06-24 10:00',
   trashed: false,
+  usage: 'unreferenced',
   origin: 'internal',
   type: 'text'
 }

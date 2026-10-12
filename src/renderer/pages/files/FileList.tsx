@@ -7,7 +7,7 @@ import { Button, Checkbox, type CheckedState } from '@cherrystudio/ui'
 
 import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
-import { getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
+import { getFileUsageLabel, getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
 import { InlineRename } from './InlineRename'
 
 export type SortKey = 'name' | 'size' | 'updatedAt' | 'type'
@@ -158,7 +158,11 @@ export const FileList = memo(function FileList({
         const renderActionPlaceholder = (key: string) => <div key={key} className="size-6" aria-hidden="true" />
 
         return (
-          <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
+          <FileContextMenu
+            key={file.id}
+            file={file}
+            actions={menuActions}
+            deleteDisabled={deleteDisabled || file.usage !== 'unreferenced'}>
             <div
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
@@ -196,6 +200,9 @@ export const FileList = memo(function FileList({
                 ) : (
                   <>
                     <span className="truncate text-sm text-foreground">{file.name}</span>
+                    {file.usage && (
+                      <span className="shrink-0 text-xs text-muted-foreground">{getFileUsageLabel(t, file.usage)}</span>
+                    )}
                     {file.isMissing && (
                       <span className="shrink-0 rounded border border-error-border bg-error-subtle px-1.5 py-0.5 text-[10px] text-error-subtle-foreground">
                         {t('files.missing')}
@@ -259,7 +266,7 @@ export const FileList = memo(function FileList({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  disabled={deleteDisabled}
+                  disabled={deleteDisabled || file.usage !== 'unreferenced'}
                   aria-label={deleteLabel}
                   title={deleteLabel}
                   className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-destructive"
