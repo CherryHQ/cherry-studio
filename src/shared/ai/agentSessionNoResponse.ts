@@ -13,7 +13,8 @@ import {
   MCP_RESOURCE_READ_TOOL_NAME,
   PROVIDER_WEB_SEARCH_TOOL_NAME,
   REPORT_ARTIFACTS_TOOL_NAME,
-  WEB_SEARCH_TOOL_NAME
+  WEB_SEARCH_TOOL_NAME,
+  reportArtifactsInputSchema
 } from './builtinTools'
 import { DSH_BUILTIN_TOOLS } from './dshBuiltinTools'
 import { GENERATE_IMAGE_TOOL_NAME } from './generateImageTool'
@@ -92,16 +93,36 @@ const NAME_RENDERED_TOOL_NAMES: ReadonlySet<string> = new Set([
   GENERATE_IMAGE_TOOL_NAME
 ])
 
+function isReportArtifactsToolName(toolName: string): boolean {
+  return toolName === REPORT_ARTIFACTS_TOOL_NAME || toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
+}
+
 /** Runtime builtin tool ids — `chooseTool`'s provider-executed card set, across all runtimes. */
 const RUNTIME_BUILTIN_TOOL_IDS: ReadonlySet<string> = new Set(
   Object.values(AGENT_RUNTIME_CAPABILITIES).flatMap((caps) => caps.builtinTools().map((tool) => tool.id))
 )
+
+function getToolPartInput(part: CherryMessagePart): unknown {
+  return (part as { input?: unknown }).input
+}
+
+/**
+ * The `report_artifacts` call is hidden from the inline stream and rendered instead as a message
+ * footer built by re-parsing its declaration, so the call only counts as content when that
+ * declaration parses. An invalid one (e.g. `{ artifacts: [] }`) produces no footer, and its tool
+ * error does not fail the turn — counting the call as visible left a blank success turn with no
+ * diagnostic. Same schema and same input source the renderer footer uses.
+ */
+function hasRenderableArtifactDeclaration(part: CherryMessagePart): boolean {
+  return reportArtifactsInputSchema.safeParse(getToolPartInput(part)).success
+}
 
 function isRenderedToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part as Parameters<typeof isToolUIPart>[0])) return false
   const toolName = getToolName(part as Parameters<typeof getToolName>[0])?.trim()
   if (part.type === 'dynamic-tool') return isRenderedDynamicToolPart(part, toolName)
   if (!toolName) return false
+  if (isReportArtifactsToolName(toolName)) return hasRenderableArtifactDeclaration(part)
   return RENDERED_TOOL_NAMES.has(toolName) || toolName.startsWith('mcp__')
 }
 
@@ -140,7 +161,9 @@ function isRenderedDynamicToolPart(part: CherryMessagePart, toolName: string | u
   if (!toolName) return false
   const shape = part as ToolPartMetadataShape
   const cherryToolType = readCherryToolType(part)
-  if (cherryToolType === 'mcp' || parseFunctionCallToolName(toolName)) return true
+  if (cherryToolType === 'mcp' || parseFunctionCallToolName(toolName)) {
+    return isReportArtifactsToolName(toolName) ? hasRenderableArtifactDeclaration(part) : true
+  }
   const canonicalName = toRenderedAgentToolName(toolName, shape.callProviderMetadata)
   if (NAME_RENDERED_TOOL_NAMES.has(canonicalName) || canonicalName.startsWith('mcp__')) return true
   // Dynamic builtin tools (unmapped dsh natives) and unrecognized provider names get no card.
@@ -167,12 +190,61 @@ function isRenderedVideoPart(part: CherryMessagePart): boolean {
   return !!data && !!(data.url || data.filePath)
 }
 
-/** True when a part can render as visible turn content. */
-export function isVisibleAgentSessionPart(part: CherryMessagePart): boolean {
+// ── Contextual filler suppression ────────────────────────────────────────────────────
+// Mirrors the renderer's completed-projection rule (`messagePartLayouts.isProcessFillerText`
+// with `holdTrailingLiveCandidate: false`): some providers emit a standalone ellipsis right before
+// a tool call, and projection drops it as a process marker. Judging that text on its own counts it
+// as an answer, so a turn whose only real content is a cardless tool would read as visible, escape
+// both no-output guards, and render as a blank successful turn. Visibility therefore has to ask
+// whether the part survives projection, which needs its neighbours — hence one rule over the whole
+// part list rather than a per-part check.
+
+function isEllipsisOnlyTextPart(part: CherryMessagePart): boolean {
+  return part.type === 'text' && /^(?:\.{3}|…)$/.test(part.text?.trim() ?? '')
+}
+
+function isEmptyContentPart(part: CherryMessagePart): boolean {
+  if (part.type === 'text') return !part.text?.trim()
+  if (part.type !== 'reasoning') return false
+  return part.state !== 'streaming' && !part.text?.trim()
+}
+
+/** A tool call or a reasoning step — the content that makes a preceding ellipsis a process marker. */
+function isProcessContentPart(part: CherryMessagePart): boolean {
+  return (
+    part.type === 'dynamic-tool' ||
+    part.type === 'reasoning' ||
+    (typeof part.type === 'string' && part.type.startsWith('tool-'))
+  )
+}
+
+function findAdjacentMeaningfulPart(
+  parts: readonly CherryMessagePart[],
+  position: number
+): CherryMessagePart | undefined {
+  for (let index = position + 1; index < parts.length; index++) {
+    const part = parts[index]
+    if (AGENT_SESSION_HIDDEN_PART_TYPES.has(part.type)) continue
+    if (isEmptyContentPart(part) || isEllipsisOnlyTextPart(part)) continue
+    return part
+  }
+  return undefined
+}
+
+/** True when projection discards this part as a process marker rather than rendering it. */
+function isSuppressedFillerText(parts: readonly CherryMessagePart[], position: number): boolean {
+  if (!isEllipsisOnlyTextPart(parts[position])) return false
+  const nextPart = findAdjacentMeaningfulPart(parts, position)
+  return !!nextPart && isProcessContentPart(nextPart)
+}
+
+/** True when the part at `position` renders as visible turn content, given its neighbours. */
+function isVisiblePartAt(parts: readonly CherryMessagePart[], position: number): boolean {
+  const part = parts[position]
   if (AGENT_SESSION_HIDDEN_PART_TYPES.has(part.type)) return false
   // Retry history is visible process context, not an assistant answer.
   if (part.type === 'data-agent-api-retry') return false
-  if (part.type === 'text') return !!part.text?.trim()
+  if (part.type === 'text') return !!part.text?.trim() && !isSuppressedFillerText(parts, position)
   // A reasoning part still streaming holds no text yet but is not terminal-empty.
   if (part.type === 'reasoning') return part.state === 'streaming' || !!part.text?.trim()
   if (part.type === 'dynamic-tool' || (typeof part.type === 'string' && part.type.startsWith('tool-'))) {
@@ -184,9 +256,15 @@ export function isVisibleAgentSessionPart(part: CherryMessagePart): boolean {
   return true
 }
 
+/** True when a part can render as visible turn content. */
+export function isVisibleAgentSessionPart(part: CherryMessagePart): boolean {
+  return isVisiblePartAt([part], 0)
+}
+
 /** True when at least one part renders as visible turn content. */
 export function hasVisibleAgentSessionPart(parts: readonly CherryMessagePart[] | undefined): boolean {
-  return (parts ?? []).some(isVisibleAgentSessionPart)
+  const list = parts ?? []
+  return list.some((_part, position) => isVisiblePartAt(list, position))
 }
 
 /** Why a synthetic no-response error was authored on a terminal assistant turn. */
