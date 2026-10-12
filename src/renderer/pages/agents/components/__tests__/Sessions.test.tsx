@@ -303,6 +303,8 @@ const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'w
 const dataApiMocks = vi.hoisted(() => ({
   dataChangeSubscriptions: [] as Array<{ endpoints: string[]; listener: () => void }>,
   groups: [] as Array<{ id: string; entityType: string; name: string; orderKey: string }>,
+  groupsError: undefined as unknown,
+  refetchGroups: vi.fn().mockResolvedValue(undefined),
   deleteAgent: vi.fn().mockResolvedValue(undefined),
   deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
@@ -529,11 +531,11 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
     if (path === '/groups') {
       return {
-        data: dataApiMocks.groups,
+        data: dataApiMocks.groupsError ? undefined : dataApiMocks.groups,
         isLoading: false,
         isRefreshing: false,
-        error: undefined,
-        refetch: vi.fn(),
+        error: dataApiMocks.groupsError,
+        refetch: dataApiMocks.refetchGroups,
         mutate: vi.fn()
       }
     }
@@ -945,6 +947,7 @@ describe('Sessions', () => {
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
     dataApiMocks.groups = []
+    dataApiMocks.groupsError = undefined
     dataApiMocks.dataChangeSubscriptions.length = 0
     dataApiMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
     dataApiMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [] })
@@ -2193,6 +2196,42 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     await vi.waitFor(() => expect(dataApiMocks.refetchWorkspaces).toHaveBeenCalled())
+  })
+
+  it('retries the custom-group query from the error screen in group display mode', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'group')
+    const groupsFixture = [{ id: 'group-writing', entityType: 'agent', name: 'Writing', orderKey: 'a' }]
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', groupId: 'group-writing' }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+    dataApiMocks.groupsError = new Error('Group request failed')
+
+    const view = render(<SessionsForTest />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to get tasks')
+    expect(screen.getByRole('alert')).toHaveTextContent('Group request failed')
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+
+    // The backend recovers, so the only thing keeping the list on the error screen is the retry
+    // never re-issuing the group query.
+    dataApiMocks.refetchGroups.mockImplementation(async () => {
+      dataApiMocks.groupsError = undefined
+      dataApiMocks.groups = groupsFixture
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await vi.waitFor(() => expect(dataApiMocks.refetchGroups).toHaveBeenCalled())
+    view.rerender(<SessionsForTest key="group-retry-recovered" />)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.getByText('Writing')).toBeInTheDocument()
   })
 
   it('does not block time grouping on workspace loading state', () => {
