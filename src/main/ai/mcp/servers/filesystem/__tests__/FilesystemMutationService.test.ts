@@ -18,6 +18,7 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 import { filesystemMutationService } from '../FilesystemMutationService'
+import { handleDeleteTool } from '../tools/delete'
 import { handleEditTool } from '../tools/edit'
 import { handleWriteTool } from '../tools/write'
 
@@ -155,5 +156,62 @@ describe('filesystem mutations with mac case folding', () => {
     ])
 
     await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('c')
+  })
+
+  it('serializes an edit via a hard-link alias while a recreate write is still in flight', async () => {
+    const workspaceRoot = await createTempDir('mutation-delete-recreate-alias-')
+    const primaryPath = path.join(workspaceRoot, 'target.txt')
+    const aliasPath = path.join(workspaceRoot, 'alias.txt')
+    await fs.writeFile(primaryPath, 'stale')
+
+    let releaseWriteVerify!: () => void
+    const writeVerifyGate = new Promise<void>((resolve) => {
+      releaseWriteVerify = resolve
+    })
+    let writeLanded!: () => void
+    const writeLandedGate = new Promise<void>((resolve) => {
+      writeLanded = resolve
+    })
+
+    const originalReadFile = fs.readFile.bind(fs)
+    let gateWriteVerification = false
+    vi.spyOn(fs, 'readFile').mockImplementation(async (...args: Parameters<typeof fs.readFile>) => {
+      const [targetPath] = args
+      if (gateWriteVerification && typeof targetPath === 'string' && targetPath === primaryPath) {
+        await writeVerifyGate
+      }
+      return (originalReadFile as (...readArgs: Parameters<typeof fs.readFile>) => ReturnType<typeof fs.readFile>)(
+        ...args
+      )
+    })
+
+    const originalWriteFile = fs.writeFile.bind(fs)
+    vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+      const [targetPath] = args
+      if (typeof targetPath === 'string' && targetPath === primaryPath) {
+        const result = await (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
+        await fs.link(primaryPath, aliasPath)
+        writeLanded()
+        gateWriteVerification = true
+        return result
+      }
+      return (originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>)(
+        ...args
+      )
+    })
+
+    await handleDeleteTool({ path: 'target.txt' }, workspaceRoot)
+    const writePromise = handleWriteTool({ file_path: 'target.txt', content: 'fresh' }, workspaceRoot)
+    await writeLandedGate
+    const editPromise = handleEditTool(
+      { file_path: 'alias.txt', old_string: 'fresh', new_string: 'edited' },
+      workspaceRoot
+    )
+    releaseWriteVerify()
+    await Promise.all([writePromise, editPromise])
+
+    expect(await fs.readFile(primaryPath, 'utf-8')).toBe('edited')
   })
 })

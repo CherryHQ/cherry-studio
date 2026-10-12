@@ -33,7 +33,7 @@ describe('canonicalizePathForContainment', () => {
     ).resolves.toBe(path.join(outside, 'secret.txt'))
   })
 
-  it('returns undefined when target realpath fails with a non-ENOENT error', async () => {
+  it('rejects when target realpath fails with a non-ENOENT error', async () => {
     await writeFile(path.join(outside, 'secret.txt'), 'secret')
     await symlink(outside, path.join(root, 'escape'), dirLinkType)
     const target = path.join(root, 'escape', 'secret.txt')
@@ -54,7 +54,9 @@ describe('canonicalizePathForContainment', () => {
     })
     const { canonicalizePathForContainment: canonicalizeWithMockedRealpath } = await import('../path')
 
-    await expect(canonicalizeWithMockedRealpath(target, { allowMissing: true })).resolves.toBeUndefined()
+    await expect(canonicalizeWithMockedRealpath(target, { allowMissing: true })).rejects.toMatchObject({
+      code: 'EIO'
+    })
     vi.doUnmock('node:fs/promises')
     vi.resetModules()
   })

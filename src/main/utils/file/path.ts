@@ -97,6 +97,13 @@ export function foldPathSegment(segment: string): string {
   return segment.normalize('NFC').toLowerCase()
 }
 
+function throwIfUnexpectedFsError(error: unknown): void {
+  const code = (error as NodeJS.ErrnoException).code
+  if (code !== undefined && code !== 'ENOENT') {
+    throw error
+  }
+}
+
 /**
  * Resolve `target` through symlinks for a containment check.
  *
@@ -113,14 +120,13 @@ export async function canonicalizePathForContainment(
   try {
     return normalizeRealpathResult(await realpath(target))
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
     if (!allowMissing) return undefined
-    if (code !== 'ENOENT') return undefined
+    throwIfUnexpectedFsError(error)
     try {
       await lstat(target)
       return undefined
     } catch (statError) {
-      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      throwIfUnexpectedFsError(statError)
     }
   }
 
@@ -129,12 +135,12 @@ export async function canonicalizePathForContainment(
     try {
       return normalizeRealpathResult(path.resolve(await realpath(parent), path.relative(parent, target)))
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      throwIfUnexpectedFsError(error)
       try {
         await lstat(parent)
         return undefined
       } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+        throwIfUnexpectedFsError(statError)
       }
       const next = path.dirname(parent)
       if (next === parent) return undefined

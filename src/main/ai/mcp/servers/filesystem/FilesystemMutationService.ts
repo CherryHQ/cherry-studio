@@ -30,9 +30,7 @@ class FilesystemMutationService {
       const path = normalizePathForComparison(canonicalPath)
       const subtreeRoot = opts?.subtreeRoot ?? false
       for (const other of this.pending) {
-        if (other.identity === undefined) {
-          other.identity = await getFileIdentity(other.probePath)
-        }
+        other.identity = await getFileIdentity(other.probePath)
       }
       const identity = await getFileIdentity(canonicalPath)
       const predecessors = [...this.pending].filter(
