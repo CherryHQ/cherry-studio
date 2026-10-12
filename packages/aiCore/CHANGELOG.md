@@ -1,5 +1,17 @@
 # @cherrystudio/ai-core
 
+## 2.2.0
+
+### Minor Changes
+
+- [#21498](https://github.com/CherryHQ/cherry-studio/pull/21498) [`59e7814`](https://github.com/CherryHQ/cherry-studio/commit/59e7814354c96c24aa29ce01de4f624f491d4e95) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Add an optional `onProviderCallStart` callback to capture request-specific context before each image, embedding, or reranking provider invocation, including SDK retries and batches. Preserve unobserved reranking models and isolate observation failures from successful AI results.
+
+## 2.1.1
+
+### Patch Changes
+
+- [#17610](https://github.com/CherryHQ/cherry-studio/pull/17610) [`98863dd`](https://github.com/CherryHQ/cherry-studio/commit/98863dd545a2b732d1717b638c007e4cf4a5c13d) Thanks [@DeJeune](https://github.com/DeJeune)! - Align the Zod dependency with the MCP TypeScript SDK v2 runtime requirements.
+
 ## 2.1.0
 
 ### Minor Changes

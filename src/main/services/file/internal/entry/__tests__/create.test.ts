@@ -8,7 +8,7 @@ import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { hashContent } from '@main/utils/file/contentHash'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, UrlStringSchema } from '@shared/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -223,6 +223,31 @@ describe('internal/entry/create.createInternal', () => {
       })
       expect(entry.name).toBe('no-extension-here')
       expect(entry.ext).toBeNull()
+    })
+
+    it.each([
+      { url: '/photo.PNG?token=secret', request: '/photo.PNG?token=secret', name: 'photo', ext: 'png' },
+      { url: '/photo.png#preview.jpg', request: '/photo.png', name: 'photo', ext: 'png' },
+      {
+        url: '/photo.png?signature=a.b/c#preview.gif',
+        request: '/photo.png?signature=a.b/c',
+        name: 'photo',
+        ext: 'png'
+      },
+      { url: '/download?filename=photo.png', request: '/download?filename=photo.png', name: 'download', ext: null },
+      { url: '/download#photo.png', request: '/download', name: 'download', ext: null }
+    ])('uses pathname metadata while downloading the full URL: $url', async ({ url, request, name, ext }) => {
+      const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+      routes.set(request, { status: 200, body: bytes })
+      const entry = await createInternal(deps, {
+        source: 'url',
+        url: UrlStringSchema.parse(`${baseUrl}${url}`),
+        cleanupPolicy: 'manual'
+      })
+      expect(entry).toMatchObject({ name, ext, size: bytes.length, contentHash: hashContent(bytes) })
+      expect(fileEntryService.getById(entry.id)).toMatchObject({ name, ext })
+      const physical = path.join(filesDir, `${entry.id}${ext ? `.${ext}` : ''}`)
+      expect(await readFile(physical)).toEqual(bytes)
     })
 
     it('strips only the final dot segment when the path contains multiple dots', async () => {

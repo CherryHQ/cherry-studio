@@ -62,10 +62,6 @@ vi.mock('@main/i18n', () => ({
   t: vi.fn((key: string) => key)
 }))
 
-vi.mock('@main/ai/mcp/servers/cherryBuiltinTools', () => ({
-  default: vi.fn(() => ({ mcpServer: { id: 'cherry-tools' } }))
-}))
-
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: mockFindBySessionId, listChannels: vi.fn().mockResolvedValue([]) }
 }))
