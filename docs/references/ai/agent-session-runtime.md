@@ -5,6 +5,8 @@ sources:
   - src/main/data/services/AgentSessionService.ts
   - src/main/data/db/schemas/agentSession.ts
   - src/main/ai/agents/runAgentTask.ts
+  - src/main/ai/agents/heartbeatSchedule.ts
+  - src/shared/ai/agentHeartbeat.ts
   - src/main/ai/runtime/types.ts
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
@@ -51,6 +53,17 @@ driver internals behind the same host contract.
 | Runtime drivers | Convert runtime-native events into the common event stream and map opaque resume tokens back into their SDK/session transport. |
 | Usage capture | Each driver exposes provider-invocation capture according to its transport; gateway-backed calls use AiService middleware rather than a runtime aggregate. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
+
+## Heartbeat execution deadline
+
+In the agent's heartbeat settings, **Maximum Execution Time (minutes)** controls
+one heartbeat turn, independently of the interval between ticks. The saved
+`configuration.heartbeat_timeout_minutes` accepts 1–1440 minutes; existing
+agents retain the two-minute default. Schedule creation and startup repair derive
+`jobInputTemplate.timeoutMinutes` from this configuration, and `runAgentTask`
+enforces that deadline. Editing the schedule row directly is not a persistent
+configuration change. Updating the deadline preserves a circuit-breaker pause;
+use the heartbeat toggle off/on to reset that pause explicitly.
 
 ## Background sessions and conversation navigation
 

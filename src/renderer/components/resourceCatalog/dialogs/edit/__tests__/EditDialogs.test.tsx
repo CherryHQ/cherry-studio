@@ -349,6 +349,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',
           'library.config.agent.field.description.placeholder': 'Describe this agent',
+          'agent.tasks.timeout.label': 'Maximum Execution Time',
+          'agent.tasks.intervalUnit': 'minutes',
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
           'library.config.agent.field.model.hint': 'Primary agent model.',
@@ -1123,6 +1125,23 @@ describe('edit dialogs', () => {
     expect(screen.queryByRole('button', { name: 'Model (Opus) Help' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Plan model Help' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Small model Help' })).not.toBeInTheDocument()
+  })
+
+  it('persists a heartbeat timeout edit independently of the interval', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+    const field = screen.getByLabelText('Maximum Execution Time (minutes)')
+    expect(field).toHaveValue('2')
+
+    await user.clear(field)
+    await user.type(field, '10')
+    await user.tab()
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: { configuration: { heartbeat_timeout_minutes: 10 } }
+      })
+    )
   })
 
   // The heartbeat is turned off by its switch, so an emptied interval is a retype,

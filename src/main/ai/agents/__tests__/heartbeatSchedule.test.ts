@@ -410,6 +410,30 @@ describe('heartbeatSchedule', () => {
     expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
   })
 
+  it('keeps a configured heartbeat timeout through startup repair and repeated synchronization', async () => {
+    seedAgent(AGENT_ID, { heartbeat_timeout_minutes: 10 })
+    await repairHeartbeatSchedules()
+    const [row] = heartbeatRows(AGENT_ID)
+    expect(row.jobInputTemplate).toMatchObject({ timeoutMinutes: 10 })
+
+    await repairHeartbeatSchedules()
+    await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(jobScheduleService.getById(row.id)?.jobInputTemplate).toMatchObject({ timeoutMinutes: 10 })
+  })
+
+  it('updates the timeout when only that agent configuration field changes', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    expect(row.jobInputTemplate).toMatchObject({ timeoutMinutes: 2 })
+
+    agentService.updateAgent(AGENT_ID, { configuration: { heartbeat_timeout_minutes: 10 } })
+    await service.waitForHeartbeat(AGENT_ID)
+
+    expect(jobScheduleService.getById(row.id)?.jobInputTemplate).toMatchObject({ timeoutMinutes: 10 })
+  })
+
   it('applies a custom interval from the agent configuration', async () => {
     seedAgent(AGENT_ID, { heartbeat_interval: 45 })
 
@@ -1172,7 +1196,7 @@ describe('heartbeatSchedule', () => {
   it('repairs a circuit-breaker-paused row without re-enabling it', async () => {
     // The breaker pause is a stop signal (3 consecutive failed runs), not
     // drift — re-arming it on every sync would defeat the cost protection.
-    seedAgent(AGENT_ID, { heartbeat_interval: 45 })
+    seedAgent(AGENT_ID, { heartbeat_interval: 45, heartbeat_timeout_minutes: 10 })
     const { id } = jobManager.registerJobSchedule({
       type: 'agent.task',
       name: `heartbeat_${AGENT_ID}`,
@@ -1200,6 +1224,8 @@ describe('heartbeatSchedule', () => {
     expect(row?.enabled).toBe(false)
     expect(row?.trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
     expect(row?.jobInputTemplate).not.toHaveProperty('workspace')
+    expect(row?.jobInputTemplate).toMatchObject({ timeoutMinutes: 10 })
+    expect(row?.metadata).toMatchObject({ circuitBreakerPaused: true })
     // The trigger drift is persisted but the timer is NOT re-armed — the row
     // stays stopped until the user resets via the heartbeat toggle off/on.
     // (The breaker's own pause disposed the timer; sync must not revive it.)
