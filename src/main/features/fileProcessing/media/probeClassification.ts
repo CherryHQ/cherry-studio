@@ -2,10 +2,12 @@ export interface FfprobeStream {
   codec_type?: string
   duration?: string
   disposition?: { attached_pic?: number | string }
+  start_time?: string
 }
 
 export interface FfprobeFormat {
   duration?: string
+  start_time?: string
   format_name?: string
   tags?: Record<string, string>
 }
@@ -35,6 +37,44 @@ function parseDurationMs(...candidates: Array<string | undefined>): number {
 function isAttachedPicture(stream: FfprobeStream): boolean {
   const flag = stream.disposition?.attached_pic
   return flag === 1 || flag === '1'
+}
+
+function parseFiniteSeconds(value: string | undefined): number | undefined {
+  if (value == null || value === '' || value === 'N/A') return undefined
+  const seconds = Number(value)
+  return Number.isFinite(seconds) ? seconds : undefined
+}
+
+export interface VideoTailProbePoint {
+  /** Video stream start plus its duration, in seconds on the container timeline. */
+  endSeconds: number
+  /** `format.start_time`. Input `-ss` is relative to this, not the video stream start. */
+  formatStartTimeSeconds: number
+}
+
+/** Where a bounded packet read should look. The video stream end is not an input seek. */
+export function videoTailProbePoint(probe: FfprobeResult): VideoTailProbePoint | undefined {
+  const video = (probe.streams ?? []).find((stream) => stream.codec_type === 'video' && !isAttachedPicture(stream))
+  if (!video) return undefined
+  const formatStartTimeSeconds = parseFiniteSeconds(probe.format?.start_time) ?? 0
+  const videoStartSeconds = parseFiniteSeconds(video.start_time) ?? formatStartTimeSeconds
+  const durationSeconds = parseFiniteSeconds(video.duration) ?? parseFiniteSeconds(probe.format?.duration)
+  if (durationSeconds == null || durationSeconds <= 0) return undefined
+  return { endSeconds: videoStartSeconds + durationSeconds, formatStartTimeSeconds }
+}
+
+/** ffprobe interval covering the end of the video timeline, including a packet that starts earlier. */
+export function videoTailReadInterval(endSeconds: number): string {
+  return `${(endSeconds - 0.001).toFixed(6)}%${(endSeconds + 0.001).toFixed(6)}`
+}
+
+/**
+ * Input `-ss` is relative to the format start. Floor so rounding cannot pass the packet PTS.
+ */
+export function relativeInputSeekMs(ptsSeconds: number, formatStartTimeSeconds: number): number | undefined {
+  if (!Number.isFinite(ptsSeconds) || !Number.isFinite(formatStartTimeSeconds)) return undefined
+  const timestampMs = Math.floor((ptsSeconds - formatStartTimeSeconds) * 1000 + 1e-6)
+  return timestampMs >= 0 ? timestampMs : undefined
 }
 
 export function sniffEbmlDocType(header: Uint8Array): 'webm' | 'matroska' | null {
