@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  areNotesEditsLockedForRelocation,
   flushAllNotesEdits,
   hasPendingNotesImagePastes,
   lockNotesEditsForRelocation,
   registerNotesEditFlush,
   registerNotesEditPreFlush,
+  releaseOneNotesRelocationEditLock,
   runStructuralNotesFilesystemWrite,
   trackDepartingNotesFileWrite,
   trackPendingNotesImagePaste,
@@ -106,6 +108,16 @@ describe('notesFileEditFlush structural writes', () => {
 
     await flushAllNotesEdits()
     expect(order).toEqual(['pre', 'flush'])
+  })
+
+  it('releases only the flush-acquired lock without clearing an active relocation barrier', () => {
+    unlockNotesEditsForRelocation()
+    lockNotesEditsForRelocation()
+    lockNotesEditsForRelocation()
+    releaseOneNotesRelocationEditLock()
+    expect(areNotesEditsLockedForRelocation()).toBe(true)
+    unlockNotesEditsForRelocation()
+    expect(areNotesEditsLockedForRelocation()).toBe(false)
   })
 
   it('blocks new structural writes while relocation edits are locked', async () => {

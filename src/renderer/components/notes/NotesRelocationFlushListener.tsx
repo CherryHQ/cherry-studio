@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import {
   flushAllNotesEdits,
   lockNotesEditsForRelocation,
+  releaseOneNotesRelocationEditLock,
   unlockNotesEditsForRelocation,
   waitForStructuralNotesWritesToSettle
 } from '@renderer/hooks/notesFileEditFlush'
@@ -34,6 +35,14 @@ export const NotesRelocationFlushListener: FC = () => {
   useIpcOn('app.notes_relocation.flush_edits', async ({ requestId }) => {
     let ok = true
     let lockedForThisFlush = false
+    const releaseFlushLock = () => {
+      if (!lockedForThisFlush) {
+        return
+      }
+      lockedForThisFlush = false
+      releaseOneNotesRelocationEditLock()
+    }
+
     try {
       await waitForStructuralNotesWritesToSettle()
       const { pending } = await ipcApi.request('app.notes_relocation.flush_edits_pending', { requestId })
@@ -48,24 +57,17 @@ export const NotesRelocationFlushListener: FC = () => {
       logger.error('Failed to flush notes edits before relocation', error as Error)
     }
 
-    if (lockedForThisFlush && !ok) {
-      unlockNotesEditsForRelocation()
-    }
-
     try {
       const { pending } = await ipcApi.request('app.notes_relocation.flush_edits_pending', { requestId })
       if (!pending) {
-        if (lockedForThisFlush && ok) {
-          unlockNotesEditsForRelocation()
-        }
+        releaseFlushLock()
         return
       }
       await ipcApi.request('app.notes_relocation.flush_edits_ack', { requestId, ok })
+      releaseFlushLock()
     } catch (error) {
       logger.error('Failed to acknowledge notes edit flush', error as Error)
-      if (lockedForThisFlush) {
-        unlockNotesEditsForRelocation()
-      }
+      releaseFlushLock()
     }
   })
 

@@ -52,6 +52,14 @@ export function registerNotesRelocationAutosaveCancel(cancel: () => void): () =>
   }
 }
 
+export function releaseOneNotesRelocationEditLock(): void {
+  if (relocationEditLockDepth === 0) {
+    return
+  }
+  relocationEditLockDepth -= 1
+  notifyRelocationEditLockChanged()
+}
+
 export function unlockNotesEditsForRelocation(): void {
   if (relocationEditLockDepth === 0) {
     return
