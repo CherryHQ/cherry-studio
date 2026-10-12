@@ -59,7 +59,7 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
       throw { code: 'SMOKE_FAILED' }
     }
     evidence.stage = 'voices'
-    const voices = await request('ai.speech.voices.list')
+    const voices = await request('ai.speech.voices.list', { modelId: speechModelId })
     const voice = voices.filter((item) => item.language === language).sort((a, b) => a.id.localeCompare(b.id))[0]
     if (!voice) throw { code: 'VOICE_NOT_INSTALLED' }
     evidence.installedVoiceCount = voices.length
@@ -172,7 +172,7 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
       requestId: crypto.randomUUID(),
       source: 'automation',
       modelId: 'local-voice::apple-system-asr',
-      language,
+      language: { source: 'explicit', locale: language },
       fileEntryId: recording.id
     })
     if (typeof transcript.text !== 'string' || !transcript.text.trim()) throw { code: 'TRANSCRIPT_EMPTY' }

@@ -1,22 +1,18 @@
-import { Link } from '@tanstack/react-router'
-import { Copy, Mic, Play, Square } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { Download, Mic, Play, Square } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
   InputNumber,
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
-  Switch,
-  Textarea
+  Switch
 } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import {
@@ -31,17 +27,14 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { popup } from '@renderer/services/popup'
 import {
-  dictationService,
   enumerateMicrophones,
   subscribeMicrophoneChanges,
   type MicrophoneDevice,
-  type DictationPhase,
   getDefaultVoiceLanguage,
   speechPlaybackService,
   type SpeechPlaybackSnapshot,
   VoiceDomainError,
-  voiceService,
-  voiceTargetManager
+  voiceService
 } from '@renderer/services/voice'
 import {
   APPLE_ASR_MODEL_ID,
@@ -88,6 +81,9 @@ interface VoiceSelectOption {
 }
 
 const EMPTY_VALUE = '__automatic__'
+const INSTALL_LOCALE_PREFIX = '__install__:'
+const SYSTEM_SETTINGS_VALUE = '__system_settings__'
+const DOWNLOAD_MODEL_PREFIX = '__download_model__:'
 const RECOGNITION_PREFERENCE_KEYS = {
   modelId: 'feature.voice.recognition.model_id',
   language: 'feature.voice.recognition.language'
@@ -102,15 +98,6 @@ const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [FUNASR_MODEL_ID]: 'settings.voice.model.funasr',
   [WINDOWS_ASR_MODEL_ID]: 'settings.voice.model.windows_asr',
   [WINDOWS_TTS_MODEL_ID]: 'settings.voice.model.windows_tts'
-}
-const DICTATION_PHASE_LABEL_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
-  failed: 'settings.voice.dictation.phase.failed',
-  recorded: 'settings.voice.dictation.phase.recorded',
-  recording: 'settings.voice.dictation.phase.recording',
-  recovery: 'settings.voice.dictation.phase.recovery',
-  starting: 'settings.voice.dictation.phase.starting',
-  stopping: 'settings.voice.dictation.phase.stopping',
-  transcribing: 'settings.voice.dictation.phase.transcribing'
 }
 
 function statusKey(status: StatusState): string {
@@ -173,6 +160,7 @@ function languageLabel(language: string, displayNames: Intl.DisplayNames, worldL
 function VoiceSettings() {
   const { t, i18n } = useTranslation()
   const { theme } = useTheme()
+  const navigate = useNavigate()
   const [recognitionPreferences, setRecognitionPreferences] = useMultiplePreferences(RECOGNITION_PREFERENCE_KEYS)
   const { language: recognitionLanguage, modelId: recognitionModel } = recognitionPreferences
   const [speechModel, setSpeechModel] = usePreference('feature.voice.speech.model_id')
@@ -190,17 +178,15 @@ function VoiceSettings() {
   const microphoneAuthorization = useRef<AbortController | null>(null)
   const [autoRead, setAutoRead] = usePreference('feature.voice.auto_read.enabled')
   const [disclosureConfirmed, setDisclosureConfirmed] = usePreference('feature.voice.auto_read.disclosure_confirmed')
-  const dictation = useSyncExternalStore(
-    dictationService.subscribe,
-    dictationService.getSnapshot,
-    dictationService.getSnapshot
-  )
   const speech = useSyncExternalStore(
     speechPlaybackService.subscribe,
     speechPlaybackService.getSnapshot,
     speechPlaybackService.getSnapshot
   )
   const [models, setModels] = useState<readonly LocalVoiceModelDescriptor[]>([])
+  const [downloadableModelStatuses, setDownloadableModelStatuses] = useState<
+    Partial<Record<LocalTranscriptionModelId, StatusState>>
+  >({})
   const [asrLocales, setAsrLocales] = useState<Awaited<ReturnType<typeof voiceService.listTranscriptionLocales>>>()
   const [defaultAsrModel, setDefaultAsrModel] = useState<LocalTranscriptionModelId>()
   const [defaultSpeechModel, setDefaultSpeechModel] = useState<LocalSpeechModelId>()
@@ -210,14 +196,12 @@ function VoiceSettings() {
   const [queriedSpeechStatus, setQueriedSpeechStatus] = useState<QueriedSpeechStatus>()
   const [microphoneStatus, setMicrophoneStatus] =
     useState<Awaited<ReturnType<typeof voiceService.getMicrophoneStatus>>>()
+  const [installingLocale, setInstallingLocale] = useState(false)
+  const localeSelectionPending = useRef(false)
+  const localeSelectionGeneration = useRef(0)
   const [actionFailed, setActionFailed] = useState<boolean | VoiceErrorReason>(false)
   const [previewFailure, setPreviewFailure] = useState<{ snapshot: SpeechPlaybackSnapshot; reason: VoiceErrorReason }>()
-  const [transcript, setTranscript] = useState('')
-  const [previewText, setPreviewText] = useState('')
-  const transcriptRef = useRef<HTMLTextAreaElement>(null)
-  const transcriptValueRef = useRef('')
   const autoReadRef = useRef<HTMLButtonElement>(null)
-  const dictationRunRef = useRef<ReturnType<typeof dictationService.startScoped> | undefined>(undefined)
   const previewGenerationRef = useRef(0)
   const speechStatusCheckRef = useRef<Promise<void>>(Promise.resolve())
   const loadedCatalogs = useRef(new Set<string>())
@@ -225,8 +209,6 @@ function VoiceSettings() {
   const [queryRevision, setQueryRevision] = useState(0)
   const [catalogFailed, setCatalogFailed] = useState(false)
   const [catalogLoading, setCatalogLoading] = useState(true)
-
-  transcriptValueRef.current = transcript
 
   useEffect(() => {
     let current = true
@@ -266,6 +248,25 @@ function VoiceSettings() {
       current = false
     }
   }, [queryRevision])
+
+  useEffect(() => {
+    let current = true
+    const downloadable = models.filter(
+      (model) => isTranscriptionModelId(model.id) && model.resourceOperations.includes(VoiceResourceOperation.Download)
+    )
+    void Promise.all(
+      downloadable.map(async (model) => [model.id, await voiceService.getModelStatus({ modelId: model.id })] as const)
+    )
+      .then((statuses) => {
+        if (current) setDownloadableModelStatuses(Object.fromEntries(statuses))
+      })
+      .catch(() => {
+        if (current) setCatalogFailed(true)
+      })
+    return () => {
+      current = false
+    }
+  }, [models, queryRevision])
 
   const configuredRecognitionModel =
     recognitionModel && isTranscriptionModelId(recognitionModel) ? recognitionModel : undefined
@@ -500,7 +501,6 @@ function VoiceSettings() {
   useEffect(
     () => () => {
       microphoneAuthorization.current?.abort()
-      void dictationRunRef.current?.cancel()
       ++previewGenerationRef.current
     },
     []
@@ -542,8 +542,7 @@ function VoiceSettings() {
     }
   }
 
-  const microphonePermissionFailed =
-    dictation.error === 'microphone_permission' || microphoneError === 'microphone_permission'
+  const microphonePermissionFailed = microphoneError === 'microphone_permission'
   const needsMicrophoneRecovery =
     microphonePermissionFailed || microphoneStatus === 'denied' || microphoneStatus === 'restricted'
 
@@ -555,16 +554,13 @@ function VoiceSettings() {
     const refreshMicrophoneStatus = () => {
       if (refreshPending) return
       refreshPending = true
-      const run = dictationRunRef.current
       void voiceService
         .getMicrophoneStatus()
-        .then(async (status) => {
+        .then((status) => {
           if (!current) return
           setMicrophoneStatus(status)
           if (status !== 'granted') return
           setMicrophoneError(undefined)
-          await run?.cancel()
-          if (current && dictationRunRef.current === run) dictationRunRef.current = undefined
         })
         .catch(() => {
           if (current) setActionFailed(true)
@@ -582,35 +578,70 @@ function VoiceSettings() {
     }
   }, [microphonePermissionFailed, needsMicrophoneRecovery])
 
-  useEffect(
-    () =>
-      voiceTargetManager.bind({
-        targetId: 'voice-settings-transcription-test',
-        owner: window,
-        sourceEntityId: 'voice-settings',
-        captureReplaceRange: () => (transcriptRef.current ? { from: 0, to: transcriptValueRef.current.length } : null),
-        replaceRange: (_range, text) => {
-          setTranscript(text)
-          return true
-        }
-      }),
-    []
-  )
-
   const transcriptionModels = models.filter((model) => isTranscriptionModelId(model.id))
   const speechModels = models.filter((model) => isSpeechModelId(model.id))
-  const dictationRecording = dictation.phase === 'starting' || dictation.phase === 'recording'
-  const dictationProcessing = dictation.phase === 'stopping' || dictation.phase === 'transcribing'
-  const dictationHasPendingResult =
-    dictation.phase === 'recorded' || dictation.recoveryAvailable || dictation.retryAvailable === true
-  const microphoneBlocked =
-    microphonePermissionFailed ||
-    microphoneStatus === undefined ||
-    microphoneStatus === 'denied' ||
-    microphoneStatus === 'restricted'
   const canOpenMicrophoneSettings = needsMicrophoneRecovery
   const speechBusy = ['generating', 'playing', 'paused'].includes(speech.phase)
   const speechError = previewFailure?.snapshot === speech ? previewFailure.reason : speech.error
+
+  useEffect(() => {
+    const refresh = () => setQueryRevision((revision) => revision + 1)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      localeSelectionGeneration.current += 1
+    }
+  }, [])
+
+  const openSystemVoiceSettings = () => {
+    setActionFailed(false)
+    void voiceService.openSystemVoiceSettings().catch(() => setActionFailed(true))
+  }
+
+  const needsLocaleInstallation = (value: string) => {
+    const locale = value === EMPTY_VALUE ? defaultLanguage : value
+    return (
+      recognitionDescriptor?.resourceOperations.includes(VoiceResourceOperation.InstallLocale) &&
+      asrLocales?.supported.includes(locale) &&
+      !asrLocales.installed.includes(locale)
+    )
+  }
+
+  const selectRecognitionLanguage = async (value: string) => {
+    if (value === SYSTEM_SETTINGS_VALUE) {
+      openSystemVoiceSettings()
+      return
+    }
+    if (localeSelectionPending.current) return
+    const install = value.startsWith(INSTALL_LOCALE_PREFIX)
+    const selection = install ? value.slice(INSTALL_LOCALE_PREFIX.length) : value
+    const language = selection === EMPTY_VALUE || selection === 'auto' ? '' : selection
+    const modelId = effectiveRecognitionModel
+    const generation = ++localeSelectionGeneration.current
+    localeSelectionPending.current = true
+    setInstallingLocale(install)
+    setActionFailed(false)
+    try {
+      await setRecognitionPreferences({ language })
+      if (generation !== localeSelectionGeneration.current) return
+      if (install && modelId) {
+        await voiceService.installTranscriptionAsset({
+          modelId,
+          language: language || defaultLanguage,
+          source: 'settings'
+        }).result
+        if (generation === localeSelectionGeneration.current) setQueryRevision((revision) => revision + 1)
+      }
+    } catch (error) {
+      if (generation === localeSelectionGeneration.current)
+        setActionFailed(error instanceof VoiceDomainError ? error.reason : true)
+    } finally {
+      if (generation === localeSelectionGeneration.current) {
+        localeSelectionPending.current = false
+        setInstallingLocale(false)
+      }
+    }
+  }
 
   const savePreference = (write: () => Promise<void>) => {
     setActionFailed(false)
@@ -619,21 +650,6 @@ function VoiceSettings() {
     } catch {
       setActionFailed(true)
     }
-  }
-
-  const toggleDictation = () => {
-    setActionFailed(false)
-    if (dictationRecording) {
-      void dictationService.stop().catch(() => setActionFailed(true))
-      return
-    }
-    setTranscript('')
-    voiceTargetManager.markCurrent('voice-settings-transcription-test')
-    const run = dictationService.startScoped()
-    dictationRunRef.current = run
-    void run.result.catch(() => {
-      if (dictationRunRef.current === run) setActionFailed(true)
-    })
   }
 
   const togglePreview = () => {
@@ -652,7 +668,7 @@ function VoiceSettings() {
     }
     void speechPlaybackService
       .start({
-        text: previewText.trim() || i18n.getFixedT(effectiveSpeechLanguage)('settings.voice.speech.sample'),
+        text: i18n.getFixedT(effectiveSpeechLanguage)('settings.voice.speech.sample'),
         trigger: 'manual',
         sourceLabel: 'preview',
         sourceEntityId: 'voice-settings'
@@ -770,7 +786,14 @@ function VoiceSettings() {
           </div>
           <Select
             value={recognitionModel || EMPTY_VALUE}
-            onValueChange={(value) =>
+            disabled={installingLocale}
+            onValueChange={(value) => {
+              if (value.startsWith(DOWNLOAD_MODEL_PREFIX)) {
+                void navigate({ to: '/settings/local-models', hash: 'voice-resources' }).catch(() =>
+                  setActionFailed(true)
+                )
+                return
+              }
               savePreference(async () => {
                 const modelId = value === EMPTY_VALUE ? '' : value
                 await setRecognitionPreferences({
@@ -778,9 +801,13 @@ function VoiceSettings() {
                   ...(models.find((model) => model.id === modelId)?.localeSelection === null && { language: '' })
                 })
               })
-            }>
+            }}>
             <SelectTrigger className="w-full sm:w-64" aria-label={t('settings.voice.recognition.model')}>
-              <SelectValue />
+              <SelectValue>
+                {recognitionModel && recognitionDescriptor?.resourceOperations.includes(VoiceResourceOperation.Download)
+                  ? t(MODEL_LABEL_KEYS[recognitionDescriptor.id])
+                  : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={EMPTY_VALUE}>
@@ -795,11 +822,32 @@ function VoiceSettings() {
                   — {t('settings.voice.status.unsupported')}
                 </SelectItem>
               ) : null}
-              {transcriptionModels.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  {t(MODEL_LABEL_KEYS[model.id])}
-                </SelectItem>
-              ))}
+              {transcriptionModels.map((model) => {
+                const downloadable = model.resourceOperations.includes(VoiceResourceOperation.Download)
+                const status = downloadableModelStatuses[model.id as LocalTranscriptionModelId]
+                const needsDownload = downloadable && status && status.status !== 'ready'
+                return (
+                  <SelectItem
+                    key={model.id}
+                    value={needsDownload ? `${DOWNLOAD_MODEL_PREFIX}${model.id}` : model.id}
+                    disabled={downloadable && !status}
+                    className="group/model cursor-pointer hover:bg-accent data-[highlighted]:bg-accent [&>span:last-child]:flex-1">
+                    <span>{t(MODEL_LABEL_KEYS[model.id])}</span>
+                    {downloadable && status?.status !== 'ready' ? (
+                      <span className="ml-auto inline-flex items-center gap-1 text-link group-hover/model:underline group-data-[highlighted]/model:underline">
+                        <Download className="size-3" aria-hidden="true" />
+                        {t(
+                          !status
+                            ? 'common.loading'
+                            : status.status === 'installing'
+                              ? 'settings.dependencies.localModels.status.downloading'
+                              : 'settings.dependencies.localModels.download'
+                        )}
+                      </span>
+                    ) : null}
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
         </SettingRow>
@@ -811,15 +859,18 @@ function VoiceSettings() {
               automaticLanguage ? (incompatibleLanguage ?? 'auto') : (languageValue(recognitionLanguage) ?? EMPTY_VALUE)
             }
             disabled={
-              automaticLanguage ? !incompatibleLanguage : !recognitionDescriptor?.localeSelection || !asrLocales
+              installingLocale ||
+              (automaticLanguage ? !incompatibleLanguage : !recognitionDescriptor?.localeSelection || !asrLocales)
             }
-            onValueChange={(value) =>
-              savePreference(() =>
-                setRecognitionPreferences({ language: value === EMPTY_VALUE || value === 'auto' ? '' : value })
-              )
-            }>
+            onValueChange={(value) => void selectRecognitionLanguage(value)}>
             <SelectTrigger className="w-full sm:w-64" aria-label={t('settings.voice.recognition.language')}>
-              <SelectValue placeholder={t('common.select')} />
+              <SelectValue placeholder={t('common.select')}>
+                {automaticLanguage
+                  ? undefined
+                  : recognitionLanguageOptions.find(
+                      (option) => option.value === (languageValue(recognitionLanguage) ?? EMPTY_VALUE)
+                    )?.label}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {automaticLanguage ? (
@@ -833,11 +884,32 @@ function VoiceSettings() {
                 </>
               ) : (
                 recognitionLanguageOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
-                    {option.label}
+                  <SelectItem
+                    key={option.value}
+                    className="group/locale cursor-pointer hover:bg-accent data-[highlighted]:bg-accent"
+                    value={
+                      needsLocaleInstallation(option.value) ? `${INSTALL_LOCALE_PREFIX}${option.value}` : option.value
+                    }
+                    disabled={option.disabled}>
+                    <span>{option.label}</span>
+                    {needsLocaleInstallation(option.value) ? (
+                      <span className="inline-flex items-center gap-1 text-link group-hover/locale:underline group-data-[highlighted]/locale:underline">
+                        <Download className="size-3" aria-hidden="true" />
+                        {t('settings.dependencies.localModels.download')}
+                      </span>
+                    ) : null}
                   </SelectItem>
                 ))
               )}
+              {!automaticLanguage &&
+              recognitionDescriptor &&
+              !recognitionDescriptor.resourceOperations.includes(VoiceResourceOperation.InstallLocale) &&
+              !recognitionDescriptor.resourceOperations.includes(VoiceResourceOperation.Download) ? (
+                <>
+                  <SelectSeparator />
+                  <SelectItem value={SYSTEM_SETTINGS_VALUE}>{t('settings.voice.resources.open_settings')}</SelectItem>
+                </>
+              ) : null}
             </SelectContent>
           </Select>
         </SettingRow>
@@ -846,18 +918,8 @@ function VoiceSettings() {
           id="setting-voice-recognition-status"
           className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <span role="status" className="text-muted-foreground">
-            {t(statusKey(recognitionStatus))}
+            {t(installingLocale ? 'settings.voice.status.installing' : statusKey(recognitionStatus))}
           </span>
-          <Link
-            to="/settings/local-models"
-            hash={
-              recognitionDescriptor?.resourceOperations.includes(VoiceResourceOperation.Download)
-                ? 'voice-resources'
-                : 'system-voice-resources'
-            }
-            className="text-link hover:underline">
-            {t('settings.voice.manage_resources')}
-          </Link>
         </div>
         {canOpenMicrophoneSettings ? (
           <>
@@ -875,87 +937,6 @@ function VoiceSettings() {
             </SettingRow>
           </>
         ) : null}
-        <SettingDivider />
-        <Accordion type="single" collapsible id="setting-voice-recognition-test" className="scroll-mt-6">
-          <AccordionItem value="test">
-            <AccordionTrigger>{t('settings.voice.recognition.test_details')}</AccordionTrigger>
-            <AccordionContent className="space-y-3 pt-3">
-              <Textarea.Input
-                ref={transcriptRef}
-                aria-label={t('settings.voice.recognition.transcript')}
-                aria-describedby={dictation.error ? 'voice-recognition-error' : undefined}
-                value={transcript}
-                onValueChange={setTranscript}
-                onFocus={() => voiceTargetManager.markCurrent('voice-settings-transcription-test')}
-                placeholder={t('settings.voice.recognition.transcript_placeholder')}
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  disabled={
-                    dictationProcessing ||
-                    dictationHasPendingResult ||
-                    (!dictationRecording &&
-                      (microphoneBlocked ||
-                        !!incompatibleLanguage ||
-                        !effectiveRecognitionModel ||
-                        recognitionStatus.status !== 'ready'))
-                  }
-                  onClick={toggleDictation}>
-                  {dictationRecording ? <Square className="size-4" /> : <Mic className="size-4" />}
-                  {t(dictationRecording ? 'settings.voice.action.stop_recording' : 'settings.voice.action.record_test')}
-                </Button>
-                {dictation.phase === 'recorded' ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void dictationService.transcribeRecording().catch(() => setActionFailed(true))}>
-                    {t('settings.voice.action.transcribe')}
-                  </Button>
-                ) : null}
-                {dictation.retryAvailable ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void dictationService.retry().catch(() => setActionFailed(true))}>
-                    {t('settings.voice.action.retry')}
-                  </Button>
-                ) : null}
-                {dictation.recoveryAvailable ? (
-                  <>
-                    <Button variant="outline" onClick={() => dictationService.insertRecovery()}>
-                      {t('settings.voice.action.insert_recovery')}
-                    </Button>
-                    <Button variant="outline" onClick={() => void dictationService.copyRecovery()}>
-                      <Copy className="size-4" />
-                      {t('common.copy')}
-                    </Button>
-                  </>
-                ) : null}
-                {dictationHasPendingResult ? (
-                  <Button
-                    variant="ghost"
-                    onClick={() => void dictationService.discard().catch(() => setActionFailed(true))}>
-                    {t('settings.voice.action.discard')}
-                  </Button>
-                ) : null}
-              </div>
-              {dictation.phase !== 'idle' && !dictation.error ? (
-                <p
-                  role="status"
-                  aria-label={t('settings.voice.dictation.status_label')}
-                  className="text-xs text-muted-foreground">
-                  {t(DICTATION_PHASE_LABEL_KEYS[dictation.phase])}
-                  {dictation.elapsedMs > 0
-                    ? ` · ${t('settings.voice.dictation.elapsed', { seconds: Math.floor(dictation.elapsedMs / 1000) })}`
-                    : ''}
-                </p>
-              ) : null}
-              {dictation.error ? (
-                <p id="voice-recognition-error" role="alert" className="text-sm text-error">
-                  {t(errorKey(dictation.error))}
-                </p>
-              ) : null}
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
@@ -998,6 +979,10 @@ function VoiceSettings() {
           <Select
             value={languageValue(speechLanguage) ?? (speechVoice ? selectedVoice?.language : undefined) ?? EMPTY_VALUE}
             onValueChange={(value) => {
+              if (value === SYSTEM_SETTINGS_VALUE) {
+                openSystemVoiceSettings()
+                return
+              }
               const language = value === EMPTY_VALUE ? '' : value
               savePreference(() =>
                 setSpeechPreferences({
@@ -1016,6 +1001,12 @@ function VoiceSettings() {
                   {option.label}
                 </SelectItem>
               ))}
+              {configuredSpeechModel ? (
+                <>
+                  <SelectSeparator />
+                  <SelectItem value={SYSTEM_SETTINGS_VALUE}>{t('settings.voice.resources.open_settings')}</SelectItem>
+                </>
+              ) : null}
             </SelectContent>
           </Select>
         </SettingRow>
@@ -1078,30 +1069,7 @@ function VoiceSettings() {
             <span role="status" data-testid="speech-status" className="text-sm text-muted-foreground">
               {t(statusKey(speechStatus))}
             </span>
-            {speechStatus.status !== 'ready' ? (
-              <Link
-                to="/settings/local-models"
-                hash="system-voice-resources"
-                className="text-sm text-link hover:underline">
-                {t('settings.voice.manage_resources')}
-              </Link>
-            ) : null}
           </div>
-          <Accordion type="single" collapsible>
-            <AccordionItem value="sample">
-              <AccordionTrigger>{t('settings.voice.speech.custom_sample')}</AccordionTrigger>
-              <AccordionContent className="pt-2">
-                <Textarea.Input
-                  aria-label={t('settings.voice.speech.preview_text')}
-                  aria-describedby={speechError ? 'voice-speech-error' : undefined}
-                  value={previewText}
-                  maxLength={5000}
-                  onValueChange={setPreviewText}
-                  placeholder={t('settings.voice.speech.preview_placeholder')}
-                />
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
           {speechError ? (
             <p id="voice-speech-error" role="alert" className="text-sm text-error">
               {t(errorKey(speechError))}
