@@ -26,6 +26,10 @@ export type {
   SpeechPlaybackStartInput,
   SpeechPlaybackStartResult
 } from './SpeechPlaybackService'
+export { readMessageAloud } from './messagePlayback'
+export type { ReadMessageAloudInput } from './messagePlayback'
+export { autoReadService } from './AutoReadService'
+export type { AutoReadCompletion, AutoReadResult } from './AutoReadService'
 
 export { enumerateMicrophones, subscribeMicrophoneChanges } from './microphoneDevices'
 export type { MicrophoneDevice } from './microphoneDevices'

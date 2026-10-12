@@ -15,10 +15,9 @@ import { createPromptVariableContent } from './promptVariables'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
-const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
+export { COMPOSER_INPUT_MAX_LENGTH } from './composerLimits'
 
-/** Upper bound on a serialized draft's text — enforced by every path that grows the composer. */
-export const COMPOSER_INPUT_MAX_LENGTH = 40000
+const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
 type PersistedComposerSerializedToken = ComposerSerializedToken & {

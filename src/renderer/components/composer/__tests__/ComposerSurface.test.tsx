@@ -1,5 +1,6 @@
 import { mockToast } from '@test-mocks/renderer/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Editor } from '@tiptap/core'
 import type * as TiptapReact from '@tiptap/react'
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
@@ -7,7 +8,9 @@ import { useState } from 'react'
 import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Button as ToolbarButton } from '@cherrystudio/ui/components/primitives/button'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
@@ -537,6 +540,41 @@ describe('ComposerSurface', () => {
 
     expect(mocks.editorOptions?.immediatelyRender).toBe(true)
     expect(mocks.focus).toHaveBeenCalledWith('end')
+  })
+
+  it('makes the keyboard-focused rich composer toolbar the current voice target', async () => {
+    const manager = new VoiceTargetManager()
+    for (const targetId of ['previous-composer', 'composer']) {
+      manager.bind({
+        targetId,
+        owner: window,
+        sourceEntityId: `${targetId}-topic`,
+        captureReplaceRange: () => ({ from: 0, to: 0 }),
+        replaceRange: () => true
+      })
+    }
+    manager.markCurrent('previous-composer')
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onVoiceTargetInteraction={() => {
+          manager.markCurrent('composer')
+        }}
+        renderLeftControls={() => (
+          <>
+            <ToolbarButton>Previous toolbar control</ToolbarButton>
+            <ToolbarButton>Dictate locally</ToolbarButton>
+          </>
+        )}
+      />
+    )
+    screen.getByRole('button', { name: 'Previous toolbar control' }).focus()
+    manager.markCurrent('previous-composer')
+
+    await userEvent.setup().tab()
+
+    expect(screen.getByRole('button', { name: 'Dictate locally' })).toHaveFocus()
+    expect(manager.captureCurrent()).toMatchObject({ targetId: 'composer', sourceEntityId: 'composer-topic' })
   })
 
   it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
