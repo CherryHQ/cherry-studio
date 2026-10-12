@@ -3775,6 +3775,35 @@ describe('AgentSessionRuntimeService', () => {
       vi.useRealTimers()
     }
   })
+  it('keeps every timed-out predecessor unsafe when a later connection finishes closing', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      const firstClose = createDeferred<void>()
+      const secondClose = createDeferred<void>()
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = { close: () => firstClose.promise, send: vi.fn(), events: [] }
+      const closingFirst = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_000)
+      await closingFirst
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = { close: () => secondClose.promise, send: vi.fn(), events: [] }
+      const closingSecond = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_000)
+      await closingSecond
+      secondClose.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+
+      const blocked = expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(20_000)
+      await blocked
+      firstClose.resolve()
+      await expect(service.closeSessionForArchive('session-1')).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
     ServiceContainer.reset()
     const container = ServiceContainer.getInstance()

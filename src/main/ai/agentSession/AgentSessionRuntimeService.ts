@@ -344,7 +344,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 @DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
-  private readonly failedClosures = new Map<string, AgentRuntimeConnection>()
+  private readonly failedClosures = new Map<string, Set<AgentRuntimeConnection>>()
   private readonly pendingEditInputs = new Map<
     Electron.WebContents,
     { counts: Map<string, number>; dispose: () => void }
@@ -1090,7 +1090,7 @@ export class AgentSessionRuntimeService extends BaseService {
       await this.closingSessions.get(sessionId)!.promise
     }
     const failed = this.failedClosures.get(sessionId)
-    if (failed) await this.closeRuntimeConnection(failed, sessionId, true)
+    for (const connection of failed ?? []) await this.closeRuntimeConnection(connection, sessionId, true)
     if (this.failedClosures.has(sessionId) || this.entries.has(sessionId) || this.connectionAttempts.has(sessionId)) {
       throw new AgentSessionEditError('close_failed')
     }
@@ -3434,14 +3434,18 @@ export class AgentSessionRuntimeService extends BaseService {
       const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
       await Promise.race([
         Promise.resolve(closing).then(() => {
-          if (this.failedClosures.get(sessionId) === connection) this.failedClosures.delete(sessionId)
+          const failed = this.failedClosures.get(sessionId)
+          failed?.delete(connection)
+          if (failed?.size === 0) this.failedClosures.delete(sessionId)
         }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new AgentSessionEditError('close_failed')), 20_000)
         })
       ])
     } catch (error) {
-      this.failedClosures.set(sessionId, connection)
+      const failed = this.failedClosures.get(sessionId) ?? new Set<AgentRuntimeConnection>()
+      failed.add(connection)
+      this.failedClosures.set(sessionId, failed)
       logger.warn('Agent runtime connection close failed', { sessionId, error })
       if (strict) throw new AgentSessionEditError('close_failed')
     } finally {
