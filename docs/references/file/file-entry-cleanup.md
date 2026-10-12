@@ -126,8 +126,9 @@ Entry cleanup has no candidate-count or byte-fraction safety abort. Large legiti
 deletions also produce large candidate sets, and the pass already requires explicit auto policy,
 the grace window, registry-driven ref absence, and an in-transaction recheck.
 
-The filesystem orphan sweep also has no volume abort. It requires files without DB rows or
-abandoned atomic-write residue, a five-minute freshness gate, and an ownership recheck before deletion.
+The filesystem orphan sweep retains count/byte proportion thresholds by default. Cache Cleanup
+explicitly bypasses those thresholds for preview and execution while retaining the five-minute
+freshness gate, ownership rechecks, intake protection, and pending-restore guards.
 
 ### 5.4 Per-Candidate Protocol
 

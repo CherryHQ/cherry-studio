@@ -206,6 +206,16 @@ describe('FileManager entry-cleanup wiring', () => {
       expect(fileSweepMock).toHaveBeenCalledTimes(1)
     })
 
+    it('spends the weekly window after a safety-threshold abort', async () => {
+      fileSweepMock.mockResolvedValue({ outcome: 'aborted', abortReason: 'count-fraction' })
+      const tick = tickOf(fm)
+
+      await tick()
+      await tick()
+
+      expect(fileSweepMock).toHaveBeenCalledTimes(1)
+    })
+
     it('does not start a second sweep while one is still running', async () => {
       // The old code got this for free by stamping before the await. Moving the
       // stamp to the end has to keep it, or a slow scan would be re-entered by

@@ -50,19 +50,24 @@ describe('pending-restore guard', () => {
     expect(fileEntryService.findManualUnreferenced).not.toHaveBeenCalled()
   })
 
-  it('runFileSweep aborts with pending-restore before touching DB snapshot or filesystem', async () => {
-    hasPendingRestoreMock.mockReturnValue(true)
-    const fileEntryService = { listAllIds: vi.fn(), findById: vi.fn() }
+  it.each([false, true])(
+    'file sweep stands aside for a pending restore even with bypassSafetyThreshold=%s',
+    async (bypassSafetyThreshold) => {
+      hasPendingRestoreMock.mockReturnValue(true)
+      const fileEntryService = { listAllIds: vi.fn(), findById: vi.fn() }
 
-    const report = await runFileSweep({ fileEntryService })
+      const options = { bypassSafetyThreshold }
+      const reports = await Promise.all([
+        inspectFileSweep({ fileEntryService }, options),
+        runFileSweep({ fileEntryService }, options)
+      ])
 
-    expect(report.outcome).toBe('aborted')
-    if (report.outcome === 'aborted') {
-      expect(report.abortReason).toBe('pending-restore')
+      for (const report of reports) {
+        expect(report).toMatchObject({ outcome: 'aborted', abortReason: 'pending-restore', actualDeleteCount: 0 })
+      }
+      expect(fileEntryService.listAllIds).not.toHaveBeenCalled()
     }
-    expect(report.actualDeleteCount).toBe(0)
-    expect(fileEntryService.listAllIds).not.toHaveBeenCalled()
-  })
+  )
 })
 
 describe('scanOrphanEntries (report-only)', () => {
@@ -284,36 +289,47 @@ describe('runFileSweep (FS-level)', () => {
     await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
   })
 
-  it('preserves UUID-named symbolic links', async () => {
-    const orphanId = '019606a0-0000-7000-8000-00000000ee52'
-    const targetPath = path.join(filesDir, 'keep.txt')
-    const linkPath = path.join(filesDir, `${orphanId}.txt`)
-    await writeFile(targetPath, 'keep')
-    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
-    await utimes(targetPath, ancient, ancient)
-    await symlink(targetPath, linkPath)
+  it.each([false, true])(
+    'preserves UUID-named symbolic links with bypassSafetyThreshold=%s',
+    async (bypassSafetyThreshold) => {
+      const orphanId = '019606a0-0000-7000-8000-00000000ee52'
+      const targetPath = path.join(filesDir, 'keep.txt')
+      const linkPath = path.join(filesDir, `${orphanId}.txt`)
+      await writeFile(targetPath, 'keep')
+      const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+      await utimes(targetPath, ancient, ancient)
+      await symlink(targetPath, linkPath)
 
-    const report = await runFileSweep({ fileEntryService })
+      const report = await runFileSweep({ fileEntryService }, { bypassSafetyThreshold })
 
-    expect(report).toMatchObject({ outcome: 'completed', plannedDeleteCount: 0, actualDeleteCount: 0 })
-    expect((await lstat(linkPath)).isSymbolicLink()).toBe(true)
-    expect((await stat(targetPath)).size).toBe(4)
-  })
+      expect(report).toMatchObject({ outcome: 'completed', plannedDeleteCount: 0, actualDeleteCount: 0 })
+      expect((await lstat(linkPath)).isSymbolicLink()).toBe(true)
+      expect((await stat(targetPath)).size).toBe(4)
+    }
+  )
 
-  it('preserves orphan files newer than the 5-minute freshness gate', async () => {
-    const orphanId = '019606a0-0000-7000-8000-00000000ee52'
-    const recentPath = path.join(filesDir, `${orphanId}.txt`)
-    await writeFile(recentPath, 'r')
-    // Brand new file — mtime is now; should be skipped.
+  it.each([false, true])(
+    'preserves fresh orphan files with bypassSafetyThreshold=%s',
+    async (bypassSafetyThreshold) => {
+      const orphanId = '019606a0-0000-7000-8000-00000000ee52'
+      const recentPath = path.join(filesDir, `${orphanId}.txt`)
+      await writeFile(recentPath, 'r')
+      // Brand new file — mtime is now; should be skipped.
 
-    const report = await runFileSweep({ fileEntryService })
-    expect(report.actualDeleteCount).toBe(0)
-    expect((await stat(recentPath)).size).toBe(1)
-  })
+      const report = await runFileSweep({ fileEntryService }, { bypassSafetyThreshold })
+      expect(report.actualDeleteCount).toBe(0)
+      expect((await stat(recentPath)).size).toBe(1)
+    }
+  )
 
-  it.each([true, false])(
-    'preserves intake-protected orphan files (protected during planning: %s)',
-    async (protectedDuringPlanning) => {
+  it.each([
+    [true, false],
+    [false, false],
+    [true, true],
+    [false, true]
+  ])(
+    'preserves intake-protected files (protected during planning: %s, bypassSafetyThreshold: %s)',
+    async (protectedDuringPlanning, bypassSafetyThreshold) => {
       const orphanId = '019606a0-0000-7000-8000-00000000ee54'
       const orphanPath = path.join(filesDir, `${orphanId}.txt`)
       await writeFile(orphanPath, 'upload')
@@ -330,7 +346,7 @@ describe('runFileSweep (FS-level)', () => {
         }
       }
 
-      const report = await runFileSweep({ fileEntryService, intakeProtection })
+      const report = await runFileSweep({ fileEntryService, intakeProtection }, { bypassSafetyThreshold })
 
       expect(report).toMatchObject({ outcome: 'completed', actualDeleteCount: 0, actualDeleteBytes: 0 })
       expect((await stat(orphanPath)).size).toBe(6)
@@ -414,7 +430,7 @@ describe('runFileSweep (FS-level)', () => {
     expect(fileEntryService.getById(id)).toMatchObject({ ext, cleanupPolicy: 'manual' })
   })
 
-  it('counts and deletes more than 20 old orphan files even when they comprise all files on disk', async () => {
+  it('counts and deletes more than 20 old orphan files when bypassing the safety threshold', async () => {
     const ids = Array.from({ length: 25 }, (_, i) => `019606a0-0000-7000-8000-${String(i).padStart(12, '0')}`)
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     for (const id of ids) {
@@ -423,7 +439,7 @@ describe('runFileSweep (FS-level)', () => {
       await utimes(p, ancient, ancient)
     }
 
-    const inspection = await inspectFileSweep({ fileEntryService })
+    const inspection = await inspectFileSweep({ fileEntryService }, { bypassSafetyThreshold: true })
     expect(inspection).toMatchObject({
       outcome: 'completed',
       plannedDeleteCount: 25,
@@ -435,14 +451,14 @@ describe('runFileSweep (FS-level)', () => {
       expect((await stat(path.join(filesDir, `${id}.txt`))).size).toBe(1)
     }
 
-    const report = await runFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService }, { bypassSafetyThreshold: true })
     expect(report).toMatchObject({ outcome: 'completed', actualDeleteCount: 25, actualDeleteBytes: 25 })
     for (const id of ids) {
       await expect(stat(path.join(filesDir, `${id}.txt`))).rejects.toMatchObject({ code: 'ENOENT' })
     }
   })
 
-  it('counts and deletes more than 10 MiB of old orphan files even when they comprise all bytes on disk', async () => {
+  it('counts and deletes more than 10 MiB of old orphan files when bypassing the safety threshold', async () => {
     const ids = Array.from({ length: 21 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 100).padStart(12, '0')}`)
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     const big = Buffer.alloc(600 * 1024, 'x')
@@ -452,7 +468,7 @@ describe('runFileSweep (FS-level)', () => {
       await utimes(p, ancient, ancient)
     }
 
-    const inspection = await inspectFileSweep({ fileEntryService })
+    const inspection = await inspectFileSweep({ fileEntryService }, { bypassSafetyThreshold: true })
     expect(inspection).toMatchObject({
       outcome: 'completed',
       plannedDeleteCount: 21,
@@ -464,7 +480,7 @@ describe('runFileSweep (FS-level)', () => {
       expect((await stat(path.join(filesDir, `${id}.txt`))).size).toBe(600 * 1024)
     }
 
-    const report = await runFileSweep({ fileEntryService })
+    const report = await runFileSweep({ fileEntryService }, { bypassSafetyThreshold: true })
     expect(report).toMatchObject({
       outcome: 'completed',
       actualDeleteCount: 21,
@@ -474,6 +490,38 @@ describe('runFileSweep (FS-level)', () => {
       await expect(stat(path.join(filesDir, `${id}.txt`))).rejects.toMatchObject({ code: 'ENOENT' })
     }
   })
+
+  it.each([
+    { fileCount: 25, freshFileCount: 0, bytesPerFile: 1, abortReason: 'count-fraction' },
+    { fileCount: 1, freshFileCount: 2, bytesPerFile: 11 * 1024 * 1024, abortReason: 'byte-fraction' }
+  ])(
+    'preserves orphan files on a default $abortReason abort',
+    async ({ fileCount, freshFileCount, bytesPerFile, abortReason }) => {
+      const ids = Array.from(
+        { length: fileCount },
+        (_, i) => `019606a0-0000-7000-8000-${String(i + 300).padStart(12, '0')}`
+      )
+      const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+      for (const id of ids) {
+        const targetPath = path.join(filesDir, `${id}.txt`)
+        await writeFile(targetPath, Buffer.alloc(bytesPerFile))
+        await utimes(targetPath, ancient, ancient)
+      }
+      for (let i = 0; i < freshFileCount; i++) {
+        await writeFile(path.join(filesDir, `019606a0-0000-7000-8000-${String(i + 350).padStart(12, '0')}.txt`), 'x')
+      }
+
+      const inspection = await inspectFileSweep({ fileEntryService })
+      const cleanup = await runFileSweep({ fileEntryService })
+
+      for (const report of [inspection, cleanup]) {
+        expect(report).toMatchObject({ outcome: 'aborted', abortReason, actualDeleteCount: 0, actualDeleteBytes: 0 })
+      }
+      for (const id of ids) {
+        expect((await stat(path.join(filesDir, `${id}.txt`))).size).toBe(bytesPerFile)
+      }
+    }
+  )
 
   it('records oldestDeletedMtime when at least one file is unlinked', async () => {
     const oldId = '019606a0-0000-7000-8000-00000000ee72'

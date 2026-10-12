@@ -33,7 +33,7 @@ export interface OrphanReportCounts {
  *     - the DB sweep returned a non-fatal partial report (reserved for
  *       compatibility; current DB sweep returns only `completed` / `failed`)
  *     - the FS sweep returned a non-`'completed'` outcome (partial unlink
- *       failures / paused for a pending restore / collapsed early) →
+ *       failures / aborted by safety threshold / collapsed early) →
  *       `fsSweepIssue` carries a short description
  *   Either way, counts cover the parts that did report, so a zero-orphan
  *   count on a `'partial'` run must not be read as a clean bill of health.

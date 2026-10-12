@@ -12,7 +12,8 @@
  * 2. **runFileSweep** (FS-level, file-manager-architecture §10):
  *    enumerates `{userData}/Data/Files/` for UUID-named files without a
  *    matching DB entry and abandoned `*.tmp-<uuid>` residue, applies the
- *    `mtime > 5min` heuristic, then unlinks the survivors.
+ *    `mtime > 5min` heuristic and the default safety threshold, then unlinks
+ *    the survivors. Cache Cleanup explicitly bypasses the volume threshold.
  *
  * Both surfaces emit a single structured log record per run via
  * `loggerService` — `orphan-sweep` for the DB pass (architecture §10.5
@@ -27,7 +28,7 @@
  * - `completed` — happy path
  * - `partial` — umbrella/wire compatibility; the current DB sweep returns only
  *   `completed` or `failed`, while FS sweep can still report `partial`
- * - `aborted` — sweep stood aside because a backup restore is pending
+ * - `aborted` — safety threshold tripped or a backup restore is pending
  * - `failed` — outer try/catch caught an unexpected throw
  *
  * Adding a new outcome variant + missing it in the dispatch site is a
@@ -206,6 +207,12 @@ function isTmpResidueName(name: string): boolean {
 /** mtime gate per architecture §10.3 — files newer than this are presumed in-flight. */
 const FRESHNESS_GATE_MS = 5 * 60 * 1000
 
+/** Architecture §10.4 safety thresholds — absolute floor below which any plan is fine. */
+const SMALL_RESIDUE_COUNT_FLOOR = 20
+const SMALL_RESIDUE_BYTES_FLOOR = 10 * 1024 * 1024
+/** Above the floor, abort if the plan covers more than this fraction of total. */
+const ABORT_FRACTION = 0.5
+
 /** Cap how many failed-unlink samples we attach to the report (log-line size). */
 const MAX_FAILED_SAMPLES = 5
 
@@ -214,6 +221,10 @@ export interface RunFileSweepDeps {
   readonly fileEntryService: Pick<FileEntryService, 'listAllIds' | 'findById'>
   /** Test seam — defaults to `Date.now`. */
   readonly now?: () => number
+}
+
+export interface FileSweepOptions {
+  readonly bypassSafetyThreshold?: boolean
 }
 
 function isRetainedFile(
@@ -234,7 +245,7 @@ interface FileSweepStats {
   readonly entriesInDb: number
   /** Total dirents enumerated, regardless of UUID/tmp candidacy. */
   readonly direntsScanned: number
-  /** Unretained candidates considered (UUID files + tmp residue), including fresh files. */
+  /** Candidates considered (UUID files + tmp residue) — backs the abort fraction math. */
   readonly filesOnDisk: number
   readonly bytesOnDisk: number
   readonly plannedDeleteCount: number
@@ -257,7 +268,7 @@ type FileSweepOutcome =
     }
   | {
       readonly outcome: 'aborted'
-      readonly abortReason: 'pending-restore'
+      readonly abortReason: 'count-fraction' | 'byte-fraction' | 'pending-restore'
     }
   | { readonly outcome: 'failed'; readonly errorMessage: string }
 
@@ -272,13 +283,16 @@ function pendingRestoreFileSweepReport(): FileSweepReport {
 }
 
 /** Build and log the same orphan-file plan as {@link runFileSweep} without unlinking anything. */
-export async function inspectFileSweep(deps: RunFileSweepDeps): Promise<FileSweepReport> {
+export async function inspectFileSweep(
+  deps: RunFileSweepDeps,
+  options: FileSweepOptions = {}
+): Promise<FileSweepReport> {
   if (hasPendingRestore()) {
     const report = pendingRestoreFileSweepReport()
     logFileSweep(report)
     return report
   }
-  const report = await runFileSweepInner(deps, false)
+  const report = await runFileSweepInner(deps, false, options)
   logFileSweep(report)
   return report
 }
@@ -290,10 +304,11 @@ export async function inspectFileSweep(deps: RunFileSweepDeps): Promise<FileSwee
  *     UUID still matches a live entry — e.g. crash mid-atomicWriteFile)
  *
  * `mtime > 5min` freshness gate (§10.3) defers anything in flight.
+ * Volume thresholds apply unless the caller explicitly bypasses them.
  * Per-file unlink failures are tolerated and surface as
  * `outcome: 'partial'` with `failedDeleteCount` + sample names.
  */
-export async function runFileSweep(deps: RunFileSweepDeps): Promise<FileSweepReport> {
+export async function runFileSweep(deps: RunFileSweepDeps, options: FileSweepOptions = {}): Promise<FileSweepReport> {
   // Same stand-aside as runDbSweep: a staged restore's blobs are on disk but
   // not yet referenced by the live DB — exactly what this sweep would unlink.
   if (hasPendingRestore()) {
@@ -301,7 +316,7 @@ export async function runFileSweep(deps: RunFileSweepDeps): Promise<FileSweepRep
     logFileSweep(report)
     return report
   }
-  const report = await runFileSweepInner(deps, true)
+  const report = await runFileSweepInner(deps, true, options)
   logFileSweep(report)
   return report
 }
@@ -316,7 +331,11 @@ function logFileSweep(report: FileSweepReport): void {
       logger.warn('orphan-file-sweep', payload)
       return
     case 'aborted':
-      logger.info('orphan-file-sweep', payload)
+      if (report.abortReason === 'pending-restore') {
+        logger.info('orphan-file-sweep', payload)
+        return
+      }
+      logger.warn('orphan-file-sweep', payload)
       return
     case 'failed':
       logger.error('orphan-file-sweep', payload)
@@ -332,7 +351,11 @@ interface CandidatePlan {
   readonly mtimeMs: number
 }
 
-async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): Promise<FileSweepReport> {
+async function runFileSweepInner(
+  deps: RunFileSweepDeps,
+  deleteFiles: boolean,
+  options: FileSweepOptions
+): Promise<FileSweepReport> {
   const startedAt = Date.now()
   try {
     const filesDir = application.getPath('feature.files.data')
@@ -400,6 +423,48 @@ async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): 
     }
 
     const plannedBytes = planned.reduce((s, p) => s + p.bytes, 0)
+    const abortReason = options.bypassSafetyThreshold
+      ? undefined
+      : pickAbortReason({
+          planned: planned.length,
+          plannedBytes,
+          filesOnDisk: candidatesCount,
+          bytesOnDisk: candidatesBytes
+        })
+    if (deleteFiles && !options.bypassSafetyThreshold && !abortReason && planned.length > 0) {
+      const countFraction = planned.length / Math.max(1, candidatesCount)
+      const byteFraction = plannedBytes / Math.max(1, candidatesBytes)
+      if (countFraction > ABORT_FRACTION || byteFraction > ABORT_FRACTION) {
+        logger.warn('orphan-file-sweep-below-floor', {
+          event: 'orphan-file-sweep-below-floor',
+          plannedCount: planned.length,
+          plannedBytes,
+          filesOnDisk: candidatesCount,
+          bytesOnDisk: candidatesBytes,
+          countFraction,
+          byteFraction,
+          smallResidueCountFloor: SMALL_RESIDUE_COUNT_FLOOR,
+          smallResidueBytesFloor: SMALL_RESIDUE_BYTES_FLOOR
+        })
+      }
+    }
+    if (abortReason) {
+      return {
+        entriesInDb: idSnapshot.size,
+        direntsScanned: dirents.length,
+        filesOnDisk: candidatesCount,
+        bytesOnDisk: candidatesBytes,
+        plannedDeleteCount: planned.length,
+        plannedDeleteBytes: plannedBytes,
+        actualDeleteCount: 0,
+        actualDeleteBytes: 0,
+        statFailedCount,
+        scanDurationMs: Date.now() - startedAt,
+        outcome: 'aborted',
+        abortReason
+      }
+    }
+
     if (!deleteFiles) {
       return {
         entriesInDb: idSnapshot.size,
@@ -491,4 +556,19 @@ function zeroStats(entriesInDb: number, startedAt: number): FileSweepStats {
     statFailedCount: 0,
     scanDurationMs: Date.now() - startedAt
   }
+}
+
+function pickAbortReason(args: {
+  planned: number
+  plannedBytes: number
+  filesOnDisk: number
+  bytesOnDisk: number
+}): 'count-fraction' | 'byte-fraction' | undefined {
+  const { planned, plannedBytes, filesOnDisk, bytesOnDisk } = args
+  if (planned < SMALL_RESIDUE_COUNT_FLOOR && plannedBytes < SMALL_RESIDUE_BYTES_FLOOR) return undefined
+  const countFraction = planned / Math.max(1, filesOnDisk)
+  if (countFraction > ABORT_FRACTION) return 'count-fraction'
+  const byteFraction = plannedBytes / Math.max(1, bytesOnDisk)
+  if (byteFraction > ABORT_FRACTION) return 'byte-fraction'
+  return undefined
 }
