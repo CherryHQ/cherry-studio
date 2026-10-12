@@ -1,4 +1,4 @@
-import { Type, type Usage } from '@earendil-works/pi-ai'
+import { type AssistantMessage, Type, type Usage } from '@earendil-works/pi-ai'
 import type { AgentSession, AgentToolResult, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
 import type { AgentRuntimeSession } from './session'
@@ -114,14 +114,19 @@ async function run(
   base: Omit<SubagentDetails, 'outcome'>
 ): Promise<AgentToolResult<SubagentDetails>> {
   const { session } = child
-  const start = session.messages.length
+  // Not read from `session.messages`: Pi swaps it for the compacted context, dropping folded replies.
+  const replies: AssistantMessage[] = []
+  const unsubscribe = session.subscribe((event) => {
+    if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
+  })
   let error: string | undefined
   try {
     await session.prompt(taskText(prompt), { expandPromptTemplates: false, source: 'extension' })
   } catch (thrown) {
     error = thrown instanceof Error ? thrown.message : String(thrown)
+  } finally {
+    unsubscribe()
   }
-  const replies = session.messages.slice(start).filter((message) => message.role === 'assistant')
   const usage = replies.reduce((sum, reply) => addUsage(sum, reply.usage), zeroUsage())
   const last = replies.at(-1)
   if (error === undefined && last?.stopReason === 'stop') {
