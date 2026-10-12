@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatApiHost,
   formatApiKeys,
+  formatOllamaApiHost,
   getTrailingApiVersion,
   hasApiVersion,
   isBareVertexApiHost,
@@ -383,6 +384,29 @@ describe('api', () => {
       ''
     ])('treats %s as a user override', (host) => {
       expect(isBareVertexApiHost(host)).toBe(false)
+    })
+  })
+
+  describe('formatOllamaApiHost', () => {
+    it.each([
+      'http://localhost:11434',
+      'http://localhost:11434/',
+      'http://localhost:11434/v1',
+      'http://localhost:11434/api',
+      'http://localhost:11434/chat',
+      // Documented Ollama endpoints pasted as the host must collapse to one /api.
+      'http://localhost:11434/api/chat',
+      'http://localhost:11434/api/generate',
+      'http://localhost:11434/api/show',
+      'http://localhost:11434/api/tags',
+      'http://localhost:11434/api/chat/',
+      'http://localhost:11434/v1/chat'
+    ])('normalises %s to exactly one /api base', (host) => {
+      expect(formatOllamaApiHost(host)).toBe('http://localhost:11434/api')
+    })
+
+    it('keeps a path-scoped proxy prefix intact', () => {
+      expect(formatOllamaApiHost('https://proxy.example.com/ollama/api')).toBe('https://proxy.example.com/ollama/api')
     })
   })
 })

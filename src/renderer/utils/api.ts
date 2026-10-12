@@ -16,10 +16,7 @@ export {
 } from '@shared/utils/api'
 
 export function formatOllamaApiHost(host: string): string {
-  const normalizedHost = withoutTrailingSlash(host)
-    ?.replace(/\/v1$/, '')
-    ?.replace(/\/api$/, '')
-    ?.replace(/\/chat$/, '')
+  const normalizedHost = withoutTrailingSlash(host).replace(/\/(?:v1|api|chat)(?:\/[^/]*)?$/, '')
   return formatApiHost(normalizedHost + '/api', false)
 }
 

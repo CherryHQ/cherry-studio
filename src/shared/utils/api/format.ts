@@ -222,13 +222,13 @@ export function isBareVertexApiHost(host: string): boolean {
 }
 
 /**
- * Normalise an Ollama base URL: strip trailing `/v1` / `/api` / `/chat`,
- * append `/api`.
+ * Normalise an Ollama base URL to exactly one `/api` suffix.
+ *
+ * Strips a trailing `/v1`, `/api` or `/chat` segment together with any single
+ * trailing endpoint segment (e.g. `/api/chat`, `/api/generate`) before
+ * appending `/api`, so a pasted documented endpoint does not double up.
  */
 export function formatOllamaApiHost(host: string): string {
-  const normalizedHost = withoutTrailingSlash(host)
-    ?.replace(/\/v1$/, '')
-    ?.replace(/\/api$/, '')
-    ?.replace(/\/chat$/, '')
+  const normalizedHost = withoutTrailingSlash(host).replace(/\/(?:v1|api|chat)(?:\/[^/]*)?$/, '')
   return formatApiHost(normalizedHost + '/api', false)
 }
