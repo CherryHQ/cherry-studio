@@ -102,7 +102,7 @@ export async function convertDocumentBundle(
     throw new DocumentConversionError(
       code,
       error instanceof Error ? error.message : String(error),
-      (input.markdown ?? input.filePath ?? '').slice(0, 4000)
+      (input.markdown ?? input.draft ?? input.filePath ?? '').slice(0, 4000)
     )
   }
 }

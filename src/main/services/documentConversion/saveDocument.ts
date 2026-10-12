@@ -36,7 +36,7 @@ export async function saveDocument(input: SaveDocumentInput): Promise<DocumentAr
         ? exportErrorCodes.TARGET_EXISTS
         : exportErrorCodes.DOCUMENT_SAVE_FAILED,
       error instanceof Error ? error.message : String(error),
-      (input.markdown ?? input.filePath ?? '').slice(0, 4000)
+      (input.markdown ?? input.draft ?? input.filePath ?? '').slice(0, 4000)
     )
   }
 }
