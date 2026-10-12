@@ -81,7 +81,11 @@ export default function rehypeHeadingIds(options?: RehypeHeadingIdsOptions): (tr
       if (!/^h[1-6]$/.test(tag)) return
 
       const text = extractTextFromNode(node)
-      const id = prefix + (assigned?.get(normalizeHeadingText(text))?.shift() ?? slugger.slug(text))
+      // Every heading advances the slugger, assigned ones included: an assigned id is one the
+      // document's own numbering already gave out, so a fallback has to number past those rather
+      // than hand a heading the scan never saw an id another one is already rendering with.
+      const fallback = slugger.slug(text)
+      const id = prefix + (assigned?.get(normalizeHeadingText(text))?.shift() ?? fallback)
       node.properties = node.properties || {}
       if (!node.properties.id) node.properties.id = id
     })

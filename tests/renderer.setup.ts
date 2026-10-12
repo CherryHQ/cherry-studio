@@ -172,6 +172,8 @@ vi.mock('@cherrystudio/ui', async () => {
   const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
   const { BarVisualizer } = await import('@cherrystudio/ui/components/primitives/bar-visualizer')
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
+  const { default: rehypeHeadingIds } =
+    await import('@cherrystudio/ui/components/composites/markdown/plugins/rehype-heading-ids')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -198,6 +200,9 @@ vi.mock('@cherrystudio/ui', async () => {
     useMarkdownBlockContext: () => ({ content: '' }),
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
+    // Real implementation (with its own real extractTextFromNode): chunk heading ids are asserted
+    // on what the plugin assigns, and a stub could not drift from that by construction.
+    rehypeHeadingIds,
     // Real implementation: chunk slug numbering keys on the same normalization the plugin uses.
     normalizeHeadingText: (text) => {
       const slug = (text || 'section')
