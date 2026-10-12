@@ -2013,10 +2013,13 @@ describe('a heading an inline construct only partly renders', () => {
     const filler = ['', 'x'.repeat(400)]
     const content = ['# Foo*bar*', ...filler, '# Foobar', '', 'see [second](#doc--foobar-1)'].join('\n')
 
-    const chunks = chunksOf(content, 200)
+    // The two headings have to land in different chunks: a chunk that holds both carries both
+    // assignments and renders the right ids even while the scan keys the first on the wrong base.
+    const chunks = chunksOf(content, 5)
+    const headings = chunks.filter((chunk) => chunk.headingSlugs)
 
-    expect(chunks.length).toBeGreaterThan(1)
-    expect(chunkedHeadingIds(content, 200)).toEqual(headingIds(content))
+    expect(headings).toHaveLength(2)
+    expect(chunkedHeadingIds(content, 5)).toEqual(headingIds(content))
     expect(headingIds(content)).toEqual(['doc--foobar', 'doc--foobar-1'])
   })
 })
