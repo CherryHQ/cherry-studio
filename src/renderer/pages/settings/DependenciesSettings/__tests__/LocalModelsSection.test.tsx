@@ -94,6 +94,18 @@ describe('LocalModelsSection', () => {
     MockUsePreferenceUtils.resetMocks()
   })
 
+  it('links model sources without mixing system speech resources into local models', async () => {
+    mockRoutes(() => ({ supported: false }))
+    render(<LocalModelsSection />)
+    expect(await screen.findByRole('link', { name: 'onnx-community/Qwen3-Embedding-0.6B-ONNX' })).toHaveAttribute(
+      'href',
+      'https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX'
+    )
+    expect(screen.getAllByRole('link')).toHaveLength(3)
+    expect(mockRequest.mock.calls.every(([route]) => route.startsWith('local_model.'))).toBe(true)
+    expect(screen.queryByText('settings.voice.resources.system')).not.toBeInTheDocument()
+  })
+
   it('shows a supported acceleration switch and persists the user choice', async () => {
     const user = userEvent.setup()
     mockRoutes((route) => {
