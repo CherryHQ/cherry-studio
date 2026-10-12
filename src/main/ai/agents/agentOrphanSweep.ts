@@ -6,14 +6,13 @@ import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { listEntries, reclaimStale } from '@main/ai/runtime/orphanSessionReclaim'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 
 import { WORKSPACE_ARCHIVE_SUFFIXES } from './agentWorkspaceArchive'
-import { withSystemWorkspaceStorage } from './agentWorkspaceStorage'
+import { reserveWorkspaceStorage, withSystemWorkspaceStorage } from './agentWorkspaceStorage'
 
 const logger = loggerService.withContext('AgentOrphanSweep')
 
@@ -108,7 +107,7 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       if (await withSystemWorkspaceStorage(workspace, () => reclaim(sessionDir, removed, options), true))
         workspaceDirs++
     }
-    const release = agentWorkspaceService.reserveStorageMutation([dateDir])
+    const release = reserveWorkspaceStorage([dateDir])
     if (release) {
       try {
         await removeIfEmpty(dateDir, removed)

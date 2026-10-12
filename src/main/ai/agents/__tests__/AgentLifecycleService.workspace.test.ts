@@ -8,16 +8,17 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentWorkspaceHandlers } from '@data/api/handlers/agentWorkspaces'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { AgentLifecycleService } from '../AgentLifecycleService'
 import { sweepAgentOrphans } from '../agentOrphanSweep'
 import * as workspaceArchive from '../agentWorkspaceArchive'
+import { registerAgentWorkspace, reserveWorkspaceStorage } from '../agentWorkspaceStorage'
 
 const mocks = vi.hoisted(() => ({
   closeSession: vi.fn().mockResolvedValue(undefined),
@@ -97,6 +98,7 @@ describe('Agent lifecycle workspace persistence', () => {
   })
 
   const workspacePath = (root: string, id: string) => path.join(root, '2026-10-12', id)
+  const registerWorkspace = (workspacePath: string) => registerAgentWorkspace(workspacePath).workspace
 
   it.each(['archive', 'purge', 'retention'] as const)(
     'preserves a registered descendant user workspace through %s and sweeps',
@@ -105,7 +107,7 @@ describe('Agent lifecycle workspace persistence', () => {
       const nested = path.join(parent, 'project')
       await mkdir(nested)
       await writeFile(path.join(nested, 'keep.txt'), 'user work')
-      const workspace = agentWorkspaceService.findOrCreateByPath(nested)
+      const workspace = registerWorkspace(nested)
       const session = agentSessionService.create({
         agentId: 'agent',
         name: 'Nested',
@@ -135,7 +137,7 @@ describe('Agent lifecycle workspace persistence', () => {
     const alias = path.join(root, 'alias')
     await mkdir(path.join(parent, 'project'))
     await symlink(parent, alias, 'junction')
-    agentWorkspaceService.findOrCreateByPath(path.join(alias, 'project'))
+    registerWorkspace(path.join(alias, 'project'))
     await lifecycle.archiveSessions(['system'])
     expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
     expect(existsSync(`${parent}.tar.gz`)).toBe(false)
@@ -145,7 +147,7 @@ describe('Agent lifecycle workspace persistence', () => {
     mocks.closeSessionForArchive.mockRejectedValueOnce(new Error('shutdown failed'))
     await lifecycle.archiveSessions(['system'])
     const nested = path.join(workspacePath(root, 'system'), 'project')
-    expect(agentWorkspaceService.findOrCreateByPath(nested).path).toBe(nested)
+    expect(registerWorkspace(nested).path).toBe(nested)
   })
   it('blocks overlapping registration throughout archive shutdown and releases the reservation afterward', async () => {
     const parent = workspacePath(root, 'system')
@@ -159,19 +161,18 @@ describe('Agent lifecycle workspace persistence', () => {
     const archiving = lifecycle.archiveSessions(['system'])
     await entered.promise
     try {
-      expect(() => agentWorkspaceService.findOrCreateByPath(nested)).toThrow()
-      expect(() => agentWorkspaceService.findOrCreateByPathResult(`${parent}.restoring`)).toThrow()
-      expect(() =>
-        application.get('DbService').withWriteTx((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, nested))
-      ).toThrow()
-      expect(agentWorkspaceService.findOrCreateByPath(path.join(root, 'unrelated')).path).toBe(
-        path.join(root, 'unrelated')
-      )
+      expect(() => registerWorkspace(nested)).toThrow()
+      expect(() => registerAgentWorkspace(`${parent}.restoring`)).toThrow()
+      await expect(agentWorkspaceHandlers['/agent-workspaces'].POST({ body: { path: nested } })).rejects.toThrow()
+      await expect(
+        agentWorkspaceHandlers['/agent-workspaces'].POST({ body: { path: ` ${nested} ` } })
+      ).rejects.toThrow()
+      expect(registerWorkspace(path.join(root, 'unrelated')).path).toBe(path.join(root, 'unrelated'))
     } finally {
       resume.resolve()
       await archiving
     }
-    expect(agentWorkspaceService.findOrCreateByPath(nested).path).toBe(nested)
+    expect(registerWorkspace(nested).path).toBe(nested)
   })
   it.each([
     ['session', '.restoring'],
@@ -192,7 +193,7 @@ describe('Agent lifecycle workspace persistence', () => {
       .insert(agentTable)
       .values({ id: 'other-agent', name: 'Other', type: 'claude-code', instructions: '', orderKey: 'a1' })
       .run()
-    const workspace = agentWorkspaceService.findOrCreateByPath(nested)
+    const workspace = registerWorkspace(nested)
     const otherSession = agentSessionService.create({
       agentId: 'other-agent',
       name: 'Other',
@@ -228,8 +229,8 @@ describe('Agent lifecycle workspace persistence', () => {
     const restoring = mode === 'agent' ? lifecycle.restoreAgent('agent') : lifecycle.restoreSession('system')
     await entered.promise
     try {
-      expect(() => agentWorkspaceService.findOrCreateByPath(path.join(`${parent}.restoring`, 'project'))).toThrow()
-      expect(() => agentWorkspaceService.findOrCreateByPath(path.join(parent, 'project'))).toThrow()
+      expect(() => registerWorkspace(path.join(`${parent}.restoring`, 'project'))).toThrow()
+      expect(() => registerWorkspace(path.join(parent, 'project'))).toThrow()
       expect(
         dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
       ).not.toBeNull()
@@ -238,14 +239,12 @@ describe('Agent lifecycle workspace persistence', () => {
       await restoring
     }
     expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
-    expect(agentWorkspaceService.findOrCreateByPath(path.join(parent, 'project')).path).toBe(
-      path.join(parent, 'project')
-    )
+    expect(registerWorkspace(path.join(parent, 'project')).path).toBe(path.join(parent, 'project'))
   })
   it('rejects restore while storage is reserved and permits it after release', async () => {
     const parent = workspacePath(root, 'system')
     await lifecycle.archiveSessions(['system'])
-    const release = agentWorkspaceService.reserveStorageMutation([parent], parent)!
+    const release = reserveWorkspaceStorage([parent], parent)!
     try {
       await expect(lifecycle.restoreSession('system')).rejects.toThrow('cannot safely restore')
       expect(existsSync(parent)).toBe(false)

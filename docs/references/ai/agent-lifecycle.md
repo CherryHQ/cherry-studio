@@ -157,7 +157,7 @@ and published. Failures retain the files for a later lifecycle sweep to retry.
 Linked or special files prevent compression rather than being silently omitted.
 
 Workspace registration and storage reclamation share a synchronous reservation
-boundary in AgentWorkspaceService. Registered overlapping workspaces protect the
+boundary in the agentWorkspaceStorage domain module. The registration handler enters this domain coordinator before writing rows; AgentWorkspaceService only reads and writes database records. Registered overlapping workspaces protect the
 whole system tree, including user directories nested below it; logical Session
 archival still succeeds. Archive, restore, purge, and orphan sweep hold the reservation
 through their filesystem work, so new overlapping registrations fail with a
