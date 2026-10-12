@@ -81,6 +81,28 @@ describe('Claude runtime acquisition', () => {
     expect(claudeBinaryTarget(platform, arch, glibc)).toBe(expected)
   })
 
+  it('starts downloading after application startup without waiting for the network or opening an agent', async () => {
+    let release!: () => void
+    const network = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    vi.mocked(net.fetch).mockImplementation(async () => {
+      await network
+      return new Response(new Uint8Array(archive))
+    })
+    try {
+      await service._doAllReady()
+      expect(service.getStatus().phase).toBe('downloading')
+      expect(() => service.requireExecutable()).toThrow()
+      service.ensure()
+    } finally {
+      release()
+    }
+    expect((await settled()).phase).toBe('ready')
+    expect(await readFile(service.requireExecutable(), 'utf8')).toBe('native-cli-fixture')
+    expect(vi.mocked(net.fetch).mock.calls).toHaveLength(1)
+  })
+
   it('installs a verified exact version once, rejects use before completion, and survives restart', async () => {
     expect(() => service.requireExecutable()).toThrow()
     service.ensure()
@@ -96,7 +118,9 @@ describe('Claude runtime acquisition', () => {
     expect(String(vi.mocked(net.fetch).mock.calls[0][0])).toContain('-1.2.3.tgz')
     BaseService.resetInstances()
     const restarted = new ClaudeCodeBinaryService()
-    expect(restarted.ensure().phase).toBe('ready')
+    await restarted._doAllReady()
+    expect(restarted.getStatus().phase).toBe('ready')
+    expect(vi.mocked(net.fetch).mock.calls).toHaveLength(1)
     expect(restarted.requireExecutable()).toBe(executable)
     await restarted._doStop()
     claudeCodeBinaryManifest.version = '1.2.4'

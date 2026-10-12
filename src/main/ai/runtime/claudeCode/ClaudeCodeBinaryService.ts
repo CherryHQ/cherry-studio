@@ -239,6 +239,10 @@ export class ClaudeCodeBinaryService extends BaseService {
     }
   }
 
+  protected onAllReady(): void {
+    this.ensure()
+  }
+
   protected async onStop(): Promise<void> {
     this.controller?.abort()
     await this.pending
