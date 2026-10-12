@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyFfprobeResult, planFrameTimestamps, sniffEbmlDocType } from '../probeClassification'
+import {
+  classifyFfprobeResult,
+  planFrameTimestamps,
+  relativeInputSeekMs,
+  sniffEbmlDocType,
+  videoTailProbePoint,
+  videoTailReadInterval
+} from '../probeClassification'
 
 describe('classifyFfprobeResult', () => {
   it('does not classify attached cover art as video', () => {
@@ -60,5 +67,55 @@ describe('planFrameTimestamps', () => {
     expect(planFrameTimestamps(Number.NaN, 8, 4_000)).toEqual([])
     expect(planFrameTimestamps(0, 8, 4_000)).toEqual([])
     expect(planFrameTimestamps(1_000, 0, 4_000)).toEqual([])
+  })
+})
+
+describe('video tail packet seek', () => {
+  it('locates the video end and seeks relative to the format start', () => {
+    const vfr = videoTailProbePoint({
+      format: { duration: '1.002', start_time: '0' },
+      streams: [{ codec_type: 'video', start_time: '0', duration: '1.002' }]
+    })
+    expect(vfr).toEqual({ endSeconds: 1.002, formatStartTimeSeconds: 0 })
+    expect(videoTailReadInterval(1.002)).toBe('1.001000%1.003000')
+    expect(relativeInputSeekMs(0.002, 0)).toBe(2)
+
+    // Audio at 0, video at 1.5 for 2s. Last PTS 3.4 is 3.4s from the format start, not 1.9s.
+    const staggered = videoTailProbePoint({
+      streams: [
+        { codec_type: 'audio', start_time: '0', duration: '4' },
+        { codec_type: 'video', start_time: '1.5', duration: '2.0' }
+      ],
+      format: { duration: '4', start_time: '0' }
+    })
+    expect(staggered).toEqual({ endSeconds: 3.5, formatStartTimeSeconds: 0 })
+    expect(relativeInputSeekMs(3.4, staggered?.formatStartTimeSeconds ?? Number.NaN)).toBe(3_400)
+
+    const shifted = videoTailProbePoint({
+      streams: [{ codec_type: 'video', start_time: '1.5', duration: '2.0' }],
+      format: { duration: '2.0', start_time: '1.5' }
+    })
+    expect(shifted).toEqual({ endSeconds: 3.5, formatStartTimeSeconds: 1.5 })
+    expect(relativeInputSeekMs(3.4, 1.5)).toBe(1_900)
+  })
+
+  it('uses the video stream duration when audio runs longer, and ignores cover art', () => {
+    expect(
+      videoTailProbePoint({
+        format: { duration: '4', start_time: '0' },
+        streams: [
+          { codec_type: 'video', start_time: '0', duration: '1' },
+          { codec_type: 'audio', duration: '4' }
+        ]
+      })
+    ).toEqual({ endSeconds: 1, formatStartTimeSeconds: 0 })
+    expect(
+      videoTailProbePoint({
+        format: { duration: '4' },
+        streams: [{ codec_type: 'video', disposition: { attached_pic: 1 }, duration: '1' }]
+      })
+    ).toBeUndefined()
+    expect(relativeInputSeekMs(Number.NaN, 0)).toBeUndefined()
+    expect(relativeInputSeekMs(0.1, 0.2)).toBeUndefined()
   })
 })
