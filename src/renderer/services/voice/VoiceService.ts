@@ -54,7 +54,7 @@ interface SpeechSequence {
   readonly reservationToken: symbol
   readonly chunkCount?: number
   nextChunkIndex?: number
-  outputFileEntryId?: string
+  outputId?: string
   activeSpeechToken?: symbol
   activeReleaseToken?: symbol
 }
@@ -463,7 +463,7 @@ export class VoiceService {
             throw new VoiceDomainError('aborted')
           }
           sequence.activeSpeechToken = undefined
-          sequence.outputFileEntryId = result.fileEntry.id
+          sequence.outputId = result.output.id
           if (admission && this.pendingAdmissions.get(sessionId)?.token === admission.token) {
             if (this.snapshot.revision === admission.revision) this.promoteAdmission(sessionId, admission.token)
             else this.releasePendingAdmission(sessionId, admission.token)
@@ -489,10 +489,6 @@ export class VoiceService {
     return this.invoke(() => this.ipc.request('ai.speech.abort', { sessionId, requestId }))
   }
 
-  readOutput(input: InputFor<'ai.voice.output.read'>): Promise<OutputFor<'ai.voice.output.read'>> {
-    return this.invoke(() => this.ipc.request('ai.voice.output.read', input))
-  }
-
   releaseOutput(input: InputFor<'ai.voice.output.release'>): Promise<void> {
     const reservation = this.reservations.get(input.sessionId)
     const sequence = this.speechSequences.get(input.sessionId)
@@ -501,7 +497,7 @@ export class VoiceService {
       reservation.kind !== 'speech' ||
       this.currentOwnedSessionId !== input.sessionId ||
       sequence?.reservationToken !== reservation.token ||
-      sequence.outputFileEntryId !== input.fileEntryId ||
+      sequence.outputId !== input.outputId ||
       sequence.activeReleaseToken
     ) {
       return Promise.reject(new VoiceDomainError('busy'))
@@ -515,7 +511,7 @@ export class VoiceService {
         }
         if (this.isReservationCurrent(input.sessionId, reservation) && sequence.activeReleaseToken === releaseToken) {
           sequence.activeReleaseToken = undefined
-          sequence.outputFileEntryId = undefined
+          sequence.outputId = undefined
           if (sequence.nextChunkIndex !== undefined) sequence.nextChunkIndex += 1
         }
       },
@@ -732,7 +728,7 @@ export class VoiceService {
         sequence.reservationToken !== reservation.token ||
         sequence.activeSpeechToken ||
         sequence.activeReleaseToken ||
-        sequence.outputFileEntryId ||
+        sequence.outputId ||
         input.chunkIndex === undefined ||
         input.chunkCount === undefined ||
         input.chunkCount !== sequence.chunkCount ||

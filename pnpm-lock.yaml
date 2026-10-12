@@ -380,6 +380,9 @@ importers:
       ppu-paddle-ocr:
         specifier: 6.0.0
         version: 6.0.0(patch_hash=462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096)
+      range-parser:
+        specifier: 1.2.1
+        version: 1.2.1
       registry-js:
         specifier: 1.16.1
         version: 1.16.1
@@ -858,6 +861,9 @@ importers:
       '@types/qrcode':
         specifier: ^1.5.6
         version: 1.5.6
+      '@types/range-parser':
+        specifier: 1.2.7
+        version: 1.2.7
       '@types/react':
         specifier: ^19.2.7
         version: 19.2.7
@@ -9254,6 +9260,9 @@ packages:
 
   '@types/qrcode@1.5.6':
     resolution: {integrity: sha512-te7NQcV2BOvdj2b1hCAHzAoMNuj65kNBMz0KBaxM6c3VGBOhU0dURQKOtH8CFNI/dsKkwlv32p26qYQTWoB5bw==}
+
+  '@types/range-parser@1.2.7':
+    resolution: {integrity: sha512-hKormJbkJqzQGhziax5PItDUTMAM9uE2XXQmM37dyd4hVM+5aVl7oVxMVUiVQn2oCQFN/LKCZdvSM0pFRqbSmQ==}
 
   '@types/react-dom@19.2.3':
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
@@ -24535,6 +24544,8 @@ snapshots:
   '@types/qrcode@1.5.6':
     dependencies:
       '@types/node': 24.10.4
+
+  '@types/range-parser@1.2.7': {}
 
   '@types/react-dom@19.2.3(@types/react@19.2.7)':
     dependencies:

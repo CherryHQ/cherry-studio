@@ -36,8 +36,6 @@ export const voiceHandlers: IpcHandlersFor<typeof voiceRequestSchemas> = {
   'ai.voice.session.state': (_input, { senderId }) => callVoice(senderId, (service, owner) => service.getState(owner)),
   'ai.voice.recording.start': (input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.startRecording(owner, input)),
-  'ai.voice.output.read': (input, { senderId }) =>
-    callVoice(senderId, (service, owner) => service.readOutput(owner, input)),
   'ai.voice.output.release': (input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.releaseOutput(owner, input)),
   'ai.voice.playback.update': (input, { senderId }) =>

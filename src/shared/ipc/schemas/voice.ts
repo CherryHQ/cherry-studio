@@ -48,7 +48,6 @@ const sourceEntityId = z
   .refine((value) => value === value.trim())
 const sessionAdmission = request.extend({ sourceEntityId: sourceEntityId.optional() })
 const abort = session.extend({ requestId: z.uuid() })
-const sessionFile = session.extend({ fileEntryId: FileEntryIdSchema })
 const modelId = z.enum(LOCAL_VOICE_MODEL_IDS)
 const asrModelId = z.enum([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID, FUNASR_MODEL_ID])
 const speechInput = sessionAdmission
@@ -167,8 +166,7 @@ export const voiceRequestSchemas = {
     output: z.strictObject({
       sessionId: z.uuid(),
       requestId: z.uuid(),
-      fileEntry: InternalEntrySchema,
-      mimeType: z.literal('audio/wav')
+      output: z.strictObject({ id: z.uuid(), url: z.url(), mimeType: z.literal('audio/wav') })
     })
   }),
   'ai.speech.abort': defineRoute({ input: abort, output: z.void() }),
@@ -190,14 +188,7 @@ export const voiceRequestSchemas = {
   'ai.transcription.abort': defineRoute({ input: abort, output: z.void() }),
   'ai.voice.session.state': defineRoute({ input: z.void(), output: voiceSessionStateSchema }),
   'ai.voice.recording.start': defineRoute({ input: sessionAdmission, output: voiceSessionStateSchema }),
-  'ai.voice.output.read': defineRoute({
-    input: sessionFile,
-    output: z.strictObject({
-      audio: z.instanceof(Uint8Array).refine((value) => value.byteLength > 0),
-      mimeType: z.literal('audio/wav')
-    })
-  }),
-  'ai.voice.output.release': defineRoute({ input: sessionFile, output: z.void() }),
+  'ai.voice.output.release': defineRoute({ input: session.extend({ outputId: z.uuid() }), output: z.void() }),
   'ai.voice.playback.update': defineRoute({
     input: session.extend({
       phase: z.enum(['playing', 'paused', 'completed', 'failed']),
