@@ -82,3 +82,22 @@ Mobile's lightweight startup schema. Keep the fixture copy aligned when changing
 `parseDirectEndpoint` accepts HTTP(S) input as an alias for WS(S), preserving TLS and explicit ports.
 The fixed route remains `/v1/remote/connect`; advertised endpoints use `advertisedEndpointSchema`
 to reject loopback and wildcard destinations.
+
+## Resumable Agent attachments
+
+`connection.hello.agentUploadsVersion: 1` advertises prepare/get/resume/complete/cancel and binary DATA/ACK records.
+Upload identity is scoped to device and Agent grant, independent of sockets and sessions.
+A durable `committedOffset` is the only resume position. `resume` uses an idempotent resume ID
+and expected writer epoch; old writers cannot advance a replaced upload. DATA carries raw bytes authenticated by Noise AEAD, with a durable ACK after each block.
+Desktop computes the full-file SHA-256 before publishing a ready managed reference.
+The mobile reuses an immutable source snapshot on resume; it does not pre-scan the file.
+
+Limits: 1 GiB/file, 2 GiB/message, eight files, 1 MiB blocks and two outstanding blocks.
+Staging expires after 24 hours idle or seven days total, with 4 GiB/device and 8 GiB/global
+reservations. Upload permission and expiry are rechecked independently of message receipts.
+Send accepts text, files, or both. Clients freeze the upload references in the durable send
+command before submission and query that command's receipt after uncertain outcomes.
+They must never replace expired upload references inside an already submitted command.
+
+Uploaded file history uses a revision-bound content reference, never a desktop filesystem path.
+Content pages are read under the current Agent grant and checked against the complete digest.

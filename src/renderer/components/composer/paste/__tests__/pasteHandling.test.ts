@@ -588,7 +588,7 @@ describe('pasteHandling', () => {
     expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
   })
 
-  it('tells the user when a mixed path-backed file lookup returns null', async () => {
+  it('falls back to the clipboard image when a mixed path-backed file lookup returns null', async () => {
     const tempImageFile: FileMetadata = {
       ...selectedFile,
       name: 'temp_file_123_image.png',
@@ -631,7 +631,8 @@ describe('pasteHandling', () => {
 
     expect(handled).toBe(true)
     expect(files).toHaveLength(1)
-    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+    expect(files[0]).toMatchObject({ path: tempImageFile.path, origin_name: 'image' })
+    expect(toast.info).not.toHaveBeenCalled()
   })
 
   describe('handler registration and lifecycle', () => {

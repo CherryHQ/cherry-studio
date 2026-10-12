@@ -307,6 +307,7 @@ export type SharedCacheSchema = {
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
   'doctor.state.${scope}': CacheValueTypes.CacheDoctorState
+  'doctor.agent.${scope}': CacheValueTypes.CacheDoctorAgentState
   'network.online': boolean
   // Runtime-only opt-out shared across windows; resets when the app exits.
   'agent.model_switch_confirmation.skipped': boolean
@@ -318,6 +319,7 @@ export type SharedCacheSchema = {
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
   'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
   'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
+  'message.context.compacting.${messageId}': boolean
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -376,6 +378,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
   'doctor.state.${scope}': { status: 'idle' },
+  'doctor.agent.${scope}': { status: 'idle' },
   'network.online': true,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
@@ -386,6 +389,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.task_events.${sessionId}': {},
   'agent.session.flow_parts.${sessionId}.${messageId}': [],
   'agent.session.turn_origin.${sessionId}.${messageId}': null,
+  'message.context.compacting.${messageId}': false,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',

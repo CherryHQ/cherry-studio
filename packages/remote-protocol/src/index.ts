@@ -34,3 +34,6 @@ export type { DirectEndpoint } from './discovery'
 
 export { pairingQrSchema } from './pairing'
 export type { PairingQr } from './pairing'
+
+export { uploadTransferLimits, uploadChunkHeaderSchema, uploadAckSchema, isUploadChunk } from './records'
+export type { UploadChunkHeader, UploadChunk, UploadAck } from './records'

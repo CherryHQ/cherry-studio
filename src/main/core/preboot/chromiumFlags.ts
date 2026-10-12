@@ -22,6 +22,12 @@ import { bootConfigService } from '@main/data/bootConfig'
  *
  * See core/preboot/README.md for the preboot membership criteria.
  */
+/** KDE sessions get KWallet from Chromium's own detection; leave them alone. */
+function isKdeSession(): boolean {
+  const { XDG_CURRENT_DESKTOP = '', DESKTOP_SESSION = '', KDE_FULL_SESSION } = process.env
+  return Boolean(KDE_FULL_SESSION) || /kde/i.test(`${XDG_CURRENT_DESKTOP}:${DESKTOP_SESSION}`)
+}
+
 export function configureChromiumFlags(): void {
   // Disable hardware acceleration if the user opted out via BootConfig.
   if (bootConfigService.get('app.disable_hardware_acceleration')) {
@@ -47,6 +53,12 @@ export function configureChromiumFlags(): void {
   if (isLinux) {
     app.commandLine.appendSwitch('class', 'CherryStudio')
     app.commandLine.appendSwitch('name', 'CherryStudio')
+  }
+
+  // Linux: Chromium uses plaintext key storage on desktops it doesn't recognise
+  // (Hyprland, Sway, i3…). Prefer libsecret there; it falls back if unavailable.
+  if (isLinux && !app.commandLine.hasSwitch('password-store') && !isKdeSession()) {
+    app.commandLine.appendSwitch('password-store', 'gnome-libsecret')
   }
 
   // Unconditional Chromium feature flags:

@@ -46,6 +46,8 @@ export function connectionMethods<A extends z.ZodType>(authorization: A) {
       protocolSupportSchema,
       z.looseObject({
         protocolVersion: z.number().int().positive(),
+        agentAttachmentSelections: z.boolean().optional(),
+        agentUploadsVersion: z.number().int().positive().optional(),
         agentFailureVersion: z.number().int().positive().optional(),
         connectionEndpointsVersion: z.number().int().positive().optional(),
         limits: z.record(z.string(), z.number().int().positive()),
