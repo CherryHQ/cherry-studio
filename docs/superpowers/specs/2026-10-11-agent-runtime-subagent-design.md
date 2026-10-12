@@ -64,7 +64,7 @@ subagent({
 | 「你是子代理」的说明 | 任务消息开头 | 任务消息开头 | 包（4.4） |
 | 内置工具（read、bash、edit、write 等） | 同父会话 | 同父会话 | 继承 `builtinTools` |
 | 自定义工具 | 同父会话，实例共用 | 同父会话，实例共用 | 继承 `customTools` |
-| 扩展及其工具（审批、MCP、`tool_search`、todo 等） | 宿主给，可以比父会话少 | 宿主给，必须与父会话相同 | `configureChild()`（4.3） |
+| 扩展及其工具（审批、MCP、`tool_search`、todo 等） | 宿主给，可以比父会话少 | 宿主给，必须与父会话相同 | `SubagentPort.configure()`（4.3） |
 | `tool_search` 已激活的工具 | 不继承，子代理可以自己搜 | 继承 | transcript 里的 `cherry.tool-loadout` |
 | `subagent` | 不注册 | 注册，调用时拒绝 | 包 |
 | 模型与请求设置（`model`、`requestOptions`、`port`、`sideChannel`） | 同父会话 | 同父会话 | 继承选项 |
@@ -89,7 +89,7 @@ fork 的几个细节，都是为了让同一步并行派出的多个 fork 共享
 
 ### 4.3 宿主回调
 
-每创建一个子代理，包调用一次 `subagents.configureChild(child)`，宿主返回这个子代理的扩展和监听（第 7 节）。回调可以是异步的；它抛错时这次 `subagent` 调用失败，父会话照常继续。
+每创建一个子代理，包调用一次 `subagents.configure(subagent)`，宿主返回这个子代理的扩展和监听（第 7 节）。回调可以是异步的；它抛错时这次 `subagent` 调用失败，父会话照常继续。
 
 ### 4.4 任务消息与启动
 
@@ -127,11 +127,11 @@ fork 的几个细节，都是为了让同一步并行派出的多个 fork 共享
 | `todo_write` | 照常使用；fork 子代理从父会话的列表接着写，写入只进子会话 |
 | goal 工具与续跑 | L5 实现，见第 9 节 |
 
-识别函数留在包内，供 `AskUserQuestion` 和 L5 的 goal 扩展使用。宿主不需要它：宿主在 `configureChild()` 里已经知道这是子代理。
+识别函数留在包内，供 `AskUserQuestion` 和 L5 的 goal 扩展使用。宿主不需要它：宿主在 `configure()` 里已经知道这是子代理。
 
 ## 6. 运行与结果
 
-1. 调宿主的 `configureChild(child)`。回调返回后，如果这次调用已经中止，就不再建子会话。
+1. 调宿主的 `subagents.configure(subagent)`。回调返回后，如果这次调用已经中止，就不再建子会话。
 2. 按 4.2 建子会话。
 3. 在第一次模型请求前调 `onSessionCreated(session)`，让宿主订阅实时输出。
 4. 子会话的 transcript 事件只交给 `onEvent`，不进父会话的 `onEvent`。
@@ -147,7 +147,7 @@ fork 的几个细节，都是为了让同一步并行派出的多个 fork 共享
 
 ```ts
 interface SubagentDetails {
-  childSessionId: string
+  sessionId: string
   fork: boolean
   outcome: 'completed' | 'failed' | 'truncated' | 'aborted' | 'limit_reached'
 }
@@ -172,21 +172,23 @@ interface SubagentDetails {
 ```ts
 interface AgentRuntimeSessionOptions {
   // ...已有字段
-  subagents?: AgentRuntimeSubagents
+  /** 传了才注册 `subagent` 工具。 */
+  subagents?: SubagentPort
 }
 
-interface AgentRuntimeSubagents {
+interface SubagentPort {
   /** 每创建一个子代理调用一次。fork 时 extensionFactories 必须给出与父会话相同的工具。 */
-  configureChild(child: SubagentChild): SubagentChildOptions | Promise<SubagentChildOptions>
+  configure(subagent: Subagent): SubagentSessionOptions | Promise<SubagentSessionOptions>
 }
 
-interface SubagentChild {
+/** 即将创建的子代理。 */
+interface Subagent {
   parentToolCallId: string
   sessionId: string
   fork: boolean
 }
 
-interface SubagentChildOptions {
+interface SubagentSessionOptions {
   extensionFactories?: ExtensionFactory[]
   /** 子会话自己的 transcript 事件（不含初始 transcript），形状同父会话的 onEvent。 */
   onEvent?(event: AgentRuntimeEvent): void
@@ -195,9 +197,14 @@ interface SubagentChildOptions {
 }
 ```
 
-命名约定：宿主接口的方法用动词，和包里其他端口一致（`AskUserPort.ask`、`ToolOutputStore.save`、`CompactionSummarizer` 的 `summarize`）；`SubagentChild.sessionId` 描述子会话自身，`SubagentDetails.childSessionId` 是从父会话一侧记录；状态条目名用名词短语描述它记录的状态（`cherry.tool-loadout`、`cherry.subagent-origin`）。
+命名约定：
 
-导出 `SUBAGENT_TOOL_NAME`、`SubagentDetails` 和以上类型。
+- 「子代理」本身就是子级，名字里不再叠 `child`：类型和方法都以 `Subagent` 起头，字段直接叫 `sessionId`、`fork`。
+- 宿主实现的对象叫 `XxxPort`，和 `ModelCallPort`、`AskUserPort`、`GoalPort` 一致；方法用动词（`ask`、`save`、`summarize`、`configure`）。
+- `SubagentSessionOptions` 是 `AgentRuntimeSessionOptions` 里按子代理给的那一部分，名字对应。
+- 状态条目名用名词短语描述它记录的状态（`cherry.tool-loadout`、`cherry.subagent-origin`）。
+
+导出 `SUBAGENT_TOOL_NAME`、`SubagentDetails`、`SubagentPort`、`Subagent`、`SubagentSessionOptions`。
 
 ## 8. 宿主接入时要做的（不在本层）
 
@@ -215,7 +222,7 @@ interface SubagentChildOptions {
 
 L5 rebase 到本层后，goal spec 要相应修订：
 
-1. **`hasRunningChildren`**：前台子代理在工具调用内跑完，`agent_before_settle` 时不可能有子代理在跑；这个注入到 L6 后台子代理才有意义，L5 保持不接。
+1. **`hasRunningChildren`**：前台子代理在工具调用内跑完，`agent_before_settle` 时不可能有子代理在跑；这个注入到 L6 后台子代理才有意义，L5 保持不接。按本层的命名约定，L5 顺手把它改名为 `hasRunningSubagents`。
 2. **子代理用量计入预算**：goal 在 `turn_end` 记账时，把本轮 tool result 上的 `usage` 一并计入。这是通用做法，不认工具名，以后别的工具带上 usage 也会被计入。goal spec §1.1 的非目标「子 agent 的 token 用量归并到父 goal 预算」随之删除。
 3. **轮次**：子代理内部的请求不算 goal 轮次，一轮仍是「父代理停下后被推一次」。
 4. **子代理里 goal 不生效**：用第 5 节的识别函数，子代理里 goal 工具返回错误、不续跑、忽略 fork 继承来的 `cherry.goal` 状态。不这样做，fork 子代理会以为自己身上有个活跃的 goal 而不停续跑。
@@ -228,7 +235,7 @@ L5 rebase 到本层后，goal spec 要相应修订：
 
 | 测试 | 破坏什么时失败 |
 |---|---|
-| 普通子代理在独立上下文里运行，第一次请求只含任务消息；结果是它最后一条回复的文本，`details` 带 `childSessionId`，结果的 `usage` 是子会话各次回复之和 | 上下文串了父会话；取错消息；用量没累加 |
+| 普通子代理在独立上下文里运行，第一次请求只含任务消息；结果是它最后一条回复的文本，`details` 带子会话的 `sessionId`，结果的 `usage` 是子会话各次回复之和 | 上下文串了父会话；取错消息；用量没累加 |
 | 子会话的运行经过 `before_agent_start`：宿主扩展返回的消息出现在子代理的请求里；fork 子代理的系统提示词与父会话这一轮相同 | 用了不触发 `before_agent_start` 的启动方式 |
 | fork 子代理的第一次请求 = 父会话截至本次调用的消息 + 占位结果 + 任务消息；同一步两个 fork 的请求只有最后一条消息不同 | 截断位置错；混入兄弟调用的真实结果；占位文本不一致 |
 | fork 子代理的工具列表与父会话逐项相同，包括 `tool_search` 激活的工具 | 工具不一致，缓存失效 |
@@ -238,10 +245,10 @@ L5 rebase 到本层后，goal spec 要相应修订：
 | 同一步两个 `subagent` 调用在时间上重叠 | 被串行执行 |
 | 父会话中止 → 子会话中止并被 dispose，`outcome: 'aborted'` | 子代理在后台继续跑 |
 | 子代理以 `error` 或 `length` 结束 → `isError` 结果，带部分输出、`details` 和 `usage` | 失败被当成成功；用量丢失 |
-| 在 `configureChild()` 返回前中止父会话 → 不建子会话，不发请求 | 中止后仍启动子代理 |
+| 在 `configure()` 返回前中止父会话 → 不建子会话，不发请求 | 中止后仍启动子代理 |
 | 第 200 次请求后中止，`outcome: 'limit_reached'` | 没有上限 |
-| `configureChild()` 抛错 → 本次调用失败，父会话继续 | 宿主错误击穿父会话 |
-| 子会话的条目只进 `configureChild()` 返回的 `onEvent`；父会话 transcript 只多出这次调用和它的结果 | 子代理条目污染父 transcript |
+| `configure()` 抛错 → 本次调用失败，父会话继续 | 宿主错误击穿父会话 |
+| 子会话的条目只进 `configure()` 返回的 `onEvent`；父会话 transcript 只多出这次调用和它的结果 | 子代理条目污染父 transcript |
 | `onSessionCreated` 在子会话第一次模型请求之前被调用 | 宿主漏掉流式输出的开头 |
 | 不传 `subagents` 时没有 `subagent` 工具 | 门控缺失 |
 
@@ -249,7 +256,7 @@ L5 rebase 到本层后，goal spec 要相应修订：
 
 1. 一个 `subagent` 工具加 `fork` 布尔参数，不分两个工具，也不用「不填类型就是 fork」的隐式写法。
 2. fork 截到本次调用（同 Claude Code），不截到已完成的轮次（DSH）：子代理看得到父代理当前的推理，兄弟 fork 共享缓存前缀。
-3. 子会话由包来建，宿主通过 `configureChild()` 按子代理提供扩展和监听；子代理的事件不走父会话的 `onEvent`。
+3. 子会话由包来建，宿主通过 `SubagentPort.configure()` 按子代理提供扩展和监听；子代理的事件不走父会话的 `onEvent`。
 4. fork 子代理工具与父会话完全一致，不该用的工具调用时拒绝，不从工具池里拿掉。
 5. 子代理识别用状态条目，不用任务消息，以免被压缩折叠。
 6. 每个子代理 200 次请求上限。
