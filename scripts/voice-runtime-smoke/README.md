@@ -17,7 +17,7 @@ Use the URL from the tracked instance, not the example value. A packaged main wi
 The renderer function uses the real preload `window.api.ipcApi.request` routes to:
 
 1. List installed voices and select an exact voice ID matching the chosen language; inspect Apple ASR readiness without installing anything.
-2. Generate a synthetic phrase with Apple TTS and read its audio through the session-owned `ai.voice.output.read` route.
+2. Generate a synthetic phrase with Apple TTS and fetch its session-owned `cherry-media://audio/…` URL.
 3. Decode that WAV with `AudioContext`, discard the speech session, then route it to `MediaStreamDestination`, and produce actual WebM/Opus with `MediaRecorder`. The source is not connected to speakers.
 4. Admit a fresh session through `ai.voice.recording.start`, upload the recording with its duration, and explicitly run Apple ASR; require a nonempty transcript without exporting its contents, then discard the session.
 5. Admit another recording session and upload the same WebM, explicitly choose FunASR Nano, and require `VOICE_UNSUPPORTED`. Success or another error fails the check.
@@ -33,7 +33,7 @@ Use `--mode windows-tts` with an already running, tracked Windows x64 applicatio
 pnpm exec tsx scripts/voice-runtime-smoke/run.ts --cdp-endpoint http://127.0.0.1:9222 --expected-url 'http://localhost:5173/windows/main/index.html' --mode windows-tts --language en-US
 ```
 
-This mode selects an exact installed voice, checks Windows TTS readiness, explicitly requests the Windows model through production IPC, reads and decodes the returned WAV, and discards its session. It does not call ASR, MediaRecorder, or microphone permissions, install resources, change preferences, or fall back to Apple. Output contains only model/voice identifiers and audio metadata. It verifies synthesis and the application file/session path; it does not play through speakers or verify playback controls. Run it against the installed and portable applications as well as development builds, using each tracked window's actual URL. Network isolation and Windows code-signature checks remain separate requirements.
+This mode selects an exact installed voice, checks Windows TTS readiness, explicitly requests the Windows model through production IPC, reads and decodes the returned WAV, and discards its session. It does not call ASR, MediaRecorder, or microphone permissions, install resources, change preferences, or fall back to Apple. Output contains only model/voice identifiers and audio metadata. It verifies synthesis and the application media/session path; it does not play through speakers or verify playback controls. Run it against the installed and portable applications as well as development builds, using each tracked window's actual URL. Network isolation and Windows code-signature checks remain separate requirements.
 
 ## Reuse inside an offline packaged harness
 
