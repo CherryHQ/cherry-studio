@@ -228,11 +228,12 @@ export async function resolveSpeechConfiguration(
   const definition = speechDefinition(modelId)
   const voices = await definition.voices(signal)
   signal?.throwIfAborted()
+  const matchingVoices = voices.filter(
+    (voice) => !input.language || voice.locale.toLowerCase() === input.language.toLowerCase()
+  )
   const voice = input.voice
-    ? voices.find((voice) => voice.id === input.voice && (!input.language || voice.locale === input.language))
-    : voices
-        .filter((voice) => !input.language || voice.locale === input.language)
-        .sort((a, b) => a.id.localeCompare(b.id))[0]
+    ? matchingVoices.find((voice) => voice.id === input.voice)
+    : matchingVoices.sort((a, b) => a.id.localeCompare(b.id))[0]
   if (!voice) return { ...selection, status: { status: 'not_installed', reason: 'voice_unavailable' } }
   const resolved = { ...selection, voice: voice.id, language: voice.locale }
   return { ...resolved, status: await definition.status(resolved, signal) }
