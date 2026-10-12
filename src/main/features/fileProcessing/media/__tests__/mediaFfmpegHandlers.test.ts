@@ -206,6 +206,254 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     expect(beyond.frames).toEqual([])
   })
 
+  it('seeks the last packet when a long VFR frame makes the average rate land past it', async () => {
+    const clip = (name: string, color: string, rate: string, duration: string) => {
+      const path = join(root, `${name}.mp4`)
+      expect(
+        runFfmpeg([
+          '-f',
+          'lavfi',
+          '-i',
+          `color=c=${color}:s=32x32:r=${rate}:d=${duration}`,
+          '-frames:v',
+          '1',
+          '-c:v',
+          'mpeg4',
+          '-video_track_timescale',
+          '1000',
+          path
+        ])
+      ).toBe(0)
+      return path
+    }
+    const listPath = join(root, 'vfr-list.txt')
+    writeFileSync(
+      listPath,
+      [clip('vfr-a', 'red', '1000', '1'), clip('vfr-b', 'green', '1000', '1'), clip('vfr-c', 'blue', '1', '6')]
+        .map((path) => `file '${path}'`)
+        .join('\n')
+    )
+    const vfrPath = join(root, 'long-tail-vfr.mp4')
+    expect(runFfmpeg(['-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', vfrPath])).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: vfrPath, fallbackExt: 'mp4' }, context())
+    const endAnchorMs = probe.durationMs - 50
+    const averageSeekMs = Math.floor((2 / (500 / 167)) * 1000)
+    const rawAverage = spawnSync(
+      ffmpegPath,
+      [
+        '-hide_banner',
+        '-nostdin',
+        '-y',
+        '-ss',
+        (averageSeekMs / 1000).toFixed(3),
+        '-i',
+        vfrPath,
+        '-frames:v',
+        '1',
+        '-an',
+        '-update',
+        '1',
+        join(root, 'vfr-average.jpg')
+      ],
+      { encoding: 'utf8' }
+    )
+
+    expect(rawAverage.status).not.toBe(0)
+    expect(averageSeekMs).toBeGreaterThan(2)
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: vfrPath,
+        outputDir: join(root, 'vfr-frames'),
+        timestampsMs: [endAnchorMs],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames.map((frame) => frame.timestampMs)).toEqual([2])
+    expect(readFileSync(frames.frames[0].path).length).toBeGreaterThan(0)
+  })
+
+  it('keeps a nonzero start relative and returns the last video frame when audio is longer', async () => {
+    const offsetPath = join(root, 'offset-start.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:s=32x32:r=10:d=2',
+        '-output_ts_offset',
+        '1.5',
+        '-c:v',
+        'mpeg4',
+        offsetPath
+      ])
+    ).toBe(0)
+    const offsetProbe = await mediaFfmpegHandlers.probe({ filePath: offsetPath, fallbackExt: 'mp4' }, context())
+    const absoluteSeek = spawnSync(
+      ffmpegPath,
+      [
+        '-hide_banner',
+        '-nostdin',
+        '-y',
+        '-ss',
+        '3.400',
+        '-i',
+        offsetPath,
+        '-frames:v',
+        '1',
+        '-an',
+        '-update',
+        '1',
+        join(root, 'offset-absolute.jpg')
+      ],
+      { encoding: 'utf8' }
+    )
+    expect(absoluteSeek.status).not.toBe(0)
+    const offsetFrames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: offsetPath,
+        outputDir: join(root, 'offset-frames'),
+        timestampsMs: [offsetProbe.durationMs - 50],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(offsetFrames.frames.map((frame) => frame.timestampMs)).toEqual([1_900])
+
+    const longAudioPath = join(root, 'audio-longer.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=white:s=32x32:r=10:d=1',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=4',
+        '-c:v',
+        'mpeg4',
+        '-c:a',
+        'aac',
+        longAudioPath
+      ])
+    ).toBe(0)
+    const longProbe = await mediaFfmpegHandlers.probe({ filePath: longAudioPath, fallbackExt: 'mp4' }, context())
+    expect(longProbe.durationMs).toBeGreaterThan(3_000)
+    const longFrames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: longAudioPath,
+        outputDir: join(root, 'audio-longer-frames'),
+        timestampsMs: [longProbe.durationMs - 50, longProbe.durationMs + 1_000],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(longFrames.frames).toEqual([
+      expect.objectContaining({ timestampMs: 900, path: join(root, 'audio-longer-frames', 'frame-0000.jpg') })
+    ])
+  })
+
+  it('seeks the last video packet from the format start when audio starts earlier', async () => {
+    const staggeredPath = join(root, 'staggered-av.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=4',
+        '-itsoffset',
+        '1.5',
+        '-f',
+        'lavfi',
+        '-i',
+        "color=c=black:s=32x32:r=10:d=2,geq=r='lt(T,1.8)*255':g='gte(T,1.8)*255':b=0",
+        '-c:v',
+        'mpeg4',
+        '-c:a',
+        'aac',
+        staggeredPath
+      ])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: staggeredPath, fallbackExt: 'mp4' }, context())
+    expect(probe.durationMs).toBeGreaterThan(3_500)
+    const early = join(root, 'staggered-early.jpg')
+    expect(
+      runFfmpeg(['-ss', '1.900', '-i', staggeredPath, '-map', '0:V:0', '-frames:v', '1', '-an', '-update', '1', early])
+    ).toBe(0)
+    expect(dominantChannel(early)).toBe('red')
+
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: staggeredPath,
+        outputDir: join(root, 'staggered-frames'),
+        timestampsMs: [probe.durationMs - 50],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames).toHaveLength(1)
+    expect(frames.frames[0]?.timestampMs).toBeGreaterThan(3_000)
+    expect(dominantChannel(frames.frames[0].path)).toBe('green')
+  })
+
+  it('extracts the same non-attached video stream the tail probe reads', async () => {
+    const coverPath = join(root, 'cover.jpg')
+    const coveredPath = join(root, 'covered.mp4')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=16x16:d=0.1', '-frames:v', '1', '-c:v', 'mjpeg', coverPath])
+    ).toBe(0)
+    expect(
+      runFfmpeg([
+        '-i',
+        coverPath,
+        '-f',
+        'lavfi',
+        '-i',
+        "color=c=black:s=32x32:r=10:d=1,geq=r=0:g='gte(T,0.8)*255':b='lt(T,0.8)*255'",
+        '-map',
+        '0:v',
+        '-map',
+        '1:v',
+        '-disposition:v:0',
+        'attached_pic',
+        '-c:v:0',
+        'mjpeg',
+        '-c:v:1',
+        'mpeg4',
+        coveredPath
+      ])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: coveredPath, fallbackExt: 'mp4' }, context())
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: coveredPath,
+        outputDir: join(root, 'covered-frames'),
+        timestampsMs: [Math.max(0, probe.durationMs - 50)],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames).toHaveLength(1)
+    expect(frames.frames[0]?.timestampMs).toBeGreaterThanOrEqual(800)
+    const dimensions = JSON.parse(
+      spawnSync(
+        ffprobePath,
+        ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'json', frames.frames[0].path],
+        {
+          encoding: 'utf8'
+        }
+      ).stdout
+    ).streams[0]
+    expect(dimensions).toMatchObject({ width: 32, height: 32 })
+    expect(dominantChannel(frames.frames[0].path)).toBe('green')
+  })
+
   it('kills an active FFmpeg child before rejecting cancellation', async () => {
     const outputDir = join(root, 'cancelled-frames')
     const pidRegistryPath = join(root, 'cancelled-child.pid')
@@ -232,6 +480,18 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
 
   function runFfmpeg(args: string[]): number | null {
     return spawnSync(ffmpegPath, ['-hide_banner', '-nostdin', '-y', ...args], { encoding: 'utf8' }).status
+  }
+
+  function dominantChannel(imagePath: string): 'red' | 'green' {
+    const decoded = spawnSync(
+      ffmpegPath,
+      ['-v', 'error', '-i', imagePath, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'],
+      { encoding: 'buffer' }
+    )
+    expect(decoded.status).toBe(0)
+    const red = decoded.stdout[0] ?? 0
+    const green = decoded.stdout[1] ?? 0
+    return green > red ? 'green' : 'red'
   }
 })
 
@@ -349,7 +609,72 @@ describe('mediaFfmpegHandlers frame destinations', () => {
           context()
         )
       ).rejects.toThrow('ENOENT')
+      expect(spawnControl.calls).toBe(1)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('still extracts a frame when probe metadata is unavailable', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-probe-exit-'))
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = () => {
+      const call = spawnControl.calls
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.emit('close', 1)
+          return
+        }
+        writeFileSync(join(outputDir, 'frame-0000.jpg'), 'frame')
+        child.emit('close', 0)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractFrames(
+        {
+          filePath: '/video.mp4',
+          outputDir,
+          timestampsMs: [0],
+          maxEdgePx: 120,
+          jpegQuality: 70
+        },
+        context()
+      )
+      expect(result.frames).toEqual([{ path: join(outputDir, 'frame-0000.jpg'), timestampMs: 0 }])
       expect(spawnControl.calls).toBe(2)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a probe timeout instead of continuing with empty bounds', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-probe-timeout-'))
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = () => {
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => child.emit('error', new Error('Media processing timed out')))
+      return child
+    }
+
+    try {
+      await expect(
+        mediaFfmpegHandlers.extractFrames(
+          {
+            filePath: '/video.mp4',
+            outputDir,
+            timestampsMs: [0, 1_000],
+            maxEdgePx: 120,
+            jpegQuality: 70
+          },
+          context()
+        )
+      ).rejects.toThrow('Media processing timed out')
+      expect(spawnControl.calls).toBe(1)
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
     }
