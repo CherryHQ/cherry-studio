@@ -155,6 +155,7 @@ const baseTurnInput = {
   traceId: 'a'.repeat(32)
 }
 const switchedModelId = 'claude-code::claude-opus-4-5' as any
+const editedModelId = 'claude-code::claude-haiku-4-5' as any
 
 function userMessage(id: string, knowledgeBaseIds: string[] = []) {
   return {
@@ -2652,6 +2653,66 @@ describe('AgentSessionRuntimeService', () => {
     void service.closeSession('session-1')
   })
 
+  it("routes a policy update to the retained connection's owner while the next turn waits on it", async () => {
+    const retained = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      agentId: 'agent-1',
+      reconcile: vi.fn().mockResolvedValue('patched')
+    }
+    const connect = vi.fn()
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    entry.connection = retained
+    service.markTurnTerminal('session-1', 'success')
+    ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, retained)
+
+    // A top-bar switch submits under B while A's detached work still holds A's connection: the
+    // entry names B, but the wait retains a connection owned — and configured — by A.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId })
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      agentId: 'agent-2',
+      modelId: switchedModelId,
+      assistantMessageId: 'assistant-2',
+      messageSnapshot: { agentName: 'Agent B' } as any,
+      userMessage: userMessage('user-2')
+    })
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() =>
+      expect((service as any).backgroundWorkWaiters.get('session-1')).toMatchObject({ connection: retained })
+    )
+
+    // Disabling Bash on A must reach A's retained connection under A's frozen execution config, so
+    // the still-draining work can no longer invoke it — regardless of who the entry names now.
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { disabledTools: ['Bash'] },
+      { id: 'agent-1', model: baseTurnInput.modelId }
+    )
+
+    expect(retained.reconcile).toHaveBeenCalledTimes(1)
+    expect(retained.reconcile).toHaveBeenCalledWith(expect.objectContaining({ modelId: baseTurnInput.modelId }))
+    expect(retained.close).not.toHaveBeenCalled()
+    expect(getEntry(service).agentId).toBe('agent-2')
+
+    await reader.cancel().catch(() => undefined)
+    void service.closeSession('session-1')
+  })
+
   it('queues a follow-up when its Fast selection differs from the live turn', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, fastMode: true })
@@ -3566,6 +3627,141 @@ describe('AgentSessionRuntimeService', () => {
         })
       )
       expect(mocks.startRuntimeTurn.mock.calls[0][0].modelId).toBe(switchedModelId)
+      void service.closeSession('session-1')
+    })
+
+    it("attributes the adopted agent's detached rows to the executing turn's reconciled snapshot", async () => {
+      const service = new AgentSessionRuntimeService()
+      const snapshotA = {
+        id: 'agent-1',
+        name: 'Agent A',
+        emoji: '🅰',
+        model: { provider: 'claude-code', id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' }
+      } as any
+      service.beginTurn({ ...baseTurnInput, messageSnapshot: snapshotA })
+      const entry = getEntry(service)
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: {
+          agentId: 'agent-1',
+          send: vi.fn(),
+          close: vi.fn(),
+          events: [],
+          reconcile: vi.fn().mockResolvedValue('current')
+        },
+        occupancy: {}
+      }
+      // A follow-up queued during A freezes A's author snapshot at submit time.
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: snapshotA })
+
+      // The top-bar switch lands before the drain; B executes the queued follow-up.
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      service.markTurnTerminal('session-1', 'success')
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      // B owns the connection now (the pull path replaces the previous owner's).
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: {
+          agentId: 'agent-2',
+          send: vi.fn(),
+          close: vi.fn(),
+          events: [],
+          reconcile: vi.fn().mockResolvedValue('current')
+        },
+        occupancy: {}
+      }
+
+      mocks.saveMessage.mockClear()
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'approval-b',
+          toolCallId: 'tool-call-b',
+          toolName: 'Bash',
+          input: { command: 'ls' },
+          presentation: 'message'
+        }
+      })
+      expect(mocks.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.objectContaining({
+            messageSnapshot: expect.objectContaining({ id: 'agent-2', name: 'Agent B' })
+          })
+        }),
+        { publishDataChange: true }
+      )
+
+      // The same attribution source governs B's receive-only responses.
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+      expect(mocks.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.objectContaining({
+            messageSnapshot: expect.objectContaining({ id: 'agent-2', name: 'Agent B' })
+          })
+        })
+      )
+      void service.closeSession('session-1')
+    })
+
+    it("keeps a detached wake on the spawning turn's model after a mid-turn model edit", async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const connection = {
+        agentId: 'agent-1',
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+
+      // A is edited to M2 while its execution keeps running on the retained M1 connection.
+      await (service as any).handleAgentUpdated(
+        'agent-1',
+        { model: editedModelId },
+        { id: 'agent-1', model: editedModelId }
+      )
+      service.markTurnTerminal('session-1', 'success')
+
+      // Switch and submit under B before A's detached work drains.
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId })
+      service.beginTurn({
+        ...baseTurnInput,
+        agentId: 'agent-2',
+        modelId: switchedModelId,
+        assistantMessageId: 'assistant-2',
+        messageSnapshot: { agentName: 'Agent B' } as any,
+        userMessage: userMessage('user-2')
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      // The work ran on M1; the edit advancing the entry's bookkeeping to M2 must not misattribute
+      // its output to a model it never ran on.
+      const started = mocks.startRuntimeTurn.mock.calls[0][0]
+      expect(started.modelId).toBe(baseTurnInput.modelId)
+      expect(mocks.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.objectContaining({ modelId: baseTurnInput.modelId }) })
+      )
+      const listener = started.listeners.find((item: any) => String(item.id).startsWith('persistence:agents-db:'))
+      expect(listener.id).toContain(baseTurnInput.modelId)
       void service.closeSession('session-1')
     })
 
