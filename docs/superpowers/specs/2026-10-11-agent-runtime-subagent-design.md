@@ -108,7 +108,7 @@ fork 的几个细节，都是为了让同一步并行派出的多个 fork 共享
 
 ### 4.5 子会话 id
 
-`${父 sessionId}/${toolCallId}`，同时是子会话请求里的 `sessionId`。
+`${父 sessionId}.${toolCallId}`，同时是子会话请求里的 `sessionId`。Pi 只接受由字母、数字和 `._-` 组成、首尾是字母或数字的会话 id，所以调用 id 里的其他字符换成 `-`（有的模型给出 `functions.note:0` 这种调用 id）。
 
 ## 5. 子代理识别
 
