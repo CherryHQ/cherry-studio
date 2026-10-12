@@ -293,4 +293,52 @@ describe('ChannelAdapterListener', () => {
 
     expect(log).toEqual(['enter#1:On it.', 'leave#1:On it.', 'enter#2:Found it: 42', 'leave#2:Found it: 42'])
   })
+
+  it('keeps two channel listeners’ terminal text separate when the first finalizes slowly', async () => {
+    const firstText: string[] = []
+    const secondText: string[] = []
+    let releaseFirst!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+
+    // Two channel listeners on one execution (a scheduled run subscribes several). The first one's
+    // adapter is slow, so `dispatchToListeners` is still awaiting its terminal when the second
+    // listener's turn to finalize arrives.
+    const firstAdapter = makeAdapter({
+      onStreamComplete: vi.fn(async (_chatId: string, text: string) => {
+        firstText.push(text)
+        await gate
+        return true
+      })
+    })
+    const secondAdapter = makeAdapter({
+      onStreamComplete: vi.fn(async (_chatId: string, text: string) => {
+        secondText.push(text)
+        return true
+      })
+    })
+    const first = new ChannelAdapterListener(firstAdapter, 'chat-1')
+    const second = new ChannelAdapterListener(secondAdapter, 'chat-2')
+
+    first.onChunk(delta('On it.'))
+    const firstTerminal = first.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+
+    // A receive-only background wake emits through both carried listeners while the first is still
+    // inside its adapter.
+    first.onChunk(delta('Found it: 42'))
+    second.onChunk(delta('Found it: 42'))
+    const secondTerminal = Promise.all([
+      second.onDone({ status: 'success', isTopicDone: true, attemptId: 2 }),
+      first.onDone({ status: 'success', isTopicDone: true, attemptId: 2 })
+    ])
+
+    releaseFirst()
+    await Promise.all([firstTerminal, secondTerminal])
+
+    // Each execution's text reaches its own terminal: the wake must not append itself to the
+    // predecessor's buffer and ship both replies in one message.
+    expect(firstText).toEqual(['On it.', 'Found it: 42'])
+    expect(secondText).toEqual(['Found it: 42'])
+  })
 })
