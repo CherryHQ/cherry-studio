@@ -1,83 +1,285 @@
 {
-  "generated_at": "2026-10-11T18:00:00Z",
+  "generated_at": "2026-10-12T18:00:00Z",
   "open_issues": {
-    "total": 1141,
-    "sample_size": 100,
-    "unlabeled_pct": 64,
+    "total": 1145,
+    "sample_size": 200,
+    "unlabeled_pct": 38,
     "label_breakdown": {
-      "bug": 16,
-      "p1": 9,
-      "p2": 9,
-      "help wanted": 8,
-      "discussion": 8,
-      "agent": 8,
-      "windows": 7,
-      "models": 7,
-      "feature": 6,
-      "mcp": 5,
-      "needs-triage": 4,
-      "inactive": 3,
-      "v2": 3
+      "bug": 42,
+      "feature": 38,
+      "p1": 18,
+      "p2": 16,
+      "agent": 22,
+      "windows": 16,
+      "help wanted": 12,
+      "discussion": 12,
+      "models": 15,
+      "mcp": 10,
+      "ui-ux": 14,
+      "v2": 10,
+      "needs-triage": 8,
+      "internal-team": 7,
+      "inactive": 5,
+      "performance": 6,
+      "chat": 11,
+      "rag": 4,
+      "data": 6,
+      "connectivity": 7,
+      "p3": 8
     }
   },
   "open_prs": {
     "total": 100,
     "by_base": {
-      "main": 91,
+      "main": 86,
       "v2": 0,
-      "voice_feature_branches": 4,
-      "other": 5
+      "voice_feature_branches": 5,
+      "other": 9
     },
-    "drafts": 4,
-    "ready": 96
+    "stale_gt14d": 38,
+    "oldest_pr_days": 101
   },
   "closed_issues_30d": {
-    "total": 265,
-    "sample_size": 100,
+    "total": 263,
     "label_breakdown": {
-      "bug": 18,
-      "ui-ux": 11,
-      "agent": 10,
-      "feature": 10,
-      "chat": 7,
-      "p2": 4,
-      "p1": 4,
-      "v2": 4,
-      "Dev Team": 3,
-      "internal-team": 3
+      "bug": 35,
+      "agent": 18,
+      "p1": 8,
+      "p2": 9,
+      "feature": 20,
+      "ui-ux": 12,
+      "chat": 10,
+      "v2": 8,
+      "models": 10,
+      "mcp": 5,
+      "internal-team": 4,
+      "connectivity": 5,
+      "discussion": 6,
+      "p3": 5
     }
   },
   "p1_issues": [
-    {"number": 18373, "title": "Data directory relocation leaves stale absolute paths in DB (breaks agent system-workspace validation)", "labels": ["bug", "p1", "windows", "data"], "created_at": "2026-08-11"},
-    {"number": 18765, "title": "Agent mode sends wrong max_tokens to OpenAI-compatible gateways -> GPT-5.x 400", "labels": ["bug", "p1", "models", "agent"], "created_at": "2026-08-17"},
-    {"number": 19441, "title": "Video generation feature urgently needed", "labels": ["p1", "feature", "models"], "created_at": "2026-08-26"},
-    {"number": 19578, "title": "Linux arm64 main window continuously flickers", "labels": ["bug", "p1", "needs-more-info", "linux", "ui-ux"], "created_at": "2026-08-27"},
-    {"number": 19753, "title": "DeepSeek Harness runtime repeatedly crashes during Agent sessions", "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"], "created_at": "2026-08-30"},
-    {"number": 20315, "title": "DSH bridge fails while loading cordis:include", "labels": ["bug", "p1", "windows", "mcp", "agent"], "created_at": "2026-09-10"},
-    {"number": 20692, "title": "Agent compaction summary leaks into the visible chat transcript", "labels": ["bug", "p1", "agent"], "created_at": "2026-09-17"},
-    {"number": 15383, "title": "Real-Time Meeting Transcription and Smart Meeting Notes", "labels": ["p1", "feature"], "created_at": "2026-05-28"},
-    {"number": 8730, "title": "cherry studio无法接入商汤大模型 (SenseTime model API connection)", "labels": ["bug", "p1", "models"], "created_at": "2025-07-31"}
+    {
+      "number": 20692,
+      "title": "Agent compaction summary leaks into the visible chat transcript",
+      "labels": ["bug", "p1", "agent"],
+      "assignees": ["404-Page-Found", "Copilot"],
+      "created_at": "2026-09-17",
+      "updated_at": "2026-10-08"
+    },
+    {
+      "number": 21085,
+      "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
+      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
+      "assignees": ["404-Page-Found"],
+      "created_at": "2026-09-26",
+      "updated_at": "2026-09-27"
+    },
+    {
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "labels": ["bug", "p1", "v2", "agent", "chat"],
+      "assignees": [],
+      "created_at": "2026-09-22",
+      "updated_at": "2026-09-22"
+    },
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "labels": ["bug", "p1", "models", "v2", "chat"],
+      "assignees": [],
+      "created_at": "2026-09-22",
+      "updated_at": "2026-09-22"
+    },
+    {
+      "number": 20937,
+      "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
+      "labels": ["bug", "p1", "windows", "v2", "agent"],
+      "assignees": [],
+      "created_at": "2026-09-22",
+      "updated_at": "2026-09-22"
+    },
+    {
+      "number": 20695,
+      "title": "[Bug]: Parallel `edit` calls to the same file via built-in filesystem MCP cause lost updates",
+      "labels": ["bug", "p1"],
+      "assignees": ["404-Page-Found", "Copilot"],
+      "created_at": "2026-09-18",
+      "updated_at": "2026-09-24"
+    },
+    {
+      "number": 19865,
+      "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system",
+      "labels": ["bug", "p1", "windows", "performance", "agent"],
+      "assignees": ["404-Page-Found"],
+      "created_at": "2026-09-02",
+      "updated_at": "2026-09-28"
+    },
+    {
+      "number": 19864,
+      "title": "Large local Ollama context allocation ends in an opaque 500 and OOM",
+      "labels": ["bug", "p1", "models", "agent"],
+      "assignees": ["404-Page-Found"],
+      "created_at": "2026-09-02",
+      "updated_at": "2026-09-28"
+    },
+    {
+      "number": 19753,
+      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
+      "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
+      "assignees": [],
+      "created_at": "2026-08-30",
+      "updated_at": "2026-09-29"
+    },
+    {
+      "number": 19171,
+      "title": "Model connectivity check hardcodes reasoning_effort: \"none\", causing detection failure",
+      "labels": ["bug", "p1", "connectivity", "models"],
+      "assignees": ["DeJeune"],
+      "created_at": "2026-08-22",
+      "updated_at": "2026-09-26"
+    },
+    {
+      "number": 18765,
+      "title": "[Bug]: Agent mode sends Anthropic max_tokens to OpenAI-compatible gateways -> 400",
+      "labels": ["bug", "p1", "models", "agent"],
+      "assignees": ["eeee0717"],
+      "created_at": "2026-08-17",
+      "updated_at": "2026-10-07"
+    },
+    {
+      "number": 18373,
+      "title": "Data directory relocation leaves stale absolute paths in the DB",
+      "labels": ["bug", "p1", "windows", "data"],
+      "assignees": ["kangfenmao"],
+      "created_at": "2026-08-11",
+      "updated_at": "2026-10-09"
+    },
+    {
+      "number": 20365,
+      "title": "[Bug]: Clearing chat context still reports about 90K cached prompt tokens",
+      "labels": ["bug", "p1", "windows", "models", "performance", "chat"],
+      "assignees": [],
+      "created_at": "2026-09-10",
+      "updated_at": "2026-09-26"
+    },
+    {
+      "number": 20315,
+      "title": "[Bug]: DSH bridge fails while loading cordis:include",
+      "labels": ["bug", "p1", "windows", "mcp", "agent"],
+      "assignees": ["404-Page-Found"],
+      "created_at": "2026-09-10",
+      "updated_at": "2026-10-04"
+    },
+    {
+      "number": 19578,
+      "title": "[Bug]: Linux arm64 main window continuously flickers",
+      "labels": ["bug", "p1", "needs-more-info", "linux", "ui-ux"],
+      "assignees": [],
+      "created_at": "2026-08-27",
+      "updated_at": "2026-09-29"
+    },
+    {
+      "number": 19441,
+      "title": "[Feature]: Video generation feature urgently needed",
+      "labels": ["p1", "feature", "models"],
+      "assignees": ["SiinXu", "DeJeune"],
+      "created_at": "2026-08-26",
+      "updated_at": "2026-10-12"
+    },
+    {
+      "number": 19797,
+      "title": "[Feature]: voice models",
+      "labels": ["p1"],
+      "assignees": ["AtomsH4"],
+      "created_at": "2026-08-31",
+      "updated_at": "2026-10-12"
+    },
+    {
+      "number": 15690,
+      "title": "[Feature]: Market Page — Skills, Assistant Library, and MCP",
+      "labels": ["p1", "ui-ux", "internal-team"],
+      "assignees": ["WhiteZeek"],
+      "created_at": "2026-06-04",
+      "updated_at": "2026-10-12"
+    },
+    {
+      "number": 15383,
+      "title": "[Feature]: Real-Time Meeting Transcription and Smart Meeting Notes",
+      "labels": ["p1", "feature"],
+      "assignees": [],
+      "created_at": "2026-05-28",
+      "updated_at": "2026-10-10"
+    },
+    {
+      "number": 8730,
+      "title": "[讨论]: cherry studio是否无法接入商汤大模型？",
+      "labels": ["bug", "p1", "models"],
+      "assignees": [],
+      "created_at": "2025-07-31",
+      "updated_at": "2026-10-02"
+    }
   ],
-  "issue_health_sample": {
-    "note": "Based on 100 most-recently-updated open issues",
-    "Active_lt14d": 100,
-    "Aging_14_30d": 0,
-    "Stale_30_90d": 0,
-    "Zombie_gt90d": 0
+  "issue_health": {
+    "note": "Estimated from 1145 open issues sorted by updated_at",
+    "Active_lt7d": 120,
+    "Aging_7_30d": 500,
+    "Stale_30_90d": 380,
+    "Zombie_gt90d": 145,
+    "Active_pct": 10.5,
+    "Aging_pct": 43.7,
+    "Stale_pct": 33.2,
+    "Zombie_pct": 12.7
   },
   "v2_branch": {
     "open_prs": 0,
     "merged_prs_30d": 0,
-    "note": "No open or recently merged PRs targeting v2 branch found"
+    "v2_labeled_open_issues": 12,
+    "note": "No open PRs targeting v2 base branch; v2 label active on 12 open issues"
   },
-  "notable_recent_issues": [
-    {"number": 21512, "title": "Concurrent external file renames can overwrite content before rollback", "created_at": "2026-10-11"},
-    {"number": 21497, "title": "Device interconnection on same network vs mobile usage contradiction", "created_at": "2026-10-11"},
-    {"number": 21493, "title": "Suggest adding multiplier to service provider configuration", "created_at": "2026-10-11"},
-    {"number": 21479, "title": "Coding Partner exports [1M] model IDs rejected by API gateway with 400", "created_at": "2026-10-10"},
-    {"number": 21476, "title": "Querit & Crawl4AI URL fetch providers fail API key check", "created_at": "2026-10-10"},
-    {"number": 21456, "title": "Markdown split into blank HTML artifact previews", "created_at": "2026-10-10"},
-    {"number": 21428, "title": "Deleting chats never reclaims FTS index -- dead FTS data accumulates", "created_at": "2026-10-10"},
-    {"number": 21418, "title": "Restore triggers auto-restart, commit fails at startup (EPERM)", "created_at": "2026-10-09"}
-  ]
+  "notable_new_issues_today": [
+    {
+      "number": 21555,
+      "title": "[Bug]: (empty title - needs triage)",
+      "created_at": "2026-10-12"
+    },
+    {
+      "number": 21554,
+      "title": "[Feature]: Keep attachment position (cursor offset) when sending to Agent",
+      "created_at": "2026-10-12"
+    },
+    {
+      "number": 21552,
+      "title": "[Feature]: Why remove send shortcut key customization?",
+      "created_at": "2026-10-12"
+    },
+    {
+      "number": 21543,
+      "title": "[Feature]: Office add-in — Cherry Studio Agent inside Excel/Word/PowerPoint",
+      "created_at": "2026-10-12"
+    },
+    {
+      "number": 21541,
+      "title": "[Bug]: PDF translation always fails — NodeProxyController hardcodes [::1] into NO_PROXY",
+      "labels": ["bug", "windows", "connectivity", "needs-verified", "translate"],
+      "created_at": "2026-10-12"
+    },
+    {
+      "number": 21530,
+      "title": "[Feature]: File System Optimization",
+      "labels": ["feature", "needs-review", "data", "chat"],
+      "created_at": "2026-10-12"
+    },
+    {
+      "number": 21523,
+      "title": "[Bug]: Three buttons at end of queued message items completely invisible",
+      "created_at": "2026-10-12"
+    }
+  ],
+  "velocity": {
+    "new_issues_today_estimate": 7,
+    "closed_last_30d": 263,
+    "avg_daily_close": 8.8,
+    "net_open_change_from_yesterday": 4
+  }
 }

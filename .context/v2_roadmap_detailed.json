@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-11T18:00:00Z",
+  "generated_at": "2026-10-12T18:00:00Z",
   "v2_branch_status": {
     "open_prs": 0,
     "merged_prs_30d": 0,
@@ -15,11 +15,43 @@
       "priority": "P1 -- Critical stability"
     },
     {
+      "number": 20937,
+      "title": "DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
+      "labels": ["bug", "p1", "windows", "v2", "agent"],
+      "created_at": "2026-09-22",
+      "comments": 2,
+      "priority": "P1 -- Critical stability"
+    },
+    {
+      "number": 20941,
+      "title": "Work and Agent conversations terminate with an empty no-response error",
+      "labels": ["bug", "p1", "v2", "agent", "chat"],
+      "created_at": "2026-09-22",
+      "comments": 4,
+      "priority": "P1 -- Critical UX"
+    },
+    {
+      "number": 20940,
+      "title": "Responses API stream events fail client TypeValidation and abort the turn",
+      "labels": ["bug", "p1", "models", "v2", "chat"],
+      "created_at": "2026-09-22",
+      "comments": 2,
+      "priority": "P1 -- Critical"
+    },
+    {
+      "number": 21085,
+      "title": "File/KB scopes inline large tool schemas, can overflow context",
+      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
+      "created_at": "2026-09-26",
+      "comments": 6,
+      "priority": "P1 -- Performance/reliability"
+    },
+    {
       "number": 21051,
       "title": "Windows restore fails with EPERM renaming Local Storage after restart",
       "labels": ["bug", "p2", "windows", "data", "v2"],
       "created_at": "2026-09-25",
-      "comments": 5,
+      "comments": 6,
       "priority": "P2 -- Data safety"
     },
     {
@@ -55,5 +87,5 @@
     "P2: Windows restore EPERM on Local Storage rename (#21051)",
     "P2: Update feed stuck at 2.0.9 (#20028)"
   ],
-  "summary": "V2 foundation merged into main. Voice feature development active across 4 branches. Agent-runtime AI SDK bridge and transcript context are key in-flight features. 3 v2-labeled bugs remain open. 91 open PRs on main covering agent, voice, provider, and UI work."
+  "summary": "V2 foundation merged into main. Voice feature development active across 4 branches. 7 open issues labeled v2 including 4 P1 bugs (Agent stream failures, DSH EPERM, context overflow). 86 open PRs on main covering agent, voice, provider, and UI work. No PRs targeting v2 base branch."
 }

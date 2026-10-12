@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-11T18:00:00Z",
+  "generated_at": "2026-10-12T18:00:00Z",
   "note": "Discussion data sourced from high-comment issues; GitHub Discussions GraphQL API not available in this run.",
   "high_engagement_issues": [
     {
@@ -53,6 +53,8 @@
   "unanswered_community_questions": [
     {"number": 21447, "title": "How do I delete an Agent? No delete entry point found"},
     {"number": 21391, "title": "[Discussion]: (empty title — needs moderation)"},
+    {"number": 21388, "title": "nutstore/webdav backup and restore", "comments": 2},
+    {"number": 21362, "title": "Unable to use some models in Qwen token plan"},
     {"number": 21368, "title": "How to make Cherry automatically connect to Codex"},
     {"number": 21257, "title": "Drawing feature ref images not usable in Agent"},
     {"number": 21177, "title": "Time Machine data backup recovery after hardware failure"}

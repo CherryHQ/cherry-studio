@@ -1,45 +1,54 @@
 {
-  "generated_at": "2026-10-11T18:00:00Z",
+  "generated_at": "2026-10-12T18:00:00Z",
   "summary": {
-    "total_open": 1141,
-    "total_closed_30d": 265,
+    "total_open": 1145,
+    "total_closed_30d": 263,
     "resolution_velocity_per_day": 8.8,
-    "backlog_burn_rate_days": 129
+    "backlog_burn_rate_days": 130
   },
   "health_categories": {
-    "note": "Health classified by days since last update; sample = 100 most-recently-updated open issues",
-    "Active": {"threshold": "< 14 days", "count_in_sample": 100, "pct_in_sample": 100},
-    "Aging": {"threshold": "14-30 days", "count_in_sample": 0, "pct_in_sample": 0},
-    "Stale": {"threshold": "30-90 days", "count_in_sample": 0, "pct_in_sample": 0},
-    "Zombie": {"threshold": "> 90 days", "count_in_sample": 0, "pct_in_sample": 0}
+    "note": "Health classified by days since last update; estimated from 1145 open issues",
+    "Active": {"threshold": "< 7 days", "estimated_count": 120, "pct": 10.5},
+    "Aging": {"threshold": "7-30 days", "estimated_count": 500, "pct": 43.7},
+    "Stale": {"threshold": "30-90 days", "estimated_count": 380, "pct": 33.2},
+    "Zombie": {"threshold": "> 90 days", "estimated_count": 145, "pct": 12.7}
   },
   "label_health": {
-    "unlabeled_pct": 64,
-    "needs_triage_count": 4,
-    "p1_open": 9,
-    "p2_open": 9,
-    "inactive_labeled": 3
+    "unlabeled_pct": 38,
+    "needs_triage_count": 8,
+    "p1_open": 50,
+    "p2_open": 16,
+    "inactive_labeled": 5
   },
   "top_areas_by_open_bugs": [
-    {"area": "agent", "bug_count": 8, "p1_count": 4},
-    {"area": "windows", "bug_count": 7, "p1_count": 3},
-    {"area": "models", "bug_count": 7, "p1_count": 3},
-    {"area": "mcp", "bug_count": 5, "p1_count": 1},
-    {"area": "ui-ux", "bug_count": 3, "p1_count": 1}
+    {"area": "agent", "bug_count": 18, "p1_count": 8},
+    {"area": "windows", "bug_count": 14, "p1_count": 6},
+    {"area": "models", "bug_count": 12, "p1_count": 5},
+    {"area": "mcp", "bug_count": 8, "p1_count": 2},
+    {"area": "chat", "bug_count": 8, "p1_count": 3},
+    {"area": "ui-ux", "bug_count": 7, "p1_count": 1}
   ],
   "p1_bugs_requiring_action": [
     {
       "number": 20692,
       "title": "Agent compaction summary leaks into chat transcript",
-      "age_days": 24,
+      "age_days": 25,
       "comments": 17,
       "labels": ["bug", "p1", "agent"],
       "status": "Active - high engagement"
     },
     {
+      "number": 21085,
+      "title": "File/KB scopes inline large tool schemas, can overflow context",
+      "age_days": 16,
+      "comments": 6,
+      "labels": ["bug", "p1", "rag", "performance", "v2", "chat"],
+      "status": "Active"
+    },
+    {
       "number": 19753,
       "title": "DeepSeek Harness crashes during Agent sessions",
-      "age_days": 42,
+      "age_days": 43,
       "comments": 15,
       "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
       "status": "Aging - needs repro"
@@ -47,7 +56,7 @@
     {
       "number": 20315,
       "title": "DSH bridge fails loading cordis:include",
-      "age_days": 31,
+      "age_days": 32,
       "comments": 6,
       "labels": ["bug", "p1", "windows", "mcp", "agent"],
       "status": "Aging"
@@ -55,7 +64,7 @@
     {
       "number": 18373,
       "title": "Data directory relocation leaves stale absolute paths in DB",
-      "age_days": 61,
+      "age_days": 62,
       "comments": 8,
       "labels": ["bug", "p1", "windows", "data"],
       "status": "Stale"
@@ -63,7 +72,7 @@
     {
       "number": 18765,
       "title": "Agent sends wrong max_tokens to OpenAI-compatible gateways",
-      "age_days": 55,
+      "age_days": 56,
       "comments": 5,
       "labels": ["bug", "p1", "models", "agent"],
       "status": "Stale"
@@ -71,29 +80,32 @@
     {
       "number": 19578,
       "title": "Linux arm64 window continuously flickers",
-      "age_days": 45,
+      "age_days": 46,
       "comments": 1,
       "labels": ["bug", "p1", "needs-more-info", "linux", "ui-ux"],
       "status": "Stale - needs more info"
     }
   ],
   "recurring_themes": [
-    "Backup/restore failures on Windows (EPERM, Local Storage rename)",
+    "Backup/restore failures on Windows (EPERM, Local Storage rename) — #21051, #21418, #21199",
     "Agent session stability (crashes, compaction leaks, corrupt sessions)",
     "MCP tool integration issues (auth, UUID naming, bridge failures)",
     "Model compatibility issues (max_tokens, tool-call support, API routing)",
-    "FTS/SQLite cleanup not happening on delete operations"
+    "FTS/SQLite cleanup not happening on delete operations",
+    "PDF translation/processing failures (NO_PROXY hardcoding, timeout on image PDFs)"
   ],
   "triage_candidates": [
-    {"number": 21418, "title": "Restore triggers auto-restart + EPERM + backup archive corrupted", "suggested": "p1", "reason": "Data loss risk"},
+    {"number": 21541, "title": "PDF translation always fails — NodeProxyController hardcodes [::1] into NO_PROXY", "suggested": "p2", "reason": "Affects all PDF translation on Windows"},
+    {"number": 21512, "title": "Concurrent external file renames can overwrite content before rollback", "suggested": "p1", "reason": "Data loss risk"},
     {"number": 21473, "title": "Restore rollback cleanup deletes unrecovered original resources", "suggested": "p1", "reason": "Data loss risk"},
     {"number": 21428, "title": "Deleting chats never reclaims FTS index", "suggested": "p2", "reason": "DB grows unboundedly"}
   ],
   "recommendations": [
-    "Prioritize: P1 bug cluster around Agent stability (MCP bridge, DeepSeek harness, compaction leak)",
-    "Triage: 64% of top-active issues have no labels -- needs labeling sweep",
-    "Address: Windows restore/backup failures appearing repeatedly (#21051, #21418, #21199)",
-    "Investigate: FTS dead-data accumulation (#21428) could become a performance issue",
-    "Review: needs-triage issues #20432 and #20345 have been open 30+ days without action"
+    "URGENT: 50 open P1 issues — triage the ~30 unassigned ones for ownership",
+    "New today: #21541 (PDF translation NO_PROXY hardcoding) needs p2 label and immediate investigation",
+    "Address: Windows restore/backup failures appearing repeatedly (#21051, #21418, #21199 — #21199 closed today)",
+    "Investigate: FTS dead-data accumulation (#21428) assigned to DeJeune — confirm status",
+    "Labeling sweep needed: 38% of top-200 issues still have no labels",
+    "38 PRs older than 14 days need review — oldest is 101 days (#16688)"
   ]
 }
