@@ -201,12 +201,12 @@ export function MarketplaceDetailHeader({
         )}
         style={{
           backgroundColor: curated
-            ? 'color-mix(in srgb, #FFA39E 90%, transparent)'
+            ? 'color-mix(in srgb, #FF8F99 98%, transparent)'
             : 'color-mix(in srgb, var(--card) 85%, transparent)',
           backgroundImage: curated
-            ? 'linear-gradient(155deg, rgb(255 255 255 / 0.72) 0%, rgb(255 255 255 / 0.42) 52%, rgb(255 255 255 / 0.20) 100%)'
+            ? 'linear-gradient(155deg, rgb(255 255 255 / 0.80) 0%, rgb(255 255 255 / 0.48) 52%, rgb(255 255 255 / 0.26) 100%)'
             : undefined,
-          boxShadow: curated ? 'inset 0 1px 0 rgb(255 255 255 / 0.45)' : undefined
+          boxShadow: curated ? 'inset 0 1px 0 rgb(255 255 255 / 0.55)' : undefined
         }}>
         <div className="flex items-center gap-3">
           {icon}
