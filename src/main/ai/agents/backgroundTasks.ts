@@ -453,6 +453,25 @@ export async function stopDetachedBackgroundTask(
   return withRecordLock(taskId, () => stopDetachedBackgroundTaskUnlocked(storageDir, taskId, force, onExit))
 }
 
+/**
+ * Whether the record's process group may be signalled. It is asked twice by the stop below — once
+ * before the record write and once after it — so nothing here may assume the process table it read
+ * a moment ago still describes the same processes.
+ */
+function isGroupSignalable(record: BackgroundTaskRecord): boolean {
+  const liveChild = ownedTaskGroups.get(record.id)?.pgid === record.pid
+  if (process.platform === 'win32') return liveChild
+  if (!liveChild) {
+    // After a restart only numbers tie the record to a process. A live leader is still provably
+    // this task's by start stamp; a leaderless group is not — a reused pgid can hold unrelated
+    // live workers — so it stays signalable only through the ownership the spawn retained.
+    if (!isPidAlive(record.pid)) return false
+    if (!record.pidStartTime || getPidStartTime(record.pid) !== record.pidStartTime) return false
+    return true
+  }
+  return isGroupOwnershipVerified(record.id)
+}
+
 async function stopDetachedBackgroundTaskUnlocked(
   storageDir: string,
   taskId: string,
@@ -461,23 +480,13 @@ async function stopDetachedBackgroundTaskUnlocked(
 ): Promise<BackgroundTaskRecord | undefined> {
   const record = await getDetachedBackgroundTask(storageDir, taskId)
   if (!record || record.status !== 'running' || record.pid <= 0) return undefined
-  const ownership = ownedTaskGroups.get(record.id)
-  // A recycled PID could belong to another application. Old records without a start stamp cannot
-  // be signalled safely after restart; newly created tasks always capture one on POSIX.
-  const liveChild = ownership?.pgid === record.pid
-  if (process.platform === 'win32' && !liveChild) return undefined
-  if (process.platform !== 'win32' && !liveChild) {
-    // After a restart only numbers tie the record to a process. A live leader is still provably
-    // this task's by start stamp; a leaderless group is not — a reused pgid can hold unrelated
-    // live workers — so it stays signalable only through the ownership the spawn retained.
-    if (!isPidAlive(record.pid)) return undefined
-    if (!record.pidStartTime || getPidStartTime(record.pid) !== record.pidStartTime) return undefined
-  }
   // Ownership alone is not enough to signal with: the entry outlives the shell, and a pgid the
   // task's own members have drained from is free to hold whatever the OS gives it next. Every live
   // member must be verified as this task's own first, or the signal is refused and the record —
   // unresolved, and still stoppable once the group's identity is established — stays as it is.
-  if (liveChild && process.platform !== 'win32' && !isGroupOwnershipVerified(record.id)) {
+  // A recycled PID could belong to another application: old records without a start stamp cannot be
+  // signalled safely after restart; newly created tasks always capture one on POSIX.
+  if (!isGroupSignalable(record)) {
     logger.warn('Refusing to signal a group holding members this task cannot account for', {
       taskId: record.id,
       pgid: record.pid
@@ -492,6 +501,19 @@ async function stopDetachedBackgroundTaskUnlocked(
     note: force ? t('background_task.note.kill_requested') : t('background_task.note.stop_requested')
   }
   await writeRecord(storageDir, requested)
+  // The write above is a promise, and the identity it was cleared against can turn over while it
+  // resolves: the task exits and the OS hands its pid and pgid to processes this app never started.
+  // The record lock orders writers, not process identity, so the group is re-established here —
+  // against the same evidence as before, and as close to the signal as the language allows. It
+  // narrows this window; it does not make the signal atomic against a reuse that starts later.
+  if (!isGroupSignalable(record)) {
+    logger.warn('Refusing to signal a group whose identity changed while the stop was recorded', {
+      taskId: record.id,
+      pgid: record.pid
+    })
+    await writeRecord(storageDir, record)
+    return undefined
+  }
   try {
     if (process.platform === 'win32') {
       await execTaskkill(['/PID', String(record.pid), '/T', ...(force ? ['/F'] : [])])
