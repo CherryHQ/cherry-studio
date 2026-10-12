@@ -128,12 +128,9 @@ function browserEnvironment(
         phase: 'ready',
         fileEntryId: 'e0b0c5ec-dcb8-4f77-b027-0a3c05637786'
       }
-      return { fileEntry: { id: lease.fileEntryId }, mimeType: 'audio/wav' }
-    }
-    if (route === 'ai.voice.output.read') {
-      if (!lease || lease.sessionId !== input!.sessionId) throw { code: 'VOICE_INVALID_REQUEST' }
-      if (lease.phase !== 'ready' || lease.fileEntryId !== input!.fileEntryId) throw { code: 'VOICE_FORBIDDEN' }
-      return { audio: new Uint8Array([82, 73, 70, 70]), mimeType: 'audio/wav' }
+      return {
+        output: { id: lease.fileEntryId, url: `cherry-media://audio/${lease.fileEntryId}`, mimeType: 'audio/wav' }
+      }
     }
     if (route === 'ai.voice.recording.start') {
       if (lease) preempted.add(lease.sessionId)
@@ -179,6 +176,11 @@ function browserEnvironment(
   }
   return {
     globals: {
+      fetch: async (url: string) => {
+        if (!lease || lease.phase !== 'ready' || url !== `cherry-media://audio/${lease.fileEntryId}`)
+          throw new Error('Unauthorized output')
+        return new Response(new Uint8Array([82, 73, 70, 70]), { headers: { 'Content-Type': 'audio/wav' } })
+      },
       window: { api: { ipcApi: { request } } },
       location: { href: expectedUrl },
       crypto: { randomUUID },

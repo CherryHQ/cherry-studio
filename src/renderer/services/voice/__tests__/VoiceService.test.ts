@@ -663,8 +663,7 @@ describe('VoiceService route facade', () => {
         return Promise.resolve({
           sessionId: input.sessionId,
           requestId: input.requestId,
-          fileEntry: { id: `output-${input.chunkIndex}`, origin: 'internal' },
-          mimeType: 'audio/wav'
+          output: { id: `output-${input.chunkIndex}`, url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         })
       }
       if (route === 'ai.voice.output.release') return new Promise<void>((resolve) => (releaseOutput = resolve))
@@ -693,8 +692,8 @@ describe('VoiceService route facade', () => {
     })
     await expect(premature.result).rejects.toMatchObject({ reason: 'busy' })
 
-    const release = service.releaseOutput({ sessionId, fileEntryId: firstResult.fileEntry.id })
-    const duplicateRelease = service.releaseOutput({ sessionId, fileEntryId: firstResult.fileEntry.id })
+    const release = service.releaseOutput({ sessionId, outputId: firstResult.output.id })
+    const duplicateRelease = service.releaseOutput({ sessionId, outputId: firstResult.output.id })
     await expect(duplicateRelease).rejects.toMatchObject({ reason: 'busy' })
     releaseOutput()
     await release
@@ -761,11 +760,9 @@ describe('VoiceService route facade', () => {
         return {
           sessionId: input.sessionId,
           requestId: input.requestId,
-          fileEntry: { id: 'output-1', origin: 'internal' },
-          mimeType: 'audio/wav'
+          output: { id: 'output-1', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         }
       }
-      if (route === 'ai.voice.output.read') return { audio: new Uint8Array([82, 73, 70, 70]), mimeType: 'audio/wav' }
       if (route === 'ai.voice.playback.update' || route === 'ai.voice.playback.control') {
         return { revision: 7, phase: 'playing', sessionId: input.sessionId }
       }
@@ -783,8 +780,7 @@ describe('VoiceService route facade', () => {
       chunkCount: 2
     })
     await speech.result
-    await service.readOutput({ sessionId: speech.sessionId, fileEntryId: 'output-1' })
-    await service.releaseOutput({ sessionId: speech.sessionId, fileEntryId: 'output-1' })
+    await service.releaseOutput({ sessionId: speech.sessionId, outputId: 'output-1' })
     await service.updatePlayback({ sessionId: speech.sessionId, phase: 'playing' })
     await service.controlPlayback({ sessionId: speech.sessionId, command: 'pause' })
     await service.abortSpeech(speech)
@@ -805,8 +801,7 @@ describe('VoiceService route facade', () => {
       }
     ])
     expect(request.mock.calls.slice(1)).toEqual([
-      ['ai.voice.output.read', { sessionId: ids[0], fileEntryId: 'output-1' }],
-      ['ai.voice.output.release', { sessionId: ids[0], fileEntryId: 'output-1' }],
+      ['ai.voice.output.release', { sessionId: ids[0], outputId: 'output-1' }],
       ['ai.voice.playback.update', { sessionId: ids[0], phase: 'playing' }],
       ['ai.voice.playback.control', { sessionId: ids[0], command: 'pause' }],
       ['ai.speech.abort', { sessionId: ids[0], requestId: ids[1] }]

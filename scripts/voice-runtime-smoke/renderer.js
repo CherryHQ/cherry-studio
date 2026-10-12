@@ -88,12 +88,10 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
           : 'Cherry Studio local voice verification. The bright blue sky is clear today. This recording uses a synthetic voice.'
     })
     evidence.stage = 'read_speech'
-    const output = await request('ai.voice.output.read', {
-      sessionId: speechSession,
-      fileEntryId: speech.fileEntry.id
-    })
-    if (!(output.audio instanceof Uint8Array) || !output.audio.byteLength || output.audio.byteLength > 32 * 1024 * 1024)
-      throw { code: 'INVALID_TTS_AUDIO' }
+    const response = await fetch(speech.output.url)
+    if (!response.ok || response.headers.get('Content-Type') !== 'audio/wav') throw { code: 'INVALID_TTS_AUDIO' }
+    const output = { audio: new Uint8Array(await response.arrayBuffer()) }
+    if (!output.audio.byteLength || output.audio.byteLength > 32 * 1024 * 1024) throw { code: 'INVALID_TTS_AUDIO' }
     context = new AudioContext({ sampleRate: 48000 })
     await context.resume()
     const audio = await context.decodeAudioData(new Uint8Array(output.audio).buffer)

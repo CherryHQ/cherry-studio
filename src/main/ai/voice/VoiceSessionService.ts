@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import { MediaKind } from '@main/services/mediaProtocol'
 import type { LocalTranscriptionModelId, LocalSpeechModelId } from '@shared/ai/localVoice'
 import { type LocalVoiceModelId, type VoiceSessionSource, type VoiceSessionTrigger } from '@shared/ai/localVoice'
 import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
@@ -68,18 +69,24 @@ type Session = {
   resolvedAdapter?: string
   terminalStatus?: 'completed' | 'failed' | 'aborted'
   cleanup?: Promise<void>
-  outputId?: FileEntryId
+  outputId?: string
   chunkCount?: number
   currentChunkIndex?: number
   nextChunkIndex?: number
   generatedUnchunked?: boolean
-  outputAccess?: Promise<unknown>
 }
 type ActiveOperation = { session: Session; requestId: string; controller: AbortController }
 
 @Injectable('VoiceSessionService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AiService', 'FileManager', 'WindowManager', 'UtilityProcessManager', 'PowerService'])
+@DependsOn([
+  'AiService',
+  'FileManager',
+  'WindowManager',
+  'UtilityProcessManager',
+  'PowerService',
+  'MediaProtocolService'
+])
 export class VoiceSessionService extends BaseService {
   private accepting = false
   private readonly sessions = new Map<string, Session>()
@@ -308,13 +315,20 @@ export class VoiceSessionService extends BaseService {
           wav.readUInt32LE(4) + 8 !== wav.length
         )
           throw new VoiceRuntimeError('invalid_audio')
-        const fileEntry = await this.createFile(session, wav, 'wav')
-        session.outputId = fileEntry.id
+        if (session.closed || !this.accepting || session.owner.webContents.isDestroyed())
+          throw new VoiceRuntimeError('aborted')
+        const media = application.get('MediaProtocolService')
+        const outputId = media.store(MediaKind.Audio, wav, 'audio/wav', { webContentsId: owner.webContents.id })
+        session.outputId = outputId
         session.currentChunkIndex = input.chunkIndex
         if (input.chunkIndex === undefined) session.generatedUnchunked = true
         signal.throwIfAborted()
         if (session.phase !== 'paused') this.transition(session, 'ready')
-        return { sessionId: session.id, requestId: input.requestId, fileEntry, mimeType: 'audio/wav' as const }
+        return {
+          sessionId: session.id,
+          requestId: input.requestId,
+          output: { id: outputId, url: media.getUrl(MediaKind.Audio, outputId), mimeType: 'audio/wav' as const }
+        }
       },
       {
         startPhase: 'generating',
@@ -330,32 +344,20 @@ export class VoiceSessionService extends BaseService {
     )
   }
 
-  async readOutput(owner: VoiceOwner, input: InputFor<'ai.voice.output.read'>) {
-    const session = this.requireLeaseSession(owner, input.sessionId)
-    if (session.kind !== 'playback' || session.outputId !== input.fileEntryId) {
-      throw new VoiceRuntimeError('forbidden_owner')
-    }
-    const file = session.files.get(input.fileEntryId)
-    if (!file || file.entry.ext !== 'wav') throw new VoiceRuntimeError('forbidden_owner')
-    return this.withOutputAccess(session, async () => {
-      const output = await application.get('FileManager').read(input.fileEntryId, { encoding: 'binary' })
-      if (session.closed) throw new VoiceRuntimeError('aborted')
-      if (output.mime !== 'audio/wav') throw new VoiceRuntimeError('invalid_audio')
-      return { audio: Uint8Array.from(output.content), mimeType: 'audio/wav' as const }
-    })
-  }
-
   async releaseOutput(owner: VoiceOwner, input: InputFor<'ai.voice.output.release'>): Promise<void> {
     const session = this.requireLeaseSession(owner, input.sessionId)
-    if (session.kind !== 'playback' || session.outputId !== input.fileEntryId) {
-      throw new VoiceRuntimeError('forbidden_owner')
-    }
-    await this.withOutputAccess(session, async () => {
-      await this.deleteFile(session, input.fileEntryId)
-      session.outputId = undefined
-      if (session.currentChunkIndex !== undefined) session.nextChunkIndex = session.currentChunkIndex + 1
-      session.currentChunkIndex = undefined
-    })
+    if (session.kind !== 'playback') throw new VoiceRuntimeError('forbidden_owner')
+    if (!session.outputId) return
+    if (session.outputId !== input.outputId) throw new VoiceRuntimeError('forbidden_owner')
+    this.removeOutput(session)
+    if (session.currentChunkIndex !== undefined) session.nextChunkIndex = session.currentChunkIndex + 1
+    session.currentChunkIndex = undefined
+  }
+
+  private removeOutput(session: Session): void {
+    if (!session.outputId) return
+    application.get('MediaProtocolService').remove(MediaKind.Audio, session.outputId)
+    session.outputId = undefined
   }
 
   async updatePlayback(owner: VoiceOwner, input: InputFor<'ai.voice.playback.update'>): Promise<VoiceSessionState> {
@@ -364,10 +366,7 @@ export class VoiceSessionService extends BaseService {
     switch (input.phase) {
       case 'playing':
         if (this.active?.session === session) throw new VoiceRuntimeError('busy')
-        if (
-          !['ready', 'paused'].includes(session.phase ?? '') &&
-          !(session.phase === 'failed' && session.outputId && session.files.has(session.outputId))
-        )
+        if (!['ready', 'paused'].includes(session.phase ?? '') && !(session.phase === 'failed' && session.outputId))
           throw new VoiceRuntimeError('invalid_request')
         return this.transition(session, 'playing')
       case 'paused':
@@ -742,7 +741,7 @@ export class VoiceSessionService extends BaseService {
         session.terminalStatus = controller.signal.aborted ? 'aborted' : 'failed'
         if (controller.signal.aborted || options.cleanupOnFailure) {
           for (const id of [...session.files.keys()]) await this.deleteFile(session, id)
-          session.outputId = undefined
+          this.removeOutput(session)
         }
         const normalized = controller.signal.aborted
           ? new VoiceRuntimeError('aborted')
@@ -778,25 +777,20 @@ export class VoiceSessionService extends BaseService {
       return await work
     } finally {
       session.pending.delete(work)
-      if (!session.pending.size && !session.files.size && this.active?.session !== session && this.lease !== session) {
+      if (
+        !session.pending.size &&
+        !session.files.size &&
+        !session.outputId &&
+        this.active?.session !== session &&
+        this.lease !== session
+      ) {
         session.detach()
         this.sessions.delete(session.id)
       }
     }
   }
 
-  private async withOutputAccess<T>(session: Session, work: () => Promise<T>): Promise<T> {
-    if (session.outputAccess) throw new VoiceRuntimeError('busy')
-    const operation = Promise.resolve().then(work)
-    session.outputAccess = operation
-    try {
-      return await this.track(session, operation)
-    } finally {
-      if (session.outputAccess === operation) session.outputAccess = undefined
-    }
-  }
-
-  private async createFile(session: Session, bytes: Uint8Array, ext: 'webm' | 'wav'): Promise<InternalFileEntry> {
+  private async createFile(session: Session, bytes: Uint8Array, ext: 'webm'): Promise<InternalFileEntry> {
     const files = application.get('FileManager')
     const entry = await files.createInternalEntry({
       source: 'bytes',
@@ -835,6 +829,7 @@ export class VoiceSessionService extends BaseService {
       return terminal ? session.cleanup.catch(() => this.closeSession(session, true)) : session.cleanup
     }
     session.closed = true
+    this.removeOutput(session)
     this.syncSleepHold()
     session.detach()
     if (this.active?.session === session) this.active.controller.abort(new VoiceRuntimeError('aborted'))
