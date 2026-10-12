@@ -80,14 +80,17 @@ export function documentToHtml(
 export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source: string) => string): string {
   const text = (runs: DocumentTextRun[]) =>
     runs
-      .map((run) => {
-        let value = run.text.replace(/([!-/:-@[-`{-~])/g, '\\$1')
-        if (run.bold) value = `**${value}**`
-        if (run.italic) value = `*${value}*`
-        if (run.strike) value = `~~${value}~~`
-        if (run.link && /^(https?:|mailto:|#)/.test(run.link)) value = `[${value}](${run.link})`
-        return value
-      })
+      .map((run) =>
+        run.text.replace(/\S(?:[\s\S]*\S)?/, (content) => {
+          // Boundary whitespace must remain outside Markdown emphasis delimiters.
+          let value = content.replace(/([!-/:-@[-`{-~])/g, '\\$1')
+          if (run.bold) value = `**${value}**`
+          if (run.italic) value = `*${value}*`
+          if (run.strike) value = `~~${value}~~`
+          if (run.link && /^(https?:|mailto:|#)/.test(run.link)) value = `[${value}](${run.link})`
+          return value
+        })
+      )
       .join('')
   return (
     flattenDocumentBlocks(blocks)
@@ -109,7 +112,12 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
           if (rows.length) rows.splice(1, 0, `| ${block.rows[0].map(() => '---').join(' | ')} |`)
           return rows.join('\n')
         }
-        if (block.type === 'code') return `\`\`\`\n${block.text}\n\`\`\``
+        if (block.type === 'code') {
+          let fenceLength = 3
+          for (const match of block.text.matchAll(/`+/g)) fenceLength = Math.max(fenceLength, match[0].length + 1)
+          const fence = '`'.repeat(fenceLength)
+          return `${fence}\n${block.text}\n${fence}`
+        }
         const content = text(block.runs ?? [{ text: block.text }]).trim()
         if (block.type === 'heading') return `${'#'.repeat(Math.min(6, block.level))} ${content}`
         return block.bullet

@@ -81,6 +81,101 @@ describe('document conversion fidelity', () => {
     ])
   })
 
+  describe.each([{ bold: true }, { italic: true }, { bold: true, italic: true }, { strike: true }])(
+    'boundary whitespace with %j',
+    (style) => {
+      it.each(['Styled ', ' Styled', ' Styled '])('keeps text and emphasis for %j', (text) => {
+        const blocks = parseMarkdown(
+          documentToMarkdown(
+            [{ type: 'text', text: '', runs: [{ text: 'before' }, { text, ...style }, { text: 'after' }] }],
+            (source) => source
+          )
+        )
+        expect(blocks).toHaveLength(1)
+        expect(blocks[0]).toMatchObject({
+          type: 'text',
+          text: `before${text}after`,
+          runs: expect.arrayContaining([expect.objectContaining({ text: 'Styled', ...style })])
+        })
+      })
+
+      it('keeps a whitespace-only run free of formatting markers', () => {
+        const blocks = parseMarkdown(
+          documentToMarkdown(
+            [{ type: 'text', text: '', runs: [{ text: 'before' }, { text: '  ', ...style }, { text: 'after' }] }],
+            (source) => source
+          )
+        )
+        expect(blocks).toMatchObject([{ type: 'text', text: 'before  after' }])
+      })
+    }
+  )
+
+  it('preserves styled table text with boundary whitespace', () => {
+    const blocks = parseMarkdown(
+      documentToMarkdown(
+        [
+          {
+            type: 'table',
+            title: '',
+            rows: [['Header'], ['before Styled after']],
+            cells: [
+              [{ runs: [{ text: 'Header' }] }],
+              [{ runs: [{ text: 'before' }, { text: ' Styled ', bold: true, italic: true }, { text: 'after' }] }]
+            ]
+          }
+        ],
+        (source) => source
+      )
+    )
+    expect(blocks).toMatchObject([
+      {
+        type: 'table',
+        rows: [['Header'], ['before Styled after']],
+        cells: [
+          [expect.anything()],
+          [{ runs: expect.arrayContaining([expect.objectContaining({ text: 'Styled', bold: true, italic: true })]) }]
+        ]
+      }
+    ])
+  })
+
+  it.each([
+    'before\n```\n# literal heading\nafter',
+    'before\n````\n# literal heading\n```\nafter',
+    'before\n  `````  \n# literal heading\nafter',
+    'inline `````` backticks\n```\nafter',
+    '```'
+  ])('preserves embedded fences in one code block: %j', (text) => {
+    const blocks = parseMarkdown(documentToMarkdown([{ type: 'code', text }], (source) => source))
+    expect(blocks).toMatchObject([{ type: 'code', text: `${text}\n` }])
+    expect(blocks).toHaveLength(1)
+  })
+
+  it.each(['md', 'pdf'] as const)(
+    'preserves Office emphasis with trailing whitespace at the %s boundary',
+    async (format) => {
+      const sourceBytes = await convertDocx(
+        [{ type: 'text', text: 'Bold plain', runs: [{ text: 'Bold ', bold: true }, { text: 'plain' }] }],
+        new Map(),
+        'Report'
+      )
+      const print = vi.spyOn(printService, 'toDocumentPdfBuffer').mockResolvedValue(Buffer.from('%PDF'))
+      const result = await convertDocumentBundle({ filePath: 'emphasis.docx', sourceBytes, format })
+      const markdown = format === 'md' ? Buffer.from(result.bytes).toString('utf8') : print.mock.calls[0][0].markdown
+      expect(parseMarkdown(markdown)).toMatchObject([
+        {
+          type: 'text',
+          text: 'Bold plain',
+          runs: expect.arrayContaining([
+            expect.objectContaining({ text: 'Bold', bold: true }),
+            expect.objectContaining({ text: ' plain', bold: false })
+          ])
+        }
+      ])
+    }
+  )
+
   it.each(['md', 'pdf'] as const)('preserves Office literal text at the %s output boundary', async (format) => {
     const blocks: DocumentBlock[] = literals.map((text) => ({ type: 'text', text }))
     const sourceBytes = await convertDocx(blocks, new Map(), 'Report')
