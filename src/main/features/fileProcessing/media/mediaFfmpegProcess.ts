@@ -67,21 +67,16 @@ export const mediaFfmpegProcess = defineUtilityProcess<MediaFfmpegContract, Medi
   cancellation: 'cooperative',
   idleTimeoutMs: 5 * 60 * 1000,
   createInitData: () => {
-    if (process.platform !== 'linux') {
+    if (process.platform === 'linux') {
       return {
-        ffmpegPath: packagedMediaBinary('ffmpeg'),
-        ffprobePath: packagedMediaBinary('ffprobe')
+        ffmpegPath: application.getPath('cherry.bin.ffmpeg.bin', 'ffmpeg'),
+        ffprobePath: application.getPath('cherry.bin.ffmpeg.bin', 'ffprobe'),
+        linuxLibraryDir: application.getPath('cherry.bin.ffmpeg.lib')
       }
     }
-    const binDir = application.getPath('cherry.bin')
-    const executable = (name: 'ffmpeg' | 'ffprobe') => {
-      if (process.platform === 'linux') return path.join(binDir, 'ffmpeg', 'bin', name)
-      return path.join(binDir, process.platform === 'win32' ? `${name}.exe` : name)
-    }
     return {
-      ffmpegPath: executable('ffmpeg'),
-      ffprobePath: executable('ffprobe'),
-      ...(process.platform === 'linux' ? { linuxLibraryDir: path.join(binDir, 'ffmpeg', 'lib') } : {})
+      ffmpegPath: packagedMediaBinary('ffmpeg'),
+      ffprobePath: packagedMediaBinary('ffprobe')
     }
   }
 })
