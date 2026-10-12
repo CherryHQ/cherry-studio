@@ -48,32 +48,33 @@ vi.mock('../mediaExecutionConfig', async (importOriginal) => {
     resolveMediaExecutionConfig: vi.fn(async () => runtime.config)
   }
 })
-vi.mock('@application', () => ({
-  application: {
-    getPath: (_key: string, filename?: string) => (filename ? join(runtime.tempRoot, filename) : runtime.tempRoot),
-    get: (name: string) => {
-      if (name === 'CacheService') {
-        return {
-          get: (key: string) => runtime.cache.get(key),
-          set: (key: string, value: unknown) => runtime.cache.set(key, value)
-        }
-      }
-      if (name === 'MediaFfmpegService') {
-        return {
-          probe: runtime.probe,
-          extractAudio: runtime.extractAudio,
-          extractFrames: runtime.extractFrames,
-          detectSceneChanges: runtime.detectSceneChanges
-        }
-      }
-      if (name === 'AiService') {
-        return { transcribe: runtime.transcribe, generateSpeech: runtime.generateSpeech }
-      }
-      if (name === 'FileProcessingService') return { ocrImage: runtime.ocrImage }
-      throw new Error(`Unexpected service: ${name}`)
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mocked = mockApplicationFactory({
+    CacheService: {
+      get: (key: string) => runtime.cache.get(key),
+      set: (key: string, value: unknown) => runtime.cache.set(key, value)
     }
-  }
-}))
+  })
+  const delegated = mocked.application.get.getMockImplementation()
+  mocked.application.get.mockImplementation((name: string) => {
+    if (name === 'MediaFfmpegService') {
+      return {
+        probe: runtime.probe,
+        extractAudio: runtime.extractAudio,
+        extractFrames: runtime.extractFrames,
+        detectSceneChanges: runtime.detectSceneChanges
+      }
+    }
+    if (name === 'AiService') return { transcribe: runtime.transcribe, generateSpeech: runtime.generateSpeech }
+    if (name === 'FileProcessingService') return { ocrImage: runtime.ocrImage }
+    return delegated?.call(mocked.application, name)
+  })
+  mocked.application.getPath.mockImplementation((_key: string, filename?: string) =>
+    filename ? join(runtime.tempRoot, filename) : runtime.tempRoot
+  )
+  return mocked
+})
 
 import { VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService } from '@main/core/lifecycle'
