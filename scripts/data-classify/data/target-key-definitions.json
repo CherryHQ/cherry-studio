@@ -118,6 +118,13 @@
       "description": "Vision-capable chat model used to summarize sampled video frames"
     },
     {
+      "targetKey": "feature.voice.input.device_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Exact microphone device ID; null follows the system default"
+    },
+    {
       "targetKey": "feature.voice.recognition.model_id",
       "type": "string",
       "defaultValue": "",

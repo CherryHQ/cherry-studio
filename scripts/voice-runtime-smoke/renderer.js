@@ -5,12 +5,10 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     'VOICE_UNSUPPORTED',
     'VOICE_ASSET_REQUIRED',
     'VOICE_MODEL_REQUIRED',
-    'VOICE_LICENSE_UNVERIFIED',
     'VOICE_VOICE_UNAVAILABLE',
     'VOICE_BUSY',
     'VOICE_FORBIDDEN',
     'VOICE_INVALID_AUDIO',
-    'VOICE_NO_SPEECH',
     'VOICE_ABORTED',
     'VOICE_STOPPED',
     'VOICE_INVALID_REQUEST',
@@ -57,7 +55,7 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
       throw { code: 'SMOKE_FAILED' }
     }
     evidence.stage = 'voices'
-    const voices = await request('ai.speech.voices.list')
+    const voices = await request('ai.speech.voices.list', { modelId: speechModelId })
     const voice = voices.filter((item) => item.language === language).sort((a, b) => a.id.localeCompare(b.id))[0]
     if (!voice) throw { code: 'VOICE_NOT_INSTALLED' }
     evidence.installedVoiceCount = voices.length
@@ -89,12 +87,10 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
           : 'Cherry Studio local voice verification. The bright blue sky is clear today. This recording uses a synthetic voice.'
     })
     evidence.stage = 'read_speech'
-    const output = await request('ai.voice.output.read', {
-      sessionId: speechSession,
-      fileEntryId: speech.fileEntry.id
-    })
-    if (!(output.audio instanceof Uint8Array) || !output.audio.byteLength || output.audio.byteLength > 32 * 1024 * 1024)
-      throw { code: 'INVALID_TTS_AUDIO' }
+    const response = await fetch(speech.output.url)
+    if (!response.ok || response.headers.get('Content-Type') !== 'audio/wav') throw { code: 'INVALID_TTS_AUDIO' }
+    const output = { audio: new Uint8Array(await response.arrayBuffer()) }
+    if (!output.audio.byteLength || output.audio.byteLength > 32 * 1024 * 1024) throw { code: 'INVALID_TTS_AUDIO' }
     context = new AudioContext({ sampleRate: 48000 })
     await context.resume()
     const audio = await context.decodeAudioData(new Uint8Array(output.audio).buffer)
@@ -164,7 +160,7 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
       requestId: crypto.randomUUID(),
       source: 'automation',
       modelId: 'local-voice::apple-system-asr',
-      language,
+      language: { source: 'explicit', locale: language },
       fileEntryId: recording.id
     })
     if (typeof transcript.text !== 'string' || !transcript.text.trim()) throw { code: 'TRANSCRIPT_EMPTY' }
@@ -194,13 +190,12 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
         requestId: crypto.randomUUID(),
         source: 'automation',
         modelId: 'local-voice::funasr-nano',
-        language,
         fileEntryId: funasrRecording.id
       })
       throw { code: 'FUNASR_UNEXPECTED_SUCCESS' }
     } catch (error) {
-      if (error?.code !== 'VOICE_LICENSE_UNVERIFIED') throw error
-      evidence.funasr = { status: 'refused', reason: 'license_unverified' }
+      if (error?.code !== 'VOICE_UNSUPPORTED') throw error
+      evidence.funasr = { status: 'refused', reason: 'unsupported' }
     }
     evidence.passed = true
     evidence.stage = 'complete'

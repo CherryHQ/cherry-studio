@@ -49,14 +49,26 @@ export function planAnalysisFrameTimestamps(input: {
   targetIntervalMs: number
   sceneChanges?: readonly SceneChangeCandidate[]
 }): number[] {
-  const budget = resolveAnalysisFrameCount(input.durationMs, input.maxFrames, input.targetIntervalMs)
+  const budget = resolveAnalysisFrameCount(
+    input.durationMs,
+    input.maxFrames,
+    input.targetIntervalMs,
+    input.sceneChanges
+  )
   if (budget === 0) return []
   const uniform = planFrameTimestamps(input.durationMs, budget, input.targetIntervalMs)
   const sceneChanges = input.sceneChanges ?? []
   if (sceneChanges.length === 0 || budget < 3) return uniform
 
   const sceneReserve = Math.max(1, Math.round(budget / 3))
-  const backbone = planFrameTimestamps(input.durationMs, budget - sceneReserve, input.targetIntervalMs)
+  const backboneCount = budget - sceneReserve
+  const requestedInterval = Math.max(1, input.targetIntervalMs)
+  // A caller interval longer than the clip cannot place both backbone ends.
+  const backboneInterval =
+    backboneCount <= 1
+      ? requestedInterval
+      : Math.min(requestedInterval, Math.max(1, Math.floor(Math.max(1, input.durationMs) / (backboneCount - 1))))
+  const backbone = planFrameTimestamps(input.durationMs, backboneCount, backboneInterval)
   const duplicateGapMs = Math.round(1_000 / SCENE_SAMPLE_FPS)
   const lastMs = Math.max(0, input.durationMs - SEEK_TAIL_MS)
   const placed = selectDistributedScenes(sceneChanges, backbone, input.durationMs, sceneReserve, duplicateGapMs, lastMs)
@@ -97,10 +109,25 @@ export function selectDistinctFrameIndexes(signatures: ReadonlyArray<Uint8Array 
   return kept
 }
 
-function resolveAnalysisFrameCount(durationMs: number, maxFrames: number, targetIntervalMs: number): number {
+function resolveAnalysisFrameCount(
+  durationMs: number,
+  maxFrames: number,
+  targetIntervalMs: number,
+  sceneChanges?: readonly SceneChangeCandidate[]
+): number {
   if (!Number.isFinite(durationMs) || durationMs <= 0 || !Number.isFinite(maxFrames) || maxFrames <= 0) return 0
   const interval = Math.max(1, targetIntervalMs)
-  return Math.min(Math.floor(maxFrames), Math.max(1, Math.floor(durationMs / interval) + 1))
+  const durationCount = Math.min(Math.floor(maxFrames), Math.max(1, Math.floor(durationMs / interval) + 1))
+  // A 1- or 2-frame caller cap stays as-is. A higher cap can spare one slot for a cut.
+  const usableCut = (sceneChanges ?? []).some(
+    (change) =>
+      Number.isFinite(change.timestampMs) &&
+      change.timestampMs >= 0 &&
+      Number.isFinite(change.score) &&
+      change.score > 0
+  )
+  if (usableCut && durationCount < 3 && maxFrames >= 3) return 3
+  return durationCount
 }
 
 function selectDistributedScenes(

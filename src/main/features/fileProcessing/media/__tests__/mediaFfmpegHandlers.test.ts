@@ -156,6 +156,314 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     }
   })
 
+  it('returns the last decodable frame when the end anchor is past its PTS', async () => {
+    const sparsePath = join(root, 'sparse-12fps.mp4')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=64x64:r=12:d=6', '-c:v', 'mpeg4', '-q:v', '8', sparsePath])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: sparsePath, fallbackExt: 'mp4' }, context())
+    const endAnchorMs = probe.durationMs - 50
+    const rawSeek = spawnSync(
+      ffmpegPath,
+      [
+        '-hide_banner',
+        '-nostdin',
+        '-y',
+        '-ss',
+        (endAnchorMs / 1000).toFixed(3),
+        '-i',
+        sparsePath,
+        '-frames:v',
+        '1',
+        '-an',
+        join(root, 'raw-end.jpg')
+      ],
+      { encoding: 'utf8' }
+    )
+    const listed = spawnSync(
+      ffprobePath,
+      ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'frame=pts_time', '-of', 'csv=p=0', sparsePath],
+      { encoding: 'utf8' }
+    )
+    const lastPts = listed.stdout.trim().split('\n').filter(Boolean).at(-1)
+    const lastFrameMs = Math.floor(Number(lastPts) * 1000 + 1e-6)
+
+    expect(rawSeek.status).toBe(234)
+    expect(lastFrameMs).toBeLessThan(endAnchorMs)
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: sparsePath,
+        outputDir: join(root, 'sparse-frames'),
+        timestampsMs: [0, endAnchorMs],
+        maxEdgePx: 64,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames.map((frame) => frame.timestampMs)).toEqual([0, lastFrameMs])
+    expect(frames.frames.every((frame) => existsSync(frame.path) && readFileSync(frame.path).length > 0)).toBe(true)
+
+    const beyond = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: sparsePath,
+        outputDir: join(root, 'beyond-frames'),
+        timestampsMs: [probe.durationMs + 1_000],
+        maxEdgePx: 64,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(beyond.frames).toEqual([])
+  })
+
+  it('seeks the last packet when a long VFR frame makes the average rate land past it', async () => {
+    const clip = (name: string, color: string, rate: string, duration: string) => {
+      const path = join(root, `${name}.mp4`)
+      expect(
+        runFfmpeg([
+          '-f',
+          'lavfi',
+          '-i',
+          `color=c=${color}:s=32x32:r=${rate}:d=${duration}`,
+          '-frames:v',
+          '1',
+          '-c:v',
+          'mpeg4',
+          '-video_track_timescale',
+          '1000',
+          path
+        ])
+      ).toBe(0)
+      return path
+    }
+    const listPath = join(root, 'vfr-list.txt')
+    writeFileSync(
+      listPath,
+      [clip('vfr-a', 'red', '1000', '1'), clip('vfr-b', 'green', '1000', '1'), clip('vfr-c', 'blue', '1', '6')]
+        .map((path) => `file '${path}'`)
+        .join('\n')
+    )
+    const vfrPath = join(root, 'long-tail-vfr.mp4')
+    expect(runFfmpeg(['-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', vfrPath])).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: vfrPath, fallbackExt: 'mp4' }, context())
+    const endAnchorMs = probe.durationMs - 50
+    const averageSeekMs = Math.floor((2 / (500 / 167)) * 1000)
+    const rawAverage = spawnSync(
+      ffmpegPath,
+      [
+        '-hide_banner',
+        '-nostdin',
+        '-y',
+        '-ss',
+        (averageSeekMs / 1000).toFixed(3),
+        '-i',
+        vfrPath,
+        '-frames:v',
+        '1',
+        '-an',
+        '-update',
+        '1',
+        join(root, 'vfr-average.jpg')
+      ],
+      { encoding: 'utf8' }
+    )
+
+    expect(rawAverage.status).not.toBe(0)
+    expect(averageSeekMs).toBeGreaterThan(2)
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: vfrPath,
+        outputDir: join(root, 'vfr-frames'),
+        timestampsMs: [endAnchorMs],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames.map((frame) => frame.timestampMs)).toEqual([2])
+    expect(readFileSync(frames.frames[0].path).length).toBeGreaterThan(0)
+  })
+
+  it('keeps a nonzero start relative and returns the last video frame when audio is longer', async () => {
+    const offsetPath = join(root, 'offset-start.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:s=32x32:r=10:d=2',
+        '-output_ts_offset',
+        '1.5',
+        '-c:v',
+        'mpeg4',
+        offsetPath
+      ])
+    ).toBe(0)
+    const offsetProbe = await mediaFfmpegHandlers.probe({ filePath: offsetPath, fallbackExt: 'mp4' }, context())
+    const absoluteSeek = spawnSync(
+      ffmpegPath,
+      [
+        '-hide_banner',
+        '-nostdin',
+        '-y',
+        '-ss',
+        '3.400',
+        '-i',
+        offsetPath,
+        '-frames:v',
+        '1',
+        '-an',
+        '-update',
+        '1',
+        join(root, 'offset-absolute.jpg')
+      ],
+      { encoding: 'utf8' }
+    )
+    expect(absoluteSeek.status).not.toBe(0)
+    const offsetFrames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: offsetPath,
+        outputDir: join(root, 'offset-frames'),
+        timestampsMs: [offsetProbe.durationMs - 50],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(offsetFrames.frames.map((frame) => frame.timestampMs)).toEqual([1_900])
+
+    const longAudioPath = join(root, 'audio-longer.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=white:s=32x32:r=10:d=1',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=4',
+        '-c:v',
+        'mpeg4',
+        '-c:a',
+        'aac',
+        longAudioPath
+      ])
+    ).toBe(0)
+    const longProbe = await mediaFfmpegHandlers.probe({ filePath: longAudioPath, fallbackExt: 'mp4' }, context())
+    expect(longProbe.durationMs).toBeGreaterThan(3_000)
+    const longFrames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: longAudioPath,
+        outputDir: join(root, 'audio-longer-frames'),
+        timestampsMs: [longProbe.durationMs - 50, longProbe.durationMs + 1_000],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(longFrames.frames).toEqual([
+      expect.objectContaining({ timestampMs: 900, path: join(root, 'audio-longer-frames', 'frame-0000.jpg') })
+    ])
+  })
+
+  it('seeks the last video packet from the format start when audio starts earlier', async () => {
+    const staggeredPath = join(root, 'staggered-av.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=4',
+        '-itsoffset',
+        '1.5',
+        '-f',
+        'lavfi',
+        '-i',
+        "color=c=black:s=32x32:r=10:d=2,geq=r='lt(T,1.8)*255':g='gte(T,1.8)*255':b=0",
+        '-c:v',
+        'mpeg4',
+        '-c:a',
+        'aac',
+        staggeredPath
+      ])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: staggeredPath, fallbackExt: 'mp4' }, context())
+    expect(probe.durationMs).toBeGreaterThan(3_500)
+    const early = join(root, 'staggered-early.jpg')
+    expect(
+      runFfmpeg(['-ss', '1.900', '-i', staggeredPath, '-map', '0:V:0', '-frames:v', '1', '-an', '-update', '1', early])
+    ).toBe(0)
+    expect(dominantChannel(early)).toBe('red')
+
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: staggeredPath,
+        outputDir: join(root, 'staggered-frames'),
+        timestampsMs: [probe.durationMs - 50],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames).toHaveLength(1)
+    expect(frames.frames[0]?.timestampMs).toBeGreaterThan(3_000)
+    expect(dominantChannel(frames.frames[0].path)).toBe('green')
+  })
+
+  it('extracts the same non-attached video stream the tail probe reads', async () => {
+    const coverPath = join(root, 'cover.jpg')
+    const coveredPath = join(root, 'covered.mp4')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=16x16:d=0.1', '-frames:v', '1', '-c:v', 'mjpeg', coverPath])
+    ).toBe(0)
+    expect(
+      runFfmpeg([
+        '-i',
+        coverPath,
+        '-f',
+        'lavfi',
+        '-i',
+        "color=c=black:s=32x32:r=10:d=1,geq=r=0:g='gte(T,0.8)*255':b='lt(T,0.8)*255'",
+        '-map',
+        '0:v',
+        '-map',
+        '1:v',
+        '-disposition:v:0',
+        'attached_pic',
+        '-c:v:0',
+        'mjpeg',
+        '-c:v:1',
+        'mpeg4',
+        coveredPath
+      ])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: coveredPath, fallbackExt: 'mp4' }, context())
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: coveredPath,
+        outputDir: join(root, 'covered-frames'),
+        timestampsMs: [Math.max(0, probe.durationMs - 50)],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames).toHaveLength(1)
+    expect(frames.frames[0]?.timestampMs).toBeGreaterThanOrEqual(800)
+    const dimensions = JSON.parse(
+      spawnSync(
+        ffprobePath,
+        ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'json', frames.frames[0].path],
+        {
+          encoding: 'utf8'
+        }
+      ).stdout
+    ).streams[0]
+    expect(dimensions).toMatchObject({ width: 32, height: 32 })
+    expect(dominantChannel(frames.frames[0].path)).toBe('green')
+  })
+
   it('kills an active FFmpeg child before rejecting cancellation', async () => {
     const outputDir = join(root, 'cancelled-frames')
     const pidRegistryPath = join(root, 'cancelled-child.pid')
@@ -237,78 +545,124 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     expect(planned.some((timestamp) => timestamp >= 9_000 && timestamp <= 11_500)).toBe(true)
   })
 
-  it('keeps a half-second cut that starts just after a uniform sample', async () => {
-    const cutPath = join(root, 'near-anchor-cut.mp4')
-    expect(
-      runFfmpeg([
-        '-f',
-        'lavfi',
-        '-i',
-        'color=c=red:s=320x240:r=25:d=8.16',
-        '-f',
-        'lavfi',
-        '-i',
-        'color=c=white:s=320x240:r=25:d=0.52',
-        '-f',
-        'lavfi',
-        '-i',
-        'color=c=red:s=320x240:r=25:d=7.32',
-        '-filter_complex',
-        '[0:v][1:v][2:v]concat=n=3:v=1:a=0',
-        '-c:v',
-        'mpeg4',
-        '-q:v',
-        '5',
-        cutPath
-      ])
-    ).toBe(0)
-    const probe = await mediaFfmpegHandlers.probe({ filePath: cutPath, fallbackExt: 'mp4' }, context())
-    const detected = await mediaFfmpegHandlers.detectSceneChanges(
-      {
-        filePath: cutPath,
-        durationMs: probe.durationMs,
-        sampleFps: SCENE_SAMPLE_FPS,
-        scoreThreshold: SCENE_SCORE_THRESHOLD,
-        scanEdgePx: SCENE_SCAN_EDGE_PX,
-        maxCandidates: 32
-      },
-      context()
-    )
-    const planned = planAnalysisFrameTimestamps({
-      durationMs: probe.durationMs,
-      maxFrames: 24,
-      targetIntervalMs: 4_000,
-      sceneChanges: detected.changes
-    })
-    const extracted = await mediaFfmpegHandlers.extractFrames(
-      {
-        filePath: cutPath,
-        outputDir: join(root, 'near-anchor-frames'),
-        timestampsMs: planned,
-        maxEdgePx: 160,
-        jpegQuality: 70
-      },
-      context()
-    )
-    const signatures = await Promise.all(extracted.frames.map((frame) => readFrameSignature(frame.path)))
-    const kept = selectDistinctFrameIndexes(signatures, FRAME_SIMILARITY_MAD_THRESHOLD)
-    const opening = signatures[0]
-    const whiteSignature = kept
-      .map((index) => signatures[index])
-      .find((signature): signature is Uint8Array => signature != null && isBrightNeutral(signature))
-
-    expect(detected.changes.some((change) => change.timestampMs >= 8_000 && change.timestampMs <= 8_800)).toBe(true)
-    expect(planned.length).toBeLessThanOrEqual(24)
-    expect(kept.length).toBeGreaterThan(0)
-    expect(kept.length).toBeLessThanOrEqual(planned.length)
-    expect(planned[0]).toBe(0)
-    expect(planned.at(-1)).toBeGreaterThan(probe.durationMs * 0.9)
-    expect(opening).toBeInstanceOf(Uint8Array)
-    expect(whiteSignature).toBeInstanceOf(Uint8Array)
-    if (opening instanceof Uint8Array && whiteSignature instanceof Uint8Array) {
-      expect(meanAbsoluteDifference(whiteSignature, opening)).toBeGreaterThan(40)
+  it.each([
+    {
+      label: '16s half-second cut',
+      fileName: 'near-anchor-cut.mp4',
+      framesDir: 'near-anchor-frames',
+      segments: [
+        { color: 'red', duration: '8.16' },
+        { color: 'white', duration: '0.52' },
+        { color: 'red', duration: '7.32' }
+      ],
+      detectedRange: [8_000, 8_800]
+    },
+    {
+      label: '6s red-white-red cut',
+      fileName: 'six-second-red-white.mp4',
+      framesDir: 'six-second-frames',
+      segments: [
+        { color: 'red', duration: '3' },
+        { color: 'white', duration: '1' },
+        { color: 'red', duration: '2' }
+      ],
+      detectedRange: [2_500, 4_500]
+    },
+    {
+      label: '3s red-white-red cut',
+      fileName: 'three-second-red-white.mp4',
+      framesDir: 'three-second-frames',
+      segments: [
+        { color: 'red', duration: '1' },
+        { color: 'white', duration: '0.5' },
+        { color: 'red', duration: '1.5' }
+      ],
+      detectedRange: [800, 1_800]
     }
-  })
+  ])(
+    'keeps a real white frame through detect, plan, extract, and dedup ($label)',
+    async ({ fileName, framesDir, segments, detectedRange }) => {
+      const cutPath = join(root, fileName)
+      const inputs = segments.flatMap((segment) => [
+        '-f',
+        'lavfi',
+        '-i',
+        `color=c=${segment.color}:s=320x240:r=25:d=${segment.duration}`
+      ])
+      expect(
+        runFfmpeg([
+          ...inputs,
+          '-filter_complex',
+          `${segments.map((_, index) => `[${index}:v]`).join('')}concat=n=${segments.length}:v=1:a=0`,
+          '-c:v',
+          'mpeg4',
+          '-q:v',
+          '5',
+          cutPath
+        ])
+      ).toBe(0)
+      const probe = await mediaFfmpegHandlers.probe({ filePath: cutPath, fallbackExt: 'mp4' }, context())
+      const detected = await mediaFfmpegHandlers.detectSceneChanges(
+        {
+          filePath: cutPath,
+          durationMs: probe.durationMs,
+          sampleFps: SCENE_SAMPLE_FPS,
+          scoreThreshold: SCENE_SCORE_THRESHOLD,
+          scanEdgePx: SCENE_SCAN_EDGE_PX,
+          maxCandidates: 32
+        },
+        context()
+      )
+      const planned = planAnalysisFrameTimestamps({
+        durationMs: probe.durationMs,
+        maxFrames: 24,
+        targetIntervalMs: 4_000,
+        sceneChanges: detected.changes
+      })
+      const extracted = await mediaFfmpegHandlers.extractFrames(
+        {
+          filePath: cutPath,
+          outputDir: join(root, framesDir),
+          timestampsMs: planned,
+          maxEdgePx: 160,
+          jpegQuality: 70
+        },
+        context()
+      )
+      const signatures = await Promise.all(extracted.frames.map((frame) => readFrameSignature(frame.path)))
+      const kept = selectDistinctFrameIndexes(signatures, FRAME_SIMILARITY_MAD_THRESHOLD)
+      const opening = signatures[0]
+      const whiteKeptIndex = kept.find((index) => {
+        const signature = signatures[index]
+        return signature != null && isBrightNeutral(signature)
+      })
+      const whiteSignature = whiteKeptIndex == null ? undefined : signatures[whiteKeptIndex]
+      const evidence = JSON.stringify({
+        durationMs: probe.durationMs,
+        detected: detected.changes,
+        planned,
+        extracted: extracted.frames.map((frame) => frame.timestampMs),
+        kept: kept.map((index) => extracted.frames[index]?.timestampMs)
+      })
+
+      expect(
+        detected.changes.some(
+          (change) => change.timestampMs >= detectedRange[0] && change.timestampMs <= detectedRange[1]
+        ),
+        evidence
+      ).toBe(true)
+      expect(planned.length, evidence).toBeLessThanOrEqual(24)
+      expect(kept.length, evidence).toBeGreaterThan(0)
+      expect(kept.length, evidence).toBeLessThanOrEqual(planned.length)
+      expect(planned[0], evidence).toBe(0)
+      expect(planned.at(-1), evidence).toBeGreaterThan(probe.durationMs * 0.9)
+      expect(opening, evidence).toBeInstanceOf(Uint8Array)
+      expect(whiteSignature, evidence).toBeInstanceOf(Uint8Array)
+      if (opening instanceof Uint8Array && whiteSignature instanceof Uint8Array) {
+        expect(meanAbsoluteDifference(whiteSignature, opening), evidence).toBeGreaterThan(40)
+      }
+    }
+  )
 
   it('collapses static frames and leaves an explicit timestamp extract unchanged', async () => {
     const staticPath = join(root, 'static-gray.mp4')
@@ -416,6 +770,18 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
   function runFfmpeg(args: string[]): number | null {
     return spawnSync(ffmpegPath, ['-hide_banner', '-nostdin', '-y', ...args], { encoding: 'utf8' }).status
   }
+
+  function dominantChannel(imagePath: string): 'red' | 'green' {
+    const decoded = spawnSync(
+      ffmpegPath,
+      ['-v', 'error', '-i', imagePath, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'],
+      { encoding: 'buffer' }
+    )
+    expect(decoded.status).toBe(0)
+    const red = decoded.stdout[0] ?? 0
+    const green = decoded.stdout[1] ?? 0
+    return green > red ? 'green' : 'red'
+  }
 })
 
 describe('mediaFfmpegHandlers frame destinations', () => {
@@ -433,9 +799,15 @@ describe('mediaFfmpegHandlers frame destinations', () => {
     writeFileSync(untouchedPath, 'leave-me')
     applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
     spawnControl.replacement = () => {
+      const call = spawnControl.calls
       const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
       const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
-      queueMicrotask(() => child.emit('close', 0))
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.stdout.emit('data', '{"format":{"duration":"2.000000"},"streams":[]}')
+        }
+        child.emit('close', 0)
+      })
       return child
     }
 
@@ -451,7 +823,7 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         context()
       )
 
-      expect(spawnControl.calls).toBe(1)
+      expect(spawnControl.calls).toBe(2)
       expect(result.frames).toEqual([])
       expect(readFileSync(untouchedPath, 'utf8')).toBe('leave-me')
     } finally {
@@ -468,6 +840,11 @@ describe('mediaFfmpegHandlers frame destinations', () => {
       const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
       queueMicrotask(() => {
         if (call === 1) {
+          child.stdout.emit('data', '{"format":{"duration":"2.000000"},"streams":[]}')
+          child.emit('close', 0)
+          return
+        }
+        if (call === 2) {
           child.emit('close', 234)
           return
         }
@@ -489,7 +866,7 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         context()
       )
 
-      expect(spawnControl.calls).toBe(2)
+      expect(spawnControl.calls).toBe(3)
       expect(result.frames).toEqual([{ path: join(outputDir, 'frame-0001.jpg'), timestampMs: 1_000 }])
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
@@ -521,6 +898,71 @@ describe('mediaFfmpegHandlers frame destinations', () => {
           context()
         )
       ).rejects.toThrow('ENOENT')
+      expect(spawnControl.calls).toBe(1)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('still extracts a frame when probe metadata is unavailable', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-probe-exit-'))
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = () => {
+      const call = spawnControl.calls
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.emit('close', 1)
+          return
+        }
+        writeFileSync(join(outputDir, 'frame-0000.jpg'), 'frame')
+        child.emit('close', 0)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractFrames(
+        {
+          filePath: '/video.mp4',
+          outputDir,
+          timestampsMs: [0],
+          maxEdgePx: 120,
+          jpegQuality: 70
+        },
+        context()
+      )
+      expect(result.frames).toEqual([{ path: join(outputDir, 'frame-0000.jpg'), timestampMs: 0 }])
+      expect(spawnControl.calls).toBe(2)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a probe timeout instead of continuing with empty bounds', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-probe-timeout-'))
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = () => {
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => child.emit('error', new Error('Media processing timed out')))
+      return child
+    }
+
+    try {
+      await expect(
+        mediaFfmpegHandlers.extractFrames(
+          {
+            filePath: '/video.mp4',
+            outputDir,
+            timestampsMs: [0, 1_000],
+            maxEdgePx: 120,
+            jpegQuality: 70
+          },
+          context()
+        )
+      ).rejects.toThrow('Media processing timed out')
       expect(spawnControl.calls).toBe(1)
     } finally {
       rmSync(outputDir, { recursive: true, force: true })

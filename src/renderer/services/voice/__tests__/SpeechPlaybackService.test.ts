@@ -5,18 +5,12 @@ import { VoiceDomainError } from '../VoiceService'
 
 const sessionId = '00000000-0000-4000-8000-000000000001'
 const requestId = '00000000-0000-4000-8000-000000000002'
-const wav = new Uint8Array([82, 73, 70, 70, 4, 0, 0, 0, 87, 65, 86, 69])
-
-function readBlob(blob: Blob): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.addEventListener('load', () => resolve(reader.result as ArrayBuffer), { once: true })
-    reader.addEventListener('error', () => reject(reader.error), { once: true })
-    reader.readAsArrayBuffer(blob)
-  })
-}
-
 class FakeAudio extends EventTarget {
+  src = ''
+  removeAttribute(name: string) {
+    if (name === 'src') this.src = ''
+  }
+  load() {}
   currentTime = 0
   paused = true
   readonly play = vi.fn(async () => {
@@ -46,15 +40,13 @@ class FakeVoiceService {
       result: Promise.resolve({
         sessionId: id,
         requestId,
-        fileEntry: { id: `file-${index}`, origin: 'internal' },
-        mimeType: 'audio/wav'
+        output: { id: `file-${index}`, url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
       })
     }
   })
   readonly abortSpeech = vi.fn(async () => undefined)
-  readonly readOutput = vi.fn(async () => ({ audio: wav, mimeType: 'audio/wav' as const }))
-  readonly releaseOutput = vi.fn(async ({ fileEntryId }: any) => {
-    this.events.push(`release:${fileEntryId}`)
+  readonly releaseOutput = vi.fn(async ({ outputId }: any) => {
+    this.events.push(`release:${outputId}`)
   })
   readonly updatePlayback = vi.fn(async ({ sessionId: id, phase }: any) => ({
     revision: 1,
@@ -93,18 +85,14 @@ const baseInput: SpeechPlaybackStartInput = {
   sourceEntityId: 'message-1'
 }
 
-function createHarness(options: { chunks?: string[]; objectUrl?: string; audio?: FakeAudio } = {}) {
+function createHarness(options: { chunks?: string[]; audio?: FakeAudio } = {}) {
   const voice = new FakeVoiceService()
   const ownerWindow = new EventTarget() as Window
   const audios: FakeAudio[] = []
-  const createObjectURL = vi.fn((blob: Blob) => {
-    voice.events.push('create-url')
-    return options.objectUrl ?? `blob:voice-${blob.size}`
-  })
-  const revokeObjectURL = vi.fn((url: string) => voice.events.push(`revoke:${url}`))
   const createAudio = vi.fn((url: string) => {
     voice.events.push(`create-audio:${url}`)
     const audio = options.audio ?? new FakeAudio()
+    audio.src = url
     audios.push(audio)
     return audio as unknown as HTMLAudioElement
   })
@@ -112,13 +100,11 @@ function createHarness(options: { chunks?: string[]; objectUrl?: string; audio?:
     voice: voice as never,
     ownerWindow,
     createAudio,
-    createObjectURL,
-    revokeObjectURL,
     ...(options.chunks && {
       planText: () => ({ status: 'ready' as const, normalizedLength: 10, chunks: options.chunks! })
     })
   })
-  return { service, voice, ownerWindow, audios, createAudio, createObjectURL, revokeObjectURL }
+  return { service, voice, ownerWindow, audios, createAudio }
 }
 
 beforeEach(() => vi.restoreAllMocks())
@@ -163,13 +149,13 @@ describe('SpeechPlaybackService planning and playback', () => {
   })
 
   it('cancels active playback and detaches cancellation after completion', async () => {
-    const { service, voice, audios, revokeObjectURL } = createHarness()
+    const { service, voice, audios } = createHarness()
     const controller = new AbortController()
     await service.start({ ...baseInput, signal: controller.signal })
     controller.abort()
     await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
     expect(audios[0].paused).toBe(true)
-    expect(revokeObjectURL).toHaveBeenCalledOnce()
+    expect(audios[0].src).toBe('')
     expect(voice.discardSession).toHaveBeenCalledWith(sessionId)
     await service.start(baseInput)
     expect(service.getSnapshot().phase).toBe('playing')
@@ -204,7 +190,11 @@ describe('SpeechPlaybackService planning and playback', () => {
     await vi.waitFor(() => expect(resolve).toBeTypeOf('function'))
 
     voice.emitInterruption()
-    resolve({ sessionId, requestId, fileEntry: { id: 'file-1', origin: 'internal' }, mimeType: 'audio/wav' })
+    resolve({
+      sessionId,
+      requestId,
+      output: { id: 'file-1', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+    })
     await starting
 
     expect(audios[0].play).not.toHaveBeenCalled()
@@ -261,27 +251,22 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
   })
 
-  it('plays WAV bytes and generates the next chunk only after release and URL revocation on ended', async () => {
+  it('plays a media URL and generates the next chunk only after audio detachment and release on ended', async () => {
     const harness = createHarness({ chunks: ['first', 'second'] })
     await harness.service.start(baseInput)
 
     expect(harness.voice.generateSpeech).toHaveBeenCalledTimes(1)
-    const blob = harness.createObjectURL.mock.calls[0][0]
-    expect(blob.type).toBe('audio/wav')
-    await expect(readBlob(blob)).resolves.toEqual(wav.buffer)
+    expect(harness.audios[0].src).toBe('cherry-media://audio/output')
 
     harness.audios[0].dispatchEvent(new Event('ended'))
     await vi.waitFor(() => expect(harness.voice.generateSpeech).toHaveBeenCalledTimes(2))
 
     expect(harness.voice.events).toEqual([
       'generate:first',
-      'create-url',
-      'create-audio:blob:voice-12',
+      'create-audio:cherry-media://audio/output',
       'release:file-1',
-      'revoke:blob:voice-12',
       'generate:second',
-      'create-url',
-      'create-audio:blob:voice-12'
+      'create-audio:cherry-media://audio/output'
     ])
   })
 
@@ -304,15 +289,21 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(audios[0].play).toHaveBeenCalledTimes(2)
   })
 
-  it('does not play or regenerate the current chunk when paused during output read', async () => {
+  it('does not play or regenerate the current chunk when paused during synthesis', async () => {
     const { service, voice, audios } = createHarness()
     let finishRead!: () => void
-    voice.readOutput.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishRead = () => resolve({ audio: wav, mimeType: 'audio/wav' as const })
-        })
-    )
+    voice.generateSpeech.mockImplementationOnce(() => ({
+      sessionId,
+      requestId,
+      result: new Promise<any>((resolve) => {
+        finishRead = () =>
+          resolve({
+            sessionId,
+            requestId,
+            output: { id: 'output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+          })
+      })
+    }))
     const starting = service.start(baseInput)
     await vi.waitFor(() => expect(finishRead).toBeTypeOf('function'))
 
@@ -328,15 +319,21 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
   })
 
-  it('does not report playing again when Main pauses and resumes during output materialization', async () => {
+  it('does not report playing again when Main pauses and resumes during synthesis', async () => {
     const { service, voice, audios } = createHarness()
     let finishRead!: () => void
-    voice.readOutput.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishRead = () => resolve({ audio: wav, mimeType: 'audio/wav' as const })
-        })
-    )
+    voice.generateSpeech.mockImplementationOnce(() => ({
+      sessionId,
+      requestId,
+      result: new Promise<any>((resolve) => {
+        finishRead = () =>
+          resolve({
+            sessionId,
+            requestId,
+            output: { id: 'output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+          })
+      })
+    }))
     const starting = service.start(baseInput)
     await vi.waitFor(() => expect(finishRead).toBeTypeOf('function'))
 
@@ -393,8 +390,8 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
   })
 
-  it('pauses audio, revokes its URL, and discards retained output on explicit stop', async () => {
-    const { service, voice, audios, revokeObjectURL } = createHarness({ objectUrl: 'blob:retained' })
+  it('pauses audio, detaches its URL, and discards retained output on explicit stop', async () => {
+    const { service, voice, audios } = createHarness()
     await service.start(baseInput)
 
     await service.stop()
@@ -402,12 +399,12 @@ describe('SpeechPlaybackService planning and playback', () => {
 
     expect(voice.discardSession).toHaveBeenCalledTimes(1)
     expect(audios[0].pause).toHaveBeenCalledTimes(1)
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:retained')
+    expect(audios[0].src).toBe('')
     expect(service.getSnapshot().phase).toBe('idle')
   })
 
-  it('retains failed audio for explicit retry without generating or reading again', async () => {
-    const { service, voice, audios, revokeObjectURL } = createHarness()
+  it('retains failed audio for explicit retry without generating again', async () => {
+    const { service, voice, audios } = createHarness()
     await service.start(baseInput)
     audios[0].currentTime = 7
 
@@ -415,7 +412,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     await vi.waitFor(() => expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' }))
 
     expect(voice.releaseOutput).not.toHaveBeenCalled()
-    expect(revokeObjectURL).not.toHaveBeenCalled()
+    expect(audios[0].src).toBe('cherry-media://audio/output')
     expect(service.canRetry(sessionId)).toBe(true)
     expect(service.canRetry('another-session')).toBe(false)
     await service.retry()
@@ -425,7 +422,6 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(audios[0].currentTime).toBe(7)
     expect(audios[0].play).toHaveBeenCalledTimes(2)
     expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
-    expect(voice.readOutput).toHaveBeenCalledTimes(1)
   })
 
   it('coalesces concurrent retries into one audio play and one Main update', async () => {
@@ -490,8 +486,22 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(voice.controlPlayback).toHaveBeenLastCalledWith({ sessionId, command: 'pause' })
   })
 
+  it('detaches the player before release and discards ownership if release fails', async () => {
+    const { service, voice, audios } = createHarness()
+    await service.start(baseInput)
+    voice.releaseOutput.mockImplementationOnce(async () => {
+      expect(audios[0].src).toBe('')
+      expect(audios[0].paused).toBe(true)
+      throw new VoiceDomainError('operation_failed')
+    })
+    audios[0].dispatchEvent(new Event('ended'))
+    await vi.waitFor(() => expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' }))
+    expect(voice.discardSession).toHaveBeenCalledWith(sessionId)
+    expect(service.canRetry(sessionId)).toBe(false)
+  })
+
   it('discards terminal ownership when completed update fails after final output release', async () => {
-    const { service, voice, audios, revokeObjectURL } = createHarness({ objectUrl: 'blob:final' })
+    const { service, voice, audios } = createHarness()
     voice.updatePlayback.mockResolvedValueOnce({ revision: 1, phase: 'playing', sessionId })
     voice.updatePlayback.mockRejectedValueOnce(new VoiceDomainError('operation_failed'))
     await service.start(baseInput)
@@ -500,7 +510,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     await vi.waitFor(() => expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' }))
 
     expect(voice.releaseOutput).toHaveBeenCalledTimes(1)
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:final')
+    expect(audios[0].src).toBe('')
     expect(voice.discardSession).toHaveBeenCalledWith(sessionId)
     expect(service.canRetry(sessionId)).toBe(false)
     await expect(service.retry()).rejects.toMatchObject({ reason: 'invalid_request' })
@@ -508,7 +518,7 @@ describe('SpeechPlaybackService planning and playback', () => {
   })
 
   it('retains cleanup ownership after discard failure and retries it on a later stop', async () => {
-    const { service, voice, audios, revokeObjectURL } = createHarness({ objectUrl: 'blob:cleanup' })
+    const { service, voice, audios } = createHarness()
     voice.discardSession.mockRejectedValueOnce(new VoiceDomainError('operation_failed'))
     await service.start(baseInput)
 
@@ -516,11 +526,11 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
     expect(service.canRetry(sessionId)).toBe(false)
     expect(audios[0].pause).toHaveBeenCalledTimes(1)
-    expect(revokeObjectURL).toHaveBeenCalledTimes(1)
+    expect(audios[0].src).toBe('')
 
     await service.stop()
     expect(voice.discardSession).toHaveBeenCalledTimes(2)
-    expect(revokeObjectURL).toHaveBeenCalledTimes(1)
+    expect(audios[0].src).toBe('')
     expect(service.getSnapshot().phase).toBe('idle')
   })
 
@@ -566,7 +576,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
   })
 
   it('ignores visibility changes but terminates audio and retained output on beforeunload', async () => {
-    const { service, voice, ownerWindow, audios, revokeObjectURL } = createHarness({ objectUrl: 'blob:retained' })
+    const { service, voice, ownerWindow, audios } = createHarness()
     await service.start(baseInput)
 
     ownerWindow.dispatchEvent(new Event('visibilitychange'))
@@ -579,7 +589,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
       expect(service.getSnapshot().phase).toBe('idle')
     })
     expect(audios[0].pause).toHaveBeenCalledTimes(1)
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:retained')
+    expect(audios[0].src).toBe('')
   })
 
   it('does not materialize playback after beforeunload wins a pending initialization', async () => {
@@ -637,8 +647,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
         result: Promise.resolve({
           sessionId: newSessionId,
           requestId,
-          fileEntry: { id: 'new-output', origin: 'internal' },
-          mimeType: 'audio/wav'
+          output: { id: 'new-output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         })
       }))
     const oldStart = service.start(baseInput)
@@ -679,8 +688,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
       result: Promise.resolve({
         sessionId: newSessionId,
         requestId,
-        fileEntry: { id: 'new-output', origin: 'internal' },
-        mimeType: 'audio/wav'
+        output: { id: 'new-output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
       })
     }))
 
@@ -735,7 +743,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
 
   it('keeps text, bytes, URLs, paths, and session identifiers out of its public snapshot', async () => {
     const textCanary = 'PRIVATE_TRANSCRIPT_/secret/audio.wav'
-    const { service } = createHarness({ chunks: [textCanary], objectUrl: 'blob:PRIVATE_AUDIO_URL' })
+    const { service } = createHarness({ chunks: [textCanary] })
     await service.start({ ...baseInput, text: textCanary })
 
     const serialized = JSON.stringify(service.getSnapshot())

@@ -36,6 +36,7 @@ import {
   type MediaExecutionConfig,
   type MediaVisionExecutionConfig
 } from './mediaExecutionConfig'
+import type { MediaFfmpegService } from './MediaFfmpegService'
 import type { ClassifiedMediaProbe } from './probeClassification'
 
 const logger = loggerService.withContext('MediaAnalysisService')
@@ -57,9 +58,7 @@ export class MediaAnalysisService extends BaseService {
   async probe(file: FileHandle, signal?: AbortSignal): Promise<ClassifiedMediaProbe> {
     signal?.throwIfAborted()
     const fileInfo = await resolveFileProcessingFileInfo(file)
-    return application
-      .get('MediaFfmpegService')
-      .probe({ filePath: fileInfo.path, fallbackExt: fileInfo.ext ?? undefined }, signal)
+    return this.mediaFfmpeg().probe({ filePath: fileInfo.path, fallbackExt: fileInfo.ext ?? undefined }, signal)
   }
 
   async analyze(file: FileHandle, signal?: AbortSignal): Promise<MediaAnalysis> {
@@ -110,7 +109,7 @@ export class MediaAnalysisService extends BaseService {
     signal?: AbortSignal
   ): Promise<MediaAnalysis> {
     signal?.throwIfAborted()
-    const ffmpeg = application.get('MediaFfmpegService')
+    const ffmpeg = this.mediaFfmpeg()
     const probe = await ffmpeg.probe({ filePath, fallbackExt: fallbackExt ?? undefined }, signal)
     const [audio, visual] = await Promise.all([
       this.analyzeAudio(filePath, probe, jobDir, execution, signal),
@@ -154,9 +153,10 @@ export class MediaAnalysisService extends BaseService {
     try {
       const outputDir = join(jobDir, 'audio')
       await mkdir(outputDir, { recursive: true })
-      const extracted = await application
-        .get('MediaFfmpegService')
-        .extractAudio({ filePath, outputDir, maxChunkBytes: MAX_AUDIO_CHUNK_BYTES }, signal)
+      const extracted = await this.mediaFfmpeg().extractAudio(
+        { filePath, outputDir, maxChunkBytes: MAX_AUDIO_CHUNK_BYTES },
+        signal
+      )
       const segments: MediaAudioSegment[] = []
       let noSpeech = false
 
@@ -218,7 +218,7 @@ export class MediaAnalysisService extends BaseService {
       let sceneChanges: Array<{ timestampMs: number; score: number }> = []
       if (probe.durationMs > 0) {
         try {
-          const detected = await application.get('MediaFfmpegService').detectSceneChanges(
+          const detected = await this.mediaFfmpeg().detectSceneChanges(
             {
               filePath,
               durationMs: probe.durationMs,
@@ -241,7 +241,7 @@ export class MediaAnalysisService extends BaseService {
         targetIntervalMs: execution.budget.targetIntervalMs,
         sceneChanges
       })
-      const extracted = await application.get('MediaFfmpegService').extractFrames(
+      const extracted = await this.mediaFfmpeg().extractFrames(
         {
           filePath,
           outputDir,
@@ -307,6 +307,11 @@ export class MediaAnalysisService extends BaseService {
       logger.warn('Visual analysis failed')
       return { frames: [], warnings: ['visual_analysis_failed'] }
     }
+  }
+
+  // Declared @DependsOn: this service is excluded when MediaFfmpegService is.
+  private mediaFfmpeg(): MediaFfmpegService {
+    return application.getOptional('MediaFfmpegService') as MediaFfmpegService
   }
 }
 

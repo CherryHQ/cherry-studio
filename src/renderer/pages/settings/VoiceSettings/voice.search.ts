@@ -4,6 +4,12 @@ export const route = '/settings/voice'
 
 export const entries: SettingsSearchEntry[] = [
   {
+    anchorId: 'microphone',
+    titleKey: 'settings.voice.microphone.label',
+    groupKey: 'settings.voice.recognition.title',
+    aliases: ['microphone', '麦克风']
+  },
+  {
     anchorId: 'recognition-model',
     titleKey: 'settings.voice.recognition.model',
     groupKey: 'settings.voice.recognition.title',
@@ -17,11 +23,6 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'recognition-status',
     titleKey: 'settings.voice.status.label',
-    groupKey: 'settings.voice.recognition.title'
-  },
-  {
-    anchorId: 'recognition-test',
-    titleKey: 'settings.voice.action.record_test',
     groupKey: 'settings.voice.recognition.title'
   },
   {

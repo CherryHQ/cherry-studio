@@ -3,6 +3,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, WINDOWS_ASR_MODEL_ID } from '@shared/ai/localVoice'
 
 const models = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ const wav = Uint8Array.from(
 )
 
 beforeEach(() => {
+  ServiceContainer.reset()
   BaseService.resetInstances()
   vi.clearAllMocks()
 })
@@ -102,7 +104,7 @@ describe('AiService voice operations through real aiCore', () => {
     await expect(new AiService().transcribe(APPLE_ASR_MODEL_ID, wav, {}, controller.signal)).rejects.toBe(reason)
   })
 
-  it('returns the selected local model output without provider-response metadata', async () => {
+  it('resolves AI through the container without an optional ASR runtime and returns speech output', async () => {
     models.speech = {
       specificationVersion: 'v3',
       provider: 'test-local',
@@ -117,7 +119,17 @@ describe('AiService voice operations through real aiCore', () => {
         }
       }
     }
-    const result = await new AiService().generateSpeech(
+    const container = ServiceContainer.getInstance()
+    class McpRuntimeService extends BaseService {}
+    class McpCatalogService extends BaseService {}
+    class AiStreamManager extends BaseService {}
+    class JobManager extends BaseService {}
+    for (const Service of [McpRuntimeService, McpCatalogService, AiStreamManager, JobManager]) {
+      container.register(Service)
+    }
+    container.register(AiService)
+    const ai = container.get<AiService>('AiService')
+    const result = await ai.generateSpeech(
       APPLE_TTS_MODEL_ID,
       'PRIVATE-TTS-TEXT',
       { voice: 'exact-voice' },
