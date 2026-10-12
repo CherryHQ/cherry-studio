@@ -95,6 +95,25 @@ describe('runPainting error surfacing', () => {
     })
   })
 
+  it('preserves a terminal non-504 failure when earlier retries were 504', async () => {
+    const detail = {
+      name: 'AI_RetryError',
+      message: 'Failed after 3 attempts',
+      stack: null,
+      lastError: { name: 'AI_APICallError', message: '401 Unauthorized', stack: null, statusCode: 401 },
+      errors: [
+        { name: 'AI_APICallError', message: '', stack: null, statusCode: 504 },
+        { name: 'AI_APICallError', message: '401 Unauthorized', stack: null, statusCode: 401 }
+      ]
+    }
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+
+    await expect(fail(err)).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: '401 Unauthorized'
+    })
+  })
+
   it('normalizes a plain (non-AI) error without inventing detail', async () => {
     await expect(fail(new Error('network down'))).rejects.toMatchObject({
       name: 'PaintingGenerateError',
