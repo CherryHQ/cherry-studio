@@ -6,13 +6,9 @@ import { providerService } from '@data/services/ProviderService'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import type { AppProviderSettingsMap } from '@main/ai/types'
+import { resolveDefaultAsrModel } from '@main/ai/voice/voicePlatform'
 import { resolveProcessorConfigByFeature } from '@main/features/fileProcessing/config/resolveProcessorConfig'
-import {
-  APPLE_ASR_MODEL_ID,
-  FUNASR_MODEL_ID,
-  type LocalTranscriptionModelId,
-  resolveDefaultAsrModel
-} from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID, type LocalTranscriptionModelId } from '@shared/ai/localVoice'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { parseUniqueModelId, UniqueModelIdSchema, type UniqueModelId } from '@shared/data/types/model'
 import { DEFAULT_MEDIA_FRAME_BUDGET, MEDIA_PIPELINE_VERSION, type MediaFrameBudget } from '@shared/types/mediaAnalysis'
