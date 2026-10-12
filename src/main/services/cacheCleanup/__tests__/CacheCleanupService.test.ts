@@ -321,13 +321,28 @@ describe('CacheCleanupService', () => {
     expect(await fs.readFile(live, 'utf8')).toBe('keep')
   })
 
-  it('does not advertise bytes from an orphan-file plan that the safety threshold aborts', async () => {
+  it('reports the full reclaimable size of a large orphan-file plan', async () => {
+    MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue({
+      ...emptyFileSweepReport,
+      plannedDeleteCount: 25,
+      plannedDeleteBytes: 12 * 1024 * 1024
+    })
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+
+    expect(inspection.results[0]?.size).toEqual({
+      bytes: 12 * 1024 * 1024,
+      accuracy: 'exact',
+      completeness: 'complete'
+    })
+  })
+
+  it('does not advertise orphan-file bytes while a restore is pending', async () => {
+    hasPendingRestoreMock.mockReturnValue(true)
     MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue({
       ...emptyFileSweepReport,
       outcome: 'aborted',
-      abortReason: 'count-fraction',
-      plannedDeleteCount: 25,
-      plannedDeleteBytes: 4096
+      abortReason: 'pending-restore'
     })
 
     const inspection = await cacheCleanupService.inspect(['orphaned_data'])

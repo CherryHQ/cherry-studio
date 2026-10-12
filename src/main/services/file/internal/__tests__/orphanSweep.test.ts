@@ -182,25 +182,6 @@ describe('runDbSweep (umbrella + observability)', () => {
     vi.restoreAllMocks()
   })
 
-  it('emits one structured orphan-sweep record on a completed run', () => {
-    const infoSpy = vi.spyOn(loggerService, 'info')
-
-    const report = runDbSweep({ fileEntryService, fileRefService })
-
-    expect(report.outcome).toBe('completed')
-    // The DB sweep only reports; it prunes nothing.
-    expect(report.orphanEntriesByOrigin.internal ?? 0).toBe(0)
-    expect(typeof report.scanDurationMs).toBe('number')
-
-    expect(infoSpy).toHaveBeenCalledWith(
-      'orphan-sweep',
-      expect.objectContaining({
-        event: 'orphan-sweep',
-        outcome: 'completed'
-      })
-    )
-  })
-
   it('reports failed outcome when an outer-level operation throws', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error')
     const failingEntryService = {
@@ -330,6 +311,32 @@ describe('runFileSweep (FS-level)', () => {
     expect((await stat(recentPath)).size).toBe(1)
   })
 
+  it.each([true, false])(
+    'preserves intake-protected orphan files (protected during planning: %s)',
+    async (protectedDuringPlanning) => {
+      const orphanId = '019606a0-0000-7000-8000-00000000ee54'
+      const orphanPath = path.join(filesDir, `${orphanId}.txt`)
+      await writeFile(orphanPath, 'upload')
+      const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+      await utimes(orphanPath, ancient, ancient)
+      let protectionActive = protectedDuringPlanning
+      const intakeProtection = {
+        load: () => Promise.resolve(),
+        isProtected: (id: string) => {
+          if (id !== orphanId) return false
+          const protectedNow = protectionActive
+          protectionActive = true
+          return protectedNow
+        }
+      }
+
+      const report = await runFileSweep({ fileEntryService, intakeProtection })
+
+      expect(report).toMatchObject({ outcome: 'completed', actualDeleteCount: 0, actualDeleteBytes: 0 })
+      expect((await stat(orphanPath)).size).toBe(6)
+    }
+  )
+
   it('unlinks atomic-write tmp residue older than 5 minutes', async () => {
     const tmpName = `019606a0-0000-7000-8000-00000000ee53.txt.tmp-22222222-2222-4222-8222-aaaaaaaaaaaa`
     const tmpPath = path.join(filesDir, tmpName)
@@ -407,9 +414,7 @@ describe('runFileSweep (FS-level)', () => {
     expect(fileEntryService.getById(id)).toMatchObject({ ext, cleanupPolicy: 'manual' })
   })
 
-  it('aborts when the planned deletion exceeds the safety threshold (>20 files at >50%)', async () => {
-    // 25 orphan UUID files on disk, 0 entries in DB — exceeds both the 20-count
-    // residue floor AND the 50% fraction. Architecture §10.4 → outcome=aborted.
+  it('counts and deletes more than 20 old orphan files even when they comprise all files on disk', async () => {
     const ids = Array.from({ length: 25 }, (_, i) => `019606a0-0000-7000-8000-${String(i).padStart(12, '0')}`)
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     for (const id of ids) {
@@ -418,21 +423,26 @@ describe('runFileSweep (FS-level)', () => {
       await utimes(p, ancient, ancient)
     }
 
-    const report = await runFileSweep({ fileEntryService })
-    expect(report.outcome).toBe('aborted')
-    if (report.outcome === 'aborted') {
-      expect(report.abortReason).toBe('count-fraction')
-    }
-    expect(report.actualDeleteCount).toBe(0)
-
-    // All files preserved.
+    const inspection = await inspectFileSweep({ fileEntryService })
+    expect(inspection).toMatchObject({
+      outcome: 'completed',
+      plannedDeleteCount: 25,
+      plannedDeleteBytes: 25,
+      actualDeleteCount: 0,
+      actualDeleteBytes: 0
+    })
     for (const id of ids) {
       expect((await stat(path.join(filesDir, `${id}.txt`))).size).toBe(1)
     }
+
+    const report = await runFileSweep({ fileEntryService })
+    expect(report).toMatchObject({ outcome: 'completed', actualDeleteCount: 25, actualDeleteBytes: 25 })
+    for (const id of ids) {
+      await expect(stat(path.join(filesDir, `${id}.txt`))).rejects.toMatchObject({ code: 'ENOENT' })
+    }
   })
 
-  it('aborts on byte-fraction when total bytes exceed the bytes floor', async () => {
-    // 21 files of 600KB each (12.6 MB > 10MB floor) AND 100% planned → abort.
+  it('counts and deletes more than 10 MiB of old orphan files even when they comprise all bytes on disk', async () => {
     const ids = Array.from({ length: 21 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 100).padStart(12, '0')}`)
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     const big = Buffer.alloc(600 * 1024, 'x')
@@ -442,70 +452,27 @@ describe('runFileSweep (FS-level)', () => {
       await utimes(p, ancient, ancient)
     }
 
-    const report = await runFileSweep({ fileEntryService })
-    expect(report.outcome).toBe('aborted')
-    if (report.outcome === 'aborted') {
-      // Either count-fraction or byte-fraction may trigger first; both are valid.
-      expect(['count-fraction', 'byte-fraction']).toContain(report.abortReason)
-    }
-    expect(report.actualDeleteCount).toBe(0)
-  })
-
-  it('emits one structured orphan-file-sweep debug log on completion', async () => {
-    const orphanId = '019606a0-0000-7000-8000-00000000ee60'
-    const orphanPath = path.join(filesDir, `${orphanId}.txt`)
-    await writeFile(orphanPath, 'o')
-    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
-    await utimes(orphanPath, ancient, ancient)
-
-    const debugSpy = vi.spyOn(loggerService, 'debug')
-    await runFileSweep({ fileEntryService })
-    expect(debugSpy).toHaveBeenCalledWith(
-      'orphan-file-sweep',
-      expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'completed' })
-    )
-  })
-
-  it('emits "orphan-file-sweep-below-floor" warn breadcrumb when plan is high-fraction but under both floors', async () => {
-    // 5 orphan UUID files on disk, 0 entries in DB → fraction is 100% but plan
-    // is below both the 20-count and 10MB floors, so pickAbortReason returns
-    // undefined and the sweep proceeds. The forensic breadcrumb is the primary
-    // signal for explaining an unexpected mass-delete incident.
-    const ids = Array.from({ length: 5 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 500).padStart(12, '0')}`)
-    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    const inspection = await inspectFileSweep({ fileEntryService })
+    expect(inspection).toMatchObject({
+      outcome: 'completed',
+      plannedDeleteCount: 21,
+      plannedDeleteBytes: 21 * 600 * 1024,
+      actualDeleteCount: 0,
+      actualDeleteBytes: 0
+    })
     for (const id of ids) {
-      const p = path.join(filesDir, `${id}.txt`)
-      await writeFile(p, 'x')
-      await utimes(p, ancient, ancient)
+      expect((await stat(path.join(filesDir, `${id}.txt`))).size).toBe(600 * 1024)
     }
-    const warnSpy = vi.spyOn(loggerService, 'warn')
-    const report = await runFileSweep({ fileEntryService })
-    expect(report.outcome).toBe('completed')
-    expect(report.actualDeleteCount).toBe(5)
-    expect(warnSpy).toHaveBeenCalledWith(
-      'orphan-file-sweep-below-floor',
-      expect.objectContaining({
-        event: 'orphan-file-sweep-below-floor',
-        plannedCount: 5,
-        countFraction: 1
-      })
-    )
-  })
 
-  it('emits warn-level record on aborted outcome', async () => {
-    const ids = Array.from({ length: 25 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 300).padStart(12, '0')}`)
-    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    const report = await runFileSweep({ fileEntryService })
+    expect(report).toMatchObject({
+      outcome: 'completed',
+      actualDeleteCount: 21,
+      actualDeleteBytes: 21 * 600 * 1024
+    })
     for (const id of ids) {
-      const p = path.join(filesDir, `${id}.txt`)
-      await writeFile(p, 'x')
-      await utimes(p, ancient, ancient)
+      await expect(stat(path.join(filesDir, `${id}.txt`))).rejects.toMatchObject({ code: 'ENOENT' })
     }
-    const warnSpy = vi.spyOn(loggerService, 'warn')
-    await runFileSweep({ fileEntryService })
-    expect(warnSpy).toHaveBeenCalledWith(
-      'orphan-file-sweep',
-      expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'aborted' })
-    )
   })
 
   it('records oldestDeletedMtime when at least one file is unlinked', async () => {
@@ -595,8 +562,7 @@ describe('runFileSweep (FS-level)', () => {
     }
   })
 
-  it('proceeds normally for small residue (under the 20-file floor)', async () => {
-    // 5 orphan UUID files, 0 entries — small enough to bypass abort.
+  it('cleans a small batch of old orphan files', async () => {
     const ids = Array.from({ length: 5 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 200).padStart(12, '0')}`)
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     for (const id of ids) {

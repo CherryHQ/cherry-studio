@@ -212,9 +212,7 @@ function summariseFsSweepIssue(report: FileSweepReport): string | undefined {
         report.failedSamples.length > 0 ? ` (first: ${report.failedSamples[0]})` : ''
       }`
     case 'aborted':
-      return report.abortReason === 'pending-restore'
-        ? 'FS sweep stood aside: a staged backup restore is pending promotion'
-        : `FS sweep aborted by safety threshold (${report.abortReason})`
+      return 'FS sweep stood aside: a staged backup restore is pending promotion'
     case 'failed':
       return `FS sweep failed: ${report.errorMessage}`
   }
@@ -233,9 +231,6 @@ function summariseFsSweepIssue(report: FileSweepReport): string | undefined {
  *   rescanning everything half an hour later, and treating it as retryable
  *   would turn one unlinkable blob into a full-tree scan every idle tick,
  *   forever. The next scheduled sweep retries it.
- * - `aborted` by a safety threshold — the tree *was* enumerated; refusing is
- *   the considered verdict of a completed plan phase, and the state it reads
- *   will not have changed by the next tick.
  * - `aborted` for `pending-restore` — returns before enumerating anything. A
  *   stand-aside is not a sweep. This is the case that made the bug visible:
  *   the first tick of a session correctly defers to a staged restore, and the
@@ -249,7 +244,6 @@ function sweepConsumedItsWindow(report: FileSweepReport): boolean {
     case 'partial':
       return true
     case 'aborted':
-      return report.abortReason !== 'pending-restore'
     case 'failed':
       return false
   }
