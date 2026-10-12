@@ -1,7 +1,9 @@
+import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -22,6 +24,7 @@ import type { AuthConfig } from '@shared/data/types/provider'
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { customFetch } from '../../utils/customFetch'
+import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
 // provider auth config from the direct-import ProviderService singleton. Mock
@@ -1766,6 +1769,110 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('NewAPI builder', () => {
+    const imageEndpoints = [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]
+
+    it.each(
+      imageEndpoints.flatMap((endpointType) =>
+        [
+          ['https://relay.example.com', 'https://relay.example.com/v1'],
+          ['https://relay.example.com/v1', 'https://relay.example.com/v1'],
+          ['https://relay.example.com/v1beta', 'https://relay.example.com/v1'],
+          ['https://relay.example.com/gateway/v1', 'https://relay.example.com/gateway/v1'],
+          ['https://relay.example.com/custom#', 'https://relay.example.com/custom']
+        ].map(([baseUrl, expected]) => ({ endpointType, baseUrl, expected }))
+      )
+    )(
+      'requests the versioned $endpointType route for a bundled New API host $baseUrl',
+      async ({ endpointType, baseUrl, expected }) => {
+        const preset = readProviderRegistry('packages/provider-registry/data/providers.json').providers.find(
+          (provider) => provider.id === 'new-api'
+        )
+        const provider = makeProvider({
+          id: 'my-newapi',
+          presetProviderId: 'new-api',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            ...preset?.endpointConfigs,
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              ...preset?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+              baseUrl
+            }
+          }
+        })
+        const model = makeModel({
+          apiModelId: 'gpt-image-2.5-flare',
+          endpointTypes: [endpointType],
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+        const config = await providerToAiSdkConfig(provider, model)
+
+        expect(config.providerId).toBe('newapi')
+        vi.mocked(net.fetch).mockResolvedValue(
+          new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }] }), {
+            headers: { 'content-type': 'application/json' }
+          })
+        )
+        const options: ImageModelV3CallOptions = {
+          prompt: 'a red circle',
+          n: 1,
+          size: undefined,
+          aspectRatio: undefined,
+          seed: undefined,
+          files:
+            endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+              ? [{ type: 'file', data: new Uint8Array([137, 80, 78, 71]), mediaType: 'image/png' }]
+              : undefined,
+          mask: undefined,
+          providerOptions: {},
+          headers: undefined,
+          abortSignal: undefined
+        }
+        const result = await createNewApi(config.providerSettings as NewApiProviderSettings)
+          .imageModel('gpt-image-2.5-flare')
+          .doGenerate(options)
+
+        const [url, request] = vi.mocked(net.fetch).mock.calls[0]
+        expect(String(url)).toBe(
+          `${expected}/images/${endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT ? 'edits' : 'generations'}`
+        )
+        expect(request?.method).toBe('POST')
+        if (endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT) {
+          const body = request?.body
+          if (!(body instanceof FormData)) throw new Error('Image edits must send multipart form data')
+          expect(body.get('model')).toBe('gpt-image-2.5-flare')
+        } else {
+          expect(JSON.parse(String(request?.body)).model).toBe('gpt-image-2.5-flare')
+        }
+        expect(result.images).toEqual(['QUJD'])
+      }
+    )
+
+    it.each(imageEndpoints)('preserves an explicit %s host on a New API provider instance', async (endpointType) => {
+      const preset = readProviderRegistry('packages/provider-registry/data/providers.json').providers.find(
+        (provider) => provider.id === 'new-api'
+      )
+      const provider = makeProvider({
+        id: 'my-newapi',
+        presetProviderId: 'new-api',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          ...preset?.endpointConfigs,
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            ...preset?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            baseUrl: 'https://relay.example.com'
+          },
+          [endpointType]: {
+            ...preset?.endpointConfigs?.[endpointType],
+            baseUrl: 'https://images.example.com/gateway/v1'
+          }
+        }
+      })
+      const config = await providerToAiSdkConfig(provider, makeModel({ endpointTypes: [endpointType] }))
+
+      expect(config.providerId).toBe('newapi')
+      expect((config.providerSettings as NewApiProviderSettings).baseURL).toBe('https://images.example.com/gateway/v1')
+    })
+
     it('uses the provider default anthropic endpoint when the model has no endpoint types', async () => {
       const provider = makeProvider({
         id: 'my-newapi',
@@ -1813,7 +1920,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     it.each([
       ['https://api.newapi.com', 'https://api.newapi.com/v1'],
       ['https://api.newapi.com/v1', 'https://api.newapi.com/v1'],
-      ['https://api.newapi.com/v1beta', 'https://api.newapi.com/v1']
+      ['https://api.newapi.com/v1beta', 'https://api.newapi.com/v1'],
+      ['https://api.newapi.com/custom#', 'https://api.newapi.com/custom']
     ])('re-derives the chat baseURL of %s as %s', async (baseUrl, expected) => {
       const provider = makeProvider({
         id: 'my-newapi',
