@@ -89,6 +89,10 @@ vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
     error instanceof Error && error.name === 'AgentSessionWorkspaceError'
 }))
 
+vi.mock('@main/ai/agents/agentWorkspaceStorage', () => ({
+  withSystemWorkspaceStorage: (_path: string, operation: () => Promise<unknown>) => operation()
+}))
+
 vi.mock('@main/ai/agents/agentWorkspaceArchive', () => ({
   archiveSystemWorkspace: vi.fn(),
   restoreSystemWorkspace: vi.fn(),

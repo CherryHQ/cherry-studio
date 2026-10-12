@@ -8,6 +8,8 @@ sources:
   - src/main/ai/agents/AgentJobsService.ts
   - src/main/ai/agents/agentOrphanSweep.ts
   - src/main/ai/agents/agentWorkspaceArchive.ts
+  - src/main/ai/agents/agentWorkspaceStorage.ts
+  - src/main/data/services/AgentWorkspaceService.ts
   - src/main/services/LegacyBackupManager.ts
 ---
 
@@ -153,6 +155,15 @@ are retained unchanged. Compression uses an `.archiving` directory and a tempora
 archive; the original contents are removed only after the archive is validated
 and published. Failures retain the files for a later lifecycle sweep to retry.
 Linked or special files prevent compression rather than being silently omitted.
+
+Workspace registration and storage reclamation share a synchronous reservation
+boundary in AgentWorkspaceService. Registered overlapping workspaces protect the
+whole system tree, including user directories nested below it; logical Session
+archival still succeeds. Archive, purge, and orphan sweep hold the reservation
+through their filesystem work, so new overlapping registrations fail with a
+retryable conflict until it completes. Checks resolve existing path aliases and
+include temporary archive and restore paths. Protected directories remain intact
+even after the owning system Session is permanently removed.
 
 Restore extracts into a `.restoring` directory and publishes the complete directory
 at its original path before restoring the Session's database state. Agent restore

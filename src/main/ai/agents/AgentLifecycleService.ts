@@ -16,6 +16,7 @@ import type {
 import { buildAgentSessionTopicId } from '../agentSession/topic'
 import { sweepAgentOrphans } from './agentOrphanSweep'
 import { archiveSystemWorkspace, purgeSystemWorkspace, restoreSystemWorkspace } from './agentWorkspaceArchive'
+import { withSystemWorkspaceStorage } from './agentWorkspaceStorage'
 import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentLifecycleService')
@@ -440,7 +441,7 @@ export class AgentLifecycleService extends BaseService {
     const root = application.getPath('feature.agents.system_workspaces')
     for (const workspacePath of paths) {
       try {
-        await purgeSystemWorkspace(root, workspacePath)
+        await withSystemWorkspaceStorage(workspacePath, () => purgeSystemWorkspace(root, workspacePath))
       } catch (error) {
         logger.warn('Failed to remove purged Agent Session workspace', { workspacePath, error })
       }
@@ -452,8 +453,10 @@ export class AgentLifecycleService extends BaseService {
     for (const workspace of agentSessionService.listSystemWorkspaceSessions(ids)) {
       if (workspace.deletedAt === null) continue
       try {
-        await application.get('AgentSessionRuntimeService').closeSessionForArchive(workspace.id)
-        await archiveSystemWorkspace(root, workspace.path)
+        await withSystemWorkspaceStorage(workspace.path, async () => {
+          await application.get('AgentSessionRuntimeService').closeSessionForArchive(workspace.id)
+          await archiveSystemWorkspace(root, workspace.path)
+        })
       } catch (error) {
         logger.warn('Failed to archive system workspace; retained for retry', { workspacePath: workspace.path, error })
       }

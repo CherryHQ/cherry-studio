@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import path from 'path'
 
 import { and, asc, count, desc, eq, exists, ne, notExists, or, sql } from 'drizzle-orm'
@@ -58,7 +59,67 @@ function normalizeWorkspaceName(rawName: string): string {
   return trimmed
 }
 
+function canonicalWorkspacePath(value: string): string {
+  let current = path.resolve(value)
+  const missing: string[] = []
+  while (true) {
+    try {
+      current = path.join(realpathSync.native(current), ...missing)
+      break
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      const parent = path.dirname(current)
+      if (parent === current) break
+      missing.unshift(path.basename(current))
+      current = parent
+    }
+  }
+  return process.platform === 'win32' ? current.toLowerCase() : current
+}
+
+function workspacePathsOverlap(left: string, right: string): boolean {
+  const contains = (parent: string, child: string) => {
+    const relative = path.relative(parent, child)
+    return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))
+  }
+  return contains(left, right) || contains(right, left)
+}
 export class AgentWorkspaceService {
+  private readonly storageReservations = new Set<readonly string[]>()
+
+  reserveStorageMutation(paths: readonly string[], ownerPath?: string): (() => void) | undefined {
+    const targets = paths.map(canonicalWorkspacePath)
+    const owner = ownerPath === undefined ? undefined : canonicalWorkspacePath(ownerPath)
+    const rows = application.get('DbService').getDb().select().from(agentWorkspaceTable).all()
+    for (const row of rows) {
+      const claimed = canonicalWorkspacePath(row.path)
+      if (row.type === AGENT_WORKSPACE_TYPE.SYSTEM && claimed === owner) continue
+      if (targets.some((target) => workspacePathsOverlap(target, claimed))) return undefined
+    }
+    if (
+      [...this.storageReservations].some((reserved) =>
+        reserved.some((claim) => targets.some((target) => workspacePathsOverlap(target, claim)))
+      )
+    )
+      return undefined
+    this.storageReservations.add(targets)
+    return () => {
+      this.storageReservations.delete(targets)
+    }
+  }
+
+  private assertStorageAvailable(workspacePath: string): void {
+    const target = canonicalWorkspacePath(workspacePath)
+    if (
+      [...this.storageReservations].some((reserved) => reserved.some((claim) => workspacePathsOverlap(target, claim)))
+    ) {
+      throw DataApiErrorFactory.conflict(
+        'Workspace storage is being archived or reclaimed; retry after the operation completes',
+        'Workspace'
+      )
+    }
+  }
+
   buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
     if (!sessionId || sessionId === '.' || sessionId === '..' || /[\\/]/.test(sessionId)) {
       throw new Error(`Invalid agent session id for system workspace: ${sessionId}`)
@@ -222,6 +283,7 @@ export class AgentWorkspaceService {
     workspacePath: string,
     options: { name?: string } = {}
   ): { row: AgentWorkspaceRow; created: boolean } {
+    this.assertStorageAvailable(workspacePath)
     const [existing] = tx
       .select()
       .from(agentWorkspaceTable)
@@ -256,6 +318,7 @@ export class AgentWorkspaceService {
         input.createdAt
       )
     )
+    this.assertStorageAvailable(workspacePath)
     const row = withSqliteErrors(
       () =>
         insertWithOrderKey(
