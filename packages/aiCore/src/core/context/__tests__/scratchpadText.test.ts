@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   stripKnownModelScratchpadBlocks,
+  stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripModelScratchpadBlocks,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
@@ -45,6 +46,13 @@ describe('scratchpadText', () => {
         '<analysis><summary>decoy inside scratchpad</summary></analysis><summary>actual summary</summary>'
       )
     ).toBe('actual summary')
+  })
+
+  it('preserves fenced scratchpad literals when a wrapper precedes the fence in the same block', () => {
+    const mixed = '<thinking>internal</thinking>```xml\n<thinking>literal example</thinking>\n```'
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(mixed)
+    expect(stripped).toContain('<thinking>literal example</thinking>')
+    expect(stripped).not.toContain('internal')
   })
 
   it('keeps trailing reply text when stripping known scratchpad wrappers', () => {
@@ -180,6 +188,24 @@ Example:
   it('strips slash-prefixed analysis when inline code mentions a closing-tag and tilde run', () => {
     const input = '<analysis>The docs use `</div>~~~` as a closing marker.</analysis><summary>Keep this</summary>'
     expect(stripModelScratchpadBlocks(input)).toBe('Keep this')
+  })
+
+  it('preserves scratchpad literals inside ordered-list fences using a parenthesis marker', () => {
+    const input = `<summary>
+1) \`\`\`xml
+   <thinking>literal</thinking>
+   \`\`\`
+</summary>`
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal</thinking>')
+    expect(stripModelScratchpadBlocks(input)).not.toMatch(/^<summary>/)
+  })
+
+  it('finishes opening-tag recognition quickly on long self-closing attribute lists', () => {
+    const tag = `<thinking${Array.from({ length: 20 }, (_, i) => ` a${i}=""`).join('')} />`
+    const started = performance.now()
+    expect(textStartsWithModelScratchpadTag(tag)).toBe(false)
+    expect(stripModelScratchpadBlocks(tag)).toBe(tag)
+    expect(performance.now() - started).toBeLessThan(200)
   })
 
   it('unwraps a whole summary block that quotes summary tags inside a fenced example', () => {

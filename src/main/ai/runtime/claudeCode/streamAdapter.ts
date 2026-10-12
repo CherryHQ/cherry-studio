@@ -36,6 +36,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
 import {
+  shouldDeferScratchpadStripping,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   textHasUnclosedCodeFence,
   textStartsWithModelScratchpadTag,
@@ -990,7 +991,7 @@ export class ClaudeCodeStreamAdapter {
     const combined = ctx.scratchpadStreamRemainder + text
     ctx.scratchpadStreamRemainder = ''
 
-    if (textHasUnclosedCodeFence(combined)) {
+    if (shouldDeferScratchpadStripping(combined)) {
       ctx.scratchpadStreamRemainder = combined
       return ''
     }
@@ -1083,6 +1084,22 @@ export class ClaudeCodeStreamAdapter {
     ctx.textStreamedViaContentBlock = true
     ctx.accumulatedText += visible
     ctx.streamedTextLength += visible.length
+  }
+
+  /** Appends visible text without scratchpad probing — used when a content block ends. */
+  private appendVisibleTextDelta(text: string, ctx: StreamContext): void {
+    if (!text) return
+    if (!ctx.textPartId) {
+      ctx.textPartId = generateId()
+    }
+    if (!ctx.textPartStarted) {
+      ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+      ctx.textPartStarted = true
+    }
+    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
+    ctx.textStreamedViaContentBlock = true
+    ctx.accumulatedText += text
+    ctx.streamedTextLength += text.length
   }
 
   private enqueueVisibleTextDelta(
@@ -1206,7 +1223,7 @@ export class ClaudeCodeStreamAdapter {
           ctx.scratchpadStreamRemainder = ''
           const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(pending)
           if (stripped) {
-            this.enqueueVisibleTextDelta(stripped, ctx)
+            this.appendVisibleTextDelta(stripped, ctx)
           }
         }
       }
@@ -1296,7 +1313,7 @@ export class ClaudeCodeStreamAdapter {
   /** Per content block so multi-block streaming offsets match snapshot reconciliation. */
   private normalizeParentlessAssistantBlockText(blockText: string, ctx: StreamContext): string {
     if (!blockText) return ''
-    if (!ctx.filterParentlessScratchpadText || !textStartsWithModelScratchpadTag(blockText)) {
+    if (!ctx.filterParentlessScratchpadText) {
       return blockText
     }
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(blockText)
