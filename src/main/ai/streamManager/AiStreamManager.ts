@@ -2082,7 +2082,12 @@ export class AiStreamManager extends BaseService {
       const error = serializeError(result.accumulationError.error)
       error.executionFailure = toExecutionFailure(error, modelId, 'host')
       await this.onExecutionError(topicId, modelId, error, exec)
-    } else if (!request.allowEmptySuccess && !this.hasPendingSteer(topicId) && isEmptySuccessTurn(exec.finalMessage)) {
+    } else if (
+      !request.allowEmptySuccess &&
+      !this.hasPendingSteer(topicId) &&
+      !(isAgentSessionTopic(topicId) && application.get('AgentSessionRuntimeService').willContinueTopic(topicId)) &&
+      isEmptySuccessTurn(exec.finalMessage)
+    ) {
       const noResponseError: SerializedError = {
         name: 'NoResponseError',
         message: 'No response',

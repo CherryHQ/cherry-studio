@@ -787,6 +787,28 @@ describe('AiStreamManager', () => {
       })
       expect(mgr.inspect('agent-session:s-empty')?.status).toBe('error')
     })
+
+    it('preserves an empty agent-session steer boundary when the runtime will continue', async () => {
+      vi.useRealTimers()
+      mockWillContinueTopic.mockReturnValue(true)
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:agent-steer-boundary')
+      startSingle(mgr, {
+        topicId: 'agent-session:s-steer',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:s-steer'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      feed.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+
+      expect(listener.errorResults).toEqual([])
+      expect(listener.doneResults[0].isTopicDone).toBe(false)
+      expect(mgr.inspect('agent-session:s-steer')?.status).toBe('done')
+    })
   })
 
   // ── send (inject path) ─────────────────────────────────────────────
