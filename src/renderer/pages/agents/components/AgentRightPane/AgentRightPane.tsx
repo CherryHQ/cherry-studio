@@ -1774,6 +1774,9 @@ function DetachedTaskSection({ agentId, compact }: { agentId?: string; compact: 
       const record = await ipcApi.request('ai.agent.background_task.stop', { agentId, taskId, force })
       if (!record) throw new Error('Task is no longer running or its process identity could not be verified')
       setTasks((current) => current.map((task) => (task.id === taskId ? record : task)))
+      // Applying the result is itself the newest state change: a poll issued while the stop was in
+      // flight shares the count the stop began under, and its listing may predate this application.
+      mutationRef.current += 1
     } catch (error) {
       logger.warn('Failed to stop detached background task', { agentId, taskId, error })
       toast.error(t('agent.right_pane.detached_task.stop_failed'))
