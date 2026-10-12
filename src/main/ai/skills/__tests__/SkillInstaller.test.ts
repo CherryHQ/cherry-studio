@@ -257,6 +257,33 @@ describe('SkillInstaller', () => {
     expect(mockFsRename).not.toHaveBeenCalled()
   })
 
+  it('drops a superseded migration marker instead of restoring obsolete content', async () => {
+    mockFsReaddir.mockResolvedValue([
+      { name: '.foo.migrating-to.bar.bak', isDirectory: () => true },
+      { name: 'baz', isDirectory: () => true }
+    ])
+    mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
+    mockPathExists.mockResolvedValue(false)
+
+    await installer.recoverInterruptedInstalls(
+      '/global-skills',
+      (folderName) => folderName === 'baz',
+      () => true
+    )
+
+    expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/.foo.migrating-to.bar.bak')
+    expect(mockFsRename).not.toHaveBeenCalled()
+  })
+
+  it('propagates marker cleanup failures from strict removal', async () => {
+    mockFsReaddir.mockResolvedValue([{ name: '.my-skill.bak', isDirectory: () => true }])
+    mockDeleteDirectoryRecursive.mockRejectedValue(new Error('locked'))
+
+    await expect(installer.removeMigrationMarkersStrict('/global-skills', 'my-skill')).rejects.toThrow(
+      /Failed to remove stale skill migration marker/
+    )
+  })
+
   it('removes only the migration markers naming the uninstalled folder', async () => {
     mockFsReaddir.mockResolvedValue([
       { name: '.content.migrating-to.my-skill.bak', isDirectory: () => true },

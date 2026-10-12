@@ -577,6 +577,7 @@ export class SkillService {
     let prevFolderName: string | null = null
     if (renamed) {
       prevFolderName = renamed.folderName
+      await this.installer.settleMigrationMarkersBeforeRename(skillsRoot, prevFolderName)
       migrationBackup = await this.installer.backupReplacedFolderForMigration(
         this.getSkillStoragePath(prevFolderName),
         folderName
@@ -893,9 +894,15 @@ export class SkillService {
     this.reconcileInFlight = this.mutationLock
       .runExclusive(async () => {
         const storageRoot = application.getPath('feature.agents.skills')
+        const trackedFolderNames = () => new Set(agentGlobalSkillService.listAll().map((skill) => skill.folderName))
         await this.installer.recoverInterruptedInstalls(
           storageRoot,
-          (folderName) => this.findCatalogSkillCaseInsensitive(folderName) !== null
+          (folderName) => this.findCatalogSkillCaseInsensitive(folderName) !== null,
+          (oldName, newName) => {
+            const tracked = trackedFolderNames()
+            if (tracked.has(newName) || tracked.has(oldName)) return false
+            return tracked.size > 0
+          }
         )
         try {
           await this.ensureSkillPluginManifest()
@@ -1628,11 +1635,12 @@ export class SkillService {
   }
 
   private async uninstallLocked(skill: InstalledSkill): Promise<void> {
+    const skillsRoot = application.getPath('feature.agents.skills')
+    // Markers must be gone before the replacement folder and catalog row: a surviving rollback
+    // marker would let recovery resurrect an uninstalled skill after the row is deleted.
+    await this.installer.removeMigrationMarkersStrict(skillsRoot, skill.folderName)
     const skillPath = this.getSkillStoragePath(skill.folderName)
     await this.installer.uninstall(skillPath)
-    // A warned marker retire can leave a migration marker behind; without the row, startup
-    // recovery would restore the old folder and reconcile would adopt it as a duplicate skill.
-    await this.installer.removeMigrationMarkers(application.getPath('feature.agents.skills'), skill.folderName)
     await this.unlinkMirror(skill.folderName)
     agentGlobalSkillService.deleteById(skill.id)
     logger.info('Skill uninstalled', { skillId: skill.id, folderName: skill.folderName })

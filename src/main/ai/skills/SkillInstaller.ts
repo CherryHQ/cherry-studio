@@ -51,7 +51,7 @@ export class SkillInstaller {
 
     const sourceHash = await this.computeDirectoryHash(sourceDir)
     await this.recoverInterruptedInstall(destPath)
-    await this.removeCommittedCleanup(destPath)
+    await this.removeCommittedCleanupForDest(destPath)
 
     const backupPath = this.getBackupPath(destPath)
     let hasBackup = false
@@ -137,7 +137,8 @@ export class SkillInstaller {
   /** Restore every interrupted publish before reconcile considers pruning. */
   async recoverInterruptedInstalls(
     storageRoot: string,
-    isFolderTracked?: (folderName: string) => boolean
+    isFolderTracked?: (folderName: string) => boolean,
+    isMigrationSuperseded?: (oldName: string, newName: string) => boolean
   ): Promise<void> {
     let entries: fs.Dirent[]
     try {
@@ -151,7 +152,13 @@ export class SkillInstaller {
       if (!entry.isDirectory()) continue
       const migration = entry.name.match(/^\.([^.]+)\.migrating-to\.([^.]+)\.bak$/)
       if (migration?.[1] && migration?.[2]) {
-        await this.recoverInterruptedMigration(storageRoot, migration[1], migration[2], isFolderTracked)
+        await this.recoverInterruptedMigration(
+          storageRoot,
+          migration[1],
+          migration[2],
+          isFolderTracked,
+          isMigrationSuperseded
+        )
         continue
       }
 
@@ -177,11 +184,17 @@ export class SkillInstaller {
     storageRoot: string,
     oldName: string,
     newName: string,
-    isFolderTracked?: (folderName: string) => boolean
+    isFolderTracked?: (folderName: string) => boolean,
+    isMigrationSuperseded?: (oldName: string, newName: string) => boolean
   ): Promise<void> {
     const marker = path.join(storageRoot, `.${oldName}.migrating-to.${newName}.bak`)
     if (isFolderTracked?.(newName)) {
-      await this.safeRemoveDirectory(marker, 'committed skill migration backup')
+      await this.removeDirectoryStrict(marker, 'committed skill migration backup')
+      return
+    }
+
+    if (isMigrationSuperseded?.(oldName, newName)) {
+      await this.removeDirectoryStrict(marker, 'superseded skill migration backup')
       return
     }
 
@@ -223,6 +236,14 @@ export class SkillInstaller {
    * Move a replaced library folder aside to a migration rollback marker naming the replacement.
    * Always created before publishing: an empty marker records an already-gone old folder.
    */
+  /**
+   * Remove committed rollback markers naming a folder before it migrates again. A failed retire
+   * from an earlier migration must not let recovery resurrect obsolete content on the next rename.
+   */
+  async settleMigrationMarkersBeforeRename(storageRoot: string, folderName: string): Promise<void> {
+    await this.removeMigrationMarkerDirectories(storageRoot, folderName, true)
+  }
+
   async backupReplacedFolderForMigration(dirPath: string, newFolderName: string): Promise<string> {
     const backupPath = path.join(path.dirname(dirPath), `.${path.basename(dirPath)}.migrating-to.${newFolderName}.bak`)
     try {
@@ -265,8 +286,9 @@ export class SkillInstaller {
       path.basename(backupPath).match(/^\.(.+)\.bak$/)
     if (!marker?.[1]) throw new Error(`Not a skill backup marker: ${backupPath}`)
     const cleanupPath = path.join(path.dirname(backupPath), `.${marker[1]}.cleanup`)
+    await this.removeCommittedCleanupMarker(cleanupPath)
     await fs.promises.rename(backupPath, cleanupPath)
-    await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+    await this.removeDirectoryStrict(cleanupPath, 'committed skill backup')
   }
 
   /**
@@ -274,6 +296,19 @@ export class SkillInstaller {
    * retire would otherwise let startup recovery resurrect the old folder after the row is gone.
    */
   async removeMigrationMarkers(storageRoot: string, folderName: string): Promise<void> {
+    await this.removeMigrationMarkerDirectories(storageRoot, folderName, false)
+  }
+
+  /** Strict marker cleanup for uninstall: failure must abort before the catalog row is removed. */
+  async removeMigrationMarkersStrict(storageRoot: string, folderName: string): Promise<void> {
+    await this.removeMigrationMarkerDirectories(storageRoot, folderName, true)
+  }
+
+  private async removeMigrationMarkerDirectories(
+    storageRoot: string,
+    folderName: string,
+    strict: boolean
+  ): Promise<void> {
     let entries: fs.Dirent[]
     try {
       entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
@@ -291,7 +326,12 @@ export class SkillInstaller {
         (name.startsWith(`.${key}.migrating-to.`) && name.endsWith('.bak')) ||
         name.endsWith(`.migrating-to.${key}.bak`)
       if (isMarker) {
-        await this.safeRemoveDirectory(path.join(storageRoot, entry.name), 'stale skill migration marker')
+        const targetPath = path.join(storageRoot, entry.name)
+        if (strict) {
+          await this.removeDirectoryStrict(targetPath, 'stale skill migration marker')
+        } else {
+          await this.safeRemoveDirectory(targetPath, 'stale skill migration marker')
+        }
       }
     }
   }
@@ -379,8 +419,11 @@ export class SkillInstaller {
     return path.join(path.dirname(destPath), `.${path.basename(destPath)}.cleanup`)
   }
 
-  private async removeCommittedCleanup(destPath: string): Promise<void> {
-    const cleanupPath = this.getCleanupPath(destPath)
+  private async removeCommittedCleanupForDest(destPath: string): Promise<void> {
+    await this.removeCommittedCleanupMarker(this.getCleanupPath(destPath))
+  }
+
+  private async removeCommittedCleanupMarker(cleanupPath: string): Promise<void> {
     try {
       const cleanupStats = await fs.promises.lstat(cleanupPath)
       if (!cleanupStats.isDirectory()) {
@@ -413,6 +456,15 @@ export class SkillInstaller {
         targetPath,
         error: error instanceof Error ? error.message : String(error)
       })
+    }
+  }
+
+  private async removeDirectoryStrict(targetPath: string, label: string): Promise<void> {
+    try {
+      await deleteDirectoryRecursive(targetPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw new Error(`Failed to remove ${label}: ${targetPath}`, { cause: error })
     }
   }
 }
