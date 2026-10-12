@@ -30,7 +30,10 @@ export async function convertXlsx(blocks: DocumentBlock[], signal?: AbortSignal)
     sheet.getRow(1).font = { bold: true }
     sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: block.rows.length, column: block.rows[0].length } }
     sheet.columns.forEach((column, columnIndex) => {
-      column.width = Math.min(60, Math.max(12, ...block.rows.map((row) => (row[columnIndex]?.length ?? 0) + 2)))
+      column.width = Math.min(
+        60,
+        block.rows.reduce((width, row) => Math.max(width, (row[columnIndex]?.length ?? 0) + 2), 12)
+      )
       column.alignment = { vertical: 'top', wrapText: true }
     })
     await yieldToEventLoop(undefined, { signal })

@@ -13,6 +13,7 @@ import { printService } from '../../PrintService'
 import { convertDocumentBundle } from '../convertDocument'
 import { convertDocx } from '../docx'
 import { prepareStaticHtml } from '../html'
+import { parseMarkdown } from '../parseMarkdown'
 
 const table = '| Name | Value |\n| --- | --- |\n| 中文 | =SUM(A1:A2) |'
 const roots: string[] = []
@@ -249,8 +250,13 @@ describe('document conversion', () => {
     const markdown = (
       await convertDocumentBundle({ filePath: 'links.docx', sourceBytes: source, format: 'md' })
     ).bytes.toString()
-    expect(markdown).toContain('[Docs](https://example.org/docs)')
-    expect(markdown).toContain('| Reference |')
+    expect(parseMarkdown(markdown)).toMatchObject([
+      {
+        type: 'table',
+        rows: [['Reference'], ['Docs']],
+        cells: [[{ runs: [{ text: 'Reference' }] }], [{ runs: [{ text: 'Docs', link: 'https://example.org/docs' }] }]]
+      }
+    ])
   })
 
   it('resolves stylesheet images relative to decoded local stylesheet paths', async () => {

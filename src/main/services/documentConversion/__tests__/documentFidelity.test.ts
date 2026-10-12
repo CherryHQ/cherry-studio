@@ -176,6 +176,37 @@ describe('document conversion fidelity', () => {
     }
   )
 
+  it.each([
+    ['https://example.test/a)b', 'https://example.test/a)b'],
+    ['https://example.test/a(b', 'https://example.test/a(b'],
+    ['https://example.test/a b', 'https://example.test/a%20b'],
+    ['https://example.test/a\\b', 'https://example.test/a%5Cb'],
+    ['https://example.test/a<b>', 'https://example.test/a%3Cb%3E'],
+    ['https://example.test/?q=&copy;#section', 'https://example.test/?q=&copy;#section'],
+    ['https://example.test/a%20b?q=1#part', 'https://example.test/a%20b?q=1#part'],
+    ['#section)', '#section)']
+  ])('preserves Markdown link destinations: %s', (link, expected) => {
+    const blocks = parseMarkdown(
+      documentToMarkdown([{ type: 'text', text: 'Link', runs: [{ text: 'Link', link }] }], (source) => source)
+    )
+    expect(blocks).toMatchObject([{ type: 'text', text: 'Link', runs: [{ text: 'Link', link: expected }] }])
+  })
+
+  it('keeps an image asset reference intact for a Markdown filename containing a closing parenthesis', async () => {
+    const image = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'red' } })
+      .png()
+      .toBuffer()
+    const document = await convertDocumentBundle({
+      markdown: `![Chart](data:image/png;base64,${image.toString('base64')})`,
+      format: 'md',
+      outputName: 'report).md'
+    })
+    const blocks = parseMarkdown(document.bytes.toString())
+    expect(blocks).toMatchObject([{ type: 'image', source: 'report).assets/image-1.png', text: 'Chart' }])
+    expect(document.resourceDirectory).toBe('report).assets')
+    expect(await sharp(document.assets.get('image-1.png')).metadata()).toMatchObject({ width: 2, height: 2 })
+  })
+
   it.each(['md', 'pdf'] as const)('preserves Office literal text at the %s output boundary', async (format) => {
     const blocks: DocumentBlock[] = literals.map((text) => ({ type: 'text', text }))
     const sourceBytes = await convertDocx(blocks, new Map(), 'Report')

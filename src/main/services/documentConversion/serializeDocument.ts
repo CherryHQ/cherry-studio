@@ -77,6 +77,10 @@ export function documentToHtml(
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#202020;line-height:1.5}table{border-collapse:collapse;width:100%;margin:16px 0}td,th{border:1px solid #b0b0b0;padding:6px;vertical-align:top}img{max-width:100%}pre{white-space:pre-wrap}p,h1,h2,h3,td{overflow-wrap:anywhere}@media print{body{margin:0}tr,img{break-inside:avoid}}</style></head><body>${render(blocks)}</body></html>`
 }
 
+function markdownDestination(value: string): string {
+  return `<${value.replace(/[\\<>&]/g, '\\$&').replace(/\s/g, encodeURIComponent)}>`
+}
+
 export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source: string) => string): string {
   const text = (runs: DocumentTextRun[]) =>
     runs
@@ -87,7 +91,7 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
           if (run.bold) value = `**${value}**`
           if (run.italic) value = `*${value}*`
           if (run.strike) value = `~~${value}~~`
-          if (run.link && /^(https?:|mailto:|#)/.test(run.link)) value = `[${value}](${run.link})`
+          if (run.link && /^(https?:|mailto:|#)/.test(run.link)) value = `[${value}](${markdownDestination(run.link)})`
           return value
         })
       )
@@ -96,7 +100,8 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
     flattenDocumentBlocks(blocks)
       .map((block) => {
         if (block.type === 'columns') return ''
-        if (block.type === 'image') return `![${block.text.replace(/[[\]]/g, '')}](${imageSource(block.source)})`
+        if (block.type === 'image')
+          return `![${block.text.replace(/[[\]]/g, '')}](${markdownDestination(imageSource(block.source))})`
         if (block.type === 'table') {
           const rows = block.rows.map(
             (row, rowIndex) =>
@@ -116,7 +121,7 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
           let fenceLength = 3
           for (const match of block.text.matchAll(/`+/g)) fenceLength = Math.max(fenceLength, match[0].length + 1)
           const fence = '`'.repeat(fenceLength)
-          return `${fence}\n${block.text}\n${fence}`
+          return `${fence}\n${block.text}${block.text.endsWith('\n') ? '' : '\n'}${fence}`
         }
         const content = text(block.runs ?? [{ text: block.text }]).trim()
         if (block.type === 'heading') return `${'#'.repeat(Math.min(6, block.level))} ${content}`

@@ -160,10 +160,16 @@ export function extractHtmlDocument(): DocumentModel {
     if (['absolute', 'fixed', 'sticky'].includes(css.position) || css.transform !== 'none' || css.filter !== 'none')
       warnings.add('complex_layout')
     if (css.display === 'flex' || css.display === 'grid') {
+      const hasDirectText = Array.from(element.childNodes).some(
+        (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim()
+      )
       const children = Array.from(element.children).filter((child) => getComputedStyle(child).display !== 'none')
       const boxes = children.map((child) => child.getBoundingClientRect())
       const isRow =
-        children.length >= 2 && children.length <= 3 && boxes.every((box) => Math.abs(box.top - boxes[0].top) < 5)
+        !hasDirectText &&
+        children.length >= 2 &&
+        children.length <= 3 &&
+        boxes.every((box) => Math.abs(box.top - boxes[0].top) < 5)
       if (isRow)
         return [
           {
@@ -180,10 +186,8 @@ export function extractHtmlDocument(): DocumentModel {
     )
     if (!hasBlockChildren) {
       const content = runs(element)
-      const text = content
-        .map((run) => run.text)
-        .join('')
-        .trim()
+      const rawText = content.map((run) => run.text).join('')
+      const text = tag === 'PRE' ? rawText : rawText.trim()
       const blocks: DocumentBlock[] = []
       if (text)
         blocks.push(
