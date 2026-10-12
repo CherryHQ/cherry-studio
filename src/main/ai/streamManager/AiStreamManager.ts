@@ -1573,10 +1573,9 @@ export class AiStreamManager extends BaseService {
     if (exec) {
       exec.status = 'error'
       exec.error = result.error
-      exec.pendingApprovalToolCallIds?.clear()
-      exec.runtimeTiming.closeOpenSpans()
-      exec.runtimeTiming.complete()
     }
+    // Timings and in-flight tool parts were already settled by the clean-finish path; only the
+    // classification changes here.
     stream.status = this.computeTopicStatus(stream)
   }
 
