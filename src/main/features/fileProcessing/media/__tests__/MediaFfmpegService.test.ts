@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import type * as FsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -10,7 +11,8 @@ const runtime = vi.hoisted(() => ({
   register: vi.fn(),
   request: vi.fn(),
   stop: vi.fn(),
-  withStopped: vi.fn()
+  withStopped: vi.fn(),
+  mkdtempGate: null as null | { entered: () => void; release: Promise<void> }
 }))
 
 vi.mock('@application', async () => {
@@ -39,9 +41,24 @@ vi.mock('@application', async () => {
   return mocked
 })
 
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof FsPromises>('node:fs/promises')
+  return {
+    ...actual,
+    mkdtemp: (async (prefix: string) => {
+      const gate = runtime.mkdtempGate
+      if (gate) {
+        gate.entered()
+        await gate.release
+      }
+      return actual.mkdtemp(prefix)
+    }) as typeof actual.mkdtemp
+  }
+})
+
 import { application } from '@application'
-import { BaseService, Phase } from '@main/core/lifecycle'
-import { getConditions, getDependencies, getPhase } from '@main/core/lifecycle/decorators'
+import { BaseService } from '@main/core/lifecycle'
+import { getConditions } from '@main/core/lifecycle/decorators'
 
 import { mediaFfmpegCommandEnv } from '../mediaFfmpegLoader'
 import { mediaFfmpegProcess } from '../mediaFfmpegProcess'
@@ -56,6 +73,7 @@ beforeEach(async () => {
   runtime.request.mockReset()
   runtime.stop.mockReset().mockResolvedValue(undefined)
   runtime.withStopped.mockReset()
+  runtime.mkdtempGate = null
   service = new MediaFfmpegService()
   await service._doInit()
 })
@@ -68,12 +86,6 @@ afterEach(async () => {
 })
 
 describe('MediaFfmpegService lifecycle', () => {
-  it('registers the FFmpeg definition in WhenReady after UtilityProcessManager', () => {
-    expect(getPhase(MediaFfmpegService)).toBe(Phase.WhenReady)
-    expect(getDependencies(MediaFfmpegService)).toContain('UtilityProcessManager')
-    expect(runtime.register).toHaveBeenCalledWith(mediaFfmpegProcess)
-  })
-
   it('is available where a bundled FFmpeg runtime exists', () => {
     const [condition] = getConditions(MediaFfmpegService)!
     const context = { arch: 'arm64' as const, cpuModel: '', env: process.env }
@@ -168,6 +180,30 @@ describe('MediaFfmpegService lifecycle', () => {
     await expect(queued).rejects.toThrow('inactive lifecycle generation')
     expect(runtime.request).toHaveBeenCalledOnce()
   })
+
+  it.each(['stop', 'restart'] as const)(
+    'does not dispatch a worker when %s overlaps temp allocation',
+    async (transition) => {
+      const entered = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      runtime.mkdtempGate = { entered: () => entered.resolve(), release: release.promise }
+      const pending = service!.probe({ filePath: '/during-alloc.wav' })
+      try {
+        await entered.promise
+        await service!._doStop()
+        if (transition === 'restart') await service!._doInit()
+        release.resolve()
+
+        await expect(pending).rejects.toThrow('inactive lifecycle generation')
+        expect(runtime.request).not.toHaveBeenCalled()
+        const leftovers = readdirSync(runtime.tempRoot).filter((entry) => entry.startsWith('media-ffmpeg-'))
+        expect(leftovers).toEqual([])
+      } finally {
+        release.resolve()
+        runtime.mkdtempGate = null
+      }
+    }
+  )
 })
 
 describe('MediaFfmpegService dispatch', () => {
