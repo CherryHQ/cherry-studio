@@ -2943,6 +2943,26 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(textEnds).toHaveLength(1)
     })
 
+    it('flushes scratchpad stream remainder when result closes an active text part', () => {
+      const { adapter, parts } = createAdapter()
+      const reply = 'Example:\n```xml\n<thinking>literal</thinking>\n``'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: reply } })
+      )
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('<thinking>literal</thinking>')
+      expect(text).toContain('```xml')
+    })
+
     it('settles a compaction that reports success without a boundary', () => {
       const { adapter, statusEvents } = createAdapter()
 

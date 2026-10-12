@@ -136,6 +136,21 @@ Example:
     expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
   })
 
+  it('strips analysis with blockquote-indented fences and unwraps the summary', () => {
+    const input = `<analysis>
+> ~~~xml
+> <thinking>internal</thinking>
+> ~~~
+</analysis><summary>Keep this</summary>`
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep this')
+  })
+
+  it('preserves scratchpad-shaped literals inside inline code spans', () => {
+    const input = 'Use the literal `<thinking>foo</thinking>` tag in your reply.'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+    expect(stripModelScratchpadBlocks(input)).toBe(input)
+  })
+
   it('preserves fenced scratchpad literals inside list-item fences', () => {
     const input = `<summary>
 - \`\`\`xml

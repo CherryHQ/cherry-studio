@@ -73,6 +73,12 @@ function parseLeadingOpeningTag(text: string): ParsedOpeningTag | null {
 const CODE_FENCE_PLACEHOLDER_PREFIX = '\uE000CODE_FENCE_'
 const CODE_FENCE_PLACEHOLDER_SUFFIX = '\uE001'
 const CODE_FENCE_PLACEHOLDER = new RegExp(`${CODE_FENCE_PLACEHOLDER_PREFIX}(\\d+)${CODE_FENCE_PLACEHOLDER_SUFFIX}`, 'g')
+const INLINE_CODE_PLACEHOLDER_PREFIX = '\uE000INLINE_CODE_'
+const INLINE_CODE_PLACEHOLDER_SUFFIX = '\uE001'
+const INLINE_CODE_PLACEHOLDER = new RegExp(
+  `${INLINE_CODE_PLACEHOLDER_PREFIX}(\\d+)${INLINE_CODE_PLACEHOLDER_SUFFIX}`,
+  'g'
+)
 
 function isValidFenceLinePrefix(prefix: string): boolean {
   let i = 0
@@ -124,11 +130,134 @@ function fenceLinePrefixStart(text: string, fenceMarkerIndex: number): number {
 function isInsideInlineCodeOnLine(text: string, markerStart: number): boolean {
   const lineStart = text.lastIndexOf('\n', markerStart - 1) + 1
   const lineSlice = text.slice(lineStart, markerStart)
-  let backticks = 0
-  for (let i = 0; i < lineSlice.length; i++) {
-    if (lineSlice[i] === '`') backticks++
+  let i = 0
+  while (i < lineSlice.length) {
+    if (lineSlice[i] !== '`') {
+      i++
+      continue
+    }
+    let run = 0
+    while (i < lineSlice.length && lineSlice[i] === '`') {
+      run++
+      i++
+    }
+    let j = i
+    let closed = false
+    while (j < lineSlice.length) {
+      if (lineSlice[j] !== '`') {
+        j++
+        continue
+      }
+      let closeRun = 0
+      const closeStart = j
+      while (j < lineSlice.length && lineSlice[j] === '`') {
+        closeRun++
+        j++
+      }
+      if (closeRun === run) {
+        closed = true
+        i = j
+        break
+      }
+      j = closeStart + 1
+    }
+    if (!closed) {
+      return true
+    }
   }
-  return backticks % 2 === 1
+  return false
+}
+
+function lineEndAfter(text: string, from: number): number {
+  const lf = text.indexOf('\n', from)
+  if (lf === -1) return text.length
+  if (text[lf] === '\r' && lf + 1 < text.length && text[lf + 1] === '\n') {
+    return lf + 2
+  }
+  return lf + 1
+}
+
+function findCodeFenceClose(text: string, searchFrom: number, fenceChar: string, fenceLen: number): number {
+  let pos = searchFrom
+  while (pos < text.length) {
+    const rel = text.slice(pos).search(/[`~]{3,}/)
+    if (rel === -1) return -1
+    const markerStart = pos + rel
+    if (!isCodeFenceMarkerAtLineStart(text, markerStart)) {
+      pos = markerStart + 1
+      continue
+    }
+    const match = text.slice(markerStart).match(/^([`~])\1{2,}/)
+    if (!match || match[1] !== fenceChar || match[0].length < fenceLen) {
+      pos = markerStart + 1
+      continue
+    }
+    return lineEndAfter(text, markerStart)
+  }
+  return -1
+}
+
+function maskInlineCodeSpans(text: string): { text: string; spans: string[] } {
+  const spans: string[] = []
+  let out = ''
+  let pos = 0
+
+  while (pos < text.length) {
+    if (text[pos] !== '`') {
+      const next = text.indexOf('`', pos)
+      if (next === -1) {
+        out += text.slice(pos)
+        break
+      }
+      out += text.slice(pos, next)
+      pos = next
+      continue
+    }
+
+    let run = 0
+    let i = pos
+    while (i < text.length && text[i] === '`') {
+      run++
+      i++
+    }
+    const contentStart = i
+    let j = contentStart
+    let closedAt = -1
+    while (j < text.length) {
+      if (text[j] !== '`') {
+        j++
+        continue
+      }
+      let closeRun = 0
+      const closeStart = j
+      while (j < text.length && text[j] === '`') {
+        closeRun++
+        j++
+      }
+      if (closeRun === run) {
+        closedAt = j
+        break
+      }
+      j = closeStart + 1
+    }
+
+    if (closedAt === -1) {
+      out += text[pos]
+      pos++
+      continue
+    }
+
+    const span = text.slice(pos, closedAt)
+    spans.push(span)
+    out += `${INLINE_CODE_PLACEHOLDER_PREFIX}${spans.length - 1}${INLINE_CODE_PLACEHOLDER_SUFFIX}`
+    pos = closedAt
+  }
+
+  return { text: out, spans }
+}
+
+function unmaskInlineCodeSpans(text: string, spans: string[]): string {
+  return text.replace(INLINE_CODE_PLACEHOLDER, (_, index) => spans[Number(index)] ?? '')
 }
 
 function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolean {
@@ -172,11 +301,8 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
-    const closePattern = new RegExp(
-      `(?:\\r\\n|\\n)(?:(?:> ?)+)?[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`
-    )
-    const closeMatch = closePattern.exec(text.slice(afterOpen))
-    if (!closeMatch) {
+    const closeEnd = findCodeFenceClose(text, afterOpen, fenceChar, fenceLen)
+    if (closeEnd === -1) {
       const fenceEnd = text.length
       fences.push(text.slice(fenceStart, fenceEnd))
       out += `${CODE_FENCE_PLACEHOLDER_PREFIX}${fences.length - 1}${CODE_FENCE_PLACEHOLDER_SUFFIX}`
@@ -184,7 +310,7 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
       continue
     }
 
-    const fenceEnd = afterOpen + closeMatch.index + closeMatch[0].length
+    const fenceEnd = closeEnd
     fences.push(text.slice(fenceStart, fenceEnd))
     out += `${CODE_FENCE_PLACEHOLDER_PREFIX}${fences.length - 1}${CODE_FENCE_PLACEHOLDER_SUFFIX}`
     pos = fenceEnd
@@ -227,12 +353,9 @@ export function textHasUnclosedCodeFence(text: string): boolean {
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
-    const closePattern = new RegExp(
-      `(?:\\r\\n|\\n)(?:(?:> ?)+)?[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`
-    )
-    const closeMatch = closePattern.exec(text.slice(afterOpen))
-    if (!closeMatch) return true
-    pos = afterOpen + closeMatch.index + closeMatch[0].length
+    const closeEnd = findCodeFenceClose(text, afterOpen, fenceChar, fenceLen)
+    if (closeEnd === -1) return true
+    pos = closeEnd
   }
   return false
 }
@@ -264,9 +387,11 @@ export function textStartsWithNonScratchpadOpeningTag(text: string): boolean {
 
 /** Strips known scratchpad wrappers without touching fenced code blocks. */
 export function stripKnownModelScratchpadBlocksPreservingCodeFences(raw: string): string {
-  const { text: masked, fences } = maskCodeFences(raw)
-  const stripped = stripKnownModelScratchpadBlocks(masked)
-  return unmaskCodeFences(stripped, fences)
+  const { text: fenceMasked, fences } = maskCodeFences(raw)
+  const { text: inlineMasked, spans } = maskInlineCodeSpans(fenceMasked)
+  const stripped = stripKnownModelScratchpadBlocks(inlineMasked)
+  const withInline = unmaskInlineCodeSpans(stripped, spans)
+  return unmaskCodeFences(withInline, fences)
 }
 
 function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string, openerLength: number): number {
@@ -322,14 +447,16 @@ function unwrapWholeSummaryWrapper(text: string): string | null {
 }
 
 export function stripModelScratchpadBlocks(raw: string): string {
-  const { text: masked, fences } = maskCodeFences(raw)
-  let out = stripKnownModelScratchpadBlocks(masked)
+  const { text: fenceMasked, fences } = maskCodeFences(raw)
+  const { text: inlineMasked, spans } = maskInlineCodeSpans(fenceMasked)
+  let out = stripKnownModelScratchpadBlocks(inlineMasked)
 
   const unwrapped = unwrapWholeSummaryWrapper(out)
   if (unwrapped !== null) {
     out = unwrapped
   }
 
+  out = unmaskInlineCodeSpans(out, spans)
   out = unmaskCodeFences(out, fences)
   return out.replace(/\n{3,}/g, '\n\n').trim()
 }

@@ -1218,14 +1218,7 @@ export class ClaudeCodeStreamAdapter {
     if (textId) {
       if (ctx.textPartId === textId) {
         this.flushDeferredScratchpadText(ctx)
-        if (ctx.scratchpadStreamRemainder) {
-          const pending = ctx.scratchpadStreamRemainder
-          ctx.scratchpadStreamRemainder = ''
-          const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(pending)
-          if (stripped) {
-            this.appendVisibleTextDelta(stripped, ctx)
-          }
-        }
+        this.flushScratchpadStreamRemainder(ctx)
       }
       if (!ctx.suppressActiveTextPart && ctx.textPartStarted && ctx.textPartId === textId) {
         ctx.sink.enqueue({ type: 'text-end', id: textId })
@@ -1411,7 +1404,6 @@ export class ClaudeCodeStreamAdapter {
       ctx.streamedTextLength = visibleText.length
     } else if (ctx.options.responseFormat?.type === 'json') {
       ctx.accumulatedText += visibleText
-      ctx.streamedTextLength += visibleText.length
     } else {
       this.enqueueVisibleTextDelta(visibleText, ctx, providerMetadata)
     }
@@ -2229,15 +2221,27 @@ export class ClaudeCodeStreamAdapter {
     return null
   }
 
+  private flushScratchpadStreamRemainder(ctx: StreamContext): void {
+    if (!ctx.scratchpadStreamRemainder) return
+    const pending = ctx.scratchpadStreamRemainder
+    ctx.scratchpadStreamRemainder = ''
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(pending)
+    if (stripped) {
+      this.appendVisibleTextDelta(stripped, ctx)
+    }
+  }
+
   private closeActiveTextPart(ctx: StreamContext): void {
     if (!ctx.textPartId) return
     const closedTextId = ctx.textPartId
     this.flushDeferredScratchpadText(ctx)
+    this.flushScratchpadStreamRemainder(ctx)
     if (!ctx.suppressActiveTextPart && ctx.textPartStarted) {
       ctx.sink.enqueue({ type: 'text-end', id: closedTextId })
     }
     ctx.textPartId = undefined
     ctx.scratchpadTextProbe = ''
+    ctx.scratchpadStreamRemainder = ''
     ctx.suppressActiveTextPart = false
     ctx.textStartDeferred = false
     ctx.textPartStarted = false
