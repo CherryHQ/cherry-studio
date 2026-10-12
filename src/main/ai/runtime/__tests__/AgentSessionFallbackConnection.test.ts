@@ -242,6 +242,66 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('drains a second save landing while the first retained reconcile is still applying before the replay', async () => {
+    const primary = fakeConnection()
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    // The order the replacement sees its saves and its replay submission.
+    const calls: string[] = []
+    let releaseFirstReconcile!: () => void
+    fallback.reconcile.mockImplementationOnce(async () => {
+      calls.push('reconcile')
+      // The first retained save's application awaits skill discovery inside the replacement.
+      await new Promise<void>((resolve) => {
+        releaseFirstReconcile = resolve
+      })
+      return 'current' as const
+    })
+    fallback.reconcile.mockImplementation(async () => {
+      calls.push('reconcile')
+      return 'current' as const
+    })
+    fallback.send.mockImplementation(async () => {
+      calls.push('send')
+    })
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+
+    // Save A lands in the replacement startup window and is retained for it.
+    await wrapper.reconcile({ modelId: 'primary::model' })
+    releaseConnect()
+    await vi.waitFor(() => expect(fallback.reconcile).toHaveBeenCalledTimes(1))
+
+    // Save B (disabling a tool) lands while A is still being applied — the handoff is not open
+    // yet, so B is retained too and must still reach the replacement.
+    await wrapper.reconcile({ modelId: 'primary::model' })
+    expect(fallback.send).not.toHaveBeenCalled()
+
+    releaseFirstReconcile()
+    // Both retained saves must reach the replacement BEFORE the replay is submitted: Pi/DSH can
+    // begin executing that prompt on send(), and a restriction applied only afterwards is one the
+    // replay could already have run a tool against.
+    await vi.waitFor(() => expect(fallback.send).toHaveBeenCalled())
+    await vi.waitFor(() => expect(fallback.reconcile).toHaveBeenCalledTimes(2))
+    expect(calls).toEqual(['reconcile', 'reconcile', 'send'])
+    await wrapper.close()
+  })
+
   it('declines the replay when the live turn policy cannot be read', async () => {
     const primary = fakeConnection()
     const policyless = { ...primary, getPermissionPolicy: undefined }
