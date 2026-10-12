@@ -1,4 +1,5 @@
 export const DSH_RUNTIME_ENTRY_NAMES = {
+  '@cherrystudio/dsh-bridge/relocation': 'relocation',
   '@cherrystudio/dsh-bridge/fork': 'fork',
   '@cherrystudio/dsh-bridge/bin': 'bin',
   '@deepseek-ai/cordis-plugin-timer': 'timer',
