@@ -38,18 +38,32 @@ afterEach(() => {
 })
 
 describe('buildPathRegistry', () => {
+  it('isolates voice scratch directories for profiles sharing the same basename', () => {
+    const voiceTemp = (profile: string) => {
+      getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
+      return buildPathRegistry()['feature.voice.temp']
+    }
+
+    const first = voiceTemp('/profiles/first/CherryStudio')
+    expect(voiceTemp('/profiles/second/CherryStudio')).not.toBe(first)
+    expect(voiceTemp('/profiles/first/./CherryStudio')).toBe(first)
+  })
+
   it.each([
     ['win32', 'x64', false, '/mock/app/packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe'],
     ['win32', 'x64', true, '/mock/resources/system-speech/cherry-system-speech.exe'],
     ['darwin', 'arm64', false, '/mock/app/packages/system-speech/dist/native/darwin-arm64/cherry-system-speech'],
-    ['darwin', 'x64', true, '/mock/resources/system-speech/cherry-system-speech']
+    ['darwin', 'x64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech'],
+    ['darwin', 'arm64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech']
   ] as const)('resolves the %s/%s packaged=%s system speech helper', (platform, arch, packaged, expected) => {
     vi.stubGlobal(
       'process',
       Object.defineProperties(Object.create(process), {
         platform: { value: platform },
         arch: { value: arch },
-        resourcesPath: { value: '/mock/resources' }
+        resourcesPath: {
+          value: platform === 'darwin' ? '/mock/Cherry Studio.app/Contents/Resources' : '/mock/resources'
+        }
       })
     )
     packagedState.value = packaged
@@ -273,6 +287,16 @@ describe('buildPathRegistry', () => {
     expect(buildPathRegistry()['feature.mini_app.logs']).toBe(path.join('/mock/logs', 'mini-apps'))
     // Same reason `feature.agents.builtin` is in NO_ENSURE: a signed, read-only tree.
     expect(shouldAutoEnsure('feature.mini_app.builtin')).toBe(false)
+  })
+
+  it('keeps the Linux FFmpeg runtime under cherry.bin without creating it on lookup', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['cherry.bin.ffmpeg.bin']).toBe(path.join(registry['cherry.bin'], 'ffmpeg', 'bin'))
+    expect(registry['cherry.bin.ffmpeg.lib']).toBe(path.join(registry['cherry.bin'], 'ffmpeg', 'lib'))
+    expect(shouldAutoEnsure('cherry.bin.ffmpeg.bin')).toBe(false)
+    expect(shouldAutoEnsure('cherry.bin.ffmpeg.lib')).toBe(false)
+    expect(shouldAutoEnsure('cherry.bin')).toBe(true)
   })
 
   it('keeps Antigravity session data in a Cherry-owned isolated directory', () => {

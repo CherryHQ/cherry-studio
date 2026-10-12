@@ -5,9 +5,13 @@ import { join } from 'node:path'
 import { application } from '@application'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { SystemSpeechNativeClient } from '@cherrystudio/system-speech/native'
+import { loggerService } from '@logger'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { voiceAudioProcess } from './voiceAudioProcess'
+
+const logger = loggerService.withContext('NativeVoiceSupport')
 
 export function checkAbort(signal?: AbortSignal): void {
   if (signal?.aborted) throw new VoiceRuntimeError('aborted')
@@ -15,6 +19,19 @@ export function checkAbort(signal?: AbortSignal): void {
 
 export function nativeClient(timeoutMs?: number): SystemSpeechNativeClient {
   return new SystemSpeechNativeClient({ helperPath: application.getPath('feature.voice.helper_file'), timeoutMs })
+}
+
+export async function decodeVoiceRecording(audio: Uint8Array, callerSignal?: AbortSignal) {
+  const timeout = AbortSignal.timeout(30_000)
+  const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout
+  return application
+    .get('UtilityProcessManager')
+    .client(voiceAudioProcess)
+    .request('decode', { audio, mimeType: 'audio/webm;codecs=opus' }, { signal })
+    .catch((error: unknown) => {
+      if (timeout.aborted && !callerSignal?.aborted) throw new VoiceRuntimeError('timeout')
+      throw error
+    })
 }
 
 export function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
@@ -53,13 +70,21 @@ export async function withScratch<T>(
 ): Promise<T> {
   checkAbort(signal)
   const directory = join(application.getPath('feature.voice.temp'), randomUUID())
+  let result!: T
+  let failure: VoiceRuntimeError | undefined
   try {
     await mkdir(directory, { mode: 0o700 })
     checkAbort(signal)
-    return await operation(directory)
+    result = await operation(directory)
   } catch (error) {
-    throw mapFailure(error, signal)
-  } finally {
-    await rm(directory, { recursive: true, force: true })
+    failure = mapFailure(error, signal)
   }
+  try {
+    await rm(directory, { recursive: true, force: true })
+  } catch {
+    logger.warn('Voice scratch cleanup failed')
+    failure ??= new VoiceRuntimeError('operation_failed')
+  }
+  if (failure) throw failure
+  return result
 }

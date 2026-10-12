@@ -1,5 +1,5 @@
 export const MEDIA_ANALYSIS_VERSION = 1 as const
-export const MEDIA_PIPELINE_VERSION = 1 as const
+export const MEDIA_PIPELINE_VERSION = 2 as const
 
 export interface MediaAnalysisSource {
   mime: string

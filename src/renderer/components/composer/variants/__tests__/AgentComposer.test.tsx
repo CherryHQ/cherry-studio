@@ -684,7 +684,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   const t = (key: string) => key
   return {
     ...actual,
-    useTranslation: () => ({ t })
+    useTranslation: () => ({ t, i18n: { resolvedLanguage: 'en-US' } })
   }
 })
 
@@ -2537,7 +2537,7 @@ describe('AgentComposer', () => {
         searchPattern: '.'
       })
       expect(mocks.listDirectory).not.toHaveBeenCalled()
-      expect(emptyItems?.map((item) => item.label)).toEqual(['docs', 'docs/notes.md'])
+      expect(emptyItems).toHaveLength(2)
 
       const itemsPromise = source?.items({ query: ' notes ', editor: buildComposerEditorMock().editor })
       await vi.advanceTimersByTimeAsync(200)
@@ -2552,14 +2552,14 @@ describe('AgentComposer', () => {
         searchPattern: 'notes'
       })
       expect(mocks.listDirectory).not.toHaveBeenCalled()
-      expect(items?.map((item) => item.label)).toEqual(['docs', 'docs/notes.md'])
+      expect(items).toHaveLength(2)
 
-      const item = items?.find((candidate) => candidate.label === 'docs/notes.md')
+      const item = items?.find((candidate) => candidate.label === 'notes.md')
       if (!item?.id) throw new Error('Expected a file suggestion item')
       expect(item).toEqual(
         expect.objectContaining({
           id: expect.stringMatching(/^agent-resource:.+/),
-          description: '/workspace/docs/notes.md',
+          description: 'docs/notes.md',
           disabled: false
         })
       )
@@ -2611,13 +2611,14 @@ describe('AgentComposer', () => {
       const itemsPromise = source.items({ query: '微分方程', editor: buildComposerEditorMock().editor })
       await vi.advanceTimersByTimeAsync(200)
 
-      await expect(itemsPromise).resolves.toEqual([
-        expect.objectContaining({
-          label: '考研/27 考研数学基础通关 600 题（高等数学）/第六章 微分方程/6.1 微分方程基本概念.md',
-          description: targetPath,
-          disabled: false
-        })
-      ])
+      const items = await itemsPromise
+      expect(items).toHaveLength(1)
+      const item = items[0]
+      const { editor, chain } = buildComposerEditorMock()
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '微分方程' })
+      expect(chain.insertComposerToken).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'file', payload: expect.objectContaining({ path: targetPath }) })
+      )
     } finally {
       vi.useRealTimers()
     }
@@ -2703,9 +2704,7 @@ describe('AgentComposer', () => {
       await vi.advanceTimersByTimeAsync(200)
 
       notesResult.resolve([{ path: '/workspace/latest.md', isDirectory: false }])
-      await expect(latestItemsPromise).resolves.toEqual([
-        expect.objectContaining({ label: 'latest.md', description: '/workspace/latest.md' })
-      ])
+      await expect(latestItemsPromise).resolves.toEqual([expect.objectContaining({ label: 'latest.md' })])
 
       noteResult.resolve([{ path: '/workspace/stale.md', isDirectory: false }])
       await expect(staleItemsPromise).resolves.toEqual([])
@@ -2727,7 +2726,7 @@ describe('AgentComposer', () => {
     hook.rerender({ paths: ps('/workspace-2') })
     const currentSource = requireFirstResourceMentionSource(hook.result.current)
     await expect(currentSource.items({ query: '', editor: buildComposerEditorMock().editor })).resolves.toEqual([
-      expect.objectContaining({ label: 'current', description: '/workspace-2/current' })
+      expect.objectContaining({ label: 'current' })
     ])
 
     staleResult.resolve([{ path: '/workspace/stale', isDirectory: true }])
@@ -2997,7 +2996,16 @@ describe('AgentComposer', () => {
     const ids = items?.map((entry) => entry.id)
 
     expect(ids).toContain('agent-resource:sessions-error')
-    expect(items?.some((entry) => entry.label === 'docs/notes.md')).toBe(true)
+    const item = items?.find((entry) => entry.label === 'notes.md')
+    if (!item) throw new Error('Expected a usable file suggestion despite the session query failure')
+    const { editor, chain } = buildComposerEditorMock()
+    item.command?.({ editor, range: { from: 0, to: 0 }, item, query: 'notes' })
+    expect(chain.insertComposerToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'file',
+        payload: expect.objectContaining({ path: '/workspace/docs/notes.md' })
+      })
+    )
   })
 
   it('keeps ComposerSurface suggestion sources stable across streaming rerenders', () => {

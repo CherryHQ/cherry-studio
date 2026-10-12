@@ -39,6 +39,7 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
+  WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
   type LocalSpeechModelId,
   type LocalVoiceModelFacts,
@@ -82,6 +83,7 @@ const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [APPLE_ASR_MODEL_ID]: 'settings.voice.model.apple_asr',
   [APPLE_TTS_MODEL_ID]: 'settings.voice.model.apple_tts',
   [FUNASR_MODEL_ID]: 'settings.voice.model.funasr',
+  [WINDOWS_ASR_MODEL_ID]: 'settings.voice.model.windows_asr',
   [WINDOWS_TTS_MODEL_ID]: 'settings.voice.model.windows_tts'
 }
 const DICTATION_PHASE_LABEL_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
@@ -127,7 +129,7 @@ function languageLabel(language: string, displayNames: Intl.DisplayNames, worldL
 }
 
 function transcriptionModelId(value: string | null | undefined): LocalTranscriptionModelId | undefined {
-  return value === APPLE_ASR_MODEL_ID || value === FUNASR_MODEL_ID ? value : undefined
+  return value === APPLE_ASR_MODEL_ID || value === WINDOWS_ASR_MODEL_ID || value === FUNASR_MODEL_ID ? value : undefined
 }
 
 function VoiceSettings() {
@@ -170,36 +172,59 @@ function VoiceSettings() {
   const dictationRunRef = useRef<ReturnType<typeof dictationService.startScoped> | undefined>(undefined)
   const previewGenerationRef = useRef(0)
   const speechStatusCheckRef = useRef<Promise<void>>(Promise.resolve())
+  const loadedCatalogs = useRef(new Set<string>())
+  const catalogAttempt = useRef(-1)
+  const [queryRevision, setQueryRevision] = useState(0)
+  const [catalogFailed, setCatalogFailed] = useState(false)
+  const [catalogLoading, setCatalogLoading] = useState(false)
 
   transcriptValueRef.current = transcript
 
   useEffect(() => {
     let current = true
+    if (catalogAttempt.current === queryRevision) loadedCatalogs.current.clear()
+    catalogAttempt.current = queryRevision
+    setCatalogLoading(true)
+    const load = async (key: string, query: () => Promise<void>) => {
+      if (loadedCatalogs.current.has(key)) return
+      await query()
+      if (current) loadedCatalogs.current.add(key)
+    }
     void voiceService
       .initialize()
       .then(async () => {
-        const [modelResult, localeResult, voiceResult, microphoneResult] = await Promise.allSettled([
-          voiceService.listModels(),
-          voiceService.listTranscriptionLocales(),
-          voiceService.listVoices(),
-          voiceService.getMicrophoneStatus()
+        const results = await Promise.allSettled([
+          load('models', async () => {
+            const result = await voiceService.listModels()
+            if (!current) return
+            setModels(result.models)
+            setDefaultAsrModel(result.defaultAsrModelId)
+          }),
+          load('locales', async () => {
+            const result = await voiceService.listTranscriptionLocales()
+            if (current) setAsrLocales(result)
+          }),
+          load('voices', async () => {
+            const result = await voiceService.listVoices()
+            if (current) setVoices(result)
+          }),
+          load('microphone', async () => {
+            const result = await voiceService.getMicrophoneStatus()
+            if (current) setMicrophoneStatus(result)
+          })
         ])
-        if (!current) return
-        if (modelResult.status === 'fulfilled') {
-          setModels(modelResult.value.models)
-          setDefaultAsrModel(modelResult.value.defaultAsrModelId)
-        }
-        if (localeResult.status === 'fulfilled') setAsrLocales(localeResult.value)
-        if (voiceResult.status === 'fulfilled') setVoices(voiceResult.value)
-        if (microphoneResult.status === 'fulfilled') setMicrophoneStatus(microphoneResult.value)
+        if (current) setCatalogFailed(results.some((result) => result.status === 'rejected'))
       })
       .catch(() => {
-        if (current) setActionFailed(true)
+        if (current) setCatalogFailed(true)
+      })
+      .finally(() => {
+        if (current) setCatalogLoading(false)
       })
     return () => {
       current = false
     }
-  }, [])
+  }, [queryRevision])
 
   const configuredRecognitionModel = transcriptionModelId(recognitionModel)
   const hasConfiguredRecognitionModel = optionalValue(recognitionModel) !== undefined
@@ -307,7 +332,8 @@ function VoiceSettings() {
     configuredRecognitionModel,
     effectiveRecognitionLanguage,
     effectiveRecognitionModel,
-    hasConfiguredRecognitionModel
+    hasConfiguredRecognitionModel,
+    queryRevision
   ])
 
   useEffect(() => {
@@ -331,7 +357,7 @@ function VoiceSettings() {
     return () => {
       current = false
     }
-  }, [configuredSpeechLanguage, configuredSpeechModel, configuredSpeechVoice])
+  }, [configuredSpeechLanguage, configuredSpeechModel, configuredSpeechVoice, queryRevision])
 
   const microphonePermissionFailed = dictation.error === 'microphone_permission'
   const needsMicrophoneRecovery =
@@ -386,7 +412,7 @@ function VoiceSettings() {
     []
   )
 
-  const transcriptionModels = models.filter((model) => model.id === APPLE_ASR_MODEL_ID || model.id === FUNASR_MODEL_ID)
+  const transcriptionModels = models.filter((model) => transcriptionModelId(model.id) !== undefined)
   const speechModels = models.filter((model) => model.id === APPLE_TTS_MODEL_ID || model.id === WINDOWS_TTS_MODEL_ID)
   const canInstallApple =
     effectiveRecognitionModel === APPLE_ASR_MODEL_ID &&
@@ -501,6 +527,17 @@ function VoiceSettings() {
 
   return (
     <SettingsContentColumn theme={theme}>
+      {catalogFailed || recognitionStatus.status === 'failed' || speechStatus.status === 'failed' ? (
+        <div className="flex items-center gap-2">
+          <SettingDescription>{t('settings.voice.status.operation_failed')}</SettingDescription>
+          <Button
+            variant="outline"
+            disabled={catalogLoading}
+            onClick={() => setQueryRevision((revision) => revision + 1)}>
+            {t('common.retry')}
+          </Button>
+        </div>
+      ) : null}
       <h1 className="text-xl font-semibold text-foreground">{t('settings.voice.title')}</h1>
       <SettingDescription>{t('settings.voice.description')}</SettingDescription>
 
@@ -530,7 +567,12 @@ function VoiceSettings() {
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
           <Select
             value={funAsrSelected ? 'auto' : (languageValue(recognitionLanguage) ?? EMPTY_VALUE)}
-            disabled={funAsrSelected || effectiveRecognitionModel !== APPLE_ASR_MODEL_ID || !asrLocales || installing}
+            disabled={
+              (effectiveRecognitionModel !== APPLE_ASR_MODEL_ID &&
+                effectiveRecognitionModel !== WINDOWS_ASR_MODEL_ID) ||
+              !asrLocales ||
+              installing
+            }
             onValueChange={(value) => savePreference(() => setRecognitionLanguage(value === EMPTY_VALUE ? '' : value))}>
             <SelectTrigger className="w-64" aria-label={t('settings.voice.recognition.language')}>
               <SelectValue placeholder={t('common.select')} />
@@ -593,9 +635,8 @@ function VoiceSettings() {
               disabled={
                 dictationProcessing ||
                 dictationHasPendingResult ||
-                microphoneBlocked ||
-                !effectiveRecognitionModel ||
-                (!dictationRecording && recognitionStatus.status !== 'ready')
+                (!dictationRecording &&
+                  (microphoneBlocked || !effectiveRecognitionModel || recognitionStatus.status !== 'ready'))
               }
               onClick={toggleDictation}>
               {dictationRecording ? <Square className="size-4" /> : <Mic className="size-4" />}

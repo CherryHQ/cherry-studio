@@ -21,13 +21,22 @@ import {
 import { formatMediaAnalysisCompact, formatMediaAnalysisFull, isMediaAnalysis } from '@shared/utils/mediaAnalysis'
 
 import {
+  FRAME_SIMILARITY_MAD_THRESHOLD,
+  planAnalysisFrameTimestamps,
+  SCENE_SAMPLE_FPS,
+  SCENE_SCAN_EDGE_PX,
+  SCENE_SCORE_THRESHOLD,
+  sceneCandidateLimit,
+  selectDistinctFrameIndexes
+} from './frameSelection'
+import { readFrameSignature } from './frameSignature'
+import {
   hashMediaExecutionConfig,
   resolveMediaExecutionConfig,
   type MediaExecutionConfig,
   type MediaVisionExecutionConfig
 } from './mediaExecutionConfig'
 import type { ClassifiedMediaProbe } from './probeClassification'
-import { planFrameTimestamps } from './probeClassification'
 
 const logger = loggerService.withContext('MediaAnalysisService')
 const CACHE_TTL_MS = 30 * 60 * 1000
@@ -206,11 +215,32 @@ export class MediaAnalysisService extends BaseService {
     try {
       const outputDir = join(jobDir, 'frames')
       await mkdir(outputDir, { recursive: true })
-      const timestampsMs = planFrameTimestamps(
-        probe.durationMs,
-        execution.budget.maxFrames,
-        execution.budget.targetIntervalMs
-      )
+      let sceneChanges: Array<{ timestampMs: number; score: number }> = []
+      if (probe.durationMs > 0) {
+        try {
+          const detected = await application.get('MediaFfmpegService').detectSceneChanges(
+            {
+              filePath,
+              durationMs: probe.durationMs,
+              sampleFps: SCENE_SAMPLE_FPS,
+              scoreThreshold: SCENE_SCORE_THRESHOLD,
+              scanEdgePx: SCENE_SCAN_EDGE_PX,
+              maxCandidates: sceneCandidateLimit(execution.budget.maxFrames)
+            },
+            signal
+          )
+          sceneChanges = detected.changes
+        } catch {
+          signal?.throwIfAborted()
+          logger.warn('Scene detection failed; continuing with uniform frames')
+        }
+      }
+      const timestampsMs = planAnalysisFrameTimestamps({
+        durationMs: probe.durationMs,
+        maxFrames: execution.budget.maxFrames,
+        targetIntervalMs: execution.budget.targetIntervalMs,
+        sceneChanges
+      })
       const extracted = await application.get('MediaFfmpegService').extractFrames(
         {
           filePath,
@@ -221,14 +251,20 @@ export class MediaAnalysisService extends BaseService {
         },
         signal
       )
+      const signatures = await Promise.all(extracted.frames.map((frame) => readFrameSignature(frame.path)))
+      signal?.throwIfAborted()
+      const distinctFrames = selectDistinctFrameIndexes(signatures, FRAME_SIMILARITY_MAD_THRESHOLD).flatMap((index) => {
+        const frame = extracted.frames[index]
+        return frame ? [frame] : []
+      })
       const frames = new Map<number, MediaVisualFrame>(
-        extracted.frames.map((frame) => [frame.timestampMs, { timestampMs: frame.timestampMs }])
+        distinctFrames.map((frame) => [frame.timestampMs, { timestampMs: frame.timestampMs }])
       )
       const warnings = new Set<MediaAnalysisWarningCode>()
 
       if (execution.ocr) {
         await Promise.all(
-          extracted.frames.map(async (frame) => {
+          distinctFrames.map(async (frame) => {
             try {
               const text = (
                 await application
@@ -250,11 +286,11 @@ export class MediaAnalysisService extends BaseService {
 
       if (execution.vision) {
         try {
-          const summaries = await summarizeFrames(execution.vision, extracted.frames, signal)
+          const summaries = await summarizeFrames(execution.vision, distinctFrames, signal)
           for (const [timestampMs, summary] of summaries) {
             frames.set(timestampMs, { ...frames.get(timestampMs)!, summary })
           }
-          if (summaries.size < extracted.frames.length) warnings.add('vision_failed')
+          if (summaries.size < distinctFrames.length) warnings.add('vision_failed')
         } catch {
           signal?.throwIfAborted()
           warnings.add('vision_failed')

@@ -4,7 +4,7 @@ const path = require('node:path')
 const helperEntitlements = path.resolve(__dirname, '../..', 'build', 'entitlements.system-speech.plist')
 
 function createOptionsForFile(appPath, originalOptionsForFile) {
-  const helperPath = path.join(appPath, 'Contents', 'Resources', 'system-speech', 'cherry-system-speech')
+  const helperPath = path.join(appPath, 'Contents', 'Helpers', 'cherry-system-speech')
 
   return (filePath) => {
     const options = originalOptionsForFile?.(filePath)
