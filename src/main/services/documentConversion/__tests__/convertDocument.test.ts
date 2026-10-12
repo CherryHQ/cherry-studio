@@ -270,6 +270,43 @@ describe('document conversion', () => {
     expect(output.html).not.toContain('href="style%20assets/base.css"')
   })
 
+  it.each([
+    { attribute: 'href', namespace: '', shape: 'use' },
+    { attribute: 'xlink:href', namespace: '', shape: 'use' },
+    { attribute: 'xlink:href', namespace: 'xmlns:xlink="http://www.w3.org/1999/xlink"', shape: 'use' },
+    { attribute: 'xlink:href', namespace: '', shape: 'gradient' }
+  ])(
+    'rasterizes inline SVG local fragments: $attribute, $namespace, $shape',
+    async ({ attribute, namespace, shape }) => {
+      const content =
+        shape === 'use'
+          ? `<defs><rect id="icon" width="2" height="2" fill="red"/></defs><use ${attribute}="#icon"/>`
+          : `<defs><linearGradient id="base"><stop stop-color="red"/></linearGradient><linearGradient id="color" ${attribute}="#base"/></defs><rect width="2" height="2" fill="url(#color)"/>`
+      const output = await prepareStaticHtml(`<svg width="2" height="2" ${namespace}>${content}</svg>`, {})
+      expect(output.warnings).not.toContain('unsupported_image')
+      expect(output.html).toContain('<img')
+      const encoded = output.html.match(/src="data:image\/png;base64,([^"]+)"/)![1]
+      const pixels = await sharp(Buffer.from(encoded, 'base64'))
+        .removeAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true })
+      expect(pixels.info).toMatchObject({ width: 2, height: 2, channels: 3 })
+      expect([...pixels.data]).toEqual([255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0])
+    }
+  )
+
+  describe.each(['href', 'xlink:href'])('inline SVG external %s', (attribute) => {
+    it.each(['https://example.invalid/icon.svg#icon', 'file:///private/icon.svg#icon', 'icon.svg#icon'])(
+      'omits the image instead of following %s',
+      async (reference) => {
+        const output = await prepareStaticHtml(`<svg width="2" height="2"><use ${attribute}="${reference}"/></svg>`, {})
+        expect(output.warnings).toContain('unsupported_image')
+        expect(output.html).not.toContain('<svg')
+        expect(output.html).not.toContain('<img')
+      }
+    )
+  })
+
   it('rejects remote images without making a network request', async () => {
     const fetchImage = vi.spyOn(globalThis, 'fetch')
     await expect(

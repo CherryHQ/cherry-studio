@@ -166,13 +166,13 @@ export async function prepareStaticHtml(
       } else link.remove()
     }
     for (const svg of Array.from(document.querySelectorAll('svg'))) {
-      if (svg.querySelector('[href]:not([href^="#"]),[xlink\\:href]')) {
+      if (svg.querySelector('[href]:not([href^="#"]),[xlink\\:href]:not([xlink\\:href^="#"])')) {
         warnings.add('unsupported_image')
         svg.remove()
         continue
       }
-      svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-      const png = await normalizeDocumentImage(Buffer.from(svg.outerHTML), signal)
+      const source = new dom.window.XMLSerializer().serializeToString(svg)
+      const png = await normalizeDocumentImage(Buffer.from(source), signal)
       const image = document.createElement('img')
       image.src = `data:image/png;base64,${png.toString('base64')}`
       image.alt = svg.getAttribute('aria-label') ?? ''
