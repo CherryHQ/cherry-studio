@@ -872,8 +872,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       { mcpServerSnapshots: new Map([['mcp-1', materializedServer as never]]) },
       agent as never
     )
-    // Bridges are built per connection, so connect once to materialize it.
-    const { instance } = settings.mcpServers!['mcp-1'] as McpSdkServerConfigWithInstance
+    // Bridges are built per connection, so connect once to materialize it. The record key is the
+    // configured (snapshot) name per issue #21321, while the bridge stays bound to the id.
+    const { instance } = settings.mcpServers!['Old server'] as McpSdkServerConfigWithInstance
     await (await connectMcpTestClient(instance)).close()
 
     expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer, {
@@ -913,7 +914,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       )
       expect(settings.mcpServers?.browser).toBeDefined()
       expect(settings.mcpServers?.['legacy-browser']).toBeUndefined()
-      expect(settings.mcpServers?.['remote-browser']).toBeDefined()
+      // The remote bridge is registered under its configured server name (issue #21321) — its
+      // snapshot row is named `@cherry/browser`, not the raw agent.mcps entry.
+      expect(settings.mcpServers?.['@cherry/browser']).toBeDefined()
       expect(settings.allowedTools).toEqual(
         expect.arrayContaining(['mcp__browser__open', 'mcp__browser__click', 'mcp__browser__execute'])
       )

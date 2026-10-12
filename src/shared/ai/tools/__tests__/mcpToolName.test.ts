@@ -4,8 +4,11 @@ import {
   buildFunctionCallToolName,
   buildMcpToolName,
   generateMcpToolFunctionName,
+  migrateDisabledToolsForServerRename,
   parseFunctionCallToolName,
-  toCamelCase
+  toCamelCase,
+  translateLegacyMcpToolRules,
+  translateMcpToolRulesToRuntimeNames
 } from '../mcpToolName'
 
 describe('parseFunctionCallToolName', () => {
@@ -270,5 +273,202 @@ describe('buildFunctionCallToolName', () => {
       const result = buildFunctionCallToolName('@anthropic/mcp-server', 'chat')
       expect(result).toBe('mcp__AnthropicMcpServer__chat')
     })
+  })
+})
+
+describe('translateLegacyMcpToolRules', () => {
+  const byId = new Map([
+    ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'github'],
+    ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'docs__search']
+  ])
+
+  it('rewrites a legacy id-keyed rule to the current server key', () => {
+    expect(translateLegacyMcpToolRules(['mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run'], byId)).toEqual([
+      'mcp__github__run'
+    ])
+  })
+
+  it('keeps the tool segment verbatim, including further __ separators', () => {
+    expect(translateLegacyMcpToolRules(['mcp__bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb__deep__nested'], byId)).toEqual([
+      'mcp__docs__search__deep__nested'
+    ])
+  })
+
+  it('leaves name-form rules and unknown servers untouched', () => {
+    expect(translateLegacyMcpToolRules(['mcp__github__run', 'mcp__ghost__run', 'Bash'], byId)).toEqual([
+      'mcp__github__run',
+      'mcp__ghost__run',
+      'Bash'
+    ])
+  })
+
+  it('passes through malformed rules and empty input', () => {
+    expect(translateLegacyMcpToolRules(['mcp__', 'mcp__no-delimiter', ''], byId)).toEqual([
+      'mcp__',
+      'mcp__no-delimiter',
+      ''
+    ])
+    expect(translateLegacyMcpToolRules(undefined, byId)).toEqual([])
+    expect(translateLegacyMcpToolRules(null, byId)).toEqual([])
+  })
+
+  it('keeps a rule that is simultaneously another mounted server current form', () => {
+    // A configured name can extend another server's id (`U__x`): the saved string is then both
+    // B's current-form rule (key `U__x`, tool `y`) and A's legacy id form (id `U`, tool `x__y`).
+    // Rewriting it away would strip B's explicit denial under an exact-match policy, so the
+    // ambiguous rule emits both forms.
+    const ambiguous = new Map([
+      ['U', 'github'],
+      ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'U__x']
+    ])
+    expect(translateLegacyMcpToolRules(['mcp__U__x__y'], ambiguous)).toEqual(['mcp__U__x__y', 'mcp__github__x__y'])
+    // A legacy rule with no such overlap still rewrites exactly once.
+    expect(translateLegacyMcpToolRules(['mcp__bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb__run'], ambiguous)).toEqual([
+      'mcp__U__x__run'
+    ])
+  })
+})
+
+describe('translateMcpToolRulesToRuntimeNames', () => {
+  const byId = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Old server']])
+
+  it('rewrites translated rules onto the bridge-registered runtime identity', () => {
+    // `Old server` is not provider-safe: the executable tool carries the lossy hash suffix,
+    // so the translated name-form rule must be replaced by the identity the bridge actually
+    // registered — otherwise an exact-match policy misses the denial.
+    const runtimeNames = new Map([['mcp__Old server__run', ['mcp__oldServer__run_4f7413c24ae4']]])
+    expect(
+      translateMcpToolRulesToRuntimeNames([`mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run`], byId, runtimeNames)
+    ).toEqual(['mcp__oldServer__run_4f7413c24ae4'])
+  })
+
+  it('resolves an id-keyed rule onto its own pair when name-form strings collide', () => {
+    // `docs` exposing `search__all` and `docs__search` exposing `all` both flatten to the
+    // rule string `mcp__docs__search__all`; the id-keyed denial names one pair exactly and
+    // must land on that pair's allocated name, never on the colliding sibling.
+    const byIdPair = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'docs']])
+    const runtimeNames = new Map([
+      ['docs\u0000search__all', ['mcp__docs__search__all']],
+      ['docs__search\u0000all', ['mcp__docs__search__all_353988fff1e9']],
+      ['mcp__docs__search__all', ['mcp__docs__search__all', 'mcp__docs__search__all_353988fff1e9']]
+    ])
+    expect(
+      translateMcpToolRulesToRuntimeNames(
+        [`mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__search__all`],
+        byIdPair,
+        runtimeNames
+      )
+    ).toEqual(['mcp__docs__search__all'])
+  })
+
+  it('maps a flattened name-form rule onto every candidate identity (fail-closed)', () => {
+    // A saved name-form denial cannot say which colliding pair it meant — denying both
+    // candidates over-blocks instead of letting an explicitly disabled tool execute.
+    const runtimeNames = new Map([
+      ['mcp__docs__search__all', ['mcp__docs__search__all', 'mcp__docs__search__all_353988fff1e9']]
+    ])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__docs__search__all'], new Map(), runtimeNames)).toEqual([
+      'mcp__docs__search__all',
+      'mcp__docs__search__all_353988fff1e9'
+    ])
+  })
+
+  it('rewrites name-form rules whose rule string matches a registered identity', () => {
+    const runtimeNames = new Map([['mcp__docs__search__all', ['mcp__docs__search__all_353988fff1e9']]])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__docs__search__all'], byId, runtimeNames)).toEqual([
+      'mcp__docs__search__all_353988fff1e9'
+    ])
+  })
+
+  it('keeps rules with no registered runtime identity unchanged', () => {
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__ghost__run', 'Bash'], byId, new Map())).toEqual([
+      'mcp__ghost__run',
+      'Bash'
+    ])
+  })
+
+  // A configured server name can extend another mounted server's id (`U__x`): the saved denial
+  // `mcp__U__x__y` is then simultaneously B's current name-form (key `U__x`, tool `y`) and A's
+  // legacy id form (id `U`, tool `x__y`). The legacy rewrite must never strip the registered
+  // candidates of the original string.
+  it('preserves registered candidates when the id-prefix rewrite names another server', () => {
+    const byIdPrefix = new Map([['U', 'github']])
+    const runtimeNames = new Map([
+      ['mcp__U__x__y', ['mcp__U__x__y']],
+      ['U__x\u0000y', ['mcp__U__x__y']]
+    ])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__U__x__y'], byIdPrefix, runtimeNames)).toEqual(['mcp__U__x__y'])
+  })
+
+  it('merges both interpretations when the id-owner also exposes the flattened tool', () => {
+    // A (id `U`, key `github`) exposes `x__y`: the pre-name id alias and B's name-form share the
+    // string, and the pair match must not drop B — deny both (fail-closed).
+    const byIdPrefix = new Map([['U', 'github']])
+    const runtimeNames = new Map([
+      ['mcp__U__x__y', ['mcp__U__x__y', 'mcp__github__x__y']],
+      ['U__x\u0000y', ['mcp__U__x__y']],
+      ['github\u0000x__y', ['mcp__github__x__y']]
+    ])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__U__x__y'], byIdPrefix, runtimeNames)).toEqual([
+      'mcp__U__x__y',
+      'mcp__github__x__y'
+    ])
+  })
+
+  it("keeps the saved string's own candidates when the rewritten rule strips to a registered base", () => {
+    // B (key `U__x`, tool `y_123456789abc`) has a runtime name whose tail parses as a
+    // disambiguator. Saving it denies B exactly, but the legacy rewrite maps the string onto
+    // A (id `U`, key `github`), and the rewritten string strips to A's registered name — that
+    // stripped hit must merge with B's own registered candidates or B executes under
+    // bypassPermissions despite the explicit denial.
+    const U = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const savedDenial = `mcp__${U}__x__y_123456789abc`
+    const byId = new Map([
+      [U, 'github'],
+      ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', `${U}__x`]
+    ])
+    const runtimeNames = new Map([
+      [savedDenial, [savedDenial]],
+      [`${U}__x\u0000y_123456789abc`, [savedDenial]],
+      ['github\u0000x__y', ['mcp__github__x__y']],
+      ['mcp__github__x__y', ['mcp__github__x__y']],
+      [`mcp__${U}__x__y`, ['mcp__github__x__y']]
+    ])
+    expect(translateMcpToolRulesToRuntimeNames([savedDenial], byId, runtimeNames)).toEqual([
+      'mcp__github__x__y',
+      savedDenial
+    ])
+  })
+})
+
+describe('migrateDisabledToolsForServerRename', () => {
+  it('rewrites saved denial rules from the old key onto the renamed key', () => {
+    // `docs` renamed to `github`: the saved `mcp__docs__run` encodes the key of the moment and
+    // would otherwise match nothing, letting the disabled tool execute under bypassPermissions.
+    expect(migrateDisabledToolsForServerRename(['mcp__docs__run'], 'docs', 'github')).toEqual(['mcp__github__run'])
+  })
+
+  it('keeps the tool segment verbatim even when it contains `__`', () => {
+    expect(migrateDisabledToolsForServerRename(['mcp__docs__x__y'], 'docs', 'github')).toEqual(['mcp__github__x__y'])
+  })
+
+  it('sanitizes both sides before matching and rewriting', () => {
+    expect(migrateDisabledToolsForServerRename(['mcp__docs_search__run'], 'docs__search', 'my__server')).toEqual([
+      'mcp__my_server__run'
+    ])
+  })
+
+  it('leaves other servers, id-keyed rules and non-mcp forms untouched', () => {
+    expect(
+      migrateDisabledToolsForServerRename(
+        ['mcp__other__run', 'mcp__11111111-1111-4111-8111-111111111111__run', 'github_run', 'mcp____orphan'],
+        'docs',
+        'github'
+      )
+    ).toBeUndefined()
+  })
+
+  it('returns undefined for non-renames', () => {
+    expect(migrateDisabledToolsForServerRename(['mcp__docs__run'], 'docs', 'docs')).toBeUndefined()
   })
 })

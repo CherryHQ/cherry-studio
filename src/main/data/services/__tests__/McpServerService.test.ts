@@ -2,8 +2,10 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { agentTable } from '@data/db/schemas/agent'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { McpServerService, mcpServerService } from '@data/services/McpServerService'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 describe('McpServerService', () => {
@@ -160,6 +162,37 @@ describe('McpServerService', () => {
 
       const [row] = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, 'srv-1'))
       expect(row.name).toBe('updated-name')
+    })
+
+    it('migrates saved denial rules onto the new key when the server is renamed', async () => {
+      await seedServer({ id: 'srv-1', name: 'docs' })
+      const [keyA, keyB] = generateOrderKeySequence(2)
+      await dbh.db.insert(agentTable).values([
+        {
+          id: 'agent-1',
+          type: 'chat',
+          name: 'with-denial',
+          instructions: '',
+          orderKey: keyA,
+          disabledTools: ['mcp__docs__run', 'mcp__other__run']
+        },
+        {
+          id: 'agent-2',
+          type: 'chat',
+          name: 'without-denial',
+          instructions: '',
+          orderKey: keyB,
+          disabledTools: ['mcp__other__run']
+        }
+      ])
+
+      mcpServerService.update('srv-1', { name: 'github' })
+
+      const [renamed] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // The `docs`-keyed rule follows the rename; the other server's rule is untouched.
+      expect(renamed.disabledTools).toEqual(['mcp__github__run', 'mcp__other__run'])
+      const [untouched] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-2'))
+      expect(untouched.disabledTools).toEqual(['mcp__other__run'])
     })
 
     it('should throw NOT_FOUND when updating non-existent server', () => {

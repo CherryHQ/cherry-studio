@@ -845,7 +845,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       key: 'warm-key',
       options: { model: 'sonnet' },
-      settings: { mcpToolMetadata: metadata },
+      settings: { mcpToolMetadata: metadata, mcpServerAllocation: { 'srv-a': 'srv-a' } },
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100
     })
@@ -856,7 +856,13 @@ describe('ClaudeCodeRuntimeDriver', () => {
       modelId: 'claude-code::sonnet'
     })
 
-    expect(mocks.registerMcpSessionCatalogSync).toHaveBeenCalledWith('session-1', 'agent-1', ['srv-a'], metadata)
+    expect(mocks.registerMcpSessionCatalogSync).toHaveBeenCalledWith(
+      'session-1',
+      'agent-1',
+      ['srv-a'],
+      metadata,
+      new Map([['srv-a', 'srv-a']])
+    )
     await connection.close()
   })
 
