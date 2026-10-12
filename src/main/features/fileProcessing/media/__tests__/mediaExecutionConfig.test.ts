@@ -96,6 +96,10 @@ describe('hashMediaExecutionConfig', () => {
     expect(hashMediaExecutionConfig(config)).not.toBe(
       hashMediaExecutionConfig({ ...config, asr: { ...config.asr!, language: 'ja-JP' } })
     )
+    expect(MEDIA_PIPELINE_VERSION).toBe(2)
+    expect(hashMediaExecutionConfig(config)).not.toBe(
+      hashMediaExecutionConfig({ ...config, pipelineVersion: 1 as MediaExecutionConfig['pipelineVersion'] })
+    )
   })
 })
 

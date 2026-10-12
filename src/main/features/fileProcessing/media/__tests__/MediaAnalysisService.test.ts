@@ -25,11 +25,12 @@ const runtime = vi.hoisted(() => ({
     ocr: null,
     vision: null,
     budget: { maxFrames: 2, targetIntervalMs: 4_000, maxEdgePx: 640, jpegQuality: 70 },
-    pipelineVersion: 1
+    pipelineVersion: 2
   } as MediaExecutionConfig,
   probe: vi.fn(),
   extractAudio: vi.fn(),
   extractFrames: vi.fn(),
+  detectSceneChanges: vi.fn(),
   transcribe: vi.fn(),
   generateSpeech: vi.fn(),
   ocrImage: vi.fn(),
@@ -58,7 +59,12 @@ vi.mock('@application', () => ({
         }
       }
       if (name === 'MediaFfmpegService') {
-        return { probe: runtime.probe, extractAudio: runtime.extractAudio, extractFrames: runtime.extractFrames }
+        return {
+          probe: runtime.probe,
+          extractAudio: runtime.extractAudio,
+          extractFrames: runtime.extractFrames,
+          detectSceneChanges: runtime.detectSceneChanges
+        }
       }
       if (name === 'AiService') {
         return { transcribe: runtime.transcribe, generateSpeech: runtime.generateSpeech }
@@ -73,6 +79,7 @@ import { VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService } from '@main/core/lifecycle'
 
 import { MediaAnalysisService } from '../MediaAnalysisService'
+import { planFrameTimestamps } from '../probeClassification'
 
 const file = { kind: 'path' as const, path: AbsoluteFilePathSchema.parse('/fixture.mp4') }
 let service: MediaAnalysisService
@@ -103,6 +110,7 @@ beforeEach(async () => {
     return { chunks: [{ path, startMs: 5_000, endMs: 10_000, byteLength: 9 }], sampleRateHz: 16000, channels: 1 }
   })
   runtime.extractFrames.mockReset().mockResolvedValue({ frames: [] })
+  runtime.detectSceneChanges.mockReset().mockResolvedValue({ changes: [] })
   runtime.transcribe.mockReset().mockResolvedValue({
     text: 'hello',
     segments: [{ text: 'hello', startSecond: 1, endSecond: 2 }]
@@ -197,6 +205,155 @@ describe('MediaAnalysisService', () => {
     await vi.waitFor(() => expect(runtime.extractAudio).toHaveBeenCalledOnce())
     controller.abort(reason)
     await expect(pending).rejects.toBe(reason)
+    expect(await readdir(runtime.tempRoot)).toEqual([])
+  })
+
+  it('asks for a short cut between uniform samples without exceeding the frame budget', async () => {
+    runtime.config = {
+      ...runtime.config,
+      budget: { maxFrames: 6, targetIntervalMs: 4_000, maxEdgePx: 640, jpegQuality: 70 },
+      ocr: {
+        processor: {
+          id: 'system',
+          type: 'builtin',
+          capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+        },
+        identity: { processorId: 'system', modelId: '', apiHost: '', optionsJson: '{}' }
+      }
+    }
+    runtime.probe.mockResolvedValue({
+      durationMs: 16_000,
+      hasAudio: false,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.detectSceneChanges.mockResolvedValue({
+      changes: [
+        { timestampMs: 5_200, score: 0.91 },
+        { timestampMs: 10_000, score: 0.8 }
+      ]
+    })
+    runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => {
+      const path = join(outputDir, 'frame.jpg')
+      await writeFile(path, Buffer.from('jpeg'))
+      return { frames: timestampsMs.map((timestampMs: number) => ({ path, timestampMs })) }
+    })
+    runtime.ocrImage.mockResolvedValue('Cut')
+
+    await service.analyze(file)
+    const timestamps = runtime.extractFrames.mock.calls[0]?.[0].timestampsMs as number[]
+    expect(timestamps.length).toBeLessThanOrEqual(6)
+    expect(timestamps[0]).toBe(0)
+    expect(timestamps.at(-1)).toBeGreaterThan(15_000)
+    expect(timestamps).toEqual(expect.arrayContaining([5_200, 10_000]))
+    expect(runtime.ocrImage).toHaveBeenCalledTimes(timestamps.length)
+  })
+
+  it('keeps uniform coverage when scene detection fails', async () => {
+    runtime.config = {
+      ...runtime.config,
+      budget: { maxFrames: 4, targetIntervalMs: 4_000, maxEdgePx: 640, jpegQuality: 70 },
+      ocr: {
+        processor: {
+          id: 'system',
+          type: 'builtin',
+          capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+        },
+        identity: { processorId: 'system', modelId: '', apiHost: '', optionsJson: '{}' }
+      }
+    }
+    runtime.probe.mockResolvedValue({
+      durationMs: 60_000,
+      hasAudio: false,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.detectSceneChanges.mockRejectedValue(new Error('scene filter unavailable'))
+    runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => {
+      const path = join(outputDir, 'frame.jpg')
+      await writeFile(path, Buffer.from('jpeg'))
+      return { frames: [{ path, timestampMs: timestampsMs[0] }] }
+    })
+    runtime.ocrImage.mockResolvedValue('Slide')
+
+    const analysis = await service.analyze(file)
+    expect(runtime.extractFrames.mock.calls[0]?.[0].timestampsMs).toEqual(planFrameTimestamps(60_000, 4, 4_000))
+    expect(analysis.visuals).toEqual([{ timestampMs: 0, ocrText: 'Slide' }])
+    expect(analysis.warnings).not.toContain('visual_analysis_failed')
+  })
+
+  it('does not send near-duplicate frames to OCR', async () => {
+    const sharp = (await import('sharp')).default
+    const jpeg = (background: string) =>
+      sharp({ create: { width: 32, height: 32, channels: 3, background } })
+        .jpeg({ quality: 80 })
+        .toBuffer()
+    runtime.config = {
+      ...runtime.config,
+      ocr: {
+        processor: {
+          id: 'system',
+          type: 'builtin',
+          capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+        },
+        identity: { processorId: 'system', modelId: '', apiHost: '', optionsJson: '{}' }
+      }
+    }
+    runtime.probe.mockResolvedValue({
+      durationMs: 12_000,
+      hasAudio: false,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockImplementation(async ({ outputDir }) => {
+      const red = join(outputDir, 'red.jpg')
+      const redAgain = join(outputDir, 'red-again.jpg')
+      const blue = join(outputDir, 'blue.jpg')
+      await writeFile(red, await jpeg('red'))
+      await writeFile(redAgain, await jpeg('red'))
+      await writeFile(blue, await jpeg('blue'))
+      return {
+        frames: [
+          { path: red, timestampMs: 0 },
+          { path: redAgain, timestampMs: 4_000 },
+          { path: blue, timestampMs: 8_000 }
+        ]
+      }
+    })
+    runtime.ocrImage.mockImplementation(async (image: { path: string }) =>
+      image.path.endsWith('blue.jpg') ? 'Blue' : 'Red'
+    )
+
+    const analysis = await service.analyze(file)
+    expect(runtime.ocrImage).toHaveBeenCalledTimes(2)
+    expect(analysis.visuals?.map((frame) => frame.timestampMs)).toEqual([0, 8_000])
+    expect(analysis.visuals?.map((frame) => frame.ocrText)).toEqual(['Red', 'Blue'])
+  })
+
+  it('aborts scene detection and removes the job directory', async () => {
+    runtime.probe.mockResolvedValue({
+      durationMs: 20_000,
+      hasAudio: false,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    const controller = new AbortController()
+    const reason = new Error('cancel scenes')
+    runtime.detectSceneChanges.mockImplementation(
+      async (_input: unknown, signal: AbortSignal) =>
+        await new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const pending = service.analyze(file, controller.signal)
+    await vi.waitFor(() => expect(runtime.detectSceneChanges).toHaveBeenCalledOnce())
+    controller.abort(reason)
+    await expect(pending).rejects.toBe(reason)
+    expect(runtime.extractFrames).not.toHaveBeenCalled()
     expect(await readdir(runtime.tempRoot)).toEqual([])
   })
 })
