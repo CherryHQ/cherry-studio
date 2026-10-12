@@ -296,24 +296,21 @@ export function useProviderEndpointActions({
       return false
     }
 
-    await awaitEndpointConfigWrites(currentProvider.id)
-    const liveProvider = providerRef.current ?? currentProvider
     const nextBaseUrl = defaultApiHost
-    const nextEndpoint = {
-      ...liveProvider.endpointConfigs?.[primaryEndpoint],
-      baseUrl: nextBaseUrl
-    }
-
-    const nextEndpointConfigs = {
-      ...liveProvider.endpointConfigs,
-      [primaryEndpoint]: nextEndpoint
-    }
-
     setApiHost(nextBaseUrl)
     try {
-      await withEndpointConfigWriteLock(currentProvider.id, () =>
-        patchProvider({ endpointConfigs: nextEndpointConfigs })
-      )
+      await awaitEndpointConfigWrites(currentProvider.id)
+      await withEndpointConfigWriteLock(currentProvider.id, () => {
+        const liveProvider = providerRef.current ?? currentProvider
+        const nextEndpointConfigs = {
+          ...liveProvider.endpointConfigs,
+          [primaryEndpoint]: {
+            ...liveProvider.endpointConfigs?.[primaryEndpoint],
+            baseUrl: nextBaseUrl
+          }
+        }
+        return patchProvider({ endpointConfigs: nextEndpointConfigs })
+      })
       lastPersistedApiHostRef.current = nextBaseUrl
       return true
     } catch (error) {
