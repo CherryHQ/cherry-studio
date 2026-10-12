@@ -29,6 +29,7 @@
 | [Agent Prompt Layers](./references/ai/agent-prompt-layers.md) | Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables |
 | [Agent Session Fork](./references/ai/agent-session-fork.md) | Native Agent session forks — service ownership, opaque checkpoints, workspace handling, publication, and recovery |
 | [Agent Session Runtime](./references/ai/agent-session-runtime.md) | Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer |
+| [Agent Workspace Copy Design](./references/ai/agent-workspace-copy-design.md) | Proposed CoW project copies using vscode fs-copyfile, covering service boundaries, ownership, paths, publication, cancellation, recovery, and validation |
 | [AI Usage Records](./references/ai/ai-usage-records.md) | Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection |
 | [Browser Use — Gap Analysis & Design](./references/ai/browser-use-design.md) | Browser automation design, ownership boundaries, capability gaps, and delivery roadmap |
 | [Browser Use — Implementation Plan](./references/ai/browser-use-implementation.md) | Browser session engine implementation, MCP contracts, and stacked delivery plan |
