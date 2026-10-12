@@ -1059,7 +1059,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('distinguishes unsupported images from unreadable or invalid image payloads', async () => {
+  it('distinguishes images that still have a usable path from invalid payloads with none', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -1127,7 +1127,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
+              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n- "missing.png": /managed/entry-missing\n\nUnavailable attachments: empty.png, missing-url.png'
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -1136,9 +1136,101 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Claude Code attachments could not be sent', {
-      attachments: ['missing.png', 'empty.png', 'missing-url.png']
+      attachments: ['empty.png', 'missing-url.png']
     })
     expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(3)
+    void connection.close()
+  })
+
+  it('routes an image type the image blocks cannot carry to its path without converting it', async () => {
+    // `image/*` is not enough: TIFF is not one of the image blocks' media types, so its bytes are
+    // never worth materializing — and a large one fails conversion outright, which used to take
+    // its managed path reference down with it.
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this scan' },
+            {
+              type: 'file',
+              url: 'file:///tmp/scan.tiff',
+              mediaType: 'image/tiff',
+              filename: 'scan.tiff',
+              providerMetadata: { cherry: { fileEntryId: 'entry-tiff' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          content:
+            'inspect this scan\n\nAttached files (read them with your tools using these absolute paths):\n- "scan.tiff": /managed/entry-tiff'
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('keeps the local path of an image whose conversion produced nothing sendable', async () => {
+    // Past the runtime's base64 string limit (or otherwise unreadable) the conversion returns
+    // null — the file itself is still readable at its path, and the agent must not lose both.
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValueOnce(null)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this image' },
+            {
+              type: 'file',
+              url: 'file:///tmp/huge.png',
+              mediaType: 'image/png',
+              filename: 'huge.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-huge' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          content:
+            'inspect this image\n\nAttached files (read them with your tools using these absolute paths):\n- "huge.png": /managed/entry-huge'
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(1)
     void connection.close()
   })
 
@@ -1165,13 +1257,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
             }
           ]
     )
-    mocks.materializeNativeFilePart.mockResolvedValueOnce({
-      type: 'file',
-      url: 'data:image/avif;base64,QUJD',
-      mediaType: 'image/avif',
-      filename: 'photo.avif',
-      providerMetadata: { cherry: { fileEntryId: 'entry-avif' } }
-    })
+    // The declared AVIF type is one the image blocks cannot carry, so the driver forwards the
+    // path without asking for bytes at all (the pre-conversion check in `canBeClaudeImage`).
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
@@ -1208,6 +1295,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       done: false
     })
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
     void connection.close()
   })
 

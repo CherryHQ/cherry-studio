@@ -1211,6 +1211,15 @@ async function materializeUserContent(
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []
+  // A part that cannot become an image block still reaches the agent through its own path;
+  // only one with nowhere to point is unavailable.
+  const routeWithoutImage = (originalPart: FileUIPart): void => {
+    const target =
+      readCherryMeta(originalPart)?.fileEntryId || originalPart.url?.startsWith('file://')
+        ? fallbackParts
+        : unavailableParts
+    target.push(originalPart)
+  }
 
   for (const part of [
     ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
@@ -1220,8 +1229,7 @@ async function materializeUserContent(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
     if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
-      const target = fileEntryId || originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
-      target.push(originalPart)
+      routeWithoutImage(originalPart)
       continue
     }
 
@@ -1230,14 +1238,15 @@ async function materializeUserContent(
     if (!parsed) {
       const materialized = await materializeNativeFilePart(part)
       if (!materialized) {
-        unavailableParts.push(originalPart)
+        // Conversion found nothing sendable — the file itself may still be readable at its path.
+        routeWithoutImage(originalPart)
         continue
       }
       parsed = materialized.url ? parseDataUrl(materialized.url) : null
     }
 
     if (!parsed?.isBase64 || parsed.data.length === 0) {
-      unavailableParts.push(originalPart)
+      routeWithoutImage(originalPart)
       continue
     }
 
@@ -1250,11 +1259,8 @@ async function materializeUserContent(
       continue
     }
 
-    if (originalPart.url?.startsWith('file://')) {
-      fallbackParts.push(originalPart)
-    } else {
-      unavailableParts.push(originalPart)
-    }
+    // Converted, but into a type the image blocks cannot carry (BMP, TIFF …).
+    routeWithoutImage(originalPart)
   }
 
   const resolvedPaths = await extractAttachmentPaths(fallbackParts)
@@ -1336,9 +1342,16 @@ function isImageFilePart(part: FileUIPart): boolean {
   return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
 }
 
+/**
+ * Whether the part can become one of Claude's image blocks at all. A declared image type the
+ * blocks cannot carry (TIFF, AVIF, HEIC …) answers here, before its bytes are converted: the
+ * conversion can only fail, and the local-path fallback delivers the file either way.
+ */
 function canBeClaudeImage(part: FileUIPart): boolean {
-  const mediaType = part.mediaType?.toLowerCase()
-  if (!mediaType || mediaType === 'application/octet-stream' || mediaType.startsWith('image/')) return true
+  const inlineType = part.url?.startsWith('data:') ? parseDataUrl(part.url)?.mediaType : undefined
+  const mediaType = (inlineType ?? part.mediaType)?.toLowerCase()
+  if (!mediaType || mediaType === 'application/octet-stream') return true
+  if (mediaType.startsWith('image/')) return toClaudeImageMediaType(mediaType) !== null
 
   const filename = part.filename?.toLowerCase()
   const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
