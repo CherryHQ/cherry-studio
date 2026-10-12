@@ -12,7 +12,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
 describe('empty assistant response', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  function setup(chunks: UIMessageChunk[]) {
+  function setup(chunks: UIMessageChunk[], textTokens = 8192) {
     mockCreateAgent.mockResolvedValue({
       stream: vi.fn().mockResolvedValue({
         toUIMessageStream: () =>
@@ -25,7 +25,7 @@ describe('empty assistant response', () => {
         steps: Promise.resolve([
           {
             toolResults: [],
-            usage: { outputTokens: 8192, outputTokenDetails: { textTokens: 8192, reasoningTokens: 0 } }
+            usage: { outputTokens: 8192, outputTokenDetails: { textTokens, reasoningTokens: 8192 - textTokens } }
           }
         ])
       })
@@ -59,6 +59,20 @@ describe('empty assistant response', () => {
     expect(onFinish).not.toHaveBeenCalled()
     expect(onError).toHaveBeenCalledWith({ error: expect.objectContaining({ name: 'EmptyResponseError' }) })
   })
+
+  it.each(['stop', 'length'] as const)(
+    'rejects a billed empty %s response with explicitly zero text tokens',
+    async (finishReason) => {
+      const { received, completion, onFinish, onError } = setup(
+        [{ type: 'start-step' }, { type: 'finish', finishReason }],
+        0
+      )
+      await expect(completion).rejects.toMatchObject({ name: 'EmptyResponseError', i18nKey: 'no_response' })
+      expect(received).not.toContainEqual(expect.objectContaining({ type: 'finish' }))
+      expect(onFinish).not.toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledWith({ error: expect.objectContaining({ name: 'EmptyResponseError' }) })
+    }
+  )
 
   it('preserves text already delivered when the provider reaches its length limit', async () => {
     const { received, completion } = setup([

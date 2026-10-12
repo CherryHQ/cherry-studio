@@ -401,10 +401,11 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       })
       if (terminalError) throw terminalError
       const finalStep = steps?.at(-1)
-      const reportedTextTokens = finalStep?.usage?.outputTokenDetails?.textTokens ?? finalStep?.usage?.outputTokens ?? 0
+      const hasReportedOutput =
+        (finalStep?.usage?.outputTokens ?? 0) > 0 || (finalStep?.usage?.outputTokenDetails?.textTokens ?? 0) > 0
       if (
         !hasAnswerContent &&
-        reportedTextTokens > 0 &&
+        hasReportedOutput &&
         (pendingFinish?.finishReason === 'stop' || pendingFinish?.finishReason === 'length')
       ) {
         throw new EmptyResponseError()
