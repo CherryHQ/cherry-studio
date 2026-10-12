@@ -146,6 +146,66 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     }
   })
 
+  it('returns the last decodable frame when the end anchor is past its PTS', async () => {
+    const sparsePath = join(root, 'sparse-12fps.mp4')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=64x64:r=12:d=6', '-c:v', 'mpeg4', '-q:v', '8', sparsePath])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: sparsePath, fallbackExt: 'mp4' }, context())
+    const endAnchorMs = probe.durationMs - 50
+    const rawSeek = spawnSync(
+      ffmpegPath,
+      [
+        '-hide_banner',
+        '-nostdin',
+        '-y',
+        '-ss',
+        (endAnchorMs / 1000).toFixed(3),
+        '-i',
+        sparsePath,
+        '-frames:v',
+        '1',
+        '-an',
+        join(root, 'raw-end.jpg')
+      ],
+      { encoding: 'utf8' }
+    )
+    const listed = spawnSync(
+      ffprobePath,
+      ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'frame=pts_time', '-of', 'csv=p=0', sparsePath],
+      { encoding: 'utf8' }
+    )
+    const lastPts = listed.stdout.trim().split('\n').filter(Boolean).at(-1)
+    const lastFrameMs = Math.floor(Number(lastPts) * 1000 + 1e-6)
+
+    expect(rawSeek.status).toBe(234)
+    expect(lastFrameMs).toBeLessThan(endAnchorMs)
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: sparsePath,
+        outputDir: join(root, 'sparse-frames'),
+        timestampsMs: [0, endAnchorMs],
+        maxEdgePx: 64,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames.map((frame) => frame.timestampMs)).toEqual([0, lastFrameMs])
+    expect(frames.frames.every((frame) => existsSync(frame.path) && readFileSync(frame.path).length > 0)).toBe(true)
+
+    const beyond = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: sparsePath,
+        outputDir: join(root, 'beyond-frames'),
+        timestampsMs: [probe.durationMs + 1_000],
+        maxEdgePx: 64,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(beyond.frames).toEqual([])
+  })
+
   it('kills an active FFmpeg child before rejecting cancellation', async () => {
     const outputDir = join(root, 'cancelled-frames')
     const pidRegistryPath = join(root, 'cancelled-child.pid')
@@ -190,9 +250,15 @@ describe('mediaFfmpegHandlers frame destinations', () => {
     writeFileSync(untouchedPath, 'leave-me')
     applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
     spawnControl.replacement = () => {
+      const call = spawnControl.calls
       const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
       const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
-      queueMicrotask(() => child.emit('close', 0))
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.stdout.emit('data', '{"format":{"duration":"2.000000"},"streams":[]}')
+        }
+        child.emit('close', 0)
+      })
       return child
     }
 
@@ -208,7 +274,7 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         context()
       )
 
-      expect(spawnControl.calls).toBe(1)
+      expect(spawnControl.calls).toBe(2)
       expect(result.frames).toEqual([])
       expect(readFileSync(untouchedPath, 'utf8')).toBe('leave-me')
     } finally {
@@ -225,6 +291,11 @@ describe('mediaFfmpegHandlers frame destinations', () => {
       const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
       queueMicrotask(() => {
         if (call === 1) {
+          child.stdout.emit('data', '{"format":{"duration":"2.000000"},"streams":[]}')
+          child.emit('close', 0)
+          return
+        }
+        if (call === 2) {
           child.emit('close', 234)
           return
         }
@@ -246,7 +317,7 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         context()
       )
 
-      expect(spawnControl.calls).toBe(2)
+      expect(spawnControl.calls).toBe(3)
       expect(result.frames).toEqual([{ path: join(outputDir, 'frame-0001.jpg'), timestampMs: 1_000 }])
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
@@ -278,7 +349,7 @@ describe('mediaFfmpegHandlers frame destinations', () => {
           context()
         )
       ).rejects.toThrow('ENOENT')
-      expect(spawnControl.calls).toBe(1)
+      expect(spawnControl.calls).toBe(2)
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
     }
