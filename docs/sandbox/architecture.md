@@ -12,13 +12,18 @@ sources:
   - packages/sandbox/src/backends/mxc/lease.ts
   - packages/sandbox/src/rpc/peer.ts
   - packages/sandbox/src/cli/lab.ts
+  - src/main/services/SandboxService.ts
+  - src/shared/ipc/schemas/sandbox.ts
+  - src/renderer/components/sandbox/SandboxDialog.tsx
 ---
 
 # Sandbox 当前架构
 
-本文描述 2026-10-12 的实际代码：**Cherry 管理实例、权限映射、生命周期和双向 RPC；MXC 负责操作系统隔离。** 独立包 `@cherrystudio/sandbox` 已接通 macOS Seatbelt，CLI 与程序调用使用同一实现。自研 Seatbelt 后端、C supervisor 和对应构建脚本已删除。
+本文描述 2026-10-12 的实际代码：**Cherry 管理实例、权限映射、生命周期和双向 RPC；MXC 负责操作系统隔离。** 独立包 `@cherrystudio/sandbox` 已接通 macOS Seatbelt 和 Windows ProcessContainer，CLI 与程序调用使用同一实现。Windows 不接受上游尚未可靠执行的显式 deny 覆盖策略。自研 Seatbelt 后端、C supervisor 和对应构建脚本已删除。
 
-包仍为 private `0.0.1`，尚未接入 Cherry Electron 主进程。这里的“宿主”指运行包的可信 Node 进程，未来才由应用 main 承担。本文是当前实现说明；[design](./design.md)、[api](./api.md)保留更完整的设计目标，不代表这些目标已经实现。运行命令与示例见[包 README](../../packages/sandbox/README.md)。
+包仍为 private `0.0.1`，已由 Cherry Electron 主进程的 `SandboxService` 托管。设置 → 关于中的沙箱诊断入口通过类型化 IPC 提供环境检测、JavaScript 执行和停止。Electron 44.7.0 内置 Node 24.21.0，满足 Windows 标准流要求。本文是当前实现说明；[design](./design.md)、[api](./api.md)保留更完整的设计目标，不代表这些目标已经实现。运行命令与示例见[包 README](../../packages/sandbox/README.md)。
+
+应用 IPC 固定使用内置 Electron 的 Node 模式，禁止网络，只授予运行时文件读取和单次临时目录写入，限制 30 秒及 64 KiB 输出。调用窗口身份来自主进程，不接受 renderer 指定权限、命令或 owner。每个窗口最多一个实例；停止、窗口销毁和应用退出均会取消运行。后端完成清理后删除临时目录，状态未知时保留并记录日志。当前后端不执行内存和进程数配额。SDK 与 Koffi 在打包时解包，通过 `MXC_FFI_DIR` 指向真实原生库目录。应用入口暂不提供 Python 或 RPC；双向 RPC 继续由独立包提供。
 
 ## 1. 进程与依赖边界
 
@@ -35,7 +40,7 @@ flowchart TB
         Manager --> RPC[RpcPeer / vscode-jsonrpc]
         Methods[注册的宿主方法与授权回调] <--> RPC
     end
-    subgraph Target[Seatbelt 限制下的目标进程]
+    subgraph Target[Seatbelt / ProcessContainer 限制下的目标进程]
         Guest[Node / Python / 普通命令]
     end
     SDK -->|启动与停止| Guest
@@ -53,7 +58,7 @@ RPC 使用 `vscode-jsonrpc@9.0.3`，通过 MXC 暴露的标准流传输。图中
 | --- | --- |
 | [SandboxManager](../../packages/sandbox/src/host/SandboxManager.ts) | 验证并冻结启动描述、分配实例 ID、持有实例、绑定宿主授权上下文、连接 RPC；`dispose()` 停止所持实例 |
 | [instance](../../packages/sandbox/src/host/instance.ts) | 管理 ready/completion、运行时长、取消、停止及清理重试 |
-| [MxcBackend](../../packages/sandbox/src/backends/mxc/MxcBackend.ts) | 探测 macOS Seatbelt 可用性，编译策略并创建 lease；当前唯一后端 |
+| [MxcBackend](../../packages/sandbox/src/backends/mxc/MxcBackend.ts) | 探测 macOS Seatbelt / Windows ProcessContainer、Node 运行时和 Windows 初始化要求，编译策略并创建 lease |
 | [policy](../../packages/sandbox/src/backends/mxc/policy.ts) | 将公共 `SandboxSpec` 映射为 MXC `ContainerRequest`，拒绝不支持的配置，报告有效策略和限制 |
 | [lease](../../packages/sandbox/src/backends/mxc/lease.ts) | 持有 `MxcProcess`，适配 spawn/wait/kill/dispose、标准流、启动期限与 I/O 预算 |
 | [RpcPeer](../../packages/sandbox/src/rpc/peer.ts) | 双向请求、显式方法注册、授权、取消、超时与断线结算；复用 JSON-RPC 协议库 |
@@ -71,14 +76,18 @@ RPC 使用 `vscode-jsonrpc@9.0.3`，通过 MXC 暴露的标准流传输。图中
 
 | 公共描述 | MXC 映射与效果 |
 | --- | --- |
-| executable + args | 对每个 POSIX 参数独立引用，再生成带 `exec` 的命令字符串；保留字面参数语义 |
-| cwd / env | 显式传入；cwd 本身不授予文件权限，env 不复制宿主环境 |
+| executable + args | macOS 使用 POSIX 引用和 `exec`；Windows 使用 CRT 参数引用并直接启动目标；保留字面参数语义 |
+| cwd / env | 显式传入；cwd 本身不授予文件权限，env 不复制宿主环境；Windows 补充 SYSTEMROOT 与指向 cwd 的 LOCALAPPDATA |
 | read / write | 解析实际路径，映射 readonlyPaths / readwritePaths；直接操作原文件，不创建隔离副本 |
-| denyRead | 映射 deniedPaths，同时禁止该路径写入 |
-| denyWrite | 映射 readonlyPaths；必须处于已有 read/write 授权内，避免额外授予读取权限 |
+| denyRead | macOS 映射 deniedPaths，同时禁止该路径写入；Windows 拒绝 |
+| denyWrite | macOS 映射 readonlyPaths，必须处于已有 read/write 授权内；Windows 拒绝 |
 | network deny | ingress 与 egress 默认拒绝；可写目录内 Unix socket 是已接受的例外 |
 
 MXC 还提供运行所需的系统资源基线。`effectivePolicy.runtimeAccess` 当前概括报告该基线，并未逐文件列举所有额外访问。`limitations` 明示路径硬链接、Unix socket、进程组回收差异；2026-10-12 决策接受这些差异，不把它们作为启动阻断条件。
+
+Windows 根据 SDK 探测选择隔离层；本机使用 AppContainer/DACL，授权期间会修改目标路径 ACL，停止后回收。Node/Python 初始化需要 Win32k，因此请求 `ui.disable: false`，剪贴板和输入注入仍请求禁止；UI 隔离未专项验收，23H2 缺少新的 Job 输入注入限制。Windows SDK 1.0.0 实测未执行可写父目录内的 deny 覆盖；适配器对所有显式 denyRead/denyWrite 返回 POLICY_UNSUPPORTED，要求使用分开的授权目录。
+
+Windows 初始化由管理员运行包内 setup:windows 脚本，调用 MXC 官方 host-prep；Null 设备初始化每次重启后需重新执行。probe 缺少初始化时返回 setup-required。23H2 低于 MXC 官方 24H2 支持下限，探测报告实验性限制；本次 x64 实测不替代受支持版本或 ARM64 验收。
 
 ## 4. 原始标准流与双向 RPC
 
@@ -131,9 +140,10 @@ sequenceDiagram
 | macOS 原生命令、授权目录直接读写、网络 deny | 已接通 MXC Seatbelt |
 | CLI 与程序 API 共用实现 | 已完成；CLI 黑盒测试覆盖允许读、原文件即时写入、禁止目录外读取 |
 | Node / Python 双向回调 | 已有示例及回归测试；另覆盖授权拒绝、超时、断线与合并帧读取 |
-| Linux / Windows | 当前 adapter 明确拒绝；上游有对应后端不等于本包已适配 |
+| Windows 原生命令与 RPC | 已接通 ProcessContainer；实测允许读写、越界拒绝、只读保护、loopback 拒绝、ACL 回收和一个 detached 子进程停止场景 |
+| Linux | 当前 adapter 明确拒绝 |
 | 内存/进程数配额、挂载映射、专用通道、其他网络模式 | 当前拒绝请求，不声称已强制执行 |
-| Electron 集成、签名打包与分发 | 尚未完成 |
+| Electron 集成 | Electron 44.7.0 / Node 24.21.0；主进程服务与开发者诊断入口已接通，Windows 原生库在 ASAR 外加载；签名分发另行验证 |
 | 插件加载、编排、Durable API | 不属于本包职责 |
 
 复现方式、平台前置条件和测试命令见[包 README](../../packages/sandbox/README.md#tests)。[后端调研](./backend-options.md)保留机制和历史实验；本机功能测试不代表三平台或打包后的验收。

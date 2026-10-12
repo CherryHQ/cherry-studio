@@ -258,6 +258,15 @@ export function buildPathRegistry() {
     'feature.browser.import.temp': path.join(appTemp, 'browser-import'),
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),
+    'feature.sandbox.temp': path.join(appTemp, 'sandbox'),
+    'feature.sandbox.native.builtin': path.join(
+      app.getAppPath().replace(/\.asar$/, '.asar.unpacked'),
+      'node_modules',
+      '@microsoft',
+      'mxc-sdk',
+      'bin',
+      process.arch
+    ),
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
     'feature.file_processing.temp': path.join(appTemp, 'file-processing'),
     'feature.mcp.resource_results.temp': path.join(appTemp, 'mcp-resource-results'),
@@ -379,6 +388,7 @@ const NO_ENSURE = [
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
   'feature.mini_app.builtin',
+  'feature.sandbox.native.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces',

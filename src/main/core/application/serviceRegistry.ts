@@ -64,6 +64,7 @@ import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryU
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
+import { SandboxService } from '@main/services/SandboxService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SentryLogService } from '@main/services/SentryLogService'
@@ -142,6 +143,7 @@ export const services = {
   DoctorService,
   LogRetentionService,
   PythonService,
+  SandboxService,
   TrayService,
   WebSearchService,
   WebviewService,

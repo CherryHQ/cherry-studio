@@ -92,6 +92,7 @@ asarUnpack:
   - "node_modules/semver/**"
   - "node_modules/node-pty/**"
   - "node_modules/koffi/**"
+  - "node_modules/@microsoft/mxc-sdk/**"
   - "node_modules/@koromix/koffi-*/**"
   - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**"
   - "node_modules/@deepseek-ai/dsh-win32-process/**"
