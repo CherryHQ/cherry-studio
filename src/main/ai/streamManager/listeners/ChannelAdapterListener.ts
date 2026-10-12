@@ -91,12 +91,12 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
-    await this.finish(result.status, result.isTopicDone, result.attemptId)
+    await this.finish(result.status, result.attemptId)
   }
 
   // oxlint-disable-next-line no-unused-vars
   async onPaused(_result: StreamPausedResult): Promise<void> {
-    await this.finish('paused', _result.isTopicDone, _result.attemptId)
+    await this.finish('paused', _result.attemptId)
   }
 
   /**
@@ -110,7 +110,7 @@ export class ChannelAdapterListener implements StreamListener {
     return attemptId !== undefined && (this.deliveredAttemptId === undefined || attemptId > this.deliveredAttemptId)
   }
 
-  private async finish(status: 'success' | 'paused', isTopicDone?: boolean, attemptId?: number): Promise<void> {
+  private async finish(status: 'success' | 'paused', attemptId?: number): Promise<void> {
     // Take this execution's text BEFORE yielding: a predecessor's finalize can still be in flight
     // when a wake emits through this carried listener, and text arriving during the await below
     // belongs to that wake, not to this execution.
