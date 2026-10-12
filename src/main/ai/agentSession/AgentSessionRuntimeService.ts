@@ -990,15 +990,16 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /**
    * The retained connection is about to die, so the autonomous reply streaming on it can never
-   * settle on its own. Record the interruption through the machine and return that reply's identity:
-   * its stream is closed (the persistence listener's terminal callback for the dead stream is what
-   * must not be waited for), and the caller marks it terminal so `resumeAfterAutonomous` can hand
-   * the deferred input back.
+   * settle on its own. Pause it first so the stream manager persists its row instead of leaving it
+   * `pending`, then record the interruption through the machine; the caller confirms the settlement
+   * so `resumeAfterAutonomous` hands the deferred input back.
    */
   private interruptAutonomousReply(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
     if (!isAgentSessionRuntimeAutonomous(entry.runtimeState)) return undefined
+    const turn = this.currentTurn(entry)
+    application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-connection-invalid')
     this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
-    return this.currentTurn(entry)
+    return turn
   }
 
   /**

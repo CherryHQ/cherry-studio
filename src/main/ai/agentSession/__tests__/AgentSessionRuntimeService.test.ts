@@ -3774,6 +3774,9 @@ describe('AgentSessionRuntimeService', () => {
       )
       await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
 
+      // A's reply is paused through the stream manager, so its row is persisted instead of hanging
+      // `pending` — the settlement `resumeAfterAutonomous` requires.
+      expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'agent-connection-invalid')
       expect(retained.close).toHaveBeenCalled()
       expect(entry.runtimeState.execution).toMatchObject({
         kind: 'turn',
