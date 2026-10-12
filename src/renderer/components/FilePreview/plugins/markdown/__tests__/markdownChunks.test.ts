@@ -1,9 +1,55 @@
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
+
+import { rehypeHeadingIds } from '@cherrystudio/ui'
 
 import { hasOversizedMarkdownChunk, MARKDOWN_MAX_BLOCK_CHARS, splitMarkdownChunks } from '../markdownChunks'
 
 const joined = (chunks: Array<{ text: string }>) => chunks.map((chunk) => chunk.text).join('\n')
 const chunksOf = (content: string, budgetChars?: number) => splitMarkdownChunks(content, budgetChars).chunks
+
+const parsed = (source: string) => unified().use(remarkParse).use(remarkGfm).parse(source)
+
+/**
+ * The ids a source's headings render with — `rehypeHeadingIds` over the parsed headings, which is
+ * what a `#fragment` navigation resolves against. Chunks are compared on these rather than on the
+ * slug map itself, so the whole path from source to rendered id is under test.
+ */
+const renderedHeadingIds = (source: string, slugs?: ReadonlyMap<string, readonly string[]>): string[] => {
+  const tree = parsed(source) as unknown as { children: Array<{ type: string; depth?: number; children?: unknown[] }> }
+  const root = {
+    type: 'root',
+    children: tree.children
+      .filter((node) => node.type === 'heading')
+      .map((node) => ({
+        type: 'element',
+        tagName: `h${node.depth}`,
+        properties: {} as { id?: unknown },
+        children: node.children
+      }))
+  }
+  rehypeHeadingIds({ prefix: 'chunk', slugs })(root as never)
+  return root.children.map((element) => String(element.properties.id))
+}
+
+/** The ids the chunks hand out in document order, which must read as the unsplit document's ids. */
+const chunkHeadingIds = (content: string, budgetChars?: number): string[] =>
+  chunksOf(content, budgetChars).flatMap((chunk) => renderedHeadingIds(chunk.text, chunk.headingSlugs))
+
+/**
+ * The numbers the ordered lists of a source render with. A list is one block: split apart, every
+ * piece restarts at its own first marker and the numbering the document shows is lost.
+ */
+const renderedListNumbers = (source: string): number[] =>
+  (
+    parsed(source) as unknown as {
+      children: Array<{ type: string; ordered?: boolean; start?: number; children?: unknown[] }>
+    }
+  ).children.flatMap((node) =>
+    node.type === 'list' && node.ordered ? (node.children ?? []).map((_, index) => (node.start ?? 1) + index) : []
+  )
 
 describe('splitMarkdownChunks', () => {
   it('keeps a document that has no definitions lossless across its chunks', () => {
@@ -1811,5 +1857,125 @@ describe('a title left open across a long document', () => {
     // and the document is one chunk; the unterminated title itself renders in that chunk alone.
     expect(window.chunks).toHaveLength(1)
     expect(window.chunks.filter((chunk) => chunk.text.includes('[spec]: /url'))).toHaveLength(1)
+  })
+})
+
+describe('heading ids assigned from the text the renderer reads', () => {
+  // The slug a heading renders comes from its parsed text, so a heading written as a link renders
+  // its label and numbers toward the same base as the plain heading it reads as.
+  it('numbers a linked heading toward the base its label renders', () => {
+    // Both headings render `Title`, so the document ids are `title` and `title-1` and
+    // `[jump](#title-1)` finds its target — reading the raw source put the second on another base.
+    const content = ['# Title', '', '# [Title](https://example.com)', '', '[jump](#title-1)'].join('\n')
+
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
+    expect(renderedHeadingIds(content)).toEqual(['chunk--title', 'chunk--title-1'])
+  })
+
+  it('numbers headings a setext paragraph spans by the whole paragraph', () => {
+    // The renderer reads the heading as the paragraph's text `a\nb`, one `a-b` base with `# a-b`.
+    const content = ['a', 'b', '===', '', '# a-b', ''].join('\n')
+
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
+    expect(renderedHeadingIds(content)).toEqual(['chunk--a-b', 'chunk--a-b-1'])
+  })
+
+  it('does not count a heading a type-7 HTML block swallows', () => {
+    // `<span>` opens a type-7 block whose lines the parser reads as raw text; a phantom heading
+    // between two real ones would hand the last its `-2` id where the document gives `-1`.
+    const filler = ['', 'x'.repeat(64), '']
+    const content = ['# Title', ...filler, '<span>', '# Title', '</span>', ...filler, '# Title'].join('\n')
+
+    expect(chunkHeadingIds(content, 1)).toEqual(renderedHeadingIds(content))
+  })
+
+  it('does not count a heading a fence behind a quote and a list marker holds', () => {
+    const filler = ['', 'x'.repeat(64), '']
+    const content = ['# Title', ...filler, '> - ```', '>   # Title', '>   ```', ...filler, '# Title'].join('\n')
+
+    expect(chunkHeadingIds(content, 1)).toEqual(renderedHeadingIds(content))
+  })
+})
+
+describe('a list whose fence holds its items together', () => {
+  it('keeps a list whose item opens a fenced block in one chunk', () => {
+    // micromark numbers the two items 1 and 2 of one list; cut apart at the blank line behind the
+    // fence, each piece renders a one-item list that starts over at 1.
+    const content = ['1. ```', ...Array<string>(64).fill('   code'), '   ```', '', '1. next'].join('\n')
+
+    expect(chunksOf(content, 1).flatMap((chunk) => renderedListNumbers(chunk.text))).toEqual([1, 2])
+    expect(chunksOf(content, 1)).toHaveLength(1)
+  })
+})
+
+describe('a definition shape inside a fence a mixed container holds', () => {
+  it('does not carry a footnote definition out of a fence opened behind a quote and a list marker', () => {
+    // `> - ``` ` opens a fence the item holds; micromark renders `[^n]: wrong` as code inside it and
+    // shows `right`, so the code-only label must not reach the carried prefix ahead of the real one.
+    const content = ['> - ```', '>   [^n]: wrong', '>   ```', '', 'see [^n]', '', '[^n]: right'].join('\n')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text.startsWith('[^n]: right\n\n')).toBe(true)
+  })
+
+  it('does not carry a definition-looking line out of a quote and a list marker either', () => {
+    const content = ['> - ```', '>   [label]: /wrong', '>   ```', '', 'see [label]', '', '[label]: /right'].join('\n')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text.startsWith('[label]: /right\n\n')).toBe(true)
+  })
+})
+
+describe('a definition shape the parser reads in columns', () => {
+  it('leaves a tab-indented footnote definition in the indented code it belongs to', () => {
+    // A tab spans four columns, so the label sits in indented code — micromark shows `right`.
+    // Carrying the code line put `code-only` on every chunk and shadowed the real footnote.
+    const content = ['\t[^n]: code-only', '', 'see [^n]', '', '[^n]: right'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [^n]'))
+
+    expect(referencing).toHaveLength(1)
+    expect(referencing[0].text).not.toContain('code-only')
+    expect(referencing[0].text.startsWith('[^n]: right\n\n')).toBe(true)
+  })
+})
+
+describe('a definition shape inside a type-7 HTML block', () => {
+  it('does not carry a definition-looking line out of a type-7 HTML block', () => {
+    // `<span>` alone on its line opens a type-7 block that runs to the blank line, so the label
+    // inside it is raw text; micromark resolves `see [label]` to `/right`.
+    const content = [
+      '<span>',
+      '# ignored',
+      '[label]: /wrong',
+      '</span>',
+      '',
+      '[label]: /right',
+      '',
+      'see [label]'
+    ].join('\n')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text.startsWith('[label]: /right\n\n')).toBe(true)
+  })
+
+  it('leaves a type-7 tag under an open paragraph as paragraph text', () => {
+    // A type-7 block cannot interrupt a paragraph, so the shape stays prose and no block opens.
+    const content = ['para', '<span>', '[label]: /wrong', '</span>', '', '[label]: /right', '', 'see [label]'].join(
+      '\n'
+    )
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text.startsWith('[label]: /right\n\n')).toBe(true)
+    expect(chunks[0].text.split('\n\n')[0]).not.toContain('/wrong')
   })
 })
