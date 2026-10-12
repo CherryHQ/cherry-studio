@@ -14,8 +14,10 @@ export const limits = {
   outputBytes: 65536
 }
 
-export function spec(executable = '/usr/bin/true', args: string[] = []): SandboxSpec & { channel: 'none' } {
-  if (process.platform === 'win32') executable = process.execPath
+export function spec(
+  executable = process.platform === 'win32' ? process.execPath : '/usr/bin/true',
+  args: string[] = []
+): SandboxSpec & { channel: 'none' } {
   return {
     ownerId: 'test',
     environmentId: 'native',

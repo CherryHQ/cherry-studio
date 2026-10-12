@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, parse } from 'node:path'
 
 import { SandboxManager } from '@cherrystudio/sandbox'
 
@@ -16,13 +16,16 @@ const spec = {
   environmentId: 'native',
   runtimeProfileId: 'mxc-command-v1',
   command: {
-    executable: '/bin/bash',
-    cwd: '/',
+    executable: realpathSync(process.execPath),
+    cwd: parse(root).root,
     env: {},
     args: [
-      '-c',
-      'read -r value < "$1/input"; printf "%s" "$value" > "$1/output"; if read -r value < "$2"; then exit 20; fi; printf "allowed I/O succeeded; outside read denied\\n"',
-      'demo',
+      '-e',
+      `const fs = require('node:fs'); const path = require('node:path'); const allowed = process.argv[1];
+       fs.writeFileSync(path.join(allowed, 'output'), fs.readFileSync(path.join(allowed, 'input'), 'utf8').trim());
+       try { fs.readFileSync(process.argv[2]); process.exit(20) }
+       catch (error) { if (!['EACCES', 'EPERM'].includes(error.code)) throw error }
+       process.stdout.write('allowed I/O succeeded; outside read denied\\n')`,
       allowed,
       join(root, 'secret')
     ]

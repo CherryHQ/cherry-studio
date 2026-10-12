@@ -1,9 +1,12 @@
 """Minimal Content-Length JSON-RPC interoperability example; no guest SDK needed."""
 import json
-import signal
 import sys
+import os
+import threading
 
-signal.alarm(15)
+deadline = threading.Timer(15, lambda: os._exit(124))
+deadline.daemon = True
+deadline.start()
 
 
 def receive():

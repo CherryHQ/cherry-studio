@@ -7,7 +7,7 @@ import type { SandboxSpec } from '../../types.js'
 import type { BackendLease } from '../types.js'
 import type { compilePolicy } from './policy.js'
 
-export function createLease(spec: SandboxSpec, policy: ReturnType<typeof compilePolicy>): BackendLease {
+export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType<typeof compilePolicy>>): BackendLease {
   const started = deferred<Awaited<BackendLease['started']>>()
   const targetExit = deferred<Awaited<BackendLease['targetExit']>>()
   const failure = deferred<SandboxError>()
@@ -30,6 +30,7 @@ export function createLease(spec: SandboxSpec, policy: ReturnType<typeof compile
   )
   const launched = (async () => {
     try {
+      const policy = await prepare()
       const { spawn } = await import('@microsoft/mxc-sdk/v1')
       if (stopped) throw new SandboxError('CANCELLED', 'Stopped before MXC launch')
       child = await spawn(policy.request)

@@ -12,6 +12,7 @@ export function validateSpec(spec: SandboxSpec): SandboxSpec {
     string(value) &&
     isAbsolute(value) &&
     normalize(value) === value &&
+    (process.platform !== 'win32' || (/^[a-z]:\\/i.test(value) && !value.slice(2).includes(':'))) &&
     ![...value].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
   if (!spec || !string(spec.ownerId) || !spec.ownerId || !string(spec.environmentId) || !string(spec.runtimeProfileId))
     invalid()

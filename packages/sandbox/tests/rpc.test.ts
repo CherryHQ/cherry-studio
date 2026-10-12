@@ -1,29 +1,32 @@
-import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
+import { prepareRpc } from '../examples/runtime.mjs'
 import { SandboxManager } from '../src/host/SandboxManager.js'
 import { spec, readAll } from './fixtures.js'
 
-describe.skipIf(process.platform !== 'darwin')('MXC stdio RPC', () => {
+describe.skipIf(!['darwin', 'win32'].includes(process.platform))('MXC stdio RPC', () => {
   const root = fileURLToPath(new URL('../', import.meta.url)).replace(/\/$/, '')
+  const guests: ReturnType<typeof prepareRpc>[] = []
+  afterEach(() => {
+    for (const guest of guests.splice(0)) guest.cleanup()
+  })
   function request(python = false) {
-    const executable = realpathSync(
-      python ? execFileSync('/usr/bin/xcrun', ['--find', 'python3'], { encoding: 'utf8' }).trim() : process.execPath
-    )
-    const value = spec(executable, [root + `/examples/rpcGuest.${python ? 'py' : 'mjs'}`])
-    value.filesystem.read = [root, realpathSync(root + '/../../node_modules'), dirname(dirname(executable))]
-    return { ...value, channel: 'stdio' as const }
+    const guest = prepareRpc(root, python)
+    guests.push(guest)
+    guest.spec.ownerId = 'test'
+    return guest.spec
   }
 
   it('decodes multiple JSON-RPC frames received in one stdout chunk', async () => {
     const manager = new SandboxManager()
     const value = request()
-    value.command.args = [root + '/tests/fixtures/coalescedRpc.mjs']
+    copyFileSync(join(root, 'tests/fixtures/coalescedRpc.mjs'), join(value.command.cwd, 'examples/coalescedRpc.mjs'))
+    value.command.args = [...value.command.args.slice(0, -1), join(value.command.cwd, 'examples/coalescedRpc.mjs')]
     const instance = manager.start(value, { rpc: { configure() {}, authorize: async () => false } })
     const errors = readAll(instance.stderr)
     try {
@@ -40,7 +43,11 @@ describe.skipIf(process.platform !== 'darwin')('MXC stdio RPC', () => {
     const marker = join(root, 'executed')
     const manager = new SandboxManager()
     try {
-      const requestSpec = spec('/usr/bin/touch', [marker])
+      const requestSpec = spec(process.execPath, [
+        '-e',
+        'require("node:fs").writeFileSync(process.argv[1], "executed")',
+        marker
+      ])
       requestSpec.filesystem.write = [root]
       const instance = manager.start(
         { ...requestSpec, channel: 'stdio' },

@@ -1,4 +1,5 @@
 import { accessSync, constants, realpathSync } from 'node:fs'
+import { isAbsolute, relative, sep } from 'node:path'
 
 import type { ContainerRequest } from '@microsoft/mxc-sdk/v1'
 
@@ -6,6 +7,11 @@ import { SandboxError } from '../../host/SandboxError.js'
 import type { EffectivePolicy, SandboxSpec } from '../../types.js'
 
 export function compilePolicy(spec: SandboxSpec): { request: ContainerRequest; effectivePolicy: EffectivePolicy } {
+  if (process.platform === 'win32' && (spec.filesystem.denyRead.length || spec.filesystem.denyWrite.length))
+    throw new SandboxError(
+      'POLICY_UNSUPPORTED',
+      'MXC 1.0.0 Windows deny overrides are not reliably enforced; use separate read/write grants'
+    )
   if (
     spec.environmentId !== 'native' ||
     spec.runtimeProfileId !== 'mxc-command-v1' ||
@@ -28,12 +34,29 @@ export function compilePolicy(spec: SandboxSpec): { request: ContainerRequest; e
     denyRead: paths(spec.filesystem.denyRead),
     denyWrite: paths(spec.filesystem.denyWrite)
   }
-  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
-  const inside = (path: string, root: string) => path === root || path.startsWith(root === '/' ? '/' : root + '/')
+  const windows = process.platform === 'win32'
+  const quote = (value: string) =>
+    windows
+      ? `"${value.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"`
+      : `'${value.replaceAll("'", "'\\''")}'`
+  const inside = (path: string, root: string) => {
+    const suffix = relative(root, path)
+    return suffix === '' || (suffix !== '..' && !suffix.startsWith('..' + sep) && !isAbsolute(suffix))
+  }
+  const environment = windows
+    ? {
+        SYSTEMROOT: process.env.SystemRoot ?? 'C:\\Windows',
+        LOCALAPPDATA: spec.command.cwd,
+        ...Object.fromEntries(Object.entries(spec.command.env).map(([key, value]) => [key.toUpperCase(), value]))
+      }
+    : { ...spec.command.env }
   const request: ContainerRequest = {
-    command: 'exec ' + [spec.command.executable, ...spec.command.args].map(quote).join(' '),
+    containment: { type: windows ? 'processcontainer' : 'seatbelt' },
+    command: (windows ? '' : 'exec ') + [spec.command.executable, ...spec.command.args].map(quote).join(' '),
     workingDirectory: spec.command.cwd,
-    environment: { ...spec.command.env },
+    environment,
+    // Node/Python load Win32k-dependent DLLs; other UI restrictions remain requested.
+    ...(windows ? { ui: { disable: false, clipboard: 'none' as const, allowInputInjection: false } } : {}),
     filesystem: {
       readonlyPaths: [realpathSync(spec.command.executable), ...filesystem.read, ...filesystem.denyWrite],
       readwritePaths: filesystem.write.filter((path) => !filesystem.denyWrite.some((root) => inside(path, root))),
@@ -57,16 +80,24 @@ export function compilePolicy(spec: SandboxSpec): { request: ContainerRequest; e
       limits: spec.limits,
       runtimeAccess: [
         {
-          resource: 'MXC Seatbelt baseline',
+          resource: windows ? 'MXC ProcessContainer baseline' : 'MXC Seatbelt baseline',
           access: 'runtime defaults',
           reason: 'System paths and services required by the MXC backend'
         }
       ],
-      limitations: [
-        'Filesystem grants are path-based; existing hard-link aliases may access objects outside grants.',
-        'Writable directories allow Unix sockets; network deny does not mean all local IPC is denied.',
-        'MXC terminates the process group; detached descendants are not guaranteed to be reaped.'
-      ]
+      limitations: windows
+        ? [
+            'MXC selects the Windows isolation tier; AppContainer/DACL temporarily changes ACLs on granted paths.',
+            'Windows system resources accessible to AppContainers remain available; grants do not describe every runtime access.',
+            'Win32k calls are enabled for DLL initialization; clipboard and input injection are requested denied, but UI isolation has not been independently verified.',
+            'Explicit denyRead/denyWrite overrides are rejected on Windows because MXC 1.0.0 did not enforce them in native tests.',
+            'MXC owns the Windows Job and policy cleanup; detached process-tree cleanup has not been independently certified.'
+          ]
+        : [
+            'Filesystem grants are path-based; existing hard-link aliases may access objects outside grants.',
+            'Writable directories allow Unix sockets; network deny does not mean all local IPC is denied.',
+            'MXC terminates the process group; detached descendants are not guaranteed to be reaped.'
+          ]
     }
   }
 }

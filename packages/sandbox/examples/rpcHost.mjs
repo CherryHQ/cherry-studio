@@ -1,42 +1,15 @@
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
-import { realpathSync } from 'node:fs'
-import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { SandboxManager } from '@cherrystudio/sandbox'
 
+import { prepareRpc } from './runtime.mjs'
+
 const python = process.argv.includes('--python')
-const packageRoot = fileURLToPath(new URL('../', import.meta.url)).replace(/\/$/, '')
-const executable = realpathSync(
-  python ? execFileSync('/usr/bin/xcrun', ['--find', 'python3'], { encoding: 'utf8' }).trim() : process.execPath
-)
-const guest = fileURLToPath(new URL(python ? './rpcGuest.py' : './rpcGuest.mjs', import.meta.url))
+const packageRoot = fileURLToPath(new URL('../', import.meta.url))
 const manager = new SandboxManager()
-const spec = {
-  ownerId: 'rpc-demo',
-  environmentId: 'native',
-  runtimeProfileId: 'mxc-command-v1',
-  command: { executable, args: [guest], cwd: '/', env: {} },
-  filesystem: {
-    read: [packageRoot, realpathSync(packageRoot + '/../../node_modules'), dirname(dirname(executable))],
-    write: [],
-    denyRead: [],
-    denyWrite: []
-  },
-  network: { mode: 'deny' },
-  channel: 'stdio',
-  limits: {
-    startupTimeoutMs: 5000,
-    lifetimeMs: 10000,
-    stopGraceMs: 100,
-    stopTimeoutMs: 1500,
-    cleanupTimeoutMs: 1000,
-    ioDrainTimeoutMs: 500,
-    ioBufferBytes: 65536,
-    outputBytes: 1048576
-  }
-}
+const guest = prepareRpc(packageRoot, python)
+const spec = guest.spec
 try {
   const instance = manager.start(spec, {
     rpc: {
@@ -61,5 +34,6 @@ try {
   await errors
   process.stdout.write(JSON.stringify({ completion }) + '\n')
 } finally {
-  await manager.dispose()
+  const stopped = await manager.dispose()
+  if (stopped.every((result) => result.tree !== 'unknown' && result.cleanup === 'complete')) guest.cleanup()
 }

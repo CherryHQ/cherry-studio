@@ -2,6 +2,10 @@ packages:
   - "packages/*"
 
 packageExtensions:
+  # Langium imports JSON-RPC 8 internals without declaring it; sandbox uses JSON-RPC 9.
+  "langium@4.2.1":
+    dependencies:
+      vscode-jsonrpc: "8.2.0"
   # The published development export imports these but lists them only as devDependencies.
   "micromark-extension-definition-list@2.0.1":
     dependencies:

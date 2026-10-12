@@ -20,6 +20,7 @@ import { runCli, type CliResult } from '../cliDriver.js'
 
 let fixtureRoot: string
 let executable: string
+let fixtureArgs: string[] = []
 let root: string
 let allowed: string
 let input: string
@@ -42,6 +43,14 @@ beforeAll(() => {
       ],
       { timeout: 10000 }
     )
+  } else if (process.platform === 'win32') {
+    executable = realpathSync(process.execPath)
+    fixtureArgs = [
+      '--input-type=module',
+      '-e',
+      readFileSync(fileURLToPath(new URL('../fixtures/fileAccess.mjs', import.meta.url)), 'utf8'),
+      '--'
+    ]
   }
 })
 afterAll(() => {
@@ -59,9 +68,9 @@ afterEach(() => {
 })
 
 async function requireReady(options: string[], operation: string[]) {
-  if (process.platform !== 'darwin')
-    throw new Error(`ACCEPTANCE_BLOCKED: this runtime fixture requires macOS, got ${process.platform}`)
-  const args = [...options, '--timeout-ms', '2000', '--', executable, ...operation]
+  if (!['darwin', 'win32'].includes(process.platform))
+    throw new Error(`ACCEPTANCE_BLOCKED: this runtime fixture requires macOS or Windows, got ${process.platform}`)
+  const args = [...options, '--timeout-ms', '2000', '--', executable, ...fixtureArgs, ...operation]
   const probe = await runCli(['probe', ...args])
   if (probe.code !== 0)
     throw new Error(`ACCEPTANCE_BLOCKED: CLI backend is not ready.\n${probe.stdout}\n${probe.stderr}`)
@@ -111,8 +120,58 @@ it('denies an outside read after the same executable successfully reads inside i
   const control = await runCli(['run', ...args])
   expectCompleted(control, 0)
   expect(control.stdout).toBe('permitted content\n')
-  const denied = await runCli(['run', '--read', allowed, '--timeout-ms', '2000', '--', executable, 'read', outside])
+  const denied = await runCli(['run', ...(await requireReady(['--read', allowed], ['read', outside]))])
   expectCompleted(denied, 77)
   expect(denied.stdout).toBe('PERMISSION_DENIED\n')
   expect(readFileSync(outside, 'utf8')).toBe('private fixture\n')
 })
+
+it('denies writes through a read-only grant and writes outside the grant', async () => {
+  const outside = join(root, 'outside')
+  writeFileSync(outside, 'private fixture\n')
+  for (const path of [input, outside]) {
+    const result = await runCli(['run', ...(await requireReady(['--read', allowed], ['write', path, 'forbidden']))])
+    expectCompleted(result, 77)
+    expect(result.stdout).toBe('PERMISSION_DENIED\n')
+  }
+  expect(readFileSync(input, 'utf8')).toBe('permitted content\n')
+  expect(readFileSync(outside, 'utf8')).toBe('private fixture\n')
+})
+
+it.skipIf(process.platform === 'win32')('honors explicit read and write denials inside a writable parent', async () => {
+  const readDenied = await runCli([
+    'run',
+    ...(await requireReady(['--write', allowed, '--deny-read', input], ['read', input]))
+  ])
+  expectCompleted(readDenied, 77)
+  const writeDenied = await runCli([
+    'run',
+    ...(await requireReady(['--write', allowed, '--deny-write', input], ['write', input, 'forbidden']))
+  ])
+  expectCompleted(writeDenied, 77)
+  const readAllowed = await runCli([
+    'run',
+    ...(await requireReady(['--write', allowed, '--deny-write', input], ['read', input]))
+  ])
+  expectCompleted(readAllowed, 0)
+  expect(readAllowed.stdout).toBe('permitted content\n')
+})
+
+it.skipIf(process.platform !== 'win32')(
+  'refuses unsupported Windows deny overrides without executing the target',
+  async () => {
+    for (const flag of ['--deny-read', '--deny-write']) {
+      const args = ['--write', allowed, flag, input, '--', executable, ...fixtureArgs, 'write', input, 'forbidden']
+      const probe = await runCli(['probe', ...args])
+      expect(probe.code).toBe(125)
+      expect(JSON.parse(probe.stdout).status).toBe('unavailable')
+      const result = await runCli(['run', ...args])
+      expect(result.code).toBe(125)
+      expect(JSON.parse(result.stderr).completion).toMatchObject({
+        target: { status: 'not-started' },
+        issues: [{ code: 'POLICY_UNSUPPORTED' }]
+      })
+      expect(readFileSync(input, 'utf8')).toBe('permitted content\n')
+    }
+  }
+)

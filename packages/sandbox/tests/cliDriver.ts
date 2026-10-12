@@ -17,6 +17,7 @@ export function runCli(args: string[], input = ''): Promise<CliResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, ...args], {
       shell: false,
+      windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot }
     })

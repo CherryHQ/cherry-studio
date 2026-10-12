@@ -1,6 +1,6 @@
 import { realpathSync } from 'node:fs'
 import { constants } from 'node:os'
-import { isAbsolute } from 'node:path'
+import { isAbsolute, parse } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { parseArgs } from 'node:util'
 
@@ -16,7 +16,7 @@ Usage: pnpm --filter @cherrystudio/sandbox lab <probe|run> [options] -- /absolut
   --write PATH          Grant reads and writes (repeatable)
   --deny-read PATH      Deny reads inside grants (repeatable)
   --deny-write PATH     Deny writes inside grants (repeatable)
-  --cwd PATH            Working directory (default: /); does not grant access
+  --cwd PATH            Working directory (default: current drive root); does not grant access
   --timeout-ms N        Command lifetime (default: 10000)
   --help                Show this help
 
@@ -38,7 +38,7 @@ async function main() {
       write: { type: 'string', multiple: true },
       'deny-read': { type: 'string', multiple: true },
       'deny-write': { type: 'string', multiple: true },
-      cwd: { type: 'string', default: '/' },
+      cwd: { type: 'string', default: parse(process.cwd()).root },
       'timeout-ms': { type: 'string', default: '10000' }
     }
   })
@@ -51,12 +51,17 @@ async function main() {
   if (positionals.length !== 1 || !['probe', 'run'].includes(mode) || !command[0] || !isAbsolute(command[0])) {
     throw new Error('Expected probe or run, options, then -- /absolute/executable [args...]; see --help')
   }
-  const paths = (entries: string[] = []) => entries.map((entry) => realpathSync(entry))
+  const canonicalPath = (entry: string) => {
+    if (process.platform === 'win32' && (/^[\\/]{2}/.test(entry) || entry.slice(2).includes(':')))
+      throw new Error('Sandbox paths must be local paths without device prefixes or alternate data streams')
+    return realpathSync(entry)
+  }
+  const paths = (entries: string[] = []) => entries.map(canonicalPath)
   const spec: SandboxSpec & { channel: 'none' } = {
     ownerId: 'sandbox-cli',
     environmentId: 'native',
     runtimeProfileId: 'mxc-command-v1',
-    command: { executable: realpathSync(command[0]), args: command.slice(1), cwd: realpathSync(values.cwd), env: {} },
+    command: { executable: canonicalPath(command[0]), args: command.slice(1), cwd: canonicalPath(values.cwd), env: {} },
     filesystem: {
       read: paths(values.read),
       write: paths(values.write),

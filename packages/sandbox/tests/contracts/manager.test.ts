@@ -39,36 +39,39 @@ describe('host contract', () => {
     expect((await instance.completion).target.status).toBe('not-started')
   })
 
-  it.skipIf(process.platform !== 'darwin')('rejects unsupported restrictions instead of weakening them', async () => {
-    const manager = new SandboxManager()
-    for (const modify of [
-      (value: ReturnType<typeof spec>) => {
-        value.limits.processCount = 2
-      },
-      (value: ReturnType<typeof spec>) => {
-        value.limits.memoryBytes = 1000000
-      },
-      (value: ReturnType<typeof spec>) => {
-        value.network = { mode: 'unrestricted' }
-      },
-      (value: ReturnType<typeof spec>) => {
-        value.environmentId = 'wsl2'
-      },
-      (value: ReturnType<typeof spec>) => {
-        value.channel = 'dedicated' as 'none'
+  it.skipIf(!['darwin', 'win32'].includes(process.platform))(
+    'rejects unsupported restrictions instead of weakening them',
+    async () => {
+      const manager = new SandboxManager()
+      for (const modify of [
+        (value: ReturnType<typeof spec>) => {
+          value.limits.processCount = 2
+        },
+        (value: ReturnType<typeof spec>) => {
+          value.limits.memoryBytes = 1000000
+        },
+        (value: ReturnType<typeof spec>) => {
+          value.network = { mode: 'unrestricted' }
+        },
+        (value: ReturnType<typeof spec>) => {
+          value.environmentId = 'wsl2'
+        },
+        (value: ReturnType<typeof spec>) => {
+          value.channel = 'dedicated' as 'none'
+        }
+      ]) {
+        const request = spec()
+        modify(request)
+        expect((await manager.probe(request)).status).toBe('unavailable')
+        const instance = manager.start(request)
+        await expect(instance.ready).rejects.toMatchObject({ code: 'POLICY_UNSUPPORTED' })
+        expect((await instance.completion).target.status).toBe('not-started')
       }
-    ]) {
-      const request = spec()
-      modify(request)
-      expect((await manager.probe(request)).status).toBe('unavailable')
-      const instance = manager.start(request)
-      await expect(instance.ready).rejects.toMatchObject({ code: 'POLICY_UNSUPPORTED' })
-      expect((await instance.completion).target.status).toBe('not-started')
+      await manager.dispose()
     }
-    await manager.dispose()
-  })
+  )
 
-  it.skipIf(process.platform === 'darwin')(
+  it.skipIf(['darwin', 'win32'].includes(process.platform))(
     'does not fall back to unrestricted processes on another platform',
     async () => {
       const manager = new SandboxManager()

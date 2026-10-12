@@ -23,6 +23,7 @@
     "demo": "node examples/host.mjs",
     "demo:rpc": "node examples/rpcHost.mjs",
     "lab": "node dist/src/cli/lab.js",
+    "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepareWindows.ps1",
     "test": "pnpm build && vitest run --config vitest.config.ts",
     "test:acceptance": "pnpm build && vitest run --config vitest.acceptance.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"

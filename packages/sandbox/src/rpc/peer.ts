@@ -78,7 +78,7 @@ export function createRpcPeer(
       let cancel = () => {}
       const interrupted = new Promise<never>((_, reject) => {
         cancel = () => {
-          cancellation.cancel()
+          if (!disposed) cancellation.cancel()
           reject(new Error('RPC cancelled or disconnected'))
         }
         timer = setTimeout(() => {
