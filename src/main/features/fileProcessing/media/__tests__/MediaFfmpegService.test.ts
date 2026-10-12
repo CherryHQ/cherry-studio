@@ -29,16 +29,16 @@ vi.mock('@application', async () => {
     throw new Error(`Unexpected service: ${name}`)
   })
   mocked.application.getPath.mockImplementation((key: string, filename?: string) => {
-    if (key === 'app.temp') return filename ? `${runtime.tempRoot}/${filename}` : runtime.tempRoot
+    if (key === 'app.temp') return filename ? join(runtime.tempRoot, filename) : runtime.tempRoot
     const bases: Record<string, string> = {
-      'cherry.bin': `${runtime.tempRoot}/bin`,
-      'cherry.bin.ffmpeg.bin': `${runtime.tempRoot}/bin/ffmpeg/bin`,
-      'cherry.bin.ffmpeg.lib': `${runtime.tempRoot}/bin/ffmpeg/lib`,
-      'app.root.resources.binaries': `${runtime.tempRoot}/resources/binaries`
+      'cherry.bin': join(runtime.tempRoot, 'bin'),
+      'cherry.bin.ffmpeg.bin': join(runtime.tempRoot, 'bin', 'ffmpeg', 'bin'),
+      'cherry.bin.ffmpeg.lib': join(runtime.tempRoot, 'bin', 'ffmpeg', 'lib'),
+      'app.root.resources.binaries': join(runtime.tempRoot, 'resources', 'binaries')
     }
     const base = bases[key]
     if (!base) throw new Error(`unexpected path key ${key}`)
-    return filename ? `${base}/${filename}` : base
+    return filename ? join(base, filename) : base
   })
   return mocked
 })
