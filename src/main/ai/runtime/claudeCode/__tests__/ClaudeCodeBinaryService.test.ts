@@ -104,6 +104,46 @@ describe('Claude runtime acquisition', () => {
     expect(new ClaudeCodeBinaryService().getStatus().phase).toBe('missing')
   })
 
+  it('prepares the runtime without a renderer and shares an in-flight download with concurrent callers', async () => {
+    let release!: () => void
+    const downloading = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    vi.mocked(net.fetch).mockImplementation(async () => {
+      await downloading
+      return new Response(new Uint8Array(archive))
+    })
+    let completed = 0
+    const prepare = () =>
+      service.ensureExecutable().then((executable) => {
+        completed++
+        return executable
+      })
+    const first = prepare()
+    const second = prepare()
+    await vi.waitFor(() => expect(service.getStatus().phase).toBe('downloading'))
+    expect(completed).toBe(0)
+    expect(() => service.requireExecutable()).toThrow()
+    release()
+    const executables = await Promise.all([first, second])
+    expect(executables[0]).toBe(executables[1])
+    expect(await readFile(executables[0], 'utf8')).toBe('native-cli-fixture')
+    expect(vi.mocked(net.fetch).mock.calls).toHaveLength(1)
+    expect(service.getStatus().phase).toBe('ready')
+  })
+
+  it('rejects background preparation on failure and joins an explicit retry', async () => {
+    vi.mocked(net.fetch).mockRejectedValue(new Error('offline'))
+    await expect(service.ensureExecutable()).rejects.toThrow()
+    expect(service.getStatus()).toMatchObject({ phase: 'error', error: 'network' })
+    await expect(service.ensureExecutable()).rejects.toThrow()
+    expect(vi.mocked(net.fetch).mock.calls).toHaveLength(2)
+    vi.mocked(net.fetch).mockImplementation(async () => new Response(new Uint8Array(archive)))
+    service.ensure(true)
+    const executable = await service.ensureExecutable()
+    expect(await readFile(executable, 'utf8')).toBe('native-cli-fixture')
+  })
+
   it('removes other versions only after a successful install, preserving unrelated entries', async () => {
     await mkdir(path.join(root, '1.2.2'))
     await writeFile(path.join(root, '1.2.2', 'old-cli'), 'old')

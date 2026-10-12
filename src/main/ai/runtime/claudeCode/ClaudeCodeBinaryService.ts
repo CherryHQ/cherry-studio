@@ -76,6 +76,12 @@ export class ClaudeCodeBinaryService extends BaseService {
     return this.executable
   }
 
+  async ensureExecutable(): Promise<string> {
+    this.ensure()
+    await this.pending
+    return this.requireExecutable()
+  }
+
   ensure(retry = false): ClaudeCodeBinaryStatus {
     if (this.pending) return this.getStatus()
     const status = this.getStatus()
