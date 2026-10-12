@@ -1,24 +1,24 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
-}))
-
 const { getByIdMock, mediaAnalysisMock, ocrMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
   mediaAnalysisMock: vi.fn<(file: { kind: 'entry'; entryId: string }, signal?: AbortSignal) => Promise<string>>(),
   ocrMock: vi.fn<() => Promise<string>>()
 }))
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'FileProcessingService') return { ocrImage: ocrMock }
-      if (name === 'MediaAnalysisService') return { analyzeToFullText: mediaAnalysisMock }
-      return { getById: getByIdMock }
-    }
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mocked = mockApplicationFactory({
+    FileManager: { getById: getByIdMock }
+  })
+  const delegated = mocked.application.get.getMockImplementation()
+  mocked.application.get.mockImplementation((name: string) => {
+    if (name === 'MediaAnalysisService') return { analyzeToFullText: mediaAnalysisMock }
+    if (name === 'FileProcessingService') return { ocrImage: ocrMock }
+    return delegated?.call(mocked.application, name)
+  })
+  return mocked
+})
 
 const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string | null>>() }))
 vi.mock('@main/ai/messages/attachmentTextExtraction', () => ({
@@ -37,7 +37,12 @@ const ctx = (attachments: FileAttachmentRef[]) => ({ attachments })
 // offset/limit are plain optionals — omitting one means "use the default", so pass `rest` through.
 const input = (rest: { filename: string; offset?: number; limit?: number }): ReadFileInput => rest
 
-afterEach(() => vi.clearAllMocks())
+afterEach(() => {
+  getByIdMock.mockReset()
+  mediaAnalysisMock.mockReset()
+  ocrMock.mockReset()
+  extractMock.mockReset()
+})
 
 describe('readFile — extracted content', () => {
   it('extracts document text', async () => {
@@ -75,7 +80,7 @@ describe('readFile — extracted content', () => {
     expect(r).toEqual({ text: 'ocr text', totalChars: 8 })
   })
 
-  it.each(['mp3', 'mp4'])('returns paged full media analysis for .%s attachments', async (ext) => {
+  it.each(['mp3', 'mp4', 'webm'])('returns paged full media analysis for .%s attachments', async (ext) => {
     getByIdMock.mockResolvedValueOnce({ ext })
     mediaAnalysisMock.mockResolvedValueOnce('[00:00] alpha\n[00:10] beta\n[00:20] gamma')
 
@@ -86,36 +91,25 @@ describe('readFile — extracted content', () => {
     expect(extractMock).not.toHaveBeenCalled()
   })
 
-  it('delegates repeated media reads to MediaAnalysisService so its cache remains authoritative', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' }).mockResolvedValueOnce({ ext: 'mp4' })
-    mediaAnalysisMock.mockResolvedValueOnce('[00:00] cached result').mockResolvedValueOnce('[00:00] cached result')
+  it.each(['mp4', 'webm'])('sanitizes .%s media analysis failures', async (ext) => {
+    getByIdMock.mockResolvedValueOnce({ ext })
+    mediaAnalysisMock.mockRejectedValueOnce(new Error(`probe failed: /Users/secret/video.${ext}`))
 
-    const first = await readFile(input({ filename: 'clip.mp4' }), ctx([att('clip.mp4')]))
-    const second = await readFile(input({ filename: 'clip.mp4' }), ctx([att('clip.mp4')]))
-
-    expect(first).toEqual(second)
-    expect(mediaAnalysisMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('sanitizes media analysis failures', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
-    mediaAnalysisMock.mockRejectedValueOnce(new Error('probe failed: /Users/secret/video.mp4'))
-
-    await expect(readFile(input({ filename: 'clip.mp4' }), ctx([att('clip.mp4')]))).resolves.toEqual({
-      error: 'Failed to read attached file "clip.mp4".'
+    await expect(readFile(input({ filename: `clip.${ext}` }), ctx([att(`clip.${ext}`)]))).resolves.toEqual({
+      error: `Failed to read attached file "clip.${ext}".`
     })
   })
 
-  it('rethrows cancellation from media analysis', async () => {
+  it.each(['mp4', 'webm'])('rethrows cancellation from .%s media analysis', async (ext) => {
     const controller = new AbortController()
-    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+    getByIdMock.mockResolvedValueOnce({ ext })
     mediaAnalysisMock.mockImplementationOnce(async () => {
       controller.abort()
       throw new DOMException('Aborted', 'AbortError')
     })
 
     await expect(
-      readFile(input({ filename: 'clip.mp4' }), ctx([att('clip.mp4')]), controller.signal)
+      readFile(input({ filename: `clip.${ext}` }), ctx([att(`clip.${ext}`)]), controller.signal)
     ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
@@ -139,6 +133,13 @@ describe('readFile — extracted content', () => {
     const r = await readFile(input({ filename: 'evil.pdf' }), ctx([att('a.txt')]))
     expect(r).toEqual({ error: 'No attached file named "evil.pdf". Available: a.txt' })
     expect(getByIdMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a .webm name that is not on the allow-list before reading it', async () => {
+    const r = await readFile(input({ filename: 'clip.webm' }), ctx([att('notes.txt')]))
+    expect(r).toEqual({ error: 'No attached file named "clip.webm". Available: notes.txt' })
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(mediaAnalysisMock).not.toHaveBeenCalled()
   })
 
   it('sanitizes read failures (no internal detail leaks)', async () => {

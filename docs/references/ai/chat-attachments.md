@@ -76,8 +76,15 @@ What the composer lets the user pick is `imageExts`, `documentExts`, and
 `textExts` (`src/shared/utils/file/fileExtensions.ts`) — images and documents
 always, plus every linguist-recognized code extension and the `customTextExts`
 additions (dotfiles, config, log, and domain formats such as `.conf`,
-`.config`, `.yaml`, `.toml`, `.ini`) — with `audioExts`/`videoExts` added only
-when the active model(s) support that modality. That union covers C# (`.cs`),
+`.config`, `.yaml`, `.toml`, `.ini`) — and known `audioExts` and `videoExts`.
+Chat accepts those known audio and video files on text-only and mixed models.
+Routing is native-first when the model and resolved endpoint can take the
+modality; otherwise the turn inlines capped text from the shared
+`MediaAnalysisService`. `.webm` is a media container accepted by that central
+extension owner. Its bytes are probed before a native
+chat part is chosen as audio or video, and native materialization keeps the
+authoritative probed MIME. Agent `read_file` consumes the full timestamped
+analysis through the same media owner. That union covers C# (`.cs`),
 stylesheets (`.css`), shell scripts (`.sh`, `.bash`), and common configuration
 files. Unknown extensions are not rejected outright — `isSupportedFile`
 (`src/renderer/utils/file.ts`) falls back to a content sniff that accepts text
