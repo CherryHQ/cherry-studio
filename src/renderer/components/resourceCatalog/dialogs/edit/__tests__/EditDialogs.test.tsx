@@ -1761,6 +1761,35 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('keeps unrelated permission baselines after acknowledging a partial access save', async () => {
+    const user = userEvent.setup()
+    knowledgeBasesState.current.push({ id: 'kb-2', name: 'Knowledge Two', itemCount: 1 })
+    render(
+      <AgentEditDialog
+        open
+        resource={{
+          ...AGENT,
+          knowledgeBaseIds: ['kb-1', 'kb-2'],
+          knowledgeBaseAccess: { 'kb-1': 'read', 'kb-2': 'read-write' }
+        }}
+        onOpenChange={vi.fn()}
+        initialTab="tools.knowledge"
+      />
+    )
+
+    await user.click(screen.getByRole('combobox', { name: 'Knowledge One access' }))
+    await user.click(screen.getByRole('option', { name: 'Read and write' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { knowledgeBaseAccess: { 'kb-1': 'read-write' } } })
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Knowledge One access' }))
+    await user.click(screen.getByRole('option', { name: 'Read only' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { knowledgeBaseAccess: { 'kb-1': 'read' } } })
+    )
+    expect(screen.getByRole('combobox', { name: 'Knowledge Two access' })).toHaveTextContent('Read and write')
+  })
+
   it('defaults a re-added binding to read after its write binding removal has saved', async () => {
     const user = userEvent.setup()
     const boundAgent = { ...AGENT, knowledgeBaseIds: ['kb-1'], knowledgeBaseAccess: { 'kb-1': 'read-write' as const } }

@@ -220,7 +220,10 @@ function advanceAgentFormBaseline(
   if (hasOwn(payload, 'instructions')) next.instructions = submitted.instructions
   if (hasOwn(payload, 'mcps')) next.mcps = [...submitted.mcps]
   if (hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
-  if (hasOwn(payload, 'knowledgeBaseAccess')) next.knowledgeBaseAccess = { ...payload.knowledgeBaseAccess }
+  if (hasOwn(payload, 'knowledgeBaseIds') || hasOwn(payload, 'knowledgeBaseAccess')) {
+    const access = { ...latest.knowledgeBaseAccess, ...payload.knowledgeBaseAccess }
+    next.knowledgeBaseAccess = Object.fromEntries(next.knowledgeBaseIds.map((id) => [id, access[id] ?? 'read']))
+  }
   if (hasOwn(payload, 'skillUpdates')) next.skillIds = [...submitted.skillIds]
   if (hasOwn(payload, 'disabledTools')) next.disabledTools = [...submitted.disabledTools]
 

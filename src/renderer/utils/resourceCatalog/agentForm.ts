@@ -192,12 +192,15 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
     dto.knowledgeBaseIds = next.knowledgeBaseIds
     dirty = true
   }
-  const accessChanged = next.knowledgeBaseIds.some(
-    (id) => (baseline.knowledgeBaseAccess[id] ?? 'read') !== (next.knowledgeBaseAccess[id] ?? 'read')
+  const baselineBindingIds = new Set(baseline.knowledgeBaseIds)
+  const accessUpdates = next.knowledgeBaseIds.filter(
+    (id) =>
+      !baselineBindingIds.has(id) ||
+      (baseline.knowledgeBaseAccess[id] ?? 'read') !== (next.knowledgeBaseAccess[id] ?? 'read')
   )
-  if (accessChanged || dto.knowledgeBaseIds !== undefined) {
+  if (accessUpdates.length > 0 || dto.knowledgeBaseIds !== undefined) {
     dto.knowledgeBaseAccess = Object.fromEntries(
-      next.knowledgeBaseIds.map((id) => [id, next.knowledgeBaseAccess[id] ?? 'read'])
+      accessUpdates.map((id) => [id, next.knowledgeBaseAccess[id] ?? 'read'])
     )
     dirty = true
   }
