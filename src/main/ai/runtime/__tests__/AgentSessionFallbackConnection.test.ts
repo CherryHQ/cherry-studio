@@ -20,6 +20,7 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimePermissionPolicy,
   AgentRuntimePromptPolicy,
+  AgentRuntimeReconcileResult,
   AgentSessionRuntimeDriver
 } from '../types'
 
@@ -41,6 +42,21 @@ function fakeConnection(usageCapture = 'capture') {
       })
     ),
     getPromptPolicy: vi.fn((): AgentRuntimePromptPolicy => ({ instructions: null }))
+  }
+}
+
+/**
+ * The events a wrapper emits up to its next quiescent moment. A declined swap never closes the
+ * stream (the primary's queue is still live), so a `for await` over it would hang instead of failing.
+ */
+async function collectEvents(wrapper: AgentSessionFallbackConnection): Promise<AgentRuntimeEvent[]> {
+  const seen: AgentRuntimeEvent[] = []
+  const iterator = wrapper.events[Symbol.asyncIterator]()
+  while (true) {
+    const next = await Promise.race([iterator.next(), new Promise<'quiet'>((r) => setTimeout(() => r('quiet'), 50))])
+    if (next === 'quiet') return seen
+    if (next.done) return seen
+    seen.push(next.value)
   }
 }
 
@@ -299,6 +315,152 @@ describe('Pi/DSH connection fallback', () => {
     await vi.waitFor(() => expect(fallback.send).toHaveBeenCalled())
     await vi.waitFor(() => expect(fallback.reconcile).toHaveBeenCalledTimes(2))
     expect(calls).toEqual(['reconcile', 'reconcile', 'send'])
+    await wrapper.close()
+  })
+
+  it('does not adopt a replacement whose retained reconcile failed to tighten the policy', async () => {
+    const primary = fakeConnection('primary capture')
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+
+    // Disabling `write` while the replacement starts up is retained for it.
+    await wrapper.reconcile({ modelId: 'primary::model' })
+    // The replacement's own policy push fails: it may still be enforcing the OLD (looser) policy.
+    fallback.reconcile.mockResolvedValueOnce('failed' as AgentRuntimeReconcileResult)
+    releaseConnect()
+
+    const seen = await collectEvents(wrapper)
+    // Adopting it would let the replay execute an ordinary workspace write under stale permissions.
+    expect(fallback.send).not.toHaveBeenCalled()
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    expect(wrapper.usageCapture).toBe('primary capture')
+    await wrapper.close()
+  })
+
+  it('does not adopt a replacement whose handoff reconcile failed to tighten the policy', async () => {
+    const primary = fakeConnection('primary capture')
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    let releaseSend!: () => void
+    fallback.send.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        releaseSend = resolve
+      })
+    })
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(fallback.send).toHaveBeenCalled())
+
+    // The replacement already owns the replay, and saving `disabledTools: ['write']` now reaches it
+    // directly — but its policy push fails, so `write` may still be permitted while it executes.
+    fallback.reconcile.mockResolvedValueOnce('failed' as AgentRuntimeReconcileResult)
+    await wrapper.reconcile({ modelId: 'primary::model' })
+    releaseSend()
+
+    const seen = await collectEvents(wrapper)
+    // A failed tighten must not be adopted: the replay runs on a policy the user already revoked.
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    expect(wrapper.usageCapture).toBe('primary capture')
+    await wrapper.close()
+  })
+
+  it('does not adopt a replacement whose retained reconcile cannot derive the policy', async () => {
+    const primary = fakeConnection()
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+
+    // Disabling `write` mid-startup is retained; the fallback-only model row is deleted too, so the
+    // replacement cannot resolve the policy the restriction belongs to.
+    await wrapper.reconcile({ modelId: 'primary::model' })
+    fallback.reconcile.mockResolvedValueOnce('invalid' as AgentRuntimeReconcileResult)
+    releaseConnect()
+
+    const seen = await collectEvents(wrapper)
+    // Nothing is derivable, so adopting it would replay the turn under an unknown policy.
+    expect(fallback.send).not.toHaveBeenCalled()
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    await wrapper.close()
+  })
+
+  it('does not adopt a replacement whose retained reconcile throws', async () => {
+    const primary = fakeConnection()
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+
+    // Model lookup throws before the restriction is applied: the outcome is unknown, so adopting the
+    // replacement would replay the turn under whatever policy it happens to enforce.
+    await wrapper.reconcile({ modelId: 'primary::model' })
+    fallback.reconcile.mockRejectedValueOnce(new Error('model lookup exploded'))
+    releaseConnect()
+
+    const seen = await collectEvents(wrapper)
+    expect(fallback.send).not.toHaveBeenCalled()
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
     await wrapper.close()
   })
 
