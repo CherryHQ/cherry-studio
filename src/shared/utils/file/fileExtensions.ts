@@ -18,6 +18,13 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
  * this catalog to decide which files a text-only model may read — SVG
  * sources must stay readable. The image preview plugin re-adds them as
  * preview-only literals.
+ *
+ * `.dts` is deliberately absent despite mime-db's audio/vnd.dts entry: it
+ * also names Linux Device Tree source files, which are UTF-8 text. An
+ * extension-based catalog cannot serve both, and the audio claim wins over
+ * the content-based text fallback in `getFileType` — so a valid `board.dts`
+ * would be rejected by chat's attach gate and lose its preview and editing.
+ * Leaving it unclassified lets those sources classify as text by content.
  */
 export const imageExts = [
   '.apng',
@@ -68,7 +75,6 @@ export const audioExts = [
   '.amr',
   '.au',
   '.caf',
-  '.dts',
   '.flac',
   '.m4a',
   '.m4b',

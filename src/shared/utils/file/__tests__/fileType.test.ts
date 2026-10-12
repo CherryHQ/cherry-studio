@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { audioExts } from '../fileExtensions'
 import { getFileTypeByExt } from '../fileType'
 
 describe('getFileTypeByExt', () => {
@@ -56,5 +57,13 @@ describe('getFileTypeByExt', () => {
     for (const ext of ['exe', 'zip', 'dat', 'bin']) {
       expect(getFileTypeByExt(ext)).toBe('other')
     }
+  })
+
+  it('leaves .dts unclassified so Device Tree sources stay text by content', () => {
+    // `.dts` names both an audio format (audio/vnd.dts) and a Linux Device Tree source. The
+    // audio catalog claims it unconditionally, which outranks the content-based text fallback
+    // and would reject a valid UTF-8 `board.dts` in chat and disable its preview/editing.
+    expect(getFileTypeByExt('dts')).toBe('other')
+    expect(audioExts).not.toContain('.dts')
   })
 })
