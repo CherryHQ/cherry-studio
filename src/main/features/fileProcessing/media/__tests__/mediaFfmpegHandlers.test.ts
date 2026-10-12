@@ -1,9 +1,30 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs'
+import type * as NodeChildProcess from 'node:child_process'
+import { EventEmitter } from 'node:events'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const spawnControl = vi.hoisted(() => ({
+  calls: 0,
+  replacement: null as null | ((...args: unknown[]) => unknown)
+}))
+
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual<typeof NodeChildProcess>('node:child_process')
+  return {
+    ...actual,
+    spawn: (...args: Parameters<typeof actual.spawn>) => {
+      if (spawnControl.replacement) {
+        spawnControl.calls += 1
+        return spawnControl.replacement(...args) as ReturnType<typeof actual.spawn>
+      }
+      return actual.spawn(...args)
+    }
+  }
+})
 
 import {
   applyMediaFfmpegInitData,
@@ -152,6 +173,48 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
   function runFfmpeg(args: string[]): number | null {
     return spawnSync(ffmpegPath, ['-hide_banner', '-nostdin', '-y', ...args], { encoding: 'utf8' }).status
   }
+})
+
+describe('mediaFfmpegHandlers frame destinations', () => {
+  afterEach(() => {
+    spawnControl.replacement = null
+    spawnControl.calls = 0
+    disposeMediaChildren()
+  })
+
+  it('does not return an old JPEG when a reused destination produces no new image', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-stale-frame-'))
+    const stalePath = join(outputDir, 'frame-0000.jpg')
+    const untouchedPath = join(outputDir, 'frame-0001.jpg')
+    writeFileSync(stalePath, 'old-frame')
+    writeFileSync(untouchedPath, 'leave-me')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = () => {
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => child.emit('close', 0))
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractFrames(
+        {
+          filePath: '/video.mp4',
+          outputDir,
+          timestampsMs: [99_000],
+          maxEdgePx: 120,
+          jpegQuality: 70
+        },
+        context()
+      )
+
+      expect(spawnControl.calls).toBe(1)
+      expect(result.frames).toEqual([])
+      expect(readFileSync(untouchedPath, 'utf8')).toBe('leave-me')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
 })
 
 async function waitForFile(filePath: string): Promise<void> {
