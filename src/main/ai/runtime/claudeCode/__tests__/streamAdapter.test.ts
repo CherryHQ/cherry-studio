@@ -2736,6 +2736,82 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).toBe(reply)
     })
 
+    it('reconciles assistant snapshots when scratchpad wrappers follow visible prose', () => {
+      const { adapter, parts } = createAdapter()
+      const block = '<thinking>a</thinking>Visible<analysis>b</analysis>End'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: block } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: block }] }
+      } as any)
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('VisibleEnd')
+      expect(text).not.toContain('alysis>')
+    })
+
+    it('preserves fenced examples when fence markers arrive across stream deltas', () => {
+      const { adapter, parts } = createAdapter()
+      const deltas = ['Example:\n``', '`xml\n<thinking>literal</thinking>\n', '```']
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      for (const delta of deltas) {
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: delta } })
+        )
+      }
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('<thinking>literal</thinking>')
+      expect(text).toContain('```')
+    })
+
+    it('flushes unfinished fenced examples at block stop without dropping buffered content', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Example:\n' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '```xml\n<thinking>literal</thinking>' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('<thinking>literal</thinking>')
+      expect(text).toContain('```xml')
+    })
+
     it('suppresses scratchpad wrappers that appear after visible text in later deltas', () => {
       const { adapter, parts } = createAdapter()
 

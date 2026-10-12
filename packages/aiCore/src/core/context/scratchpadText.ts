@@ -3,17 +3,72 @@ export const MODEL_SCRATCHPAD_TAG_NAMES = ['analysis', 'assessment', 'thinking']
 
 const MODEL_SCRATCHPAD_TAG_SET = new Set<string>(MODEL_SCRATCHPAD_TAG_NAMES)
 
-/** Paired-tag opener; self-closing tags (`<thinking />`) are excluded. */
-const PAIRED_TAG_OPEN_SUFFIX = '(?:\\s+(?:[^/>]|"[^"]*"|\'[^\']*\')*)?>'
+type ParsedOpeningTag = {
+  tagName: string
+  opener: string
+  isSelfClosing: boolean
+}
 
-const SCRATCHPAD_OPENING_TAG = new RegExp(
-  `^\\s*<(${MODEL_SCRATCHPAD_TAG_NAMES.join('|')})${PAIRED_TAG_OPEN_SUFFIX}`,
-  'i'
-)
-const NON_SCRATCHPAD_OPENING_TAG = new RegExp(`^\\s*<([a-z][a-z0-9-]*)${PAIRED_TAG_OPEN_SUFFIX}`, 'i')
+/** Deterministic opener scan — avoids catastrophic backtracking from overlapping attribute regexes. */
+function parseOpeningTagAt(text: string, offset: number): ParsedOpeningTag | null {
+  if (text[offset] !== '<') return null
+  const start = offset
+  let i = offset + 1
+  const nameMatch = /^[a-zA-Z][a-zA-Z0-9-]*/.exec(text.slice(i))
+  if (!nameMatch) return null
+  const tagName = nameMatch[0]
+  i += nameMatch[0].length
 
-function isSelfClosingTagOpener(opener: string): boolean {
-  return /\/\s*>$/.test(opener)
+  while (i < text.length) {
+    while (i < text.length && (text[i] === ' ' || text[i] === '\t' || text[i] === '\n' || text[i] === '\r')) {
+      i++
+    }
+    if (i >= text.length) return null
+
+    if (text[i] === '>') {
+      i++
+      return { tagName, opener: text.slice(start, i), isSelfClosing: false }
+    }
+    if (text[i] === '/') {
+      if (i + 1 < text.length && text[i + 1] === '>') {
+        i += 2
+        return { tagName, opener: text.slice(start, i), isSelfClosing: true }
+      }
+      return null
+    }
+
+    const attrNameMatch = /^[a-zA-Z_:][a-zA-Z0-9_:.-]*/.exec(text.slice(i))
+    if (!attrNameMatch) return null
+    i += attrNameMatch[0].length
+
+    while (i < text.length && (text[i] === ' ' || text[i] === '\t')) i++
+    if (i < text.length && text[i] === '=') {
+      i++
+      while (i < text.length && (text[i] === ' ' || text[i] === '\t')) i++
+      if (i >= text.length) return null
+      const quote = text[i]
+      if (quote === '"' || quote === "'") {
+        i++
+        while (i < text.length && text[i] !== quote) i++
+        if (i >= text.length) return null
+        i++
+      } else {
+        while (i < text.length && text[i] !== ' ' && text[i] !== '\t' && text[i] !== '>' && text[i] !== '/') {
+          i++
+        }
+      }
+    }
+  }
+  return null
+}
+
+function parseLeadingOpeningTag(text: string): ParsedOpeningTag | null {
+  const leadingWhitespace = text.match(/^\s*/)?.[0].length ?? 0
+  const parsed = parseOpeningTagAt(text, leadingWhitespace)
+  if (!parsed) return null
+  const afterOpener = leadingWhitespace + parsed.opener.length
+  if (afterOpener > text.length) return null
+  return parsed
 }
 const CODE_FENCE_PLACEHOLDER_PREFIX = '\uE000CODE_FENCE_'
 const CODE_FENCE_PLACEHOLDER_SUFFIX = '\uE001'
@@ -37,7 +92,7 @@ function isValidFenceLinePrefix(prefix: string): boolean {
     }
     if (prefix[i] >= '0' && prefix[i] <= '9') {
       while (i < prefix.length && prefix[i] >= '0' && prefix[i] <= '9') i++
-      if (i + 1 < prefix.length && prefix[i] === '.' && prefix[i + 1] === ' ') {
+      if (i + 1 < prefix.length && (prefix[i] === '.' || prefix[i] === ')') && prefix[i + 1] === ' ') {
         i += 2
         continue
       }
@@ -66,11 +121,24 @@ function fenceLinePrefixStart(text: string, fenceMarkerIndex: number): number {
   return fenceMarkerIndex
 }
 
+function isInsideInlineCodeOnLine(text: string, markerStart: number): boolean {
+  const lineStart = text.lastIndexOf('\n', markerStart - 1) + 1
+  const lineSlice = text.slice(lineStart, markerStart)
+  let backticks = 0
+  for (let i = 0; i < lineSlice.length; i++) {
+    if (lineSlice[i] === '`') backticks++
+  }
+  return backticks % 2 === 1
+}
+
 function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolean {
   const lineStart = text.lastIndexOf('\n', markerStart - 1) + 1
   const prefix = text.slice(lineStart, markerStart)
   if (isValidFenceLinePrefix(prefix)) {
     return true
+  }
+  if (isInsideInlineCodeOnLine(text, markerStart)) {
+    return false
   }
   return /<\/(?:analysis|assessment|thinking)\s*>$/i.test(prefix)
 }
@@ -129,6 +197,16 @@ function unmaskCodeFences(text: string, fences: string[]): string {
   return text.replace(CODE_FENCE_PLACEHOLDER, (_, index) => fences[Number(index)] ?? '')
 }
 
+/** True when a line ends with 1–2 backtick/tilde characters that may complete a fence on the next delta. */
+export function textEndsWithPartialFenceMarker(text: string): boolean {
+  return /(?:^|[\r\n])[^\r\n]*[`~]{1,2}$/.test(text)
+}
+
+/** True when scratchpad filtering should wait for more stream input before stripping. */
+export function shouldDeferScratchpadStripping(text: string): boolean {
+  return textHasUnclosedCodeFence(text) || textEndsWithPartialFenceMarker(text)
+}
+
 /** True when the text opens a fenced code block that has no closing delimiter yet. */
 export function textHasUnclosedCodeFence(text: string): boolean {
   let pos = 0
@@ -164,11 +242,11 @@ function isModelScratchpadTagName(tag: string): boolean {
 }
 
 export function textStartsWithModelScratchpadTag(text: string): boolean {
-  const match = text.match(SCRATCHPAD_OPENING_TAG)
-  if (!match || !isModelScratchpadTagName(match[1])) {
+  const parsed = parseLeadingOpeningTag(text)
+  if (!parsed || parsed.isSelfClosing || !isModelScratchpadTagName(parsed.tagName)) {
     return false
   }
-  return !isSelfClosingTagOpener(match[0])
+  return true
 }
 
 /** Opening markup that is not a known model scratchpad wrapper (e.g. `<p>`, `<thinking-note>`). */
@@ -180,8 +258,8 @@ export function textStartsWithNonScratchpadOpeningTag(text: string): boolean {
   if (textStartsWithModelScratchpadTag(trimmed)) {
     return false
   }
-  const match = trimmed.match(NON_SCRATCHPAD_OPENING_TAG)
-  return match ? !isSelfClosingTagOpener(match[0]) : false
+  const parsed = parseLeadingOpeningTag(trimmed)
+  return parsed ? !parsed.isSelfClosing : false
 }
 
 /** Strips known scratchpad wrappers without touching fenced code blocks. */
@@ -191,17 +269,39 @@ export function stripKnownModelScratchpadBlocksPreservingCodeFences(raw: string)
   return unmaskCodeFences(stripped, fences)
 }
 
+function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string, openerLength: number): number {
+  const afterOpen = openIndex + openerLength
+  const closePattern = new RegExp(`</${tagName}\\s*>`, 'i')
+  const closeMatch = closePattern.exec(text.slice(afterOpen))
+  if (!closeMatch || closeMatch.index === undefined) return -1
+  return afterOpen + closeMatch.index + closeMatch[0].length
+}
+
 /** Strips only known model scratchpad wrappers; leaves other markup intact. */
 export function stripKnownModelScratchpadBlocks(raw: string): string {
   let out = raw
-  let previous: string
-  do {
-    previous = out
-    for (const tag of MODEL_SCRATCHPAD_TAG_NAMES) {
-      const block = new RegExp(`<${tag}${PAIRED_TAG_OPEN_SUFFIX}[\\s\\S]*?<\\/${tag}\\s*>`, 'gi')
-      out = out.replace(block, '')
+  let changed = true
+  while (changed) {
+    changed = false
+    let searchFrom = 0
+    while (searchFrom < out.length) {
+      const openIndex = out.indexOf('<', searchFrom)
+      if (openIndex === -1) break
+      const parsed = parseOpeningTagAt(out, openIndex)
+      if (!parsed || parsed.isSelfClosing || !isModelScratchpadTagName(parsed.tagName)) {
+        searchFrom = openIndex + 1
+        continue
+      }
+      const end = findScratchpadBlockEnd(out, openIndex, parsed.tagName, parsed.opener.length)
+      if (end === -1) {
+        searchFrom = openIndex + 1
+        continue
+      }
+      out = out.slice(0, openIndex) + out.slice(end)
+      changed = true
+      break
     }
-  } while (out !== previous)
+  }
   return out
 }
 
