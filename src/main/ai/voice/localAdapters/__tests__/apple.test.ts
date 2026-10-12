@@ -10,13 +10,8 @@ import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
 
-import {
-  createLocalSpeechModel,
-  createLocalTranscriptionModel,
-  getLocalVoiceStatus,
-  installAppleAsrAsset,
-  listAppleAsrLocales
-} from '../../localAdapters'
+import { createLocalSpeechModel, createLocalTranscriptionModel, getLocalVoiceStatus } from '../../localAdapters'
+import { installAppleAsrAsset, listAppleAsrLocales } from '../apple'
 
 const mocks = vi.hoisted(() => ({ nativeRequest: vi.fn(), decode: vi.fn() }))
 

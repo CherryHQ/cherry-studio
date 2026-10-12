@@ -1,44 +1,40 @@
 import { mkdir, rm } from 'node:fs/promises'
 
 import type { WebContents } from 'electron'
-import { session as electronSession, shell, systemPreferences } from 'electron'
+import { session as electronSession } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
-import {
-  APPLE_ASR_MODEL_ID,
-  DEFAULT_SPEECH_SPEED,
-  FUNASR_MODEL_ID,
-  LOCAL_VOICE_MODELS,
-  type LocalVoiceModelId,
-  resolveDefaultAsrModel,
-  resolveDefaultSpeechModel,
-  type VoiceSessionSource,
-  type VoiceSessionTrigger,
-  WINDOWS_ASR_MODEL_ID,
-  WINDOWS_TTS_MODEL_ID
-} from '@shared/ai/localVoice'
+import type { LocalTranscriptionModelId, LocalSpeechModelId } from '@shared/ai/localVoice'
+import { type LocalVoiceModelId, type VoiceSessionSource, type VoiceSessionTrigger } from '@shared/ai/localVoice'
 import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
 import type { VoiceSessionCommand, VoiceSessionPhase, VoiceSessionState } from '@shared/ipc/schemas/voice'
 import type { InputFor } from '@shared/ipc/types'
 
 import {
   getLocalVoiceStatus,
-  installAppleAsrAsset,
+  installVoiceLocale,
+  describeVoiceModel,
+  listVoiceModels,
+  resolveTranscriptionConfiguration,
+  resolveSpeechConfiguration,
+  getVoiceAdapterId,
+  resolveTranscriptionRequest,
+  resolveSpeechRequest,
+  downloadVoiceModel,
+  cancelVoiceModelDownload,
+  removeVoiceModel,
   listLocalAsrLocales,
   listLocalVoices,
   voiceAudioProcess
 } from './localAdapters'
+import { getMicrophoneStatus, openMicrophoneSettings, openSystemVoiceSettings } from './voicePlatform'
 import { VoiceRuntimeError } from './VoiceRuntimeError'
 
 const logger = loggerService.withContext('VoiceSessionService')
-const MICROPHONE_SETTINGS = {
-  darwin: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
-  win32: 'ms-settings:privacy-microphone'
-} as const
 
 type VoiceWebContents = Pick<WebContents, 'id' | 'isDestroyed' | 'on' | 'once' | 'removeListener'>
 
@@ -67,8 +63,9 @@ type Session = {
   detach: () => void
   requestId?: string
   operation?: VoiceOperation
+  speechPlan?: ReturnType<typeof resolveSpeechRequest>
   selectedModel?: LocalVoiceModelId
-  resolvedAdapter?: 'apple' | 'windows' | 'funasr'
+  resolvedAdapter?: string
   terminalStatus?: 'completed' | 'failed' | 'aborted'
   cleanup?: Promise<void>
   outputId?: FileEntryId
@@ -129,24 +126,51 @@ export class VoiceSessionService extends BaseService {
 
   listModels() {
     this.requireAdmission()
-    return {
-      models: LOCAL_VOICE_MODELS,
-      defaultAsrModelId: this.defaultAsrModel(),
-      defaultSpeechModelId: this.defaultSpeechModel()
-    }
+    return listVoiceModels()
   }
 
-  listTranscriptionLocales(owner: VoiceOwner) {
-    return this.inspect(owner, (signal) => listLocalAsrLocales(signal))
+  resolveTranscription(owner: VoiceOwner, input: InputFor<'ai.voice.transcription.resolve'>) {
+    return this.inspect(owner, (signal) => resolveTranscriptionConfiguration(input, signal))
+  }
+
+  resolveSpeech(owner: VoiceOwner, input: InputFor<'ai.voice.speech.resolve'>) {
+    return this.inspect(owner, (signal) => resolveSpeechConfiguration(input, signal))
+  }
+
+  describeModel(modelId: string) {
+    this.requireAdmission()
+    return describeVoiceModel(modelId)
+  }
+
+  downloadModel(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+    this.requireAdmission()
+    this.requireOwner(owner)
+    return downloadVoiceModel(modelId)
+  }
+
+  cancelModelDownload(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+    this.requireAdmission()
+    this.requireOwner(owner)
+    return cancelVoiceModelDownload(modelId)
+  }
+
+  removeModel(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+    this.requireAdmission()
+    this.requireOwner(owner)
+    return removeVoiceModel(modelId)
+  }
+
+  listTranscriptionLocales(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+    return this.inspect(owner, (signal) => listLocalAsrLocales(modelId, signal))
   }
 
   status(owner: VoiceOwner, input: InputFor<'ai.voice.model.status'>) {
     return this.inspect(owner, (signal) => getLocalVoiceStatus(input.modelId, input, signal))
   }
 
-  voices(owner: VoiceOwner) {
+  voices(owner: VoiceOwner, modelId: LocalSpeechModelId) {
     return this.inspect(owner, async (signal) =>
-      (await listLocalVoices(signal)).map(({ id, name, locale }) => ({ id, name, language: locale }))
+      (await listLocalVoices(modelId, signal)).map(({ id, name, locale }) => ({ id, name, language: locale }))
     )
   }
 
@@ -154,6 +178,7 @@ export class VoiceSessionService extends BaseService {
     this.requireAdmission()
     this.requireOwner(owner)
     const powerEpoch = this.powerEpoch
+    if (input.source === 'settings' && (this.lease || this.active)) throw new VoiceRuntimeError('busy')
     if ((this.lease ?? this.active?.session)?.kind === 'recording') throw new VoiceRuntimeError('busy')
     const session = this.createSession(owner, input.sessionId, 'recording', input.source, input.sourceEntityId)
     session.requestId = input.requestId
@@ -163,6 +188,7 @@ export class VoiceSessionService extends BaseService {
         await Promise.allSettled(this.inspections.keys())
       }
       while (this.lease || this.active) {
+        if (input.source === 'settings') throw new VoiceRuntimeError('busy')
         const displaced = this.lease ?? this.active!.session
         if (displaced.kind === 'recording') throw new VoiceRuntimeError('busy')
         if (this.lease === displaced && !displaced.closed) this.sendCommand(displaced, 'stop')
@@ -211,17 +237,16 @@ export class VoiceSessionService extends BaseService {
     if (session.kind !== 'recording' || !['recorded', 'failed'].includes(session.phase ?? ''))
       throw new VoiceRuntimeError('invalid_request')
     if (!session.files.has(input.fileEntryId)) throw new VoiceRuntimeError('forbidden_owner')
-    const modelId = input.modelId ?? this.defaultAsrModel()
-    if (!modelId) throw new VoiceRuntimeError('unsupported')
-    const language = input.modelId === undefined && modelId === FUNASR_MODEL_ID ? undefined : input.language
-    const adapterOptions = { ...input, language }
+    const {
+      modelId,
+      options: { language }
+    } = resolveTranscriptionRequest(input)
     const result = await this.run(
       session,
       input.requestId,
       modelId,
       'transcription',
       async (signal) => {
-        await this.requireReady(modelId, adapterOptions, signal)
         const files = application.get('FileManager')
         const entry = await files.getById(input.fileEntryId)
         if (
@@ -252,10 +277,19 @@ export class VoiceSessionService extends BaseService {
   }
 
   async speech(owner: VoiceOwner, input: InputFor<'ai.speech.generate'>) {
-    const modelId = input.modelId ?? this.defaultSpeechModel()
-    if (!modelId) throw new VoiceRuntimeError('unsupported')
+    const plan = resolveSpeechRequest(input)
+    const { modelId, options: speechOptions } = plan
     const trigger = input.trigger ?? 'manual'
     const session = await this.preparePlayback(owner, input, trigger)
+    if (
+      session.speechPlan &&
+      (session.speechPlan.modelId !== modelId ||
+        session.speechPlan.options.voice !== speechOptions.voice ||
+        session.speechPlan.options.language !== speechOptions.language ||
+        session.speechPlan.options.speed !== speechOptions.speed)
+    )
+      throw new VoiceRuntimeError('invalid_request')
+    session.speechPlan ??= plan
     const normalizedText = input.text.normalize('NFC').trim()
     return this.run(
       session,
@@ -263,15 +297,7 @@ export class VoiceSessionService extends BaseService {
       modelId,
       'speech',
       async (signal) => {
-        await this.requireReady(modelId, input, signal)
-        const result = await application
-          .get('AiService')
-          .generateSpeech(
-            modelId,
-            normalizedText,
-            { voice: input.voice, language: input.language, speed: input.speed ?? DEFAULT_SPEECH_SPEED },
-            signal
-          )
+        const result = await application.get('AiService').generateSpeech(modelId, normalizedText, speechOptions, signal)
         signal.throwIfAborted()
         const wav = Buffer.from(result.audio)
         if (
@@ -381,20 +407,19 @@ export class VoiceSessionService extends BaseService {
   getMicrophoneStatus(owner: VoiceOwner): 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown' {
     this.requireAdmission()
     this.requireOwner(owner)
-    if (process.platform !== 'darwin' && process.platform !== 'win32') return 'unknown'
-    try {
-      return systemPreferences.getMediaAccessStatus('microphone')
-    } catch {
-      return 'unknown'
-    }
+    return getMicrophoneStatus()
+  }
+
+  async openSystemVoiceSettings(owner: VoiceOwner): Promise<void> {
+    this.requireAdmission()
+    this.requireOwner(owner)
+    await openSystemVoiceSettings()
   }
 
   async openMicrophoneSettings(owner: VoiceOwner): Promise<void> {
     this.requireAdmission()
     this.requireOwner(owner)
-    const url = MICROPHONE_SETTINGS[process.platform as keyof typeof MICROPHONE_SETTINGS]
-    if (!url) throw new VoiceRuntimeError('unsupported')
-    await shell.openExternal(url)
+    await openMicrophoneSettings()
   }
 
   async installAsset(owner: VoiceOwner, input: InputFor<'ai.transcription.asset.install'>): Promise<void> {
@@ -403,10 +428,10 @@ export class VoiceSessionService extends BaseService {
     await this.run(
       session,
       input.requestId,
-      APPLE_ASR_MODEL_ID,
+      input.modelId,
       'install',
       async (signal) => {
-        await installAppleAsrAsset(input.language, signal)
+        await installVoiceLocale(input.modelId, input.language, signal)
       },
       { log: { locale: input.language } }
     )
@@ -497,22 +522,6 @@ export class VoiceSessionService extends BaseService {
     ) {
       throw new VoiceRuntimeError('invalid_request')
     }
-  }
-
-  private defaultSpeechModel() {
-    return resolveDefaultSpeechModel({
-      platform: process.platform,
-      arch: process.arch,
-      majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
-    })
-  }
-
-  private defaultAsrModel() {
-    return resolveDefaultAsrModel({
-      platform: process.platform,
-      arch: process.arch,
-      majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
-    })
   }
 
   private requireAdmission(): void {
@@ -680,17 +689,6 @@ export class VoiceSessionService extends BaseService {
     })
   }
 
-  private async requireReady(
-    modelId: LocalVoiceModelId,
-    options: { language?: string; voice?: string },
-    signal: AbortSignal
-  ): Promise<void> {
-    signal.throwIfAborted()
-    const resource = await getLocalVoiceStatus(modelId, options, signal)
-    signal.throwIfAborted()
-    if (resource.status !== 'ready') throw new VoiceRuntimeError(resource.reason ?? 'operation_failed')
-  }
-
   private async run<T>(
     session: Session,
     requestId: string,
@@ -711,18 +709,14 @@ export class VoiceSessionService extends BaseService {
     if (this.active || this.inspections.size || session.pending.size) throw new VoiceRuntimeError('busy')
     if (session.requestId === requestId && session.operation !== undefined)
       throw new VoiceRuntimeError('invalid_request')
+    const adapterId = getVoiceAdapterId(modelId)
     const controller = new AbortController()
     const active: ActiveOperation = { session, requestId, controller }
     this.active = active
     this.syncSleepHold()
     session.requestId = requestId
     session.selectedModel = modelId
-    session.resolvedAdapter =
-      modelId === WINDOWS_TTS_MODEL_ID || modelId === WINDOWS_ASR_MODEL_ID
-        ? 'windows'
-        : modelId === 'local-voice::funasr-nano'
-          ? 'funasr'
-          : 'apple'
+    session.resolvedAdapter = adapterId
     session.operation = operation
     if (options.startPhase && session.phase !== 'paused') this.transition(session, options.startPhase)
     const startedAt = Date.now()

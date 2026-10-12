@@ -17,7 +17,9 @@ const errorTranslationKeys: Partial<Record<DictationErrorCategory, string>> = {
   asset_required: 'settings.voice.status.asset_required',
   microphone_permission: 'settings.voice.microphone.denied',
   operation_failed: 'settings.voice.status.operation_failed',
-  recording_failed: 'settings.voice.status.operation_failed',
+  recording_failed: 'settings.voice.status.recording_failed',
+  microphone_unavailable: 'settings.voice.status.microphone_unavailable',
+  microphone_unreadable: 'settings.voice.status.microphone_unreadable',
   transcription_failed: 'settings.voice.status.operation_failed',
   clipboard_failed: 'settings.voice.status.operation_failed'
 }
@@ -27,7 +29,9 @@ const settingsRecoveryErrors = new Set<DictationErrorCategory>([
   'voice_unavailable',
   'unsupported',
   'asset_required',
-  'microphone_permission'
+  'microphone_permission',
+  'microphone_unavailable',
+  'microphone_unreadable'
 ])
 
 const phaseTranslationKeys: Record<Exclude<DictationPhase, 'idle'>, string> = {

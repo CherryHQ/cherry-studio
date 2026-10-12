@@ -4,7 +4,7 @@ import type { BrowserWindow } from 'electron'
 import { nativeTheme } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { syncLinuxTitleBarOverlayWithTheme } from '../linuxTitleBarOverlay'
+import { syncTitleBarOverlayWithTheme } from '../titleBarOverlay'
 
 function createWindow() {
   const win = new EventEmitter() as EventEmitter & {
@@ -22,7 +22,7 @@ function emitThemeUpdated() {
   }
 }
 
-describe('syncLinuxTitleBarOverlayWithTheme', () => {
+describe('syncTitleBarOverlayWithTheme', () => {
   beforeEach(() => {
     vi.mocked(nativeTheme.on).mockClear()
     vi.mocked(nativeTheme.removeListener).mockClear()
@@ -37,7 +37,7 @@ describe('syncLinuxTitleBarOverlayWithTheme', () => {
   ])('keeps hover-inverted glyphs visible in the %s theme', (_name, dark) => {
     ;(nativeTheme as { shouldUseDarkColors: boolean }).shouldUseDarkColors = !dark
     const win = createWindow()
-    syncLinuxTitleBarOverlayWithTheme(win as unknown as BrowserWindow)
+    syncTitleBarOverlayWithTheme(win as unknown as BrowserWindow)
 
     ;(nativeTheme as { shouldUseDarkColors: boolean }).shouldUseDarkColors = dark
     emitThemeUpdated()
@@ -52,7 +52,7 @@ describe('syncLinuxTitleBarOverlayWithTheme', () => {
 
   it('stops following the theme once the window is closed', () => {
     const win = createWindow()
-    syncLinuxTitleBarOverlayWithTheme(win as unknown as BrowserWindow)
+    syncTitleBarOverlayWithTheme(win as unknown as BrowserWindow)
     const listener = vi.mocked(nativeTheme.on).mock.calls[0][1]
 
     win.emit('closed')

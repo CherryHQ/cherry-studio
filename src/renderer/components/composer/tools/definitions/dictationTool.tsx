@@ -19,7 +19,9 @@ const SETTINGS_RECOVERY_ERRORS = new Set<DictationErrorCategory>([
   'unsupported',
   'asset_required',
   'voice_unavailable',
-  'microphone_permission'
+  'microphone_permission',
+  'microphone_unavailable',
+  'microphone_unreadable'
 ])
 const PHASE_TRANSLATION_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
   starting: 'settings.voice.dictation.phase.starting',
@@ -38,6 +40,9 @@ function dictationErrorKey(error?: DictationErrorCategory) {
     case 'unsupported':
     case 'asset_required':
     case 'voice_unavailable':
+    case 'microphone_unavailable':
+    case 'microphone_unreadable':
+    case 'recording_failed':
     case 'no_speech':
       return `settings.voice.status.${error}` as const
     case 'microphone_permission':

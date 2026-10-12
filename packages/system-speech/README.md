@@ -31,7 +31,7 @@ pnpm --filter @cherrystudio/system-speech smoke:packaged -- '/path/Cherry Studio
 
 Maintainers need Xcode 26 or later to compile the Swift helper. `before-pack.js`
 builds the requested macOS target architecture, then electron-builder copies the
-executable outside asar into `Contents/Resources/system-speech` and signs it as
+executable outside asar into `Contents/Helpers/cherry-system-speech` and signs it as
 nested application code. End users need no Swift, Xcode, Rust or ffmpeg.
 
 The JavaScript build preserves the independently compiled native output. Production

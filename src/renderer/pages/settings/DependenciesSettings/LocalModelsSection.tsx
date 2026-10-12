@@ -1,4 +1,4 @@
-import { Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
+import { Boxes, Download, RefreshCw, ScanText, Mic, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,8 +8,11 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelBundleId, LocalModelCapability, LocalModelStatus } from '@shared/data/presets/localModel'
+
+import SystemVoiceResources from './SystemVoiceResources'
 
 const logger = loggerService.withContext('LocalModelsSection')
 
@@ -24,6 +27,11 @@ type CardNotice = keyof typeof CARD_NOTICE_KEYS
 
 /** How each capability presents itself. A bundle for a new capability adds one entry here. */
 const CAPABILITY_CARDS = {
+  asr: {
+    icon: <Mic className="size-5" />,
+    nameKey: 'settings.voice.model.funasr',
+    subtitleKey: 'settings.voice.model.funasr_details'
+  },
   embedding: {
     icon: <Boxes className="size-5" />,
     nameKey: 'settings.dependencies.localModels.embedding.name',
@@ -34,10 +42,7 @@ const CAPABILITY_CARDS = {
     nameKey: 'settings.dependencies.localModels.ocr.name',
     subtitleKey: 'settings.dependencies.localModels.ocr.subtitle'
   }
-} as const satisfies Record<
-  Exclude<LocalModelCapability, 'asr'>,
-  { icon: ReactNode; nameKey: string; subtitleKey: string }
->
+} as const satisfies Record<LocalModelCapability, { icon: ReactNode; nameKey: string; subtitleKey: string }>
 
 /**
  * Settings-specific notice state layered over the shared local-model lifecycle.
@@ -90,7 +95,7 @@ function useLocalModelCard(id: LocalModelBundleId) {
 
 interface ModelCardProps {
   id: LocalModelBundleId
-  capability: Exclude<LocalModelCapability, 'asr'>
+  capability: LocalModelCapability
   /** Lifted so the section can hide every card at once when the platform is unsupported. */
   onStatusChange: (id: LocalModelBundleId, status: LocalModelStatus) => void
 }
@@ -103,12 +108,14 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   useEffect(() => {
     onStatusChange(id, status)
   }, [id, status, onStatusChange])
+  if (status === 'unsupported') return null
   const ready = status === 'ready'
   const downloading = status === 'downloading'
   const retrying = status === 'error'
 
   return (
     <div
+      id={capability === 'asr' ? 'voice-resources' : undefined}
       role="listitem"
       className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
@@ -129,13 +136,25 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
               </Badge>
             )}
           </div>
-          <p className="mt-0.5 truncate text-muted-foreground text-xs">{t(subtitleKey)}</p>
+          <p className="mt-0.5 text-muted-foreground text-xs leading-5">{t(subtitleKey)}</p>
         </div>
         {ready && (
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => void remove()}
+            onClick={async () => {
+              if (
+                capability === 'asr' &&
+                !(await popup.confirm({
+                  title: t('settings.voice.resources.remove_title'),
+                  content: t('settings.voice.resources.remove_description'),
+                  okText: t('settings.dependencies.localModels.remove'),
+                  cancelText: t('common.cancel')
+                }))
+              )
+                return
+              await remove()
+            }}
             aria-label={t('settings.dependencies.localModels.remove')}>
             <Trash2 className="size-3.5" />
           </Button>
@@ -179,7 +198,7 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   )
 }
 
-type ListedModel = { id: LocalModelBundleId; capability: Exclude<LocalModelCapability, 'asr'> }
+type ListedModel = { id: LocalModelBundleId; capability: LocalModelCapability }
 
 /**
  * Local model download cards, one per installable bundle as reported by the registry.
@@ -209,7 +228,7 @@ const LocalModelsSection: FC = () => {
     void ipcApi
       .request('local_model.list')
       .then((result) => {
-        if (mounted) setModels(result.models.filter((model): model is ListedModel => model.capability !== 'asr'))
+        if (mounted) setModels(result.models)
       })
       .catch((error) => logger.warn('Failed to list local models', error as Error))
     return () => {
@@ -217,7 +236,6 @@ const LocalModelsSection: FC = () => {
     }
   }, [])
 
-  // The current models share onnxruntime, so they are unsupported together on Intel Mac.
   const unsupported = models.length > 0 && models.every((model) => statuses[model.id] === 'unsupported')
 
   return (
@@ -255,6 +273,7 @@ const LocalModelsSection: FC = () => {
           ))}
         </div>
       )}
+      <SystemVoiceResources />
     </div>
   )
 }

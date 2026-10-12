@@ -95,32 +95,46 @@ export const LOCAL_VOICE_MODELS: readonly LocalVoiceModelFacts[] = Object.freeze
   })
 ])
 
-/** A recommendation only: unavailable resources never change an explicit selection. */
-export function resolveDefaultAsrModel(
-  platform: { platform: string; arch?: string; majorVersion?: number },
-  explicitModelId?: LocalTranscriptionModelId
-): LocalTranscriptionModelId | undefined {
-  if (explicitModelId !== undefined) return explicitModelId
-  if (platform.platform === 'darwin') {
-    if (platform.majorVersion !== undefined && Number.isInteger(platform.majorVersion) && platform.majorVersion >= 13)
-      return APPLE_ASR_MODEL_ID
-  }
-  const platformKey = `${platform.platform}-${platform.arch}`
-  return FUNASR_SUPPORTED_PLATFORM_KEYS.some((supported) => supported === platformKey) ? FUNASR_MODEL_ID : undefined
+export const TranscriptionLanguageSource = {
+  ModelDefault: 'model-default',
+  Interface: 'interface',
+  Explicit: 'explicit'
+} as const
+
+export const VoiceResourceOperation = {
+  InstallLocale: 'install-locale',
+  Download: 'download',
+  CancelDownload: 'cancel-download',
+  Remove: 'remove'
+} as const
+export type VoiceResourceOperation = (typeof VoiceResourceOperation)[keyof typeof VoiceResourceOperation]
+
+export const VoiceModelSupport = {
+  Supported: 'supported',
+  UnknownModel: 'unknown-model',
+  UnsupportedPlatform: 'unsupported-platform',
+  UnsupportedArchitecture: 'unsupported-architecture',
+  UnsupportedVersion: 'unsupported-version'
+} as const
+export type VoiceModelSupport = (typeof VoiceModelSupport)[keyof typeof VoiceModelSupport]
+
+export interface LocalVoiceModelDescriptor extends LocalVoiceModelFacts {
+  readonly localeSelection: { readonly defaultLocale: string } | null
+  readonly resourceOperations: readonly VoiceResourceOperation[]
 }
 
-export function resolveDefaultSpeechModel(platform: {
-  platform: string
-  arch?: string
-  majorVersion?: number
-}): LocalSpeechModelId | undefined {
-  if (platform.platform === 'win32' && platform.arch === 'x64') return WINDOWS_TTS_MODEL_ID
-  if (
-    platform.platform === 'darwin' &&
-    platform.majorVersion !== undefined &&
-    Number.isInteger(platform.majorVersion) &&
-    platform.majorVersion >= 13
+export type VoiceModelLookup =
+  | { support: typeof VoiceModelSupport.UnknownModel; model: null }
+  | { support: Exclude<VoiceModelSupport, typeof VoiceModelSupport.UnknownModel>; model: LocalVoiceModelDescriptor }
+
+export function isTranscriptionModelId(value: string): value is LocalTranscriptionModelId {
+  return LOCAL_VOICE_MODELS.some(
+    (model) => model.id === value && model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
   )
-    return APPLE_TTS_MODEL_ID
-  return undefined
+}
+
+export function isSpeechModelId(value: string): value is LocalSpeechModelId {
+  return LOCAL_VOICE_MODELS.some(
+    (model) => model.id === value && model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION)
+  )
 }
