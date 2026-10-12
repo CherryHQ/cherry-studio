@@ -2010,13 +2010,13 @@ describe('a heading an inline construct only partly renders', () => {
     // micromark reads `*bar*` as emphasis, so the heading renders `Foobar` and the unsplit document
     // numbers it `foobar-1` on the same base. The scanner kept the markers and keyed it `foo-bar`,
     // so both headings rendered `--foobar` and the link lost its target across the boundary.
-    const filler = ['', 'x'.repeat(300)]
+    const filler = ['', 'x'.repeat(400)]
     const content = ['# Foo*bar*', ...filler, '# Foobar', '', 'see [second](#doc--foobar-1)'].join('\n')
 
-    const chunks = chunksOf(content, 400)
+    const chunks = chunksOf(content, 200)
 
     expect(chunks.length).toBeGreaterThan(1)
-    expect(chunkedHeadingIds(content, 400)).toEqual(headingIds(content))
+    expect(chunkedHeadingIds(content, 200)).toEqual(headingIds(content))
     expect(headingIds(content)).toEqual(['doc--foobar', 'doc--foobar-1'])
   })
 })

@@ -617,19 +617,22 @@ function afterColumns(columns: number, line: string): string {
 }
 
 /**
- * The index past a bracketed run that opens at `open`, or −1 when it never closes. Brackets nest
- * and a backslash escapes the character after it, so only an unescaped `]` at the run's own depth
- * ends it.
+ * How far a bracketed run that opens at `open` reaches before it closes, and whether it closes at
+ * all. Brackets nest and a backslash escapes the character after it, so only an unescaped `]` at
+ * the run's own depth ends it. Without a closing bracket the scan runs to the end of the source,
+ * and every later bracket in the same run repeats it — so `end` is returned either way, letting the
+ * caller skip the stretch it already read instead of rescanning it once per character.
  */
-function pastBracketRun(source: string, open: number): number {
+function pastBracketRun(source: string, open: number): { end: number; closed: boolean } {
   let depth = 0
-  for (let index = open; index < source.length; index += 1) {
+  let index = open
+  for (; index < source.length; index += 1) {
     const character = source[index]
     if (character === '\\') index += 1
     else if (character === '[') depth += 1
-    else if (character === ']' && (depth -= 1) === 0) return index + 1
+    else if (character === ']' && (depth -= 1) === 0) return { end: index + 1, closed: true }
   }
-  return -1
+  return { end: index, closed: false }
 }
 
 /** The index past a parenthesised run that opens at `open`, or −1 when it never closes. */
@@ -644,6 +647,102 @@ function pastParenRun(source: string, open: number): number {
   return -1
 }
 
+/** A run of emphasis markers — the `*` in `# foo*bar*`, whose open/close class decides the text. */
+const EMPHASIS_RUN = /^[*_]+/
+
+/** micromark's punctuation class (`unicodePunctuation`): `\p{P}|\p{S}`. */
+const MICROMARK_PUNCTUATION = /\p{P}|\p{S}/u
+
+/** micromark's whitespace class: `markdownLineEndingOrSpace` plus `unicodeWhitespace` (`\s`). */
+const MICROMARK_WHITESPACE = /\s/
+
+/**
+ * The group a character falls in for micromark's attention tokenizer
+ * (`micromark-util-classify-character`): whitespace, punctuation, or neither — `undefined` for an
+ * ordinary character, which is what `!after` and `!before` really test. EOF counts as whitespace,
+ * so an out-of-range code — start of line, end of line — does here.
+ */
+function micromarkClass(code: number): 'whitespace' | 'punctuation' | undefined {
+  if (Number.isNaN(code)) return 'whitespace'
+  const character = String.fromCodePoint(code)
+  if (MICROMARK_WHITESPACE.test(character)) return 'whitespace'
+  return MICROMARK_PUNCTUATION.test(character) ? 'punctuation' : undefined
+}
+
+/**
+ * Whether a run of emphasis markers can open a span, and whether it can close one — the two flags
+ * `micromark-core-commonmark`'s `tokenizeAttention` computes from the characters beside the run. A
+ * run neither flag reaches stays the literal text it was written as (`a*b*c`, `foo_bar_baz`), and
+ * `_` that can both open and close is the intraword underscore, which is text too.
+ */
+function emphasisFlanks(before: number, run: string, after: number): { opens: boolean; closes: boolean } {
+  const left = micromarkClass(before)
+  const right = micromarkClass(after)
+  const open = right === undefined || (right === 'punctuation' && left !== undefined)
+  const close = left === undefined || (left === 'punctuation' && right !== undefined)
+  // The `!before`/`!after` tests above already cover whitespace, which classifies as its own group
+  // here; micromark asks the same question of every non-punctuation neighbour, whitespace included.
+  if (run[0] === '*') return { opens: open, closes: close }
+  return { opens: open && (left === undefined || !close), closes: close && (right === undefined || !open) }
+}
+
+/**
+ * The offsets of the emphasis runs in `source` — the `*` of `Foo*bar*` — with the flanks micromark
+ * reads from the characters beside each one. The scan is linear in the source: a run is matched
+ * where it stands and never revisited.
+ */
+function emphasisRuns(
+  source: string
+): Array<{ open: number; end: number; run: string; opens: boolean; closes: boolean }> {
+  const runs: Array<{ open: number; end: number; run: string; opens: boolean; closes: boolean }> = []
+  for (let index = 0; index < source.length;) {
+    const character = source[index]
+    if (character === '\\') {
+      index += 2
+      continue
+    }
+    if (character !== '*' && character !== '_') {
+      index += 1
+      continue
+    }
+    const run = EMPHASIS_RUN.exec(source.slice(index))?.[0] ?? character
+    const end = index + run.length
+    const { opens, closes } = emphasisFlanks(
+      index > 0 ? source.charCodeAt(index - 1) : NaN,
+      run,
+      source.charCodeAt(end)
+    )
+    runs.push({ open: index, end, run, opens, closes })
+    index = end
+  }
+  return runs
+}
+
+/**
+ * The emphasis runs of `source` that the renderer reads as the markers of a span — which render no
+ * text of their own. A run is emphasis only once it has a partner: micromark matches each closing
+ * run with the nearest opening one of the same marker, so the trailing `*` of `a *b` and the `_` of
+ * `foo_bar_baz` never pair and stay the text they were written as.
+ */
+function emphasisSpans(source: string): Set<number> {
+  const runs = emphasisRuns(source)
+  const spans = new Set<number>()
+  // A stack of runs still looking for a partner: micromark pairs a closing run with the nearest
+  // opening one of the same marker, so the top of the stack is the one it takes.
+  const open: Array<{ at: number; marker: string }> = []
+  for (const current of runs) {
+    const top = open[open.length - 1]
+    if (current.closes && top?.marker === current.run[0]) {
+      spans.add(top.at)
+      spans.add(current.open)
+      open.pop()
+    } else if (current.opens) {
+      open.push({ at: current.open, marker: current.run[0] })
+    }
+  }
+  return spans
+}
+
 /**
  * The plain text a heading's inline source renders — the text the renderer numbers the heading's
  * id from. A link renders its label while its destination stays out of the text, an image with a
@@ -652,6 +751,7 @@ function pastParenRun(source: string, open: number): number {
  * untouched and only the constructs that carry readable text need reading.
  */
 function headingRenderedText(source: string): string {
+  const spans = emphasisSpans(source)
   let text = ''
   let index = 0
   while (index < source.length) {
@@ -693,25 +793,36 @@ function headingRenderedText(source: string): string {
       if (autolink) text += autolink[1]
       index += (autolink ?? raw)?.[0].length ?? 1
       if (!autolink && !raw) text += character
+    } else if (character === '*' || character === '_') {
+      const run = EMPHASIS_RUN.exec(source.slice(index))?.[0] ?? character
+      // Only a run that paired with a partner is the markers of a span; one that did not is text.
+      if (!spans.has(index)) text += run
+      index += run.length
     } else if (character === '[' || (character === '!' && source[index + 1] === '[')) {
       const open = index + (character === '!' ? 1 : 0)
-      const labelEnd = pastBracketRun(source, open)
-      const past =
-        labelEnd < 0
-          ? -1
-          : source[labelEnd] === '('
-            ? pastParenRun(source, labelEnd)
-            : source[labelEnd] === '['
-              ? pastBracketRun(source, labelEnd)
-              : labelEnd
-      if (labelEnd >= 0 && past >= labelEnd) {
+      const label = pastBracketRun(source, open)
+      // A destination or reference follows only a label that closed; otherwise the scan already
+      // read to the end of the source, and the run cannot be part of a construct at all.
+      const reference = source[label.end] === '[' ? pastBracketRun(source, label.end) : { end: label.end, closed: true }
+      const follow = label.closed
+        ? source[label.end] === '('
+          ? pastParenRun(source, label.end)
+          : reference.closed
+            ? reference.end
+            : -1
+        : -1
+      if (label.closed && follow >= label.end) {
         // A link renders its label; an image renders none once it has a destination, while one
         // without is the literal text the parser leaves standing.
-        if (character !== '!' || past === labelEnd) text += headingRenderedText(source.slice(open + 1, labelEnd - 1))
-        index = past
+        if (character !== '!' || follow === label.end)
+          text += headingRenderedText(source.slice(open + 1, label.end - 1))
+        index = follow
       } else {
-        text += character
-        index += 1
+        // A bracket that opens a run no later bracket closes is text, and so is every bracket in
+        // it: the scan has already read as far as `end`, so the run is appended whole rather than
+        // rescanned from each bracket in turn.
+        text += source.slice(index, label.end)
+        index = label.end
       }
     } else {
       text += character
@@ -1195,6 +1306,11 @@ export function splitMarkdownChunks(
     // first, and judge the continuation by the content the parser reads inside the container.
     const definitionContainer = inDefinition ? activeDefinitionContainer : null
     const insideContainer = definitionContainer ? stripDefinitionContainer(line, definitionContainer) : null
+    // Indented code is a block of its own rather than a paragraph, so a line below it is free to
+    // open a definition — the same as it is after a heading. The code itself is no paragraph: the
+    // walk reaches here only for lines the containers above did not take, so `    code` lands on
+    // the branch that sets paragraph state, and without this test it would hold one open.
+    const indentedCode = !blank && INDENTED_LINE.test(line) && !startsBlock(line)
     const indentedContinuation =
       definitionContainer && insideContainer !== null
         ? // A marker-only line behind the definition's container (`>` on its own) is blank the way
@@ -1206,8 +1322,7 @@ export function splitMarkdownChunks(
           // quoted paragraph of its own and carrying it would print it in every chunk.
           (sawBlankInDefinition && continuesDefinitionAfterBlank(insideContainer) && !startsBlock(insideContainer)) ||
           (blank && continuesDefinitionAfterBlank(strippedNextContent(lines, nextContent, i, definitionContainer)))
-        : (INDENTED_LINE.test(line) && !startsBlock(line)) ||
-          (blank && continuesDefinitionAfterBlank(lines[nextContent[i]]))
+        : indentedCode || (blank && continuesDefinitionAfterBlank(lines[nextContent[i]]))
     // A blank line the definition spans — a bare one, or the definition's own container markers on
     // a line of their own (`>`), which is blank the way the parser sees it — ends no container, so
     // it has to be remembered for the continuation line that follows it.
@@ -1306,7 +1421,9 @@ export function splitMarkdownChunks(
       // remembered: a line that opens a block of its own ends the paragraph above rather than
       // joining it.
       if (previousStatus !== 'paragraph' || opensBlock) paragraphStart = i
-      previousStatus = isCompletedBlock(line, container?.[0] ?? null) ? 'block' : 'paragraph'
+      // Indented code is a block of its own, so the line under it starts from no open paragraph —
+      // which is what lets the definition there stand instead of reading as paragraph text.
+      previousStatus = indentedCode || isCompletedBlock(line, container?.[0] ?? null) ? 'block' : 'paragraph'
       paragraphContainer = container?.[0] ?? null
     }
 
