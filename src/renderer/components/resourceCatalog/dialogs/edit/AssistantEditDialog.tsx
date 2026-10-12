@@ -338,16 +338,19 @@ function AssistantEditDialogContent({
             Object.entries(currentValues).filter(([name, value]) => {
               const key = name as keyof AssistantEditFormValues
               if (CONTEXT_OVERRIDE_FIELDS.has(key) && !currentValues.contextOverrideEnabled) return false
-              const submittedValues = saveSnapshotRef.current?.values
+              const snapshot = saveSnapshotRef.current
+              const submittedValues = snapshot?.values
+              const changedAgainstBaseline =
+                serializedPersistedValue(name, value) !== serializedFormValue(name, baselineValuesRef.current[key])
+              // An unobserved write may still replace a newer return to the old baseline.
               const changedSinceSave =
                 submittedValues &&
                 key in submittedValues &&
-                (editVersionsRef.current[key] ?? 0) > (saveSnapshotRef.current?.editVersions[key] ?? 0) &&
-                serializedFormValue(name, value) !== serializedFormValue(name, submittedValues[key])
+                (editVersionsRef.current[key] ?? 0) > (snapshot.editVersions[key] ?? 0) &&
+                (changedAgainstBaseline || !snapshot.observedFields.has(key))
               if (savedFields?.has(key) && !changedSinceSave) return false
               return (
-                (serializedFormValue(name, value) !== serializedFormValue(name, baselineValuesRef.current[key]) ||
-                  changedSinceSave) &&
+                (changedAgainstBaseline || changedSinceSave) &&
                 serializedPersistedValue(name, value) !== serializedFormValue(name, nextDefaultValues[key])
               )
             })
@@ -410,7 +413,7 @@ function AssistantEditDialogContent({
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
-  const changeKey = canPersist ? JSON.stringify(values) : null
+  const changeKey = canPersist ? JSON.stringify([defaultValues, values]) : null
   const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
 
   const persist = async () => {
@@ -493,7 +496,7 @@ function AssistantEditDialogContent({
       onOpenChange(next)
       return
     }
-    if (failedSaveKeyRef.current === changeKey) {
+    if (failedSaveKeyRef.current === JSON.stringify(form.getValues())) {
       toast.error(saveFailedMessage)
       onOpenChange(false)
       return

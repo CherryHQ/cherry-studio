@@ -153,13 +153,18 @@ describe('assistant editor overlapping post-save refreshes', () => {
   })
 
   it.each([
-    { edit: false, beforeSettlement: false },
-    { edit: true, beforeSettlement: false },
-    { edit: false, beforeSettlement: true },
-    { edit: true, beforeSettlement: true }
+    { input: null, beforeSettlement: false },
+    { input: 'Original', beforeSettlement: false },
+    { input: 'Local', beforeSettlement: false },
+    { input: 'External', beforeSettlement: false },
+    { input: null, beforeSettlement: true },
+    { input: 'Original', beforeSettlement: true },
+    { input: 'Local', beforeSettlement: true },
+    { input: 'External', beforeSettlement: true }
   ])(
-    'acknowledges refreshes (newer input: $edit, second refresh before settlement: $beforeSettlement)',
-    async ({ edit, beforeSettlement }) => {
+    'acknowledges refreshes (newer input: $input, second refresh before settlement: $beforeSettlement)',
+    async ({ input, beforeSettlement }) => {
+      const hasRemainingInput = input !== null && input !== 'External'
       const request = bridge.request.getMockImplementation()!
       let listRefreshStarted = false
       let holdList = true
@@ -192,28 +197,35 @@ describe('assistant editor overlapping post-save refreshes', () => {
         persisted = { ...persisted, name: 'External' }
         await act(async () => emit())
         await waitFor(() => expect(name).toHaveValue('External'))
-        if (edit) {
+        if (input !== null) {
           await user.clear(name)
-          await user.type(name, 'Original')
+          await user.type(name, input)
         }
         if (beforeSettlement) {
           persisted = { ...persisted, name: 'Other' }
           await act(async () => emit())
-          await waitFor(() => expect(name).toHaveValue(edit ? 'Original' : 'Other'))
+          await waitFor(() => expect(name).toHaveValue(hasRemainingInput ? input : 'Other'))
+        }
+        if (input === 'Local') {
+          await settleAutoSave()
+          expect(patches).toEqual([{ name: 'Local' }])
         }
       } finally {
         holdList = false
         await act(async () => release())
       }
       await settleAutoSave()
-      expect(persisted.name).toBe(edit ? 'Original' : beforeSettlement ? 'Other' : 'External')
+      const expected = hasRemainingInput ? input : beforeSettlement ? 'Other' : 'External'
+      await waitFor(() => expect(persisted.name).toBe(expected))
+      expect(name).toHaveValue(expected)
+      expect(patches).toEqual(hasRemainingInput ? [{ name: 'Local' }, { name: input }] : [{ name: 'Local' }])
 
       persisted = { ...persisted, name: 'Other' }
       await act(async () => emit())
       await settleAutoSave()
       expect(persisted.name).toBe('Other')
       expect(name).toHaveValue('Other')
-      expect(patches).toEqual(edit ? [{ name: 'Local' }, { name: 'Original' }] : [{ name: 'Local' }])
+      expect(patches).toEqual(hasRemainingInput ? [{ name: 'Local' }, { name: input }] : [{ name: 'Local' }])
     }
   )
 })
