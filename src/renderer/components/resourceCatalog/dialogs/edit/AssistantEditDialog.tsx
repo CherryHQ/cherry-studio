@@ -113,6 +113,7 @@ type AssistantEditFormValues = {
 
 type AssistantSaveSnapshot = {
   values: Partial<AssistantEditFormValues>
+  observedFields: Set<keyof AssistantEditFormValues>
   inFlight: boolean
 }
 type CustomParameter = AssistantFormState['customParameters'][number]
@@ -121,6 +122,12 @@ type AssistantToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
+const CONTEXT_OVERRIDE_FIELDS: ReadonlySet<keyof AssistantEditFormValues> = new Set([
+  'contextCompressEnabled',
+  'contextTruncateThreshold',
+  'contextCompressThresholdPercent',
+  'contextCompressModelId'
+])
 
 function serializedFormValue(name: string, value: unknown): string | undefined {
   const comparable =
@@ -135,11 +142,13 @@ function serializedPersistedValue(name: string, value: unknown): string | undefi
 }
 
 function acknowledgeSavedFields(snapshot: AssistantSaveSnapshot | null, defaults: AssistantEditFormValues) {
-  // A notification can precede PATCH completion, which can still replace newer input.
-  if (!snapshot || snapshot.inFlight) return
+  if (!snapshot) return
   for (const [name, value] of Object.entries(snapshot.values)) {
     const key = name as keyof AssistantEditFormValues
-    if (serializedPersistedValue(name, value) === serializedFormValue(name, defaults[key])) delete snapshot.values[key]
+    if (serializedPersistedValue(name, value) === serializedFormValue(name, defaults[key]))
+      snapshot.observedFields.add(key)
+    // Keep submitted values for newer-input comparisons until the save settles.
+    if (!snapshot.inFlight && snapshot.observedFields.has(key)) delete snapshot.values[key]
   }
 }
 
@@ -311,6 +320,7 @@ function AssistantEditDialogContent({
       : Object.fromEntries(
           Object.entries(currentValues).filter(([name, value]) => {
             const key = name as keyof AssistantEditFormValues
+            if (CONTEXT_OVERRIDE_FIELDS.has(key) && !currentValues.contextOverrideEnabled) return false
             const submittedValues = saveSnapshotRef.current?.values
             const changedSinceSave =
               submittedValues &&
@@ -323,8 +333,13 @@ function AssistantEditDialogContent({
             )
           })
         )
-    // Reenabling an override also retains its configuration through the earlier OFF save.
-    if ('contextOverrideEnabled' in localValues && localValues.contextOverrideEnabled) {
+    const overrideDisabled =
+      'contextOverrideEnabled' in localValues
+        ? localValues.contextOverrideEnabled === false
+        : !nextDefaultValues.contextOverrideEnabled
+    const locallyEnabled = 'contextOverrideEnabled' in localValues && localValues.contextOverrideEnabled === true
+    // Disabled configuration is a session draft, not a pending persisted edit.
+    if (!justOpened && (overrideDisabled || locallyEnabled)) {
       Object.assign(localValues, {
         contextCompressEnabled: currentValues.contextCompressEnabled,
         contextTruncateThreshold: currentValues.contextTruncateThreshold,
@@ -371,14 +386,18 @@ function AssistantEditDialogContent({
     form.clearErrors('root')
     failedSaveKeyRef.current = null
 
+    const submittedValues = form.getValues()
     const snapshot: AssistantSaveSnapshot = {
       values: Object.fromEntries(
-        Object.entries(form.getValues()).filter(
+        Object.entries(submittedValues).filter(
           ([name, value]) =>
+            (submittedValues.contextOverrideEnabled ||
+              !CONTEXT_OVERRIDE_FIELDS.has(name as keyof AssistantEditFormValues)) &&
             serializedFormValue(name, value) !==
-            serializedFormValue(name, defaultValues[name as keyof AssistantEditFormValues])
+              serializedFormValue(name, defaultValues[name as keyof AssistantEditFormValues])
         )
       ),
+      observedFields: new Set(),
       inFlight: true
     }
     saveSnapshotRef.current = snapshot

@@ -153,4 +153,39 @@ describe('assistant context override reconciliation', () => {
       expect(patches).toHaveLength(2)
     }
   )
+
+  it('retains the stored configuration after the OFF save settles', async () => {
+    const user = await openEditor()
+    const toggle = screen.getByRole('switch', { name: 'Customize context management' })
+    await user.click(toggle)
+    await settleAutoSave()
+    expect(persisted.settings.contextSettings).toBeNull()
+    expect(patches).toEqual([{ settings: { contextSettings: null } }])
+
+    await user.click(toggle)
+    await settleAutoSave()
+    expect(persisted.settings.contextSettings).toEqual(storedContext)
+    expect(screen.getByRole('spinbutton', { name: 'Tool-output truncation threshold (chars)' })).toHaveValue('4000')
+    expect(patches).toEqual([{ settings: { contextSettings: null } }, { settings: { contextSettings: storedContext } }])
+  })
+
+  it('accepts an externally enabled configuration after saving another field while disabled', async () => {
+    const user = await openEditor()
+    const toggle = screen.getByRole('switch', { name: 'Customize context management' })
+    await user.click(toggle)
+    await settleAutoSave()
+    await user.click(screen.getByRole('tab', { name: 'Basic' }))
+    await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Local description')
+    await settleAutoSave()
+
+    const externalContext = { truncateThreshold: 7000, compress: { enabled: false, modelId: 'external-model' } }
+    persisted = { ...persisted, settings: { ...persisted.settings, contextSettings: externalContext } }
+    await act(async () => emit())
+    await settleAutoSave()
+    await user.click(screen.getByRole('tab', { name: 'Model' }))
+    expect(screen.getByRole('switch', { name: 'Customize context management' })).toBeChecked()
+    expect(screen.getByRole('spinbutton', { name: 'Tool-output truncation threshold (chars)' })).toHaveValue('7000')
+    expect(persisted.settings.contextSettings).toEqual(externalContext)
+    expect(patches).toEqual([{ settings: { contextSettings: null } }, { description: 'Local description' }])
+  })
 })
