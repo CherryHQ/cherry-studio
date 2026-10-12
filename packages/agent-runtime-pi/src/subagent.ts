@@ -1,12 +1,28 @@
 import { type AssistantMessage, Type, type Usage } from '@earendil-works/pi-ai'
-import type { AgentSession, AgentToolResult, ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { AgentSession, AgentToolResult, ExtensionFactory, SessionEntry } from '@earendil-works/pi-coding-agent'
 
 import type { AgentRuntimeSession } from './session'
-import type { TranscriptEntry } from './transcript'
+import type { TranscriptEntry, TranscriptStateEntry } from './transcript'
 import type { AgentRuntimeEvent } from './transcriptTap'
 
 /** DSH's name: Cherry's renderer shows a cherry-runtime `subagent` call as a Task card. */
 export const SUBAGENT_TOOL_NAME = 'subagent'
+
+/** State entry naming the call that created a session; it marks a subagent's session. */
+export const SUBAGENT_ORIGIN_STATE = 'cherry.subagent-origin'
+
+/** True inside a subagent's session. */
+export function isSubagentSession(entries: readonly SessionEntry[]): boolean {
+  return entries.some((entry) => entry.type === 'custom' && entry.customType === SUBAGENT_ORIGIN_STATE)
+}
+
+const originEntry = (subagent: Subagent): TranscriptStateEntry => ({
+  id: `subagent-origin-${subagent.parentToolCallId}`,
+  timestamp: Date.now(),
+  kind: 'state',
+  type: SUBAGENT_ORIGIN_STATE,
+  data: { parentToolCallId: subagent.parentToolCallId, fork: subagent.fork }
+})
 
 /** Host side of `subagent`: gives each subagent its extensions and listeners. */
 export interface SubagentPort {
@@ -165,7 +181,7 @@ export function subagentExtension({ port, createSession }: SubagentToolOptions):
         const options = await port.configure(subagent)
         const child = await createSession({
           sessionId: subagent.sessionId,
-          transcript: [],
+          transcript: [originEntry(subagent)],
           extensionFactories: options.extensionFactories ?? [],
           onEvent: options.onEvent
         })
