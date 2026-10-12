@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
@@ -360,6 +360,84 @@ describe('useProviderDeepLinkImport', () => {
     expect(addApiKeyTriggerMock).not.toHaveBeenCalled()
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider' })
     expect(onSelectProvider).not.toHaveBeenCalled()
+  })
+
+  it('imports a second deep link after the first import persistence settles', async () => {
+    const onSelectProvider = vi.fn()
+    const payloadA = JSON.stringify({
+      id: 'anthropic',
+      apiKey: 'sk-anthropic-a',
+      baseUrl: 'https://api.anthropic.com',
+      type: 'anthropic',
+      name: 'Anthropic A'
+    })
+    const payloadB = JSON.stringify({
+      id: 'openai',
+      apiKey: 'sk-openai-b',
+      baseUrl: 'https://api.openai.com',
+      type: 'openai',
+      name: 'OpenAI B'
+    })
+
+    let resolvePopupA!: (value: unknown) => void
+    popupShowMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePopupA = resolve
+        })
+    )
+    popupShowMock.mockResolvedValueOnce({
+      updatedProvider: {
+        id: 'openai',
+        name: 'OpenAI B',
+        type: 'openai',
+        apiKey: 'sk-openai-b',
+        apiHost: 'https://api.openai.com'
+      },
+      isNew: true,
+      displayName: 'OpenAI B'
+    })
+
+    let releaseUpdate!: () => void
+    updateProviderByIdMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseUpdate = resolve
+        })
+    )
+
+    const { rerender } = renderHook(({ data }) => useProviderDeepLinkImport(data, onSelectProvider), {
+      initialProps: { data: payloadA }
+    })
+
+    await waitFor(() => expect(popupShowMock).toHaveBeenCalledTimes(1))
+
+    resolvePopupA({
+      updatedProvider: {
+        id: 'anthropic',
+        name: 'Anthropic A',
+        type: 'anthropic',
+        apiKey: 'sk-anthropic-a',
+        apiHost: 'https://api.anthropic.com'
+      },
+      isNew: false,
+      displayName: 'Anthropic A'
+    })
+
+    await waitFor(() => expect(updateProviderByIdMock).toHaveBeenCalledTimes(1))
+
+    rerender({ data: payloadB })
+
+    await waitFor(() => expect(popupShowMock).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      releaseUpdate()
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(popupShowMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(createProviderMock).toHaveBeenCalledTimes(1))
+    expect(onSelectProvider).toHaveBeenCalledWith('openai')
   })
 
   it('shows an error toast and clears the search state when provider import mutations fail', async () => {

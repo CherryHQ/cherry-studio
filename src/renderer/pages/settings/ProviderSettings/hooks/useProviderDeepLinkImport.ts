@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMutation } from '@data/hooks/useDataApi'
@@ -70,6 +70,126 @@ export function useProviderDeepLinkImport(
     ]
   })
 
+  const runImportSessionRef = useRef<(session: ImportSession) => void>(() => {})
+
+  const runImportSession = useCallback(
+    (session: ImportSession) => {
+      importRunningRef.current = true
+
+      const importProvider = async (activeSession: ImportSession) => {
+        try {
+          if (!activeSession.popupResult) {
+            activeSession.popupResult = await UrlSchemaInfoPopup.show(activeSession.parsed)
+          }
+          const { updatedProvider, isNew, displayName } = activeSession.popupResult
+
+          if (!updatedProvider) {
+            void navigate({ to: '/settings/provider' })
+            importConsumedRef.current = activeSession.payload
+            if (importSessionRef.current?.payload === activeSession.payload) {
+              importSessionRef.current = null
+            }
+            return
+          }
+
+          const providerId = updatedProvider.id
+          const defaultChatEndpoint = resolveDefaultEndpoint(updatedProvider.type)
+          if (updatedProvider.apiHost && !validateApiHost(updatedProvider.apiHost)) {
+            logger.warn('Rejected deep-link apiHost with invalid scheme', { providerId })
+            toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+            void navigate({ to: '/settings/provider' })
+            importConsumedRef.current = activeSession.payload
+            if (importSessionRef.current?.payload === activeSession.payload) {
+              importSessionRef.current = null
+            }
+            return
+          }
+
+          const existingProvider = providersRef.current.find((entry) => entry.id === providerId)
+          if (!isNew && !existingProvider) {
+            return
+          }
+
+          if (isNew) {
+            const endpointConfigs = updatedProvider.apiHost
+              ? {
+                  [defaultChatEndpoint]: {
+                    baseUrl: updatedProvider.apiHost
+                  }
+                }
+              : undefined
+
+            await createProvider({
+              providerId,
+              name: updatedProvider.name || activeSession.parsed.id,
+              defaultChatEndpoint,
+              endpointConfigs
+            })
+          } else {
+            let persisted = false
+            await awaitEndpointConfigWrites(providerId)
+            await withEndpointConfigWriteLock(providerId, async () => {
+              const liveProvider = providersRef.current.find((entry) => entry.id === providerId)
+              if (!liveProvider) {
+                return
+              }
+
+              const endpointConfigs = buildDeepLinkEndpointConfigs(
+                liveProvider,
+                defaultChatEndpoint,
+                updatedProvider.apiHost
+              )
+
+              await updateProviderById(providerId, {
+                name: updatedProvider.name,
+                defaultChatEndpoint,
+                endpointConfigs
+              })
+              persisted = true
+            })
+            if (!persisted) {
+              return
+            }
+          }
+
+          if (updatedProvider.apiKey.trim()) {
+            await addApiKeyTrigger({
+              params: { providerId },
+              body: { key: updatedProvider.apiKey.trim() }
+            })
+          }
+
+          onSelectProvider(providerId)
+          void navigate({ to: '/settings/provider', search: { id: providerId } })
+          toast.success(t('settings.models.provider_key_added', { provider: displayName }))
+          importConsumedRef.current = activeSession.payload
+          if (importSessionRef.current?.payload === activeSession.payload) {
+            importSessionRef.current = null
+          }
+        } catch (error) {
+          logger.error('Failed to import provider deep link data', error as Error)
+          toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+          void navigate({ to: '/settings/provider' })
+          importConsumedRef.current = activeSession.payload
+          if (importSessionRef.current?.payload === activeSession.payload) {
+            importSessionRef.current = null
+          }
+        }
+      }
+
+      void importProvider(session).finally(() => {
+        importRunningRef.current = false
+        const pending = importSessionRef.current
+        if (pending && pending.payload !== session.payload) {
+          runImportSessionRef.current(pending)
+        }
+      })
+    },
+    [addApiKeyTrigger, createProvider, navigate, onSelectProvider, t, updateProviderById]
+  )
+
+  runImportSessionRef.current = runImportSession
+
   useEffect(() => {
     providersRef.current = providers
   }, [providers])
@@ -110,114 +230,8 @@ export function useProviderDeepLinkImport(
       return
     }
 
-    importRunningRef.current = true
-
-    const importProvider = async (session: ImportSession) => {
-      try {
-        if (!session.popupResult) {
-          session.popupResult = await UrlSchemaInfoPopup.show(session.parsed)
-        }
-        const { updatedProvider, isNew, displayName } = session.popupResult
-
-        if (!updatedProvider) {
-          void navigate({ to: '/settings/provider' })
-          importConsumedRef.current = searchAddProviderData
-          importSessionRef.current = null
-          return
-        }
-
-        const providerId = updatedProvider.id
-        const defaultChatEndpoint = resolveDefaultEndpoint(updatedProvider.type)
-        if (updatedProvider.apiHost && !validateApiHost(updatedProvider.apiHost)) {
-          logger.warn('Rejected deep-link apiHost with invalid scheme', { providerId })
-          toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-          void navigate({ to: '/settings/provider' })
-          importConsumedRef.current = searchAddProviderData
-          importSessionRef.current = null
-          return
-        }
-
-        const existingProvider = providersRef.current.find((entry) => entry.id === providerId)
-        if (!isNew && !existingProvider) {
-          return
-        }
-
-        if (isNew) {
-          const endpointConfigs = updatedProvider.apiHost
-            ? {
-                [defaultChatEndpoint]: {
-                  baseUrl: updatedProvider.apiHost
-                }
-              }
-            : undefined
-
-          await createProvider({
-            providerId,
-            name: updatedProvider.name || session.parsed.id,
-            defaultChatEndpoint,
-            endpointConfigs
-          })
-        } else {
-          let persisted = false
-          await awaitEndpointConfigWrites(providerId)
-          await withEndpointConfigWriteLock(providerId, async () => {
-            const liveProvider = providersRef.current.find((entry) => entry.id === providerId)
-            if (!liveProvider) {
-              return
-            }
-
-            const endpointConfigs = buildDeepLinkEndpointConfigs(
-              liveProvider,
-              defaultChatEndpoint,
-              updatedProvider.apiHost
-            )
-
-            await updateProviderById(providerId, {
-              name: updatedProvider.name,
-              defaultChatEndpoint,
-              endpointConfigs
-            })
-            persisted = true
-          })
-          if (!persisted) {
-            return
-          }
-        }
-
-        if (updatedProvider.apiKey.trim()) {
-          await addApiKeyTrigger({
-            params: { providerId },
-            body: { key: updatedProvider.apiKey.trim() }
-          })
-        }
-
-        onSelectProvider(providerId)
-        void navigate({ to: '/settings/provider', search: { id: providerId } })
-        toast.success(t('settings.models.provider_key_added', { provider: displayName }))
-        importConsumedRef.current = searchAddProviderData
-        importSessionRef.current = null
-      } catch (error) {
-        logger.error('Failed to import provider deep link data', error as Error)
-        toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-        void navigate({ to: '/settings/provider' })
-        importConsumedRef.current = searchAddProviderData
-        importSessionRef.current = null
-      }
-    }
-
-    void importProvider(importSessionRef.current).finally(() => {
-      importRunningRef.current = false
-    })
-  }, [
-    addApiKeyTrigger,
-    createProvider,
-    navigate,
-    onSelectProvider,
-    providers,
-    searchAddProviderData,
-    t,
-    updateProviderById
-  ])
+    runImportSession(importSessionRef.current)
+  }, [createProvider, navigate, onSelectProvider, providers, runImportSession, searchAddProviderData, t])
 }
 
 function buildDeepLinkEndpointConfigs(
