@@ -3814,7 +3814,7 @@ describe('AgentSessionRuntimeService', () => {
 
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
       mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId })
-      const switched = service.beginTurn({
+      service.beginTurn({
         ...baseTurnInput,
         agentId: 'agent-2',
         modelId: switchedModelId,
