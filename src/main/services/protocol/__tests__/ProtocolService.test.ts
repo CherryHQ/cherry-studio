@@ -12,6 +12,7 @@ const {
   mcpServerServiceMock,
   openSettingsInMainWindowMock,
   platformMock,
+  quickAssistantServiceMock,
   windowManagerMock
 } = vi.hoisted(() => {
   const appMock = {
@@ -29,6 +30,7 @@ const {
     handleNavigateProtocolUrl: vi.fn(),
     handleProvidersProtocolUrl: vi.fn()
   }
+  const quickAssistantServiceMock = { openChat: vi.fn(async () => undefined) }
   const ipcApiServiceMock = {
     broadcast: vi.fn()
   }
@@ -58,6 +60,7 @@ const {
     mcpServerServiceMock,
     openSettingsInMainWindowMock,
     platformMock,
+    quickAssistantServiceMock,
     windowManagerMock
   }
 })
@@ -79,6 +82,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'IpcApiService') return ipcApiServiceMock
       if (name === 'MainWindowService') return mainWindowServiceMock
+      if (name === 'QuickAssistantService') return quickAssistantServiceMock
       if (name === 'WindowManager') return windowManagerMock
       throw new Error(`unexpected service: ${name}`)
     },
@@ -210,6 +214,26 @@ describe('ProtocolService', () => {
     await vi.waitFor(() => {
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle providers protocol URL', error)
     })
+  })
+
+  it('queues a launcher prompt until ready and sends it only to Quick Assistant once', async () => {
+    ;(service as any).handleProtocolUrl('cherrystudio://chat/new?prompt=where+is+paris&submit=true')
+    expect(quickAssistantServiceMock.openChat).not.toHaveBeenCalled()
+    await markProtocolHandlingReady()
+    service.onMainRendererReady('main-1')
+    expect(quickAssistantServiceMock.openChat).toHaveBeenCalledExactlyOnceWith({
+      prompt: 'where is paris',
+      temporary: false,
+      submit: true
+    })
+    expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid launcher request without broadcasting its prompt', async () => {
+    await markProtocolHandlingReady()
+    ;(service as any).handleProtocolUrl('cherrystudio://chat/new?prompt=private&submit=yes')
+    expect(quickAssistantServiceMock.openChat).not.toHaveBeenCalled()
+    expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
   })
 
   it('broadcasts unknown protocol hosts to all windows', async () => {

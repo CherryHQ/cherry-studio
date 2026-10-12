@@ -16,6 +16,7 @@ import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
+import { parseChatProtocolUrl } from './handlers/chat'
 import { parseMcpInstallProtocolUrl } from './handlers/mcpInstall'
 import { handleNavigateProtocolUrl } from './handlers/navigate'
 import { handleProvidersProtocolUrl } from './handlers/providersImport'
@@ -186,6 +187,16 @@ export class ProtocolService extends BaseService {
       const params = new URLSearchParams(urlObj.search)
 
       switch (urlObj.hostname.toLowerCase()) {
+        case 'chat': {
+          const request = parseChatProtocolUrl(urlObj)
+          if (request) {
+            void application
+              .get('QuickAssistantService')
+              .openChat(request)
+              .catch((error) => logger.error('Failed to open launcher chat', error as Error))
+          }
+          return
+        }
         case 'mcp':
           this.handleMcpInstallProtocolUrl(urlObj)
           return

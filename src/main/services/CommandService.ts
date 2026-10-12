@@ -89,6 +89,10 @@ export class CommandService extends BaseService {
       application.get('QuickAssistantService').toggleQuickAssistant()
     })
 
+    this.registerHandler('chat.temporary.open', () =>
+      application.get('QuickAssistantService').openChat({ prompt: '', temporary: true, submit: false })
+    )
+
     this.registerHandler('app.zoom.in', (window) => {
       handleZoomFactor(getCommandTargetWindows(window), 0.1)
     })

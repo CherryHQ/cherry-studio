@@ -32,6 +32,8 @@ const InputBar = ({
     <div ref={ref} className="mt-2.5 flex items-center gap-2">
       {model && <ModelAvatar model={model} size={30} />}
       <Input
+        dir="auto"
+        style={{ textAlign: 'start' }}
         ref={inputRef}
         value={text}
         placeholder={placeholder}

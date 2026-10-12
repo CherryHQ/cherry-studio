@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { app, BrowserWindow, screen } from 'electron'
 
 /**
@@ -31,6 +33,7 @@ import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePha
 import { isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import type { QuickChatInput, QuickChatRequest } from '@shared/ipc/schemas/quickAssistant'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
@@ -372,8 +375,23 @@ export class QuickAssistantService extends BaseService implements Activatable {
     this.proceedShow()
   }
 
+  public async openChat(input: QuickChatInput): Promise<void> {
+    await this.activate()
+    const wm = application.get('WindowManager')
+    const request: QuickChatRequest = { ...input, kind: 'chat', requestId: randomUUID() }
+    this.windowId = wm.open(WindowType.QuickAssistant, { initData: request })
+    this.proceedShow(true)
+  }
+
+  public acknowledgeChatRequest(windowId: string | null, requestId: string): void {
+    if (!windowId || windowId !== this.windowId) return
+    const wm = application.get('WindowManager')
+    const data = wm.getInitData(windowId) as QuickChatRequest | null
+    if (data?.kind === 'chat' && data.requestId === requestId) wm.clearInitData(windowId)
+  }
+
   /** Inner show pipeline. Assumes the quick window exists and its content is ready. */
-  private proceedShow() {
+  private proceedShow(positionOnRight = false) {
     const window = this.getQuickAssistant()
     if (!window) return
 
@@ -388,7 +406,21 @@ export class QuickAssistantService extends BaseService implements Activatable {
       window.show()
     }
 
-    this.repositionToCursorDisplay(window)
+    if (positionOnRight) {
+      const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+      const bounds = window.getBounds()
+      const width = Math.min(bounds.width, workArea.width)
+      const height = Math.min(bounds.height, workArea.height)
+      const inset = Math.min(16, Math.max(0, workArea.width - width))
+      window.setBounds({
+        x: workArea.x + workArea.width - width - inset,
+        y: workArea.y + Math.round((workArea.height - height) / 2),
+        width,
+        height
+      })
+    } else {
+      this.repositionToCursorDisplay(window)
+    }
 
     window.setOpacity(1)
     window.show()

@@ -1,7 +1,7 @@
 import { useChat } from '@ai-sdk/react'
 import { isEmpty } from 'es-toolkit/compat'
 import type { FC } from 'react'
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Separator } from '@cherrystudio/ui'
@@ -14,8 +14,10 @@ import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
@@ -23,12 +25,14 @@ import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
+import type { QuickChatRequest } from '@shared/ipc/schemas/quickAssistant'
 
 import ClipboardPreview from './components/ClipboardPreview'
 import type { FeatureMenusRef } from './components/FeatureMenus'
 import FeatureMenus from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
+import QuickChatToolbar from './components/QuickChatToolbar'
 
 // Lazy boundaries (S6b): the chat/translate branches carry the heavy message
 // rendering chain (ChatMarkdown, CodeMirror, katex, mermaid). The default
@@ -91,6 +95,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [userInputText, setUserInputText] = useState('')
   const [clipboardText, setClipboardText] = useState('')
   const [isPinned, setIsPinnedState] = useState(false)
+  const [savedTopicId, setSavedTopicId] = useState<string | null>(null)
+  const [saveOnSend, setSaveOnSend] = useState(false)
+  const [pendingLaunch, setPendingLaunch] = useState<(QuickChatRequest & { previousTopicId: string | null }) | null>(
+    null
+  )
+  const launchRequest = useWindowInitData<QuickChatRequest>()
+  const lastLaunchRequestId = useRef<string | null>(null)
 
   // Wraps setState with an eager IPC call so main's pin flag is updated
   // synchronously inside the click handler — a useEffect-based sync would
@@ -116,8 +127,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const {
     topicId: temporaryTopicId,
     ready: isTopicReady,
-    reset: resetTemporaryTopic
+    reset: resetTemporaryTopic,
+    persist: persistTemporaryTopic
   } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistant?.id })
+
+  const isSavedChat = savedTopicId !== null && savedTopicId === temporaryTopicId
 
   const requestText = useMemo(() => {
     const trimmedUserInput = userInputText.trim()
@@ -297,28 +311,45 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const handleCloseWindow = useCallback(() => ipcApi.request('quick_assistant.hide'), [])
 
   const handleSendMessage = useCallback(
-    async (prompt?: string) => {
-      if (isEmpty(requestText)) return
+    async (prompt?: string, launcherText?: string) => {
+      const text = launcherText ?? requestText
+      if (isEmpty(text)) return
       if (!isTopicReady || !temporaryTopicId) return
 
       try {
         setFlowError(null)
+        setIsPreparing(true)
+        if (saveOnSend && !isSavedChat) {
+          await persistTemporaryTopic(text)
+          setSavedTopicId(temporaryTopicId)
+        }
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
-        const message = { text: [prompt, requestText].filter(Boolean).join('\n\n') }
+        const message = { text: [prompt, text].filter(Boolean).join('\n\n') }
         if (!isAssistantMode && currentModel) {
           void sendMessage(message, { body: { mentionedModels: [currentModel.id] } })
         } else {
           void sendMessage(message)
         }
       } catch (streamError) {
+        setIsPreparing(false)
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
         setFlowError(resolvedError.message)
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, temporaryTopicId]
+    [
+      currentModel,
+      isAssistantMode,
+      isSavedChat,
+      isTopicReady,
+      persistTemporaryTopic,
+      requestText,
+      saveOnSend,
+      sendMessage,
+      temporaryTopicId
+    ]
   )
 
   const handlePause = useCallback(() => {
@@ -329,7 +360,101 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     // Drop the current temporary topic and let useTemporaryTopic lease a fresh one.
     resetTemporaryTopic()
     clear()
+    setSavedTopicId(null)
+    setSaveOnSend(false)
   }, [clear, resetTemporaryTopic])
+
+  const receiveLauncherChat = useEffectEvent(async (request: QuickChatRequest) => {
+    if (!isSavedChat && chatMessages.some((message) => message.role === 'user')) {
+      const confirmed = await popup.confirm({
+        title: t('quickAssistant.chat.temporary'),
+        content: t('quickAssistant.chat.discard_confirm')
+      })
+      if (!confirmed) {
+        await ipcApi.request('quick_assistant.chat.ack', { requestId: request.requestId })
+        return
+      }
+    }
+    await stopChat()
+    if (lastLaunchRequestId.current !== request.requestId) return
+    resetConversation()
+    setClipboardText('')
+    lastClipboardTextRef.current = null
+    setIsFirstMessage(false)
+    setUserInputText(request.prompt)
+    setSaveOnSend(!request.temporary)
+    setRoute('chat')
+    setPendingLaunch({ ...request, previousTopicId: temporaryTopicId })
+    await ipcApi.request('quick_assistant.chat.ack', { requestId: request.requestId })
+  })
+
+  useEffect(() => {
+    if (launchRequest?.kind !== 'chat' || lastLaunchRequestId.current === launchRequest.requestId) return
+    lastLaunchRequestId.current = launchRequest.requestId
+    void receiveLauncherChat(launchRequest).catch((error) => {
+      setFlowError(error instanceof Error ? error.message : String(error))
+    })
+    // Effect Events read the current conversation without reprocessing a launch on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [launchRequest])
+
+  const submitLauncherChat = useEffectEvent((request: QuickChatRequest) => {
+    if (lastLaunchRequestId.current !== request.requestId) return
+    if (request.submit && request.prompt.trim()) void handleSendMessage(undefined, request.prompt)
+    focusInput()
+  })
+
+  useEffect(() => {
+    if (!pendingLaunch || !isTopicReady || temporaryTopicId === pendingLaunch.previousTopicId) return
+    if (!currentModel && !currentAssistant) return
+    setPendingLaunch(null)
+    submitLauncherChat(pendingLaunch)
+    // submitLauncherChat is an Effect Event, not a reactive dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingLaunch, isTopicReady, temporaryTopicId, currentModel, currentAssistant])
+
+  const openInMainWindow = async () => {
+    if (!temporaryTopicId || isLoading) return
+    try {
+      if (!isSavedChat) {
+        const firstUserMessage = chatMessages.find((message) => message.role === 'user')
+        await persistTemporaryTopic(firstUserMessage ? getTextFromParts(firstUserMessage.parts) : undefined)
+        setSavedTopicId(temporaryTopicId)
+      }
+      await ipcApi.request('navigation.open_route_in_main', { path: `/app/chat?topicId=${temporaryTopicId}` })
+    } catch (error) {
+      setFlowError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const deleteConversation = async () => {
+    if (!temporaryTopicId || isLoading) return
+    const confirmed = await popup.confirm({ title: t('common.delete'), content: t('common.delete_confirm') })
+    if (!confirmed) return
+    try {
+      if (isSavedChat) await ipcApi.request('trash.topic.archive', { topicIds: [temporaryTopicId] })
+      resetConversation()
+      setRoute('home')
+      setUserInputText('')
+    } catch (error) {
+      setFlowError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const closeConversation = async () => {
+    if (isLoading) return
+    if (!isSavedChat && chatMessages.some((message) => message.role === 'user')) {
+      const confirmed = await popup.confirm({
+        title: t('quickAssistant.chat.temporary'),
+        content: t('quickAssistant.chat.discard_confirm')
+      })
+      if (!confirmed) return
+    }
+    resetConversation()
+    setRoute('home')
+    setUserInputText('')
+    await handleCloseWindow()
+  }
 
   const handleEsc = useCallback(() => {
     if (isLoading) {
@@ -438,6 +563,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'explanation':
       return (
         <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
+          <QuickChatToolbar
+            saved={isSavedChat}
+            loading={isLoading || !isTopicReady || pendingLaunch !== null}
+            onNewTemporaryChat={() =>
+              void ipcApi.request('quick_assistant.chat.open', { prompt: '', temporary: true, submit: false })
+            }
+            onOpenInMainWindow={() => void openInMainWindow()}
+            onDelete={() => void deleteConversation()}
+            onClose={() => void closeConversation()}
+          />
           {route === 'chat' && (currentAssistant || currentModel) && (
             <>
               <InputBar

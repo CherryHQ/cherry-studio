@@ -922,6 +922,20 @@
       "defaultValue": "none",
       "status": "classified",
       "description": "Reasoning effort for the translate model; 'none' reproduces the hardcoded behaviour that predates this setting (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "shortcut.chat.temporary.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "N"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.temporary.open (temporary floating conversation)"
     }
   ]
 }

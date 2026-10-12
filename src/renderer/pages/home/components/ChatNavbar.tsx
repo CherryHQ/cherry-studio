@@ -1,9 +1,15 @@
+import { EyeOff } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
+import { CommandTooltip } from '@renderer/components/command'
 import { NavbarHeader } from '@renderer/components/Navbar'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 
 interface HeaderNavbarProps {
   conversationControls?: ReactNode
@@ -19,6 +25,7 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({
   onSidebarToggle
 }) => {
   const [preferredShowSidebar] = usePreference('topic.tab.show')
+  const { t } = useTranslation()
   const showSidebar = sidebarOpen ?? preferredShowSidebar
 
   return (
@@ -34,6 +41,19 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({
           )}
           <ConversationTopBarPortalHost>{conversationControls}</ConversationTopBarPortalHost>
         </div>
+        <CommandTooltip command="chat.temporary.open" label={t('quickAssistant.chat.new_temporary')} placement="bottom">
+          <Button
+            variant="ghost"
+            size="icon-navbar"
+            aria-label={t('quickAssistant.chat.new_temporary')}
+            onClick={() => {
+              void ipcApi
+                .request('quick_assistant.chat.open', { prompt: '', temporary: true, submit: false })
+                .catch((error) => toast.error(error instanceof Error ? error.message : String(error)))
+            }}>
+            <EyeOff />
+          </Button>
+        </CommandTooltip>
       </div>
     </NavbarHeader>
   )
