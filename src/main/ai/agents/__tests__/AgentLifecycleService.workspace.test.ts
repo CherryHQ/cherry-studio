@@ -72,10 +72,19 @@ describe('Agent lifecycle workspace persistence', () => {
       const workspace = path.join(root, '2026-10-12', type)
       await mkdir(workspace, { recursive: true })
       await writeFile(path.join(workspace, 'output.txt'), `${type} output`)
-      dbh.db.insert(agentWorkspaceTable).values({ id: type, name: type, type, path: workspace, orderKey: type }).run()
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: type, name: type, type, path: workspace, orderKey: type === 'system' ? 'a0' : 'a1' })
+        .run()
       dbh.db
         .insert(agentSessionTable)
-        .values({ id: type, agentId: 'agent', workspaceId: type, name: type, orderKey: type })
+        .values({
+          id: type,
+          agentId: 'agent',
+          workspaceId: type,
+          name: type,
+          orderKey: type === 'system' ? 'a0' : 'a1'
+        })
         .run()
     }
   })
