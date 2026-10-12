@@ -150,7 +150,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
 
   return (
     <ContextMenu onOpenChange={setActionsMenuOpen}>
-      <Tooltip asChild content={displayPath} delay={500}>
+      <Tooltip asChild content={targetPath} delay={500}>
         <ContextMenuTrigger
           asChild
           disabled={!hasMoreActions}

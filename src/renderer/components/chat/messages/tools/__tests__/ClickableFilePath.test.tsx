@@ -139,13 +139,20 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should render displayName when provided', () => {
-    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" displayName="bar.tsx" />, {
-      openArtifactFile: mockOpenArtifactFile
+  it.each([
+    ['src/report.ts', '/workspace/src/report.ts'],
+    ['~/Desktop/report.ts', '/Users/foo/Desktop/report.ts']
+  ])('shows the full target path in the tooltip for %s', async (path, expectedPath) => {
+    const user = userEvent.setup()
+    setInlineFilePathHomePath('/Users/foo')
+    renderWithProvider(<ClickableFilePath path={path} displayName="report.ts" />, {
+      openArtifactFile: mockOpenArtifactFile,
+      resolvePath: (value) => (value.startsWith('/') ? value : `/workspace/${value}`)
     })
-    const link = screen.getByRole('link', { name: 'bar.tsx' })
-    expect(link).toBeInTheDocument()
-    expect(link).toHaveTextContent('bar.tsx')
+
+    await user.hover(screen.getByRole('link', { name: 'report.ts' }))
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(expectedPath)
   })
 
   it('should open relative paths directly', async () => {
