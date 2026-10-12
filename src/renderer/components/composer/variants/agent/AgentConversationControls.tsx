@@ -30,7 +30,7 @@ const ResourceEditDialogHost = React.lazy(() =>
 )
 
 export type AgentConversationWorkspace = Pick<AgentWorkspaceEntity, 'type'> &
-  Partial<Pick<AgentWorkspaceEntity, 'id' | 'name' | 'path'>>
+  Partial<Pick<AgentWorkspaceEntity, 'id' | 'name' | 'path' | 'additionalDirectories'>>
 
 export interface AgentConversationControlsProps {
   agent?: AgentEntity

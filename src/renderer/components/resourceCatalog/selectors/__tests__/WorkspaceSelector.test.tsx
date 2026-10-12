@@ -107,6 +107,7 @@ import { WorkspaceSelector } from '../WorkspaceSelector'
 
 const WORKSPACES = [
   {
+    additionalDirectories: [],
     id: 'workspace-alpha',
     name: 'cherry-studio',
     path: '/Users/jd/cherry-studio',
@@ -116,6 +117,7 @@ const WORKSPACES = [
     updatedAt: '2026-01-01T00:00:00.000Z'
   },
   {
+    additionalDirectories: [],
     id: 'workspace-beta',
     name: 'cherry-studio-1',
     path: '/Users/jd/projects/cherry-studio-1',
@@ -127,6 +129,7 @@ const WORKSPACES = [
 ]
 
 const CREATED_WORKSPACE = {
+  additionalDirectories: [],
   id: 'workspace-created',
   name: 'new-project',
   path: '/Users/jd/new-project',

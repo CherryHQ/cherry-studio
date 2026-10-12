@@ -32,7 +32,7 @@ vi.mock('../dshConnectionSignature', () => ({
     Promise.resolve({
       signature: 'sig-1',
       agent: { id: 'agent-1', configuration: {}, disabledTools: [] },
-      session: { agentId: 'agent-1', workspace: { path: '/workspace' } },
+      session: { agentId: 'agent-1', workspace: { additionalDirectories: [], path: '/workspace' } },
       provider: {},
       model: {},
       enabledApiKeys: [],

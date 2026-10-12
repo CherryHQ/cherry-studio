@@ -317,6 +317,7 @@ describe('AgentSessionForkOperations recovery', () => {
     })
     workspaceList = vi.spyOn(agentWorkspaceService, 'list').mockImplementation(() =>
       registeredPaths.map((workspace) => ({
+        additionalDirectories: [],
         id: workspace,
         name: 'Registered workspace',
         path: workspace,

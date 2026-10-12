@@ -37,6 +37,7 @@ export interface ComposerSuggestionSource {
   multiple?: boolean
   pageSize?: number
   title?: ReactNode | string
+  renderHeader?: (refresh: () => void) => ReactNode
   onActiveChange?: (options: ComposerSuggestionActiveChangeOptions) => void
   onExit?: (options: ComposerSuggestionActiveChangeOptions) => void
   onKeyDown?: (props: SuggestionKeyDownProps) => boolean

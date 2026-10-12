@@ -16,7 +16,10 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateAgentWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const result = agentWorkspaceService.findOrCreateByPathResult(parsed.data.path, { name: parsed.data.name })
+      const result = agentWorkspaceService.findOrCreateByPathResult(parsed.data.path, {
+        name: parsed.data.name,
+        additionalDirectories: parsed.data.additionalDirectories
+      })
       return {
         data: result.workspace,
         status: result.created ? SuccessStatus.CREATED : SuccessStatus.OK

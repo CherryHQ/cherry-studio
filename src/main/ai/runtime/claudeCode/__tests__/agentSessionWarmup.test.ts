@@ -159,7 +159,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getSessionById.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -1291,7 +1291,7 @@ describe('deriveConnectionConfig', () => {
   const sessionWithWorkspace = {
     id: 'session-1',
     agentId: 'agent-1',
-    workspace: { type: 'user', path: '/workspace/project' }
+    workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
   }
 
   beforeEach(() => {
@@ -1711,7 +1711,10 @@ describe('deriveConnectionConfig', () => {
     expect(channelChanged.rebuildSignature).not.toBe(base.rebuildSignature)
     mocks.findChannelBySessionId.mockReturnValue(null)
 
-    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, workspace: { type: 'user', path: '/elsewhere' } })
+    mocks.getSessionById.mockReturnValue({
+      ...sessionWithWorkspace,
+      workspace: { additionalDirectories: [], type: 'user', path: '/elsewhere' }
+    })
     const workspaceChanged = await deriveSignature()
     expect(workspaceChanged.rebuildSignature).not.toBe(base.rebuildSignature)
     mocks.getSessionById.mockReturnValue(sessionWithWorkspace)

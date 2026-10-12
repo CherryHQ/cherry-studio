@@ -152,6 +152,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private contextWindow = 0
   private reasoningEffort: ReasoningEffortOption = 'default'
   private workspacePath = ''
+  private additionalDirectories: string[] = []
   private agentDataPath = ''
   /** Live tool policy pushed to the bridge plugin at open and on reconcile. */
   private permissionMode: BridgePermissionMode = 'default'
@@ -325,6 +326,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.reasoningEffort = this.input.reasoningEffort ?? 'default'
     this._usageCapture = injection.usageCapture
     this.workspacePath = workspacePath
+    this.additionalDirectories = session.workspace.additionalDirectories
     this.traceRecorder = new DshTraceRecorder(() => this.traceContext, {
       provider: injection.providerName,
       model: injection.modelId
@@ -347,6 +349,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     })
     const prompt = await buildAgentRuntimePrompt({
       workspacePath,
+      additionalDirectories: session.workspace.additionalDirectories,
       agentDataPath: this.agentDataPath,
       agent,
       citationsGuidance,
@@ -791,7 +794,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       permissionMode: this.effectivePermissionMode(),
       disabledTools: [...this.disabledTools],
       // WORKSPACE FIRST: the plugin resolves relative tool paths against allowedRoots[0].
-      allowedRoots: [this.workspacePath, this.agentDataPath],
+      allowedRoots: [this.workspacePath, this.agentDataPath, ...this.additionalDirectories],
       readTools: DSH_READ_TOOLS,
       editTools: DSH_EDIT_TOOLS,
       autoApprovedTools: [

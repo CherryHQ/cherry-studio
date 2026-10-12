@@ -13,6 +13,7 @@ export const agentWorkspaceTable = sqliteTable(
     id: uuidPrimaryKey(),
     name: text().notNull(),
     path: text().notNull(),
+    additionalDirectories: text({ mode: 'json' }).$type<string[]>().notNull().default([]),
     type: text().notNull().default(AGENT_WORKSPACE_TYPE.USER),
     ...orderKeyColumns,
     ...createUpdateTimestamps

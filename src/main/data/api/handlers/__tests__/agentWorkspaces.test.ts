@@ -35,6 +35,7 @@ vi.mock('@data/services/AgentWorkspaceService', () => ({
 import { agentWorkspaceHandlers } from '../agentWorkspaces'
 
 const workspace = {
+  additionalDirectories: [],
   id: 'workspace-1',
   name: 'Workspace',
   path: '/tmp/workspace',
@@ -70,18 +71,25 @@ describe('agentWorkspaceHandlers', () => {
 
     await expect(
       agentWorkspaceHandlers['/agent-workspaces'].POST({
-        body: { path: workspace.path, name: workspace.name }
+        body: { path: workspace.path, name: workspace.name, additionalDirectories: ['/tmp/shared'] }
       })
     ).resolves.toEqual({ data: workspace, status: SuccessStatus.CREATED })
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].PATCH({
         params: { workspaceId: workspace.id },
-        body: { name: 'Renamed' }
+        body: { name: 'Renamed', path: '/tmp/shared', additionalDirectories: [workspace.path] }
       })
     ).resolves.toMatchObject({ name: 'Renamed' })
 
-    expect(findOrCreateByPathResultMock).toHaveBeenCalledWith(workspace.path, { name: workspace.name })
-    expect(updateMock).toHaveBeenCalledWith(workspace.id, { name: 'Renamed' })
+    expect(findOrCreateByPathResultMock).toHaveBeenCalledWith(workspace.path, {
+      name: workspace.name,
+      additionalDirectories: ['/tmp/shared']
+    })
+    expect(updateMock).toHaveBeenCalledWith(workspace.id, {
+      name: 'Renamed',
+      path: '/tmp/shared',
+      additionalDirectories: [workspace.path]
+    })
   })
 
   it('returns 200 OK when POST finds an existing workspace', async () => {
@@ -109,7 +117,7 @@ describe('agentWorkspaceHandlers', () => {
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].PATCH({
         params: { workspaceId: workspace.id },
         body: {}
-      } as never)
+      })
     ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
     expect(updateMock).not.toHaveBeenCalled()

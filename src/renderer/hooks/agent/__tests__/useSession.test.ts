@@ -69,6 +69,7 @@ vi.mock('@data/DataApiService', () => ({
 }))
 
 const workspace = {
+  additionalDirectories: [],
   id: 'workspace-1',
   name: 'Workspace',
   path: '/tmp/workspace',

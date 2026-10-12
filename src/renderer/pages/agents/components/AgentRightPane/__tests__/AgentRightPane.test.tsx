@@ -250,6 +250,7 @@ vi.mock('@renderer/utils/filePath', () => ({
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   ArtifactPaneView: ({
+    directorySelector,
     editMode,
     onEditModeChange,
     headerVariant,
@@ -260,6 +261,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     previewFileSelection,
     selectedFile
   }: {
+    directorySelector?: ReactNode
     editMode?: 'preview' | 'edit'
     onEditModeChange?: (mode: 'preview' | 'edit') => void
     headerVariant?: 'overlay' | 'pane'
@@ -274,6 +276,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
 
     return (
       <div data-testid="artifact-pane" data-edit-mode={editMode} data-selected-file={selectedFile ?? ''}>
+        {directorySelector}
         {headerVariant === 'pane' ? (
           <div data-testid="artifact-pane-header">
             {previewFileSelection ? (
@@ -649,6 +652,10 @@ describe('AgentRightPane', () => {
   }
 
   beforeEach(() => {
+    HTMLElement.prototype.hasPointerCapture ??= () => false
+    HTMLElement.prototype.releasePointerCapture ??= () => undefined
+    HTMLElement.prototype.setPointerCapture ??= () => undefined
+    HTMLElement.prototype.scrollIntoView ??= () => undefined
     vi.clearAllMocks()
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
@@ -3007,6 +3014,51 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
+  })
+
+  it('switches directories with the main directory first and preserves dirty edits until confirmed', async () => {
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    const renderPane = (directories = ['/secondary']) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        additionalDirectories={directories}
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+    const selector = screen.getByRole('combobox', { name: 'agent.session.workspace_selector.placeholder' })
+    await user.click(selector)
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      '/workspaceagent.session.workspace_edit.main_directory',
+      '/secondary'
+    ])
+    await user.click(screen.getByRole('option', { name: '/secondary' }))
+    expect(selector).toHaveTextContent('/secondary')
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(renderPane())
+    await user.click(selector)
+    await user.click(screen.getByRole('option', { name: /\/workspace/ }))
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+    expect(selector).toHaveTextContent('/secondary')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    await user.click(selector)
+    await user.click(screen.getByRole('option', { name: /\/workspace/ }))
+    await user.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    expect(selector).toHaveTextContent('/workspace')
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    fileSessionState.isDirty = false
+    await user.click(selector)
+    await user.click(screen.getByRole('option', { name: '/secondary' }))
+    rerender(renderPane(['/third']))
+    expect(selector).toHaveTextContent('/workspace')
   })
 
   it('keeps the dirty file bound to its original workspace until the workspace transition is confirmed', () => {

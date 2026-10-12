@@ -70,7 +70,10 @@ export function buildAgentMcpServers(
     sessionId: session.id,
     topicId: `agent-session:${session.id}`,
     model: agent.model ?? undefined,
-    roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
+    roots: [session.workspace.path, ...session.workspace.additionalDirectories].map((directory) => ({
+      uri: pathToFileURL(directory).toString(),
+      name: directory === session.workspace.path ? session.workspace.name : directory
+    }))
   }
   const servers: Record<string, AgentMcpServer> = {}
   const channelLinked =

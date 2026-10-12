@@ -53,6 +53,7 @@ const session: AgentSessionEntity = {
   isNameManuallyEdited: true,
   workspaceId: 'workspace-a',
   workspace: {
+    additionalDirectories: [],
     id: 'workspace-a',
     name: 'Workspace A',
     path: '/workspace-a',

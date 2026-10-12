@@ -3,6 +3,7 @@ import { basename } from 'node:path'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import type * as ResourceCatalogSelectorsModule from '@renderer/components/resourceCatalog/selectors'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
@@ -618,7 +620,8 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
+vi.mock('@renderer/components/resourceCatalog/selectors', async (importOriginal) => ({
+  ...(await importOriginal<typeof ResourceCatalogSelectorsModule>()),
   AgentSelector: ({ autoSelectOnCreate, onChange, trigger }: any) => (
     <div data-testid="agent-selector" data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
       {trigger}
@@ -2750,20 +2753,56 @@ describe('AgentComposer', () => {
     }
   })
 
-  it('keeps successful resource rows when another accessible root fails', async () => {
-    mocks.listDirectoryEntries
-      .mockResolvedValueOnce([{ path: '/workspace/docs', isDirectory: true }])
-      .mockRejectedValueOnce(new Error('offline'))
-    const { result } = renderAgentResourceMentionSource(['/workspace', '/offline'])
+  it('searches only the selected directory and discards results from the previous directory', async () => {
+    const user = userEvent.setup()
+    const oldSearch = createDeferred<Array<{ path: string; isDirectory: boolean }>>()
+    mocks.listDirectoryEntries.mockImplementation((directory: string) =>
+      directory === '/workspace'
+        ? oldSearch.promise
+        : Promise.resolve([{ path: '/secondary/docs/notes.md', isDirectory: false }])
+    )
+    const { result } = renderAgentResourceMentionSource(['/workspace', '/secondary'])
     const source = requireFirstResourceMentionSource(result.current)
-
-    const items = await source.items({ query: '', editor: buildComposerEditorMock().editor })
-
-    expect(items).toEqual([expect.objectContaining({ label: 'docs', disabled: false })])
-    expect(items.some((item) => item.id === 'agent-resource:error')).toBe(false)
+    const editor = buildComposerEditorMock().editor
+    const pending = source.items({ query: '', editor })
+    render(source.renderHeader?.(() => undefined))
+    await user.click(screen.getByRole('button', { name: '/secondary' }))
+    const items = await source.items({ query: 'notes', editor })
+    expect(items).toEqual([expect.objectContaining({ label: 'notes.md', description: 'docs/notes.md' })])
+    oldSearch.resolve([{ path: '/workspace/stale.md', isDirectory: false }])
+    await expect(pending).resolves.toEqual([])
   })
 
-  it('describes an all-roots rejection as a workspace resource load failure', async () => {
+  it('discards previous directory results while their session suggestions are still loading', async () => {
+    const user = userEvent.setup()
+    const oldSessions = createDeferred<[]>()
+    const getAdditionalItems = vi.fn().mockResolvedValue([]).mockReturnValueOnce(oldSessions.promise)
+    mocks.listDirectoryEntries.mockImplementation(async (directory: string) => [
+      { path: `${directory}/notes.md`, isDirectory: false }
+    ])
+    const { result } = renderHook(() =>
+      useAgentResourceMentionSource({
+        accessiblePaths: ps('/workspace', '/secondary'),
+        files: [],
+        setFiles: mocks.setFiles,
+        enabled: true,
+        getAdditionalItems
+      })
+    )
+    const source = requireFirstResourceMentionSource(result.current)
+    const editor = buildComposerEditorMock().editor
+    vi.mocked(ComposerDraftModule.serializeComposerDocument).mockClear()
+    const pending = source.items({ query: '', editor })
+    await waitFor(() => expect(ComposerDraftModule.serializeComposerDocument).toHaveBeenCalled())
+    render(source.renderHeader?.(() => undefined))
+    await user.click(screen.getByRole('button', { name: '/secondary' }))
+    const items = await source.items({ query: '', editor })
+    expect(items).toEqual([expect.objectContaining({ label: 'notes.md', filterText: 'notes.md /secondary/notes.md' })])
+    oldSessions.resolve([])
+    await expect(pending).resolves.toEqual([])
+  })
+
+  it('describes a selected directory rejection as a workspace resource load failure', async () => {
     mocks.listDirectoryEntries.mockRejectedValue(new Error('offline'))
     const { result } = renderAgentResourceMentionSource(['/workspace', '/offline'])
     const source = requireFirstResourceMentionSource(result.current)

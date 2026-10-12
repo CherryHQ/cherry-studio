@@ -97,7 +97,7 @@ beforeEach(() => {
     id: 'session-1',
     agentId: 'agent-1',
     workspaceId: 'workspace-1',
-    workspace: { id: 'workspace-1', path: '/workspace', type: 'user' }
+    workspace: { additionalDirectories: [], id: 'workspace-1', path: '/workspace', type: 'user' }
   })
   mocks.getProvider.mockReturnValue({ id: 'provider', updatedAt: 1 })
   mocks.getModel.mockReturnValue({ id: 'provider::model', updatedAt: 1 })
@@ -154,7 +154,7 @@ describe('captureDshConnectionSnapshot', () => {
           id: 'session-1',
           agentId: 'agent-1',
           workspaceId: 'workspace-2',
-          workspace: { id: 'workspace-2', path: '/other', type: 'user' }
+          workspace: { additionalDirectories: [], id: 'workspace-2', path: '/other', type: 'user' }
         }),
       () => mocks.getProvider.mockReturnValueOnce({ id: 'provider', updatedAt: 2 }),
       () => mocks.getModel.mockReturnValueOnce({ id: 'provider::model', updatedAt: 2 }),

@@ -328,6 +328,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       })
       const prompt = await buildAgentRuntimePrompt({
         workspacePath,
+        additionalDirectories: session.workspace.additionalDirectories,
         agentDataPath,
         agent,
         citationsGuidance,
@@ -336,6 +337,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const approvalContext = {
         sessionId: this.input.sessionId,
         workspacePath,
+        additionalDirectories: session.workspace.additionalDirectories,
         agentDataPath,
         emit: (event: AgentRuntimeEvent) => this.eventQueue.push(event),
         getInteractionState: () =>

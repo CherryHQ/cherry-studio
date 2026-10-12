@@ -67,6 +67,7 @@ export interface PiApprovalContext {
   sessionId: string
   /** Session workspace root used to resolve relative tool paths and as a trusted read/write root. */
   workspacePath: string
+  additionalDirectories?: readonly string[]
   /** Current agent's persistent identity and memory directory. It is a trusted file-tool root just
    *  like the workspace; paths under another agent or elsewhere still require approval. */
   agentDataPath: string
@@ -184,7 +185,8 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
         ctx.workspacePath,
         ctx.agentDataPath,
         ctx.additionalReadOnlyRoots,
-        approvalRequired
+        approvalRequired,
+        ctx.additionalDirectories ?? []
       ))
     )
       return
@@ -257,7 +259,8 @@ async function requiresApproval(
   workspacePath: string,
   agentDataPath: string,
   additionalReadOnlyRoots: readonly string[],
-  alwaysPrompt: boolean
+  alwaysPrompt: boolean,
+  additionalDirectories: readonly string[]
 ): Promise<boolean> {
   if (alwaysPrompt) return true
   if (META_TOOLS.has(toolName)) return false
@@ -274,10 +277,13 @@ async function requiresApproval(
       return detectDestructiveCommand(command) !== null
     }
     if (READ_ONLY_TOOLS.has(toolName)) {
-      return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true, additionalReadOnlyRoots))
+      return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true, [
+        ...additionalDirectories,
+        ...additionalReadOnlyRoots
+      ]))
     }
     if (EDIT_TOOLS.has(toolName)) {
-      return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true))
+      return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true, additionalDirectories))
     }
     return false
   }
@@ -285,10 +291,13 @@ async function requiresApproval(
   // inside an allowed root; any other read/write falls through to a normal prompt so a
   // prompt-injected model can't auto-touch ~/.ssh, Cherry's SQLite, ~/.zshrc, LaunchAgents, etc.
   if (READ_ONLY_TOOLS.has(toolName)) {
-    return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, false, additionalReadOnlyRoots))
+    return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, false, [
+      ...additionalDirectories,
+      ...additionalReadOnlyRoots
+    ]))
   }
   if (mode === 'acceptEdits' && EDIT_TOOLS.has(toolName)) {
-    return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true))
+    return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true, additionalDirectories))
   }
   // `default` (and the unsupported-for-pi `plan`) gate everything else.
   return true

@@ -29,3 +29,4 @@ export {
   type ResourceSelectorShellProps
 } from './ResourceSelectorShell'
 export { WorkspaceSelector, type WorkspaceSelectorProps } from './WorkspaceSelector'
+export { WorkspaceDirectorySelector } from './WorkspaceDirectorySelector'

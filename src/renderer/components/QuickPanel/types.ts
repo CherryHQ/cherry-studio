@@ -80,6 +80,8 @@ export type QuickPanelFilterFn = (
 export type QuickPanelSortFn = (items: QuickPanelListItem[], searchText: string) => QuickPanelListItem[]
 
 export type QuickPanelOpenOptions = {
+  /** Controls above the search results. */
+  header?: React.ReactNode
   /** Displayed at the bottom left, similar to a placeholder. */
   title?: string
   /** default: [] */
@@ -170,6 +172,7 @@ export type QuickPanelFooterAction = Pick<
 
 // Context type definition.
 export interface QuickPanelContextType {
+  readonly header?: React.ReactNode
   readonly open: (options: QuickPanelOpenOptions) => void
   readonly close: (action?: QuickPanelCloseAction, searchText?: string) => void
   readonly updateItemSelection: (targetItem: QuickPanelListItem, isSelected: boolean) => void

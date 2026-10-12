@@ -13,6 +13,7 @@ function createSession(id: string, overrides: Partial<AgentSessionEntity> = {}):
     description: '',
     workspaceId: 'workspace-a',
     workspace: {
+      additionalDirectories: [],
       id: 'workspace-a',
       name: 'Workspace A',
       path: '/tmp/workspace-a',

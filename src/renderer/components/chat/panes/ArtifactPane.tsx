@@ -117,6 +117,7 @@ const OPEN_TARGET_LOOKUP_TIMEOUT_MS = 1_000
 
 interface ArtifactPaneViewBaseProps {
   workspacePath?: string
+  directorySelector?: ReactNode
   maximized?: boolean
   previewFileSelection?: ArtifactPaneFileSelection | null
   onPreviewClose?: () => void
@@ -930,6 +931,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           maximized && 'rounded-lg border border-border-subtle shadow-sm'
         )}>
         {paneHeader}
+        {props.directorySelector}
         <EmptyState
           icon={Sparkles}
           title={t('agent.preview_pane.empty.title')}
@@ -948,6 +950,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           maximized && 'rounded-lg border border-border-subtle shadow-sm'
         )}>
         {paneHeader}
+        {props.directorySelector}
         <EmptyState icon={AlertCircle} title={t(treeErrorKeys.title)} description={t(treeErrorKeys.description)} />
       </div>
     )
@@ -962,6 +965,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         maximized && 'rounded-lg border border-border-subtle shadow-sm'
       )}>
       {paneHeader}
+      {props.directorySelector}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <aside className="flex h-full w-full flex-col overflow-hidden">
           <div

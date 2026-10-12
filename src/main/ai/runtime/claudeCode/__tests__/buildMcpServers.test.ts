@@ -125,6 +125,7 @@ const session = {
   agentId: 'agent-1',
   workspaceId: 'ws-1',
   workspace: {
+    additionalDirectories: [],
     id: 'ws-1',
     name: 'Workspace',
     path: '/tmp/workspace',
