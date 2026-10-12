@@ -6,9 +6,11 @@ import { useTranslation } from 'react-i18next'
 import { Tooltip } from '@cherrystudio/ui'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
+import {
+  executeResourceListAction,
+  ResourceListActionContextMenu
+} from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
-import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 
 import {
   buildResourceListGroupDropAnchor,
@@ -184,24 +186,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   )
   const runContextMenuAction = useCallback(
     async (item: T, action: ResolvedAction<TActionContext>) => {
-      if (!action.availability.enabled || !onContextMenuAction) return
-
-      const confirm = action.confirm
-      if (confirm) {
-        // Confirm gates a fallible action: ConfirmActionPopup runs it in-dialog and
-        // surfaces failures (toast + retry), so a rejected action is never silent.
-        await ConfirmActionPopup.show({
-          title: confirm.title,
-          content: confirm.description ?? confirm.content,
-          okText: confirm.confirmText,
-          cancelText: confirm.cancelText,
-          danger: confirm.destructive,
-          action: () => onContextMenuAction(item, action)
-        })
-        return
-      }
-
-      await onContextMenuAction(item, action)
+      if (!onContextMenuAction) return
+      await executeResourceListAction(action, (selectedAction) => onContextMenuAction(item, selectedAction))
     },
     [onContextMenuAction]
   )

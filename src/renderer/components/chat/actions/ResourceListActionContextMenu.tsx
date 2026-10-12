@@ -19,6 +19,26 @@ type ResourceListActionContextMenuProps<T extends ResourceListItemBase, TActionC
 const EMPTY_ACTIONS: readonly ResolvedAction[] = []
 const EMPTY_EXTRA_ITEMS: readonly CommandContextMenuExtraItem[] = []
 
+export async function executeResourceListAction<TContext>(
+  action: ResolvedAction<TContext>,
+  onAction: (action: ResolvedAction<TContext>) => void | Promise<void>
+): Promise<void> {
+  if (!action.availability.enabled) return
+  const confirm = action.confirm
+  if (confirm) {
+    await ConfirmActionPopup.show({
+      title: confirm.title,
+      content: confirm.description ?? confirm.content,
+      okText: confirm.confirmText,
+      cancelText: confirm.cancelText,
+      danger: confirm.destructive,
+      action: () => onAction(action)
+    })
+    return
+  }
+  await onAction(action)
+}
+
 /**
  * Resource-list (topics, agent sessions, …) row context menu, rendered through the
  * command system's CommandContextMenu so it honors the `menu.presentation_mode`
@@ -37,24 +57,7 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
   const { getItemId } = useResourceListItemAccessors<T>()
 
   const runAction = useCallback(
-    async (action: ResolvedAction<TActionContext>) => {
-      if (!action.availability.enabled) return
-      const confirm = action.confirm
-      if (confirm) {
-        // Confirm gates a fallible action: ConfirmActionPopup runs it in-dialog and
-        // surfaces failures (toast + retry), so a rejected action is never silent.
-        await ConfirmActionPopup.show({
-          title: confirm.title,
-          content: confirm.description ?? confirm.content,
-          okText: confirm.confirmText,
-          cancelText: confirm.cancelText,
-          danger: confirm.destructive,
-          action: () => onAction(action)
-        })
-        return
-      }
-      await onAction(action)
-    },
+    (action: ResolvedAction<TActionContext>) => executeResourceListAction(action, onAction),
     [onAction]
   )
 
