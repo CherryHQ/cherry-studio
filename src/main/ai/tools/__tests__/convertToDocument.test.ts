@@ -211,14 +211,16 @@ describe('convertToDocumentToWorkspace', () => {
       ['nested/CoM3.pdf', 'pdf'],
       ['nested/nul.docx', 'docx']
     ] as const
+    const listWorkspace = async () => (await readdir(workspacePath, { recursive: true })).sort()
+    const entriesBefore = await listWorkspace()
     for (const [output_path, format] of reservedOutputs) {
       await expect(
         convertToDocumentToWorkspace(workspacePath, { markdown: '# Report', format, output_path }, signal)
       ).rejects.toThrow(/invalid in Windows filenames/)
-      await expect(readFile(path.join(workspacePath, output_path))).rejects.toMatchObject({ code: 'ENOENT' })
     }
-    expect(convertDocumentBundle).not.toHaveBeenCalled()
+    expect(await listWorkspace()).toEqual(entriesBefore)
     expect(await readdir(nested)).toEqual([])
+    expect(convertDocumentBundle).not.toHaveBeenCalled()
 
     const lookalikeOutputs = [
       ['CONSOLE.pdf', 'pdf'],
