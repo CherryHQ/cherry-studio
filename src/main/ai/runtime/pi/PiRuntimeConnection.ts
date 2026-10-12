@@ -45,9 +45,9 @@ import {
   getMiseEnvEntries,
   getPathFromEnvironment,
   getRawShellEnv,
-  getShellEnv,
   hasUserMiseEnv,
-  resolveCherryPathTailDirs
+  resolveCherryPathTailDirs,
+  withCherryShellEnv
 } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -345,7 +345,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // prefix: a Cherry shim would run under the user's MISE contract (#19738).
       const loginPathSource = hasUserMiseEnv(connectionRawShellEnv)
         ? mergePathSuffixes(connectionRawShellEnv, resolveCherryPathTailDirs(true), [getBinaryShimsDir()])
-        : await getShellEnv()
+        : withCherryShellEnv(connectionRawShellEnv)
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(loginPathSource))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
       // The custom bash tool below spawns directly instead of through the prefixed
@@ -457,7 +457,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
               ? definedContextEnv
               : mergePathSuffixes(definedContextEnv, loginPathForBash.split(':'))
           const userOwnsMiseForBash = hasUserMiseForBash || hasUserMiseEnv(context.env)
-          const merged = mergePiBashExecutionEnv(loginLayeredEnv, hasUserMiseForBash)
+          const merged = mergePiBashExecutionEnv(loginLayeredEnv, userOwnsMiseForBash)
           const contextMiseEnvForBash = Object.fromEntries(getMiseEnvEntries(context.env))
           const userMiseEnvForBash = mergeMiseEnvEntries(rawMiseEnvForBash, contextMiseEnvForBash)
           if (userOwnsMiseForBash) {

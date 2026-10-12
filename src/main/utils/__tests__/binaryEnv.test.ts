@@ -84,6 +84,17 @@ describe('mergePathPrefixes', () => {
     expect(env.PATH.split(':')).toEqual(['/user/mise/shims', '/usr/bin', '/mock/cherry.bin'])
     expect(env.MISE_DATA_DIR).toBe('/user/mise')
   })
+
+  it('treats a trailing separator on the shims dir as the same PATH entry when excluding', () => {
+    const shims = getBinaryShimsDir()
+    const env = mergePathSuffixes(
+      { PATH: `${shims}/:/user/mise/shims:/usr/bin`, MISE_DATA_DIR: '/user/mise' },
+      ['/mock/cherry.bin'],
+      [shims]
+    )
+
+    expect(env.PATH.split(':')).toEqual(['/user/mise/shims', '/usr/bin', '/mock/cherry.bin'])
+  })
 })
 
 describe('getBinaryIsolatedHomeEnv', () => {

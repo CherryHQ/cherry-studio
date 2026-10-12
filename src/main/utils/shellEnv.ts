@@ -1,11 +1,16 @@
 import { spawn } from 'child_process'
-import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 
-import { dedupePathSegments, getBinarySearchDirs, getBinaryShimsDir, mergeBinaryExecutionEnv } from './binaryEnv'
+import {
+  dedupePathSegments,
+  getBinarySearchDirs,
+  getBinaryShimsDir,
+  mergeBinaryExecutionEnv,
+  normalizePathSegmentForComparison
+} from './binaryEnv'
 import { getBundledGitDir } from './bundledGit'
 
 const logger = loggerService.withContext('ShellEnv')
@@ -80,9 +85,9 @@ export function resolveCherryPathTailDirs(hasUserMise: boolean): string[] {
 /** Drop one directory from every PATH key in `env`, matching Windows paths case-insensitively. */
 export function removePathEntry(env: Record<string, string | undefined>, dir: string): void {
   if (!dir) return
-  const target = isWin ? path.normalize(dir).toLowerCase() : path.normalize(dir)
+  const target = normalizePathSegmentForComparison(dir)
   const delimiter = isWin ? ';' : ':'
-  const normalize = (value: string) => (isWin ? path.normalize(value).toLowerCase() : path.normalize(value))
+  const normalize = normalizePathSegmentForComparison
   const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   for (const key of pathKeys) {
     const value = env[key]

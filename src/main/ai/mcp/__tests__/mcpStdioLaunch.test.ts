@@ -39,6 +39,24 @@ describe('resolveStdioLaunch', () => {
     })
   })
 
+  it('strips inherited Cherry shims even when the PATH entry has a trailing separator', async () => {
+    const shims = getBinaryShimsDir()
+    shellEnvMock.getRawShellEnv.mockResolvedValue({
+      PATH: `${shims}/:/home/user/.local/share/mise/shims:/usr/bin`,
+      MISE_DATA_DIR: '/home/user/.local/share/mise'
+    })
+
+    await resolveStdioLaunch({
+      server: { command: 'uvx', env: {} } as never,
+      args: ['pkg'],
+      logger
+    })
+
+    const spawnEnv = launchMock.resolveLaunchCommand.mock.calls[0][0].loginShellEnv as Record<string, string>
+    expect(spawnEnv.PATH.split(':')).not.toContain(`${shims}/`)
+    expect(spawnEnv.PATH.split(':')).not.toContain(shims)
+  })
+
   it('strips inherited Cherry shims from PATH when the user owns mise', async () => {
     const shims = getBinaryShimsDir()
     shellEnvMock.getRawShellEnv.mockResolvedValue({

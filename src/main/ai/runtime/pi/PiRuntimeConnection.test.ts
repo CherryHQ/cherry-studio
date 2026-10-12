@@ -567,9 +567,11 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
       expect(mocks.bashToolOptions).toMatchObject({ commandPrefix: undefined })
     } else {
-      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith('export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\'')
+      const shims = path.join('/cherry/Toolchain/mise', 'shims')
+      const expectedPrefix = `export PATH="$PATH":'${shims}:/opt/homebrew/bin:/usr/bin:/cherry/bin'`
+      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(expectedPrefix)
       expect(mocks.bashToolOptions).toMatchObject({
-        commandPrefix: 'export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\''
+        commandPrefix: expectedPrefix
       })
     }
     expect(buildPiLoginPathPrefix("/opt/homebrew/bin:/Users/o'connor/bin", 'darwin')).toBe(
@@ -598,7 +600,10 @@ describe('PiRuntimeConnection', () => {
 
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(`export PATH="$PATH":'/opt/homebrew/bin:/usr/bin'`)
+      const shims = path.join('/cherry/Toolchain/mise', 'shims')
+      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(
+        `export PATH="$PATH":'${shims}:/opt/homebrew/bin:/usr/bin:/cherry/bin'`
+      )
     }
   )
 
