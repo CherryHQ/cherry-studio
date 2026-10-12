@@ -148,7 +148,7 @@ returns full text. `scope: 'all'` is the same as `'lineage'`: edits drop the tur
 
 ## Subagents
 
-`subagents: SubagentPort` registers `subagent({ description, prompt })`, a `model-only` tool with DSH's
+`subagents: SubagentPort` registers `subagent({ description, prompt, fork? })`, a `model-only` tool with DSH's
 name, so Cherry's renderer shows it as a Task card. Each call builds a session in-process from the
 parent's options (port, request options, model, prompts, tools, compaction, offload, recall,
 settings) plus the extensions the host returns from `SubagentPort.configure(subagent)`, starts it
@@ -160,10 +160,16 @@ reach the parent's side channel, told apart by the request `sessionId`; the pare
 budgets; the host already accounted each request). Its transcript events go only to the `onEvent`
 the host returned; `onSessionCreated` receives its session before its first request. Its session id
 is `<parent session id>.<call id>`, characters Pi rejects in the call id replaced by `-`. Subagent
-calls of one step run at the same time, and a subagent has no `subagent` tool of its own.
+calls of one step run at the same time, and a fresh subagent has no `subagent` tool of its own.
 
 A subagent's session holds a `cherry.subagent-origin` state entry (`{ parentToolCallId, fork }`),
 never sent to the model; `AskUserQuestion` ends there as `unavailable` without asking the port.
+
+`fork: true` starts the subagent from the parent's transcript up to the assistant message holding the
+call, every call of that message answered by the same placeholder, so forks of one step send the same
+prefix and can share the prompt cache. A fork keeps the parent's tools, `subagent` included, and the
+host must return the parent's extensions for it; calls a subagent may not make (another `subagent`,
+`AskUserQuestion`) fail or end as `unavailable` instead of being removed.
 
 ## Extensions
 
@@ -220,6 +226,8 @@ approval extension, so each call the subagent makes is approved on its own.
   replay; Cherry's Pi runtime rebuilds it from the response id (`piThinkingReplay.ts`). The
   transcript keeps `responseId` for this, but requests do not expose it to the port yet; how they
   will is decided when the host is wired up.
+- A fork's requests carry the subagent's session id, so a host that routes prompt caches by session id
+  (OpenAI's `prompt_cache_key`) does not reach the parent's cache partition.
 
 ## Tests
 

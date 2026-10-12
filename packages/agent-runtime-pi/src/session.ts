@@ -158,7 +158,10 @@ export async function createAgentRuntimeSession<TRequestOptions>(
       ? [
           subagentExtension({
             port: options.subagents,
-            createSession: (overrides) => createAgentRuntimeSession({ ...options, ...overrides, subagents: undefined })
+            // A fork keeps `subagent` so its tools match the parent's; a fresh subagent has none.
+            createSession: ({ fork, ...overrides }) =>
+              createAgentRuntimeSession({ ...options, ...overrides, subagents: fork ? options.subagents : undefined }),
+            parentTranscript: () => tap.entries()
           })
         ]
       : []),
