@@ -70,6 +70,94 @@ describe('planAnalysisFrameTimestamps', () => {
     expect(timestamps.some((timestamp) => timestamp >= 8_125 && timestamp < 8_625)).toBe(true)
   })
 
+  it('retains one short cut and both ends of a six-second clip unless the caller cap is 1 or 2', () => {
+    const sceneChanges = [
+      { timestampMs: 3_000, score: 1 },
+      { timestampMs: 4_000, score: 1 }
+    ]
+    const timestamps = planAnalysisFrameTimestamps({
+      durationMs: 6_000,
+      maxFrames: 24,
+      targetIntervalMs: 4_000,
+      sceneChanges
+    })
+
+    expect(timestamps.length).toBeGreaterThanOrEqual(3)
+    expect(timestamps.length).toBeLessThanOrEqual(24)
+    expect(timestamps[0]).toBe(0)
+    expect(timestamps.at(-1)).toBe(5_950)
+    expect(timestamps.some((timestamp) => timestamp >= 3_000 && timestamp < 4_000)).toBe(true)
+
+    const oneFrame = planAnalysisFrameTimestamps({
+      durationMs: 6_000,
+      maxFrames: 1,
+      targetIntervalMs: 4_000,
+      sceneChanges
+    })
+    const twoFrames = planAnalysisFrameTimestamps({
+      durationMs: 6_000,
+      maxFrames: 2,
+      targetIntervalMs: 4_000,
+      sceneChanges
+    })
+    expect(oneFrame).toEqual(planFrameTimestamps(6_000, 1, 4_000))
+    expect(twoFrames).toEqual(planFrameTimestamps(6_000, 2, 4_000))
+    expect(oneFrame.length).toBeLessThanOrEqual(1)
+    expect(twoFrames.length).toBeLessThanOrEqual(2)
+
+    expect(
+      planAnalysisFrameTimestamps({
+        durationMs: 6_000,
+        maxFrames: 24,
+        targetIntervalMs: 4_000,
+        sceneChanges: []
+      })
+    ).toEqual(planFrameTimestamps(6_000, 24, 4_000))
+  })
+
+  it('keeps both ends and one cut on a three-second clip shorter than the sample interval', () => {
+    const sceneChanges = [
+      { timestampMs: 1_000, score: 1 },
+      { timestampMs: 1_500, score: 1 }
+    ]
+    const timestamps = planAnalysisFrameTimestamps({
+      durationMs: 3_000,
+      maxFrames: 24,
+      targetIntervalMs: 4_000,
+      sceneChanges
+    })
+
+    expect(timestamps.length).toBeGreaterThanOrEqual(3)
+    expect(timestamps.length).toBeLessThanOrEqual(24)
+    expect(timestamps[0]).toBe(0)
+    expect(timestamps.at(-1)).toBe(2_950)
+    expect(timestamps.some((timestamp) => timestamp >= 1_000 && timestamp < 1_500)).toBe(true)
+    expect(
+      planAnalysisFrameTimestamps({
+        durationMs: 3_000,
+        maxFrames: 1,
+        targetIntervalMs: 4_000,
+        sceneChanges
+      })
+    ).toEqual(planFrameTimestamps(3_000, 1, 4_000))
+    expect(
+      planAnalysisFrameTimestamps({
+        durationMs: 3_000,
+        maxFrames: 2,
+        targetIntervalMs: 4_000,
+        sceneChanges
+      })
+    ).toEqual(planFrameTimestamps(3_000, 2, 4_000))
+    expect(
+      planAnalysisFrameTimestamps({
+        durationMs: 3_000,
+        maxFrames: 24,
+        targetIntervalMs: 4_000,
+        sceneChanges: []
+      })
+    ).toEqual(planFrameTimestamps(3_000, 24, 4_000))
+  })
+
   it('moves an earlier uniform anchor onto a cut in the same scan sample', () => {
     const timestamps = planAnalysisFrameTimestamps({
       durationMs: 16_000,
