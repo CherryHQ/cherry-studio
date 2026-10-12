@@ -252,6 +252,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStop') return {}
     sessionState().disposeBashScope(sessionId, input.agent_id)
+    // A stopped child issues no further MCP calls, so it must stop holding the unattributed-call
+    // denial open: the session can resolve its own authority again once unattended work is gone.
+    application.get('AgentSessionRuntimeService').releaseNativeChildOrigin(sessionId, input.agent_id)
     return {}
   }
 

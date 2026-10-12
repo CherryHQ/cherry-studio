@@ -325,7 +325,8 @@ type AgentSessionRuntimeEntry = {
   /**
    * Provenance of NATIVE Claude subagents, keyed by the SDK's per-session-set `agent_id`. Unlike the
    * bridge children above these have no parent linkage (a native child never forwards a caller id),
-   * so each binds to the turn that was current when the SDK announced it.
+   * so each binds to the turn that was current when the SDK announced it. Keyed entries are the ones
+   * still announced as running; `SubagentStop` removes them.
    */
   nativeChildOrigins?: Map<string, boolean>
 }
@@ -3479,7 +3480,13 @@ export class AgentSessionRuntimeService extends BaseService {
   ): { windowId: string; topicId: string; model: string } | undefined {
     const entry = this.entries.get(sessionId)
     if (!entry) return undefined
-    if (this.isHeadlessBridgeOrigin(entry, bridgeOrigin)) return undefined
+    const native = this.nativeChildOrigin(entry, bridgeOrigin)
+    if (native === true) return undefined
+    if (native === undefined && this.isHeadlessBridgeOrigin(entry, bridgeOrigin)) return undefined
+    // Same fail-closed rule as `getSessionToolsAuthorization`: a native child's MCP request carries
+    // no origin, so an unattributed call must not raise consent in the foreground turn's window
+    // while a headless child is still running.
+    if (bridgeOrigin === undefined && this.hasHeadlessNativeChild(entry)) return undefined
     if (this.getInteractionState(sessionId).userResponse === 'unavailable') return undefined
     const windowId = application.get('AiStreamManager').getInteractionWindow(entry.topicId) ?? entry.interactionWindowId
     if (!windowId || !application.get('WindowManager').getWindow(windowId)) return undefined
@@ -3569,13 +3576,41 @@ export class AgentSessionRuntimeService extends BaseService {
     // A call issued by a headless-spawned child keeps that origin's denial regardless of whose
     // responder the aggregate occupancy currently reports. Checked FIRST: without an explicit
     // provenance the session-level resolution below credits the child with someone else's turn.
-    if (entry && this.isHeadlessBridgeOrigin(entry, bridgeOrigin)) {
+    // A native Claude child is named by the SDK's `agent_id`; resolve it against its own binding
+    // before the bridge map, which would fail closed on an id it never bound.
+    const native = entry ? this.nativeChildOrigin(entry, bridgeOrigin) : undefined
+    if (native === true) return { currentTurn: 'headless', userResponse: 'unavailable' }
+    // A call issued by a headless-spawned child keeps that origin's denial regardless of whose
+    // responder the aggregate occupancy currently reports. Checked FIRST: without an explicit
+    // provenance the session-level resolution below credits the child with someone else's turn.
+    if (native === undefined && entry && this.isHeadlessBridgeOrigin(entry, bridgeOrigin)) {
       return { currentTurn: 'headless', userResponse: 'unavailable' }
     }
     if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') return interaction
     const backgroundResponder = entry && getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
     if (backgroundResponder === 'headless') return { currentTurn: 'headless', userResponse: 'unavailable' }
+    // A native Claude child issues MCP calls over the root Session's single transport and cannot
+    // stamp `cherry.bridgeOrigin`, so a call with no provenance may belong to any running child.
+    // While one of them holds unattended authority, crediting this call with the foreground turn's
+    // interactive state would hand it the auto-approved discovery tools — fail closed instead.
+    if (entry && bridgeOrigin === undefined && this.hasHeadlessNativeChild(entry)) {
+      return { currentTurn: 'headless', userResponse: 'unavailable' }
+    }
     return interaction
+  }
+
+  /** Whether `bridgeOrigin` names a bound native child: undefined when it names no native child. */
+  private nativeChildOrigin(entry: AgentSessionRuntimeEntry, bridgeOrigin: string | undefined): boolean | undefined {
+    if (bridgeOrigin === undefined || !entry.nativeChildOrigins?.has(bridgeOrigin)) return undefined
+    return this.headlessNativeChild(entry, bridgeOrigin)
+  }
+
+  /** Whether any still-running native Claude child holds unattended authority. */
+  private hasHeadlessNativeChild(entry: AgentSessionRuntimeEntry): boolean {
+    for (const headless of entry.nativeChildOrigins?.values() ?? []) {
+      if (headless) return true
+    }
+    return false
   }
 
   /**
@@ -3609,6 +3644,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (origins.has(nativeSubagentId)) return
     const turn = this.currentTurn(entry)
     origins.set(nativeSubagentId, turn === undefined || turn.headless === true)
+  }
+
+  /** Release one native Claude child's binding; it makes no further calls. */
+  releaseNativeChildOrigin(sessionId: string, nativeSubagentId: string): void {
+    this.entries.get(sessionId)?.nativeChildOrigins?.delete(nativeSubagentId)
   }
 
   /** Whether a native child runs under unattended authority. An unbound child fails closed. */
