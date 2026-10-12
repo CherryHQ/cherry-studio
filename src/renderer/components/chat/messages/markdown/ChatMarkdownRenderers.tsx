@@ -44,9 +44,15 @@ function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
   )
 }
 
-function ChatPreRenderer({ children }: MarkdownRendererProps<'pre'>) {
-  // CodeBlockView owns the code surface; file and navigation entries need no preformatted wrapper.
-  return <>{children}</>
+function ChatPreRenderer({ node, children, ...props }: MarkdownRendererProps<'pre'>) {
+  const child = node?.children.length === 1 ? node.children[0] : undefined
+  // Only the code renderer supplies a replacement surface; raw HTML still needs preformatted whitespace.
+  if (child?.type === 'element' && child.tagName === 'code') return <>{children}</>
+  return (
+    <pre style={{ overflow: 'visible' }} {...props}>
+      {children}
+    </pre>
+  )
 }
 
 function ChatSpanRenderer({ node, children, ...props }: MarkdownRendererProps<'span'>) {

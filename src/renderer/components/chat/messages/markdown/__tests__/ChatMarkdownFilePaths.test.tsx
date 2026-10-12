@@ -105,6 +105,18 @@ describe('ChatMarkdown code entries', () => {
   const path = 'modules/file-hash/android/src/main/java/expo/modules/filehash/FileHashModule.kt'
 
   it.each([
+    ['name    value\nalpha   10\nbeta    20', 'name    value\nalpha   10\nbeta    20'],
+    ['name    value\n<code>alpha</code>   10\nbeta    20', 'name    value\nalpha   10\nbeta    20']
+  ])('preserves raw preformatted rows and spacing: %s', async (html, text) => {
+    render(<ChatMarkdownRuntime block={{ id: 'raw-pre', content: `<pre>${html}</pre>`, status: 'success' }} />)
+
+    // Native preformatted whitespace is required even when the content also includes inline code.
+    const pre = (await screen.findByText(/name\s+value/)).closest('pre')
+    expect(pre).not.toBeNull()
+    expect(pre?.textContent).toBe(text)
+  })
+
+  it.each([
     ['inline', '`' + path + '`'],
     ['plain fence', '```\n' + path + '\n```'],
     ['text fence', '```text\n' + path + '\n```']
