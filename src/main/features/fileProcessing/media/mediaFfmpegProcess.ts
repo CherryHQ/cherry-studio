@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { application } from '@application'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import type { UtilityProcessMethod } from '@main/core/utilityProcess/types'
@@ -51,11 +49,31 @@ export interface MediaExtractFramesResult {
   frames: Array<{ path: string; timestampMs: number }>
 }
 
+export interface MediaDetectSceneChangesInput {
+  filePath: string
+  durationMs: number
+  sampleFps: number
+  scoreThreshold: number
+  scanEdgePx: number
+  maxCandidates: number
+  pidRegistryPath?: string
+}
+
+export interface MediaSceneChange {
+  timestampMs: number
+  score: number
+}
+
+export interface MediaDetectSceneChangesResult {
+  changes: MediaSceneChange[]
+}
+
 export type MediaFfmpegContract = {
   methods: {
     probe: UtilityProcessMethod<MediaProbeInput, ClassifiedMediaProbe>
     extractAudio: UtilityProcessMethod<MediaExtractAudioInput, MediaExtractAudioResult>
     extractFrames: UtilityProcessMethod<MediaExtractFramesInput, MediaExtractFramesResult>
+    detectSceneChanges: UtilityProcessMethod<MediaDetectSceneChangesInput, MediaDetectSceneChangesResult>
   }
 }
 
@@ -65,15 +83,17 @@ export const mediaFfmpegProcess = defineUtilityProcess<MediaFfmpegContract, Medi
   cancellation: 'cooperative',
   idleTimeoutMs: 5 * 60 * 1000,
   createInitData: () => {
-    const binDir = application.getPath('cherry.bin')
-    const executable = (name: 'ffmpeg' | 'ffprobe') => {
-      if (process.platform === 'linux') return path.join(binDir, 'ffmpeg', 'bin', name)
-      return path.join(binDir, process.platform === 'win32' ? `${name}.exe` : name)
+    if (process.platform === 'linux') {
+      return {
+        ffmpegPath: application.getPath('cherry.bin.ffmpeg.bin', 'ffmpeg'),
+        ffprobePath: application.getPath('cherry.bin.ffmpeg.bin', 'ffprobe'),
+        linuxLibraryDir: application.getPath('cherry.bin.ffmpeg.lib')
+      }
     }
+    const suffix = process.platform === 'win32' ? '.exe' : ''
     return {
-      ffmpegPath: executable('ffmpeg'),
-      ffprobePath: executable('ffprobe'),
-      ...(process.platform === 'linux' ? { linuxLibraryDir: path.join(binDir, 'ffmpeg', 'lib') } : {})
+      ffmpegPath: application.getPath('cherry.bin', `ffmpeg${suffix}`),
+      ffprobePath: application.getPath('cherry.bin', `ffprobe${suffix}`)
     }
   }
 })

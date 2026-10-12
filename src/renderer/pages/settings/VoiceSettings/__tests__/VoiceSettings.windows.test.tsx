@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { LOCAL_VOICE_MODELS, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import { LOCAL_VOICE_MODELS, WINDOWS_ASR_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
 
 vi.unmock('@cherrystudio/ui')
 
@@ -13,6 +13,7 @@ const voice = vi.hoisted(() => ({
   listVoices: vi.fn(),
   listTranscriptionLocales: vi.fn(),
   getModelStatus: vi.fn(),
+  getMicrophoneStatus: vi.fn(),
   speechStart: vi.fn(),
   dictation: { phase: 'idle', elapsedMs: 0, recoveryAvailable: false },
   speech: { phase: 'idle', progress: { completed: 0, total: 0 } }
@@ -26,7 +27,7 @@ vi.mock('@renderer/services/voice', async () => ({
     listVoices: voice.listVoices,
     listTranscriptionLocales: voice.listTranscriptionLocales,
     getModelStatus: voice.getModelStatus,
-    getMicrophoneStatus: async () => 'denied'
+    getMicrophoneStatus: voice.getMicrophoneStatus
   },
   dictationService: {
     subscribe: () => () => undefined,
@@ -59,6 +60,7 @@ describe('Windows system speech settings', () => {
     voice.listVoices.mockResolvedValue([{ id: 'windows.huihui', name: 'Microsoft Huihui', language: 'zh-CN' }])
     voice.listTranscriptionLocales.mockRejectedValue(new Error('unsupported'))
     voice.getModelStatus.mockResolvedValue({ status: 'ready' })
+    voice.getMicrophoneStatus.mockResolvedValue('denied')
     voice.speechStart.mockResolvedValue({ status: 'started' })
     vi.clearAllMocks()
   })
@@ -106,6 +108,54 @@ describe('Windows system speech settings', () => {
       sourceLabel: 'preview',
       sourceEntityId: 'voice-settings'
     })
+  })
+
+  it('selects Windows recognition and its installed language before enabling dictation', async () => {
+    const user = userEvent.setup()
+    voice.listModels.mockResolvedValue({ models: LOCAL_VOICE_MODELS })
+    voice.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US', 'zh-CN'], installed: ['en-US', 'zh-CN'] })
+    voice.getMicrophoneStatus.mockResolvedValue('granted')
+    const { rerender } = render(<VoiceSettings />)
+
+    await user.click(await screen.findByRole('combobox', { name: /recognition model/i }))
+    await user.click(await screen.findByRole('option', { name: 'Windows System Speech Recognition' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe(WINDOWS_ASR_MODEL_ID)
+    )
+    rerender(<VoiceSettings />)
+
+    const language = screen.getByRole('combobox', { name: /recognition language/i })
+    await waitFor(() => expect(language).toBeEnabled())
+    await user.click(language)
+    await user.click(await screen.findByRole('option', { name: 'Chinese (China)' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
+    )
+    rerender(<VoiceSettings />)
+
+    expect(screen.getByRole('combobox', { name: /recognition language/i })).toHaveTextContent('Chinese (China)')
+    await waitFor(() => expect(screen.getByRole('button', { name: /record test/i })).toBeEnabled())
+    expect(screen.queryByRole('button', { name: /install/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps unavailable Windows recognition selected and blocks recording without offering an asset download', async () => {
+    voice.listModels.mockResolvedValue({ models: LOCAL_VOICE_MODELS })
+    voice.listTranscriptionLocales.mockResolvedValue({ supported: [], installed: [] })
+    voice.getMicrophoneStatus.mockResolvedValue('granted')
+    voice.getModelStatus.mockResolvedValue({ status: 'unsupported', reason: 'unsupported' })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.recognition.model_id': WINDOWS_ASR_MODEL_ID,
+      'feature.voice.recognition.language': 'zh-CN'
+    })
+    render(<VoiceSettings />)
+
+    expect(await screen.findByText('Not supported on this system')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /recognition model/i })).toHaveTextContent(
+      'Windows System Speech Recognition'
+    )
+    expect(screen.getByRole('button', { name: /record test/i })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /install/i })).not.toBeInTheDocument()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe(WINDOWS_ASR_MODEL_ID)
   })
 
   it('requires an explicit Windows voice before preview', async () => {

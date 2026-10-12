@@ -193,9 +193,9 @@ jobs:
       - name: Check locale synchronization
         run: |
           pnpm i18n:sync
-          if [ -n "$(git status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n)" ]; then
+          if [ -n "$(git status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n packages/file-preview/src/locales)" ]; then
             echo "::error::Translations are out of sync."
-            git --no-pager diff -- src/renderer/i18n src/main/i18n
+            git --no-pager diff -- src/renderer/i18n src/main/i18n packages/file-preview/src/locales
             exit 1
           fi
       - run: pnpm check --group i18n
@@ -251,6 +251,9 @@ jobs:
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
       - run: pnpm check --group packages
+      - name: Check Provider Registry Package
+        if: contains(fromJSON(needs.changes.outputs.plan).projects, 'provider-registry')
+        run: pnpm --filter @cherrystudio/provider-registry test:package
 
   platform-test:
     name: platform-test (${{ matrix.os }})

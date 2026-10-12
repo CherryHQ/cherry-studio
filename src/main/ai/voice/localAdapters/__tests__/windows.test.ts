@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -6,11 +6,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
-import { APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
+import { APPLE_TTS_MODEL_ID, WINDOWS_ASR_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
 
-import { createLocalSpeechModel, getLocalVoiceStatus, listLocalVoices } from '../../localAdapters'
+import {
+  createLocalSpeechModel,
+  createLocalTranscriptionModel,
+  getLocalVoiceStatus,
+  listLocalAsrLocales,
+  listLocalVoices
+} from '../../localAdapters'
 
-const mocks = vi.hoisted(() => ({ nativeRequest: vi.fn() }))
+const mocks = vi.hoisted(() => ({ nativeRequest: vi.fn(), decode: vi.fn() }))
 vi.mock('@cherrystudio/system-speech/native', () => ({
   SystemSpeechNativeClient: class {
     request = mocks.nativeRequest
@@ -52,6 +59,8 @@ beforeEach(async () => {
   vi.mocked(application.getPath).mockImplementation((_key, filename) =>
     filename ? join(directory, filename) : directory
   )
+  vi.mocked(application.get).mockImplementation(() => ({ client: () => ({ request: mocks.decode }) }) as never)
+  mocks.decode.mockReset().mockResolvedValue({ wav, durationSeconds: 1, sampleRate: 16000, channels: 1 })
   mocks.nativeRequest.mockImplementation(async (request) => {
     if (request.operation === 'capabilities') return capabilities
     if (request.operation !== 'synthesize' || request.voiceId !== voices[0].id || request.speed === undefined)
@@ -67,6 +76,141 @@ beforeEach(async () => {
         frameCount: 1
       }
     }
+  })
+})
+
+describe('Windows system ASR adapter', () => {
+  const audio = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])
+  const input = { audio, mediaType: 'audio/webm;codecs=opus' }
+
+  beforeEach(() => {
+    mocks.nativeRequest.mockImplementation(async (request) => {
+      if (request.operation === 'probe_asr') return { operation: 'probe_asr', result: { locale: request.locale } }
+      if (request.operation === 'list_asr_locales')
+        return { operation: 'list_asr_locales', result: { supported: ['zh-CN'], installed: ['zh-CN'] } }
+      if (request.operation !== 'transcribe') throw new Error('Unexpected native operation')
+      expect(await readFile(request.inputPath)).toEqual(wav)
+      return { operation: 'transcribe', result: { text: 'private transcript', locale: request.locale } }
+    })
+  })
+
+  it('probes an actual recognizer independently of installed TTS voices', async () => {
+    expect(await getLocalVoiceStatus(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' })).toEqual({ status: 'ready' })
+    expect(mocks.nativeRequest).toHaveBeenCalledWith({ operation: 'probe_asr', locale: 'zh-CN' }, { signal: undefined })
+  })
+
+  it('lists Windows recognition locales through the shared discovery route', async () => {
+    expect(await listLocalAsrLocales()).toEqual({ supported: ['zh-CN'], installed: ['zh-CN'] })
+    expect(mocks.nativeRequest).toHaveBeenCalledWith({ operation: 'list_asr_locales' }, { signal: undefined })
+  })
+
+  it('decodes WebM, uses the selected locale and removes derived WAV before returning', async () => {
+    const result = await createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' }).doGenerate(input)
+    expect(result).toMatchObject({ text: 'private transcript', language: 'zh', durationInSeconds: 1, segments: [] })
+    expect(result.response.modelId).toBe(WINDOWS_ASR_MODEL_ID)
+    expect(mocks.decode).toHaveBeenCalledWith(
+      'decode',
+      { audio, mimeType: input.mediaType },
+      { signal: expect.any(AbortSignal) }
+    )
+    expect(mocks.nativeRequest).toHaveBeenLastCalledWith(
+      { operation: 'transcribe', locale: 'zh-CN', inputPath: expect.stringContaining('input.wav') },
+      { signal: undefined }
+    )
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('uses the same default language for probing and transcription', async () => {
+    await createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate(input)
+    expect(mocks.nativeRequest.mock.calls.map(([request]) => request.locale)).toEqual(['en-US', 'en-US'])
+  })
+
+  it.each(['unsupported_locale', 'transcription_failed', 'native_helper_failed'] as const)(
+    'does not decode or transcribe when the engine probe fails with %s',
+    async (code) => {
+      mocks.nativeRequest.mockRejectedValue(new SystemSpeechError(code))
+      const unsupported = code === 'unsupported_locale'
+      expect(await getLocalVoiceStatus(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' })).toEqual({
+        status: unsupported ? 'unsupported' : 'failed',
+        reason: unsupported ? 'unsupported' : 'operation_failed'
+      })
+      await expect(
+        createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' }).doGenerate(input)
+      ).rejects.toMatchObject({ reason: unsupported ? 'unsupported' : 'operation_failed' })
+      expect(mocks.decode).not.toHaveBeenCalled()
+      expect(mocks.nativeRequest.mock.calls.every(([request]) => request.operation === 'probe_asr')).toBe(true)
+    }
+  )
+
+  it.each([
+    ['win32', 'arm64'],
+    ['darwin', 'arm64'],
+    ['linux', 'x64']
+  ])('rejects Windows ASR on %s/%s without calling a native helper', async (os, arch) => {
+    platform(os, arch)
+    await expect(createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate(input)).rejects.toMatchObject({
+      reason: 'unsupported'
+    })
+    expect(mocks.nativeRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects other audio formats before probing the engine', async () => {
+    await expect(
+      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({ ...input, mediaType: 'audio/wav' })
+    ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    expect(mocks.nativeRequest).not.toHaveBeenCalled()
+  })
+
+  it.each(['timeout', 'transcription_failed'] as const)('cleans derived audio after %s', async (code) => {
+    mocks.nativeRequest.mockImplementation(async (request) => {
+      if (request.operation === 'probe_asr') return { operation: 'probe_asr', result: { locale: request.locale } }
+      expect(await readFile(request.inputPath)).toEqual(wav)
+      throw new SystemSpeechError(code)
+    })
+    await expect(createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate(input)).rejects.toMatchObject({
+      reason: code === 'timeout' ? 'timeout' : 'operation_failed'
+    })
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('rejects malformed WebM without transcribing and removes its scratch directory', async () => {
+    mocks.decode.mockRejectedValue(
+      new UtilityProcessError('PROCESS_REMOTE_ERROR', 'invalid audio', {
+        processId: 'voice.audio',
+        remote: { name: 'Error', message: 'invalid audio', code: 'VOICE_AUDIO_INVALID' }
+      })
+    )
+    await expect(createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate(input)).rejects.toMatchObject({
+      reason: 'invalid_audio'
+    })
+    expect(mocks.nativeRequest.mock.calls.map(([request]) => request.operation)).toEqual(['probe_asr'])
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('waits for native cancellation before reclaiming its WAV', async () => {
+    const controller = new AbortController()
+    let started!: () => void
+    const recognitionStarted = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    mocks.nativeRequest.mockImplementation(async (request, { signal }) => {
+      if (request.operation === 'probe_asr') return { operation: 'probe_asr', result: { locale: request.locale } }
+      expect(await readFile(request.inputPath)).toEqual(wav)
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new SystemSpeechError('cancelled')), { once: true })
+        started()
+      })
+    })
+    const result = Promise.resolve(
+      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({
+        ...input,
+        abortSignal: controller.signal
+      })
+    ).catch((error: unknown) => error)
+    await recognitionStarted
+    controller.abort()
+    expect(await result).toMatchObject({ reason: 'aborted' })
+    expect(await readdir(directory)).toEqual([])
   })
 })
 

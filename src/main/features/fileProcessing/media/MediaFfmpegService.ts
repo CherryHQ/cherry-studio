@@ -8,6 +8,8 @@ import { BaseService, Conditional, DependsOn, Injectable, onPlatform, Phase, Ser
 import type { UtilityProcessRequestOptions } from '@main/core/utilityProcess/types'
 
 import {
+  type MediaDetectSceneChangesInput,
+  type MediaDetectSceneChangesResult,
   type MediaExtractAudioInput,
   type MediaExtractAudioResult,
   type MediaExtractFramesInput,
@@ -23,6 +25,7 @@ const logger = loggerService.withContext('MediaFfmpegService')
 export type MediaProbeRequest = Omit<MediaProbeInput, 'pidRegistryPath'>
 export type MediaExtractAudioRequest = Omit<MediaExtractAudioInput, 'pidRegistryPath'>
 export type MediaExtractFramesRequest = Omit<MediaExtractFramesInput, 'pidRegistryPath'>
+export type MediaDetectSceneChangesRequest = Omit<MediaDetectSceneChangesInput, 'pidRegistryPath'>
 
 @Injectable('MediaFfmpegService')
 @ServicePhase(Phase.WhenReady)
@@ -57,6 +60,13 @@ export class MediaFfmpegService extends BaseService {
     return this.run('extractFrames', input, { signal })
   }
 
+  detectSceneChanges(
+    input: MediaDetectSceneChangesRequest,
+    signal?: AbortSignal
+  ): Promise<MediaDetectSceneChangesResult> {
+    return this.run('detectSceneChanges', input, { signal })
+  }
+
   private run<M extends keyof MediaFfmpegContract['methods'] & string>(
     method: M,
     input: Omit<MediaFfmpegContract['methods'][M]['input'], 'pidRegistryPath'>,
@@ -87,6 +97,9 @@ export class MediaFfmpegService extends BaseService {
     const registryDir = await mkdtemp(application.getPath('app.temp', 'media-ffmpeg-'))
     const pidRegistryPath = join(registryDir, 'active-child.pid')
     try {
+      if (!this.initialized || generation !== this.generation) {
+        throw new Error('MediaFfmpegService request belongs to an inactive lifecycle generation')
+      }
       const client = application.get('UtilityProcessManager').client(mediaFfmpegProcess)
       return await client.request(method, { ...input, pidRegistryPath }, options)
     } catch (error) {

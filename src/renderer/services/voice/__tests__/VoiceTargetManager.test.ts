@@ -7,6 +7,35 @@ function owner(closed = false): Window {
 }
 
 describe('VoiceTargetManager exact binding', () => {
+  it('publishes stable target availability across focus, rebind and stale cleanup', () => {
+    const manager = new VoiceTargetManager()
+    const snapshots: unknown[] = []
+    const unsubscribe = manager.subscribe(() => snapshots.push(manager.getSnapshot()))
+    const registration = {
+      targetId: 'editor',
+      owner: owner(),
+      sourceEntityId: 'document',
+      captureReplaceRange: () => ({ from: 0, to: 0 }),
+      replaceRange: () => true
+    }
+    const oldCleanup = manager.bind(registration)
+    manager.markCurrent('editor')
+    const first = manager.getSnapshot()
+    expect(first?.targetId).toBe('editor')
+    manager.markCurrent('editor')
+    expect(manager.getSnapshot()).toBe(first)
+    const cleanup = manager.bind(registration)
+    expect(manager.getSnapshot()).toBeNull()
+    manager.markCurrent('editor')
+    const second = manager.getSnapshot()
+    expect(second?.bindingToken).not.toBe(first?.bindingToken)
+    oldCleanup()
+    expect(manager.getSnapshot()).toBe(second)
+    cleanup()
+    expect(snapshots).toEqual([first, null, second, null])
+    unsubscribe()
+  })
+
   it('inserts a completion into the original target at its live selection', () => {
     const manager = new VoiceTargetManager()
     const targetOwner = owner()
