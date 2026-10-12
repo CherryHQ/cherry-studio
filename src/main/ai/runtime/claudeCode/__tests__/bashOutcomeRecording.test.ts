@@ -9,10 +9,11 @@
 import type { HookCallback } from '@anthropic-ai/claude-agent-sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { loggerMock, applicationMock } = vi.hoisted(() => {
+const { loggerMock, applicationMock, releaseNativeChildOrigin } = vi.hoisted(() => {
   const loggerMock = { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }
   const applicationMock = { get: vi.fn() }
-  return { loggerMock, applicationMock }
+  const releaseNativeChildOrigin = vi.fn()
+  return { loggerMock, applicationMock, releaseNativeChildOrigin }
 })
 
 vi.mock('@application', () => ({ application: applicationMock }))
@@ -153,9 +154,11 @@ describe('bashOutcomeHook', () => {
   let subagentStopHook: HookCallback
 
   beforeEach(() => {
+    releaseNativeChildOrigin.mockClear()
     applicationMock.get.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeSessionStateService') return svc
-      if (name === 'AgentSessionRuntimeService') return { getToolGuardInteractionState: () => undefined }
+      if (name === 'AgentSessionRuntimeService')
+        return { getToolGuardInteractionState: () => undefined, releaseNativeChildOrigin }
       throw new Error(`unexpected service: ${name}`)
     })
     vi.mocked(evaluateToolGuards).mockClear()
@@ -580,5 +583,10 @@ describe('bashOutcomeHook', () => {
     )
 
     expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit', 'agent-1')).toBeUndefined()
+
+    // The stopped child also stops holding the unattributed-call denial open: while it runs, a
+    // headless-spawned child's unattributable MCP call fails closed; once it is gone the session
+    // resolves its own authority again.
+    expect(releaseNativeChildOrigin).toHaveBeenCalledWith(SESSION, 'agent-1')
   })
 })
