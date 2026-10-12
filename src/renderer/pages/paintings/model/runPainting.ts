@@ -14,21 +14,30 @@ const logger = loggerService.withContext('paintings/generation')
  *  `ai.image.generate` route attaches to its IpcError `data`: prefer the
  *  provider message, else the HTTP status, else a response-body snippet.
  *  A 504 maps to the friendly timeout string — gateway bodies are proxy noise. */
-// Exhausted SDK retries arrive as RetryError with the 504 nested in lastError/errors.
-function hasStatusCode(detail: SerializedError, status: number): boolean {
-  if (detail.statusCode === status) return true
-  const nested = [detail.lastError, detail.originalError, ...(Array.isArray(detail.errors) ? detail.errors : [])]
-  return nested.some(
-    (entry) => typeof entry === 'object' && entry !== null && hasStatusCode(entry as SerializedError, status)
-  )
+// Exhausted SDK retries arrive as RetryError with the terminal failure in lastError
+// (or the final errors[] entry). Classify that terminal shape only — not earlier retries.
+function terminalSerializedError(detail: SerializedError): SerializedError {
+  if (typeof detail.lastError === 'object' && detail.lastError !== null) {
+    return detail.lastError as SerializedError
+  }
+  const errors = detail.errors
+  if (Array.isArray(errors) && errors.length > 0) {
+    const final = errors[errors.length - 1]
+    if (typeof final === 'object' && final !== null) {
+      return final as SerializedError
+    }
+  }
+  return detail
 }
 
 function aiDetailMessage(detail: SerializedError): string {
-  if (hasStatusCode(detail, 504)) return i18n.t('error.http.504')
+  const terminal = terminalSerializedError(detail)
+  if (terminal.statusCode === 504) return i18n.t('error.http.504')
+  if (terminal.message) return terminal.message
   if (detail.message) return detail.message
-  const status = typeof detail.statusCode === 'number' ? `HTTP ${detail.statusCode}` : ''
-  const body = typeof detail.responseBody === 'string' ? detail.responseBody.slice(0, 300) : ''
-  return [status, body].filter(Boolean).join(' ') || detail.name || 'Image generation failed'
+  const status = typeof terminal.statusCode === 'number' ? `HTTP ${terminal.statusCode}` : ''
+  const body = typeof terminal.responseBody === 'string' ? terminal.responseBody.slice(0, 300) : ''
+  return [status, body].filter(Boolean).join(' ') || terminal.name || detail.name || 'Image generation failed'
 }
 
 export type GenerationResult =
