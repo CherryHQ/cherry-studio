@@ -55,6 +55,17 @@ export class ChannelAdapterListener implements StreamListener {
     return this.adapter.onTextUpdate(this.platformChatId, text, this.responseOptions)
   }
 
+  /**
+   * Detach the text this execution owns from the buffer. Called at the terminal so a wake emitting
+   * through this carried listener while the predecessor's finalize is still awaited never reads — or
+   * ships — that wake's text as part of the predecessor's reply.
+   */
+  private takePendingText(): string {
+    const text = this.accumulatedText
+    this.accumulatedText = ''
+    return text
+  }
+
   private completeStream(text: string, status: 'success' | 'paused'): Promise<boolean> {
     const complete = this.updateChain.then(() =>
       this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions, { status })
@@ -100,20 +111,18 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   private async finish(status: 'success' | 'paused', isTopicDone?: boolean, attemptId?: number): Promise<void> {
+    // Take this execution's text BEFORE yielding: a predecessor's finalize can still be in flight
+    // when a wake emits through this carried listener, and text arriving during the await below
+    // belongs to that wake, not to this execution.
+    const text = sanitizeChannelOutput(this.takePendingText()).text.trim()
     // A predecessor's finalize can still be in flight when this execution's terminal arrives on the
     // same listener (chain-hold gap, background wake). Its `completeStream` owns the chat's single
     // adapter controller until it settles, so this one has to wait its turn.
     await this.updateChain
     if (!this.owesDelivery(attemptId)) return
-    const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
 
     this.delivered = true
     if (attemptId !== undefined) this.deliveredAttemptId = attemptId
-    if (!isTopicDone) {
-      // Chain-hold gap: this turn is over but the topic lives on, so the next turn starts its own
-      // message rather than re-posting this one alongside it.
-      this.accumulatedText = ''
-    }
     try {
       const handled = await this.completeStream(text, status)
       if (!handled && text) {
@@ -129,17 +138,15 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
+    // Same rule as `finish`: drop this execution's text before yielding, so a wake emitting through
+    // this carried listener during the await does not inherit or re-ship it.
+    this.takePendingText()
     // Same ordering rule as `finish`: a predecessor's finalize owns the chat's single adapter
     // controller until it settles.
     await this.updateChain
     if (!this.owesDelivery(result.attemptId)) return
     this.delivered = true
     if (result.attemptId !== undefined) this.deliveredAttemptId = result.attemptId
-    if (!result.isTopicDone) {
-      // Same chain-hold gap as `finish`: a live sibling keeps the topic alive, so the successor turn
-      // must not inherit this turn's un-delivered text.
-      this.accumulatedText = ''
-    }
     try {
       const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
       const handled = await this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {
