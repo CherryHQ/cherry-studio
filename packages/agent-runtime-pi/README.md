@@ -171,6 +171,13 @@ prefix and can share the prompt cache. A fork keeps the parent's tools, `subagen
 host must return the parent's extensions for it; calls a subagent may not make (another `subagent`,
 `AskUserQuestion`) fail or end as `unavailable` instead of being removed.
 
+A subagent that fails, is cut off by its output limit, is aborted with the parent's turn or reaches
+200 model requests returns an `isError` result with the reason, its last partial output, `details`
+and `usage`; `outcome` is `failed`, `truncated`, `aborted` or `limit_reached`. A host whose
+`configure` throws fails that call only. The bridge never hands the port a request whose signal is
+already aborted. When a provider reuses a call id across turns, the later subagents' session ids end
+in `-2`, `-3` and so on.
+
 ## Extensions
 
 Factories the host passes in `extensionFactories`. Both tools are `model-only` (never callable from

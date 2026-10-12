@@ -329,4 +329,23 @@ describe('subagent', () => {
     expect(answer.output.type).toBe('error-text')
     expect(outputText(answer.output)).toMatch(/No one can answer/)
   })
+
+  it('gives each subagent its own session id when a provider reuses a call id across turns', async () => {
+    const { model } = routedModel(({ userText, lastRole }) => {
+      if (userText.includes('TASK-')) return [...textParts('r', 'REPORT'), finish('stop')]
+      if (lastRole !== 'user') return [...textParts('d', 'Done'), finish('stop')]
+      const task = userText.includes('Second prompt') ? 'TASK-TWO' : 'TASK-ONE'
+      return [subagentCall('call_a', { description: 'Check', prompt: task }), finish('tool-calls')]
+    })
+    const host = recordingSubagentPort()
+    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+
+    await session.prompt('First prompt')
+    await session.prompt('Second prompt')
+
+    expect(host.subagents.map((subagent) => subagent.sessionId)).toEqual([
+      `${session.sessionId}.call_a`,
+      `${session.sessionId}.call_a-2`
+    ])
+  })
 })
