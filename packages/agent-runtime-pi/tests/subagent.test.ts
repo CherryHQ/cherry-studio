@@ -251,4 +251,37 @@ describe('subagent', () => {
       outcome: 'completed'
     })
   })
+
+  it('counts the usage of subagent replies a compaction folded away', async () => {
+    const replies = [
+      [toolCallPart('note_1', 'note'), finish('tool-calls', 100, 10)],
+      [toolCallPart('note_2', 'note'), finish('tool-calls', 20_000, 20)],
+      [...textParts('r', 'REPORT-A'), finish('stop', 100, 10)]
+    ]
+    let subagentRequests = 0
+    const { model } = routedModel(({ lastRole, options }) => {
+      // Only a subagent lacks the `subagent` tool; after compaction its task text is gone.
+      if (!options.tools?.some((tool) => tool.name === 'subagent')) return replies[subagentRequests++]
+      return lastRole === 'user'
+        ? [subagentCall('call_a', TASK_A), finish('tool-calls')]
+        : [...textParts('d', 'Done'), finish('stop')]
+    })
+    const host = recordingSubagentPort()
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [noteTool],
+      subagents: host.port,
+      // Threshold 32_000 - 16_384 tokens: the second reply crosses it and the compaction folds the first.
+      compaction: { reserveTokens: 16_384, keepRecentTokens: 1, summarize: async () => 'Summary of earlier work.' }
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    expect(host.events.get(`${session.sessionId}.call_a`)!.filter((event) => event.type === 'compaction-end')).toEqual([
+      { type: 'compaction-end', reason: 'threshold', entryId: expect.any(String) }
+    ])
+    const result = toolResultOf(session, 'call_a')
+    expect(result.content).toEqual([{ type: 'text', text: 'REPORT-A' }])
+    expect(result.usage?.totalTokens).toBe(112 + 20_022 + 112)
+  })
 })
