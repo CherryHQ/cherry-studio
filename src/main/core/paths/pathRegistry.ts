@@ -127,6 +127,7 @@ export function buildPathRegistry() {
 
     // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
     // use of local embedding or local OCR — see ai/localModel's shared artifacts.
+    'feature.claude_code.binary': path.join(appUserDataToolchain, 'claude-code'),
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
