@@ -11,8 +11,6 @@ import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelBundleId, LocalModelCapability, LocalModelStatus } from '@shared/data/presets/localModel'
 
-import SystemVoiceResources from './SystemVoiceResources'
-
 const logger = loggerService.withContext('LocalModelsSection')
 
 const CARD_NOTICE_KEYS = {
@@ -254,7 +252,6 @@ const LocalModelsSection: FC = () => {
           ))}
         </div>
       )}
-      <SystemVoiceResources />
     </div>
   )
 }
