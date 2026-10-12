@@ -5,7 +5,6 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     'VOICE_UNSUPPORTED',
     'VOICE_ASSET_REQUIRED',
     'VOICE_MODEL_REQUIRED',
-    'VOICE_LICENSE_UNVERIFIED',
     'VOICE_VOICE_UNAVAILABLE',
     'VOICE_BUSY',
     'VOICE_FORBIDDEN',
@@ -57,7 +56,7 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
       throw { code: 'SMOKE_FAILED' }
     }
     evidence.stage = 'voices'
-    const voices = await request('ai.speech.voices.list')
+    const voices = await request('ai.speech.voices.list', { modelId: speechModelId })
     const voice = voices.filter((item) => item.language === language).sort((a, b) => a.id.localeCompare(b.id))[0]
     if (!voice) throw { code: 'VOICE_NOT_INSTALLED' }
     evidence.installedVoiceCount = voices.length
@@ -164,7 +163,7 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
       requestId: crypto.randomUUID(),
       source: 'automation',
       modelId: 'local-voice::apple-system-asr',
-      language,
+      language: { source: 'explicit', locale: language },
       fileEntryId: recording.id
     })
     if (typeof transcript.text !== 'string' || !transcript.text.trim()) throw { code: 'TRANSCRIPT_EMPTY' }
@@ -194,13 +193,12 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
         requestId: crypto.randomUUID(),
         source: 'automation',
         modelId: 'local-voice::funasr-nano',
-        language,
         fileEntryId: funasrRecording.id
       })
       throw { code: 'FUNASR_UNEXPECTED_SUCCESS' }
     } catch (error) {
-      if (error?.code !== 'VOICE_LICENSE_UNVERIFIED') throw error
-      evidence.funasr = { status: 'refused', reason: 'license_unverified' }
+      if (error?.code !== 'VOICE_UNSUPPORTED') throw error
+      evidence.funasr = { status: 'refused', reason: 'unsupported' }
     }
     evidence.passed = true
     evidence.stage = 'complete'

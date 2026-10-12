@@ -26,11 +26,6 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.voice.recognition.title'
   },
   {
-    anchorId: 'recognition-test',
-    titleKey: 'settings.voice.action.record_test',
-    groupKey: 'settings.voice.recognition.title'
-  },
-  {
     anchorId: 'speech-model',
     titleKey: 'settings.voice.speech.model',
     groupKey: 'settings.voice.speech.title',

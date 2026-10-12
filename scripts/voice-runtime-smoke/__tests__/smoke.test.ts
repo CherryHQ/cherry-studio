@@ -37,7 +37,12 @@ function browserEnvironment(
   const preempted = new Set<string>()
   let lease: { sessionId: string; phase: 'ready' | 'recording' | 'recorded'; fileEntryId?: string } | undefined
   const requestedModels: string[] = []
-  const languageRequests: { route: string; language: string; voice?: string; text?: string }[] = []
+  const languageRequests: {
+    route: string
+    language: string | { source: 'explicit'; locale: string }
+    voice?: string
+    text?: string
+  }[] = []
   const voicePrefix = windows ? 'windows-sapi-test' : 'com.apple.voice.test'
   const voices = [
     { id: `${voicePrefix}.en-US`, name: 'Synthetic English voice', language: 'en-US' },
@@ -108,7 +113,10 @@ function browserEnvironment(
     voiceRequestSchemas[route as keyof typeof voiceRequestSchemas].input.parse(input)
     if (input?.language)
       languageRequests.push({ route, language: input.language, voice: input.voice, text: input.text })
-    if (route === 'ai.speech.voices.list') return voices
+    if (route === 'ai.speech.voices.list')
+      return input!.modelId === (windows ? 'local-voice::windows-system-tts' : 'local-voice::apple-system-tts')
+        ? voices
+        : []
     if (route === 'ai.voice.model.status') return { status: 'ready' }
     if (route === 'ai.speech.generate') {
       if (lease) throw { code: 'VOICE_BUSY' }
@@ -146,8 +154,9 @@ function browserEnvironment(
       if (transcription === 'native_failure')
         throw { code: 'SENSITIVE_NATIVE_DETAIL', message: '/private/audio transcript' }
       if (input!.modelId === 'local-voice::funasr-nano' && transcription !== 'funasr_fallback') {
-        throw { code: 'VOICE_LICENSE_UNVERIFIED' }
+        throw { code: 'VOICE_UNSUPPORTED' }
       }
+      lease = undefined
       return {
         text: transcription === 'empty' ? '' : 'Private transcript must not appear in evidence',
         language: 'en',
@@ -222,7 +231,7 @@ describe('voice smoke renderer contract', () => {
   })
 
   it('does not fall back to Apple when Windows TTS is unavailable', async () => {
-    const fixture = browserEnvironment('success')
+    const fixture = browserEnvironment('success', true)
     const ipc = fixture.globals.window.api.ipcApi
     const originalRequest = ipc.request
     ipc.request = async (route, input) =>
@@ -249,7 +258,7 @@ describe('voice smoke renderer contract', () => {
     expect(result).toMatchObject({
       passed: true,
       apple: { transcriptNonEmpty: true },
-      funasr: { reason: 'license_unverified' },
+      funasr: { reason: 'unsupported' },
       cleanupSucceeded: true,
       sessionsDiscarded: 3
     })
@@ -269,7 +278,11 @@ describe('voice smoke renderer contract', () => {
       passed: true,
       selectedVoice: { id: 'com.apple.voice.test.zh-CN', language: 'zh-CN' }
     })
-    expect(fixture.languageRequests.map(({ language }) => language)).toEqual(['zh-CN', 'zh-CN', 'zh-CN', 'zh-CN'])
+    expect(fixture.languageRequests.map(({ language }) => language)).toEqual([
+      'zh-CN',
+      'zh-CN',
+      { source: 'explicit', locale: 'zh-CN' }
+    ])
     expect(fixture.languageRequests.find(({ route }) => route === 'ai.speech.generate')).toMatchObject({
       voice: 'com.apple.voice.test.zh-CN',
       text: '这是樱桃工作室的本地语音验证。今天天空晴朗，我们正在检查离线语音转写功能。'
