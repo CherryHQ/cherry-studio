@@ -583,7 +583,7 @@ function describeFetchRequest(
   }
 
   const requestHeaders = redactHeaders(headers)
-  const requestContentType = getHeaderValue(requestHeaders, 'content-type')
+  const requestContentType = getEffectiveFetchRequestContentType(requestHeaders, init?.body)
 
   return {
     method: String(init?.method ?? request?.method ?? 'GET').toUpperCase(),
@@ -592,6 +592,19 @@ function describeFetchRequest(
     requestBody: captureRequestBody(init?.body, requestContentType),
     requestContentType
   }
+}
+
+/** Content-Type Fetch would send when the caller did not set the header explicitly. */
+export function getEffectiveFetchRequestContentType(
+  requestHeaders: Record<string, string>,
+  body: unknown
+): string | undefined {
+  const fromHeader = getHeaderValue(requestHeaders, 'content-type')
+  if (fromHeader) return fromHeader
+  if (typeof body === 'string') return 'text/plain;charset=UTF-8'
+  if (body instanceof URLSearchParams) return 'application/x-www-form-urlencoded'
+  if (typeof Blob !== 'undefined' && body instanceof Blob && body.type) return body.type
+  return undefined
 }
 
 function getFetchUrl(input: Parameters<typeof globalThis.fetch>[0]): string {

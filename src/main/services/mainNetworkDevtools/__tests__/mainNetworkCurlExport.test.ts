@@ -69,6 +69,33 @@ describe('main network cURL export', () => {
     expect(curl).toContain('filter[model]=x')
   })
 
+  it('adds captured Content-Type when exporting a body without the header', () => {
+    const curl = buildCurlCommand({
+      method: 'POST',
+      url: 'https://api.example/v1',
+      requestBody: {
+        text: 'plain message',
+        contentType: 'text/plain;charset=UTF-8',
+        replayable: true
+      }
+    })
+
+    expect(curl).toContain('text/plain;charset=UTF-8')
+    expect(curl).toContain('--data-raw')
+    expect(curl).toContain("'plain message'")
+  })
+
+  it('suppresses curl default Content-Type when the capture has no media type', () => {
+    const curl = buildCurlCommand({
+      method: 'POST',
+      url: 'https://api.example/v1',
+      requestBody: { text: 'payload', replayable: true }
+    })
+
+    expect(curl).toContain("'Content-Type:'")
+    expect(curl).toContain('--data-raw')
+  })
+
   it('does not send FormData display summaries as --data-raw', () => {
     const curl = buildCurlCommand({
       method: 'POST',

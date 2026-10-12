@@ -41,6 +41,7 @@ import { installBundledDevtools } from '@main/core/devtools'
 import {
   captureRequestBody,
   describeHttpRequest,
+  getEffectiveFetchRequestContentType,
   type MainNetworkDevtoolsEvent,
   MainNetworkDevtoolsService,
   redactHeaders,
@@ -203,6 +204,14 @@ describe('MainNetworkDevtoolsService helpers', () => {
   })
 
   it('captures and redacts common request body shapes', () => {
+    expect(getEffectiveFetchRequestContentType({}, 'plain message')).toBe('text/plain;charset=UTF-8')
+    expect(getEffectiveFetchRequestContentType({ 'Content-Type': 'application/json' }, 'plain message')).toBe(
+      'application/json'
+    )
+    expect(
+      captureRequestBody('plain message', getEffectiveFetchRequestContentType({}, 'plain message'))?.contentType
+    ).toBe('text/plain;charset=UTF-8')
+
     expect(captureRequestBody('{"api_key":"secret","prompt":"hi"}', 'application/json')?.text).toBe(
       '{"api_key":"<redacted>","prompt":"hi"}'
     )
