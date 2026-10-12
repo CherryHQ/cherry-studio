@@ -71,20 +71,21 @@ export class PersistenceListener implements StreamListener {
   }
 
   /**
-   * Terminal dispatch hands every listener the same result object, so the claim has to be published
-   * on it: the row was written as `error` while the SDK finished cleanly, and the dispatcher picks
-   * terminal callbacks from that classification.
+   * Terminal dispatch hands every listener the same result object, so the claim has to be recorded
+   * on it: the row was written as `error` while the SDK finished cleanly, and terminal dispatch
+   * picks callbacks from that classification.
    */
   private claimDowngradedOutcome(result: StreamDoneResult): void {
-    const errorResult = result as StreamDoneResult & Partial<StreamErrorResult>
-    errorResult.status = 'error'
-    errorResult.error ??= {
+    const error: SerializedError = result.downgradedTo?.error ?? {
       name: 'AgentRuntimeError',
       message: EMPTY_SUCCESS_NO_RESPONSE_MESSAGE,
       stack: null,
       i18nKey: EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY
     }
-    errorResult.failure ??= toExecutionFailure(errorResult.error, result.modelId, 'runtime')
+    result.downgradedTo = {
+      error,
+      failure: result.downgradedTo?.failure ?? toExecutionFailure(error, result.modelId, 'runtime')
+    }
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
@@ -162,7 +163,7 @@ export class PersistenceListener implements StreamListener {
           message,
           ...(downgradedToError ? { downgradedToError } : {})
         }
-        if (downgradedToError) this.claimDowngradedOutcome(result)
+        if (downgradedToError && status === 'success') this.claimDowngradedOutcome(result as StreamDoneResult)
       }
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,

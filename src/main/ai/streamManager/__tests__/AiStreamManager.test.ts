@@ -1425,16 +1425,21 @@ describe('AiStreamManager', () => {
       // are chosen: the persistence listener's own classification and what subscribers are told have
       // to be the same one, or the task sentinel resolves successfully against a failed row.
       const persistence = new FakeListener('persistence:a', 'persistence')
-      // Mirrors `PersistenceListener`: the backend claims the downgrade, the listener publishes it
-      // on the shared result before the remaining listeners are notified.
+      // Mirrors `PersistenceListener`: the backend claims the downgrade and the listener records it
+      // before the remaining listeners are notified.
       persistence.onDoneImpl = (result) => {
         result.persistence = {
           status: 'saved',
-          message: { messageId: 'm', messageRevision: '1', historyRevision: '2' },
-          downgradedToError: true
+          message: { messageId: 'm', messageRevision: '1', historyRevision: '2' }
         }
-        result.status = 'error'
-        result.error = { name: 'AgentRuntimeError', message: 'This turn produced no output.', stack: null }
+        result.downgradedTo = {
+          error: { name: 'AgentRuntimeError', message: 'This turn produced no output.', stack: null },
+          failure: {
+            message: 'This turn produced no output.',
+            retryable: false,
+            failure: { version: 1, reasonCode: 'internal', source: { layer: 'runtime' }, context: {} }
+          }
+        }
       }
       const consumer = new FakeListener('wc:a')
 

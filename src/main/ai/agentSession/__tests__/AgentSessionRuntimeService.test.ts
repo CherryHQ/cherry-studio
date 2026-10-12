@@ -6064,7 +6064,7 @@ describe('AgentSessionRuntimeService', () => {
         historyRevision: '1767225601000'
       }
     })
-    expect(result.status).toBe('error')
+    expect(result.downgradedTo?.error).toMatchObject({ name: 'AgentRuntimeError' })
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
