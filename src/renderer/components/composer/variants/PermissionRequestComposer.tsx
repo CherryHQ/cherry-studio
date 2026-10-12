@@ -209,7 +209,11 @@ export default function PermissionRequestComposer({
   // predicates are provider-aware and fail closed without one.
   const handoffModel = useMemo(() => {
     if (!planExecution || !isPlanExitApproval || !configuredExecutionModel) return undefined
+    // A disabled target is not a target: `useModelById` still resolves disabled models, and the
+    // enabled-provider list is the only enabled-provider view — fail closed instead of handing off.
+    if (!configuredExecutionModel.isEnabled) return undefined
     const provider = providers.find((candidate) => candidate.id === configuredExecutionModel.providerId)
+    if (!provider) return undefined
     if (planExecution.modelFilter && !planExecution.modelFilter(configuredExecutionModel, provider)) return undefined
     if (planExecution.isModelDisabled && planExecution.isModelDisabled(configuredExecutionModel, provider))
       return undefined
