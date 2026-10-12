@@ -101,22 +101,26 @@ describe('document conversion', () => {
     expect(workbook.worksheets[0].getCell('B2').value).toBe('2')
   })
 
-  it('keeps the existing DOCX heading, formatting and permissive table behavior', async () => {
-    const zip = await JSZip.loadAsync(
-      (
-        await convertDocumentBundle({
-          markdown: '# Report\n\n**bold** and `code`\n\n| A | B |\n| --- | --- |\n| 1 | 2 | 3 |',
-          format: 'docx'
-        })
-      ).bytes
-    )
-    const xml = await zip.file('word/document.xml')!.async('string')
-    expect(xml).toContain('w:val="Heading1"')
-    expect(xml).toContain('bold')
-    expect(xml).toContain('<w:b/>')
-    expect(xml).toContain('Consolas')
-    expect(xml).toContain('<w:tbl>')
-  })
+  it.each(['inline', 'file', 'draft'] as const)(
+    'keeps DOCX permissive tables and XLSX validation for %s Markdown',
+    async (source) => {
+      const markdown = '# Report\n\n**bold** and `code`\n\n| A | B |\n| --- | --- |\n| 1 | 2 | 3 |'
+      const root = await mkdtemp(path.join(os.tmpdir(), 'document-export-'))
+      roots.push(root)
+      const filePath = path.join(root, 'report.md')
+      await writeFile(filePath, source === 'draft' ? 'Saved content' : markdown)
+      const input =
+        source === 'inline' ? { markdown } : { filePath, ...(source === 'draft' ? { draft: markdown } : {}) }
+      const zip = await JSZip.loadAsync((await convertDocumentBundle({ ...input, format: 'docx' })).bytes)
+      const xml = await zip.file('word/document.xml')!.async('string')
+      expect(xml).toContain('w:val="Heading1"')
+      expect(xml).toContain('bold')
+      expect(xml).toContain('<w:b/>')
+      expect(xml).toContain('Consolas')
+      expect(xml).toContain('<w:tbl>')
+      await expect(convertDocumentBundle({ ...input, format: 'xlsx' })).rejects.toMatchObject({ code: 'INVALID_TABLE' })
+    }
+  )
 
   it('embeds validated image bytes before sending Markdown to the shared print renderer', async () => {
     const source = `data:image/png;base64,${(

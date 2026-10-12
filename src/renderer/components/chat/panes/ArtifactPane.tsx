@@ -47,6 +47,7 @@ import { toast } from '@renderer/services/toast'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { getDocumentConversionFormats } from '@renderer/utils/documentConversion'
 import { getFileExtension } from '@renderer/utils/file'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -445,7 +446,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   : undefined,
                 onConverted: handleRefresh,
                 draft: () =>
-                  exportDraftRef.current?.path === targetPath ? exportDraftRef.current.markdown : undefined,
+                  exportDraftRef.current?.path === normalizeFilePreviewPath(targetPath)
+                    ? exportDraftRef.current.markdown
+                    : undefined,
                 sourcePath: targetPath,
                 assetRoot,
                 defaultName: getPreviewFileTitle(targetPath),

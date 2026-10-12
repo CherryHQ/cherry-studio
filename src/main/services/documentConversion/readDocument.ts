@@ -65,7 +65,7 @@ export async function readDocument(input: DocumentSource, signal?: AbortSignal):
     const text = Buffer.from(bytes).toString('utf8')
     if (format === 'md') {
       assertTextSize(text)
-      return { blocks: parseMarkdown(text), images: new Map(), warnings: [], markdown: text }
+      return { blocks: parseMarkdown(text, !input.relaxedTables), images: new Map(), warnings: [], markdown: text }
     }
     const prepared = await prepareStaticHtml(text, { ...input, sourcePath }, signal)
     const model = await renderStaticHtml(prepared.html, false, signal)

@@ -11,7 +11,7 @@ export async function convertXlsx(blocks: DocumentBlock[], signal?: AbortSignal)
   for (const block of blocks) {
     signal?.throwIfAborted()
     if (block.type === 'heading') heading = block.text
-    if (block.type !== 'table') continue
+    if (block.type !== 'table' || !block.rows[0]?.length) continue
     index++
     const base =
       (block.title || heading)

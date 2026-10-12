@@ -81,7 +81,7 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
   const text = (runs: DocumentTextRun[]) =>
     runs
       .map((run) => {
-        let value = run.text.replace(/([\\`*_[\]])/g, '\\$1')
+        let value = run.text.replace(/([!-/:-@[-`{-~])/g, '\\$1')
         if (run.bold) value = `**${value}**`
         if (run.italic) value = `*${value}*`
         if (run.strike) value = `~~${value}~~`
@@ -100,7 +100,9 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
               `| ${row
                 .map((cell, column) => {
                   const runs = block.cells?.[rowIndex]?.[column]?.runs
-                  return (runs ? text(runs).trim() : cell).replaceAll('|', '\\|').replaceAll('\n', '<br>')
+                  return text(runs ?? [{ text: cell }])
+                    .trim()
+                    .replaceAll('\n', '<br>')
                 })
                 .join(' | ')} |`
           )
