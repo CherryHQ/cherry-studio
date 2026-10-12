@@ -96,7 +96,12 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
-    const interaction = application.get('AgentSessionRuntimeService').getInteractionState(sessionId)
+    // Resolve by the CALLING execution, not the session: a still-running native child spawned by a
+    // headless turn keeps its own unattended authority even when a desktop follow-up has since made
+    // the shared root Session id interactive. Main-thread calls carry no agent_id.
+    const interaction = application
+      .get('AgentSessionRuntimeService')
+      .getToolGuardInteractionState(sessionId, input.agent_id)
     const decision = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
       toolName,
       input: toolInput,
@@ -231,6 +236,17 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
+
+  // Bind each native child to the turn that spawned it, before it can call a tool. `agent_id` is
+  // per-session-set, so the binding is what stops a still-running child from inheriting whichever
+  // turn is live when it finally calls (a headless child must stay headless under a desktop
+  // follow-up). Dropped on stop so long-lived sessions don't retain every completed child.
+  const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'SubagentStart') return {}
+    application.get('AgentSessionRuntimeService').bindNativeChildOrigin(sessionId, input.agent_id)
+    return {}
+  }
+
   // Subagent Bash history is scoped per agent_id; when the subagent stops, its scope is dropped so
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
@@ -319,6 +335,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
+    SubagentStart: [{ hooks: [subagentStartHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }
 }

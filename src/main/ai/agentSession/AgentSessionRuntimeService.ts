@@ -322,6 +322,12 @@ type AgentSessionRuntimeEntry = {
   /** Spawn lineage of descendants whose provenance is INHERITED (child id → parent session id);
    *  the root-spawned children above hold their bindings directly. */
   detachedChildParents?: Map<string, string>
+  /**
+   * Provenance of NATIVE Claude subagents, keyed by the SDK's per-session-set `agent_id`. Unlike the
+   * bridge children above these have no parent linkage (a native child never forwards a caller id),
+   * so each binds to the turn that was current when the SDK announced it.
+   */
+  nativeChildOrigins?: Map<string, boolean>
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -3570,6 +3576,41 @@ export class AgentSessionRuntimeService extends BaseService {
     const backgroundResponder = entry && getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
     if (backgroundResponder === 'headless') return { currentTurn: 'headless', userResponse: 'unavailable' }
     return interaction
+  }
+
+  /**
+   * Interaction state for one Claude tool call, resolved by the EXECUTION that issued it.
+   *
+   * `nativeSubagentId` is the SDK's `agent_id`, present only on calls issued from within a subagent.
+   * A still-running child spawned by a headless turn keeps that turn's unattended authority even
+   * after a desktop follow-up reuses the entry — the child's calls arrive under the shared root
+   * Session id, so a session-id-only lookup would credit it with the follow-up's interactive turn.
+   */
+  getToolGuardInteractionState(sessionId: string, nativeSubagentId?: string): AgentSessionInteractionState {
+    const entry = this.entries.get(sessionId)
+    if (entry && nativeSubagentId !== undefined && this.headlessNativeChild(entry, nativeSubagentId)) {
+      return { currentTurn: 'headless', userResponse: 'unavailable' }
+    }
+    return this.getInteractionState(sessionId)
+  }
+
+  /**
+   * Record which turn spawned one native Claude child. Bound at `SubagentStart`, where the SDK first
+   * names the child by `agent_id` and the spawning turn is still the one that owns it.
+   */
+  bindNativeChildOrigin(sessionId: string, nativeSubagentId: string): void {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return
+    const origins = (entry.nativeChildOrigins ??= new Map<string, boolean>())
+    // First binding wins: a later turn waking or resuming the same child must not upgrade it.
+    if (origins.has(nativeSubagentId)) return
+    const turn = this.currentTurn(entry)
+    origins.set(nativeSubagentId, turn === undefined || turn.headless === true)
+  }
+
+  /** Whether a native child runs under unattended authority. An unbound child fails closed. */
+  private headlessNativeChild(entry: AgentSessionRuntimeEntry, nativeSubagentId: string): boolean {
+    return entry.nativeChildOrigins?.get(nativeSubagentId) ?? true
   }
 
   private startRuntimeRootSpan(
