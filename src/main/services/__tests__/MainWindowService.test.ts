@@ -345,6 +345,19 @@ describe('MainWindowService', () => {
     vi.clearAllMocks()
   })
 
+  it('leaves launcher URL focus to ProtocolService instead of raising the main window', async () => {
+    await (svc as any).onInit()
+    const showMainWindow = vi.spyOn(svc, 'showMainWindow')
+
+    for (const [event, listener] of vi.mocked(app.on).mock.calls) {
+      if (event === 'second-instance') {
+        listener({}, ['/path/to/cherry', 'cherrystudio://chat/new?prompt=Paris&submit=true'])
+      }
+    }
+
+    expect(showMainWindow).not.toHaveBeenCalled()
+  })
+
   describe('Apple Silicon architecture warning', () => {
     beforeEach(() => {
       platformState.isMac = true

@@ -447,6 +447,21 @@ describe('ProtocolService', () => {
       expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
     })
 
+    it('opens a floating launcher chat without raising the main window', async () => {
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+
+      getSecondInstanceHandler()({}, ['/path/to/cherry', 'cherrystudio://chat/new?prompt=Paris&submit=true'])
+
+      expect(quickAssistantServiceMock.openChat).toHaveBeenCalledWith({
+        prompt: 'Paris',
+        temporary: false,
+        submit: true
+      })
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+    })
+
     it('discards retired OAuth callbacks without broadcasting their authorization codes', async () => {
       await (service as any).onInit()
       await markProtocolHandlingReady()
