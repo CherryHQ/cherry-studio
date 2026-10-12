@@ -5,7 +5,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
-import { getNativeModuleFilters } from '../before-pack'
+import { getNativeModuleFilters } from '../packaging/before-pack'
 
 const projectRoot = path.resolve(import.meta.dirname, '../..')
 const require = createRequire(import.meta.url)

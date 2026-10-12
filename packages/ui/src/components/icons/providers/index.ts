@@ -3,7 +3,7 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-09-10T18:57:46.000Z
+ * Generated at: 2026-10-11T15:18:30.172Z
  * Total icons: 164
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -88,6 +88,7 @@ export { LanyunIcon as Lanyun } from './lanyun'
 export { LeptonIcon as Lepton } from './lepton'
 export { LingxiIcon as Lingxi } from './lingxi'
 export { LiquidIcon as Liquid } from './liquid'
+export { LitellmIcon as Litellm } from './litellm/litellm'
 export { LlmmanIcon as Llmman } from './llmman/llmman'
 export { LmstudioIcon as Lmstudio } from './lmstudio'
 export { LongcatIcon as Longcat } from './longcat'

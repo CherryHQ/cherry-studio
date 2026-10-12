@@ -33,7 +33,8 @@ vi.mock('@data/bootConfig', () => ({
   bootConfigService: { get: bootConfigGet }
 }))
 
-vi.mock('@data/db/restore/restoreJournal', () => ({
+vi.mock(import('@data/db/restore/restoreJournal'), async (importOriginal) => ({
+  ...(await importOriginal()),
   hasPendingRestore: hasPendingRestoreMock
 }))
 
@@ -304,6 +305,20 @@ describe('CacheCleanupService', () => {
     expect(cleanup.results[0]?.status).toBe('cleared')
     await expectMissing(orphanBasePath)
     await expectExisting(knownBasePath, unknownDirectory)
+  })
+
+  it('counts and clears historical failed restore databases as orphaned data', async () => {
+    const failed = rootPath('work-failed-62f9b5ce-9f03-425e-8448-3a4cd55e971f.sqlite')
+    const live = rootPath('Data', 'cherrystudio.sqlite')
+    await writeTestFile(failed, Buffer.alloc(127))
+    await writeTestFile(live, 'keep')
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+    expect(inspection.results[0]?.size).toEqual({ bytes: 127, accuracy: 'exact', completeness: 'complete' })
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+    expect(cleanup.results[0]?.status).toBe('cleared')
+    await expectMissing(failed)
+    expect(await fs.readFile(live, 'utf8')).toBe('keep')
   })
 
   it('does not advertise bytes from an orphan-file plan that the safety threshold aborts', async () => {
