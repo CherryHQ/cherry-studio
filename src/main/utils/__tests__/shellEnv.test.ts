@@ -352,6 +352,13 @@ describe('mise environment ownership', () => {
     expect(env.Path).toBe('C:\\Windows')
   })
 
+  it('removes a PATH entry when the directory has a trailing separator', () => {
+    const shims = getBinaryShimsDir()
+    const env: Record<string, string | undefined> = { Path: `${shims}/;C:\\Windows` }
+    removePathEntry(env, shims)
+    expect(env.Path).toBe('C:\\Windows')
+  })
+
   it('leaves PATH untouched when the directory is absent', () => {
     const env: Record<string, string | undefined> = { Path: 'C:\\Windows' }
     removePathEntry(env, 'C:\\cherry\\shims')
