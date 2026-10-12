@@ -2156,7 +2156,7 @@ export class AiStreamManager extends BaseService {
       isTopicDone: result.isTopicDone,
       timings: result.timings,
       runtimeTiming: result.runtimeTiming,
-      persistence: result.persistence as StreamErrorResult['persistence']
+      persistence: result.persistence
     }
   }
 
