@@ -906,17 +906,27 @@ export class VoiceSessionService extends BaseService {
       permission: string,
       _requestingOrigin: string,
       details: Electron.PermissionCheckHandlerHandlerDetails
-    ) =>
-      details.mediaType === 'audio' &&
-      this.canDiscoverMicrophones(webContents, permission, details.requestingUrl, details.isMainFrame)
+    ) => {
+      if (permission === 'media') {
+        return (
+          details.mediaType === 'audio' &&
+          this.canDiscoverMicrophones(webContents, permission, details.requestingUrl, details.isMainFrame)
+        )
+      }
+      return this.canUseNonMediaPermission(webContents, permission, details.requestingUrl, details.isMainFrame)
+    }
     const request = (
       webContents: WebContents,
       permission: string,
       callback: (allowed: boolean) => void,
       details: Electron.PermissionRequest | Electron.MediaAccessPermissionRequest
     ) => {
-      const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
-      callback(this.canUseMicrophone(webContents, permission, details.requestingUrl, details.isMainFrame, mediaTypes))
+      if (permission === 'media') {
+        const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
+        callback(this.canUseMicrophone(webContents, permission, details.requestingUrl, details.isMainFrame, mediaTypes))
+        return
+      }
+      callback(this.canUseNonMediaPermission(webContents, permission, details.requestingUrl, details.isMainFrame))
     }
     electronSession.defaultSession.setPermissionCheckHandler(check)
     electronSession.defaultSession.setPermissionRequestHandler(request)
@@ -926,18 +936,38 @@ export class VoiceSessionService extends BaseService {
     })
   }
 
+  private canUseNonMediaPermission(
+    webContents: WebContents | null,
+    permission: string,
+    requestingUrl: string | undefined,
+    isMainFrame: boolean
+  ): boolean {
+    // Electron's default check grants every permission except this deprecated sync read.
+    if (permission === 'deprecated-sync-clipboard-read') return false
+    return this.isTrustedLiveAppMainFrame(webContents, requestingUrl, isMainFrame)
+  }
+
+  private isTrustedLiveAppMainFrame(
+    webContents: WebContents | null,
+    requestingUrl: string | undefined,
+    isMainFrame: boolean
+  ): boolean {
+    if (!this.accepting || !webContents || webContents.isDestroyed()) return false
+    if (!isMainFrame || !requestingUrl || !isAppRendererUrl(requestingUrl)) return false
+    const windows = application.get('WindowManager')
+    const windowId = windows.getWindowIdByWebContents(webContents)
+    const managed = windowId ? windows.getWindow(windowId) : undefined
+    return Boolean(managed && !managed.isDestroyed() && managed.webContents === webContents)
+  }
+
   private canDiscoverMicrophones(
     webContents: WebContents | null,
     permission: string,
     requestingUrl: string | undefined,
     isMainFrame: boolean
   ): boolean {
-    if (!this.accepting || permission !== 'media' || !webContents || webContents.isDestroyed()) return false
-    if (!isMainFrame || !requestingUrl || !isAppRendererUrl(requestingUrl)) return false
-    const windows = application.get('WindowManager')
-    const windowId = windows.getWindowIdByWebContents(webContents)
-    const managed = windowId ? windows.getWindow(windowId) : undefined
-    return Boolean(managed && !managed.isDestroyed() && managed.webContents === webContents)
+    if (permission !== 'media') return false
+    return this.isTrustedLiveAppMainFrame(webContents, requestingUrl, isMainFrame)
   }
 
   private canUseMicrophone(
