@@ -19,6 +19,7 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
 }))
 
 import { pipeStreamLoop } from '@main/ai/streamManager/pipeStreamLoop'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 
 import { Agent } from '../../../Agent'
 import { computeKeepRecentTurns, inLoopCompactionFeature } from '../inLoopCompaction'
@@ -391,8 +392,14 @@ describe('inLoopCompactionFeature', () => {
   it('still propagates a user abort — that IS the turn ending', async () => {
     compactModelMessages.mockClear()
     compactModelMessages.mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))
-    const prepareStep = getPrepareStep()
+    const events: Array<{ id: string; data: CompactionAnchorData }> = []
+    const customScope = scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW })
+    customScope.compactionSink = (id: string, data: CompactionAnchorData) => events.push({ id, data })
+    const prepareStep = getPrepareStep(customScope)
     await expect(prepareStep({ messages: [userMessage(90_000)] } as any)).rejects.toThrow('aborted')
+    expect(events.map((event) => event.data.status)).toEqual(['compacting', 'skipped'])
+    expect(events[1].id).toBe(events[0].id)
+    expect(events[1].data.completedAt).toEqual(expect.any(String))
   })
 
   it('cancels a pending compaction with the turn signal without failing open on a custom reason', async () => {
@@ -419,6 +426,8 @@ describe('inLoopCompactionFeature', () => {
     )
     const customScope = scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW })
     customScope.signal = controller.signal
+    const events: Array<{ id: string; data: CompactionAnchorData }> = []
+    customScope.compactionSink = (id: string, data: CompactionAnchorData) => events.push({ id, data })
     const pending = Promise.resolve(getPrepareStep(customScope)({ messages: [userMessage(90_000)] } as any)).then(
       () => ({ error: undefined }),
       (error) => ({ error })
@@ -428,6 +437,10 @@ describe('inLoopCompactionFeature', () => {
       controller.abort(reason)
       await vi.waitFor(() => expect(cancelled).toBe(true))
       expect(await pending).toEqual({ error: reason })
+      expect(events.map((event) => event.data.status)).toEqual(['compacting', 'skipped'])
+      expect(events[1].id).toBe(events[0].id)
+      expect(events[1].data.startedAt).toBe(events[0].data.startedAt)
+      expect(events[1].data.completedAt).toEqual(expect.any(String))
     } finally {
       release?.()
       await pending
@@ -459,10 +472,15 @@ describe('inLoopCompactionFeature', () => {
     )
     const customScope = scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW })
     customScope.signal = controller.signal
+    const events: Array<{ id: string; data: CompactionAnchorData }> = []
+    customScope.compactionSink = (id: string, data: CompactionAnchorData) => events.push({ id, data })
     const pending = getPrepareStep(customScope)({ messages: [userMessage(90_000)] } as any)
     controller.abort('stopped by user')
     release()
     await expect(pending).rejects.toBe(controller.signal.reason)
+    expect(events.map((event) => event.data.status)).toEqual(['compacting', 'skipped'])
+    expect(events[1].id).toBe(events[0].id)
+    expect(events[1].data.completedAt).toEqual(expect.any(String))
     compactModelMessages.mockReset()
   })
 

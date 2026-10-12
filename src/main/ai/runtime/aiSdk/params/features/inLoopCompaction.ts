@@ -244,6 +244,12 @@ export const inLoopCompactionFeature: RequestFeature = {
           })
           scope.signal?.throwIfAborted()
         } catch (error) {
+          scope.compactionSink?.(anchorId, {
+            status: 'skipped',
+            phase: 'in-loop',
+            startedAt,
+            completedAt: new Date().toISOString()
+          })
           // `compactModelMessages` propagates provider errors. Letting one out of
           // `prepareStep` kills the whole chat turn, so a compressor that is
           // misconfigured or rate-limited would take the conversation down with
@@ -255,15 +261,6 @@ export const inLoopCompactionFeature: RequestFeature = {
           compactionDisabled = true
           logger.warn('in-loop compaction failed; continuing without it for this request', {
             error: error instanceof Error ? error.message : String(error)
-          })
-          // Clear the spinner: the turn continues (un-compacted), so leaving a
-          // permanent "compacting…" on screen would misreport the state. Nothing was
-          // folded, so this settles as `skipped` rather than claiming a compaction.
-          scope.compactionSink?.(anchorId, {
-            status: 'skipped',
-            phase: 'in-loop',
-            startedAt,
-            completedAt: new Date().toISOString()
           })
           return foldCache ? { messages: candidate } : undefined
         }
