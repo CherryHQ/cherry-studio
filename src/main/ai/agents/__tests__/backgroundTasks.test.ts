@@ -1,6 +1,8 @@
 import type * as ChildProcessModule from 'node:child_process'
 import type { ExecFileSyncOptions } from 'node:child_process'
 import { spawn } from 'node:child_process'
+import type * as FsModule from 'node:fs'
+import type * as FsPromisesModule from 'node:fs/promises'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -28,7 +30,27 @@ vi.mock('node:child_process', async (importOriginal) => {
   }
 })
 
+// The record write is the seam that opens the window being closed: it is the only await between
+// the identity check and the group signal, so it is where a modifying process identity gets handed
+// to another owner. `null` delegates to the real filesystem.
+const { writeHook } = vi.hoisted(() => ({
+  writeHook: { onWrite: null as null | ((target: string) => Promise<void> | void) }
+}))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromisesModule>()
+  return {
+    ...actual,
+    writeFile: (async (target: FsModule.PathLike | FsModule.FileHandle, ...rest: unknown[]) => {
+      await writeHook.onWrite?.(String(target))
+      // @ts-expect-error passthrough of the variadic overload set
+      return actual.writeFile(target, ...rest)
+    }) as typeof actual.writeFile
+  }
+})
+
 import {
+  BACKGROUND_TASK_RECORD_EXT,
   BACKGROUND_TASK_SENTINEL_EXT,
   MAX_BACKGROUND_TASK_COMMAND_LENGTH,
   type BackgroundTaskRecord,
@@ -601,6 +623,71 @@ describe('backgroundTasks', () => {
             process.kill(-record.pid, 'SIGKILL')
           } catch {
             // already drained
+          }
+        }
+      }
+    )
+
+    // The identity check and the group signal are separated by a record write, and a write is a
+    // promise: while it is in flight the task can exit and the OS can hand its pid and pgid to
+    // processes this app never started. Nothing in the record lock preserves OS process identity,
+    // so the check that ran before the write says nothing about what the pgid names now.
+    it.skipIf(process.platform === 'win32')(
+      'rechecks process identity after the record write, so a replacement group gets no signal',
+      async () => {
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+          cwd: storageDir
+        })
+        const taskPid = record.pid
+        expect(isPidAlive(taskPid)).toBe(true)
+        expect(record.pidStartTime).toBeTruthy()
+
+        // A bystander this app has nothing to do with, killed by the test alone.
+        const bystander = spawn(nodeBin.replace(/^"|"$/g, ''), ['-e', 'setInterval(() => {}, 60_000)'], {
+          stdio: 'ignore'
+        })
+        bystander.unref()
+        await vi.waitFor(() => expect(isPidAlive(bystander.pid!)).toBe(true), { timeout: 10_000 })
+        const bystanderPid = bystander.pid!
+
+        const killSpy = vi.spyOn(process, 'kill')
+
+        try {
+          // Identity changes inside the window: from here on the OS reports the task's pid and
+          // pgid as the bystander's, which is what pid/pgid reuse mid-write leaves behind.
+          writeHook.onWrite = async (target) => {
+            if (!target.endsWith(`${record.id}${BACKGROUND_TASK_RECORD_EXT}.${process.pid}.tmp`)) return
+            writeHook.onWrite = null
+            psSteer.read = (args) => {
+              if (args[0] === '-p') return 'Mon Jan  1 00:00:00 2001\n'
+              if (args[0] === '-axwwo') return `${taskPid} ${bystanderPid} 1 S Mon Jan  1 00:00:00 2001\n`
+              return null
+            }
+          }
+
+          const result = await stopDetachedBackgroundTask(storageDir, record.id, true)
+
+          // The replacement group was never this task's to signal: no SIGKILL may reach it.
+          const groupSignals = killSpy.mock.calls.filter(([pid]) => pid < 0)
+          expect(groupSignals).toEqual([])
+          expect(result).toBeUndefined()
+          expect(isPidAlive(bystanderPid)).toBe(true)
+          // The task itself is left alone as well — a stop that cannot be attributed is refused,
+          // not delivered on the strength of a check that has since gone stale.
+          expect(isPidAlive(taskPid)).toBe(true)
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).not.toBe('stopped')
+        } finally {
+          writeHook.onWrite = null
+          psSteer.read = null
+          killSpy.mockRestore()
+          for (const pid of [taskPid, bystanderPid]) {
+            try {
+              process.kill(pid, 'SIGKILL')
+            } catch {
+              // already reaped
+            }
           }
         }
       }
