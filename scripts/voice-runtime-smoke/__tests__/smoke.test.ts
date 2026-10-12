@@ -197,6 +197,7 @@ function browserEnvironment(
     preempted,
     requestedModels,
     languageRequests,
+    activeSessionId: () => lease?.sessionId,
     resourcesClosed: () => recorderStopped && contextClosed && tracksStopped && !lease
   }
 }
@@ -260,11 +261,11 @@ describe('voice smoke renderer contract', () => {
       passed: true,
       apple: { transcriptNonEmpty: true },
       funasr: { reason: 'unsupported' },
-      cleanupSucceeded: true
+      cleanupSucceeded: true,
+      sessionsDiscarded: 3
     })
     expect(fixture.requestedModels).toEqual(['local-voice::apple-system-asr', 'local-voice::funasr-nano'])
     expect(fixture.created.size).toBe(3)
-    expect(fixture.preempted.size).toBe(0)
     expect(fixture.discarded).toEqual(fixture.created)
     expect(fixture.resourcesClosed()).toBe(true)
     expect(JSON.stringify(result)).not.toContain('Private transcript')

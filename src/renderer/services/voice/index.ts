@@ -26,3 +26,6 @@ export type {
   SpeechPlaybackStartInput,
   SpeechPlaybackStartResult
 } from './SpeechPlaybackService'
+
+export { enumerateMicrophones, subscribeMicrophoneChanges } from './microphoneDevices'
+export type { MicrophoneDevice } from './microphoneDevices'

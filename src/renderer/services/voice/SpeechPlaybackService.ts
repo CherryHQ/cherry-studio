@@ -56,7 +56,6 @@ type PlaybackVoiceService = Pick<
   | 'subscribeInterruptions'
   | 'generateSpeech'
   | 'abortSpeech'
-  | 'readOutput'
   | 'releaseOutput'
   | 'updatePlayback'
   | 'controlPlayback'
@@ -68,8 +67,6 @@ interface SpeechPlaybackServiceOptions {
   planText?: typeof planReadableText
   ownerWindow?: Window
   createAudio?: (source: string) => HTMLAudioElement
-  createObjectURL?: (blob: Blob) => string
-  revokeObjectURL?: (url: string) => void
 }
 
 interface PlaybackRun {
@@ -94,9 +91,8 @@ interface PlaybackRun {
   operation?: VoiceOperation<unknown>
   playAttempt?: Promise<void>
   retryAttempt?: Promise<void>
-  fileEntryId?: string
+  outputId?: string
   audio?: HTMLAudioElement
-  objectUrl?: string
   ended?: EventListener
   failed?: EventListener
   cleanup?: Promise<void>
@@ -127,8 +123,6 @@ export class SpeechPlaybackService {
   private readonly planText: typeof planReadableText
   private readonly ownerWindow: Window
   private readonly createAudio: (source: string) => HTMLAudioElement
-  private readonly createObjectURL: (blob: Blob) => string
-  private readonly revokeObjectURL: (url: string) => void
   private readonly listeners = new Set<() => void>()
   private readonly runs = new Map<string, PlaybackRun>()
   private snapshot: SpeechPlaybackSnapshot = IDLE_SNAPSHOT
@@ -144,8 +138,6 @@ export class SpeechPlaybackService {
     this.planText = options.planText ?? planReadableText
     this.ownerWindow = options.ownerWindow ?? window
     this.createAudio = options.createAudio ?? ((source) => new Audio(source))
-    this.createObjectURL = options.createObjectURL ?? ((blob) => URL.createObjectURL(blob))
-    this.revokeObjectURL = options.revokeObjectURL ?? ((url) => URL.revokeObjectURL(url))
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -262,7 +254,7 @@ export class SpeechPlaybackService {
       return { status: 'started' }
     } catch (error) {
       const reason = run.stopped || run.generation !== this.lifecycleGeneration ? 'aborted' : errorReason(error)
-      if (reason === 'busy' && !run.fileEntryId) {
+      if (reason === 'busy' && !run.outputId) {
         this.rejectUnadmittedRun(run, reason)
         throw new VoiceDomainError(reason)
       }
@@ -302,7 +294,7 @@ export class SpeechPlaybackService {
 
   canRetry(sessionId: string): boolean {
     const run = this.runs.get(sessionId)
-    return Boolean(run && !run.stopped && run.phase === 'failed' && run.audio && run.fileEntryId && run.objectUrl)
+    return Boolean(run && !run.stopped && run.phase === 'failed' && run.audio && run.outputId)
   }
 
   retry(sessionId?: string): Promise<void> {
@@ -377,14 +369,8 @@ export class SpeechPlaybackService {
         this.publish(run, 'generating')
       }
       if (run.operation === operation) run.operation = undefined
-      run.fileEntryId = result.fileEntry.id
-      const output = await this.voice.readOutput({ sessionId: run.sessionId, fileEntryId: result.fileEntry.id })
-      this.assertCurrent(run)
-      if (output.mimeType !== 'audio/wav') throw new VoiceDomainError('invalid_audio')
-
-      const objectUrl = this.createObjectURL(new Blob([output.audio], { type: output.mimeType }))
-      const audio = this.createAudio(objectUrl)
-      run.objectUrl = objectUrl
+      run.outputId = result.output.id
+      const audio = this.createAudio(result.output.url)
       run.audio = audio
       run.ended = () => void this.handleEnded(run, audio)
       run.failed = () => void this.handleAudioError(run, audio)
@@ -475,19 +461,19 @@ export class SpeechPlaybackService {
   }
 
   private async handleEnded(run: PlaybackRun, audio: HTMLAudioElement, pending = false): Promise<void> {
-    if (run.stopped || run.audio !== audio || run.releasing || !run.fileEntryId) return
+    if (run.stopped || run.audio !== audio || run.releasing || !run.outputId) return
     if (run.playAttempt || run.materializing) {
       run.pendingEnded = audio
       return
     }
     if (run.phase !== 'playing' && !(pending && run.phase === 'paused')) return
     run.releasing = true
-    const fileEntryId = run.fileEntryId
+    const outputId = run.outputId
+    this.disposeAudio(run)
     try {
-      await this.voice.releaseOutput({ sessionId: run.sessionId, fileEntryId })
-      this.assertCurrent(run, audio)
-      this.disposeAudio(run, true)
-      run.fileEntryId = undefined
+      await this.voice.releaseOutput({ sessionId: run.sessionId, outputId })
+      this.assertCurrent(run)
+      run.outputId = undefined
       run.completed += 1
       run.index += 1
       run.releasing = false
@@ -500,7 +486,7 @@ export class SpeechPlaybackService {
         this.publish(run, 'paused')
       }
     } catch (error) {
-      if (!run.stopped) await this.failAudio(run, errorReason(error))
+      if (!run.stopped) await this.handleFailure(run, errorReason(error))
     } finally {
       run.releasing = false
     }
@@ -543,7 +529,7 @@ export class SpeechPlaybackService {
   }
 
   private async handleFailure(run: PlaybackRun, reason: VoiceErrorReason): Promise<void> {
-    if (run.audio && run.fileEntryId && run.objectUrl) {
+    if (run.audio && run.outputId) {
       await this.failAudio(run, reason)
       return
     }
@@ -590,7 +576,7 @@ export class SpeechPlaybackService {
     run.detachAbort?.()
     run.detachAbort = undefined
     run.cleanupError = undefined
-    this.disposeAudio(run, true)
+    this.disposeAudio(run)
     const cleanup = (async () => {
       const tasks = [this.voice.discardSession(run.sessionId)]
       if (run.operation) tasks.unshift(this.voice.abortSpeech(run.operation))
@@ -632,17 +618,17 @@ export class SpeechPlaybackService {
     this.publishFailure(run.sourceLabel, run.chunks.length, reason)
   }
 
-  private disposeAudio(run: PlaybackRun, revoke: boolean): void {
+  private disposeAudio(run: PlaybackRun): void {
     run.pendingEnded = undefined
     const audio = run.audio
     if (audio) {
       audio.pause()
       if (run.ended) audio.removeEventListener('ended', run.ended)
       if (run.failed) audio.removeEventListener('error', run.failed)
+      audio.removeAttribute('src')
+      audio.load()
     }
-    if (revoke && run.objectUrl) this.revokeObjectURL(run.objectUrl)
     run.audio = undefined
-    run.objectUrl = undefined
     run.ended = undefined
     run.failed = undefined
   }

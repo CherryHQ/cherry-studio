@@ -18,9 +18,9 @@ The renderer function uses the real preload `window.api.ipcApi.request` routes t
 
 1. List installed voices and select an exact voice ID matching the chosen language; inspect Apple ASR readiness without installing anything.
 2. Generate a synthetic phrase with Apple TTS and fetch its session-owned `cherry-media://audio/…` URL.
-3. Decode that WAV with `AudioContext`, discard the speech session, then route it to `MediaStreamDestination`, and produce actual WebM/Opus with `MediaRecorder`. The source is not connected to speakers.
+3. Decode that WAV with `AudioContext` and discard the speech session before admitting any recording. Route the decoded audio to `MediaStreamDestination` and produce actual WebM/Opus with `MediaRecorder`. The source is not connected to speakers.
 4. Admit a fresh session through `ai.voice.recording.start`, upload the recording with its duration, and explicitly run Apple ASR; require a nonempty transcript without exporting its contents, then discard the session.
-5. Admit another recording session and upload the same WebM, explicitly choose FunASR Nano, and require `VOICE_UNSUPPORTED`. Success or another error fails the check.
+5. Admit another recording session before uploading the same WebM, explicitly choose FunASR Nano, and require `VOICE_UNSUPPORTED`. Success or another error fails the check.
 6. Stop audio resources and discard every allocated session, including on failure. A cleanup failure also fails the check.
 
 The output proves only the routes exercised in that particular run. It does not prove recognition accuracy, platform coverage, code signing, packaged ASAR/resource placement, offline operation, or model redistribution rights. Offline evidence requires the caller's external network restriction; the harness does not change host networking.
