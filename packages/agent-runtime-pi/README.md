@@ -162,6 +162,9 @@ the host returned; `onSessionCreated` receives its session before its first requ
 is `<parent session id>.<call id>`, characters Pi rejects in the call id replaced by `-`. Subagent
 calls of one step run at the same time, and a subagent has no `subagent` tool of its own.
 
+A subagent's session holds a `cherry.subagent-origin` state entry (`{ parentToolCallId, fork }`),
+never sent to the model; `AskUserQuestion` ends there as `unavailable` without asking the port.
+
 ## Extensions
 
 Factories the host passes in `extensionFactories`. Both tools are `model-only` (never callable from

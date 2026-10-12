@@ -1,6 +1,8 @@
 import { Type } from '@earendil-works/pi-ai'
 import type { AgentToolResult, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
+import { isSubagentSession } from './subagent'
+
 /** Claude Code's name: Cherry's composer, card and remote access match on this raw name. */
 export const ASK_USER_TOOL_NAME = 'AskUserQuestion'
 
@@ -167,13 +169,15 @@ export function createAskUserExtension(port: AskUserPort): ExtensionFactory {
       exposure: 'model-only',
       executionMode: 'sequential',
       annotations: { readOnlyHint: true, openWorldHint: false },
-      async execute(toolCallId, params, signal) {
+      async execute(toolCallId, params, signal, _onUpdate, ctx) {
         const questions = params.questions.map((item) => ({ ...item, multiSelect: item.multiSelect ?? false }))
         const texts = new Set(questions.map((item) => item.question))
         // Answers are keyed by question text and name the chosen labels.
         if (texts.size !== questions.length) throw new Error('Each question must have a different question text.')
         if (questions.some(({ options }) => new Set(options.map((option) => option.label)).size !== options.length))
           throw new Error('Each option of a question must have a different label.')
+        // A subagent works for another agent; no person is there to answer.
+        if (isSubagentSession(ctx.sessionManager.getBranch())) return toToolResult(questions, { status: 'unavailable' })
 
         const request = { toolCallId, questions, signal: signal ?? new AbortController().signal }
         return toToolResult(questions, await waitForAnswer(port, request))
