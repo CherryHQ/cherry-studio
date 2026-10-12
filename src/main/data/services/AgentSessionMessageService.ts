@@ -919,8 +919,13 @@ export class AgentSessionMessageService {
     })
   }
 
-  /** Best-effort terminalization after a live assistant persistence failure. */
-  markAssistantMessageTerminalError(sessionId: string, messageId: string): void {
+  /**
+   * Best-effort terminalization of a stuck pending assistant. `sentinelKey` names the
+   * cause the caller actually established — `'turn.persist_failed'` after a known
+   * persistence failure, `'turn.interrupted'` when recovery only proved the turn was
+   * abandoned — so the row never claims more than the evidence shows.
+   */
+  markAssistantMessageTerminalError(sessionId: string, messageId: string, sentinelKey: TerminalSentinelKey): void {
     const database = application.get('DbService').getDb()
     const row = this.findExistingMessageRow(database, sessionId, messageId)
     const changed = application.get('DbService').withWriteTx((tx) => {
@@ -928,7 +933,7 @@ export class AgentSessionMessageService {
         .update(sessionMessagesTable)
         .set({
           status: 'error',
-          data: withTerminalErrorPart(row?.data, 'turn.persist_failed'),
+          data: withTerminalErrorPart(row?.data, sentinelKey),
           updatedAt: Date.now()
         })
         .where(

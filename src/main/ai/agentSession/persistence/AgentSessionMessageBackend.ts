@@ -88,7 +88,11 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
   }
 
   markTerminalError(): void {
-    agentSessionMessageService.markAssistantMessageTerminalError(this.opts.sessionId, this.opts.assistantMessageId)
+    agentSessionMessageService.markAssistantMessageTerminalError(
+      this.opts.sessionId,
+      this.opts.assistantMessageId,
+      'turn.persist_failed'
+    )
   }
 
   private getRuntimeResumeToken(): string | undefined {
