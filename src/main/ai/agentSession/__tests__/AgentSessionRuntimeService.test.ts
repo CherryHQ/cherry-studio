@@ -3791,6 +3791,92 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    /**
+     * Interrupting A's retained reply must not look like a user Stop. `pauseRuntimeTurn` aborts the
+     * same signal a Stop aborts, and `openTurnStream` answers that abort by tearing the whole session
+     * down — which drops B's deferred input before the interruption can hand it back. The stream is
+     * really open here (not mocked away) so the abort propagates for real.
+     */
+    it('resumes the deferred switch instead of tearing the session down when a retained reply is interrupted', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const retained = {
+        agentId: 'agent-1',
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('invalid')
+      }
+      entry.runtimeState.connection = { kind: 'connected', connection: retained, occupancy: {} }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, retained)
+      service.markTurnTerminal('session-1', 'success')
+
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId })
+      const switched = service.beginTurn({
+        ...baseTurnInput,
+        agentId: 'agent-2',
+        modelId: switchedModelId,
+        assistantMessageId: 'assistant-2',
+        messageSnapshot: { agentName: 'Agent B' } as any,
+        userMessage: userMessage('user-2')
+      })
+
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+      ;(service as any).handleRuntimeEvent(
+        entry,
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        retained
+      )
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'autonomous-turn',
+        deferredTurn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+      })
+
+      // A's reply streams for real, on the turn's own signal — exactly the wiring `AiStreamManager`
+      // establishes when it hands `requestOptions.signal` down to `openTurnStream`.
+      const autonomousTurn = (service as any).entries.get('session-1').runtimeState.execution.turn
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: autonomousTurn.turnId,
+          signal: autonomousTurn.abortController.signal
+        })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+      // Only the stream manager is mocked: it aborts the turn's real signal, exactly as it does in
+      // production. Everything downstream of that abort runs for real.
+      mocks.pauseRuntimeTurn.mockImplementation(() => {
+        autonomousTurn.abortController.abort('agent-connection-invalid')
+        return true
+      })
+
+      mocks.getAgent.mockImplementation((agentId: string) =>
+        agentId === 'agent-1'
+          ? { id: 'agent-1', type: 'test-runtime', model: null }
+          : { id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId }
+      )
+      await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+
+      expect(retained.close).toHaveBeenCalled()
+      // The session survives: B's accepted input was deferred, not discarded.
+      expect(service.inspect('session-1')).toBeDefined()
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+      })
+
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
+      const resumed = mocks.startRuntimeTurn.mock.calls[1][0]
+      expect(resumed.request.messages[0]).toMatchObject({ id: 'user-2' })
+      expect(resumed.modelId).toBe(switchedModelId)
+      void reader.cancel().catch(() => undefined)
+      void service.closeSession('session-1')
+    })
+
     it("keeps a detached wake on the spawning turn's model after a mid-turn model edit", async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
