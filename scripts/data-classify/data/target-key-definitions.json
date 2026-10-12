@@ -111,6 +111,13 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
+      "targetKey": "feature.voice.input.device_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Exact microphone device ID; null follows the system default"
+    },
+    {
       "targetKey": "feature.voice.recognition.model_id",
       "type": "string",
       "defaultValue": "",

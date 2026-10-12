@@ -7,7 +7,9 @@ import {
   LOCAL_VOICE_MODEL_IDS,
   type LocalSpeechModelId,
   type LocalTranscriptionModelId,
-  type LocalVoiceModelFacts,
+  type LocalVoiceModelDescriptor,
+  type VoiceModelLookup,
+  TranscriptionLanguageSource,
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED,
   VOICE_SESSION_SOURCES,
@@ -15,6 +17,7 @@ import {
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
+import { LOCAL_MODEL_DOWNLOAD_RESULTS } from '@shared/data/presets/localModel'
 import { FileEntryIdSchema, InternalEntrySchema } from '@shared/data/types/file'
 import { voiceErrorCodes } from '@shared/ipc/errors/voice'
 
@@ -28,6 +31,11 @@ const languageTag = z
   .refine((value) => value.toLowerCase() !== 'auto')
 const language = languageTag.optional()
 const localeTag = languageTag
+const transcriptionLanguage = z.discriminatedUnion('source', [
+  z.strictObject({ source: z.literal(TranscriptionLanguageSource.ModelDefault) }),
+  z.strictObject({ source: z.literal(TranscriptionLanguageSource.Interface), locale: languageTag }),
+  z.strictObject({ source: z.literal(TranscriptionLanguageSource.Explicit), locale: languageTag })
+])
 const session = z.strictObject({ sessionId: z.uuid() })
 const request = session.extend({
   requestId: z.uuid(),
@@ -112,7 +120,40 @@ export type VoiceEventSchemas = {
   'ai.voice.session_event': VoiceSessionEvent
 }
 
+const voiceStatus = z.strictObject({
+  status: z.enum(['unsupported', 'not_installed', 'installing', 'ready', 'failed']),
+  percent: z.number().min(0).max(100).optional(),
+  reason: z
+    .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
+    .optional()
+})
+const speechModelId = z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID])
+
 export const voiceRequestSchemas = {
+  'ai.voice.resources.open_settings': defineRoute({ input: z.void(), output: z.void() }),
+  'ai.voice.transcription.resolve': defineRoute({
+    input: z.strictObject({ modelId: asrModelId.optional(), language: transcriptionLanguage.optional() }),
+    output: z.strictObject({
+      modelId: asrModelId.optional(),
+      language: transcriptionLanguage.optional(),
+      status: voiceStatus
+    })
+  }),
+  'ai.voice.speech.resolve': defineRoute({
+    input: z.strictObject({
+      modelId: speechModelId.optional(),
+      voice: z.string().min(1).max(256).optional(),
+      language,
+      speed: z.number().finite().min(MIN_SPEECH_SPEED).max(MAX_SPEECH_SPEED).optional()
+    }),
+    output: z.strictObject({
+      modelId: speechModelId.optional(),
+      voice: z.string().optional(),
+      language,
+      speed: z.number(),
+      status: voiceStatus
+    })
+  }),
   'file.voice_recording.create': defineRoute({
     input: session.extend({
       audio: z.instanceof(Uint8Array).refine((value) => value.byteLength > 0 && value.byteLength <= 32 * 1024 * 1024),
@@ -132,7 +173,11 @@ export const voiceRequestSchemas = {
   }),
   'ai.speech.abort': defineRoute({ input: abort, output: z.void() }),
   'ai.transcription.generate': defineRoute({
-    input: request.extend({ modelId: asrModelId.optional(), fileEntryId: FileEntryIdSchema, language }),
+    input: request.extend({
+      modelId: asrModelId.optional(),
+      fileEntryId: FileEntryIdSchema,
+      language: transcriptionLanguage.optional()
+    }),
     output: z.strictObject({
       sessionId: z.uuid(),
       requestId: z.uuid(),
@@ -175,30 +220,45 @@ export const voiceRequestSchemas = {
   'ai.voice.models.list': defineRoute({
     input: z.void(),
     output: z.custom<{
-      models: readonly LocalVoiceModelFacts[]
+      models: readonly LocalVoiceModelDescriptor[]
       defaultAsrModelId?: LocalTranscriptionModelId
       defaultSpeechModelId?: LocalSpeechModelId
     }>()
   }),
+  'ai.voice.model.describe': defineRoute({
+    input: z.strictObject({ modelId: z.string().min(1).max(256) }),
+    output: z.custom<VoiceModelLookup>()
+  }),
+  'ai.voice.model.download': defineRoute({
+    input: z.strictObject({ modelId: asrModelId }),
+    output: z.enum(LOCAL_MODEL_DOWNLOAD_RESULTS)
+  }),
+  'ai.voice.model.cancel_download': defineRoute({ input: z.strictObject({ modelId: asrModelId }), output: z.void() }),
+  'ai.voice.model.remove': defineRoute({
+    input: z.strictObject({ modelId: asrModelId }),
+    output: z.strictObject({ removed: z.boolean() })
+  }),
   'ai.transcription.locales.list': defineRoute({
-    input: z.void(),
+    input: z.strictObject({ modelId: asrModelId }),
     output: z.strictObject({ supported: z.array(localeTag), installed: z.array(localeTag) })
   }),
   'ai.voice.model.status': defineRoute({
     input: z.strictObject({ modelId, language, voice: z.string().min(1).max(256).optional() }),
     output: z.strictObject({
       status: z.enum(['unsupported', 'not_installed', 'installing', 'ready', 'failed']),
+      percent: z.number().min(0).max(100).optional(),
       reason: z
         .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
         .optional()
     })
   }),
   'ai.speech.voices.list': defineRoute({
-    input: z.void(),
+    input: z.strictObject({ modelId: z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID]) }),
     output: z.array(z.strictObject({ id: z.string(), name: z.string(), language: z.string() }))
   }),
   'ai.transcription.asset.install': defineRoute({
     input: request.extend({
+      modelId: asrModelId,
       language: languageTag
     }),
     output: z.void()

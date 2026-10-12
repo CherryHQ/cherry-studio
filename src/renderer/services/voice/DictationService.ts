@@ -1,5 +1,7 @@
+import { preferenceService } from '@renderer/data/PreferenceService'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 
+import { microphoneErrorReason } from './microphoneDevices'
 import {
   voiceService,
   type CreateRecordingInput,
@@ -25,12 +27,7 @@ export type DictationPhase =
   | 'failed'
   | 'recovery'
 
-export type DictationErrorCategory =
-  | VoiceErrorReason
-  | 'microphone_permission'
-  | 'recording_failed'
-  | 'transcription_failed'
-  | 'clipboard_failed'
+export type DictationErrorCategory = VoiceErrorReason | 'transcription_failed' | 'clipboard_failed'
 
 export interface DictationSnapshot {
   readonly phase: DictationPhase
@@ -94,6 +91,7 @@ interface DictationServiceOptions {
   mediaDevices?: DictationMediaDevices
   createMediaRecorder?: (stream: MediaStream, options: MediaRecorderOptions) => DictationMediaRecorder
   clipboard?: DictationClipboard
+  readMicrophoneDeviceId?: () => Promise<string | null>
   now?: () => number
 }
 
@@ -104,6 +102,7 @@ interface ActiveDictation {
   readonly target: CapturedVoiceTarget | null
   readonly preferences: ResolvedTranscriptionPreferences
   readonly chunks: Blob[]
+  capture?: Promise<MediaStream>
   stream?: MediaStream
   recorder?: DictationMediaRecorder
   recorderStopped?: Promise<void>
@@ -130,18 +129,13 @@ function errorCategory(error: unknown, fallback: DictationErrorCategory): Dictat
   return typeof reason === 'string' && voiceReasons.has(reason) ? (reason as VoiceErrorReason) : fallback
 }
 
-function isMicrophonePermissionError(error: unknown): boolean {
-  return (
-    error instanceof DOMException && ['NotAllowedError', 'PermissionDeniedError', 'SecurityError'].includes(error.name)
-  )
-}
-
 export class DictationService {
   private readonly voice: DictationVoiceService
   private readonly targets: DictationTargetManager
   private readonly mediaDevices: DictationMediaDevices
   private readonly createMediaRecorder: (stream: MediaStream, options: MediaRecorderOptions) => DictationMediaRecorder
   private readonly clipboard: DictationClipboard
+  private readonly readMicrophoneDeviceId: () => Promise<string | null>
   private readonly now: () => number
   private readonly listeners = new Set<() => void>()
   private snapshot: DictationSnapshot = { phase: 'idle', elapsedMs: 0, recoveryAvailable: false }
@@ -160,6 +154,8 @@ export class DictationService {
 
   constructor(options: DictationServiceOptions = {}) {
     this.voice = options.voice ?? voiceService
+    this.readMicrophoneDeviceId =
+      options.readMicrophoneDeviceId ?? (() => preferenceService.get('feature.voice.input.device_id'))
     this.targets = options.targets ?? voiceTargetManager
     this.mediaDevices =
       options.mediaDevices ??
@@ -239,8 +235,10 @@ export class DictationService {
     if (!this.isRunCurrent(runToken, generation)) return
 
     let preferences: ResolvedTranscriptionPreferences
+    let deviceId: string | null
     try {
       preferences = await this.voice.resolveTranscriptionPreferences()
+      deviceId = await this.readMicrophoneDeviceId()
     } catch (error) {
       if (this.isRunCurrent(runToken, generation)) {
         this.publish('failed', 0, false, errorCategory(error, 'operation_failed'))
@@ -278,17 +276,17 @@ export class DictationService {
 
     let stream: MediaStream
     try {
-      stream = await this.mediaDevices.getUserMedia({ audio: true })
+      active.capture = this.mediaDevices.getUserMedia({
+        audio: deviceId == null ? true : { deviceId: { exact: deviceId } },
+        video: false
+      })
+      stream = await active.capture
+      active.capture = undefined
     } catch (error) {
       const cleanupError = await this.cleanupSession(active)
       if (cleanupError) return
       if (this.isRunCurrent(runToken, generation)) {
-        this.publish(
-          'failed',
-          0,
-          false,
-          isMicrophonePermissionError(error) ? 'microphone_permission' : 'recording_failed'
-        )
+        this.publish('failed', 0, false, microphoneErrorReason(error))
       }
       return
     }
@@ -300,6 +298,16 @@ export class DictationService {
 
     try {
       active.stream = stream
+      for (const track of stream.getTracks()) {
+        track.onended = () => {
+          if (!this.isCurrent(active)) return
+          ++this.generation
+          void this.cleanupSession(active).then((cleanupError) => {
+            if (!cleanupError && this.currentRunToken === runToken)
+              this.publish('failed', 0, false, 'microphone_unavailable')
+          })
+        }
+      }
       active.recorder = this.createMediaRecorder(stream, { mimeType: RECORDING_MIME_TYPE })
       active.recorderStopped = new Promise<void>((resolve) => {
         active.resolveRecorderStopped = resolve
@@ -505,6 +513,10 @@ export class DictationService {
     this.stopRecorder(active)
     this.stopActiveTracks(active)
     this.clearRecordingData(active)
+    if (active.capture) {
+      await active.capture.catch(() => undefined)
+      active.capture = undefined
+    }
     if (active.transcription) {
       await this.voice.abortTranscription(active.transcription).catch(() => undefined)
       active.transcription = undefined
@@ -580,7 +592,10 @@ export class DictationService {
   }
 
   private stopTracks(stream: MediaStream): void {
-    stream.getTracks().forEach((track) => track.stop())
+    stream.getTracks().forEach((track) => {
+      track.onended = null
+      track.stop()
+    })
   }
 
   private clearRecordingData(active: ActiveDictation): void {

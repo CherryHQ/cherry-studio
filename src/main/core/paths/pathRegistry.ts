@@ -263,6 +263,7 @@ export function buildPathRegistry() {
     // durable (see restoreJournal.ts). Never relocate the two independently.
     'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+    'feature.backup.restore.session': path.join(appUserData, 'restore-session'),
 
     // Stored in the profile it authorizes for reset.
     'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),
@@ -279,6 +280,7 @@ export function buildPathRegistry() {
     'feature.mcp.resource_results.temp': path.join(appTemp, 'mcp-resource-results'),
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
     'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
+    'feature.files.intakes': path.join(appUserDataData, 'FileIntakes'),
     'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
     'feature.voice.temp': path.join(
       appTemp,
@@ -286,7 +288,9 @@ export function buildPathRegistry() {
       createHash('sha256').update(path.resolve(appUserData)).digest('hex')
     ),
     'feature.voice.helper_file': app.isPackaged
-      ? path.join(appExtraResources, 'system-speech', voiceHelperFilename)
+      ? process.platform === 'darwin'
+        ? path.join(appExtraResources, '..', 'Helpers', voiceHelperFilename)
+        : path.join(appExtraResources, 'system-speech', voiceHelperFilename)
       : path.join(
           app.getAppPath(),
           'packages',
@@ -405,6 +409,7 @@ const NO_ENSURE = [
   'feature.selection.native_panel_file',
   'app.utility_process',
   'app.session.webview',
+  'feature.backup.restore.session',
   'app.database.migrations',
   'feature.provider_registry.data',
   'feature.pdfjs.cmaps',

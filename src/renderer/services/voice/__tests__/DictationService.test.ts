@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID, TranscriptionLanguageSource } from '@shared/ai/localVoice'
 
 import { DictationService } from '../DictationService'
 import type { ResolvedTranscriptionPreferences, VoiceCommandEvent } from '../VoiceService'
@@ -56,6 +56,7 @@ function createHarness(
   options: {
     chunks?: Blob[]
     getUserMedia?: Mock<(constraints: MediaStreamConstraints) => Promise<MediaStream>>
+    readMicrophoneDeviceId?: () => Promise<string | null>
     now?: () => number
     targetManager?: VoiceTargetManager
   } = {}
@@ -92,7 +93,7 @@ function createHarness(
     },
     resolveTranscriptionPreferences: vi.fn<() => Promise<ResolvedTranscriptionPreferences>>(async () => ({
       modelId: APPLE_ASR_MODEL_ID,
-      language: 'zh-CN'
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' }
     })),
     startRecording: vi.fn(() => {
       events.push('start-recording')
@@ -147,6 +148,7 @@ function createHarness(
     mediaDevices: { getUserMedia },
     createMediaRecorder,
     clipboard,
+    readMicrophoneDeviceId: options.readMicrophoneDeviceId ?? (async () => null),
     now: options.now
   })
 
@@ -261,7 +263,10 @@ describe('DictationService recording lifecycle', () => {
       await vi.waitFor(() => expect(harness.voice[boundary]).toHaveBeenCalled())
 
       harness.emitInterruption()
-      waiting.resolve({ modelId: APPLE_ASR_MODEL_ID, language: 'zh-CN' })
+      waiting.resolve({
+        modelId: APPLE_ASR_MODEL_ID,
+        language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' }
+      })
       await starting
 
       expect(harness.voice.startRecording).not.toHaveBeenCalled()
@@ -327,7 +332,7 @@ describe('DictationService recording lifecycle', () => {
     expect(harness.voice.transcribe).toHaveBeenCalledWith(
       expect.objectContaining({
         modelId: 'local-voice::apple-system-asr',
-        language: 'zh-CN'
+        language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' }
       })
     )
     expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'hello world')
@@ -345,7 +350,7 @@ describe('DictationService recording lifecycle', () => {
     admission.resolve({ revision: 1, phase: 'recording', sessionId: 'session-a' })
     await starting
 
-    expect(harness.getUserMedia).toHaveBeenCalledWith({ audio: true })
+    expect(harness.getUserMedia).toHaveBeenCalledWith({ audio: true, video: false })
     expect(harness.createMediaRecorder).toHaveBeenCalledWith(harness.stream, {
       mimeType: 'audio/webm;codecs=opus'
     })
@@ -381,7 +386,7 @@ describe('DictationService recording lifecycle', () => {
       sessionId: 'session-1',
       fileEntryId: 'file-1',
       modelId: APPLE_ASR_MODEL_ID,
-      language: 'zh-CN'
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' }
     })
     expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'hello world')
     expect(otherReplaceRange).not.toHaveBeenCalled()
@@ -475,9 +480,11 @@ describe('DictationService recording lifecycle', () => {
     const harness = createHarness({ getUserMedia })
 
     const run = harness.service.startScoped()
-    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledWith({ audio: true }))
-    await run.cancel()
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledWith({ audio: true, video: false }))
+    const cancelled = run.cancel()
+    expect(harness.voice.discardSession).not.toHaveBeenCalled()
     permission.resolve(lateStream)
+    await cancelled
     await run.result
 
     lateTracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
@@ -528,10 +535,9 @@ describe('DictationService recording lifecycle', () => {
     const first = harness.service.startScoped()
     await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1))
     const replacement = harness.service.startScoped()
+    firstPermission.reject(new DOMException('late denial', 'NotAllowedError'))
     await replacement.result
     expect(harness.service.getSnapshot().phase).toBe('recording')
-
-    firstPermission.reject(new DOMException('late denial', 'NotAllowedError'))
     await first.result
     await vi.advanceTimersByTimeAsync(300_000)
 
@@ -574,14 +580,13 @@ describe('DictationService recording lifecycle', () => {
     expect(harness.voice.initialize).toHaveBeenCalledOnce()
     expect(harness.voice.subscribeCommands).toHaveBeenCalledOnce()
     const starting = harness.service.start()
-    await vi.waitFor(() => expect(harness.getUserMedia).toHaveBeenCalledWith({ audio: true }))
+    await vi.waitFor(() => expect(harness.getUserMedia).toHaveBeenCalledWith({ audio: true, video: false }))
     expect(harness.events.slice(0, 3)).toEqual(['subscribe', 'initialize', 'start-recording'])
 
     harness.emitCommand('another-session')
     expect(harness.voice.discardSession).not.toHaveBeenCalled()
     harness.emitCommand('session-1')
-    await vi.waitFor(() => expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1'))
-
+    expect(harness.voice.discardSession).not.toHaveBeenCalled()
     permission.resolve(lateStream)
     await starting
 
@@ -730,14 +735,17 @@ describe('DictationService failure and retry', () => {
     await harness.service.retry()
     expect(harness.service.getSnapshot().phase).toBe('transcribing')
     expect(harness.voice.retryTranscription).not.toHaveBeenCalled()
-    preferences.resolve({ modelId: APPLE_ASR_MODEL_ID, language: 'en-US' })
+    preferences.resolve({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'en-US' }
+    })
     await retrying
 
     expect(harness.voice.retryTranscription).toHaveBeenCalledExactlyOnceWith({
       sessionId: 'session-1',
       fileEntryId: 'file-1',
       modelId: APPLE_ASR_MODEL_ID,
-      language: 'en-US'
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'en-US' }
     })
     expect(harness.replaceRange).toHaveBeenCalledExactlyOnceWith({ from: 2, to: 5 }, 'retry text')
     expect(harness.service.getSnapshot().phase).toBe('idle')
@@ -758,7 +766,10 @@ describe('DictationService failure and retry', () => {
       harness.voice.resolveTranscriptionPreferences.mockReset().mockResolvedValue({ modelId: APPLE_ASR_MODEL_ID })
       await harness.service.start()
     }
-    preferences.resolve({ modelId: APPLE_ASR_MODEL_ID, language: 'en-US' })
+    preferences.resolve({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'en-US' }
+    })
     await retrying
 
     expect(harness.voice.retryTranscription).not.toHaveBeenCalled()
@@ -1025,5 +1036,42 @@ describe('DictationService private recovery', () => {
     expect(harness.voice.retryTranscription).not.toHaveBeenCalled()
     await expect(harness.service.copyRecovery()).resolves.toBe(true)
     expect(harness.clipboard.writeText).toHaveBeenCalledWith('hello world')
+  })
+})
+
+describe('selected microphone recording', () => {
+  it('uses the exact selection and applies a changed preference only to the next recording', async () => {
+    let deviceId: string | null = 'usb-1'
+    const harness = createHarness({ readMicrophoneDeviceId: async () => deviceId })
+    await harness.service.start()
+    deviceId = 'usb-2'
+    expect(harness.getUserMedia.mock.calls).toEqual([[{ audio: { deviceId: { exact: 'usb-1' } }, video: false }]])
+    await harness.service.cancel()
+    await harness.service.start()
+    expect(harness.getUserMedia.mock.calls[1]).toEqual([{ audio: { deviceId: { exact: 'usb-2' } }, video: false }])
+    await harness.service.teardown()
+  })
+
+  it('fails a disconnected microphone without transcribing partial audio', async () => {
+    const harness = createHarness()
+    await harness.service.start()
+    const track = harness.stream.getTracks()[0]
+    track.onended?.call(track, new Event('ended'))
+    await vi.waitFor(() =>
+      expect(harness.service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'microphone_unavailable' })
+    )
+    expect(harness.voice.createRecording).not.toHaveBeenCalled()
+    expect(harness.voice.transcribe).not.toHaveBeenCalled()
+    harness.stream.getTracks().forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
+    await harness.service.teardown()
+  })
+
+  it('does not retry a missing selected microphone with the default input', async () => {
+    const getUserMedia = vi.fn().mockRejectedValue(new DOMException('gone', 'NotFoundError'))
+    const harness = createHarness({ readMicrophoneDeviceId: async () => 'removed', getUserMedia })
+    await harness.service.start()
+    expect(harness.service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'microphone_unavailable' })
+    expect(getUserMedia.mock.calls).toEqual([[{ audio: { deviceId: { exact: 'removed' } }, video: false }]])
+    await harness.service.teardown()
   })
 })

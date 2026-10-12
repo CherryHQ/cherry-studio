@@ -116,6 +116,8 @@ export type AgentRuntimeEvent =
         /** Globally unique, driver-namespaced invocation id used directly for idempotent persistence. */
         requestId: string
         model: string
+        /** Present only when the driver froze pricing at the provider invocation boundary. */
+        pricingSnapshot?: AiUsagePricingSnapshot | null
         /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
         messageAssociation: 'current-turn' | 'stateless'
         usage?: {

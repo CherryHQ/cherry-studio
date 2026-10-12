@@ -22,7 +22,7 @@ describe('GitCode sync recovery', () => {
       writeFileSync(path.join(root, 'bin', name), `#!${process.execPath}\n${body}`, { mode: 0o755 })
     executable(
       'gh',
-      `process.stdout.write(process.argv.includes('view') ? JSON.stringify({name: 'v2.1.2', isDraft: process.env.DRAFT === 'true', isPrerelease: process.env.PRE === 'true'}) : 'v2.1.2')`
+      `process.stdout.write(process.argv.includes('view') ? JSON.stringify({name: 'v2.1.2', isDraft: process.env.DRAFT === 'true', isPrerelease: process.env.PRE === 'true'}) : 'v2.1.2' + (process.env.RUNNER_OS === 'Windows' ? '\\r\\n' : ''))`
     )
     executable('sleep', '')
     executable(
@@ -96,6 +96,29 @@ describe('GitCode sync recovery', () => {
       expect(uploads).toEqual(['CN.exe', 'CN.exe', 'Global.exe', 'latest-cn.yml', 'latest.yml', 'release-history.json'])
     }
   )
+
+  it('uploads clean URLs and preserves latest status with native Windows line endings', () => {
+    const jq = spawnSync('bash', ['-c', 'command -v jq'], { encoding: 'utf8' }).stdout.trim()
+    writeFileSync(
+      path.join(root, 'bin', 'jq'),
+      `#!${process.execPath}
+      const { execFileSync } = require('node:child_process')
+      const fs = require('node:fs')
+      const args = process.argv.slice(2)
+      const output = execFileSync(${JSON.stringify(jq)}, args.filter(arg => arg !== '--binary'), {
+        input: fs.readFileSync(0), encoding: 'utf8'
+      })
+      process.stdout.write(args.includes('--binary') ? output : output.replace(/\\n/g, '\\r\\n'))
+      `,
+      { mode: 0o755 }
+    )
+    const result = run({ RUNNER_OS: 'Windows' })
+    expect(result.status, result.stderr).toBe(0)
+    expect(requests().find((call) => call.method === 'POST').payload.release_status).toBe('latest')
+    const uploads = requests().filter((call) => call.method === 'PUT')
+    expect(uploads).toHaveLength(5)
+    expect(uploads.every((call) => !/[\r\n]/.test(call.url))).toBe(true)
+  })
 
   it('keeps prereleases from becoming latest', () => {
     const result = run({ PRE: 'true' })

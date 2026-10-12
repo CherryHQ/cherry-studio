@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
   ipcRequest: vi.fn(() => Promise.resolve(undefined)),
   macTransparentState: { value: false },
-  platformState: { isMac: false },
+  platformState: { isMac: false, isWin: false },
   showSearchPopup: vi.fn()
 }))
 
@@ -55,7 +55,9 @@ vi.mock('@renderer/utils/platform', () => ({
     return mocks.platformState.isMac
   },
   isLinux: false,
-  isWin: false,
+  get isWin() {
+    return mocks.platformState.isWin
+  },
   platform: 'linux'
 }))
 
@@ -187,9 +189,18 @@ afterEach(() => {
   mocks.emojiIconProps.length = 0
   mocks.macTransparentState.value = false
   mocks.platformState.isMac = false
+  mocks.platformState.isWin = false
 })
 
 describe('AppShellTabBar', () => {
+  it('keeps the Windows title bar at least as tall as the native overlay when zoomed out', () => {
+    mocks.platformState.isWin = true
+    renderTabBar({ tabs: [createTab('home')], activeTabId: 'home' })
+    expect(document.querySelector<HTMLElement>('[data-ui="app.tab-bar"]')?.style.minHeight).toBe(
+      'env(titlebar-area-height, 0px)'
+    )
+  })
+
   const renderTabBar = (
     props?: Partial<ComponentProps<typeof AppShellTabBar>>,
     wrapperProps?: ComponentProps<'div'>

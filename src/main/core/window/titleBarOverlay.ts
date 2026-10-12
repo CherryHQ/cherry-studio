@@ -11,18 +11,18 @@ function getThemeColors(): Pick<TitleBarOverlay, 'color' | 'symbolColor'> {
 }
 
 /**
- * Build the Linux Window Controls Overlay options for a window whose top bar is `height` px tall.
+ * Build the Window Controls Overlay options for a window whose top bar is `height` px tall.
  * @param height - Overlay height in DIPs; match the renderer's title bar height.
  */
-export function getLinuxTitleBarOverlay(height: number): TitleBarOverlay {
+export function getTitleBarOverlay(height: number): TitleBarOverlay {
   return { ...getThemeColors(), height }
 }
 
 /**
- * Keep a Linux WCO window's control colors readable across theme switches for its whole lifetime.
+ * Keep a WCO window's control colors readable across theme switches for its whole lifetime.
  * Only call this for windows created with `titleBarOverlay` — Electron throws otherwise.
  */
-export function syncLinuxTitleBarOverlayWithTheme(window: BrowserWindow): void {
+export function syncTitleBarOverlayWithTheme(window: BrowserWindow): void {
   const apply = () => {
     if (!window.isDestroyed()) window.setTitleBarOverlay(getThemeColors())
   }

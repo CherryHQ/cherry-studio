@@ -10,10 +10,20 @@ const { createOptionsForFile, signMacApp } = require('../packaging/mac-sign.js')
 
 const projectRoot = path.resolve(import.meta.dirname, '../..')
 const appPath = '/tmp/Cherry Studio.app'
-const helperPath = path.join(appPath, 'Contents', 'Resources', 'system-speech', 'cherry-system-speech')
+const helperPath = path.join(appPath, 'Contents', 'Helpers', 'cherry-system-speech')
 const helperEntitlements = path.join(projectRoot, 'build', 'entitlements.system-speech.plist')
 
 describe('macOS signing policy', () => {
+  it('packages the native helper as code in Contents/Helpers', () => {
+    const builder = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8'))
+
+    expect(builder.mac.extraFiles).toContainEqual({
+      from: 'packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech',
+      to: 'Helpers/cherry-system-speech'
+    })
+    expect(JSON.stringify(builder.mac.extraResources ?? [])).not.toContain('cherry-system-speech')
+  })
+
   it('uses dedicated empty entitlements only for the packaged system-speech helper', () => {
     const frameworkOptions = { entitlements: 'build/entitlements.mac.plist', hardenedRuntime: true }
     const originalOptionsForFile = (filePath: string) =>

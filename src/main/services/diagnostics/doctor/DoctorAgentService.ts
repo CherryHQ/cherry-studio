@@ -30,6 +30,7 @@ import type {
   DoctorAgentUndoResult,
   DoctorAgentWrite
 } from '@shared/types/doctorAgent'
+import { Sequencer } from '@shared/utils/async'
 import {
   doctorAgentKey,
   doctorAgentStateCacheKey,
@@ -72,7 +73,7 @@ export class DoctorAgentService extends BaseService {
   /** Session → key, so a tool call can find the run it belongs to without carrying the key. */
   private readonly sessions = new Map<string, DoctorAgentKey>()
   /** One write at a time across analyses: two of them may target the same provider. */
-  private writeQueue: Promise<unknown> = Promise.resolve()
+  private readonly writeQueue = new Sequencer()
 
   protected override onStop(): void {
     for (const key of Array.from(this.active.keys())) this.abort(key, 'service stopping')
@@ -160,7 +161,7 @@ export class DoctorAgentService extends BaseService {
   }
 
   apply(input: { key: DoctorAgentKey; runId: string; proposalId: string }): Promise<DoctorAgentApplyResult> {
-    return this.serialized(async () => {
+    return this.writeQueue.queue(async () => {
       // Re-read under the lock: a queued duplicate must see the first click's outcome.
       const state = this.currentState(input.key)
       if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
@@ -186,7 +187,7 @@ export class DoctorAgentService extends BaseService {
   }
 
   undo(input: { key: DoctorAgentKey; runId: string; changeId: string }): Promise<DoctorAgentUndoResult> {
-    return this.serialized(async () => {
+    return this.writeQueue.queue(async () => {
       const state = this.currentState(input.key)
       if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
       const change = state.changes.find((item) => item.id === input.changeId)
@@ -214,7 +215,7 @@ export class DoctorAgentService extends BaseService {
       this.update(key, runId, (current) => ({ ...current, proposals: [...current.proposals, proposal] }))
       return { status: 'proposed', proposal }
     }
-    return this.serialized(async () => {
+    return this.writeQueue.queue(async () => {
       try {
         const applied = await applyWrite(write)
         return { status: 'applied', change: this.recordChange(key, runId, write, summary, applied) }
@@ -222,12 +223,6 @@ export class DoctorAgentService extends BaseService {
         return { status: 'failed', message: error instanceof Error ? error.message : String(error) }
       }
     })
-  }
-
-  private serialized<T>(task: () => Promise<T>): Promise<T> {
-    const next = this.writeQueue.then(task, task)
-    this.writeQueue = next.catch(() => undefined)
-    return next
   }
 
   reportForSession(sessionId: string): unknown {
