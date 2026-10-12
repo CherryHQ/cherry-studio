@@ -28,8 +28,86 @@ export type { BackgroundTaskRecord, BackgroundTaskStatus } from '@shared/ai/back
 
 const logger = loggerService.withContext('AgentBackgroundTasks')
 const execFileAsync = promisify(execFile)
-const activeTaskPids = new Map<string, number>()
+/**
+ * Groups this app has verified as a task's own work: task id → the group and the members whose
+ * identity it has established. A member is verified only with evidence tying it to the task — the
+ * leader this app spawned, or descent from one it has already verified — never by its mere presence
+ * behind the recorded pgid: that number alone survives the group, and whatever the OS hands it to
+ * next is not this task's to signal.
+ */
+const ownedTaskGroups = new Map<string, OwnedGroup>()
 const recordLocks = new Map<string, Promise<void>>()
+
+interface OwnedGroup {
+  pgid: number
+  /** Verified members: pid → the start stamp they were verified under. */
+  members: Map<number, string>
+}
+
+/** Accounts for the group's live members that can be verified as this task's own work. */
+function trackVerifiedMembers(taskId: string): void {
+  const owned = ownedTaskGroups.get(taskId)
+  if (!owned) return
+  const live = readGroupMembers(owned.pgid)
+  if (!live) return
+  verifyMembers(owned, live)
+}
+
+/**
+ * Accounts for every live member of the group, whatever its parentage: called only where the group
+ * membership provably is the task's own — the leader's close, when nothing that outlived it could
+ * have come from anywhere else.
+ */
+function trackAllLiveMembers(taskId: string): void {
+  const owned = ownedTaskGroups.get(taskId)
+  if (!owned) return
+  const live = readGroupMembers(owned.pgid)
+  if (!live) return
+  for (const member of live) owned.members.set(member.pid, member.lstart)
+}
+
+/**
+ * Adds the verifiable members of `live` to the group's verified set. While the leader this app
+ * spawned (matched by its start stamp, not just its pid) is alive, everything in its group is its
+ * own work: a process only joins a group inside its own session, so a live leader holds every
+ * member to its descent. Once the leader is gone that argument is spent, and a member is the
+ * task's only through a parent this app has already verified — which is also what refuses a
+ * replacement group that took the pgid after the task's own members drained: nothing in it traces
+ * back to anything this app verified.
+ */
+function verifyMembers(owned: OwnedGroup, live: Array<GroupMember>): void {
+  const byPid = new Map(live.map((member) => [member.pid, member]))
+  const leader = byPid.get(owned.pgid)
+  if (leader && owned.members.get(leader.pid) === leader.lstart) {
+    for (const member of live) owned.members.set(member.pid, member.lstart)
+    return
+  }
+  for (let expanded = true; expanded;) {
+    expanded = false
+    for (const member of live) {
+      if (owned.members.get(member.pid) === member.lstart) continue
+      const parent = byPid.get(member.ppid)
+      if (parent && owned.members.get(parent.pid) === parent.lstart) {
+        owned.members.set(member.pid, member.lstart)
+        expanded = true
+      }
+    }
+  }
+}
+
+/**
+ * Whether every live member of the group is one this app has verified as the task's own work, so
+ * the group signal below can only reach the task. An unreadable table establishes nothing and a
+ * member this app cannot account for is refused outright: the signal is skipped, the record stays.
+ */
+function isGroupOwnershipVerified(taskId: string): boolean {
+  const owned = ownedTaskGroups.get(taskId)
+  if (!owned) return false
+  const live = readGroupMembers(owned.pgid)
+  if (!live) return false
+  verifyMembers(owned, live)
+  return live.every((member) => owned.members.get(member.pid) === member.lstart)
+}
 
 async function withRecordLock<T>(taskId: string, operation: () => Promise<T>): Promise<T> {
   const previous = recordLocks.get(taskId)
@@ -138,8 +216,13 @@ export function buildDetachedBackgroundTaskSpawn(
   return { file: command, args: [], options: { ...options, shell: true } }
 }
 
-/** `kill(pid, 0)` liveness probe; EPERM means the pid exists but is not ours. */
+/**
+ * `kill(pid, 0)` liveness probe; EPERM means the pid exists but is not ours. Non-positive values
+ * are not pids at all — `process.kill` reads 0 and negatives as whole process groups — so nothing
+ * may be reported alive through them, especially not a pid that failed to parse.
+ */
 export function isPidAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false
   try {
     process.kill(pid, 0)
     return true
@@ -182,11 +265,23 @@ export async function startDetachedBackgroundTask(
       signal: null,
       ...(input.notifyChannelIds ? { notifyChannelIds: [...input.notifyChannelIds] } : {})
     }
-    if (record.pid > 0) activeTaskPids.set(id, record.pid)
+    // The leader is verified by the start stamp captured from it while spawning, and its members
+    // get verified as the group works: the pulse below, and the leader's close once it is gone.
+    if (record.pid > 0) {
+      const members = new Map<number, string>()
+      if (record.pidStartTime) members.set(record.pid, record.pidStartTime)
+      ownedTaskGroups.set(id, { pgid: record.pid, members })
+    }
 
     // A spawn failure can emit both 'error' and 'close'; finalize guards so
     // at most one completion lands. Handlers go
     // on before any await — both events can fire on the first ticks.
+    // Taking stock on a pulse while the group works: a member is only the task's while this app can
+    // still tie it to one it has verified, and that tie is easiest to establish while its parent
+    // lives. The Windows kill targets the pid tree instead, so there is nothing to verify there.
+    const taking =
+      process.platform === 'win32' ? undefined : setInterval(() => trackVerifiedMembers(id), LEADERLESS_GROUP_POLL_MS)
+    taking?.unref?.()
     let settled = false
     // The completion the leader's handler observed. A member it backgrounded (`sleep 1 &`) can
     // outlive that handler, so the observation is held until the group drains. The recovery path
@@ -204,7 +299,8 @@ export async function startDetachedBackgroundTask(
         poll.unref?.()
         return
       }
-      activeTaskPids.delete(id)
+      if (taking) clearInterval(taking)
+      ownedTaskGroups.delete(id)
       const completion = observedCompletion
       if (completion) {
         await finalizeDetachedBackgroundTask(
@@ -228,8 +324,13 @@ export async function startDetachedBackgroundTask(
       finalize('failed', null, null)
     })
     // 'close' rather than 'exit': it waits for the task's stdio to drain, so the final log
-    // bytes are readable by the time completion is published.
-    child.on('close', (code, signal) => finalize(code === 0 ? 'completed' : 'failed', code, signal))
+    // bytes are readable by the time completion is published. The members that outlived the leader
+    // are still provably its own at this instant — nothing outside its session could have joined
+    // the group — so their identity is taken here, before the leader is gone as evidence.
+    child.on('close', (code, signal) => {
+      trackAllLiveMembers(id)
+      finalize(code === 0 ? 'completed' : 'failed', code, signal)
+    })
 
     // Synchronously, so an immediately-exiting task cannot finalize before the
     // running record exists on disk.
@@ -237,7 +338,8 @@ export async function startDetachedBackgroundTask(
       writeRecordSync(input.storageDir, record)
     } catch (error) {
       settled = true
-      activeTaskPids.delete(id)
+      if (taking) clearInterval(taking)
+      ownedTaskGroups.delete(id)
       let cleaned = record.pid <= 0
       // A group member that survived the cleanup kill — a privileged worker failing the credential
       // check while the shell died. It outranks the leader's own exit in the message below.
@@ -287,8 +389,12 @@ export async function startDetachedBackgroundTask(
           // Ownership returns before any replay: a live group member keeps it — the group, not
           // the leader, is the task — so the leader's close event having fired must not suppress
           // it, or a leaderless group folds to `unknown` and loses Stop/Kill. The drain-gated
-          // settle releases it again once the group is empty.
-          activeTaskPids.set(id, record.pid)
+          // settle releases it again once the group is empty. Whatever still holds the group here
+          // survived the cleanup kill this call just sent, so it is taken as the task's own.
+          const members = new Map<number, string>()
+          if (record.pidStartTime) members.set(record.pid, record.pidStartTime)
+          ownedTaskGroups.set(id, { pgid: record.pid, members })
+          trackAllLiveMembers(id)
           if (observedCompletion) {
             const { status, exitCode, signal } = observedCompletion
             finalize(status, exitCode, signal)
@@ -355,9 +461,10 @@ async function stopDetachedBackgroundTaskUnlocked(
 ): Promise<BackgroundTaskRecord | undefined> {
   const record = await getDetachedBackgroundTask(storageDir, taskId)
   if (!record || record.status !== 'running' || record.pid <= 0) return undefined
+  const ownership = ownedTaskGroups.get(record.id)
   // A recycled PID could belong to another application. Old records without a start stamp cannot
   // be signalled safely after restart; newly created tasks always capture one on POSIX.
-  const liveChild = activeTaskPids.get(record.id) === record.pid
+  const liveChild = ownership?.pgid === record.pid
   if (process.platform === 'win32' && !liveChild) return undefined
   if (process.platform !== 'win32' && !liveChild) {
     // After a restart only numbers tie the record to a process. A live leader is still provably
@@ -365,6 +472,17 @@ async function stopDetachedBackgroundTaskUnlocked(
     // live workers — so it stays signalable only through the ownership the spawn retained.
     if (!isPidAlive(record.pid)) return undefined
     if (!record.pidStartTime || getPidStartTime(record.pid) !== record.pidStartTime) return undefined
+  }
+  // Ownership alone is not enough to signal with: the entry outlives the shell, and a pgid the
+  // task's own members have drained from is free to hold whatever the OS gives it next. Every live
+  // member must be verified as this task's own first, or the signal is refused and the record —
+  // unresolved, and still stoppable once the group's identity is established — stays as it is.
+  if (liveChild && process.platform !== 'win32' && !isGroupOwnershipVerified(record.id)) {
+    logger.warn('Refusing to signal a group holding members this task cannot account for', {
+      taskId: record.id,
+      pgid: record.pid
+    })
+    return undefined
   }
   const signal = force ? 'SIGKILL' : 'SIGTERM'
   const requested = {
@@ -432,16 +550,48 @@ function getPidStartTime(pid: number): string | undefined {
  * Whether the process group still holds a member the OS schedules. A group kill answers EPERM
  * both when every member has exited unreaped and when every live member fails the credential
  * check (a setuid `sudo` the task exec'd), so the exit is only proven once nothing is alive.
+ * An unreadable table is not an empty group: nothing about the task has been established.
  */
+function groupIsEmpty(pgid: number): boolean {
+  const members = readGroupMembers(pgid)
+  return members !== null && members.length === 0
+}
+
 function groupHasLiveMember(pgid: number): boolean {
+  return !groupIsEmpty(pgid)
+}
+
+/** A live member of a process group: its pid, its parent, and the start stamp identifying it. */
+interface GroupMember {
+  pid: number
+  ppid: number
+  lstart: string
+}
+
+/**
+ * All the members of `pgid` the OS still schedules, each with the parent and start stamp that
+ * identify it — the evidence a member descends from one this app verified rather than from a pid
+ * the OS handed to someone else. `null` when the table cannot be read, which is never evidence of
+ * anything.
+ */
+function readGroupMembers(pgid: number): GroupMember[] | null {
   try {
-    const table = execFileSync('ps', ['-axo', 'pgid=,state='], { encoding: 'utf8', timeout: 5_000 })
-    return table.split('\n').some((row) => {
-      const [group, state] = row.trim().split(/\s+/)
-      return Number(group) === pgid && state !== undefined && !state.startsWith('Z')
+    const table = execFileSync('ps', ['-axwwo', 'pgid=,pid=,ppid=,state=,lstart='], {
+      encoding: 'utf8',
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: 5_000
     })
+    const members: GroupMember[] = []
+    for (const row of table.split('\n')) {
+      const fields = row.trim().split(/\s+/)
+      if (fields.length < 9 || Number(fields[0]) !== pgid) continue
+      const state = fields[3]
+      if (!state || state.startsWith('Z')) continue
+      members.push({ pid: Number(fields[1]), ppid: Number(fields[2]), lstart: fields.slice(-5).join(' ') })
+    }
+    return members
   } catch {
-    return true // an unreadable table must not be read as the task having exited
+    return null
   }
 }
 
@@ -453,7 +603,7 @@ function groupHasLiveMember(pgid: number): boolean {
  */
 export function hasUnownedLiveGroup(record: BackgroundTaskRecord): boolean {
   if (process.platform === 'win32' || record.pid <= 0) return false
-  if (activeTaskPids.get(record.id) === record.pid) return false
+  if (ownedTaskGroups.get(record.id)?.pgid === record.pid) return false
   return groupHasLiveMember(record.pid)
 }
 
@@ -464,7 +614,7 @@ export function hasUnownedLiveGroup(record: BackgroundTaskRecord): boolean {
  */
 async function waitForGroupDrain(pgid: number): Promise<boolean> {
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
-  while (groupHasLiveMember(pgid)) {
+  while (!groupIsEmpty(pgid)) {
     if (Date.now() >= deadline) return false
     await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
   }
@@ -517,7 +667,7 @@ async function reconcileDetachedBackgroundTask(
   // an unrelated group, whose members are not the task's to signal. Such a record reads
   // `unknown`, the one status every control path excludes.
   if (process.platform !== 'win32' && record.pid > 0 && groupHasLiveMember(record.pid)) {
-    return activeTaskPids.get(record.id) === record.pid
+    return ownedTaskGroups.get(record.id)?.pgid === record.pid
       ? record
       : { ...record, status: 'unknown', note: t('background_task.note.group_unattributed') }
   }
@@ -538,12 +688,13 @@ async function reconcileDetachedBackgroundTask(
 }
 
 /**
- * A live pid is only this task's pid while its recorded start stamp still matches. After a restart
- * the in-memory ownership is gone, so a pid the OS has since handed to something else is what makes
- * a dead record read as running — and the stop path then refuses it as unsafe to signal.
+ * A live pid is only this task's pid while its recorded start stamp still matches — in-memory
+ * ownership is no answer here, since the pid can outlive the task and be handed to something else
+ * while this app still holds the entry. A mismatched stamp is what makes a dead record read as
+ * running, and the stop path then refuses it as unsafe to signal.
  */
 function isRecycledPid(record: BackgroundTaskRecord): boolean {
-  if (!record.pidStartTime || activeTaskPids.get(record.id) === record.pid) return false
+  if (!record.pidStartTime) return false
   const observed = getPidStartTime(record.pid)
   return observed !== undefined && observed !== record.pidStartTime
 }

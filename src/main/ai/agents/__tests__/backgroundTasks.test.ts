@@ -1,9 +1,32 @@
+import type * as ChildProcessModule from 'node:child_process'
+import type { ExecFileSyncOptions } from 'node:child_process'
 import { spawn } from 'node:child_process'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// The process table is the only identity evidence a stop can consult, so the identity tests steer
+// its `ps` readings directly: returning `null` delegates to the real table, and every spawn and
+// signal around it stays real. This is what lets a table like the one a recycled pgid leaves
+// behind — live members this app never started — be reproduced without waiting on pid reuse.
+const { psSteer } = vi.hoisted(() => ({
+  psSteer: { read: null as null | ((args: readonly string[]) => string | null) }
+}))
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof ChildProcessModule>()
+  return {
+    ...actual,
+    execFileSync: ((file: string, args?: readonly string[], options?: ExecFileSyncOptions) => {
+      const steer = psSteer.read
+      const steered = file === 'ps' && steer ? steer(args ?? []) : null
+      if (steered !== null) return steered
+      return actual.execFileSync(file, args ?? [], options)
+    }) as typeof actual.execFileSync
+  }
+})
 
 import {
   BACKGROUND_TASK_SENTINEL_EXT,
@@ -372,9 +395,11 @@ describe('backgroundTasks', () => {
           onExit
         })
         try {
-          await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
-          const workerPid = Number((await readFile(record.logFile, 'utf8')).trim())
-          expect(isPidAlive(workerPid)).toBe(true)
+          // The backgrounded worker publishes its own pid at its own pace, and a loaded runner can
+          // hold that write well past the leader's exit — an unsynchronized read of the empty log
+          // would parse pid 0 and then wait on it until the deadline. The wait is on the
+          // publication itself (waitForOrphanedWorker), never on elapsed time.
+          const workerPid = await waitForOrphanedWorker(record)
           await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
 
           // Polled to a deadline rather than waitFor, so a regression reports the status it
@@ -455,6 +480,127 @@ describe('backgroundTasks', () => {
             if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
           } catch {
             // already gone
+          }
+        }
+      }
+    )
+  })
+
+  // A pgid outlives the group it names: once the task's own members have drained from it the OS
+  // is free to hand the number to processes this app never started, and the in-memory ownership
+  // entry alone cannot tell those apart from the task. A stop may only signal a group whose live
+  // members are verified as the task's own work — and must still reach the leaderless task this
+  // app has been watching.
+  describe('process identity before signalling', () => {
+    // A worker that outlives its shell and publishes its pid where the test can read it.
+    const stampedWorkerCommand = (pidFile: string) =>
+      `${nodeBin} -e "require('fs').writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 60_000)" "${pidFile}" &`
+
+    /** Reads the pid a worker published once it is running — never before it exists. */
+    const readWorkerPid = async (pidFile: string): Promise<number> => {
+      let pid = 0
+      await vi.waitFor(
+        async () => {
+          const written = Number((await readFile(pidFile, 'utf8')).trim())
+          expect(written).toBeGreaterThan(0)
+          pid = written
+        },
+        { timeout: 10_000 }
+      )
+      return pid
+    }
+
+    afterEach(() => {
+      psSteer.read = null
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'refuses to signal a group holding a member it cannot account for',
+      async () => {
+        const pidFile = path.join(storageDir, 'worker.pid')
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: stampedWorkerCommand(pidFile),
+          cwd: storageDir
+        })
+        const workerPid = await readWorkerPid(pidFile)
+        // The shell is gone but the task is not: this app has watched the member it left behind,
+        // and Stop still reaches it — that is the working state the guard must leave intact.
+        await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+        expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+
+        // A member present by number only is exactly what a group that took the drained pgid
+        // leaves behind: live work in the recorded group that nothing ties to the task. A foreign
+        // group cannot be pushed into the pgid for real — setpgid refuses across sessions — so
+        // this table is where the replacement group is modelled.
+        psSteer.read = (args) => (args[0] === '-axwwo' ? `${record.pid} 4194303 1 S Mon Jan  1 00:00:00 2001\n` : null)
+
+        try {
+          // Without verified membership the stop must not send the group signal — it would reach
+          // whatever holds the pgid now. The unresolved record stays and keeps its controls.
+          await expect(stopDetachedBackgroundTask(storageDir, record.id, true)).resolves.toBeUndefined()
+          expect(isPidAlive(workerPid)).toBe(true)
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+        } finally {
+          psSteer.read = null
+          try {
+            process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already reaped
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32')('still stops the leaderless task this app has been watching', async () => {
+      const pidFile = path.join(storageDir, 'own-worker.pid')
+      const record = await startDetachedBackgroundTask({
+        storageDir,
+        command: stampedWorkerCommand(pidFile),
+        cwd: storageDir
+      })
+      const workerPid = await readWorkerPid(pidFile)
+      await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+
+      try {
+        // The guard must not cost legitimate leaderless control: every live member here is work
+        // this task started and this app has been watching since it appeared.
+        expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+        expect((await stopDetachedBackgroundTask(storageDir, record.id, true))?.status).toBe('stopped')
+        await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+      } finally {
+        try {
+          process.kill(-record.pid, 'SIGKILL')
+        } catch {
+          // already drained
+        }
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'refuses to signal through a leader the OS handed to another process',
+      async () => {
+        // The leader pid can outlive the task and be handed to something else while this app
+        // still holds the ownership entry. Only the start stamp recorded at spawn tells the two
+        // apart, and a mismatch must take the whole signal with it — entry or no entry.
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+          cwd: storageDir
+        })
+        try {
+          psSteer.read = (args) =>
+            args[0] === '-p' && args[1] === String(record.pid) ? 'Mon Jan  1 00:00:00 2001\n' : null
+
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('unknown')
+          await expect(stopDetachedBackgroundTask(storageDir, record.id, true)).resolves.toBeUndefined()
+          expect(isPidAlive(record.pid)).toBe(true)
+        } finally {
+          psSteer.read = null
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // already drained
           }
         }
       }
