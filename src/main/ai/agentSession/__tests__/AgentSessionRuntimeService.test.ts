@@ -4186,6 +4186,49 @@ describe('AgentSessionRuntimeService', () => {
     void service.closeSession('session-1')
   })
 
+  /**
+   * The declaration must mirror the runtime's command admission, not the raw `/compact`
+   * prefix: dsh's `parseCommand` shape ends the name at end-of-string or ASCII
+   * whitespace, so `/compact` followed by a nonbreaking space dispatches as an ordinary
+   * prompt (no compaction runs) and its blank success is a lost reply.
+   */
+  it('classifies a blank success on a non-ASCII-delimited /compact prompt as a lost reply', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: {
+        ...userMessage('user-1'),
+        data: { parts: [{ type: 'text', text: '/compact\u00a0focus on changes' }] }
+      }
+    })
+
+    const blankResult: StreamDoneResult = {
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: '   ' }] }
+    }
+    await persistenceListener(handle).onDone(blankResult)
+    expect(blankResult.emptyTurn?.name).toBe('blank-content')
+    void service.closeSession('session-1')
+  })
+
+  /** The delimiter tightening must not cost a genuine `/compact …` command its exemption. */
+  it('keeps the anchorless-compaction exemption for ASCII-delimited /compact instructions', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: {
+        ...userMessage('user-1'),
+        data: { parts: [{ type: 'text', text: '/compact focus on changes' }] }
+      }
+    })
+
+    const compactResult: StreamDoneResult = { status: 'success', isTopicDone: true }
+    await persistenceListener(handle).onDone(compactResult)
+    expect(compactResult.emptyTurn).toBeUndefined()
+    void service.closeSession('session-1')
+  })
+
   it('classifies an empty success on a redirected /compact steer continuation as a lost reply', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

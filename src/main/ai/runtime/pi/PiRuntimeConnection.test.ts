@@ -1228,6 +1228,16 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.prompt).not.toHaveBeenCalled()
   })
 
+  /** Command admission ends the name at ASCII whitespace; a nonbreaking space is prose. */
+  it('send routes a non-ASCII-delimited /compact line to prompt instead of compact', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('/compact\u00a0focus on changes'))
+    await Promise.resolve()
+
+    expect(mocks.compact).not.toHaveBeenCalled()
+    expect(mocks.prompt).toHaveBeenCalledWith('/compact\u00a0focus on changes', undefined)
+  })
+
   it('wraps a systemReminder send as a steer reminder and never treats it as /compact', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     conn.send(userInput('/compact', true))
