@@ -117,6 +117,35 @@ describe('assistant post-commit read-model notifications', () => {
     }
   )
 
+  it.each(['mcpServerIds', 'knowledgeBaseIds'] as const)(
+    'keeps %s no-ops read-only without changing freshness or publishing',
+    (field) => {
+      const source = assistantDataService.create({ name: 'Source', modelId: null })
+      effects = []
+      const emptyChanges = dbh.sqlite.prepare('SELECT total_changes()').pluck().get()
+      expect(assistantDataService.update(source.id, { [field]: [] })).toEqual(source)
+      expect(dbh.sqlite.prepare('SELECT total_changes()').pluck().get()).toBe(emptyChanges)
+      expect(effects).toEqual([])
+      const ids = ['10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002']
+      for (const id of ids) {
+        if (field === 'mcpServerIds') dbh.db.insert(mcpServerTable).values({ id, name: id }).run()
+        else
+          dbh.db
+            .insert(knowledgeBaseTable)
+            .values({ id, name: id, status: 'completed', chunkSize: 1024, chunkOverlap: 200 })
+            .run()
+      }
+      const bound = assistantDataService.update(source.id, { [field]: ids })
+      effects = []
+      const changes = dbh.sqlite.prepare('SELECT total_changes()').pluck().get()
+      const result = assistantDataService.update(source.id, { [field]: [ids[1], ids[0], ids[1]] })
+      expect(result).toEqual(bound)
+      expect(assistantDataService.getById(source.id)).toEqual(bound)
+      expect(dbh.sqlite.prepare('SELECT total_changes()').pluck().get()).toBe(changes)
+      expect(effects).toEqual([])
+    }
+  )
+
   it('publishes group membership without claiming a name-order change', () => {
     const group = groupService.create({ entityType: 'assistant', name: 'Destination' })
     const source = assistantDataService.create({ name: 'Source', modelId: null })

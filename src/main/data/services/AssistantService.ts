@@ -61,6 +61,12 @@ function createEmptyRelations(): AssistantRelationIds {
   }
 }
 
+function hasRelationChanges(currentIds: string[], requestedIds: string[] | undefined): boolean {
+  if (requestedIds === undefined) return false
+  const desiredIds = new Set(requestedIds)
+  return desiredIds.size !== currentIds.length || currentIds.some((id) => !desiredIds.has(id))
+}
+
 function rowToAssistant(
   row: AssistantRow,
   relations: AssistantRelationIds = createEmptyRelations(),
@@ -543,7 +549,9 @@ export class AssistantDataService {
       updates.settings = { ...current.settings, ...settingsPatch }
     }
     const hasColumnUpdates = Object.keys(updates).length > 0
-    const hasRelationUpdates = mcpServerIds !== undefined || knowledgeBaseIds !== undefined
+    const hasRelationUpdates =
+      hasRelationChanges(current.mcpServerIds, mcpServerIds) ||
+      hasRelationChanges(current.knowledgeBaseIds, knowledgeBaseIds)
 
     if (!hasColumnUpdates && !hasRelationUpdates) {
       return current
