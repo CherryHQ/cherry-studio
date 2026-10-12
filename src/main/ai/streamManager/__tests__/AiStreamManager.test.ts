@@ -1419,6 +1419,36 @@ describe('AiStreamManager', () => {
     // real stream end-to-end and asserts listener.doneResults[0].finalMessage
     // is the same reference the manager holds.
 
+    it('normalizes a persistence-downgraded success into an error terminal for every subscriber', async () => {
+      // A retry-only turn survives persistence filtering but is excluded from answer visibility, so
+      // the backend writes the row as `error`. Dispatch must be normalized before terminal callbacks
+      // are chosen: the persistence listener's own classification and what subscribers are told have
+      // to be the same one, or the task sentinel resolves successfully against a failed row.
+      const persistence = new FakeListener('persistence:a', 'persistence')
+      persistence.onDoneImpl = (result) => {
+        result.persistence = {
+          status: 'saved',
+          message: { messageId: 'm', messageRevision: '1', historyRevision: '2' },
+          downgradedToError: true
+        }
+      }
+      const consumer = new FakeListener('wc:a')
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [consumer, persistence]
+      })
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      expect(persistence.doneResults).toHaveLength(1)
+      expect(consumer.doneResults).toHaveLength(0)
+      expect(consumer.errorResults).toHaveLength(1)
+      expect(consumer.errorResults[0].status).toBe('error')
+      expect(mgr.inspect('a')!.status).toBe('error')
+    })
+
     it('maps paused status to aborted state', async () => {
       const l = new FakeListener('l:a')
       startSingle(mgr, {
