@@ -9,6 +9,7 @@ import {
   routedModel,
   subagentCall,
   toolCallPart,
+  toolResultOf,
   toolResults
 } from './subagentSupport'
 import { createTestSession, finish, hostStore, streamTextPort, textParts } from './support'
@@ -30,10 +31,11 @@ describe('subagent fork', () => {
           ]
         : [...textParts('d', 'Done'), finish('stop')]
     })
+    const host = recordingSubagentPort()
     const { session } = await createTestSession({
       port: streamTextPort(model).port,
       tools: [noteTool],
-      subagents: recordingSubagentPort().port
+      subagents: host.port
     })
 
     await session.prompt('Check modules A and B')
@@ -50,7 +52,42 @@ describe('subagent fork', () => {
       .flatMap((part) => (part.type === 'tool-result' ? [part] : []))
     expect(placeholders.map((part) => part.toolCallId)).toEqual(['note_1', 'call_a', 'call_b'])
     expect(new Set(placeholders.map((part) => JSON.stringify(part.output))).size).toBe(1)
+    // Pi answers calls left without a result with its own error result; these must be the package's.
+    expect(placeholders[0].output.type).toBe('text')
+    expect(outputText(placeholders[0].output)).toMatch(/still running/)
     expect(JSON.stringify(placeholders)).not.toContain('noted')
+    expect(host.subagents.map((subagent) => subagent.fork)).toEqual([true, true])
+    expect(toolResultOf(session, 'call_a').details).toMatchObject({ fork: true })
+  })
+
+  it('forks from the latest assistant message holding the call when an earlier turn reused its id', async () => {
+    const { model, calls } = routedModel(({ userText, lastRole }) => {
+      if (userText.includes('TASK-TWO')) return [...textParts('r', 'REPORT-TWO'), finish('stop')]
+      if (userText.includes('TASK-ONE')) return [...textParts('r', 'REPORT-ONE'), finish('stop')]
+      if (lastRole !== 'user') return [...textParts('d', 'Done'), finish('stop')]
+      return userText.includes('Second prompt')
+        ? [subagentCall('call_a', { description: 'Two', prompt: 'TASK-TWO', fork: true }), finish('tool-calls')]
+        : [subagentCall('call_a', { description: 'One', prompt: 'TASK-ONE' }), finish('tool-calls')]
+    })
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: recordingSubagentPort().port
+    })
+
+    await session.prompt('First prompt')
+    await session.prompt('Second prompt')
+
+    const fork = calls.find((call) => call.userText.includes('TASK-TWO'))!
+    expect(fork.userText).toContain('First prompt')
+    expect(fork.userText).toContain('Second prompt')
+    const lastAssistant = fork.options.prompt.findLast((message) => message.role === 'assistant')!
+    expect(lastAssistant.content).toEqual([
+      expect.objectContaining({
+        type: 'tool-call',
+        toolCallId: 'call_a',
+        input: expect.objectContaining({ prompt: 'TASK-TWO' })
+      })
+    ])
   })
 
   it('gives a fork the tools of the parent, including tools that tool_search activated', async () => {

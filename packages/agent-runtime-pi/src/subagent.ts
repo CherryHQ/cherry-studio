@@ -38,7 +38,8 @@ function toolCallsOf(entry: TranscriptEntry): ToolCallPart[] {
  * message answered by the same placeholder, so sibling forks send the same prefix.
  */
 function forkTranscript(entries: readonly TranscriptEntry[], toolCallId: string): TranscriptEntry[] {
-  const index = entries.findIndex((entry) => toolCallsOf(entry).some((call) => call.toolCallId === toolCallId))
+  // Last: some providers reuse call ids across turns, and the running call is in the latest message.
+  const index = entries.findLastIndex((entry) => toolCallsOf(entry).some((call) => call.toolCallId === toolCallId))
   if (index < 0) throw new Error(`No assistant message holds the call ${toolCallId}.`)
   const assistant = entries[index]
   const placeholders = toolCallsOf(assistant).map(
