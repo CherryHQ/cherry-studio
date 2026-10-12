@@ -1,7 +1,7 @@
 ---
 description: 沙盒 API 草案，定义宿主进程控制、权限策略、后端契约和 Node/Python 双向 RPC 协议
 status: draft
-date: 2026-09-24
+date: 2026-09-25
 sources:
   - src/main/core/utilityProcess/types.ts
   - src/main/core/utilityProcess/host/processAdapter.ts
@@ -16,9 +16,13 @@ sources:
 
 # Sandbox API Draft
 
-本文将[设计草案](./design.md)转为可评审、可用于原型的 API。类型、方法名和协议选择是本轮设计建议，尚未实现或冻结；平台路线见[后端候选方案](./backend-options.md)。仅涉及沙盒，不设计插件注册、加载、Agent 编排或业务方法。
+本文将[设计草案](./design.md)转为可评审、可用于原型的 API。类型、方法名和协议选择仍为草案，尚未冻结；平台路线见[后端候选方案](./backend-options.md)。仅涉及沙盒，不设计插件注册、加载、Agent 编排或业务方法。
 
 可信第一方代码可以直接在 main 执行，不经过这些接口，也不获得沙盒隔离保证。通过本 API 启动的目标必须进入受限执行环境，不提供 `sandbox: false` 或失败后普通执行的分支。
+
+当前 [MXC demo](../../packages/sandbox/README.md)已改用 `@microsoft/mxc-sdk@1.0.0`，公共 API、CLI 共用 `SandboxManager → MxcBackend`。2026-10-12 用户确认本轮以“沙盒能执行、双向 RPC 能跑通”为验收目标：硬链接、可写目录 Unix socket 和后代回收差异记录为限制，不再阻断启动。macOS 使用 `mxc-command-v1`；`channel=none` 提供原始标准流，`channel=stdio` 通过 `vscode-jsonrpc` 提供 request/handle 和必需的宿主授权回调。`tree: unverified` 表示已完成目标进程/SDK 资源处理，但不保证脱离进程组的后代全部退出。下面的完整 API、schema/握手、严格分帧和三平台矩阵仍是后续设计目标，不应视为本轮已实现或必须先完成的条件。
+
+2026-09-25 的[上游复用调研](./backend-options.md#23-sandbox-runtime-调研与复用边界)不改变本文类型或 RPC 设计。上游标准流探针仅证明 Node/Python 双向通信可行，不能作为本包已实现或已验收的依据；后端必须独立兑现实例权限、可信启动、整树退出与清理语义。
 
 ## 1. 开源参考与取舍
 
@@ -106,6 +110,8 @@ interface SandboxLimits {
 - 配置快照在启动时复制并冻结；执行期间修改调用方对象不改变策略。应用级敏感路径拒绝规则与请求合并后始终优先，不向目标提供覆盖入口。
 
 ### 3.2 文件与环境变量
+
+2026-09-25 已确认保留直接读写原目录的语义，获准写入立即作用于原文件；不改为隔离副本、暂存改动或显式回写。后端仍需兑现下述对象与路径边界，不能以维持兼容为由忽略别名问题。
 
 文件策略采用默认拒绝、明确允许；write 表示读写，仍受 denyRead/denyWrite 约束。拒绝规则优先于允许规则，后端不能自动抹掉无法表达的拒绝项。首版路径不支持 glob；路径为文件则仅指向该文件，为目录则涵盖子树。
 
@@ -460,6 +466,6 @@ await serve_sandbox_rpc_from_bootstrap(configure)
 
 原型必须显式填写所有限额，不留无限缓冲或无限握手等待。数值由有界的小规模实验确定，记录慢消费者、碎片消息、突发输出与长驻运行证据后才设生产默认值；硬配额未实现时拒绝相应请求。
 
-实施切片：在独立的 `packages/sandbox` 包内，先完成 spec 校验与 macOS 原生后端的进程闭环，再完成 Node/Python RPC 互通，随后实现 Linux 与选定的 Windows 原生路线。Windows 选型的可行性探针应提前开展。具体步骤见[demo 实施顺序](./design.md#11-独立包结构与-demo-实施顺序)；每个切片都需要真实 OS 行为证据，mock 不能替代安全边界验收。
+实施切片：当前先完成[后端可行性设计与验证](./backend-options.md#53-下一轮后端可行性设计与验证)，解决 macOS 文件对象隔离与多进程收敛阻断，再在独立的 `packages/sandbox` 包内完成进程闭环、Node/Python RPC 互通及其余原生后端。Linux 部署条件和 Windows 身份/日常免提权探针提前开展。具体步骤见[demo 实施顺序](./design.md#11-独立包结构与-demo-实施顺序)；每个切片都需要真实 OS 行为证据，mock 不能替代安全边界验收。
 
 当前仍待原型确定：平台辅助程序与分发方式、运行时基础策略、RPC 库和有界 reader 接入、引导凭证传递、生产限额、Windows 路线。API 草案允许开始针对性验证，不代表已满足生产发布条件。
