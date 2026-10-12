@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { cn } from '@renderer/utils/style'
 
@@ -28,6 +29,7 @@ export function ContextUsageSummary({
   isBusy = false,
   children
 }: ContextUsageSummaryProps) {
+  const { i18n } = useTranslation()
   const percentage = data ? normalizeContextUsagePercentage(data.percentage) : null
   const color = percentage === null ? undefined : getContextUsageColor(percentage)
 
@@ -44,7 +46,8 @@ export function ContextUsageSummary({
           </div>
           <div className="flex items-center justify-between gap-3 text-muted-foreground">
             <span className="shrink-0">
-              {data.usedTokens.toLocaleString()} / {data.maxTokens.toLocaleString()} ({percentage}%)
+              {data.usedTokens.toLocaleString(i18n.resolvedLanguage)} /{' '}
+              {data.maxTokens.toLocaleString(i18n.resolvedLanguage)} ({percentage}%)
             </span>
             <span className="min-w-0 truncate">{data.modelName}</span>
           </div>
