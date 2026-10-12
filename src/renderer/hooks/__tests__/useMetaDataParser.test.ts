@@ -55,4 +55,54 @@ describe('useMetaDataParser', () => {
       })
     })
   })
+
+  it('keeps the loading state while a superseded request is still in flight', async () => {
+    axiosMock.isCancel.mockImplementation((error: unknown) => (error as { name?: string })?.name === 'AbortError')
+
+    let rejectFirst!: (reason?: unknown) => void
+    axiosMock.get.mockImplementationOnce(
+      (_url, config) =>
+        new Promise((_resolve, reject) => {
+          rejectFirst = (reason) => reject(reason)
+          config?.signal?.addEventListener(
+            'abort',
+            () => rejectFirst(new DOMException('aborted', 'AbortError')),
+            { once: true }
+          )
+        })
+    )
+    let resolveSecond!: (value: { data: string }) => void
+    axiosMock.get.mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve }))
+
+    const { result } = renderHook(() => useMetaDataParser('https://example.com/post', ['title']))
+
+    // First request starts while show = true
+    act(() => {
+      void result.current.parseMetadata()
+    })
+    expect(axiosMock.get).toHaveBeenCalledTimes(1)
+    expect(result.current.isLoading).toBe(true)
+
+    // show toggles away and back: the effect fires again while the first request is in flight
+    act(() => {
+      void result.current.parseMetadata()
+    })
+    expect(axiosMock.get).toHaveBeenCalledTimes(2)
+    expect(result.current.isLoading).toBe(true)
+
+    // The superseded request settles: its finally must not reset the loading
+    // state while the replacement request is still in flight
+    await act(async () => {
+      rejectFirst(new DOMException('aborted', 'AbortError'))
+    })
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.metadata).toEqual({})
+
+    // The replacement request completes normally
+    await act(async () => {
+      resolveSecond({ data: '<html><head><title>hello</title></head></html>' })
+    })
+    expect(result.current.metadata.title).toBe('hello')
+    expect(result.current.isLoading).toBe(false)
+  })
 })
