@@ -3296,6 +3296,46 @@ describe('AgentSessionRuntimeService', () => {
     // authority must propagate through the whole descendant tree: an interactive turn leaves
     // detached A running, a headless delivery spawns B and B spawns C, and the desktop follow-up
     // that starts afterwards must not hand C the aggregate responder's retained authority.
+    // Native Claude children (`agent_id`-keyed) do not stamp `cherry.bridgeOrigin` on their MCP
+    // requests, so a mixed-origin overlap must still resolve by the child's bound origin: an
+    // interactive turn leaves A running, a headless delivery launches B, and a desktop follow-up
+    // starts while both remain active. Background occupancy retains A's interactive responder.
+    it('denies session tools to a headless native child across a desktop follow-up', async () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = warmConnection()
+      service.bindNativeChildOrigin('session-1', 'agent-a')
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      service.bindNativeChildOrigin('session-1', 'agent-b')
+      service.markTurnTerminal('session-1', 'success')
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+
+      // B carries no bridge provenance of its own; the request must still not be credited with the
+      // foreground interactive authority the retained responder reports.
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      expect(service.getSessionToolsAuthorization('session-1', 'agent-b')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      expect(service.getMcpInteractionHost('session-1', 'agent-b')).toBeUndefined()
+
+      // A keeps its own interactive authorization and the live desktop consent host.
+      expect(service.getSessionToolsAuthorization('session-1', 'agent-a')).toMatchObject({
+        currentTurn: 'interactive'
+      })
+      expect(service.getMcpInteractionHost('session-1', 'agent-a')).toMatchObject({ windowId: 'window-1' })
+    })
+
     it('carries spawning-turn provenance through nested children that never reach the task panel', async () => {
       const service = new AgentSessionRuntimeService()
 
