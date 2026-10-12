@@ -22,6 +22,7 @@ const CACHE_KEY = 'skill.subscription.catalogs'
 export class SkillSubscriptionService extends BaseService {
   private readonly mutations = new Mutex()
   private readonly refreshes = new Map<string, Promise<SkillSubscriptionSnapshot>>()
+  // SkillService owns in-flight installs; preserve their deduplication across subscription service restarts.
   private readonly installs = new Map<string, ReturnType<typeof skillService.installSubscription>>()
   private controller = new AbortController()
 
@@ -169,6 +170,7 @@ export class SkillSubscriptionService extends BaseService {
 
   install(sourceId: string, itemId: string) {
     const { signal } = this.controller
+    signal.throwIfAborted()
     const item = this.item(sourceId, itemId)
     const key = skillInstallIdentity(item.subscription!.url)
     let task = this.installs.get(key)

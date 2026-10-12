@@ -6,6 +6,18 @@ import {
   summarizeMarketplaceSkill
 } from '@shared/utils/cherrySkillMarketplace'
 import { buildGithubSkillResult, parseGithubSkillUrl, parseSkillSourceUrl } from '@shared/utils/skillMarketplace'
+import { normalizeSubscriptionUrl } from '@shared/utils/skillSubscription'
+
+describe('normalizeSubscriptionUrl', () => {
+  it.each([
+    ['http://www.github.com/o/r.git/?tab=readme#skills', 'https://github.com/o/r'],
+    ['https://github.com/o/r/tree/main/tools.git', 'https://github.com/o/r/tree/main/tools.git'],
+    ['https://github.com/o/r/tree/release.git', 'https://github.com/o/r/tree/release.git'],
+    ['https://github.com/o/r.git/tree/feature/foo/tools.git/', 'https://github.com/o/r/tree/feature/foo/tools.git']
+  ])('normalizes only the repository clone suffix in %s', (input, expected) => {
+    expect(normalizeSubscriptionUrl(input)).toBe(expected)
+  })
+})
 
 describe('CherryIN marketplace metadata', () => {
   it('uses only verified ZIP members and does not invent public API contents', () => {

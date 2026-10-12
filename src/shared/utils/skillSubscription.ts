@@ -11,7 +11,7 @@ export function normalizeSubscriptionUrl(value: string): string | null {
       url.protocol = 'https:'
       url.hostname = 'github.com'
       url.search = ''
-      url.pathname = url.pathname.replace(/\/$/, '').replace(/\.git$/, '')
+      url.pathname = url.pathname.replace(/\/$/, '').replace(/^(\/[^/]+\/[^/]+)\.git(?=\/|$)/, '$1')
     }
     return url.href
   } catch {
