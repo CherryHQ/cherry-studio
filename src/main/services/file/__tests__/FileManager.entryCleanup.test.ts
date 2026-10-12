@@ -1,11 +1,13 @@
-/**
- * Idle-gated interval tick for FileManager's entry-cleanup wiring
- * (docs/references/file/file-entry-cleanup.md §5.5). Uses a light
- * instantiate-and-spy harness rather than the DB-backed integration harness
- * (FileManager.integration.test.ts) — these tests gate the TICK logic only;
- * the cleanup pass itself is covered by entryCleanup.test.ts.
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+// Real storage supports initialization; cleanup passes are stubbed to isolate
+// scheduling and idle gates (docs/references/file/file-entry-cleanup.md §5.5).
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 // PowerService is not a default mock service, so wrap `get` to return a
 // controllable idle-time stub. `powerState.idleSeconds` is mutated per test.
@@ -52,14 +54,24 @@ function completedReport(overrides: Partial<Report> = {}): Report {
 }
 
 describe('FileManager entry-cleanup wiring', () => {
+  setupTestDatabase()
+  let tmp: string
   let fm: InstanceType<typeof FileManager>
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-cleanup-'))
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) =>
+      path.join(tmp, key, filename ?? '')
+    )
     powerState.idleSeconds = 0
     fileSweepMock.mockReset()
     fileSweepMock.mockResolvedValue({ outcome: 'completed' })
     BaseService.resetInstances()
     fm = new FileManager()
+  })
+
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
   })
 
   it('onInit runs an ungated backlog pass and registers the 30-minute interval', async () => {

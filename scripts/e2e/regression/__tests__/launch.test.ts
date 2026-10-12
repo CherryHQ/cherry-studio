@@ -13,11 +13,12 @@ import { ensureRunDirectories, getRunPaths } from '../paths'
 beforeEach(() => vi.clearAllMocks())
 
 it.each(['macos', 'windows'] as const)(
-  'launches a prepared %s checkout without repeating runtime builds',
+  'isolates the %s profile and launches Node directly to retain process-group ownership',
   async (platform) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-prepared-launch-'))
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
+    vi.stubEnv('CS_DEV_PROFILE_ROOT', '/unrelated/developer-profile')
     let launched = false
     execFileSync.mockImplementation(() => (launched ? '42001' : ''))
     spawn.mockImplementation(() => {
@@ -39,15 +40,27 @@ it.each(['macos', 'windows'] as const)(
         restartCount: 1
       })
       const [command, args, options] = spawn.mock.calls[0]
-      const launch = platform === 'windows' ? args.at(-1) : [command, ...args].join(' ')
-      expect(launch).toBe('pnpm exec dotenv -- electron-vite -- --inspect --sourcemap --remote-debugging-port=9222')
-      if (platform === 'windows') expect([command, ...args.slice(0, 3)]).toEqual(['cmd.exe', '/d', '/s', '/c'])
+      expect(command).toBe(process.execPath)
+      expect(args).toEqual([
+        join(directory, 'node_modules', 'dotenv-cli', 'cli.js'),
+        '--',
+        process.execPath,
+        join(directory, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
+        '--',
+        '--inspect',
+        '--sourcemap',
+        '--remote-debugging-port=9222',
+        '--disable-backgrounding-occluded-windows'
+      ])
+      expect(options.detached).toBe(true)
+      expect(options.env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
       expect(options.cwd).toBe(directory)
       expect(options.env.CS_DEV_USER_DATA_SUFFIX).toBe('Regression-prepared-authenticated')
       expect(record).toMatchObject({ electronPid: 42001, restartCount: 1, profile: 'authenticated' })
     } finally {
       vi.restoreAllMocks()
       vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
       rmSync(directory, { recursive: true, force: true })
     }
   }
@@ -87,6 +100,7 @@ it('starts Windows installers with both owned inspector and renderer CDP ports',
     expect(spawn.mock.calls[0][1]).toEqual([
       '--inspect=9229',
       '--remote-debugging-port=9222',
+      '--disable-backgrounding-occluded-windows',
       `--user-data-dir=${join(paths.profiles, 'authenticated')}`
     ])
   } finally {
