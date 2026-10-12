@@ -30,6 +30,12 @@ describe('getFileTypeByExt', () => {
     expect(getFileTypeByExt('jpg')).toBe('image')
   })
 
+  it('classifies WebM as video so media readers do not treat the container as binary', () => {
+    expect(getFileTypeByExt('webm')).toBe('video')
+    expect(getFileTypeByExt('.webm')).toBe('video')
+    expect(getFileTypeByExt('.WEBM')).toBe('video')
+  })
+
   it('classifies both legacy .xls and modern .xlsx as document', () => {
     expect(getFileTypeByExt('xls')).toBe('document')
     expect(getFileTypeByExt('xlsx')).toBe('document')
