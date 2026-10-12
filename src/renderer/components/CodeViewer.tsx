@@ -653,12 +653,8 @@ const VirtualizedRow = memo(
         )}
         <span
           className={cn(
-            // min-w-0 lets the flex item shrink below its min-content width so long
-            // unbreakable lines (base64, URLs, minified JSON) wrap instead of overflowing.
-            // The !important on the wrapped whitespace beats global markdown CSS
-            // (`.markdown pre span { white-space: pre }`) that would otherwise pin
-            // token spans to `pre` and defeat wrapping inside chat code blocks.
-            'line-content min-w-0 flex-1 whitespace-pre pr-[1em]',
+            // Preserve code whitespace against Markdown span rules and let wrapped lines shrink below min-content.
+            'line-content min-w-0 flex-1 whitespace-pre! pr-[1em]',
             wrapped ? '[&_*]:whitespace-pre-wrap! [&_*]:break-words!' : '[&_*]:whitespace-pre [&_*]:break-normal'
           )}>
           {completeTokenLine.map((token, tokenIndex) => (
