@@ -457,7 +457,7 @@ export class AgentSessionDeliveryService extends BaseService {
       }
       // Runtime and stream persistence are idle, so no writer can still complete this placeholder.
       // A transient repair failure is retried by the next idle/sweep kick.
-      agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
+      agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id, 'turn.interrupted')
       assistant = agentSessionMessageService.getSessionMessage(sessionId, assistant.id)
       if (assistant.status === 'pending') return true
     }
@@ -474,6 +474,5 @@ export class AgentSessionDeliveryService extends BaseService {
 
   private recoverDeliveries(): void {
     for (const sessionId of recoverSessionDeliveries()) this.suppressedSessionIds.add(sessionId)
-
   }
 }

@@ -1395,7 +1395,11 @@ describe('AgentSessionMessageService', () => {
     })
     notifyDataApiDataChangeMock.mockClear()
 
-    agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    agentSessionMessageService.markAssistantMessageTerminalError(
+      SESSION_ID,
+      ASSISTANT_MESSAGE_ID,
+      'turn.persist_failed'
+    )
 
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
     expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('resume-token')
@@ -1407,6 +1411,27 @@ describe('AgentSessionMessageService', () => {
         entityIds: [ASSISTANT_MESSAGE_ID]
       }
     ])
+  })
+
+  it("persists the caller's terminal cause instead of a blanket persistence failure", () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+
+    agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID, 'turn.interrupted')
+
+    const parts = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts ?? []
+    const errorPart = parts.find((part) => part.type === 'data-error')
+    expect(errorPart).toBeDefined()
+    expect(errorPart && 'data' in errorPart ? errorPart.data?.i18nKey : undefined).toBe('turn.interrupted')
+    expect(errorPart && 'data' in errorPart ? errorPart.data?.message : undefined).toBe(
+      'The reply was interrupted before it finished.'
+    )
   })
 
   it('keeps createdAt stable when updating an existing message', async () => {

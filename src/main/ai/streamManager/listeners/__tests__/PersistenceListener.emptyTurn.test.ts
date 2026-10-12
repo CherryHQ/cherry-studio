@@ -394,7 +394,7 @@ describe('agent-session error rows always explain themselves (P3)', () => {
       message: { id: assistantMessageId, role: 'assistant', status: 'pending', data: { parts: [] } }
     })
 
-    agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistantMessageId)
+    agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistantMessageId, 'turn.persist_failed')
 
     const row = agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)
     expect(row.status).toBe('error')
