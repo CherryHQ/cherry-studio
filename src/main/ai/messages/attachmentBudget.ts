@@ -25,7 +25,8 @@ import { serializeToolSchema } from '@main/ai/tools/adapters/aiSdk/meta/schemaSt
 import {
   resolveModelRequestContextWindow,
   resolveOllamaRequestNumCtx,
-  resolveRequestContextWindow
+  resolveRequestContextWindow,
+  usesOllamaWirePath
 } from '@main/ai/utils/ollamaRequestNumCtx'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { modelService } from '@main/data/services/ModelService'
@@ -65,6 +66,7 @@ export function buildFallbackOllamaNumCtxSnapshots(
       const fallbackModel = modelService.getByKey(providerId, modelId)
       const fallbackEndpoint = resolveEffectiveEndpoint(fallbackProvider, fallbackModel)
       const fallbackRuntimeId = resolveAiSdkProviderId(fallbackProvider, fallbackEndpoint.endpointType)
+      if (!usesOllamaWirePath(fallbackProvider, fallbackEndpoint.endpointType, fallbackRuntimeId)) continue
       const resolution = resolveOllamaRequestNumCtx(fallbackModel, fallbackProvider, fallbackEndpoint.endpointType)
       if (!resolution) continue
       snapshots.set(configuredId, {

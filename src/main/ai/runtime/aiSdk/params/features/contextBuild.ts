@@ -92,7 +92,7 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
     scope.provider,
     scope.endpointType,
     scope.sdkConfig?.providerId,
-    scope.requestContext.ollamaNumCtx
+    scope.requestContext?.ollamaNumCtx
   )
   const contextWindow = resolveContextWindow(requestContextWindow)
   if (contextWindow === null) {

@@ -50,6 +50,7 @@ const mockBuildApiKeyFallbackModels = vi.fn((options?: unknown) => {
   void options
   return [] as unknown[]
 })
+const mockHasApiKeyFallbackCandidates = vi.fn(() => false)
 const mockReadRetryPolicy = vi.fn(() => ({
   enabled: true,
   maxAttempts: 3,
@@ -230,12 +231,37 @@ vi.mock('../runtime/aiSdk/retry/buildFallbackModels', () => ({
   buildFallbackModels: (options: unknown) => mockBuildFallbackModels(options)
 }))
 
-vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', () => ({
-  buildApiKeyFallbackModels: (options: unknown) => mockBuildApiKeyFallbackModels(options)
-}))
+vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../runtime/aiSdk/retry/buildApiKeyFallbackModels')>()
+  return {
+    ...actual,
+    buildApiKeyFallbackModels: (options: unknown) => mockBuildApiKeyFallbackModels(options),
+    hasApiKeyFallbackCandidates: (options: unknown) => mockHasApiKeyFallbackCandidates(options)
+  }
+})
 
 vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
-  readRetryPolicy: () => mockReadRetryPolicy()
+  MIN_RETRY_ATTEMPTS: 1,
+  MAX_RETRY_ATTEMPTS: 10,
+  readRetryPolicy: () => mockReadRetryPolicy(),
+  resolveEffectiveFallbackModelIds: (
+    requestMaxRetries: number | undefined,
+    retryDisabledForRequest: boolean,
+    hasApiKeyFallbacks: boolean
+  ) => {
+    if (retryDisabledForRequest) return []
+    const configured = mockReadRetryPolicy()
+    const retryPolicy =
+      configured.enabled || !hasApiKeyFallbacks || requestMaxRetries === undefined || requestMaxRetries <= 0
+        ? configured
+        : {
+            ...configured,
+            enabled: true,
+            maxAttempts: Math.max(1, Math.trunc(requestMaxRetries)),
+            fallbackModelIds: [] as const
+          }
+    return retryPolicy.enabled ? retryPolicy.fallbackModelIds : []
+  }
 }))
 
 const { listModels: listModelsFromProviderActual } =
