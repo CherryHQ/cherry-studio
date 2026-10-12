@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".changeset/**"
+      - "packages/provider-registry/**"
       - "packages/aiCore/**"
       - "packages/ai-sdk-provider/**"
       - "packages/extension-table-plus/**"
@@ -59,6 +60,9 @@ jobs:
 
       - name: Build Packages
         run: pnpm packages:build
+
+      - name: Check Provider Registry Package
+        run: pnpm --filter @cherrystudio/provider-registry test:package
 
       - name: Check Remote Packages
         run: |
