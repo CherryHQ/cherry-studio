@@ -3415,6 +3415,75 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 
+  it('keeps a stopped task stopped when a poll issued during the stop lands late', async () => {
+    // The listing reconciles its records one by one, so a poll can capture the task as `running`
+    // and its response arrive after the stop has been applied — restoring the stale row, its
+    // Stop/Kill controls, and a retry that errors on a task that is already stopped. A poll issued
+    // while the stop is in flight was asking about state the result's application has since
+    // changed again, so it must be dropped no matter when it lands.
+    const runningRow = {
+      id: 'bt-1',
+      name: 'nightly build',
+      command: 'make',
+      pid: 4242,
+      cwd: '/workspace',
+      startedAt: '2026-10-12T10:00:00.000Z',
+      logFile: '/tmp/bt-1.log',
+      status: 'running',
+      exitCode: null,
+      signal: null
+    }
+    const stoppedRow = { ...runningRow, status: 'stopped', signal: 'SIGKILL' }
+    const stalePoll = createDeferredPromise<unknown[]>()
+    const stopResult = createDeferredPromise<unknown>()
+    let stopStarted = false
+    let listCalls = 0
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'ai.agent.background_task.list') {
+        listCalls += 1
+        // Polls after the stop begins are held the way a listing that is still awaiting its other
+        // records is — and by then they have captured the task as `running`.
+        return stopStarted ? stalePoll.promise : [runningRow]
+      }
+      if (route === 'ai.agent.background_task.stop') {
+        stopStarted = true
+        return stopResult.promise
+      }
+      return {}
+    })
+
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      render(
+        <TestAgentRightPane sessionId="session-a" agentId="agent-1" messages={[]} partsByMessageId={{}}>
+          <AgentRightPane.Shortcuts />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+      await screen.findByText('agent.right_pane.detached_task.status_running')
+      fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.detached_task.kill' }))
+
+      // The next poll goes out while Kill is still in flight, sharing the mutation count the stop
+      // began under.
+      const callsAtStop = listCalls
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(listCalls).toBe(callsAtStop + 1)
+
+      stopResult.resolve(stoppedRow)
+      await act(async () => {})
+      await screen.findByText('agent.right_pane.detached_task.status_stopped')
+
+      // Now the held response lands, its rows as stale as the listing that captured them.
+      stalePoll.resolve([runningRow])
+      await act(async () => {})
+
+      expect(screen.queryByText('agent.right_pane.detached_task.status_running')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'agent.right_pane.detached_task.kill' })).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('keeps a newer artifact when a pending attachment metadata response arrives later', async () => {
     const attachmentMetadata = createDeferredPromise<PhysicalFileMetadata>()
     const artifactMetadata = createDeferredPromise<PhysicalFileMetadata>()
