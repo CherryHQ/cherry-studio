@@ -105,6 +105,12 @@ export const handlePaste = async (
         const pathBackedEntries = clipboardEntries.filter((entry): entry is { file: File; filePath: string } =>
           Boolean(entry.filePath)
         )
+        const hasPathlessClipboardImage = clipboardEntries.some(
+          (entry) =>
+            !entry.filePath &&
+            entry.file.type.startsWith('image/') &&
+            supportExts.includes(getFileExtension(entry.file.name))
+        )
 
         if (pathBackedEntries.length === clipboardEntries.length) {
           const results = await Promise.allSettled(
@@ -169,9 +175,7 @@ export const handlePaste = async (
           const result = await readPathBackedClipboardEntry(filePath, extensionSet)
           if (result.kind === 'attachment') {
             setFiles((prevFiles) => [...prevFiles, result.attachment])
-          } else if (result.kind === 'unsupported' && t) {
-            toast.info(t('chat.input.file_not_supported'))
-          } else if (result.kind === 'empty' && t) {
+          } else if (!hasPathlessClipboardImage && t) {
             toast.info(t('chat.input.file_not_supported'))
           }
         }

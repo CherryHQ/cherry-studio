@@ -256,6 +256,7 @@ JsonObject transcribe(const JsonObject& request) {
     require(grammar->SetDictationState(SPRS_ACTIVE), "transcription_failed");
 
     std::wstring transcript;
+    HRESULT recognitionResult = S_OK;
     bool ended = false;
     while (!ended) {
         if (context->WaitForNotifyEvent(INFINITE) != S_OK) throw HelperError("transcription_failed");
@@ -273,11 +274,13 @@ JsonObject transcribe(const JsonObject& request) {
                 }
                 CoTaskMemFree(text);
             } else if (event.eEventId == SPEI_END_SR_STREAM) {
+                recognitionResult = static_cast<HRESULT>(event.lParam);
                 ended = true;
             }
             SpClearEvent(&event);
         }
     }
+    require(recognitionResult, "transcription_failed");
     auto result = object();
     put(result, L"locale", localeName(requestedLcid(locale)));
     put(result, L"text", transcript);

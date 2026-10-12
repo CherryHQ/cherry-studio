@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcRouter } from '@main/ipc/IpcRouter'
+import { APPLE_ASR_MODEL_ID, TranscriptionLanguageSource } from '@shared/ai/localVoice'
 import type { InternalFileEntry } from '@shared/data/types/file'
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import { voiceRequestSchemas } from '@shared/ipc/schemas/voice'
@@ -60,7 +61,7 @@ const transcription = {
   requestId: input.requestId,
   fileEntryId: '00000000-0000-4000-8000-000000000003',
   modelId: 'local-voice::apple-system-asr' as const,
-  language: 'en-US'
+  language: { source: TranscriptionLanguageSource.Explicit, locale: 'en-US' }
 }
 const recording = {
   sessionId: input.sessionId,
@@ -159,11 +160,13 @@ describe('Voice handlers through real IpcRouter', () => {
     boundary.window.mockReturnValue({ webContents })
     boundary.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })
 
-    await expect(router.dispatch('ai.transcription.locales.list', undefined, { senderId: 'owner' })).resolves.toEqual({
+    await expect(
+      router.dispatch('ai.transcription.locales.list', { modelId: APPLE_ASR_MODEL_ID }, { senderId: 'owner' })
+    ).resolves.toEqual({
       supported: ['en-US', 'zh-CN'],
       installed: ['en-US']
     })
-    expect(boundary.listTranscriptionLocales).toHaveBeenCalledWith(owner)
+    expect(boundary.listTranscriptionLocales).toHaveBeenCalledWith(owner, APPLE_ASR_MODEL_ID)
   })
 
   it.each(['local-voice::apple-system-asr', 'local-voice::windows-system-asr'])(

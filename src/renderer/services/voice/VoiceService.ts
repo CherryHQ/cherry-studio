@@ -2,13 +2,11 @@ import { preferenceService } from '@renderer/data/PreferenceService'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import {
-  APPLE_ASR_MODEL_ID,
-  APPLE_TTS_MODEL_ID,
-  FUNASR_MODEL_ID,
+  isTranscriptionModelId,
+  isSpeechModelId,
+  TranscriptionLanguageSource,
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED,
-  WINDOWS_ASR_MODEL_ID,
-  WINDOWS_TTS_MODEL_ID,
   type LocalSpeechModelId,
   type LocalTranscriptionModelId
 } from '@shared/ai/localVoice'
@@ -17,6 +15,7 @@ import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice
 import type { voiceRequestSchemas, VoiceSessionEvent, VoiceSessionState } from '@shared/ipc/schemas/voice'
 import type { EventPayload, InputFor, OutputFor } from '@shared/ipc/types'
 
+import { enumerateMicrophones, microphoneErrorReason, type MicrophoneDevice } from './microphoneDevices'
 import { getDefaultVoiceLanguage } from './voiceLanguage'
 
 type VoiceRoute = keyof typeof voiceRequestSchemas
@@ -92,7 +91,7 @@ export type InstallTranscriptionAssetInput = Omit<
 
 export interface ResolvedTranscriptionPreferences {
   readonly modelId?: LocalTranscriptionModelId
-  readonly language?: string
+  readonly language?: InputFor<'ai.transcription.generate'>['language']
 }
 
 export interface ResolvedSpeechPreferences {
@@ -105,10 +104,6 @@ export interface ResolvedSpeechPreferences {
 const reasonByCode = new Map<string, VoiceErrorReason>(
   Object.entries(voiceErrorCodes).map(([reason, code]) => [code, reason as VoiceErrorReason])
 )
-
-function isTranscriptionModelId(value: string): value is LocalTranscriptionModelId {
-  return value === APPLE_ASR_MODEL_ID || value === WINDOWS_ASR_MODEL_ID || value === FUNASR_MODEL_ID
-}
 
 export class VoiceDomainError extends Error {
   constructor(readonly reason: VoiceErrorReason) {
@@ -174,23 +169,22 @@ export class VoiceService {
       if (!isTranscriptionModelId(storedModelId)) throw new VoiceDomainError('unsupported')
       modelId = storedModelId
     }
-    const language =
-      modelId === FUNASR_MODEL_ID
-        ? undefined
-        : (this.optionalLanguage(preferences.language) ??
-          getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language))
-    return {
-      ...(modelId && { modelId }),
-      ...(language && { language })
-    }
+    const locale = this.optionalLanguage(preferences.language)
+    const language: NonNullable<InputFor<'ai.transcription.generate'>['language']> = locale
+      ? { source: TranscriptionLanguageSource.Explicit, locale }
+      : {
+          source: TranscriptionLanguageSource.Interface,
+          locale: getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
+        }
+    const resolved = await this.resolveTranscriptionConfiguration({ ...(modelId && { modelId }), language })
+    if (resolved.status.status !== 'ready') throw new VoiceDomainError(resolved.status.reason ?? 'model_required')
+    return { modelId: resolved.modelId, language: resolved.language }
   }
 
   async resolveSpeechPreferences(): Promise<ResolvedSpeechPreferences> {
     const preferences = await this.readSpeechPreferences()
     const modelId = preferences.modelId.trim()
-    if (!modelId) throw new VoiceDomainError('model_required')
-    if (modelId !== APPLE_TTS_MODEL_ID && modelId !== WINDOWS_TTS_MODEL_ID) throw new VoiceDomainError('unsupported')
-    if (!preferences.voice.trim()) throw new VoiceDomainError('voice_unavailable')
+    if (modelId && !isSpeechModelId(modelId)) throw new VoiceDomainError('unsupported')
     if (
       !Number.isFinite(preferences.speed) ||
       preferences.speed < MIN_SPEECH_SPEED ||
@@ -198,13 +192,26 @@ export class VoiceService {
     ) {
       throw new VoiceDomainError('invalid_request')
     }
-    const language = this.optionalLanguage(preferences.language)
-    return {
-      modelId,
-      voice: preferences.voice,
-      ...(language && { language }),
+    const language =
+      this.optionalLanguage(preferences.language) ??
+      (preferences.voice.trim() ? undefined : getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language))
+    const resolved = await this.resolveSpeechConfiguration({
+      ...(modelId && { modelId: modelId as LocalSpeechModelId }),
+      ...(preferences.voice.trim() && { voice: preferences.voice.trim() }),
+      language,
       speed: preferences.speed
-    }
+    })
+    if (!resolved.modelId || !resolved.voice || resolved.status.status !== 'ready')
+      throw new VoiceDomainError(resolved.status.reason ?? 'voice_unavailable')
+    return { modelId: resolved.modelId, voice: resolved.voice, language: resolved.language, speed: resolved.speed }
+  }
+
+  resolveTranscriptionConfiguration(input: InputFor<'ai.voice.transcription.resolve'>) {
+    return this.invoke(() => this.ipc.request('ai.voice.transcription.resolve', input))
+  }
+
+  resolveSpeechConfiguration(input: InputFor<'ai.voice.speech.resolve'>) {
+    return this.invoke(() => this.ipc.request('ai.voice.speech.resolve', input))
   }
 
   initialize(): Promise<void> {
@@ -257,16 +264,32 @@ export class VoiceService {
     return this.invoke(() => this.ipc.request('ai.voice.models.list'))
   }
 
-  listTranscriptionLocales(): Promise<OutputFor<'ai.transcription.locales.list'>> {
-    return this.invoke(() => this.ipc.request('ai.transcription.locales.list'))
+  describeModel(modelId: string) {
+    return this.invoke(() => this.ipc.request('ai.voice.model.describe', { modelId }))
+  }
+
+  downloadModel(modelId: LocalTranscriptionModelId) {
+    return this.invoke(() => this.ipc.request('ai.voice.model.download', { modelId }))
+  }
+
+  cancelModelDownload(modelId: LocalTranscriptionModelId) {
+    return this.invoke(() => this.ipc.request('ai.voice.model.cancel_download', { modelId }))
+  }
+
+  removeModel(modelId: LocalTranscriptionModelId) {
+    return this.invoke(() => this.ipc.request('ai.voice.model.remove', { modelId }))
+  }
+
+  listTranscriptionLocales(modelId: LocalTranscriptionModelId): Promise<OutputFor<'ai.transcription.locales.list'>> {
+    return this.invoke(() => this.ipc.request('ai.transcription.locales.list', { modelId }))
   }
 
   getModelStatus(input: InputFor<'ai.voice.model.status'>): Promise<OutputFor<'ai.voice.model.status'>> {
     return this.invoke(() => this.ipc.request('ai.voice.model.status', input))
   }
 
-  listVoices(): Promise<OutputFor<'ai.speech.voices.list'>> {
-    return this.invoke(() => this.ipc.request('ai.speech.voices.list'))
+  listVoices(modelId: LocalSpeechModelId): Promise<OutputFor<'ai.speech.voices.list'>> {
+    return this.invoke(() => this.ipc.request('ai.speech.voices.list', { modelId }))
   }
 
   installTranscriptionAsset(
@@ -286,8 +309,83 @@ export class VoiceService {
     }
   }
 
+  async testMicrophone(
+    signal: AbortSignal,
+    deviceId: string | null,
+    onReady: (devices: readonly MicrophoneDevice[]) => void,
+    onLevel: (level: number) => void
+  ): Promise<void> {
+    await this.initialize()
+    signal.throwIfAborted()
+    const operation = this.startRecording({ source: 'settings' })
+    const interrupted = new AbortController()
+    const lifetime = AbortSignal.any([signal, interrupted.signal])
+    const unsubscribe = this.subscribe(() => {
+      if (this.snapshot.phase === 'idle' || this.snapshot.sessionId !== operation.sessionId) interrupted.abort()
+    })
+    const unsubscribeInterruption = this.subscribeInterruptions(() => interrupted.abort())
+    let stream: MediaStream | undefined
+    let context: AudioContext | undefined
+    let timer: ReturnType<typeof setInterval> | undefined
+    try {
+      await operation.result
+      lifetime.throwIfAborted()
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId === null ? true : { deviceId: { exact: deviceId } },
+        video: false
+      })
+      lifetime.throwIfAborted()
+      const devices = await enumerateMicrophones()
+      lifetime.throwIfAborted()
+      context = new AudioContext()
+      const analyser = context.createAnalyser()
+      analyser.fftSize = 256
+      context.createMediaStreamSource(stream).connect(analyser)
+      await context.resume()
+      lifetime.throwIfAborted()
+      onReady(devices)
+      const samples = new Float32Array(analyser.fftSize)
+      timer = setInterval(() => {
+        analyser.getFloatTimeDomainData(samples)
+        const rms = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length)
+        onLevel(Math.min(100, Math.round(rms * 400)))
+      }, 100)
+      await new Promise<void>((resolve, reject) => {
+        const stop = () => resolve()
+        lifetime.addEventListener('abort', stop, { once: true })
+        for (const track of stream!.getTracks())
+          track.onended = () => {
+            lifetime.removeEventListener('abort', stop)
+            reject(new VoiceDomainError('microphone_unavailable'))
+          }
+        if (lifetime.aborted) stop()
+      })
+    } catch (error) {
+      if (lifetime.aborted) return
+      if (error instanceof VoiceDomainError) throw error
+      throw new VoiceDomainError(microphoneErrorReason(error))
+    } finally {
+      unsubscribe()
+      unsubscribeInterruption()
+      if (timer !== undefined) clearInterval(timer)
+      stream?.getTracks().forEach((track) => {
+        track.onended = null
+        track.stop()
+      })
+      try {
+        await context?.close()
+      } finally {
+        await this.discardSession(operation.sessionId)
+      }
+    }
+  }
+
   getMicrophoneStatus(): Promise<OutputFor<'ai.voice.microphone.status'>> {
     return this.invoke(() => this.ipc.request('ai.voice.microphone.status'))
+  }
+
+  openSystemVoiceSettings(): Promise<void> {
+    return this.invoke(() => this.ipc.request('ai.voice.resources.open_settings'))
   }
 
   openMicrophoneSettings(): Promise<void> {

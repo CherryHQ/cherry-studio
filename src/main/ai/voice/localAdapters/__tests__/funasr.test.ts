@@ -9,9 +9,9 @@ import { application } from '@application'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 import { FUNASR_MODEL_ID } from '@shared/ai/localVoice'
 
-import { createLocalTranscriptionModel, getLocalVoiceStatus } from '../../localAdapters'
+import { createLocalTranscriptionModel, downloadVoiceModel, getLocalVoiceStatus } from '../../localAdapters'
 
-const mocks = vi.hoisted(() => ({ decode: vi.fn(), transcribe: vi.fn(), refreshStatus: vi.fn() }))
+const mocks = vi.hoisted(() => ({ decode: vi.fn(), transcribe: vi.fn(), refreshStatus: vi.fn(), download: vi.fn() }))
 const transcriptCanary = 'PRIVATE_TRANSCRIPT_CANARY'
 
 vi.mock('@application', async () => {
@@ -28,7 +28,8 @@ beforeEach(async () => {
     filename ? join(directory, filename) : directory
   )
   vi.mocked(application.get).mockImplementation(((name: string) => {
-    if (name === 'LocalModelService') return { refreshStatus: mocks.refreshStatus }
+    if (name === 'CacheService') return { getShared: () => undefined }
+    if (name === 'LocalModelService') return { refreshStatus: mocks.refreshStatus, download: mocks.download }
     if (name === 'AsrInferenceService') return { transcribe: mocks.transcribe }
     return { client: () => ({ request: mocks.decode }) }
   }) as never)
@@ -52,6 +53,14 @@ afterEach(async () => {
 })
 
 describe('FunASR local adapter', () => {
+  it('reports a resource download failure without exposing transport or filesystem details', async () => {
+    mocks.download.mockRejectedValueOnce(new Error('private transport and disk path'))
+    await expect(downloadVoiceModel(FUNASR_MODEL_ID)).rejects.toMatchObject({
+      reason: 'download_failed',
+      message: 'download_failed'
+    })
+  })
+
   it('decodes WebM, transcribes private WAV scratch, and returns timed segments', async () => {
     const result = await createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
       audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
@@ -170,7 +179,7 @@ describe('FunASR local adapter', () => {
 
   it.each([
     ['not_downloaded', { status: 'not_installed', reason: 'model_required' }],
-    ['downloading', { status: 'installing', reason: 'model_required' }],
+    ['downloading', { status: 'installing', reason: 'model_required', percent: 0 }],
     ['ready', { status: 'ready' }],
     ['error', { status: 'failed', reason: 'download_failed' }],
     ['unsupported', { status: 'unsupported', reason: 'unsupported' }]

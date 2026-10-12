@@ -200,6 +200,41 @@ describe('FileStorage', () => {
       }
     })
   })
+
+  describe('fileNameGuard', () => {
+    let tmpDir: string
+
+    beforeEach(() => {
+      tmpDir = path.join(os.tmpdir(), `filestorage-filenameguard-test-${uniqueId()}`)
+      fs.mkdirSync(tmpDir, { recursive: true })
+      fs.writeFileSync(path.join(tmpDir, 'a.md'), 'a')
+      fs.writeFileSync(path.join(tmpDir, 'b.md'), 'b')
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('reports that the requested name is already taken', async () => {
+      const result = await fileStorage.fileNameGuard(event, tmpDir, 'b', true)
+      expect(result.exists).toBe(true)
+      // safeName stays the deduplicated suggestion for callers that want it
+      expect(result.safeName).toBe('b1')
+    })
+
+    it('reports a fresh name as available and keeps it unchanged', async () => {
+      const result = await fileStorage.fileNameGuard(event, tmpDir, 'fresh', true)
+      expect(result.exists).toBe(false)
+      expect(result.safeName).toBe('fresh')
+    })
+
+    it('applies the same rule to directories', async () => {
+      fs.mkdirSync(path.join(tmpDir, 'folder'))
+      const result = await fileStorage.fileNameGuard(event, tmpDir, 'folder', false)
+      expect(result.exists).toBe(true)
+      expect(result.safeName).toBe('folder1')
+    })
+  })
 })
 
 function uniqueId(): string {

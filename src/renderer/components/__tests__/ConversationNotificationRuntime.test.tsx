@@ -56,8 +56,9 @@ function conversationNotification(overrides: Record<string, unknown> = {}) {
     id: 'task-completion:turn-2',
     kind: 'task-completion',
     type: 'success',
-    title: 'Assistant response complete',
-    message: 'Research notes',
+    title: 'Research notes',
+    message: 'Here is the final answer.',
+    conversationName: 'Research notes',
     timestamp: 100,
     actionKey: 'conversation.open',
     meta: { conversationType: 'assistant', conversationId: 'topic-2' },
@@ -117,7 +118,8 @@ describe('ConversationNotificationRuntime', () => {
     expect(mocks.toastSuccess).toHaveBeenCalledWith(
       expect.objectContaining({
         key: 'task-completion:turn-2',
-        title: 'Assistant response complete',
+        title: 'Research notes',
+        description: 'Here is the final answer.',
         timeout: 6000
       })
     )
@@ -135,16 +137,10 @@ describe('ConversationNotificationRuntime', () => {
       tabsContext({ id: 'active', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Current topic' })
     )
 
-    emitNotification(
-      conversationNotification({
-        id: 'approval-request:approval-1',
-        kind: 'approval-request',
-        type: 'warning'
-      })
-    )
+    emitNotification()
 
-    void act(() => mocks.toastWarning.mock.calls[0][0].onClick())
-    expect(mocks.toastClose).toHaveBeenCalledWith('approval-request:approval-1')
+    void act(() => mocks.toastSuccess.mock.calls[0][0].onClick())
+    expect(mocks.toastClose).toHaveBeenCalledWith('task-completion:turn-2')
     expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.focus_or_open_conversation', {
       target: { conversationType: 'assistant', conversationId: 'topic-2' },
       title: 'Research notes'

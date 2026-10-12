@@ -1037,7 +1037,7 @@ class BackupManager {
           `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (database is ahead of this version) and cannot be restored here. Please update Cherry Studio and try again. Backup appVersion: ${metadata.appVersion ?? 'unknown'}, current: ${app.getVersion()}.`
         )
       }
-      onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
+      onProgress({ stage: 'restoring_database', progress: 95, total: 100 })
 
       const fileResources: RestoreJournal['fileResources'] = []
       fileResources.push(

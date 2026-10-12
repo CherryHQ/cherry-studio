@@ -19,6 +19,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { BaseService } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import {
+  TranscriptionLanguageSource,
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
@@ -26,14 +27,16 @@ import {
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 
+import type * as LocalAdapters from '../localAdapters'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
 
 const native = vi.hoisted(() => ({ status: vi.fn(), transcribe: vi.fn(), speech: vi.fn(), install: vi.fn() }))
-vi.mock('../localAdapters', () => ({
+vi.mock('../localAdapters', async (importOriginal) => ({
+  ...(await importOriginal<typeof LocalAdapters>()),
   getLocalVoiceStatus: native.status,
   listLocalVoices: vi.fn(),
-  installAppleAsrAsset: native.install,
+  installVoiceLocale: (_id: string, language: string, signal: AbortSignal) => native.install(language, signal),
   voiceAudioProcess: { id: 'voice.audio' }
 }))
 vi.mock('@application', async () => {
@@ -222,7 +225,13 @@ describe('VoiceSessionService file and admission contract', () => {
       mimeType: 'audio/webm;codecs=opus',
       durationMs: 1_000
     })
-    return { sessionId, requestId: randomUUID(), fileEntryId: entry.id, modelId: APPLE_ASR_MODEL_ID, language: 'en-US' }
+    return {
+      sessionId,
+      requestId: randomUUID(),
+      fileEntryId: entry.id,
+      modelId: APPLE_ASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'en-US' }
+    }
   }
 
   async function speech(ownerValue = a, input: Partial<Parameters<VoiceSessionService['speech']>[1]> = {}) {
@@ -244,6 +253,29 @@ describe('VoiceSessionService file and admission contract', () => {
       .where(eq(fileEntryTable.id, id))
       .run()
   }
+
+  it('does not interrupt playback when settings request microphone authorization', async () => {
+    const playback = await speech()
+    await expect(
+      service.startRecording(owner(), { sessionId: randomUUID(), requestId: randomUUID(), source: 'settings' })
+    ).rejects.toMatchObject({ reason: 'busy' })
+    expect(service.getState(a)).toMatchObject({ phase: 'ready', sessionId: playback.input.sessionId })
+    expect(fileEntryService.findById(playback.result.fileEntry.id)).not.toBeNull()
+  })
+
+  it.each([{ voice: 'changed' }, { language: 'ja-JP' }, { speed: 1.5 }])(
+    'rejects speech parameter changes between chunks: %j',
+    async (change) => {
+      const sessionId = randomUUID()
+      const first = await speech(a, { sessionId, chunkIndex: 0, chunkCount: 2 })
+      await service.releaseOutput(a, { sessionId, fileEntryId: first.result.fileEntry.id })
+      await expect(
+        service.speech(a, { ...first.input, ...change, requestId: randomUUID(), chunkIndex: 1 })
+      ).rejects.toMatchObject({ reason: 'invalid_request' })
+      const second = await service.speech(a, { ...first.input, requestId: randomUUID(), chunkIndex: 1 })
+      expect(second.mimeType).toBe('audio/wav')
+    }
+  )
 
   it('admits recording before audio and exposes one monotonically revised global state', async () => {
     const sessionId = randomUUID()
@@ -464,7 +496,7 @@ describe('VoiceSessionService file and admission contract', () => {
       requestId: randomUUID(),
       fileEntryId: entry.id,
       modelId: APPLE_ASR_MODEL_ID,
-      language: 'en-US'
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'en-US' }
     })
     await vi.waitFor(() => expect(service.getState(a).phase).toBe('recognizing'))
     await vi.waitFor(() => expect(settle).toBeTypeOf('function'))
@@ -1165,7 +1197,7 @@ describe('VoiceSessionService file and admission contract', () => {
       requestId: randomUUID(),
       fileEntryId: recordingEntry.id,
       modelId: APPLE_ASR_MODEL_ID,
-      language: 'en-US'
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'en-US' }
     })
     const serializedEvents = JSON.stringify(runtime.broadcastToType.mock.calls)
     const serializedLogs = JSON.stringify(
@@ -1199,7 +1231,12 @@ describe('VoiceSessionService file and admission contract', () => {
         })
     )
     const installation = service
-      .installAsset(a, { sessionId: randomUUID(), requestId: randomUUID(), language: 'en-US' })
+      .installAsset(a, {
+        sessionId: randomUUID(),
+        requestId: randomUUID(),
+        modelId: APPLE_ASR_MODEL_ID,
+        language: 'en-US'
+      })
       .then(
         () => 'completed',
         (error: VoiceRuntimeError) => error.reason
@@ -1273,17 +1310,22 @@ describe('VoiceSessionService file and admission contract', () => {
   it('busy installation requests cannot leave empty sessions behind', async () => {
     const input = await recording()
     let finish!: () => void
-    native.status.mockImplementationOnce(
+    native.transcribe.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          finish = () => resolve({ status: 'ready' })
+          finish = () => resolve({ text: 'private-transcript', segments: [] })
         })
     )
     const work = service.transcribe(a, input)
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
     for (let index = 0; index < 20; index++) {
       await expect(
-        service.installAsset(a, { sessionId: randomUUID(), requestId: randomUUID(), language: 'en-US' })
+        service.installAsset(a, {
+          sessionId: randomUUID(),
+          requestId: randomUUID(),
+          modelId: APPLE_ASR_MODEL_ID,
+          language: 'en-US'
+        })
       ).rejects.toMatchObject({ reason: 'busy' })
     }
     const listenerCount = (a.webContents as unknown as EventEmitter).listenerCount('destroyed')
@@ -1296,6 +1338,11 @@ describe('VoiceSessionService file and admission contract', () => {
   it.each([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID])(
     'keeps failed %s input for retry and deletes it on success',
     async (modelId) => {
+      if (modelId === WINDOWS_ASR_MODEL_ID)
+        vi.stubGlobal(
+          'process',
+          Object.defineProperties(Object.create(process), { platform: { value: 'win32' }, arch: { value: 'x64' } })
+        )
       const input = { ...(await recording()), modelId }
       native.transcribe.mockRejectedValueOnce(new VoiceRuntimeError('operation_failed'))
       await expect(service.transcribe(a, input)).rejects.toMatchObject({ reason: 'operation_failed' })
@@ -1319,13 +1366,13 @@ describe('VoiceSessionService file and admission contract', () => {
   it('takes the global lease before resource checks and holds it through cancellation cleanup', async () => {
     const input = await recording()
     let finish: (() => void) | undefined
-    native.status.mockImplementationOnce(
-      (_id, _options, signal: AbortSignal) =>
+    native.transcribe.mockImplementationOnce(
+      (_id, _audio, _options, signal: AbortSignal) =>
         new Promise((resolve) => {
           signal.addEventListener(
             'abort',
             () => {
-              finish = () => resolve({ status: 'ready' })
+              finish = () => resolve({ text: 'private-transcript', segments: [] })
             },
             { once: true }
           )
@@ -1345,6 +1392,7 @@ describe('VoiceSessionService file and admission contract', () => {
         voice: 'exact'
       })
     ).rejects.toMatchObject({ reason: 'busy' })
+    await vi.waitFor(() => expect(native.transcribe).toHaveBeenCalledOnce())
     const abort = service.abort(a, input, 'transcription')
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
     await expect(service.transcribe(a, { ...input, requestId: randomUUID() })).rejects.toMatchObject({ reason: 'busy' })
@@ -1569,9 +1617,7 @@ describe('VoiceSessionService file and admission contract', () => {
         arch: { value: 'x64' }
       })
     )
-    native.status.mockImplementation(async (modelId) =>
-      modelId === APPLE_TTS_MODEL_ID ? { status: 'unsupported', reason: 'unsupported' } : { status: 'ready' }
-    )
+    native.speech.mockRejectedValueOnce(new VoiceRuntimeError('unsupported'))
     await expect(
       service.speech(a, {
         sessionId: randomUUID(),
@@ -1708,10 +1754,8 @@ describe('VoiceSessionService file and admission contract', () => {
 
   it('missing resources retain input without invoking inference or substituting another model', async () => {
     const input = { ...(await recording()), modelId: FUNASR_MODEL_ID, language: undefined }
-    native.status.mockResolvedValue({ status: 'not_installed', reason: 'model_required' })
+    native.transcribe.mockRejectedValueOnce(new VoiceRuntimeError('model_required'))
     await expect(service.transcribe(a, input)).rejects.toMatchObject({ reason: 'model_required' })
-    expect(native.transcribe).not.toHaveBeenCalled()
-    expect(native.status).toHaveBeenCalledWith(FUNASR_MODEL_ID, input, expect.any(AbortSignal))
     expect((await files.read(input.fileEntryId, { encoding: 'binary' })).content).toEqual(webm)
     await service.discard(a, input.sessionId)
     expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
@@ -1740,15 +1784,14 @@ describe('VoiceSessionService file and admission contract', () => {
         arch: { value: 'x64' }
       })
     )
-    const input = { ...(await recording()), modelId: undefined, language: 'en-US' }
+    const input = {
+      ...(await recording()),
+      modelId: undefined,
+      language: { source: TranscriptionLanguageSource.Interface, locale: 'en-US' }
+    }
 
     await expect(service.transcribe(a, input)).resolves.toMatchObject({ text: 'private-transcript' })
 
-    expect(native.status).toHaveBeenCalledWith(
-      FUNASR_MODEL_ID,
-      { ...input, language: undefined },
-      expect.any(AbortSignal)
-    )
     expect(native.transcribe).toHaveBeenCalledWith(
       FUNASR_MODEL_ID,
       webm,
