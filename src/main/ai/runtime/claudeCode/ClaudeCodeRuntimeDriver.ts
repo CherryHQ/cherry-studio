@@ -345,6 +345,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private lastSdkUserMessageSupportsImages = true
   /** One model-fallback restart per turn: reset by every `send()`, consumed by the first attempt. */
   private fallbackAttempted = false
+  /**
+   * The model the installed query actually serves — the constructor's primary until a fallback
+   * replaces it. Everything that asks "which model is this connection on" (fallback selection,
+   * capability checks, notices) must read this, not `input.modelId`: after a fallback the host can
+   * save the fallback as the agent's primary, and a later turn would otherwise reason about a model
+   * this subprocess no longer routes to.
+   */
+  private installedModelId: UniqueModelId
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
@@ -383,6 +391,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
+    this.installedModelId = input.modelId
   }
 
   async start(): Promise<this> {
@@ -399,7 +408,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
-    await this.installQuery(request)
+    await this.installQuery(request, this.installedModelId)
     void this.runQueryLoop()
     return this
   }
@@ -409,7 +418,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
    * consumption, session-scoped state, and the session-scoped adapter. `start()` uses it for the
    * primary model; the model-fallback restart reuses it with a request rebuilt for the fallback.
    */
-  private async installQuery(request: ClaudeCodeAgentSessionQueryRequest): Promise<void> {
+  private async installQuery(request: ClaudeCodeAgentSessionQueryRequest, modelId: UniqueModelId): Promise<void> {
     this.connectionConfig = request.connectionConfig
     this.capturedInstructions = request.capturedInstructions ?? null
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
@@ -470,6 +479,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
+    // The installed query routes to `modelId` from here on: fallback selection, image capability
+    // and the transcript notice must all describe it, not the constructor's primary.
+    this.installedModelId = modelId
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
     // before any turn opens — is dispatched by the adapter rather than parked by the driver.
@@ -521,7 +533,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.adapter?.beginTurn()
     this.fallbackAttempted = false
 
-    const supportsImages = resolveModelImageSupport(this.input.modelId)
+    // The installed model, not the constructor's primary: a fallback swapped the query the previous
+    // turn ran on, so its capabilities — not P's — decide how this turn's attachments materialize.
+    const supportsImages = resolveModelImageSupport(this.installedModelId)
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages
@@ -881,7 +895,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-
   /**
    * Turn-level model fallback. When the turn terminally failed on a retryable provider error
    * (429 / 5x) before producing any content, restart the SAME host turn once on the first
@@ -901,7 +914,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       if (!input || !previousMessage) return false
       const decision = resolveAgentSessionFallback({
         error,
-        currentModelId: this.input.modelId,
+        // The model that just failed — the installed one. Reading the constructor's primary picks
+        // the same fallback again after P was saved as F, burning the turn's sole attempt.
+        currentModelId: this.installedModelId,
         hasTurnActivity: this.adapter?.hasTurnActivity === true,
         policy: resolveAgentFallbackPolicy(this.input.agentId)
       })
@@ -984,10 +999,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     // Rebuild the replay while nothing has been announced yet: if it fails, the fallback is
     // abandoned with no trace in the transcript and the original error surfaces.
+    const fallFrom = this.installedModelId
     const replayedMessage = await this.buildReplayUserMessage(decision.fallbackModelId, input, previousMessage)
     logger.warn('Agent session turn fell back to the next configured model', {
       sessionId: this.input.sessionId,
-      from: this.input.modelId,
+      from: fallFrom,
       to: decision.fallbackModelId,
       reason: decision.reason
     })
@@ -1014,7 +1030,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // may still be in flight) and re-apply the turn's disables before the replay is admitted.
     await this.reconcileChain
     if (!this.sessionTornDown) await this.reapplyTurnDisabledTools(request)
-    await this.installQuery(request)
+    await this.installQuery(request, decision.fallbackModelId)
     // installQuery skips registration when the connection closed mid-install; with no installed
     // query there is nothing to restart the loop on and nothing to announce.
     if (this.sessionTornDown) return false
@@ -1026,7 +1042,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       chunk: {
         type: 'data-model-fallback',
         id: crypto.randomUUID(),
-        data: { from: this.input.modelId, to: decision.fallbackModelId, reason: decision.reason }
+        data: { from: fallFrom, to: decision.fallbackModelId, reason: decision.reason }
       }
     })
     // installQuery swapped the adapter; the replayed message must land inside an open turn.

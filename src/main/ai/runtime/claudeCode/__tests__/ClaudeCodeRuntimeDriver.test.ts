@@ -9,7 +9,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
 import { forkClaudeSession } from '../claudeFork'
@@ -4033,6 +4033,118 @@ describe('ClaudeCodeRuntimeDriver', () => {
       instructions: 'A',
       disabledTools: []
     })
+    void connection.close()
+  })
+
+  // The connection's model is what the INSTALLED query serves, which after a fallback is not the
+  // constructor's primary. Everything downstream of the swap — fallback selection, the transcript
+  // notice, and the image capability the next turn's attachments are materialized for — has to read
+  // that installed model. Reading the constructor's P instead means a second failure re-picks the
+  // model the connection is already on and burns the turn's single fallback attempt on it.
+  it('tracks the installed model across a fallback, so a second failure reaches the next candidate', async () => {
+    const PRIMARY: UniqueModelId = 'claude-code::sonnet'
+    const SECOND: UniqueModelId = 'other-provider::haiku'
+    const THIRD: UniqueModelId = 'other-provider::glm'
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      // [F, G]: the turn's second fallback attempt must land on G, never back on F.
+      if (key === 'chat.retry.fallback_model_ids') return [SECOND, THIRD]
+      return undefined
+    })
+    mocks.buildRequest.mockImplementation(async (_sessionId, _resume, modelId: string) => ({
+      connectionConfig: {
+        // One stable signature: nothing about the connection forces a rebuild, so the host keeps
+        // reusing this warm connection across turns — exactly the reuse the bug depends on.
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: modelId },
+      settings: {},
+      sdkModelId: modelId,
+      initializeTimeoutMs: 100
+    }))
+    const liveQueues: Array<ReturnType<typeof createAsyncQueue<any>>> = []
+    mocks.createClaudeQuery.mockImplementation(() => {
+      const queue = createAsyncQueue<any>()
+      liveQueues.push(queue)
+      return { ...queue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: PRIMARY
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    const fail = (queue: ReturnType<typeof createAsyncQueue<any>>) =>
+      queue.push({
+        type: 'result',
+        subtype: 'error_during_execution',
+        session_id: 'failed-session',
+        usage: {},
+        terminal_reason: 'api_error',
+        errors: ['API Error: 429 {"type":"rate_limit_error"}']
+      })
+
+    // ── Turn 1 on P ──────────────────────────────────────────────────────────────────────────
+    await connection.send({ message: userMessage() })
+    fail(liveQueues[0])
+
+    // A fallback [F, G] on P picks F. While the backoff runs, the agent's primary is saved as F:
+    // the connection must not adopt that as "its" model — it is still serving P's failed turn.
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: SECOND })
+    expect(mocks.buildRequest.mock.calls[1][2]).toBe(SECOND)
+    // Let the fallback complete: the connection is now genuinely installed on F.
+    liveQueues[1].push({ type: 'system', subtype: 'init', session_id: 'fb-1' })
+    liveQueues[1].push({ type: 'result', subtype: 'success', session_id: 'fb-1', usage: {} })
+    const firstTurn: any[] = []
+    while (true) {
+      const next = await events.next()
+      firstTurn.push(next.value)
+      if (next.value?.type === 'turn-complete' || next.done) break
+    }
+    expect(firstTurn).toContainEqual(
+      expect.objectContaining({
+        type: 'chunk',
+        chunk: expect.objectContaining({
+          type: 'data-model-fallback',
+          data: { from: PRIMARY, to: SECOND, reason: 'http 429' }
+        })
+      })
+    )
+
+    // ── Turn 2: a fresh turn targeting F reuses this connection ────────────────────────────────
+    // The saved primary is F and nothing else changed, so reconciliation matches and the host keeps
+    // the connection it already holds — it is not rebuilt, so F carries over from the fallback.
+    await expect(connection.reconcile({ modelId: SECOND })).resolves.toBe('current')
+    await connection.send({ message: userMessage() })
+
+    // A retryable failure on F must advance to G. Reading the constructor's P instead selects F
+    // again — an attempt already spent — and the turn loses its fallback entirely.
+    fail(liveQueues[1])
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(3))
+    expect(mocks.buildRequest.mock.calls[2][2]).toBe(THIRD)
+
+    liveQueues[2].push({ type: 'system', subtype: 'init', session_id: 'fb-2' })
+    liveQueues[2].push({ type: 'result', subtype: 'success', session_id: 'fb-2', usage: {} })
+    const secondTurn: any[] = []
+    while (true) {
+      const next = await events.next()
+      secondTurn.push(next.value)
+      if (next.value?.type === 'turn-complete' || next.done) break
+    }
+    // The notice describes the swap that actually happened (F → G), not P → G.
+    expect(secondTurn).toContainEqual(
+      expect.objectContaining({
+        type: 'chunk',
+        chunk: expect.objectContaining({
+          type: 'data-model-fallback',
+          data: { from: SECOND, to: THIRD, reason: 'http 429' }
+        })
+      })
+    )
     void connection.close()
   })
 
