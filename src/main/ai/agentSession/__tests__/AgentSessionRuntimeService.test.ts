@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   abortStream: vi.fn(),
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
+  awaitAbortedExecutions: vi.fn(),
   broadcastTopicError: vi.fn(),
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
@@ -527,7 +528,10 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
           resolveToolApproval: mocks.resolveToolApproval,
-          terminateHeldTopicStream: mocks.terminateHeldTopicStream
+          terminateHeldTopicStream: mocks.terminateHeldTopicStream,
+          // The real handoff is covered by AgentSessionRuntimeService.retainedHandoff.test.ts;
+          // here the manager is mocked, so nothing is in flight to await.
+          awaitAbortedExecutions: mocks.awaitAbortedExecutions
         }
       }
       if (name === 'CacheService')

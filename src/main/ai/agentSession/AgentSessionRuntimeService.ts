@@ -975,7 +975,7 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'failed':
         // The retained connection can no longer be trusted (owner gone, or a failed tighten may
         // have left the old policy live) — fail closed on it without touching the entry's turn.
-        this.closeRetainedConnection(entry)
+        void this.closeRetainedConnection(entry)
         return
     }
   }
@@ -988,11 +988,19 @@ export class AgentSessionRuntimeService extends BaseService {
    * deferred input would never resume. Terminalize the interrupted reply first so the deferred input
    * is handed back.
    */
-  private closeRetainedConnection(entry: AgentSessionRuntimeEntry): void {
+  private async closeRetainedConnection(entry: AgentSessionRuntimeEntry): Promise<void> {
     const interruption = this.interruptAutonomousReply(entry)
     try {
       this.closeConnectionAsync(entry)
-      if (interruption) this.markTurnTerminal(entry.sessionId, 'paused', interruption.turnId)
+      if (!interruption) return
+      // The abort only requests settlement: A's execution loop still has to unwind, hand its last
+      // chunks to `PersistenceListener`, and let that listener write the row. Terminalizing
+      // synchronously here would hand B's deferred input back first, and B's `startRuntimeTurn`
+      // would then evict A's stream — `onExecutionPaused` early-returns on a missing stream, so A's
+      // row stays `pending` and its partial output is lost. Wait for the real handoff instead.
+      await application.get('AiStreamManager').awaitAbortedExecutions(entry.topicId)
+      if (!this.isCurrentEntry(entry)) return
+      this.markTurnTerminal(entry.sessionId, 'paused', interruption.turnId)
     } finally {
       entry.retainedReplyInterruption = undefined
     }
