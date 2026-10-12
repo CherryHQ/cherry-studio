@@ -131,10 +131,7 @@ function beginTurn(headless = false): void {
     modelId: MODEL_ID,
     userMessage: { id: 'msg-1', data: { parts: [{ type: 'text', text: 'go' }] } } as never,
     assistantMessageId: 'assistant-1',
-    reasoningEffort: 'medium',
-    serviceTier: 'standard',
-    knowledgeBaseIds: [],
-    fastMode: false,
+    traceId: 'a'.repeat(32),
     ...(headless ? { headless: true } : {})
   })
 }
