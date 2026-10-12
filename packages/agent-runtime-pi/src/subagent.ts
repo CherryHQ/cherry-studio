@@ -1,8 +1,9 @@
 import { type AssistantMessage, Type, type Usage } from '@earendil-works/pi-ai'
 import type { AgentSession, AgentToolResult, ExtensionFactory, SessionEntry } from '@earendil-works/pi-coding-agent'
+import type { ToolCallPart } from 'ai'
 
 import type { AgentRuntimeSession } from './session'
-import type { TranscriptEntry, TranscriptStateEntry } from './transcript'
+import type { TranscriptEntry, TranscriptMessageEntry, TranscriptStateEntry } from './transcript'
 import type { AgentRuntimeEvent } from './transcriptTap'
 
 /** DSH's name: Cherry's renderer shows a cherry-runtime `subagent` call as a Task card. */
@@ -23,6 +24,43 @@ const originEntry = (subagent: Subagent): TranscriptStateEntry => ({
   type: SUBAGENT_ORIGIN_STATE,
   data: { parentToolCallId: subagent.parentToolCallId, fork: subagent.fork }
 })
+
+const PLACEHOLDER = 'This tool call was still running when the subagent started; its result is not available here.'
+
+function toolCallsOf(entry: TranscriptEntry): ToolCallPart[] {
+  if (entry.kind !== 'message' || entry.message.role !== 'assistant' || typeof entry.message.content === 'string')
+    return []
+  return entry.message.content.filter((part): part is ToolCallPart => part.type === 'tool-call')
+}
+
+/**
+ * The parent's transcript up to the assistant message holding `toolCallId`, every call of that
+ * message answered by the same placeholder, so sibling forks send the same prefix.
+ */
+function forkTranscript(entries: readonly TranscriptEntry[], toolCallId: string): TranscriptEntry[] {
+  const index = entries.findIndex((entry) => toolCallsOf(entry).some((call) => call.toolCallId === toolCallId))
+  if (index < 0) throw new Error(`No assistant message holds the call ${toolCallId}.`)
+  const assistant = entries[index]
+  const placeholders = toolCallsOf(assistant).map(
+    (call, i): TranscriptMessageEntry => ({
+      id: `${assistant.id}-fork-${i}`,
+      timestamp: assistant.timestamp,
+      kind: 'message',
+      message: {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: call.toolCallId,
+            toolName: call.toolName,
+            output: { type: 'text', value: PLACEHOLDER }
+          }
+        ]
+      }
+    })
+  )
+  return [...entries.slice(0, index + 1), ...placeholders]
+}
 
 /** Host side of `subagent`: gives each subagent its extensions and listeners. */
 export interface SubagentPort {
@@ -61,6 +99,8 @@ export interface SubagentSessionOverrides {
   transcript: TranscriptEntry[]
   extensionFactories: ExtensionFactory[]
   onEvent: ((event: AgentRuntimeEvent) => void) | undefined
+  /** A fork keeps `subagent` registered so its tools match the parent's. */
+  fork: boolean
 }
 
 /** What the session that registers `subagent` lends it. */
@@ -68,11 +108,14 @@ export interface SubagentToolOptions {
   port: SubagentPort
   /** Builds a session from the parent's options with these overrides. */
   createSession: (overrides: SubagentSessionOverrides) => Promise<AgentRuntimeSession>
+  /** The parent's transcript so far, including the running turn. */
+  parentTranscript: () => readonly TranscriptEntry[]
 }
 
 const DESCRIPTION = [
   'Delegate a task to a subagent: a separate agent with the same tools that returns only its final report, so the work does not fill this conversation.',
-  '- The subagent starts with an empty context: put everything it needs in the prompt.',
+  '- By default the subagent starts with an empty context: put everything it needs in the prompt.',
+  '- With fork: true it starts from this conversation as it is now, so the prompt needs only what is new.',
   '- Start independent subagents together in one message; they run at the same time.',
   '- You see the final report, not the intermediate steps.'
 ].join('\n')
@@ -84,7 +127,12 @@ const NO_FINAL_MESSAGE = 'The subagent finished without a final message.'
 
 const parameters = Type.Object({
   description: Type.String({ description: 'A short (3-5 word) title of the task, shown to the user.' }),
-  prompt: Type.String({ description: 'The task for the subagent.' })
+  prompt: Type.String({ description: 'The task for the subagent.' }),
+  fork: Type.Optional(
+    Type.Boolean({
+      description: 'Start from this conversation as it is now instead of an empty context. Default false.'
+    })
+  )
 })
 
 const text = (value: string) => ({ type: 'text' as const, text: value })
@@ -161,7 +209,7 @@ async function run(
 }
 
 /** The `subagent` tool: each call runs a subagent session in-process and returns its final report. */
-export function subagentExtension({ port, createSession }: SubagentToolOptions): ExtensionFactory {
+export function subagentExtension({ port, createSession, parentTranscript }: SubagentToolOptions): ExtensionFactory {
   return (pi) => {
     pi.registerTool({
       name: SUBAGENT_TOOL_NAME,
@@ -170,24 +218,28 @@ export function subagentExtension({ port, createSession }: SubagentToolOptions):
       parameters,
       exposure: 'model-only',
       async execute(toolCallId, params, _signal, _onUpdate, ctx) {
+        if (isSubagentSession(ctx.sessionManager.getBranch())) throw new Error('Subagents cannot start subagents.')
         const description = params.description.trim()
         const prompt = params.prompt.trim()
         if (!description || !prompt) throw new Error('A subagent needs a non-empty description and prompt.')
+        const fork = params.fork ?? false
         const subagent: Subagent = {
           parentToolCallId: toolCallId,
           sessionId: subagentSessionId(ctx.sessionManager.getSessionId(), toolCallId),
-          fork: false
+          fork
         }
         const options = await port.configure(subagent)
+        const transcript = [...(fork ? forkTranscript(parentTranscript(), toolCallId) : []), originEntry(subagent)]
         const child = await createSession({
           sessionId: subagent.sessionId,
-          transcript: [originEntry(subagent)],
+          transcript,
+          fork,
           extensionFactories: options.extensionFactories ?? [],
           onEvent: options.onEvent
         })
         try {
           options.onSessionCreated?.(child.session)
-          return await run(child, prompt, { sessionId: subagent.sessionId, fork: false })
+          return await run(child, prompt, { sessionId: subagent.sessionId, fork })
         } finally {
           await child.dispose()
         }
