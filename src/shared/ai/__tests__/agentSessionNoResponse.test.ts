@@ -194,6 +194,86 @@ describe('isVisibleAgentSessionPart', () => {
     expect(hasVisibleAgentSessionPart(normal)).toBe(true)
     expect(hasVisibleAgentSessionPart(undefined)).toBe(false)
   })
+
+  it('shares the renderer contextual-filler rule so a suppressed ellipsis is not mistaken for an answer', () => {
+    // `projectCompletedMessageParts` drops an ellipsis-only text part that has process content
+    // after it (messagePartLayouts.isProcessFillerText), then renders the process content. When
+    // that content is a cardless dynamic provider tool there is nothing left: no text, no card,
+    // no process disclosure. Judging the parts one by one counted the ellipsis as the answer and
+    // declared the turn visible, bypassing both no-output guards. The whole-turn rule has to ask
+    // whether the ellipsis survives projection, not whether its text is non-empty.
+    const suppressedByCardlessTool: CherryMessagePart[] = [
+      { type: 'text', text: '...' },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 't-plan',
+        toolName: 'EnterPlanMode',
+        state: 'output-available',
+        input: {},
+        providerExecuted: true,
+        callProviderMetadata: {
+          cherry: { transport: 'claude-agent', tool: { type: 'provider', name: 'EnterPlanMode' } }
+        }
+      } as never
+    ]
+    expect(hasVisibleAgentSessionPart(suppressedByCardlessTool)).toBe(false)
+    // Same shape with a carded tool: the tool keeps the turn visible on its own.
+    expect(
+      hasVisibleAgentSessionPart([
+        { type: 'text', text: '...' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 't-bash',
+          toolName: 'Bash',
+          state: 'output-available',
+          input: {},
+          providerExecuted: true,
+          callProviderMetadata: { cherry: { transport: 'claude-agent', tool: { type: 'provider', name: 'Bash' } } }
+        } as never
+      ])
+    ).toBe(true)
+    // A genuine standalone final ellipsis stays visible: nothing follows it to suppress it.
+    expect(hasVisibleAgentSessionPart([{ type: 'text', text: '...' }])).toBe(true)
+    expect(hasVisibleAgentSessionPart([{ type: 'step-start' }, { type: 'text', text: '...' }])).toBe(true)
+    // Real answer text after a filler ellipsis is unaffected.
+    expect(
+      hasVisibleAgentSessionPart([
+        { type: 'text', text: '...' },
+        { type: 'text', text: 'Final answer' }
+      ])
+    ).toBe(true)
+  })
+
+  it('does not count an undeclared report_artifacts call as visible turn content', () => {
+    // The renderer hides report_artifacts from the inline stream and instead renders a footer card
+    // from the declaration (`MessageReportArtifacts` -> getReportArtifactsViewModel, which re-parses
+    // the tool input with reportArtifactsInputSchema). An invalid declaration such as `{ artifacts: [] }`
+    // produces no footer, and the stream adapter only emits a tool error rather than failing the turn —
+    // so the turn completes successfully with nothing rendered. Counting the MCP-shaped call as visible
+    // left both no-output guards blind to it and hid the diagnostic.
+    const failedReport = (input: unknown) =>
+      [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 't-report-empty',
+          toolName: 'mcp__cherry-tools__report_artifacts',
+          state: 'output-error',
+          input,
+          providerExecuted: true,
+          callProviderMetadata: {
+            cherry: { transport: 'claude-agent', tool: { type: 'mcp', serverId: 'cherry-tools' } }
+          }
+        } as never
+      ] as CherryMessagePart[]
+    expect(hasVisibleAgentSessionPart(failedReport({ artifacts: [] }))).toBe(false)
+    expect(hasVisibleAgentSessionPart(failedReport({}))).toBe(false)
+    expect(hasVisibleAgentSessionPart(failedReport(undefined))).toBe(false)
+    expect(hasVisibleAgentSessionPart(failedReport({ artifacts: [{ path: '   ' }] }))).toBe(false)
+    // A usable declaration still anchors the footer card, so the turn is genuinely rendered.
+    expect(
+      hasVisibleAgentSessionPart(failedReport({ artifacts: [{ path: 'docs/report.md' }], summary: 'Report' }))
+    ).toBe(true)
+  })
 })
 
 describe('appendNoResponseErrorPart', () => {
