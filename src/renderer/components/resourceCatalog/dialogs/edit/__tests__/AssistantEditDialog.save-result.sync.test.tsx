@@ -115,6 +115,61 @@ describe('assistant editor successful writes with failed detail reads', () => {
     })
   })
 
+  it('uses the committed result after a pre-commit refresh and a retried write', async () => {
+    const request = bridge.request.getMockImplementation()!
+    let firstAttempt = true
+    let started = false
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    bridge.request.mockImplementation(async (input: DataRequest) => {
+      if (input.method === 'PATCH') {
+        if (firstAttempt) {
+          firstAttempt = false
+          started = true
+          await gate
+          return {
+            id: input.id,
+            status: 500,
+            error: DataApiErrorFactory.internal(new Error('Write not committed')).toJSON()
+          }
+        }
+        failDetail = true
+        persisted = { ...persisted, updatedAt: '2026-10-12T00:00:02.000Z' }
+      }
+      return request(input)
+    })
+    const user = userEvent.setup()
+    render(<ResourceEditDialogHost target={{ kind: 'assistant', id: assistantId }} onOpenChange={vi.fn()} />, {
+      wrapper: createSWRTestWrapper().Wrapper
+    })
+    const name = await screen.findByRole('textbox', { name: 'Name' })
+    await user.clear(name)
+    await user.type(name, 'Local')
+    try {
+      await waitFor(() => expect(started).toBe(true))
+      persisted = { ...persisted, description: 'Remote', updatedAt: '2026-10-12T00:00:01.000Z' }
+      await act(async () => emit())
+      await waitFor(() => expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Remote'))
+    } finally {
+      await act(async () => release())
+    }
+    await waitFor(() => expect(persisted.name).toBe('Local'))
+    await settleAutoSave()
+    expect(failedReads).toBeGreaterThan(0)
+    expect(name).toHaveValue('Local')
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Remote')
+    expect(patches).toEqual([{ name: 'Local' }])
+    failDetail = false
+    persisted = { ...persisted, name: 'Later', description: 'Later description', updatedAt: '2026-10-12T00:00:03.000Z' }
+    await act(async () => emit())
+    await settleAutoSave()
+    expect(name).toHaveValue('Later')
+    expect(persisted.name).toBe('Later')
+    expect(patches).toEqual([{ name: 'Local' }])
+  })
+
   it.each(['settled', 'newer-input', 'observed-external'] as const)(
     'acknowledges the PATCH result without losing %s state',
     async (scenario) => {

@@ -458,12 +458,12 @@ function AssistantEditDialogContent({
           if (serializedPersistedValue(name, value) === serializedFormValue(name, persistedValues[key]))
             savedFields.add(key)
         }
-        // A returned write confirms saved fields; an already observed refresh remains authoritative.
-        reconcileResource(
-          observedResourceRef.current === observedResource ? updated : baselineResourceRef.current,
-          false,
-          savedFields
-        )
+        // Object identity only shows a refresh happened; its timestamp determines whether it predates the write.
+        const observed = baselineResourceRef.current
+        const keepObserved =
+          observedResourceRef.current !== observedResource &&
+          Date.parse(observed.updatedAt) >= Date.parse(updated.updatedAt)
+        reconcileResource(keepObserved ? observed : updated, false, savedFields)
         acknowledgeSavedFields(snapshot, persistedValues)
       }
     } catch (error) {

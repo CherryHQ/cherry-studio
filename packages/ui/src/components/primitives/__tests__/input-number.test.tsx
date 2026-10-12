@@ -212,6 +212,23 @@ describe('InputNumber', () => {
     expect(input).toHaveValue(value === null ? '' : String(value))
   })
 
+  it.each([
+    [4001, '{ArrowDown}'],
+    [3999, '{ArrowUp}']
+  ] as const)('commits a step back to the original draft after receiving %s', async (value, key) => {
+    const user = userEvent.setup()
+    const onBlur = vi.fn()
+    const { rerender } = render(<InputNumber aria-label="amount" value={4000} step={1} onBlur={onBlur} />)
+    const input = screen.getByRole('spinbutton', { name: 'amount' })
+    await user.click(input)
+    rerender(<InputNumber aria-label="amount" value={value} step={1} onBlur={onBlur} />)
+    expect(input).toHaveValue(String(value))
+    await user.keyboard(key)
+    expect(input).toHaveValue('4000')
+    await user.tab()
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith(4000)
+  })
+
   it('restores the received value when an edit started after a pristine refresh is escaped', async () => {
     const user = userEvent.setup()
     const onBlur = vi.fn()

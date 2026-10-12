@@ -225,10 +225,10 @@ function InputNumber({
   // Non-null only while the field is focused: an unfocused field renders `value`
   // directly, so there is no second copy of it to keep in sync.
   const [draft, setDraft] = React.useState<string | null>(null)
-  const edited = React.useRef(false)
+  const [edited, setEdited] = React.useState(false)
   const focused = React.useRef(false)
   const focusValue = React.useRef(value)
-  const pristineRefresh = focused.current && !edited.current && value !== focusValue.current
+  const pristineRefresh = focused.current && !edited && value !== focusValue.current
   const text = pristineRefresh ? format(value) : (draft ?? format(value))
   // What the current edit started from. `value` has already moved for callers that
   // write on every `onValueChange`, so Escape cannot restore from the prop.
@@ -247,7 +247,7 @@ function InputNumber({
     // not change, so returning here is what drops the rejected input.
     if (!isTypable(next)) return
     if (pristineRefresh) preEdit.current = value
-    edited.current = true
+    setEdited(true)
     setDraft(next)
     const parsed = Number(next)
     // A viable prefix like `"-"` or `"1e"` is not yet a value, and reporting it
@@ -312,7 +312,7 @@ function InputNumber({
         return
       }
       if (pristineRefresh) preEdit.current = value
-      edited.current = true
+      setEdited(true)
       setDraft(format(next))
       onValueChange?.(next)
     }
@@ -340,7 +340,7 @@ function InputNumber({
         // is showing its settled value while `value` is one round trip behind.
         preEdit.current = toNumber(text)
         focusValue.current = value
-        edited.current = false
+        setEdited(false)
         setDraft(text)
         onFocus?.(event)
       }}
