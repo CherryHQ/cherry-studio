@@ -11,6 +11,7 @@ import { registerDocumentTools } from '@main/ai/mcp/servers/cherryDocumentTools'
 import type * as DocumentConversion from '@main/services/documentConversion'
 import { CONVERT_TO_DOCUMENT_TOOL_NAME, parseConvertedDocumentOutput } from '@shared/ai/documentConversionTool'
 
+import { hasWindowsInvalidFilenameSegment } from '../assistantFileSafety'
 import { convertToDocumentToWorkspace } from '../convertToDocument'
 
 const { convertDocumentBundle, attachments, physicalPath } = vi.hoisted(() => ({
@@ -172,6 +173,67 @@ describe('convertToDocumentToWorkspace', () => {
     expect(second.path).not.toBe(first.path)
     expect(await readFile(path.join(workspacePath, first.path))).toEqual(bytes)
     expect(await readFile(path.join(workspacePath, second.path))).toEqual(bytes)
+  })
+
+  it('keeps drive-root, UNC, relative, and navigation paths out of the invalid-segment check', () => {
+    for (const filePath of [
+      'C:\\docs\\report.pdf',
+      '\\\\server\\share\\report.pdf',
+      '\\\\CON\\share\\report.pdf',
+      '\\\\server\\NUL\\report.pdf',
+      'docs/report.pdf',
+      './report.pdf',
+      'docs/../report.pdf'
+    ]) {
+      expect(hasWindowsInvalidFilenameSegment(filePath)).toBe(false)
+    }
+    for (const filePath of [
+      'C:report.pdf',
+      '\\\\ser?ver\\share\\report.pdf',
+      '\\\\server\\sh:are\\report.pdf',
+      '\\\\?\\C:\\report.pdf',
+      '\\\\server\\share\\CON.pdf'
+    ]) {
+      expect(hasWindowsInvalidFilenameSegment(filePath)).toBe(true)
+    }
+  })
+
+  it('rejects reserved Windows output names before publication and still publishes lookalikes', async () => {
+    const nested = path.join(workspacePath, 'nested')
+    await mkdir(nested)
+    const reservedOutputs = [
+      ['CON.docx', 'docx'],
+      ['prn.PDF', 'pdf'],
+      ['Aux.md', 'md'],
+      ['NUL.xlsx', 'xlsx'],
+      ['COM1.html', 'html'],
+      ['lpt9.pptx', 'pptx'],
+      ['nested/CoM3.pdf', 'pdf'],
+      ['nested/nul.docx', 'docx']
+    ] as const
+    for (const [output_path, format] of reservedOutputs) {
+      await expect(
+        convertToDocumentToWorkspace(workspacePath, { markdown: '# Report', format, output_path }, signal)
+      ).rejects.toThrow(/invalid in Windows filenames/)
+      await expect(readFile(path.join(workspacePath, output_path))).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+    expect(convertDocumentBundle).not.toHaveBeenCalled()
+    expect(await readdir(nested)).toEqual([])
+
+    const lookalikeOutputs = [
+      ['CONSOLE.pdf', 'pdf'],
+      ['COM10.docx', 'docx'],
+      ['nested/LPT0.md', 'md'],
+      ['./nested/AUXILIARY.html', 'html']
+    ] as const
+    for (const [output_path, format] of lookalikeOutputs) {
+      const published = await convertToDocumentToWorkspace(
+        workspacePath,
+        { markdown: '# Report', format, output_path },
+        signal
+      )
+      expect(await readFile(path.join(workspacePath, published.path))).toEqual(bytes)
+    }
   })
 
   it('rejects absolute, traversing, invalid, and mismatched output paths before conversion', async () => {

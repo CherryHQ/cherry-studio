@@ -16,7 +16,7 @@ export async function publishDocument(
   options: { signal?: AbortSignal; validateTarget?: () => Promise<void> } = {}
 ): Promise<void> {
   const temporaryDirectory = await mkdtemp(application.getPath('app.temp', 'document-conversion-'))
-  let resources: { path: string; dev: number; ino: number } | undefined
+  let resources: { path: string; dev: bigint; ino: bigint } | undefined
   const publishedAssets: { path: string; dev: bigint; ino: bigint }[] = []
   let complete = false
   let validateResources: (() => Promise<void>) | undefined
@@ -26,12 +26,12 @@ export async function publishDocument(
     if (document.resourceDirectory) {
       const resourcePath = path.join(path.dirname(outputPath), document.resourceDirectory)
       await mkdir(resourcePath)
-      const identity = await lstat(resourcePath)
+      const identity = await lstat(resourcePath, { bigint: true })
       resources = { path: resourcePath, dev: identity.dev, ino: identity.ino }
       const canonical = await realpath(resourcePath)
       validateResources = async () => {
         await options.validateTarget?.()
-        const current = await lstat(resourcePath)
+        const current = await lstat(resourcePath, { bigint: true })
         if (
           !current.isDirectory() ||
           current.isSymbolicLink() ||
@@ -64,7 +64,7 @@ export async function publishDocument(
     complete = true
   } finally {
     if (!complete && resources) {
-      const identity = await lstat(resources.path).catch(() => undefined)
+      const identity = await lstat(resources.path, { bigint: true }).catch(() => undefined)
       if (identity?.dev === resources.dev && identity.ino === resources.ino) {
         for (const asset of publishedAssets)
           await bestEffortUnlinkOwnedPath(AbsoluteFilePathSchema.parse(asset.path), asset, 'publishDocument')

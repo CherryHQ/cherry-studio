@@ -36,7 +36,14 @@ describe('saveAttachmentToWorkspace', () => {
   })
 
   it('rejects Windows-invalid characters in every output path segment', () => {
-    for (const outputPath of ['inputs/sales.csv:private', 'inputs/quarter?/sales.csv', 'inputs/sales\u0001.csv']) {
+    for (const outputPath of [
+      'inputs/sales.csv:private',
+      'inputs/quarter?/sales.csv',
+      'inputs/sales\u0001.csv',
+      'inputs/CON.csv',
+      'nul.csv',
+      'nested/lpt3.csv'
+    ]) {
       const result = saveAttachmentInputSchema.safeParse({ filename: 'file_abcd', output_path: outputPath })
 
       expect(result.success).toBe(false)
