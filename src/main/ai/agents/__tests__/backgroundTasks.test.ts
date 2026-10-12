@@ -681,9 +681,11 @@ describe('backgroundTasks', () => {
           writeHook.onWrite = null
           psSteer.read = null
           killSpy.mockRestore()
-          for (const pid of [taskPid, bystanderPid]) {
+          // The task's group first, so a shell that forked rather than exec'd leaves nothing
+          // holding the temp directory; the bystander is this test's own to clean up.
+          for (const target of [-taskPid, taskPid, bystanderPid]) {
             try {
-              process.kill(pid, 'SIGKILL')
+              process.kill(target, 'SIGKILL')
             } catch {
               // already reaped
             }
