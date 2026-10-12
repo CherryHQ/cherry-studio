@@ -156,8 +156,9 @@ async function waitForAnswer(port: AskUserPort, request: AskUserRequest): Promis
 }
 
 /**
- * The `AskUserQuestion` tool with Claude Code's input schema. It waits on `port`; calls in one
- * model step run one at a time, so the user sees one set of questions at a time.
+ * The `AskUserQuestion` tool with Claude Code's input schema. It waits on `port`, except inside a
+ * subagent's session, where it ends as `unavailable` without asking the port. Calls in one model
+ * step run one at a time, so the user sees one set of questions at a time.
  */
 export function createAskUserExtension(port: AskUserPort): ExtensionFactory {
   return (pi) => {
