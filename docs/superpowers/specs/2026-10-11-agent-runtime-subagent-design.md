@@ -20,7 +20,7 @@ Cherry 正把 Pi 做成唯一的 agent runtime（L1 #21436 桥接、L2 #21437 tr
 - 子代理类型（`subagent_type`）、自定义子代理定义、按子代理换模型——以后和「子代理模型」设置一起做。加类型只需给 `subagent` 加一个可选参数，不破坏本层接口。
 - 多层嵌套（子代理再派子代理）。
 - 子代理 transcript 的单独存储与恢复。
-- fork 时复用父会话的 prompt 缓存路由键（`sessionId`）。
+- fork 时复用父会话的 prompt 缓存路由键（`sessionId`）。宿主如果用 `sessionId` 做缓存路由（例如 OpenAI 的 `prompt_cache_key`），第一期的 fork 子代理命不中父会话的缓存分区；按内容匹配前缀的缓存（例如 Anthropic）不受影响。
 - 宿主接入：UI parts 的转换与保存、审批请求挂到子代理卡片下、plan 提醒的子代理版本（见第 8 节，由宿主接入层和权限 PR 实现）。
 
 ## 2. 术语
@@ -31,7 +31,7 @@ Cherry 正把 Pi 做成唯一的 agent runtime（L1 #21436 桥接、L2 #21437 tr
 | 子会话 | 包为一次 `subagent` 调用新建的 Pi 会话，调用结束即销毁 |
 | 普通子代理 | `fork` 为假：全新上下文，只看到任务消息 |
 | fork 子代理 | `fork` 为真：继承父会话截至本次调用的全部上下文 |
-| 任务消息 | 子会话的第一条消息，custom message 类型 `cherry.subagent-task`，内容是固定说明加上 `prompt` |
+| 任务消息 | 子会话的第一条消息：普通用户消息，内容是固定说明加上 `prompt`，经 `session.prompt()` 发出 |
 | 子代理标记 | 子会话 transcript 里的 `cherry.subagent` 状态条目，用来判断「当前是子代理」 |
 
 ## 3. 工具 `subagent`
@@ -70,7 +70,7 @@ subagent({
 
 fork 的几个细节，都是为了让同一步并行派出的多个 fork 共享 prompt 缓存（做法同 Claude Code 的 `forkSubagent.ts`）：
 
-- **截断位置**：截到携带本次调用的 assistant 消息，而不是「已完成的轮次」。这样子代理看得到父代理当前的推理，各个兄弟 fork 的前缀也相同。并行执行时，兄弟调用的真实结果可能已经写进父会话，按 assistant 消息截断可以把它们排除在外。
+- **截断位置**：截到携带本次调用的 assistant 消息，而不是「已完成的轮次」。这样子代理看得到父代理当前的推理，各个兄弟 fork 的前缀也相同。按这条消息截断，而不是取当时的全部条目，边界就不依赖兄弟调用的完成时机（Pi 并行执行时，工具结果在整批结束后才按原顺序写入，`pi-agent-core` `types.d.ts:18-25`）。
 - **占位结果**：该 assistant 消息里的每个工具调用（包括本次调用）都补一条文本完全相同的结果，例如 `This tool call was still running when the subagent started; its result is not available here.`
 - **工具一致**：工具定义排在请求最前面，fork 子会话的工具列表必须和父会话逐项相同，顺序也相同。包在父、子会话里把 `subagent` 扩展放在同一位置；宿主在 fork 时返回与父会话相同的扩展列表。子代理不该用的工具照样挂着，调用时拒绝（第 5 节），这和 plan 模式「挂载但拦下」是同一原则。
 - **宿主扩展的边界**：fork 子会话里，宿主扩展不能改系统提示词和工具声明；差异只能出现在任务消息之后（比如提醒消息）。
@@ -82,11 +82,18 @@ fork 的几个细节，都是为了让同一步并行派出的多个 fork 共享
 
 ### 4.4 任务消息与启动
 
-任务消息是 `display: false` 的 custom message，`details` 为 `{ parentToolCallId, fork }`。内容是一段固定的英文说明，加上 `prompt`：
+任务消息是一段固定的英文说明，加上 `prompt`：
 
 > You are a subagent working for another agent, not for the user. Do the task below with your tools, then finish with one final message that reports the result in full — the other agent sees only that final message. You cannot ask the user questions and you cannot start subagents.
 
-说明放在任务消息里，不放进系统提示词，fork 的前缀才能和父会话一致。子会话用 `session.sendCustomMessage(taskMessage, { triggerTurn: true })` 开跑。
+说明放在任务消息里，不放进系统提示词，fork 的前缀才能和父会话一致。
+
+子会话用 `session.prompt(taskText)` 开跑，任务消息是一条普通用户消息。不用 `sendCustomMessage({ triggerTurn: true })`，因为只有 `prompt()` 会触发 `before_agent_start`（`agent-session.js:1588-1631`；`sendCustomMessage` 在 `:1782-1808` 直接进入运行）。走 `prompt()` 有两个好处：
+
+- 宿主扩展的 `before_agent_start` 在子代理里照常运行，plan 提醒的子代理版本就是从这里注入的。
+- fork 子代理的系统提示词和父会话这一轮一样，都经过 `before_agent_start` 的修改，前缀才能一致。
+
+说明以普通文字开头，不会触发 Pi 的提示模板或 skill 命令展开。宿主渲染时可以隐藏这条消息，因为工具输入里已经有 `prompt`。
 
 ### 4.5 子会话 id
 
@@ -113,16 +120,18 @@ fork 的几个细节，都是为了让同一步并行派出的多个 fork 共享
 
 ## 6. 运行与结果
 
-1. 调宿主的 `child(info)`，按 4.2 建子会话。
-2. 在第一次模型请求前调 `onSession(session)`，让宿主订阅实时输出。
-3. 子会话的 transcript 事件只交给 `onEvent`，不进父会话的 `onEvent`。
-4. 发任务消息开跑，等子会话 settle。
-5. 无论结果如何，最后都 dispose 子会话。
+1. 调宿主的 `child(info)`。回调返回后，如果这次调用已经中止，就不再建子会话。
+2. 按 4.2 建子会话。
+3. 在第一次模型请求前调 `onSession(session)`，让宿主订阅实时输出。
+4. 子会话的 transcript 事件只交给 `onEvent`，不进父会话的 `onEvent`。
+5. 用 `session.prompt()` 发任务消息开跑，等子会话 settle。
+6. 无论结果如何，最后都 dispose 子会话。
 
 结果：
 
 - **正常结束**（最后一条 assistant 消息的 `stopReason` 为 `stop`）：工具结果是这条消息的文本；没有文本时给一句固定说明。
-- **失败**（`error`、`length`、`aborted`，或触到请求上限）：返回 `isError: true` 的结果，文本写明原因，再附上已有的部分输出（最后一条 assistant 文本）。用 `isError` 返回而不是抛错，是为了保留 `details`，让用量照样能被 L5 计入预算。
+- **失败**（`error`、`length`、`aborted`，或触到请求上限）：返回 `isError: true` 的结果，文本写明原因，再附上已有的部分输出（最后一条 assistant 文本）。用 `isError` 返回而不是抛错，是为了保留 `details` 和 `usage`（Pi 对 `isError` 结果保留这两项，`pi-agent-core` `types.d.ts:382-386`）。
+- **用量**：放在 Pi 原生的 `AgentToolResult.usage` 上，值为子会话所有回复的 usage 逐项相加（各 token 字段和 `cost`）。Pi 会把它带到 toolResult 消息和 `turn_end` 事件上（`agent-loop.js:665`），L5 按这个通用字段记账，不必认工具名。L2 的 transcript 不保存 tool result 的 usage，只影响事后查看，不影响 goal 的实时记账。
 - `details`：
 
 ```ts
@@ -130,7 +139,6 @@ interface SubagentDetails {
   childSessionId: string
   fork: boolean
   stopReason: 'stop' | 'length' | 'error' | 'aborted' | 'request_limit'
-  usage: { tokens: number; usd: number }   // 子会话所有回复的 usage.totalTokens 与 usage.cost.total 之和，口径同 goal
 }
 ```
 
@@ -177,13 +185,15 @@ interface SubagentChildOptions {
   - fork 子代理挂着 `exit_plan_mode`，调用时拒绝；普通子代理不挂。
   - plan 提醒有子代理版本，不提退出 plan。
 - **扩展列表**：普通子代理不需要 `exit_plan_mode`、goal 工具，宿主可以不给；fork 子代理必须给全。
+- **自定义工具**：`customTools` 的实例由父、子会话共用。需要知道「在哪个子代理里」的宿主工具，应在父、子会话里都通过扩展提供。
+- **隐藏任务消息**：子会话的第一条用户消息就是任务消息，渲染时可以隐藏。
 
 ## 9. 与 L5 goal 的衔接
 
 L5 rebase 到本层后，goal spec 要相应修订：
 
 1. **`hasRunningChildren`**：前台子代理在工具调用内跑完，`agent_before_settle` 时不可能有子代理在跑；这个注入到 L6 后台子代理才有意义，L5 保持不接。
-2. **子代理用量计入预算**：goal 在 `turn_end` 记账时，把本轮 `subagent` 结果的 `details.usage` 一并计入。goal spec §1.1 的非目标「子 agent 的 token 用量归并到父 goal 预算」随之删除。
+2. **子代理用量计入预算**：goal 在 `turn_end` 记账时，把本轮 tool result 上的 `usage` 一并计入。这是通用做法，不认工具名，以后别的工具带上 usage 也会被计入。goal spec §1.1 的非目标「子 agent 的 token 用量归并到父 goal 预算」随之删除。
 3. **轮次**：子代理内部的请求不算 goal 轮次，一轮仍是「父代理停下后被推一次」。
 4. **子代理里 goal 不生效**：用第 5 节的识别函数，子代理里 goal 工具返回错误、不续跑、忽略 fork 继承来的 `cherry.goal` 状态。不这样做，fork 子代理会以为自己身上有个活跃的 goal 而不停续跑。
 5. **权限模式名**：goal spec §3.3、§10 引用的 #19591 四档已作废，改为五档 auto / manual / edit / plan / full；plan 下不启动自主续跑轮。
@@ -195,7 +205,8 @@ L5 rebase 到本层后，goal spec 要相应修订：
 
 | 测试 | 破坏什么时失败 |
 |---|---|
-| 普通子代理在独立上下文里运行，第一次请求只含任务消息；结果是它最后一条回复的文本，`details` 带 `childSessionId` 和累加的 `usage` | 上下文串了父会话；取错消息；用量没累加 |
+| 普通子代理在独立上下文里运行，第一次请求只含任务消息；结果是它最后一条回复的文本，`details` 带 `childSessionId`，结果的 `usage` 是子会话各次回复之和 | 上下文串了父会话；取错消息；用量没累加 |
+| 子会话的运行经过 `before_agent_start`：宿主扩展返回的消息出现在子代理的请求里；fork 子代理的系统提示词与父会话这一轮相同 | 用了不触发 `before_agent_start` 的启动方式 |
 | fork 子代理的第一次请求 = 父会话截至本次调用的消息 + 占位结果 + 任务消息；同一步两个 fork 的请求只有最后一条消息不同 | 截断位置错；混入兄弟调用的真实结果；占位文本不一致 |
 | fork 子代理的工具列表与父会话逐项相同，包括 `tool_search` 激活的工具 | 工具不一致，缓存失效 |
 | fork 子代理调用 `subagent` 得到错误结果；普通子代理的工具里没有 `subagent` | 嵌套失控 |
@@ -203,7 +214,8 @@ L5 rebase 到本层后，goal spec 要相应修订：
 | 子代理压缩后仍被识别为子代理 | 识别依赖会被折叠的消息 |
 | 同一步两个 `subagent` 调用在时间上重叠 | 被串行执行 |
 | 父会话中止 → 子会话中止并被 dispose，结果 `stopReason: 'aborted'` | 子代理在后台继续跑 |
-| 子代理以 `error` 或 `length` 结束 → `isError` 结果，带部分输出和 `usage` | 失败被当成成功；用量丢失 |
+| 子代理以 `error` 或 `length` 结束 → `isError` 结果，带部分输出、`details` 和 `usage` | 失败被当成成功；用量丢失 |
+| 在 `child()` 返回前中止父会话 → 不建子会话，不发请求 | 中止后仍启动子代理 |
 | 第 200 次请求后中止，`stopReason: 'request_limit'` | 没有上限 |
 | `child()` 抛错 → 本次调用失败，父会话继续 | 宿主错误击穿父会话 |
 | 子会话的条目只进 `child().onEvent`；父会话 transcript 只多出这次调用和它的结果 | 子代理条目污染父 transcript |
@@ -220,6 +232,8 @@ L5 rebase 到本层后，goal spec 要相应修订：
 6. 每个子代理 200 次请求上限。
 7. 子代理类型推迟，以后与「子代理模型」设置一起做。
 8. `subagent` 不延迟加载。
+9. 子会话用 `session.prompt()` 启动，不用 `sendCustomMessage`，让 `before_agent_start` 在子代理里照常运行。
+10. 子代理用量走 Pi 原生的 tool result `usage`，不放进 `details`。
 
 ## 12. 实施顺序
 
