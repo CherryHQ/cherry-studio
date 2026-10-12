@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import type * as FsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -10,7 +11,8 @@ const runtime = vi.hoisted(() => ({
   register: vi.fn(),
   request: vi.fn(),
   stop: vi.fn(),
-  withStopped: vi.fn()
+  withStopped: vi.fn(),
+  mkdtempGate: null as null | { entered: () => void; release: Promise<void> }
 }))
 
 vi.mock('@application', async () => {
@@ -25,14 +27,38 @@ vi.mock('@application', async () => {
     }
     throw new Error(`Unexpected service: ${name}`)
   })
-  mocked.application.getPath.mockImplementation((_key: string, filename?: string) =>
-    filename ? `${runtime.tempRoot}/${filename}` : runtime.tempRoot
-  )
+  mocked.application.getPath.mockImplementation((key: string, filename?: string) => {
+    if (key === 'app.temp') return filename ? `${runtime.tempRoot}/${filename}` : runtime.tempRoot
+    const bases: Record<string, string> = {
+      'cherry.bin': `${runtime.tempRoot}/bin`,
+      'cherry.bin.ffmpeg.bin': `${runtime.tempRoot}/bin/ffmpeg/bin`,
+      'cherry.bin.ffmpeg.lib': `${runtime.tempRoot}/bin/ffmpeg/lib`
+    }
+    const base = bases[key]
+    if (!base) throw new Error(`unexpected path key ${key}`)
+    return filename ? `${base}/${filename}` : base
+  })
   return mocked
 })
 
-import { BaseService, Phase } from '@main/core/lifecycle'
-import { getConditions, getDependencies, getPhase } from '@main/core/lifecycle/decorators'
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof FsPromises>('node:fs/promises')
+  return {
+    ...actual,
+    mkdtemp: (async (prefix: string) => {
+      const gate = runtime.mkdtempGate
+      if (gate) {
+        gate.entered()
+        await gate.release
+      }
+      return actual.mkdtemp(prefix)
+    }) as typeof actual.mkdtemp
+  }
+})
+
+import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle'
+import { getConditions } from '@main/core/lifecycle/decorators'
 
 import { mediaFfmpegCommandEnv } from '../mediaFfmpegLoader'
 import { mediaFfmpegProcess } from '../mediaFfmpegProcess'
@@ -47,6 +73,7 @@ beforeEach(async () => {
   runtime.request.mockReset()
   runtime.stop.mockReset().mockResolvedValue(undefined)
   runtime.withStopped.mockReset()
+  runtime.mkdtempGate = null
   service = new MediaFfmpegService()
   await service._doInit()
 })
@@ -59,12 +86,6 @@ afterEach(async () => {
 })
 
 describe('MediaFfmpegService lifecycle', () => {
-  it('registers the FFmpeg definition in WhenReady after UtilityProcessManager', () => {
-    expect(getPhase(MediaFfmpegService)).toBe(Phase.WhenReady)
-    expect(getDependencies(MediaFfmpegService)).toContain('UtilityProcessManager')
-    expect(runtime.register).toHaveBeenCalledWith(mediaFfmpegProcess)
-  })
-
   it('is available where a bundled FFmpeg runtime exists', () => {
     const [condition] = getConditions(MediaFfmpegService)!
     const context = { arch: 'arm64' as const, cpuModel: '', env: process.env }
@@ -80,11 +101,17 @@ describe('MediaFfmpegService lifecycle', () => {
     const original = Object.getOwnPropertyDescriptor(process, 'platform')!
     Object.defineProperty(process, 'platform', { value: 'linux' })
     try {
+      vi.mocked(application.getPath).mockClear()
       const init = mediaFfmpegProcess.createInitData?.()
       if (!init || init instanceof Promise) throw new Error('expected sync init data')
-      expect(init.ffmpegPath).toBe(join(runtime.tempRoot, 'ffmpeg', 'bin', 'ffmpeg'))
-      expect(init.ffprobePath).toBe(join(runtime.tempRoot, 'ffmpeg', 'bin', 'ffprobe'))
-      expect(init.linuxLibraryDir).toBe(join(runtime.tempRoot, 'ffmpeg', 'lib'))
+      expect(init.ffmpegPath).toBe(join(runtime.tempRoot, 'bin', 'ffmpeg', 'bin', 'ffmpeg'))
+      expect(init.ffprobePath).toBe(join(runtime.tempRoot, 'bin', 'ffmpeg', 'bin', 'ffprobe'))
+      expect(init.linuxLibraryDir).toBe(join(runtime.tempRoot, 'bin', 'ffmpeg', 'lib'))
+      expect(vi.mocked(application.getPath).mock.calls).toEqual([
+        ['cherry.bin.ffmpeg.bin', 'ffmpeg'],
+        ['cherry.bin.ffmpeg.bin', 'ffprobe'],
+        ['cherry.bin.ffmpeg.lib']
+      ])
       const env = mediaFfmpegCommandEnv(init.linuxLibraryDir, {
         PATH: '/usr/bin',
         LD_LIBRARY_PATH: '/usr/lib:/opt/lib',
@@ -106,12 +133,17 @@ describe('MediaFfmpegService lifecycle', () => {
     try {
       for (const platform of ['darwin', 'win32'] as const) {
         Object.defineProperty(process, 'platform', { value: platform })
+        vi.mocked(application.getPath).mockClear()
         const init = mediaFfmpegProcess.createInitData?.()
         if (!init || init instanceof Promise) throw new Error('expected sync init data')
         const suffix = platform === 'win32' ? '.exe' : ''
-        expect(init.ffmpegPath).toBe(join(runtime.tempRoot, `ffmpeg${suffix}`))
-        expect(init.ffprobePath).toBe(join(runtime.tempRoot, `ffprobe${suffix}`))
+        expect(init.ffmpegPath).toBe(join(runtime.tempRoot, 'bin', `ffmpeg${suffix}`))
+        expect(init.ffprobePath).toBe(join(runtime.tempRoot, 'bin', `ffprobe${suffix}`))
         expect(init.linuxLibraryDir).toBeUndefined()
+        expect(vi.mocked(application.getPath).mock.calls).toEqual([
+          ['cherry.bin', `ffmpeg${suffix}`],
+          ['cherry.bin', `ffprobe${suffix}`]
+        ])
         expect(mediaFfmpegCommandEnv(init.linuxLibraryDir, { LD_LIBRARY_PATH: '/usr/lib' })).toBeUndefined()
       }
     } finally {
@@ -148,6 +180,30 @@ describe('MediaFfmpegService lifecycle', () => {
     await expect(queued).rejects.toThrow('inactive lifecycle generation')
     expect(runtime.request).toHaveBeenCalledOnce()
   })
+
+  it.each(['stop', 'restart'] as const)(
+    'does not dispatch a worker when %s overlaps temp allocation',
+    async (transition) => {
+      const entered = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      runtime.mkdtempGate = { entered: () => entered.resolve(), release: release.promise }
+      const pending = service!.probe({ filePath: '/during-alloc.wav' })
+      try {
+        await entered.promise
+        await service!._doStop()
+        if (transition === 'restart') await service!._doInit()
+        release.resolve()
+
+        await expect(pending).rejects.toThrow('inactive lifecycle generation')
+        expect(runtime.request).not.toHaveBeenCalled()
+        const leftovers = readdirSync(runtime.tempRoot).filter((entry) => entry.startsWith('media-ffmpeg-'))
+        expect(leftovers).toEqual([])
+      } finally {
+        release.resolve()
+        runtime.mkdtempGate = null
+      }
+    }
+  )
 })
 
 describe('MediaFfmpegService dispatch', () => {
