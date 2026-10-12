@@ -23,7 +23,6 @@ const voice = vi.hoisted(() => ({
   getModelStatus: vi.fn(),
   getMicrophoneStatus: vi.fn(),
   speechStart: vi.fn(),
-  dictation: { phase: 'idle', elapsedMs: 0, recoveryAvailable: false },
   speech: { phase: 'idle', progress: { completed: 0, total: 0 } }
 }))
 
@@ -41,27 +40,16 @@ vi.mock('@renderer/services/voice', async () => ({
     getModelStatus: voice.getModelStatus,
     getMicrophoneStatus: voice.getMicrophoneStatus
   },
-  dictationService: {
-    subscribe: () => () => undefined,
-    getSnapshot: () => voice.dictation
-  },
   speechPlaybackService: {
     subscribe: () => () => undefined,
     getSnapshot: () => voice.speech,
     start: voice.speechStart
-  },
-  voiceTargetManager: { bind: () => () => undefined }
+  }
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }) }))
 
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({ to, hash, children, ...props }: any) => (
-    <a href={`${to}#${hash ?? ''}`} {...props}>
-      {children}
-    </a>
-  )
-}))
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
 import VoiceSettings from '../VoiceSettings'
 
 describe('Windows system speech settings', () => {
@@ -96,7 +84,7 @@ describe('Windows system speech settings', () => {
 
   it('offers one-click system voice preview without microphone permission or ASR', async () => {
     render(<VoiceSettings />)
-    const preview = screen.getByRole('button', { name: 'Play preview' })
+    const preview = screen.getByRole('button', { name: 'Preview voice' })
     await waitFor(() => expect(preview).toBeEnabled())
     expect(screen.queryByRole('combobox', { name: 'Speech model' })).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Recommended · Microsoft Huihui')

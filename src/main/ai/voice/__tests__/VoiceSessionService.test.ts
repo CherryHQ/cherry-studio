@@ -163,7 +163,9 @@ describe('VoiceSessionService file and admission contract', () => {
               ? { webContents: managed.webContents, isDestroyed: () => managed.webContents.isDestroyed() }
               : undefined
           },
-          getWindowType: (id: string) => managedWindows.get(id)?.type
+          getWindowType: (id: string) => managedWindows.get(id)?.type,
+          getWindowIdByWebContents: (contents: VoiceOwner['webContents']) =>
+            [...managedWindows].find(([, managed]) => managed.webContents === contents)?.[0]
         }
       if (name === 'PowerService')
         return {
@@ -359,7 +361,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(await transcriptionOutcome).toBe('retained transcript')
   })
 
-  it('allows microphone permission only for the current recording owner and exact trusted audio request', async () => {
+  it('allows microphone capture only for the current recording owner and exact trusted audio request', async () => {
     const sessionId = randomUUID()
     await service.startRecording(a, { sessionId, requestId: randomUUID(), source: 'dictation' })
     const trustedUrl = pathToFileURL(path.join(root, 'renderer', 'index.html')).href
@@ -375,7 +377,6 @@ describe('VoiceSessionService file and admission contract', () => {
       })
     ).toBe(true)
     for (const args of [
-      [other.webContents, 'media', trustedUrl, { isMainFrame: true, mediaType: 'audio', requestingUrl: trustedUrl }],
       [a.webContents, 'media', trustedUrl, { isMainFrame: false, mediaType: 'audio', requestingUrl: trustedUrl }],
       [
         a.webContents,
@@ -397,6 +398,13 @@ describe('VoiceSessionService file and admission contract', () => {
       mediaTypes: ['audio']
     })
     expect(allowed).toHaveBeenCalledWith(true)
+    let otherOwnerAllowed: boolean | undefined
+    request(other.webContents, 'media', (result: boolean) => (otherOwnerAllowed = result), {
+      isMainFrame: true,
+      requestingUrl: trustedUrl,
+      mediaTypes: ['audio']
+    })
+    expect(otherOwnerAllowed).toBe(false)
     const denied = vi.fn()
     request(a.webContents, 'media', denied, {
       isMainFrame: true,
@@ -416,6 +424,56 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(runtime.permissionRequest).toBeNull()
   })
 
+  it('keeps authorized device discovery available without granting idle capture', async () => {
+    vi.mocked(systemPreferences.getMediaAccessStatus).mockReturnValue('granted')
+    const trustedUrl = pathToFileURL(path.join(root, 'renderer', 'index.html')).href
+    const check = runtime.permissionCheck!
+    const request = runtime.permissionRequest!
+    const details = { isMainFrame: true, mediaType: 'audio', requestingUrl: trustedUrl }
+    const canDiscover = () => check(a.webContents, 'media', trustedUrl, details)
+    const canCapture = () => {
+      let allowed: boolean | undefined
+      request(a.webContents, 'media', (result: boolean) => (allowed = result), {
+        isMainFrame: true,
+        requestingUrl: trustedUrl,
+        mediaTypes: ['audio']
+      })
+      return allowed
+    }
+
+    expect(canDiscover()).toBe(true)
+    expect(canCapture()).toBe(false)
+    const sessionId = randomUUID()
+    await service.startRecording(a, { sessionId, requestId: randomUUID(), source: 'settings' })
+    expect(canCapture()).toBe(true)
+    await service.discard(a, sessionId)
+    expect(canDiscover()).toBe(true)
+    expect(canCapture()).toBe(false)
+
+    await service._doStop()
+    expect(canDiscover()).toBe(false)
+    expect(canCapture()).toBe(false)
+  })
+
+  it('limits authorized device discovery to live managed app main frames and audio', () => {
+    vi.mocked(systemPreferences.getMediaAccessStatus).mockReturnValue('granted')
+    const trustedUrl = pathToFileURL(path.join(root, 'renderer', 'index.html')).href
+    const check = runtime.permissionCheck!
+    const details = { isMainFrame: true, mediaType: 'audio', requestingUrl: trustedUrl }
+    expect(check(a.webContents, 'media', trustedUrl, details)).toBe(true)
+    expect(check(a.webContents, 'media', trustedUrl, { ...details, isMainFrame: false })).toBe(false)
+    expect(check(a.webContents, 'media', trustedUrl, { ...details, mediaType: 'video' })).toBe(false)
+    expect(check(a.webContents, 'media', trustedUrl, { ...details, mediaType: undefined })).toBe(false)
+    expect(check(a.webContents, 'media', trustedUrl, { ...details, requestingUrl: 'https://evil.test' })).toBe(false)
+    expect(check(a.webContents, 'notifications', trustedUrl, details)).toBe(false)
+    expect(check(null, 'media', trustedUrl, details)).toBe(false)
+    const destroyed = owner()
+    vi.spyOn(destroyed.webContents, 'isDestroyed').mockReturnValue(true)
+    expect(check(destroyed.webContents, 'media', trustedUrl, details)).toBe(false)
+    managedWindows.delete(a.windowId)
+    expect(check(a.webContents, 'media', trustedUrl, details)).toBe(false)
+  })
+
   it('queries microphone status without prompting and opens only fixed platform settings', async () => {
     vi.mocked(systemPreferences.getMediaAccessStatus).mockReturnValue('denied')
     expect(service.getMicrophoneStatus(a)).toBe('denied')
@@ -432,7 +490,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(shell.openExternal).toHaveBeenCalledTimes(1)
   })
 
-  it('revokes microphone permission as soon as recording cleanup starts', async () => {
+  it('revokes microphone capture as soon as recording cleanup starts', async () => {
     const sessionId = randomUUID()
     await service.startRecording(a, { sessionId, requestId: randomUUID(), source: 'dictation' })
     const createInternalEntry = files.createInternalEntry.bind(files)
@@ -452,9 +510,10 @@ describe('VoiceSessionService file and admission contract', () => {
 
     const cleanup = service.discard(a, sessionId)
     const trustedUrl = pathToFileURL(path.join(root, 'renderer', 'index.html')).href
-    const allowedDuringCleanup = runtime.permissionCheck?.(a.webContents, 'media', trustedUrl, {
+    let allowedDuringCleanup: boolean | undefined
+    runtime.permissionRequest!(a.webContents, 'media', (result: boolean) => (allowedDuringCleanup = result), {
       isMainFrame: true,
-      mediaType: 'audio',
+      mediaTypes: ['audio'],
       requestingUrl: trustedUrl
     })
 
@@ -819,13 +878,13 @@ describe('VoiceSessionService file and admission contract', () => {
     await failure
 
     const trustedUrl = pathToFileURL(path.join(root, 'renderer', 'index.html')).href
-    expect(
-      runtime.permissionCheck?.(recordingOwner.webContents, 'media', trustedUrl, {
-        isMainFrame: true,
-        mediaType: 'audio',
-        requestingUrl: trustedUrl
-      })
-    ).toBe(false)
+    let allowed: boolean | undefined
+    runtime.permissionRequest!(recordingOwner.webContents, 'media', (result: boolean) => (allowed = result), {
+      isMainFrame: true,
+      mediaTypes: ['audio'],
+      requestingUrl: trustedUrl
+    })
+    expect(allowed).toBe(false)
     expect(service.getState(a)).toEqual({ phase: 'idle', revision: 3 })
     expect(fileEntryService.findMany()).toHaveLength(0)
     for (const event of ['destroyed', 'render-process-gone', 'did-start-navigation']) {
