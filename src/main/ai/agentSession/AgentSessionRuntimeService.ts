@@ -3540,14 +3540,17 @@ export class AgentSessionRuntimeService extends BaseService {
    * Interaction state for one Claude tool call, resolved by the EXECUTION that issued it.
    *
    * `nativeSubagentId` is the SDK's `agent_id`, present only on calls issued from within a subagent.
-   * A still-running child spawned by a headless turn keeps that turn's unattended authority even
-   * after a desktop follow-up reuses the entry — the child's calls arrive under the shared root
-   * Session id, so a session-id-only lookup would credit it with the follow-up's interactive turn.
+   * A child keeps the authority of the turn that spawned it in BOTH directions: a headless-spawned
+   * child stays unattended after a desktop follow-up reuses the entry, and an interactively spawned
+   * child is not dragged down by a later headless delivery. Falling back to the session state in
+   * either case would credit the child with whichever turn is live now.
    */
   getToolGuardInteractionState(sessionId: string, nativeSubagentId?: string): AgentSessionInteractionState {
     const entry = this.entries.get(sessionId)
-    if (entry && nativeSubagentId !== undefined && this.headlessNativeChild(entry, nativeSubagentId)) {
-      return { currentTurn: 'headless', userResponse: 'unavailable' }
+    if (entry && nativeSubagentId !== undefined) {
+      return this.headlessNativeChild(entry, nativeSubagentId)
+        ? { currentTurn: 'headless', userResponse: 'unavailable' }
+        : { currentTurn: 'interactive', userResponse: 'stream' }
     }
     return this.getInteractionState(sessionId)
   }

@@ -2,7 +2,9 @@ import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sd
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
+import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 /**
  * The overlap the headless boundary has to survive in the NATIVE Claude runtime.
@@ -107,9 +109,10 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { buildClaudeCodeHooks } from '../hooks'
 
 const SESSION_ID = 'session-native-overlap'
-const MODEL_ID = 'provider-1/model-1'
+const MODEL_ID = 'test-runtime::model-1' as UniqueModelId
 const CONFIG_TOOL = toCherryBuiltinRuntimeName(CONFIG_TOOL_NAME)
 const NATIVE_CHILD = 'child-native-1'
+const SESSION_SEND_TOOL = toCherryBuiltinRuntimeName(SESSION_SEND_TOOL_NAME)
 
 /** Late-bound so the mock factory can hand the same instance to `application.get`. */
 const serviceInstance: { service: AgentSessionRuntimeService } = { service: undefined as never }
@@ -126,10 +129,10 @@ function beginTurn(headless = false): void {
     agentId: 'agent-1',
     agentType: 'test-runtime',
     modelId: MODEL_ID,
-    message: { id: 'msg-1', data: { parts: [{ type: 'text', text: 'go' }] } },
+    userMessage: { id: 'msg-1', data: { parts: [{ type: 'text', text: 'go' }] } } as never,
     assistantMessageId: 'assistant-1',
     reasoningEffort: 'medium',
-    serviceTier: { kind: 'none' },
+    serviceTier: 'standard',
     knowledgeBaseIds: [],
     fastMode: false,
     ...(headless ? { headless: true } : {})
@@ -210,6 +213,9 @@ describe('native Claude child authority across a desktop follow-up', () => {
     expect(childDecision.permissionDecisionReason).toContain('cannot mutate agent configuration')
   })
 
+  // The inverse direction, and what stops the fix from being a blanket denial: a child spawned by
+  // an INTERACTIVE turn keeps interactive authority after a headless delivery takes the entry
+  // (falling back to the session state alone would report headless and deny a legitimate child).
   it('leaves an interactively spawned child interactive under a later headless turn', async () => {
     beginTurn(false)
     await hook('SubagentStart')(
@@ -219,12 +225,37 @@ describe('native Claude child authority across a desktop follow-up', () => {
     )
     settleTurn()
 
+    // The headless delivery now owns the entry — session-level resolution alone reports headless.
     beginTurn(true)
-    expect(decisionOf(await fireGuard({ agent_id: NATIVE_CHILD })).permissionDecision).toBe('deny')
+    expect(runtime().getInteractionState(SESSION_ID).currentTurn).toBe('headless')
+
+    // The interactively spawned child is not dragged down with it.
+    expect(decisionOf(await fireGuard({ agent_id: NATIVE_CHILD })).permissionDecision).toBeUndefined()
   })
 
   it('fails closed for a child whose spawn was never announced', async () => {
     beginTurn(false)
     expect(decisionOf(await fireGuard({ agent_id: 'unannounced-child' })).permissionDecision).toBe('deny')
+  })
+
+  // The cross-Session tools are the other class an unattended child must not reach. These are also
+  // the ones the MCP resolution denies separately: session_send/session_create carry the always-on
+  // ('required','enforce') approval, so headless calls are denied rather than merely asked.
+  it('denies the child cross-Session delegation while the desktop turn may still ask', async () => {
+    beginTurn(true)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    settleTurn()
+    beginTurn(false)
+
+    const childDecision = decisionOf(await fireGuard({ agent_id: NATIVE_CHILD, tool_name: SESSION_SEND_TOOL }))
+    expect(childDecision.permissionDecision).toBe('deny')
+    expect(childDecision.permissionDecisionReason).toContain('no interactive responder')
+
+    // The desktop turn only has to ask — its own interactive turn is untouched by the fix.
+    expect(decisionOf(await fireGuard({ tool_name: SESSION_SEND_TOOL })).permissionDecision).toBe('ask')
   })
 })
