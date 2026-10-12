@@ -106,6 +106,19 @@ struct CapabilitiesResult: Encodable, Sendable {
     let supportedLocale: String?
     let appleAssetStatus: AppleAssetStatus
     let voices: [InstalledVoice]
+
+    enum CodingKeys: String, CodingKey {
+        case osVersion, requestedLocale, supportedLocale, appleAssetStatus, voices
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(osVersion, forKey: .osVersion)
+        try container.encode(requestedLocale, forKey: .requestedLocale)
+        try container.encode(supportedLocale, forKey: .supportedLocale)
+        try container.encode(appleAssetStatus, forKey: .appleAssetStatus)
+        try container.encode(voices, forKey: .voices)
+    }
 }
 
 struct CapabilitiesSuccess: Encodable, Sendable {

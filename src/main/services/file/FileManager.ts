@@ -118,7 +118,6 @@
  * fresh-stat-flip-to-present rule, which would defeat the watcher-led
  * design. The asymmetry above is the actual contract.
  */
-
 import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import { finished } from 'node:stream/promises'
@@ -131,7 +130,6 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -147,6 +145,7 @@ import type {
   PhysicalFileMetadata
 } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { KeyedMutex } from '@shared/utils/async'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
 import { danglingCache } from './danglingCache'
@@ -173,9 +172,11 @@ import {
   restore as internalRestore,
   trash as internalTrash
 } from './internal/entry/lifecycle'
+import { publishIntake, type PublishFileIntakeParams } from './internal/entry/publishIntake'
 import { rename as internalRename } from './internal/entry/rename'
 import type { EntryCleanupReport } from './internal/entryCleanup'
 import { runEntryCleanup as internalRunEntryCleanup, summariseEntryCleanup } from './internal/entryCleanup'
+import { IntakeStore } from './internal/IntakeStore'
 import { observeExternalAccess } from './internal/observe'
 import {
   type DbSweepReport,
@@ -459,6 +460,8 @@ export interface IFileManager {
    * `{userData}/Data/Files/{newUuid}.{ext}`, and inserts a fresh DB row. No
    * conflict resolution — every call produces an independent entry.
    */
+  publishIntake(params: PublishFileIntakeParams): Promise<FileEntry>
+
   createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry>
 
   /**
@@ -718,6 +721,7 @@ export class FileManager extends BaseService implements IFileManager {
   // a class private field, not a module singleton, for test-isolation reasons.
   private readonly _versionCache: VersionCache = createVersionCacheImpl(2000)
   private readonly _contentWriteLock = new KeyedMutex()
+  readonly intakes = new IntakeStore()
   private readonly activeWriteStreams = new Set<AtomicWriteStream>()
   private readonly temporaryReferences = new Map<FileEntryId, Set<symbol>>()
 
@@ -755,6 +759,7 @@ export class FileManager extends BaseService implements IFileManager {
   private fileSweepInFlight = false
 
   protected override async onInit(): Promise<void> {
+    await this.intakes.load()
     const generation = ensureContentMetadataGeneration()
     if (generation.applied) {
       fileManagerLogger.info('content metadata generation applied', { invalidated: generation.invalidated })
@@ -804,7 +809,7 @@ export class FileManager extends BaseService implements IFileManager {
 
   /** Run one cleanup pass now. Never throws — failures land in the report. */
   async runEntryCleanup(): Promise<EntryCleanupReport> {
-    const report = await internalRunEntryCleanup(this.deps, this.temporaryReferences)
+    const report = await internalRunEntryCleanup(this.deps, this.intakes, this.temporaryReferences)
     if (report.outcome === 'completed') {
       this.lastCleanupCompletedAt = Date.now()
     }
@@ -858,7 +863,10 @@ export class FileManager extends BaseService implements IFileManager {
     if (Date.now() - this.lastFileSweepAt < FileManager.FILE_SWEEP_MIN_INTERVAL_MS) return
     this.fileSweepInFlight = true
     try {
-      const report = await runFileSweep({ fileEntryService: this.deps.fileEntryService })
+      const report = await runFileSweep({
+        fileEntryService: this.deps.fileEntryService,
+        intakeProtection: this.intakes
+      })
       if (sweepConsumedItsWindow(report)) this.lastFileSweepAt = Date.now()
     } catch (err) {
       // A throw means the scan never returned a verdict, so the window stays
@@ -928,11 +936,11 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   inspectOrphanFiles(): Promise<FileSweepReport> {
-    return inspectFileSweep({ fileEntryService: this.deps.fileEntryService })
+    return inspectFileSweep({ fileEntryService: this.deps.fileEntryService, intakeProtection: this.intakes })
   }
 
   cleanupOrphanFiles(): Promise<FileSweepReport> {
-    return runFileSweep({ fileEntryService: this.deps.fileEntryService })
+    return runFileSweep({ fileEntryService: this.deps.fileEntryService, intakeProtection: this.intakes })
   }
 
   /**
@@ -971,30 +979,31 @@ export class FileManager extends BaseService implements IFileManager {
   async runSweep(): Promise<OrphanReport> {
     const cleanupReport = await this.runEntryCleanup()
     const startedAt = Date.now()
-    const fsSweepPromise = runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch(
-      (err): FileSweepReport => {
-        fileManagerLogger.error('File sweep failed', err)
-        // Promote a thrown FS sweep into a structured `'failed'` report so
-        // the umbrella merge below can degrade `outcome` to `'partial'`
-        // (otherwise a permission error would surface as a clean
-        // `'completed'` umbrella — the regression 0xfullex flagged in
-        // PRRT_kwDOL_2xws6EeQI5).
-        return {
-          outcome: 'failed',
-          errorMessage: err instanceof Error ? err.message : String(err),
-          entriesInDb: 0,
-          direntsScanned: 0,
-          filesOnDisk: 0,
-          bytesOnDisk: 0,
-          plannedDeleteCount: 0,
-          plannedDeleteBytes: 0,
-          actualDeleteCount: 0,
-          actualDeleteBytes: 0,
-          statFailedCount: 0,
-          scanDurationMs: 0
-        }
+    const fsSweepPromise = runFileSweep({
+      fileEntryService: this.deps.fileEntryService,
+      intakeProtection: this.intakes
+    }).catch((err): FileSweepReport => {
+      fileManagerLogger.error('File sweep failed', err)
+      // Promote a thrown FS sweep into a structured `'failed'` report so
+      // the umbrella merge below can degrade `outcome` to `'partial'`
+      // (otherwise a permission error would surface as a clean
+      // `'completed'` umbrella — the regression 0xfullex flagged in
+      // PRRT_kwDOL_2xws6EeQI5).
+      return {
+        outcome: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
+        entriesInDb: 0,
+        direntsScanned: 0,
+        filesOnDisk: 0,
+        bytesOnDisk: 0,
+        plannedDeleteCount: 0,
+        plannedDeleteBytes: 0,
+        actualDeleteCount: 0,
+        actualDeleteBytes: 0,
+        statFailedCount: 0,
+        scanDurationMs: 0
       }
-    )
+    })
 
     let dbReport: DbSweepReport
     try {
@@ -1129,6 +1138,10 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   // ─── Mutation methods ───
+
+  async publishIntake(params: PublishFileIntakeParams): Promise<FileEntry> {
+    return publishIntake(this.deps, params)
+  }
 
   async createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry> {
     return internalCreateInternal(this.deps, params)

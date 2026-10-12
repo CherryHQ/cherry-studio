@@ -10,6 +10,7 @@ import {
   type LocalVoiceModelFacts,
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED,
+  WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 import { FileEntryIdSchema, InternalEntrySchema } from '@shared/data/types/file'
@@ -31,7 +32,7 @@ const request = session.extend({
 })
 const abort = session.extend({ requestId: z.uuid() })
 const modelId = z.enum(LOCAL_VOICE_MODEL_IDS)
-const asrModelId = z.enum([APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID])
+const asrModelId = z.enum([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID, FUNASR_MODEL_ID])
 
 export const voiceRequestSchemas = {
   'file.voice_recording.create': defineRoute({

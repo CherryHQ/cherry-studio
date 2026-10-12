@@ -3,7 +3,6 @@ import { join } from 'node:path'
 
 import type { SpeechModelV3, TranscriptionModelV3 } from '@ai-sdk/provider'
 
-import { application } from '@application'
 import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { loggerService } from '@logger'
@@ -13,8 +12,7 @@ import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, DEFAULT_APPLE_ASR_LOCALE } from
 import type { LocalVoiceStatus } from '../localAdapters'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { inspectCanonicalWav } from './inspectCanonicalWav'
-import { checkAbort, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
-import { voiceAudioProcess } from './voiceAudioProcess'
+import { checkAbort, decodeVoiceRecording, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
 
 const logger = loggerService.withContext('AppleVoiceAdapter')
 
@@ -163,21 +161,9 @@ export function createAppleTranscriptionModel(options: TranscriptionOptions): Tr
       await requireReady(APPLE_ASR_MODEL_ID, options, input.abortSignal)
       return withScratch(
         async (directory) => {
-          let decoded: { wav: Uint8Array; durationSeconds: number }
-          if (wavMetadata) {
-            decoded = { wav: audio, durationSeconds: wavMetadata.durationSeconds }
-          } else {
-            const timeout = AbortSignal.timeout(30_000)
-            const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
-            decoded = await application
-              .get('UtilityProcessManager')
-              .client(voiceAudioProcess)
-              .request('decode', { audio, mimeType: 'audio/webm;codecs=opus' }, { signal })
-              .catch((error: unknown) => {
-                if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-                throw error
-              })
-          }
+          const decoded = wavMetadata
+            ? { wav: audio, durationSeconds: wavMetadata.durationSeconds }
+            : await decodeVoiceRecording(audio, input.abortSignal)
           checkAbort(input.abortSignal)
           const inputPath = join(directory, 'input.wav')
           await writeFile(inputPath, decoded.wav, { mode: 0o600 })

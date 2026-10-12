@@ -38,6 +38,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 │                                       `buildStreamErrorFrame` (streaming error/timeout frames), `transformOpenAiError`
 ├── ApiGatewayService.ts             ← lifecycle owner, preference intent, leases, running-state reconciler
 ├── McpSessionStore.ts               ← bounded live Streamable HTTP MCP sessions
+├── ModernMcpProxy.ts                ← MCP 2026-07-28 discovery, MRTR and subscriptions
 ├── proxyStream.ts                   ← `processMessage()` — the core request → stream → response engine
 ├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
 ├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
@@ -117,7 +118,7 @@ guard, described below.
 | `GET /v1/knowledge-bases/:id` | Cherry REST | single base |
 | `GET /v1/mcps` | Cherry REST | active MCP server catalog with gateway URLs |
 | `GET /v1/mcps/:id` | Cherry REST | one active server plus its warmed tool catalog |
-| `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | initialize/session request or sessionless one-shot JSON-RPC |
+| `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | modern discovery/requests/subscriptions or legacy initialize/session requests |
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
@@ -128,7 +129,18 @@ Gemini routes carry a separate local auth guard because Gemini clients use
 The MCP proxy validates browser `Origin` as loopback-only to prevent DNS
 rebinding. Native clients normally send no `Origin`. Live sessions are bounded
 and owned by `McpSessionStore`; GET carries server push and DELETE terminates a
-session.
+legacy session. Modern clients use the same URL with MCP 2026-07-28 discovery
+and subscriptions; the SDK classifies the request before it enters either
+transport. Both paths retain API-key and Origin checks, request cancellation,
+progress, disabled-tool filtering, and tool-list change notifications.
+
+For modern upstream servers, the modern proxy forwards `input_required`, opaque
+`requestState`, and `inputResponses` to the external client. Elicitation,
+sampling and roots are limited to that client's advertised capabilities; these
+requests do not open a desktop consent dialog. Upstream OAuth credentials must
+already be configured through the desktop. Legacy callers continue through the
+v1 bridge; scalar and array structured results also receive a JSON text
+projection so legacy clients can consume them.
 
 ### LAN exposure is confined to the remote-access upgrade
 

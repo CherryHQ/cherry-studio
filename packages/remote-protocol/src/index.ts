@@ -30,3 +30,6 @@ export {
   parseDirectEndpoint
 } from './discovery'
 export type { DirectEndpoint } from './discovery'
+
+export { uploadTransferLimits, uploadChunkHeaderSchema, uploadAckSchema, isUploadChunk } from './records'
+export type { UploadChunkHeader, UploadChunk, UploadAck } from './records'

@@ -15,7 +15,12 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { BaseService } from '@main/core/lifecycle'
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import {
+  APPLE_ASR_MODEL_ID,
+  APPLE_TTS_MODEL_ID,
+  WINDOWS_ASR_MODEL_ID,
+  WINDOWS_TTS_MODEL_ID
+} from '@shared/ai/localVoice'
 
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
@@ -177,15 +182,19 @@ describe('VoiceSessionService file and admission contract', () => {
     expect((await recording()).fileEntryId).toBeTruthy()
   })
 
-  it('keeps failed input available for retry and deletes it after a successful transcript', async () => {
-    const input = await recording()
-    native.transcribe.mockRejectedValueOnce(new VoiceRuntimeError('operation_failed'))
-    await expect(service.transcribe(a, input)).rejects.toMatchObject({ reason: 'operation_failed' })
-    expect((await files.read(input.fileEntryId, { encoding: 'binary' })).content).toEqual(webm)
-    const result = await service.transcribe(a, { ...input, requestId: randomUUID() })
-    expect(result.text).toBe('private-transcript')
-    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
-  })
+  it.each([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID])(
+    'keeps failed %s input for retry and deletes it on success',
+    async (modelId) => {
+      const input = { ...(await recording()), modelId }
+      native.transcribe.mockRejectedValueOnce(new VoiceRuntimeError('operation_failed'))
+      await expect(service.transcribe(a, input)).rejects.toMatchObject({ reason: 'operation_failed' })
+      expect((await files.read(input.fileEntryId, { encoding: 'binary' })).content).toEqual(webm)
+      const result = await service.transcribe(a, { ...input, requestId: randomUUID() })
+      expect(result.text).toBe('private-transcript')
+      expect(native.transcribe).toHaveBeenLastCalledWith(modelId, webm, { language: 'en-US' }, expect.any(AbortSignal))
+      expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+    }
+  )
 
   it('refuses foreign owners and unregistered entries without consuming them', async () => {
     const input = await recording()

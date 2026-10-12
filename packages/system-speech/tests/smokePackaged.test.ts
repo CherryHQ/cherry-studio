@@ -13,7 +13,7 @@ const {
 describe('packaged helper signing policy', () => {
   it('parses entitlement keys from codesign XML', () => {
     expect(
-      parseEntitlementKeys(`Executable=/Applications/Cherry Studio.app/Contents/Resources/system-speech/cherry-system-speech
+      parseEntitlementKeys(`Executable=/Applications/Cherry Studio.app/Contents/Helpers/cherry-system-speech
 <?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
   <key>com.apple.security.cs.allow-jit</key><true/>

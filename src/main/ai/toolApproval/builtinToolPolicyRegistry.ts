@@ -40,7 +40,7 @@ import {
 
 import { listBrowserToolPolicies } from './browserToolPolicy'
 
-export type BuiltinToolApproval = 'auto' | 'required' | 'runtime'
+export type BuiltinToolApproval = 'auto' | 'required'
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
 
 /** The Cherry-owned MCP servers. Which of them a session mounts is the runtime's call. */
@@ -51,16 +51,14 @@ export const CHERRY_MCP_SERVER = {
   SKILLS: 'skills',
   MCP_MANAGER: 'mcp-manager',
   ASSISTANT: 'assistant',
-  ASSISTANT_FILES: 'assistant-files'
+  ASSISTANT_FILES: 'assistant-files',
+  DOCTOR: 'doctor'
 } as const
 
 export interface BuiltinToolPolicyEntry {
   readonly serverName: string
   readonly toolName: string
-  /**
-   * `auto`: Cherry pre-approves the tool; `required`: every interactive call asks unless bypassed;
-   * `runtime`: the runtime's ordinary permission-mode semantics decide.
-   */
+  /** `auto`: Cherry pre-approves the tool; `required`: every interactive call asks unless bypassed. */
   readonly approval: BuiltinToolApproval
   /** Whether Full Access lifts a `required` approval. */
   readonly bypassApproval: BuiltinToolBypassApproval
@@ -105,7 +103,8 @@ const BUILTIN_TOOL_POLICIES = {
 
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
-  installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'runtime'),
+  // Installs third-party skill code: only bypassPermissions may skip the prompt, Pi's auto mode included.
+  installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'required'),
   // A stdio install launches an arbitrary local command with the caller's env, so this asks per call
   // like cli_install rather than deferring to the runtime's permission mode.
   installMcpServer: tool(CHERRY_MCP_SERVER.MCP_MANAGER, 'install_mcp_server', 'required'),
@@ -118,7 +117,16 @@ const BUILTIN_TOOL_POLICIES = {
   assistantPrepareDiagnosticReport: tool(CHERRY_MCP_SERVER.ASSISTANT, 'prepare_diagnostic_report', 'auto'),
   assistantReadFile: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, READ_FILE_TOOL_NAME, 'auto'),
   assistantMoveToTrash: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, MOVE_TO_TRASH_TOOL_NAME, 'required'),
-  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required')
+  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required'),
+
+  // The doctor turn is headless; writes are gated by DoctorAgentService proposals, not by approval.
+  doctorSession: tool(CHERRY_MCP_SERVER.DOCTOR, 'session', 'auto'),
+  doctorReadFile: tool(CHERRY_MCP_SERVER.DOCTOR, 'read_file', 'auto'),
+  doctorReport: tool(CHERRY_MCP_SERVER.DOCTOR, 'report', 'auto'),
+  doctorDataApi: tool(CHERRY_MCP_SERVER.DOCTOR, 'data_api', 'auto'),
+  doctorPreference: tool(CHERRY_MCP_SERVER.DOCTOR, 'preference', 'auto'),
+  doctorProbeEndpoint: tool(CHERRY_MCP_SERVER.DOCTOR, 'probe_endpoint', 'auto'),
+  doctorFix: tool(CHERRY_MCP_SERVER.DOCTOR, 'doctor_fix', 'auto')
 } as const satisfies Record<string, BuiltinToolPolicyEntry>
 
 export const BUILTIN_TOOL_POLICY_ENTRIES: readonly BuiltinToolPolicyEntry[] = Object.values(BUILTIN_TOOL_POLICIES)

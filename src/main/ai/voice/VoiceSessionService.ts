@@ -12,6 +12,7 @@ import {
   type LocalVoiceModelId,
   resolveDefaultAsrModel,
   resolveDefaultSpeechModel,
+  WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
@@ -20,7 +21,7 @@ import type { InputFor } from '@shared/ipc/types'
 import {
   getLocalVoiceStatus,
   installAppleAsrAsset,
-  listAppleAsrLocales,
+  listLocalAsrLocales,
   listLocalVoices,
   voiceAudioProcess
 } from './localAdapters'
@@ -94,7 +95,7 @@ export class VoiceSessionService extends BaseService {
   }
 
   listTranscriptionLocales(owner: VoiceOwner) {
-    return this.inspect(owner, (signal) => listAppleAsrLocales(signal))
+    return this.inspect(owner, (signal) => listLocalAsrLocales(signal))
   }
 
   status(owner: VoiceOwner, input: InputFor<'ai.voice.model.status'>) {
@@ -307,7 +308,11 @@ export class VoiceSessionService extends BaseService {
     session.requestId = requestId
     session.selectedModel = modelId
     session.resolvedAdapter =
-      modelId === WINDOWS_TTS_MODEL_ID ? 'windows' : modelId === 'local-voice::funasr-nano' ? 'funasr' : 'apple'
+      modelId === WINDOWS_TTS_MODEL_ID || modelId === WINDOWS_ASR_MODEL_ID
+        ? 'windows'
+        : modelId === 'local-voice::funasr-nano'
+          ? 'funasr'
+          : 'apple'
     session.operation = operation
     const startedAt = Date.now()
     const result = Promise.resolve().then(async () => {

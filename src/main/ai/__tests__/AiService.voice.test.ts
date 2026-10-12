@@ -3,7 +3,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, WINDOWS_ASR_MODEL_ID } from '@shared/ai/localVoice'
 
 const models = vi.hoisted(() => ({
   speech: undefined as SpeechModelV3 | undefined,
@@ -28,23 +28,28 @@ beforeEach(() => {
 })
 
 describe('AiService voice operations through real aiCore', () => {
-  it.each(['', ' \n\t '])('reports no speech for an empty or blank transcript (%j)', async (text) => {
+  it.each([
+    [APPLE_ASR_MODEL_ID, ''],
+    [APPLE_ASR_MODEL_ID, ' \n\t '],
+    [WINDOWS_ASR_MODEL_ID, ''],
+    [WINDOWS_ASR_MODEL_ID, ' \n\t ']
+  ] as const)('reports no speech for %s with an empty or blank transcript (%j)', async (modelId, text) => {
     models.transcription = {
       specificationVersion: 'v3',
       provider: 'test-local',
-      modelId: APPLE_ASR_MODEL_ID,
+      modelId,
       doGenerate: async () => ({
         text,
         segments: [],
         language: undefined,
         durationInSeconds: undefined,
         warnings: [],
-        response: { timestamp: new Date(0), modelId: APPLE_ASR_MODEL_ID, body: '/private/recording.webm' }
+        response: { timestamp: new Date(0), modelId, body: '/private/recording.webm' }
       })
     }
 
     const error = await new AiService()
-      .transcribe(APPLE_ASR_MODEL_ID, wav, {}, new AbortController().signal)
+      .transcribe(modelId, wav, {}, new AbortController().signal)
       .catch((error: unknown) => error)
 
     expect(error).toBeInstanceOf(VoiceRuntimeError)
@@ -130,36 +135,39 @@ describe('AiService voice operations through real aiCore', () => {
     expect(logs).not.toContain('PRIVATE-TTS-TEXT')
   })
 
-  it('returns transcription through the local model with no text or paths in logs', async () => {
-    models.transcription = {
-      specificationVersion: 'v3',
-      provider: 'test-local',
-      modelId: APPLE_ASR_MODEL_ID,
-      doGenerate: async () => ({
-        text: 'PRIVATE-TRANSCRIPT',
-        segments: [],
-        language: 'en',
-        durationInSeconds: 1,
-        warnings: [],
-        response: { timestamp: new Date(0), modelId: APPLE_ASR_MODEL_ID, body: '/private/recording.webm' }
-      })
+  it.each([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID])(
+    'returns %s transcription with no text or paths in logs',
+    async (modelId) => {
+      models.transcription = {
+        specificationVersion: 'v3',
+        provider: 'test-local',
+        modelId,
+        doGenerate: async () => ({
+          text: 'PRIVATE-TRANSCRIPT',
+          segments: [],
+          language: 'en',
+          durationInSeconds: 1,
+          warnings: [],
+          response: { timestamp: new Date(0), modelId, body: '/private/recording.webm' }
+        })
+      }
+      const result = await new AiService().transcribe(
+        modelId,
+        Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3, 0x80]),
+        { language: 'en-US' },
+        new AbortController().signal
+      )
+      expect(result).toEqual({ text: 'PRIVATE-TRANSCRIPT', segments: [], language: 'en', durationInSeconds: 1 })
+      const logs = JSON.stringify([
+        mockMainLoggerService.info.mock.calls,
+        mockMainLoggerService.error.mock.calls,
+        mockMainLoggerService.warn.mock.calls,
+        mockMainLoggerService.debug.mock.calls,
+        mockMainLoggerService.verbose.mock.calls,
+        mockMainLoggerService.silly.mock.calls
+      ])
+      expect(logs).not.toContain('PRIVATE-TRANSCRIPT')
+      expect(logs).not.toContain('/private/recording.webm')
     }
-    const result = await new AiService().transcribe(
-      APPLE_ASR_MODEL_ID,
-      Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3, 0x80]),
-      { language: 'en-US' },
-      new AbortController().signal
-    )
-    expect(result).toEqual({ text: 'PRIVATE-TRANSCRIPT', segments: [], language: 'en', durationInSeconds: 1 })
-    const logs = JSON.stringify([
-      mockMainLoggerService.info.mock.calls,
-      mockMainLoggerService.error.mock.calls,
-      mockMainLoggerService.warn.mock.calls,
-      mockMainLoggerService.debug.mock.calls,
-      mockMainLoggerService.verbose.mock.calls,
-      mockMainLoggerService.silly.mock.calls
-    ])
-    expect(logs).not.toContain('PRIVATE-TRANSCRIPT')
-    expect(logs).not.toContain('/private/recording.webm')
-  })
+  )
 })

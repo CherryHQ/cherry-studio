@@ -2,9 +2,11 @@ import { MODALITY, MODEL_CAPABILITY, type Model } from '@shared/data/types/model
 
 export const APPLE_ASR_MODEL_ID = 'local-voice::apple-system-asr' as const
 export const APPLE_TTS_MODEL_ID = 'local-voice::apple-system-tts' as const
+export const WINDOWS_ASR_MODEL_ID = 'local-voice::windows-system-asr' as const
 export const WINDOWS_TTS_MODEL_ID = 'local-voice::windows-system-tts' as const
 export const FUNASR_MODEL_ID = 'local-voice::funasr-nano' as const
 export const DEFAULT_APPLE_ASR_LOCALE = 'en-US'
+export const DEFAULT_WINDOWS_ASR_LOCALE = 'en-US'
 
 export const MIN_SPEECH_SPEED = 0.5
 export const MAX_SPEECH_SPEED = 2
@@ -13,12 +15,13 @@ export const DEFAULT_SPEECH_SPEED = 1
 export const LOCAL_VOICE_MODEL_IDS = [
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
+  WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
   FUNASR_MODEL_ID
 ] as const
 export type LocalVoiceModelId = (typeof LOCAL_VOICE_MODEL_IDS)[number]
 export type LocalSpeechModelId = typeof APPLE_TTS_MODEL_ID | typeof WINDOWS_TTS_MODEL_ID
-export type LocalTranscriptionModelId = typeof APPLE_ASR_MODEL_ID | typeof FUNASR_MODEL_ID
+export type LocalTranscriptionModelId = typeof APPLE_ASR_MODEL_ID | typeof WINDOWS_ASR_MODEL_ID | typeof FUNASR_MODEL_ID
 
 export interface LocalVoiceModelFacts {
   readonly id: LocalVoiceModelId
@@ -47,6 +50,15 @@ export const LOCAL_VOICE_MODELS: readonly LocalVoiceModelFacts[] = Object.freeze
     capabilities: Object.freeze([MODEL_CAPABILITY.AUDIO_GENERATION]),
     inputModalities: Object.freeze([MODALITY.TEXT]),
     outputModalities: Object.freeze([MODALITY.AUDIO]),
+    supportsStreaming: false
+  }),
+  Object.freeze({
+    id: WINDOWS_ASR_MODEL_ID,
+    providerId: 'local-voice',
+    name: 'Windows System ASR',
+    capabilities: Object.freeze([MODEL_CAPABILITY.AUDIO_TRANSCRIPT]),
+    inputModalities: Object.freeze([MODALITY.AUDIO]),
+    outputModalities: Object.freeze([MODALITY.TEXT]),
     supportsStreaming: false
   }),
   Object.freeze({
