@@ -8,15 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
 
-import {
-  createLocalSpeechModel,
-  createLocalTranscriptionModel,
-  getLocalVoiceStatus,
-  installAppleAsrAsset,
-  listAppleAsrLocales
-} from '../../localAdapters'
+import { createLocalSpeechModel, createLocalTranscriptionModel, getLocalVoiceStatus } from '../../localAdapters'
+import { installAppleAsrAsset, listAppleAsrLocales } from '../apple'
 
 const mocks = vi.hoisted(() => ({ nativeRequest: vi.fn(), decode: vi.fn() }))
 
@@ -165,6 +160,34 @@ describe('local Apple adapters', () => {
     expect(result.response.body).toBeUndefined()
   })
 
+  it.each([
+    { requestedSpeed: undefined, expectedSpeed: 1 },
+    { requestedSpeed: 0.5, expectedSpeed: 0.5 },
+    { requestedSpeed: 1, expectedSpeed: 1 },
+    { requestedSpeed: 1.25, expectedSpeed: 1.25 },
+    { requestedSpeed: 2, expectedSpeed: 2 }
+  ])('passes $expectedSpeed× speed to the native helper', async ({ requestedSpeed, expectedSpeed }) => {
+    await createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact', speed: requestedSpeed }).doGenerate({
+      text: 'private speed canary'
+    })
+
+    expect(mocks.nativeRequest.mock.calls.find(([request]) => request.operation === 'synthesize')?.[0]).toMatchObject({
+      operation: 'synthesize',
+      voiceId: 'voice.exact',
+      speed: expectedSpeed
+    })
+  })
+
+  it.each([0.49, 2.01, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects unsupported speech speed %s before native work',
+    async (speed) => {
+      await expect(
+        createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact', speed }).doGenerate({ text: 'private' })
+      ).rejects.toMatchObject({ reason: 'invalid_request' })
+      expect(mocks.nativeRequest).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects a missing exact voice without creating output', async () => {
     await expect(
       createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'missing' }).doGenerate({ text: 'private' })
@@ -243,11 +266,6 @@ describe('local Apple adapters', () => {
       })
     ).rejects.toMatchObject({ reason: 'asset_required' })
     expect(mocks.nativeRequest.mock.calls.every(([request]) => request.operation === 'capabilities')).toBe(true)
-  })
-
-  it('fails explicit FunASR selection closed before probing Apple', () => {
-    expect(() => createLocalTranscriptionModel(FUNASR_MODEL_ID, {})).toThrow('license_unverified')
-    expect(mocks.nativeRequest.mock.calls).toEqual([])
   })
 
   it('rejects an unknown model instead of treating it as Apple TTS', async () => {

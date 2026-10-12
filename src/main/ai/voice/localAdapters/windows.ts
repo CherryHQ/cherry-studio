@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { SpeechModelV3, TranscriptionModelV3 } from '@ai-sdk/provider'
 
 import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
+import { LOCAL_VOICE_MODELS, VoiceModelSupport } from '@shared/ai/localVoice'
 import {
   DEFAULT_SPEECH_SPEED,
   DEFAULT_WINDOWS_ASR_LOCALE,
@@ -13,12 +14,14 @@ import {
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 
-import type { LocalVoiceStatus } from '../localAdapters'
+import type { TranscriptionModelDefinition, SpeechModelDefinition } from '../voiceModelTypes'
+import type { LocalVoiceStatus } from '../voiceModelTypes'
+import { getVoiceEnvironment, type VoiceEnvironment } from '../voicePlatform'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { checkAbort, decodeVoiceRecording, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
 
 function supportsWindows(): boolean {
-  return process.platform === 'win32' && process.arch === 'x64'
+  return windowsSupport(getVoiceEnvironment()) === VoiceModelSupport.Supported
 }
 
 export async function listWindowsAsrLocales(signal?: AbortSignal) {
@@ -143,4 +146,37 @@ export function createWindowsSpeechModel(options: SpeechOptions): SpeechModelV3 
       }, input.abortSignal)
     }
   }
+}
+
+function windowsSupport(environment: VoiceEnvironment) {
+  if (environment.platform !== 'win32') return VoiceModelSupport.UnsupportedPlatform
+  return environment.arch === 'x64' ? VoiceModelSupport.Supported : VoiceModelSupport.UnsupportedArchitecture
+}
+
+export const windowsTranscriptionDefinition: TranscriptionModelDefinition = {
+  id: WINDOWS_ASR_MODEL_ID,
+  adapterId: 'windows',
+  support: windowsSupport,
+  describe: () => ({
+    ...LOCAL_VOICE_MODELS.find((model) => model.id === WINDOWS_ASR_MODEL_ID)!,
+    localeSelection: { defaultLocale: DEFAULT_WINDOWS_ASR_LOCALE },
+    resourceOperations: []
+  }),
+  status: getWindowsAsrStatus,
+  locales: listWindowsAsrLocales,
+  createModel: createWindowsTranscriptionModel
+}
+
+export const windowsSpeechDefinition: SpeechModelDefinition = {
+  id: WINDOWS_TTS_MODEL_ID,
+  adapterId: 'windows',
+  support: windowsSupport,
+  describe: () => ({
+    ...LOCAL_VOICE_MODELS.find((model) => model.id === WINDOWS_TTS_MODEL_ID)!,
+    localeSelection: null,
+    resourceOperations: []
+  }),
+  status: getWindowsVoiceStatus,
+  voices: listWindowsVoices,
+  createModel: createWindowsSpeechModel
 }
