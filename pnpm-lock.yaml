@@ -2119,15 +2119,6 @@ importers:
 
   packages/provider-registry:
     dependencies:
-      class-variance-authority:
-        specifier: ^0.7.1
-        version: 0.7.1
-      json-schema:
-        specifier: ^0.4.0
-        version: 0.4.0
-      lucide-react:
-        specifier: ^0.563.0
-        version: 0.563.0(react@19.2.3)
       semver:
         specifier: ^7.7.1
         version: 7.7.1
@@ -2135,9 +2126,6 @@ importers:
       '@ai-sdk/provider-utils':
         specifier: 4.0.56
         version: 4.0.56(zod@4.4.3)
-      '@types/json-schema':
-        specifier: ^7.0.15
-        version: 7.0.15
       '@types/node':
         specifier: ^24.10.2
         version: 24.10.4
@@ -13454,11 +13442,6 @@ packages:
 
   lucide-react@0.545.0:
     resolution: {integrity: sha512-7r1/yUuflQDSt4f1bpn5ZAocyIxcTyVyBBChSVtBKn5M+392cPmI5YJMWOJKk/HUWGm5wg83chlAZtCcGbEZtw==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  lucide-react@0.563.0:
-    resolution: {integrity: sha512-8dXPB2GI4dI8jV4MgUDGBeLdGk8ekfqVZ0BdLcrRzocGgG75ltNEmWS+gE7uokKF/0oSUuczNDT+g9hFJ23FkA==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -29320,10 +29303,6 @@ snapshots:
       react: 19.2.3
 
   lucide-react@0.545.0(react@19.2.3):
-    dependencies:
-      react: 19.2.3
-
-  lucide-react@0.563.0(react@19.2.3):
     dependencies:
       react: 19.2.3
 
