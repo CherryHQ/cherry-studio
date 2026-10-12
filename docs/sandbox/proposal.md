@@ -14,6 +14,8 @@ sources:
 
 # Sandbox Proposal
 
+当前代码架构见 [Sandbox 当前架构](./architecture.md)：包含实际进程边界、MXC 适配、RPC 调用链及已实现范围。本文中的历史方案和后续目标不作为当前实现说明。
+
 状态：已转向 MXC demo。2026-10-12 用户确认当前验收目标为沙盒执行与双向 RPC，接受已知隔离差异，不再以这些差异阻断公开启动。独立包的 CLI 和程序调用共用 MXC 后端；macOS 已进入功能验收，Windows/Linux 和 Electron 分发待验证。本文保留早期方案背景，当前实现范围以 [包 README](../../packages/sandbox/README.md) 为准。
 
 [设计草案](./design.md)进一步细化最小进程契约、双向通信、权限和生命周期，并记录现有基础设施的接入缺口与待决策项；本 proposal 保留调研背景和选型依据。

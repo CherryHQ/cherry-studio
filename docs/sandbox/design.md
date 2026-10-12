@@ -16,6 +16,8 @@ sources:
 
 # Sandbox Design Draft
 
+当前代码架构见 [Sandbox 当前架构](./architecture.md)：包含实际进程边界、MXC 适配、RPC 调用链及已实现范围。本文中的历史方案和后续目标不作为当前实现说明。
+
 本文细化 [proposal](./proposal.md)，状态为设计草案，不代表接口、后端或实现已定案。只覆盖三平台进程隔离、受控通信和生命周期；不设计插件业务 API、Agent 编排或 Durable API。外部技术文档核对日期：2026-09-24。
 
 [API 草案](./api.md)定义宿主类型、后端契约、跨语言 RPC 和原型验收；本文保留职责与语义依据。API 草案尚待原型验证，不代表已完成生产实现。

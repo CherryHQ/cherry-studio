@@ -10,6 +10,8 @@ sources:
 
 # Sandbox Backend Options
 
+当前代码架构见 [Sandbox 当前架构](./architecture.md)：包含实际进程边界、MXC 适配、RPC 调用链及已实现范围。本文中的历史方案和后续目标不作为当前实现说明。
+
 本文记录 [proposal](./proposal.md) 与[设计草案](./design.md)讨论中的后端候选。**2026-10-12 当前决定：demo 采用 MXC，优先跑通沙盒执行和双向 RPC。** 用户接受 macOS 硬链接、可写目录 Unix socket、脱离进程组后代回收差异；它们不再阻断本轮公开启动。当前实现和命令见 [MXC demo](../../packages/sandbox/README.md)。以下原型阻断记录及严格安全矩阵保留为历史研究，不代表当前 demo 的验收门槛；三平台及打包验收仍未完成。
 
 本机通过 MXC CLI 和 Node SDK 验证了目录授权、原文件直接写入、IP loopback deny，以及 Node/Python 标准流回调。新版包复用发布版 `@microsoft/mxc-sdk@1.0.0`，在公共 `SandboxManager` 后增加 MXC 适配，双向 RPC 使用 `vscode-jsonrpc` 和 Content-Length。完成状态保留 `tree: unverified`，不把 SDK 释放当作完整后代回收证据。

@@ -10,6 +10,9 @@ bidirectional RPC. MXC's filesystem alias, local socket and process-group cleanu
 semantics are accepted demo limitations, not startup blockers. There is no
 unsandboxed fallback. Other platforms and Electron distribution remain future work.
 
+See [current architecture](../../docs/sandbox/architecture.md) for process boundaries,
+module responsibilities, RPC flow, and implemented versus deferred capabilities.
+
 ## Run
 
 Requires Node 24+ and macOS 15+. The npm SDK includes its native library; normal
