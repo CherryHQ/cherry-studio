@@ -376,7 +376,7 @@ describe('ScreenshotOverlayService', () => {
     it('does not use another chat when the shortcut source has no composer', async () => {
       singleDisplaySetup()
       const focused = createFakeWindow()
-      electron.browserWindows = [focused] as any
+      electron.browserWindows = [focused]
       container.windows.set('focused', focused)
       container.windows.set('other', createFakeWindow())
       service.setChatTarget('other', 'topic-b')
