@@ -44,7 +44,7 @@ function main(argv = process.argv.slice(2)) {
   const args = argv.filter((arg) => arg !== '--')
   if (args.length !== 1) throw new Error('Expected one packaged Cherry Studio .app')
   const appPath = resolve(args[0])
-  const helperPath = join(appPath, 'Contents', 'Resources', 'system-speech', 'cherry-system-speech')
+  const helperPath = join(appPath, 'Contents', 'Helpers', 'cherry-system-speech')
   const helper = statSync(helperPath)
   if (!helper.isFile() || (helper.mode & 0o100) === 0) throw new Error('Packaged helper is not executable')
 

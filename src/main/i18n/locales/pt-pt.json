@@ -65,6 +65,8 @@
   "appMenu.zoom": "Zoom",
   "appMenu.zoomIn": "Ampliar",
   "appMenu.zoomOut": "Reduzir Zoom",
+  "backup.restore.failed": "Restauração falhou",
+  "backup.restore.retry": "A cópia de segurança não foi restaurada. Os seus dados anteriores foram mantidos. Tente restaurar novamente.",
   "chat.conversation.new": "Nova conversa",
   "common.channel_available_commands": "Comandos disponíveis:",
   "common.channel_command_processing_error": "⚠️ Ocorreu um erro ao processar o comando. Tente novamente mais tarde.",

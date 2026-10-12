@@ -63,6 +63,7 @@ const RAIL_GUTTER_MAX_PX = 24
 const RAIL_GUTTER_START_PX = 700
 /** Width range over which the gutter grows in and the rail fades in — a smooth ramp. */
 const RAIL_GUTTER_FADE_PX = 120
+const AFTER_MESSAGES = { key: 'after-messages' } as const
 const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
 const EMPTY_PARTS_BY_MESSAGE_ID: Record<string, CherryMessagePart[]> = {}
 
@@ -193,7 +194,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   // message column; this component both writes it (via the resize observer
   // below) and renders from it.
   const { setForceWideLayout, railGutterPx, setRailGutterPx } = useChatLayoutMode()
-  const { topic, messages, beforeList, messageTail, hasOlder = false, messageNavigation } = data
+  const { topic, messages, beforeList, afterMessages, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
@@ -220,6 +221,10 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+  const listItems = useMemo(
+    () => (afterMessages ? [...groupedMessages, AFTER_MESSAGES] : groupedMessages),
+    [afterMessages, groupedMessages]
+  )
   const captureLeaseGroupKeys = useMemo(() => {
     if (leasedMessageIds.length === 0) return []
 
@@ -811,20 +816,34 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
         <div ref={messageListScopeRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <MessageVirtualList
             handleRef={messageListRef}
-            items={groupedMessages}
-            getItemKey={([key]) => key}
+            items={listItems}
+            getItemKey={(item) => (Array.isArray(item) ? item[0] : item.key)}
             estimateSize={data.estimateSize}
             overscan={data.overscan}
             topPadding={topPadding}
             bottomPadding={bottomPadding}
-            keepMountedKeys={keepMountedKeys}
+            keepMountedKeys={afterMessages ? [...keepMountedKeys, AFTER_MESSAGES.key] : keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
             topicId={scrollPositionKey ?? topic.id}
             hasMoreTop={hasOlder}
             onScrollContainerReady={handleScrollContainerReady}
             onReachTop={loadMoreMessages}
-            renderItem={([key, groupMessages], index) => {
+            renderItem={(item, index) => {
+              if (!Array.isArray(item)) {
+                return (
+                  <NarrowLayout
+                    narrowMode={messageListNarrowMode}
+                    withSidePadding
+                    style={{
+                      paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
+                      paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+                    }}>
+                    {afterMessages}
+                  </NarrowLayout>
+                )
+              }
+              const [key, groupMessages] = item
               const groupMessageTail =
                 messageTail && groupMessages.some((message) => message.id === messageTail.messageId)
                   ? messageTail

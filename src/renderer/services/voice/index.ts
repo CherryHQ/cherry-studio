@@ -32,3 +32,6 @@ export { readTextAloud } from './manualPlayback'
 export type { ReadTextAloudInput } from './manualPlayback'
 export { autoReadService } from './AutoReadService'
 export type { AutoReadCompletion, AutoReadResult } from './AutoReadService'
+
+export { enumerateMicrophones, subscribeMicrophoneChanges } from './microphoneDevices'
+export type { MicrophoneDevice } from './microphoneDevices'

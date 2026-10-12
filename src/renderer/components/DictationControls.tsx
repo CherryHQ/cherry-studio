@@ -12,7 +12,9 @@ const SETTINGS_RECOVERY_ERRORS = new Set<DictationErrorCategory>([
   'voice_unavailable',
   'unsupported',
   'asset_required',
-  'microphone_permission'
+  'microphone_permission',
+  'microphone_unavailable',
+  'microphone_unreadable'
 ])
 const PHASE_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
   starting: 'settings.voice.dictation.phase.starting',
@@ -51,7 +53,14 @@ export function DictationControls({
     <div className="flex flex-wrap items-center gap-1">
       {snapshot.phase !== 'idle' && (
         <span role="status" className="text-xs text-muted-foreground">
-          {t(snapshot.error === 'no_speech' ? 'settings.voice.status.no_speech' : PHASE_KEYS[snapshot.phase])}
+          {t(
+            snapshot.error &&
+              ['no_speech', 'microphone_unavailable', 'microphone_unreadable', 'recording_failed'].includes(
+                snapshot.error
+              )
+              ? `settings.voice.status.${snapshot.error}`
+              : PHASE_KEYS[snapshot.phase]
+          )}
           {snapshot.phase === 'recording' &&
             ` ${t('settings.voice.dictation.elapsed', { seconds: Math.floor(snapshot.elapsedMs / 1_000) })}`}
         </span>

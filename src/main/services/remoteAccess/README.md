@@ -41,7 +41,7 @@ Deviations from the design doc, kept deliberately small:
   attached through `addListener` replay. Remote sends pass the listener at run start.
 - Approval cards persisted after a turn ended are listed and answerable, but not streamed as
   `interaction.updated`; only stream-presented approvals enter the live projection.
-- Files are exposed as `data` parts with metadata only.
+- Legacy files retain metadata-only `data` parts. Remote uploads expose revision-bound file content references.
 
 The desktop identity is sealed with `safeStorage`. Without an OS key store (Linux `basic_text`), it is
 stored unencrypted with mode `0600`. An existing identity is never regenerated: a sealed identity whose
@@ -110,3 +110,34 @@ Cancellation checks the expected execution inside the stream manager's dispatch 
 An identical pending pairing claim can be retried by the same proven device key; changed
 claim contents or another key still conflict. Settings reads pending claims on entry and
 ignores responses superseded by later pairing events or a stopped LAN listener.
+
+## Attachment ownership
+
+The file module owns checkpoint-based recovery and retention. Selection is disposable presentation; new sends carry
+explicit upload references. Intake/draft tables and their unpublished development migrations were removed.
+
+`FileIntakeService` owns durable staging under `feature.files.intakes`; `RemoteUploads`
+binds its operations to the current device grant.
+File data is synced before the atomically replaced checkpoint is acknowledged. Recovery
+truncates uncommitted tails; a shorter file fails verification. Shutdown drains work and
+retains resumable records. Each upload is serialized independently and fenced by writer epoch.
+
+Upload capability 1 exposes a single `agent.uploads.prepare` without draft membership;
+binary DATA carries at most 1 MiB per record with two outstanding blocks. ACK notifications
+report durable offsets independently of RPC admission. JSON control remains limited to 64 KiB.
+There is no legacy upload format: desktop computes the final hash after receiving authenticated
+Noise data. Mobile uses native bulk crypto; Electron uses Noise's built-in cipher because
+its Node crypto does not expose ChaCha20-Poly1305. The shared transport owns framing and negotiation.
+
+Verified files enter FileManager before Send. Checkpoints retain them while waiting;
+message references retain accepted files after submission. Agent tools use the same managed
+path and file identity; sending does not create a workspace copy or a second entry.
+Command receipts precede staging lookup, so replay survives expiry. Upload-time digests still
+need a separate preview-revision policy when native tools modify the managed bytes.
+
+File pages require session/message/revision identity; callers cannot choose arbitrary paths or
+entry IDs. The phone reads images for thumbnails and ordinary documents on demand.
+
+Large-file verification: set `REMOTE_UPLOAD_TEST_BYTES=1073741824` when running the
+`RemoteUploads.test.ts` streaming test to exercise 1 GiB and a receiver restart midway.
+This filesystem/RPC validation does not replace device, VPN throughput or OS-background tests.

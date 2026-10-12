@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { dictationService, voiceService, voiceTargetManager } from '@renderer/services/voice'
+import { APPLE_ASR_MODEL_ID, TranscriptionLanguageSource } from '@shared/ai/localVoice'
 import type { InputFor } from '@shared/ipc/types'
 
 import TranslateInputPane from '../TranslateInputPane'
@@ -163,6 +164,15 @@ describe('TranslateInputPane', () => {
     mockPreferenceState.set('feature.voice.recognition.language', 'en-US')
     const request = vi.mocked(window.api.ipcApi.request)
     request.mockImplementation(async (route, input) => {
+      if (route === 'ai.voice.transcription.resolve')
+        return {
+          ok: true,
+          data: {
+            modelId: APPLE_ASR_MODEL_ID,
+            language: { source: TranscriptionLanguageSource.Explicit, locale: 'en-US' },
+            status: { status: 'ready' }
+          }
+        }
       if (route === 'ai.voice.session.state') return { ok: true, data: { phase: 'idle', revision: 1 } }
       if (route === 'ai.voice.recording.start') {
         const { sessionId } = input as InputFor<'ai.voice.recording.start'>
@@ -187,7 +197,10 @@ describe('TranslateInputPane', () => {
       render(<TranslateInputPane {...baseProps()} />)
       await user.click(screen.getByRole('button', { name: i18n.t('chat.input.dictation.title') }))
 
-      await waitFor(() => expect(getUserMedia).toHaveBeenCalledWith({ audio: true }))
+      await waitFor(() =>
+        expect(dictationService.getSnapshot()).toMatchObject({ phase: 'failed', error: 'microphone_permission' })
+      )
+      expect(getUserMedia).toHaveBeenCalledWith({ audio: true, video: false })
       expect(screen.getByRole('textbox')).toHaveFocus()
       expect(voiceTargetManager.captureCurrent()?.targetId).toBe('translate-page-source')
       expect(request).toHaveBeenCalledWith(
