@@ -17,7 +17,7 @@
 - 宿主接口名称照抄 spec §7：`subagents?: SubagentPort`、`SubagentPort.configure(subagent: Subagent)`、`Subagent { parentToolCallId, sessionId, fork }`、`SubagentSessionOptions { extensionFactories?, onEvent?, onSessionCreated? }`、`SubagentDetails { sessionId, fork, outcome }`。名字里不出现 `child`。
 - `outcome` 取值：`'completed' | 'failed' | 'truncated' | 'aborted' | 'limit_reached'`（spec §6）。
 - 状态条目 `cherry.subagent-origin`，数据 `{ parentToolCallId, fork }`（spec §5）。
-- 子会话 id：`${父 sessionId}/${toolCallId}`（spec §4.5）。
+- 子会话 id：`${父 sessionId}.${toolCallId}`，调用 id 里 Pi 不接受的字符换成 `-`（Pi 只接受字母、数字和 `._-`，首尾须是字母或数字；spec §4.5）。
 - 子会话用 `session.prompt()` 启动，不用 `sendCustomMessage`（spec §4.4）。
 - 用量放在 `AgentToolResult.usage`，不放进 `details`；失败用 `isError: true` 返回，不抛错（spec §6）。
 - 每个子代理最多 200 次模型请求（spec §6）。
@@ -245,7 +245,7 @@ describe('subagent', () => {
 
     const result = toolResultOf(session, 'call_a')
     expect(result.isError).toBe(false)
-    expect(result.details).toEqual({ sessionId: `${session.sessionId}/call_a`, fork: false, outcome: 'completed' })
+    expect(result.details).toEqual({ sessionId: `${session.sessionId}.call_a`, fork: false, outcome: 'completed' })
     // Two replies: 100 + 20 + 2 cached and 200 + 40 + 2 cached tokens.
     expect(result.usage?.totalTokens).toBe(364)
     expect(result.usage?.cost.total).toBeCloseTo(0.0004204, 10)
@@ -277,7 +277,7 @@ describe('subagent', () => {
       entries.map((entry) => (entry.kind === 'message' ? entry.message.role : entry.kind))
     expect(roles(parent.entries)).toEqual(['user', 'assistant', 'tool', 'assistant'])
     expect(JSON.stringify(parent.entries)).not.toContain('noted')
-    const childEvents = host.events.get(`${session.sessionId}/call_a`)!
+    const childEvents = host.events.get(`${session.sessionId}.call_a`)!
     const childEntries = childEvents.flatMap((event) => (event.type === 'transcript-append' ? event.entries : []))
     expect(roles(childEntries)).toEqual(['user', 'assistant', 'tool', 'assistant'])
     expect(childEvents.at(-1)).toMatchObject({ type: 'turn-complete', aborted: false })
@@ -301,17 +301,18 @@ describe('subagent', () => {
 
     await session.prompt(DELEGATE_A)
 
-    expect(seen).toEqual([{ sessionId: `${session.sessionId}/call_a`, requestsBefore: 0 }])
+    expect(seen).toEqual([{ sessionId: `${session.sessionId}.call_a`, requestsBefore: 0 }])
   })
 
   it('runs host before_agent_start handlers inside the subagent', async () => {
     const { model, calls } = delegateOnce()
     const host = recordingSubagentPort(() => ({
       extensionFactories: [
-        (pi) =>
+        (pi) => {
           pi.on('before_agent_start', () => ({
             message: { customType: 'cherry.test-note', content: 'NOTE-FOR-SUBAGENT', display: false }
           }))
+        }
       ]
     }))
     const { session } = await createTestSession({
@@ -422,10 +423,31 @@ describe('subagent', () => {
     expect(result.output.type).toBe('error-text')
     expect(outputText(result.output)).toMatch(/non-empty description and prompt/)
   })
+
+  it('derives a valid subagent session id from a call id with characters Pi rejects', async () => {
+    const { model } = routedModel(({ userText, lastRole }) => {
+      if (userText.includes('TASK-A')) return [...textParts('r', 'REPORT-A'), finish('stop')]
+      return lastRole === 'user'
+        ? [subagentCall('functions.subagent:0', TASK_A), finish('tool-calls')]
+        : [...textParts('d', 'Done'), finish('stop')]
+    })
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: recordingSubagentPort().port
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    expect(toolResultOf(session, 'functions.subagent:0').details).toEqual({
+      sessionId: `${session.sessionId}.functions.subagent-0`,
+      fork: false,
+      outcome: 'completed'
+    })
+  })
 })
 ```
 
-各测试在什么情况下失败：子代理串了父会话上下文、结果取错消息、用量没累加或不在 `usage` 上（第 1 条）；没传端口也注册了工具（第 2 条）；子代理条目进了父会话的 `onEvent`（第 3 条）；`onSessionCreated` 晚于第一次请求（第 4 条）；用了不触发 `before_agent_start` 的启动方式（第 5 条）；子代理被串行执行（第 6 条）；无文字时返回空结果（第 7 条）；子代理结果绕过 offload（第 8 条）；空 prompt 仍建子会话（第 9 条）。
+各测试在什么情况下失败：子代理串了父会话上下文、结果取错消息、用量没累加或不在 `usage` 上（第 1 条）；没传端口也注册了工具（第 2 条）；子代理条目进了父会话的 `onEvent`（第 3 条）；`onSessionCreated` 晚于第一次请求（第 4 条）；用了不触发 `before_agent_start` 的启动方式（第 5 条）；子代理被串行执行（第 6 条）；无文字时返回空结果（第 7 条）；子代理结果绕过 offload（第 8 条）；空 prompt 仍建子会话（第 9 条）；调用 id 含 Pi 不接受的字符（有的模型给出 `functions.note:0` 这种 id）时子会话建不起来（第 10 条）。
 
 - [ ] **Step 3: 运行测试，确认失败**
 
@@ -455,7 +477,7 @@ export interface SubagentPort {
 export interface Subagent {
   /** The `subagent` call that creates it. */
   parentToolCallId: string
-  /** Its Pi session id and its requests' `sessionId`: `<parent session id>/<parentToolCallId>`. */
+  /** Its Pi session id and its requests' `sessionId`: `<parent session id>.<parentToolCallId>`, characters Pi rejects replaced by `-`. */
   sessionId: string
   fork: boolean
 }
@@ -510,6 +532,10 @@ const parameters = Type.Object({
 
 const text = (value: string) => ({ type: 'text' as const, text: value })
 const taskText = (prompt: string) => `${PREAMBLE}\n\nTask:\n${prompt}`
+
+/** Pi accepts session ids of letters, digits and `._-` that start and end with a letter or digit. */
+const subagentSessionId = (parentSessionId: string, toolCallId: string) =>
+  `${parentSessionId}.${toolCallId.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[._-]+|[._-]+$/g, '') || 'call'}`
 
 const zeroUsage = (): Usage => ({
   input: 0,
@@ -584,7 +610,7 @@ export function subagentExtension({ port, createSession }: SubagentToolOptions):
         if (!description || !prompt) throw new Error('A subagent needs a non-empty description and prompt.')
         const subagent: Subagent = {
           parentToolCallId: toolCallId,
-          sessionId: `${ctx.sessionManager.getSessionId()}/${toolCallId}`,
+          sessionId: subagentSessionId(ctx.sessionManager.getSessionId(), toolCallId),
           fork: false
         }
         const options = await port.configure(subagent)
@@ -654,7 +680,7 @@ export {
 - [ ] **Step 7: 运行测试，确认通过**
 
 Run: `pnpm exec vitest run --project agent-runtime packages/agent-runtime-pi/tests/subagent.test.ts`
-Expected: PASS（9 个测试）
+Expected: PASS（10 个测试）
 
 - [ ] **Step 8: README 新增「Subagents」一节**
 
@@ -672,8 +698,8 @@ and disposes it. The call blocks: the subagent's final message is the call's res
 `{ sessionId, fork, outcome }`, and the result's `usage` is the sum of the subagent's replies (for
 budgets; the host already accounted each request). Its transcript events go only to the `onEvent`
 the host returned; `onSessionCreated` receives its session before its first request. Its session id
-is `<parent session id>/<call id>`. Subagent calls of one step run at the same time, and a subagent
-has no `subagent` tool of its own.
+is `<parent session id>.<call id>`, characters Pi rejects in the call id replaced by `-`. Subagent
+calls of one step run at the same time, and a subagent has no `subagent` tool of its own.
 ```
 
 在 `## Extensions` 一节末尾、`ASK_USER_TOOL_NAME` 那段之后加一句宿主须知：
@@ -1133,7 +1159,7 @@ function forkTranscript(entries: readonly TranscriptEntry[], toolCallId: string)
         const fork = params.fork ?? false
         const subagent: Subagent = {
           parentToolCallId: toolCallId,
-          sessionId: `${ctx.sessionManager.getSessionId()}/${toolCallId}`,
+          sessionId: subagentSessionId(ctx.sessionManager.getSessionId(), toolCallId),
           fork
         }
         const options = await port.configure(subagent)
@@ -1351,7 +1377,11 @@ describe('subagent stops', () => {
       lastRole === 'user' ? [toolCallPart('wait_1', 'wait'), finish('tool-calls')] : [...textParts('r', 'LATE'), finish('stop')]
     )
     const host = recordingSubagentPort(() => ({
-      extensionFactories: [(pi) => pi.on('session_shutdown', () => void shutdowns++)]
+      extensionFactories: [
+        (pi) => {
+          pi.on('session_shutdown', () => void shutdowns++)
+        }
+      ]
     }))
     const runtime = await createTestSession({
       port: streamTextPort(model).port,
@@ -1364,7 +1394,7 @@ describe('subagent stops', () => {
 
     expect(shutdowns).toBe(1)
     expect(calls.filter((call) => call.userText.includes('TASK-A'))).toHaveLength(1)
-    const childEvents = host.events.get(`${runtime.session.sessionId}/call_a`)!
+    const childEvents = host.events.get(`${runtime.session.sessionId}.call_a`)!
     expect(childEvents.at(-1)).toMatchObject({ type: 'turn-complete', aborted: true })
   })
 
@@ -1432,7 +1462,11 @@ describe('subagent stops', () => {
     const { model, calls } = scriptedModel([[...textParts('t', 'never sent'), finish('stop')]])
     const { session } = await createTestSession({
       port: streamTextPort(model).port,
-      extensionFactories: [(pi) => pi.on('before_provider_request', (_event, ctx) => ctx.abort())]
+      extensionFactories: [
+        (pi) => {
+          pi.on('before_provider_request', (_event, ctx) => ctx.abort())
+        }
+      ]
     })
 
     await session.prompt('Hello')
