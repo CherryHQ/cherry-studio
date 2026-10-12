@@ -134,6 +134,29 @@ describe('subagent stops', () => {
     expect(calls.filter((call) => call.userText.includes('TASK-A'))).toHaveLength(1)
     const childEvents = host.events.get(`${runtime.session.sessionId}.call_a`)!
     expect(childEvents.at(-1)).toMatchObject({ type: 'turn-complete', aborted: true })
+    expect(toolResultOf(runtime.session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
+  })
+
+  it('does not let a subagent run when the turn aborts while its before_agent_start handlers run', async () => {
+    const parent: { session?: AgentSession } = {}
+    const { model, calls } = delegate(() => [...textParts('r', 'REPORT-A'), finish('stop')])
+    const host = recordingSubagentPort(() => ({
+      extensionFactories: [
+        (pi) => {
+          pi.on('before_agent_start', async () => {
+            void parent.session!.abort()
+            await new Promise((resolve) => setTimeout(resolve, 0))
+          })
+        }
+      ]
+    }))
+    const runtime = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    parent.session = runtime.session
+
+    await runtime.session.prompt('Delegate the check')
+
+    expect(calls.filter((call) => call.userText.includes('TASK-A'))).toHaveLength(0)
+    expect(toolResultOf(runtime.session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
   })
 
   it('does not start a subagent when the turn aborts before the host finishes configuring it', async () => {
@@ -151,6 +174,7 @@ describe('subagent stops', () => {
 
     expect(calls.filter((call) => call.userText.includes('TASK-A'))).toHaveLength(0)
     expect(host.sessions.size).toBe(0)
+    expect(toolResultOf(runtime.session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
   })
 
   it('fails the call when the host cannot configure the subagent, and the parent continues', async () => {
@@ -185,5 +209,24 @@ describe('subagent stops', () => {
     const result = toolResultOf(session, 'call_a')
     expect(result.isError).toBe(true)
     expect(result.details).toMatchObject({ outcome: 'limit_reached' })
+  })
+
+  it('stops a subagent after 200 model requests that bring no tool results', { timeout: 60_000 }, async () => {
+    const { model, calls } = delegate(() => [...textParts('r', 'AGAIN'), finish('stop')])
+    const host = recordingSubagentPort(() => ({
+      extensionFactories: [
+        (pi) => {
+          pi.on('turn_end', () => {
+            pi.sendUserMessage('Keep going', { deliverAs: 'followUp' })
+          })
+        }
+      ]
+    }))
+    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+
+    await session.prompt('Delegate the check')
+
+    expect(calls.filter((call) => call.userText.includes('TASK-A'))).toHaveLength(200)
+    expect(toolResultOf(session, 'call_a').details).toMatchObject({ outcome: 'limit_reached' })
   })
 })
