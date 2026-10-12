@@ -2,7 +2,7 @@ import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { ToolOutputStore } from '../src'
+import { type AskUserPort, createAskUserExtension, type ToolOutputStore } from '../src'
 import {
   noteTool,
   outputText,
@@ -283,5 +283,50 @@ describe('subagent', () => {
     const result = toolResultOf(session, 'call_a')
     expect(result.content).toEqual([{ type: 'text', text: 'REPORT-A' }])
     expect(result.usage?.totalTokens).toBe(112 + 20_022 + 112)
+  })
+
+  it('answers AskUserQuestion inside a subagent as unavailable without asking the host', async () => {
+    const asked: unknown[] = []
+    const askPort: AskUserPort = {
+      async ask(request) {
+        asked.push(request)
+        return { status: 'answered', answers: {} }
+      }
+    }
+    const question = {
+      questions: [
+        {
+          question: 'Which file?',
+          header: 'File',
+          options: [
+            { label: 'a.ts', description: 'File A' },
+            { label: 'b.ts', description: 'File B' }
+          ],
+          multiSelect: false
+        }
+      ]
+    }
+    const { model, calls } = routedModel(({ userText, lastRole }) => {
+      if (userText.includes('TASK-A'))
+        return lastRole === 'user'
+          ? [toolCallPart('ask_1', 'AskUserQuestion', question), finish('tool-calls')]
+          : [...textParts('r', 'REPORT-A'), finish('stop')]
+      return lastRole === 'user'
+        ? [subagentCall('call_a', TASK_A), finish('tool-calls')]
+        : [...textParts('d', 'Done'), finish('stop')]
+    })
+    const host = recordingSubagentPort(() => ({ extensionFactories: [createAskUserExtension(askPort)] }))
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: host.port,
+      extensionFactories: [createAskUserExtension(askPort)]
+    })
+
+    await session.prompt(DELEGATE_A)
+
+    expect(asked).toEqual([])
+    const [answer] = toolResults(calls.filter((call) => call.userText.includes('TASK-A'))[1])
+    expect(answer.output.type).toBe('error-text')
+    expect(outputText(answer.output)).toMatch(/No one can answer/)
   })
 })
