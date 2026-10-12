@@ -1547,14 +1547,16 @@ async function run(
   base: Omit<SubagentDetails, 'outcome'>
 ): Promise<AgentToolResult<SubagentDetails>> {
   const { session } = child
-  const start = session.messages.length
   let stopped: 'aborted' | 'limit_reached' | undefined
   const stop = (reason: 'aborted' | 'limit_reached') => {
     stopped ??= reason
     void session.abort()
   }
+  // Not read from `session.messages`: Pi swaps it for the compacted context, dropping folded replies.
+  const replies: AssistantMessage[] = []
   let requests = 0
   const unsubscribe = session.subscribe((event) => {
+    if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
     // A turn with tool results leads to another request; stop before it.
     if (event.type === 'turn_end' && ++requests >= MAX_SUBAGENT_REQUESTS && event.toolResults.length > 0)
       stop('limit_reached')
@@ -1572,7 +1574,6 @@ async function run(
     signal?.removeEventListener('abort', onAbort)
   }
 
-  const replies = session.messages.slice(start).filter((message) => message.role === 'assistant')
   const usage = replies.reduce((sum, reply) => addUsage(sum, reply.usage), zeroUsage())
   const last = replies.at(-1)
   const outcome = error === undefined ? outcomeOf(last, stopped) : (stopped ?? 'failed')
