@@ -2982,6 +2982,79 @@ describe('AiStreamManager', () => {
   // ── live finalMessage accumulation ──────────────────────────────
 
   describe('live finalMessage accumulation', () => {
+    it.each(['topic-1', 'agent-session:session-1'])(
+      'reports the final message text after accumulation for %s',
+      async (topicId) => {
+        vi.useRealTimers()
+        const controlled = controlledStream()
+        mockStreamText.mockImplementationOnce(async () => controlled.stream)
+        startSingle(mgr, {
+          topicId,
+          modelId: 'provider-a::model-a',
+          request: req(topicId),
+          listeners: [new FakeListener(`l:${topicId}`)],
+          isPersistentConversation: true
+        })
+
+        controlled.enqueue({ type: 'start' })
+        for (const [id, text] of [
+          ['intro', 'I will investigate.'],
+          ['answer', '  The fix is ready.  '],
+          ['empty', '  ']
+        ]) {
+          controlled.enqueue({ type: 'text-start', id })
+          controlled.enqueue({ type: 'text-delta', id, delta: text })
+          controlled.enqueue({ type: 'text-end', id })
+        }
+        controlled.enqueue({ type: 'reasoning-start', id: 'reasoning' })
+        controlled.enqueue({ type: 'reasoning-delta', id: 'reasoning', delta: 'Private reasoning' })
+        controlled.enqueue({ type: 'reasoning-end', id: 'reasoning' })
+        controlled.enqueue({ type: 'finish' })
+        controlled.close()
+
+        await vi.waitFor(() => expect(conversationCompletedEvents).toHaveLength(1))
+        expect(conversationCompletedEvents[0]).toMatchObject({
+          topicId,
+          responseText: 'I will investigate.\n  The fix is ready.'
+        })
+      }
+    )
+
+    it('uses the last finished model reply for a multi-model completion', async () => {
+      vi.useRealTimers()
+      const first = controlledStream()
+      const second = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => first.stream).mockImplementationOnce(async () => second.stream)
+      mgr.send({
+        topicId: 'multi-reply',
+        models: [
+          { modelId: 'p::first', request: req('multi-reply') },
+          { modelId: 'p::second', request: req('multi-reply') }
+        ],
+        listeners: [new FakeListener('l:multi-reply')],
+        isPersistentConversation: true
+      })
+
+      for (const [stream, text] of [
+        [second, 'Earlier reply'],
+        [first, 'Last reply']
+      ] as const) {
+        stream.enqueue({ type: 'start' })
+        stream.enqueue({ type: 'text-start', id: 'text' })
+        stream.enqueue({ type: 'text-delta', id: 'text', delta: text })
+        stream.enqueue({ type: 'text-end', id: 'text' })
+        stream.enqueue({ type: 'finish' })
+        stream.close()
+        if (stream === second) {
+          await vi.waitFor(() => expect(mgr.inspect('multi-reply')?.executions[1].status).toBe('done'))
+          expect(conversationCompletedEvents).toHaveLength(0)
+        }
+      }
+
+      await vi.waitFor(() => expect(conversationCompletedEvents).toHaveLength(1))
+      expect(conversationCompletedEvents[0].responseText).toBe('Last reply')
+    })
+
     it('writes exec.finalMessage via the accumulator before the terminal event fires', async () => {
       // readUIMessageStream relies on real microtask / timer scheduling
       // internally; fake timers starve its reader loop. Use real timers

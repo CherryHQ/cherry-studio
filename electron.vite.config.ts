@@ -173,7 +173,13 @@ export default defineConfig({
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')
     ],
-    resolve: { alias: mainResolveAlias },
+    resolve: {
+      alias: [
+        ...Object.entries(mainResolveAlias).map(([find, replacement]) => ({ find, replacement })),
+        // file-stream-rotator requires Moment's callable CommonJS export, not its ESM namespace.
+        { find: /^moment$/, replacement: 'moment/moment.js' }
+      ]
+    },
     build: {
       externalizeDeps: {
         include: mainExternalModules
@@ -262,6 +268,8 @@ export default defineConfig({
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+        '@cherrystudio/file-preview/core': resolve('packages/file-preview/src/core.ts'),
+        '@cherrystudio/file-preview/react': resolve('packages/file-preview/src/react.ts'),
         '@cherrystudio/ui/icons/providers': resolve('packages/ui/src/components/icons/providers'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src'),
