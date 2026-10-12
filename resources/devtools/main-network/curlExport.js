@@ -12,6 +12,14 @@ function shouldSkipCurlHeader(name) {
   return CURL_BODY_FRAMING_HEADERS.has(String(name).toLowerCase())
 }
 
+function getHeaderValue(headers, name) {
+  const normalizedName = String(name).toLowerCase()
+  for (const [key, value] of Object.entries(headers ?? {})) {
+    if (String(key).toLowerCase() === normalizedName) return value
+  }
+  return undefined
+}
+
 function hasReplayableCurlBody(body) {
   return Boolean(body?.text && body.replayable !== false && !body.truncated)
 }
@@ -28,9 +36,19 @@ function buildCurlCommand(event) {
     parts.push('-X', shellQuoteSingle(method))
   }
 
-  for (const [key, value] of Object.entries(event.requestHeaders ?? {})) {
+  const requestHeaders = event.requestHeaders ?? {}
+  for (const [key, value] of Object.entries(requestHeaders)) {
     if (shouldSkipCurlHeader(key)) continue
     parts.push('-H', shellQuoteSingle(`${key}: ${value}`))
+  }
+
+  if (includeBody && getHeaderValue(requestHeaders, 'content-type') === undefined) {
+    const effectiveType = body?.contentType
+    if (effectiveType) {
+      parts.push('-H', shellQuoteSingle(`Content-Type: ${effectiveType}`))
+    } else {
+      parts.push('-H', shellQuoteSingle('Content-Type:'))
+    }
   }
 
   if (method !== 'HEAD' && includeBody) {
