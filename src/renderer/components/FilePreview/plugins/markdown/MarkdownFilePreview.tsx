@@ -192,7 +192,13 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
   const readyContent = loadState.status === 'ready' ? loadState.content : null
   // One pass over the source both windows the document and decides what cannot be windowed; splitting
   // it again would double the synchronous work that stands between reading the file and first paint.
-  const split = useMemo(() => (readyContent === null ? null : splitMarkdownChunks(readyContent)), [readyContent])
+  // The source viewer does not render Markdown at all, so it pays for that pass only to throw it
+  // away: the split waits for a mode that renders, and for content that has arrived.
+  const wantsMarkdown = type === 'artifact' || mode === 'preview'
+  const split = useMemo(
+    () => (wantsMarkdown && readyContent !== null ? splitMarkdownChunks(readyContent) : null),
+    [wantsMarkdown, readyContent]
+  )
   const chunks = split?.chunks ?? EMPTY_CHUNKS
   // Windowing keeps large documents responsive, so only input it cannot window falls back: very
   // long lines, or a single block large enough that it would still reach the renderer whole.
