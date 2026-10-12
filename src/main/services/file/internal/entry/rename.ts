@@ -3,15 +3,14 @@
  *
  * - Internal: physical path is UUID-based, so renaming is a DB-only update of
  *   `name` (and `ext` if the new name carries a different extension).
- * - External: `fs.rename(externalPath, newPath)` runs, then a single DB update
- *   atomically rewrites `externalPath` and `name`. If the FS rename fails
- *   (target exists, permission denied, etc.) the DB is **not** touched.
+ * - External: a no-replace move runs, then a single DB update atomically
+ *   rewrites `externalPath` and `name`. If the move fails, the DB is not touched.
  */
 
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { exists, isSameFile, move as fsMove } from '@main/utils/file'
+import { exists, isSameFile, move as fsMove, moveNew as fsMoveNew } from '@main/utils/file'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { SafeNameSchema } from '@shared/data/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
@@ -55,6 +54,7 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   if (target === entry.externalPath) {
     return entry
   }
+  let caseOnlyRename = false
   if (await exists(target)) {
     // On case-insensitive filesystems (macOS APFS / Windows NTFS) a
     // `Foo.pdf → foo.pdf` rename hits this branch because `exists` reports
@@ -64,29 +64,38 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
     if (!(await isSameFile(target, oldPath))) {
       throw new Error(`rename: target path already exists: ${target}`)
     }
+    caseOnlyRename = true
   }
-  await fsMove(oldPath, target)
+  if (caseOnlyRename) {
+    await fsMove(oldPath, target)
+  } else {
+    await fsMoveNew(oldPath, target)
+  }
   const canonical = target
   // Single atomic DB write — `setExternalPathAndName` is the only sanctioned
   // mutation site for `externalPath`. Doing both column changes in one
   // statement avoids the half-renamed state where the FS file is at the new
   // path but the DB row still carries the old `name` projection.
   //
-  // FS-DB skew window: between fsMove (above) and the DB update below the
+  // FS-DB skew window: between the move above and the DB update below the
   // user's file is at `target` while the DB still points at `oldPath`. If
   // the DB write fails (typically a UNIQUE-conflict from a concurrent
   // rename hitting the same `externalPath`), best-effort move the file
-  // back to `oldPath` so the entry stays self-consistent with its DB
-  // projection. Rollback can itself fail (cross-device EXDEV, the source
-  // dir disappeared, etc.); in that rare case warn-log both errors so an
-  // operator can reconcile the orphan file at `target`, then propagate
+  // back to `oldPath` without replacing anything that appeared there, keeping
+  // the file consistent with the DB projection. Rollback can itself fail (the
+  // source directory disappeared, for example); in that rare case warn-log
+  // both errors so an operator can reconcile the orphan file at `target`, then propagate
   // the original DB error so the caller sees the real failure cause.
   let renamed: FileEntry
   try {
     renamed = deps.fileEntryService.setExternalPathAndName(id, canonical, newName)
   } catch (dbErr) {
     try {
-      await fsMove(canonical, oldPath)
+      if (caseOnlyRename) {
+        await fsMove(canonical, oldPath)
+      } else {
+        await fsMoveNew(canonical, oldPath)
+      }
     } catch (rollbackErr) {
       logger.warn('rename: FS-DB skew — file moved to target but DB update failed, and rollback failed', {
         id,
@@ -98,14 +107,14 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
     }
     throw dbErr
   }
-  // Invalidate the cached FileVersion: `fsMove` may have fallen back to
-  // copy+unlink across devices (EXDEV), producing a new inode whose mtime
-  // differs from the snapshot captured before the rename. A subsequent
+  // Invalidate the cached FileVersion because a copy fallback may create a new
+  // inode with an mtime that differs from the snapshot captured before rename.
+  // A subsequent
   // `writeIfUnchanged(id, expectedVersion)` would otherwise OCC-compare
   // against a stale version and either spuriously succeed or fail.
   deps.versionCache.invalidate(id)
   // Reverse-index swap. The old path is fully invalidated; the new path
-  // takes over with a fresh 'present' observation since fsMove just succeeded.
+  // takes over with a fresh 'present' observation since the move just succeeded.
   deps.danglingCache.removeEntry(id, oldPath)
   deps.danglingCache.addEntry(id, canonical)
   deps.danglingCache.onFsEvent(canonical, 'present', 'ops')
