@@ -188,4 +188,50 @@ describe('assistant context override reconciliation', () => {
     expect(persisted.settings.contextSettings).toEqual(externalContext)
     expect(patches).toEqual([{ settings: { contextSettings: null } }, { description: 'Local description' }])
   })
+
+  it.each([false, true])(
+    'keeps externally received configuration through OFF and ON (compress: %s)',
+    async (enabled) => {
+      persisted.settings.contextSettings = null
+      const user = await openEditor()
+      const toggle = screen.getByRole('switch', { name: 'Customize context management' })
+      expect(toggle).not.toBeChecked()
+      const externalContext = { ...storedContext, compress: { ...storedContext.compress, enabled } }
+      persisted = { ...persisted, settings: { ...persisted.settings, contextSettings: externalContext } }
+      await act(async () => emit())
+      await waitFor(() => expect(toggle).toBeChecked())
+      await user.click(toggle)
+      await settleAutoSave()
+      expect(persisted.settings.contextSettings).toBeNull()
+      await user.click(toggle)
+      await settleAutoSave()
+      expect(persisted.settings.contextSettings).toEqual(externalContext)
+      expect(patches).toEqual([
+        { settings: { contextSettings: null } },
+        { settings: { contextSettings: externalContext } }
+      ])
+    }
+  )
+
+  it.each([false, true])('blurs the refreshed threshold without losing actual input (edited: %s)', async (edit) => {
+    const user = await openEditor()
+    const threshold = screen.getByRole('spinbutton', { name: 'Tool-output truncation threshold (chars)' })
+    await user.click(threshold)
+    if (edit) {
+      await user.clear(threshold)
+      await user.type(threshold, '6000')
+    }
+    const externalContext = { ...storedContext, truncateThreshold: 7000 }
+    persisted = { ...persisted, settings: { ...persisted.settings, contextSettings: externalContext } }
+    await act(async () => emit())
+    await settleAutoSave()
+    expect(patches).toEqual([])
+    await user.tab()
+    await settleAutoSave()
+    expect(threshold).toHaveValue(edit ? '6000' : '7000')
+    expect(persisted.settings.contextSettings).toEqual({ ...storedContext, truncateThreshold: edit ? 6000 : 7000 })
+    expect(patches).toEqual(
+      edit ? [{ settings: { contextSettings: { ...storedContext, truncateThreshold: 6000 } } }] : []
+    )
+  })
 })

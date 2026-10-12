@@ -113,6 +113,7 @@ type AssistantEditFormValues = {
 
 type AssistantSaveSnapshot = {
   values: Partial<AssistantEditFormValues>
+  editVersions: Partial<Record<keyof AssistantEditFormValues, number>>
   observedFields: Set<keyof AssistantEditFormValues>
   inFlight: boolean
 }
@@ -270,7 +271,25 @@ function AssistantEditDialogContent({
   const defaultValues = useMemo(() => defaultValuesForAssistant(baselineResource), [baselineResource])
   const baselineValuesRef = useRef(defaultValues)
   const saveSnapshotRef = useRef<AssistantSaveSnapshot | null>(null)
+  const editVersionsRef = useRef<Partial<Record<keyof AssistantEditFormValues, number>>>({})
+  const reconcilingRef = useRef(false)
   const form = useForm<AssistantEditFormValues>({ defaultValues })
+  const inputValuesRef = useRef(defaultValues)
+  useEffect(
+    () =>
+      form.subscribe({
+        formState: { values: true },
+        callback: ({ name, values: nextValues }) => {
+          if (name && !reconcilingRef.current) {
+            const key = name.split('.')[0] as keyof AssistantEditFormValues
+            if (serializedFormValue(key, nextValues[key]) !== serializedFormValue(key, inputValuesRef.current[key]))
+              editVersionsRef.current[key] = (editVersionsRef.current[key] ?? 0) + 1
+          }
+          inputValuesRef.current = nextValues
+        }
+      }),
+    [form]
+  )
   const values = form.watch()
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
@@ -325,6 +344,7 @@ function AssistantEditDialogContent({
             const changedSinceSave =
               submittedValues &&
               key in submittedValues &&
+              (editVersionsRef.current[key] ?? 0) > (saveSnapshotRef.current?.editVersions[key] ?? 0) &&
               serializedFormValue(name, value) !== serializedFormValue(name, submittedValues[key])
             return (
               (serializedFormValue(name, value) !== serializedFormValue(name, defaultValues[key]) ||
@@ -347,8 +367,14 @@ function AssistantEditDialogContent({
         contextCompressModelId: currentValues.contextCompressModelId
       })
     }
-    form.reset(nextDefaultValues, { keepErrors: !justOpened })
-    setFormValues(form, localValues)
+    // Adopting a refresh is not user input, including the local values restored after reset.
+    reconcilingRef.current = true
+    try {
+      form.reset(nextDefaultValues, { keepErrors: !justOpened })
+      setFormValues(form, localValues)
+    } finally {
+      reconcilingRef.current = false
+    }
     baselineValuesRef.current = nextDefaultValues
     if (justOpened) saveSnapshotRef.current = null
     else acknowledgeSavedFields(saveSnapshotRef.current, nextDefaultValues)
@@ -397,6 +423,7 @@ function AssistantEditDialogContent({
               serializedFormValue(name, defaultValues[name as keyof AssistantEditFormValues])
         )
       ),
+      editVersions: { ...editVersionsRef.current },
       observedFields: new Set(),
       inFlight: true
     }
@@ -1041,6 +1068,9 @@ function ContextManagementFields({
   // override is customized — an ON→OFF→ON round trip on a stored override must
   // preserve the saved values.
   const hadStoredOverride = useRef(values.contextOverrideEnabled)
+  useEffect(() => {
+    if (values.contextOverrideEnabled) hadStoredOverride.current = true
+  }, [values.contextOverrideEnabled])
 
   const onOverrideToggle = (checked: boolean) => {
     if (checked && !hadStoredOverride.current) {

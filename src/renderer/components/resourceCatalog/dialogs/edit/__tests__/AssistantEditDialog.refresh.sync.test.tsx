@@ -98,7 +98,8 @@ describe('assistant editor overlapping post-save refreshes', () => {
     })
   })
 
-  it.each([false, true])('acknowledges an observed save through later refreshes (newer input: %s)', async (edit) => {
+  it('does not turn an untouched numeric blur into input during pending refreshes', async () => {
+    persisted.settings.contextSettings = { truncateThreshold: 4000, compress: { enabled: false, modelId: null } }
     const request = bridge.request.getMockImplementation()!
     let listRefreshStarted = false
     let holdList = true
@@ -117,36 +118,102 @@ describe('assistant editor overlapping post-save refreshes', () => {
     render(
       <>
         <ListObserver />
-        <ResourceEditDialogHost target={{ kind: 'assistant', id: assistantId }} onOpenChange={vi.fn()} />
+        <ResourceEditDialogHost
+          target={{ kind: 'assistant', id: assistantId, initialTab: 'advanced' }}
+          onOpenChange={vi.fn()}
+        />
       </>,
       { wrapper: createSWRTestWrapper().Wrapper }
     )
-    await waitFor(() => expect(screen.getByLabelText('List name')).toHaveTextContent('Original'))
-    const name = await screen.findByRole('textbox', { name: 'Name' })
-    await user.clear(name)
-    await user.type(name, 'Local')
+    await screen.findByRole('switch', { name: 'Customize context management' })
+    const threshold = screen.getByRole('spinbutton', { name: 'Tool-output truncation threshold (chars)' })
+    await user.clear(threshold)
+    await user.type(threshold, '6000')
+    await user.tab()
     try {
       await waitFor(() => expect(listRefreshStarted).toBe(true))
-      await waitFor(() => expect(persisted.name).toBe('Local'))
-      persisted = { ...persisted, name: 'External' }
+      expect(persisted.settings.contextSettings?.truncateThreshold).toBe(6000)
+      persisted.settings.contextSettings = { truncateThreshold: 7000, compress: { enabled: false, modelId: null } }
       await act(async () => emit())
-      await waitFor(() => expect(name).toHaveValue('External'))
-      if (edit) {
-        await user.clear(name)
-        await user.type(name, 'Original')
-      }
+      await waitFor(() => expect(threshold).toHaveValue('7000'))
+      await user.click(threshold)
+      await user.tab()
+      persisted.settings.contextSettings = { truncateThreshold: 8000, compress: { enabled: false, modelId: null } }
+      await act(async () => emit())
+      await waitFor(() => expect(threshold).toHaveValue('8000'))
     } finally {
       holdList = false
       await act(async () => release())
     }
     await settleAutoSave()
-    expect(persisted.name).toBe(edit ? 'Original' : 'External')
-
-    persisted = { ...persisted, name: 'Other' }
-    await act(async () => emit())
-    await settleAutoSave()
-    expect(persisted.name).toBe('Other')
-    expect(name).toHaveValue('Other')
-    expect(patches).toEqual(edit ? [{ name: 'Local' }, { name: 'Original' }] : [{ name: 'Local' }])
+    expect(persisted.settings.contextSettings?.truncateThreshold).toBe(8000)
+    expect(patches).toEqual([
+      { settings: { contextSettings: { truncateThreshold: 6000, compress: { enabled: false, modelId: null } } } }
+    ])
   })
+
+  it.each([
+    { edit: false, beforeSettlement: false },
+    { edit: true, beforeSettlement: false },
+    { edit: false, beforeSettlement: true },
+    { edit: true, beforeSettlement: true }
+  ])(
+    'acknowledges refreshes (newer input: $edit, second refresh before settlement: $beforeSettlement)',
+    async ({ edit, beforeSettlement }) => {
+      const request = bridge.request.getMockImplementation()!
+      let listRefreshStarted = false
+      let holdList = true
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      bridge.request.mockImplementation(async (input: DataRequest) => {
+        if (input.path === '/assistants' && patches.length > 0 && holdList) {
+          listRefreshStarted = true
+          await gate
+        }
+        return request(input)
+      })
+      const user = userEvent.setup()
+      render(
+        <>
+          <ListObserver />
+          <ResourceEditDialogHost target={{ kind: 'assistant', id: assistantId }} onOpenChange={vi.fn()} />
+        </>,
+        { wrapper: createSWRTestWrapper().Wrapper }
+      )
+      await waitFor(() => expect(screen.getByLabelText('List name')).toHaveTextContent('Original'))
+      const name = await screen.findByRole('textbox', { name: 'Name' })
+      await user.clear(name)
+      await user.type(name, 'Local')
+      try {
+        await waitFor(() => expect(listRefreshStarted).toBe(true))
+        await waitFor(() => expect(persisted.name).toBe('Local'))
+        persisted = { ...persisted, name: 'External' }
+        await act(async () => emit())
+        await waitFor(() => expect(name).toHaveValue('External'))
+        if (edit) {
+          await user.clear(name)
+          await user.type(name, 'Original')
+        }
+        if (beforeSettlement) {
+          persisted = { ...persisted, name: 'Other' }
+          await act(async () => emit())
+          await waitFor(() => expect(name).toHaveValue(edit ? 'Original' : 'Other'))
+        }
+      } finally {
+        holdList = false
+        await act(async () => release())
+      }
+      await settleAutoSave()
+      expect(persisted.name).toBe(edit ? 'Original' : beforeSettlement ? 'Other' : 'External')
+
+      persisted = { ...persisted, name: 'Other' }
+      await act(async () => emit())
+      await settleAutoSave()
+      expect(persisted.name).toBe('Other')
+      expect(name).toHaveValue('Other')
+      expect(patches).toEqual(edit ? [{ name: 'Local' }, { name: 'Original' }] : [{ name: 'Local' }])
+    }
+  )
 })

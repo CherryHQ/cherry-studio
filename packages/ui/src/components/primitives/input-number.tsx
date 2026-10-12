@@ -225,7 +225,11 @@ function InputNumber({
   // Non-null only while the field is focused: an unfocused field renders `value`
   // directly, so there is no second copy of it to keep in sync.
   const [draft, setDraft] = React.useState<string | null>(null)
-  const text = draft ?? format(value)
+  const edited = React.useRef(false)
+  const focused = React.useRef(false)
+  const focusValue = React.useRef(value)
+  const pristineRefresh = focused.current && !edited.current && value !== focusValue.current
+  const text = pristineRefresh ? format(value) : (draft ?? format(value))
   // What the current edit started from. `value` has already moved for callers that
   // write on every `onValueChange`, so Escape cannot restore from the prop.
   const preEdit = React.useRef<number | null>(null)
@@ -242,6 +246,8 @@ function InputNumber({
     // ReactDOM restores the rendered text on a controlled input whose state did
     // not change, so returning here is what drops the rejected input.
     if (!isTypable(next)) return
+    if (pristineRefresh) preEdit.current = value
+    edited.current = true
     setDraft(next)
     const parsed = Number(next)
     // A viable prefix like `"-"` or `"1e"` is not yet a value, and reporting it
@@ -255,8 +261,10 @@ function InputNumber({
   }
 
   const handleBlur = () => {
+    focused.current = false
     const isIncomplete = text !== '' && !Number.isFinite(Number(text))
-    const settled = discarding.current || isIncomplete ? preEdit.current : parse(text, min, max, step)
+    const settled =
+      discarding.current || isIncomplete ? (pristineRefresh ? value : preEdit.current) : parse(text, min, max, step)
     discarding.current = false
     const commit = onBlur?.(settled)
     if (!isPromise(commit)) {
@@ -285,7 +293,7 @@ function InputNumber({
     if (event.key === 'Escape') {
       event.stopPropagation()
       discarding.current = true
-      onValueChange?.(preEdit.current)
+      onValueChange?.(pristineRefresh ? value : preEdit.current)
       event.currentTarget.blur()
     }
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
@@ -303,6 +311,8 @@ function InputNumber({
       if (current === null && bound === undefined && !inRange(next, min, max)) {
         return
       }
+      if (pristineRefresh) preEdit.current = value
+      edited.current = true
       setDraft(format(next))
       onValueChange?.(next)
     }
@@ -323,11 +333,14 @@ function InputNumber({
       value={text}
       className={cn(sizeClasses[size], 'data-[busy=true]:cursor-progress data-[busy=true]:opacity-40', className)}
       onFocus={(event) => {
+        focused.current = true
         generation.current += 1
         setBusy(false)
         // Seeded from what is on screen, not from `value`: a commit still in flight
         // is showing its settled value while `value` is one round trip behind.
         preEdit.current = toNumber(text)
+        focusValue.current = value
+        edited.current = false
         setDraft(text)
         onFocus?.(event)
       }}
