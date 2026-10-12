@@ -1049,29 +1049,41 @@ function normalizeDisabledTools(
 ): Set<string> {
   const disabled = new Set((disabledTools ?? []).map(normalizePiDisabledToolId))
   const unresolved = new Set([...disabled].filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX)))
-  for (const tool of listBuiltinToolPolicies({ mountedServers: new Set(Object.values(CHERRY_MCP_SERVER)) })) {
-    const legacyId = legacyDisabledToolId(tool.serverName, tool.toolName)
-    if (!disabled.has(legacyId)) continue
-    disabled.add(buildPiMcpToolName(tool.serverName, tool.toolName))
-    unresolved.delete(legacyId)
-  }
+  const legacyTools: Array<{ ids: string[]; nameAlias?: string; piName: string }> = listBuiltinToolPolicies({
+    mountedServers: new Set(Object.values(CHERRY_MCP_SERVER))
+  }).map((tool) => ({
+    ids: [legacyDisabledToolId(tool.serverName, tool.toolName)],
+    piName: buildPiMcpToolName(tool.serverName, tool.toolName)
+  }))
   const catalog = application.get('McpCatalogService')
-  for (const server of snapshot.mcpServerSnapshots.values()) {
+  for (const [namespace, server] of snapshot.mcpServerSnapshots) {
     if (!server) continue
     const tools = catalog.listTools(server.id, { includeDisabled: false })
     const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
     for (const tool of tools) {
       const name = buildPiMcpToolName(server.id, tool.name)
-      const legacyId = legacyDisabledToolId(server.name, tool.name)
+      const piName = buildPiMcpToolName(server.id, tool.name, names.indexOf(name) !== names.lastIndexOf(name))
+      legacyTools.push({
+        ids: [legacyDisabledToolId(namespace, tool.name), legacyDisabledToolId(server.id, tool.name)],
+        nameAlias: legacyDisabledToolId(server.name, tool.name),
+        piName
+      })
       if (
-        disabled.has(legacyId) ||
         disabled.has(buildFunctionCallToolName(server.name, tool.name)) ||
         disabled.has(`mcp__${server.id}__${tool.name}`)
       ) {
-        disabled.add(buildPiMcpToolName(server.id, tool.name, names.indexOf(name) !== names.lastIndexOf(name)))
-        unresolved.delete(legacyId)
+        disabled.add(piName)
       }
     }
+  }
+  for (const id of unresolved) {
+    // DSH used the configured namespace; display-name aliases are only safe when unambiguous.
+    const exact = legacyTools.filter((tool) => tool.ids.includes(id))
+    const matches = exact.length ? exact : legacyTools.filter((tool) => tool.nameAlias === id)
+    const piNames = new Set(matches.map((tool) => tool.piName))
+    if (piNames.size !== 1) continue
+    for (const name of piNames) disabled.add(name)
+    unresolved.delete(id)
   }
   assertLegacyDisabledToolsResolved(unresolved)
   // Sanitizing raw aliases can accidentally block another tool whose name collides.
