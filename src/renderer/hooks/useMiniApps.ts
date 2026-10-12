@@ -36,14 +36,14 @@ import { resolveLocalizedText } from '@shared/types/miniAppManifest'
  * Check if app should be visible for the given region.
  *
  * Region-based visibility rules:
- * 1. CN users see everything.
+ * 1. CN users see the full catalog, with Kouzi replacing international Coze.
  * 2. Global users see presets that support Global. Presets without a region
  *    declaration retain the legacy CN-only default.
  * 3. User-added sites and installed local apps remain visible everywhere.
  */
 const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
   if (app.kind === 'app') return true
-  if (region === 'CN') return true
+  if (region === 'CN') return app.presetMiniAppId !== 'coze'
 
   if (!app.supportedRegions || app.supportedRegions.length === 0) {
     return app.presetMiniAppId === null

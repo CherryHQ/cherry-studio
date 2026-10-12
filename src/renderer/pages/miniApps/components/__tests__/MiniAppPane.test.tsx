@@ -63,6 +63,7 @@ vi.mock('@renderer/services/MiniAppWebviewService', () => ({
 }))
 
 vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
+  getMiniAppLogoSource: (logo?: string) => logo,
   getMiniAppsLogoRef: () => undefined,
   useMiniAppLogo: () => undefined
 }))

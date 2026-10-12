@@ -2,7 +2,7 @@ import { Globe } from 'lucide-react'
 import type { FC } from 'react'
 
 import { Avatar, AvatarFallback, AvatarImage, EmojiIcon } from '@cherrystudio/ui'
-import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
+import { getMiniAppLogoSource, getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
 import { cn } from '@renderer/utils/style'
 import { TAB_ICON_EMOJI_PREFIX } from '@renderer/utils/tabIcons'
@@ -45,7 +45,7 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
     if (isMiniApp) {
       return (
         <img
-          src={tab.icon}
+          src={getMiniAppLogoSource(tab.icon)}
           alt=""
           draggable={false}
           className={cn('shrink-0 select-none rounded-full object-cover', className)}

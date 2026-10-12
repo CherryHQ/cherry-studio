@@ -1,10 +1,70 @@
-// [v2] TODO: The legacy app/model/provider PNG/WebP logos were removed by the icon-system
-// overhaul (#12858). Mini-apps map to brand icon refs from @cherrystudio/ui/icons as a
-// stop-gap. A proper design should decouple mini-app icon resolution (e.g. a dedicated
-// registry) rather than hard-coding catalog keys here.
-
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { type IconRef, modelIconRef, providerIconRef, useIcon } from '@cherrystudio/ui/icons'
+import aiStudio from '@renderer/assets/images/miniApps/ai-studio.png'
+import antAfu from '@renderer/assets/images/miniApps/ant-afu.png'
+import baixiaoyi from '@renderer/assets/images/miniApps/baixiaoyi.png'
+import canva from '@renderer/assets/images/miniApps/canva.png'
+import chatglm from '@renderer/assets/images/miniApps/chatglm.png'
+import claude from '@renderer/assets/images/miniApps/claude.png'
+import cozeChina from '@renderer/assets/images/miniApps/coze-cn.png'
+import dangbei from '@renderer/assets/images/miniApps/dangbei.png'
+import dola from '@renderer/assets/images/miniApps/dola.png'
+import gamma from '@renderer/assets/images/miniApps/gamma.png'
+import gemini from '@renderer/assets/images/miniApps/gemini.png'
+import grok from '@renderer/assets/images/miniApps/grok.svg?url'
+import jimeng from '@renderer/assets/images/miniApps/jimeng.png'
+import kimi from '@renderer/assets/images/miniApps/kimi.png'
+import kling from '@renderer/assets/images/miniApps/kling.png'
+import lovable from '@renderer/assets/images/miniApps/lovable.png'
+import miaoda from '@renderer/assets/images/miniApps/miaoda.png'
+import minimaxAgent from '@renderer/assets/images/miniApps/minimax-agent.png'
+import napkin from '@renderer/assets/images/miniApps/napkin.png'
+import notebook from '@renderer/assets/images/miniApps/notebook.svg?url'
+import qianwen from '@renderer/assets/images/miniApps/qianwen.png'
+import stepfun from '@renderer/assets/images/miniApps/stepfun.svg?url'
+import suno from '@renderer/assets/images/miniApps/suno.png'
+import tiangong from '@renderer/assets/images/miniApps/tiangong.svg?url'
+import tingwu from '@renderer/assets/images/miniApps/tingwu.png'
+import v0 from '@renderer/assets/images/miniApps/v0.png'
+import wanzhi from '@renderer/assets/images/miniApps/wanzhi.png'
+import wenxin from '@renderer/assets/images/miniApps/wenxin.png'
+import yuanbao from '@renderer/assets/images/miniApps/yuanbao.png'
+
+const MINI_APP_IMAGES: Record<string, string> = {
+  jimeng,
+  kling,
+  'coze-cn': cozeChina,
+  miaoda,
+  tingwu,
+  'ant-afu': antAfu,
+  gamma,
+  canva,
+  dangbei,
+  suno,
+  napkin,
+  lovable,
+  v0,
+  aistudio: aiStudio,
+  baichuan: baixiaoyi,
+  bytedance: dola,
+  claude,
+  gemini,
+  grok,
+  'minimax-agent-cn': minimaxAgent,
+  moonshot: kimi,
+  notebooklm: notebook,
+  qianwen,
+  step: stepfun,
+  tng: tiangong,
+  wenxin,
+  yuanbao,
+  zeroone: wanzhi,
+  zhipu: chatglm
+}
+
+export function getMiniAppLogoSource(logo: string | undefined): string | undefined {
+  return logo ? (MINI_APP_IMAGES[logo.toLowerCase()] ?? logo) : undefined
+}
 
 /**
  * Mini-app logo id → exact catalog ref. Keys are compile-time checked against
@@ -19,34 +79,23 @@ const MINI_APP_ICON_REFS: Record<string, IconRef> = {
   openclaw: providerIconRef('openclaw'),
   nousresearch: providerIconRef('nousresearch'),
   openai: providerIconRef('openai'),
-  gemini: providerIconRef('google'),
   google: providerIconRef('google'),
   silicon: providerIconRef('silicon'),
   deepseek: providerIconRef('deepseek'),
-  zeroone: providerIconRef('zero-one'),
-  zhipu: providerIconRef('zhipu'),
-  moonshot: providerIconRef('moonshot'),
-  baichuan: providerIconRef('baichuan'),
   qwen: providerIconRef('qwen'),
   dashscope: providerIconRef('qwen'),
-  step: providerIconRef('step'),
   stepfun: providerIconRef('step'),
   doubao: providerIconRef('doubao'),
-  bytedance: providerIconRef('bytedance'),
   minimax: providerIconRef('minimax-agent'),
   groq: providerIconRef('groq'),
   anthropic: providerIconRef('anthropic'),
-  claude: providerIconRef('anthropic'),
-  wenxin: providerIconRef('wenxin'),
   baidu: providerIconRef('baidu'),
-  yuanbao: providerIconRef('yuanbao'),
   sensetime: providerIconRef('sensetime'),
   xinghuo: providerIconRef('xinghuo'),
   metaso: providerIconRef('metaso'),
   poe: providerIconRef('poe'),
   perplexity: providerIconRef('perplexity'),
   devv: providerIconRef('devv'),
-  tng: providerIconRef('tng'),
   felo: providerIconRef('felo'),
   duck: providerIconRef('duck'),
   namiai: providerIconRef('nami-ai'),
@@ -54,14 +103,11 @@ const MINI_APP_ICON_REFS: Record<string, IconRef> = {
   github: providerIconRef('github'),
   githubcopilot: providerIconRef('github-copilot'),
   genspark: providerIconRef('genspark'),
-  grok: providerIconRef('grok'),
   twitter: providerIconRef('twitter'),
   flowith: providerIconRef('flowith'),
   mintop3: providerIconRef('3min-top'),
   '3mintop': providerIconRef('3min-top'),
-  aistudio: providerIconRef('ai-studio'),
   xiaoyi: providerIconRef('xiaoyi'),
-  notebooklm: providerIconRef('notebooklm'),
   coze: providerIconRef('coze'),
   dify: providerIconRef('dify'),
   lingxi: providerIconRef('lingxi'),
@@ -77,7 +123,6 @@ const MINI_APP_ICON_REFS: Record<string, IconRef> = {
   bolt: providerIconRef('bolt-new'),
   huggingface: providerIconRef('huggingface'),
   ima: providerIconRef('ima'),
-  dangbei: providerIconRef('dangbei'),
   hailuo: modelIconRef('hailuo'),
   ling: modelIconRef('ling')
 }

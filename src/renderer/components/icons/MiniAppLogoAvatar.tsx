@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 
 import LogoAvatar from './LogoAvatar'
-import { getMiniAppsLogoRef, useMiniAppLogo } from './miniAppsLogo'
+import { getMiniAppLogoSource, getMiniAppsLogoRef, useMiniAppLogo } from './miniAppsLogo'
 
 interface Props {
   /** Mini-app logo field: a known logo id (brand icon) or an image URL/path. */
@@ -23,7 +23,7 @@ const MiniAppLogoAvatar: FC<Props> = ({ logo, size = 32, className, alt }) => {
   if (logoRef && !Icon) {
     return <span className="inline-block shrink-0" style={{ width: size, height: size }} />
   }
-  return <LogoAvatar logo={Icon ?? logo} size={size} className={className} alt={alt} />
+  return <LogoAvatar logo={Icon ?? getMiniAppLogoSource(logo)} size={size} className={className} alt={alt} />
 }
 
 export default MiniAppLogoAvatar

@@ -60,6 +60,7 @@ vi.mock('@renderer/utils/platform', () => ({
 }))
 
 vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
+  getMiniAppLogoSource: (logo?: string) => logo,
   getMiniAppsLogoRef: (logo?: string) => (logo === 'google' ? {} : undefined),
   useMiniAppLogo: (logo?: string) => {
     if (logo !== 'google') return undefined
