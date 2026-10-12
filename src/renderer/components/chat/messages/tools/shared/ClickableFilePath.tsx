@@ -150,26 +150,28 @@ export const ClickableFilePath = memo(function ClickableFilePath({
 
   return (
     <ContextMenu onOpenChange={setActionsMenuOpen}>
-      <ContextMenuTrigger
-        asChild
-        disabled={!hasMoreActions}
-        onContextMenu={hasMoreActions ? (e) => e.stopPropagation() : undefined}>
-        <span className="inline-flex items-center">
-          <Tooltip content={displayPath} delay={500} classNames={{ placeholder: 'flex flex-row items-center' }}>
-            <span
-              role={canOpen ? 'link' : undefined}
-              tabIndex={canOpen ? 0 : undefined}
-              onClick={canOpen ? handleOpen : undefined}
-              onKeyDown={canOpen ? handleKeyDown : undefined}
-              className={`inline-flex items-center gap-1 break-all [table_&]:break-normal ${
-                canOpen ? 'cursor-pointer text-link hover:underline' : 'cursor-default text-muted-foreground'
-              }`}>
-              <Icon icon={`material-icon-theme:${iconName}`} className="shrink-0" style={{ fontSize: '1.1em' }} />
-              {displayName ?? displayPath}
-            </span>
-          </Tooltip>
-        </span>
-      </ContextMenuTrigger>
+      <Tooltip asChild content={displayPath} delay={500}>
+        <ContextMenuTrigger
+          asChild
+          disabled={!hasMoreActions}
+          onContextMenu={hasMoreActions ? (e) => e.stopPropagation() : undefined}>
+          <span
+            role={canOpen ? 'link' : undefined}
+            tabIndex={canOpen ? 0 : undefined}
+            onClick={canOpen ? handleOpen : undefined}
+            onKeyDown={canOpen ? handleKeyDown : undefined}
+            className={`break-all [table_&]:break-normal ${
+              canOpen ? 'cursor-pointer text-link hover:underline' : 'cursor-default text-muted-foreground'
+            }`}>
+            <Icon
+              icon={`material-icon-theme:${iconName}`}
+              className="mr-1 inline-block align-text-top"
+              style={{ fontSize: '1.1em' }}
+            />
+            {displayName ?? displayPath}
+          </span>
+        </ContextMenuTrigger>
+      </Tooltip>
       {hasMoreActions && (
         <ContextMenuContent className="w-56" onClick={(e) => e.stopPropagation()}>
           <ContextMenuItem onSelect={() => void handleOpen()}>
