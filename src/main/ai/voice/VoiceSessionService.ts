@@ -911,7 +911,9 @@ export class VoiceSessionService extends BaseService {
       permission: string,
       _requestingOrigin: string,
       details: Electron.PermissionCheckHandlerHandlerDetails
-    ) => this.canUseMicrophone(webContents, permission, details.requestingUrl, details.isMainFrame, details.mediaType)
+    ) =>
+      details.mediaType === 'audio' &&
+      this.canDiscoverMicrophones(webContents, permission, details.requestingUrl, details.isMainFrame)
     const request = (
       webContents: WebContents,
       permission: string,
@@ -919,16 +921,7 @@ export class VoiceSessionService extends BaseService {
       details: Electron.PermissionRequest | Electron.MediaAccessPermissionRequest
     ) => {
       const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
-      callback(
-        this.canUseMicrophone(
-          webContents,
-          permission,
-          details.requestingUrl,
-          details.isMainFrame,
-          undefined,
-          mediaTypes
-        )
-      )
+      callback(this.canUseMicrophone(webContents, permission, details.requestingUrl, details.isMainFrame, mediaTypes))
     }
     electronSession.defaultSession.setPermissionCheckHandler(check)
     electronSession.defaultSession.setPermissionRequestHandler(request)
@@ -938,30 +931,36 @@ export class VoiceSessionService extends BaseService {
     })
   }
 
+  private canDiscoverMicrophones(
+    webContents: WebContents | null,
+    permission: string,
+    requestingUrl: string | undefined,
+    isMainFrame: boolean
+  ): boolean {
+    if (!this.accepting || permission !== 'media' || !webContents || webContents.isDestroyed()) return false
+    if (!isMainFrame || !requestingUrl || !isAppRendererUrl(requestingUrl)) return false
+    const windows = application.get('WindowManager')
+    const windowId = windows.getWindowIdByWebContents(webContents)
+    const managed = windowId ? windows.getWindow(windowId) : undefined
+    return Boolean(managed && !managed.isDestroyed() && managed.webContents === webContents)
+  }
+
   private canUseMicrophone(
     webContents: WebContents | null,
     permission: string,
     requestingUrl: string | undefined,
     isMainFrame: boolean,
-    mediaType?: string,
     mediaTypes?: readonly string[]
   ): boolean {
-    if (!this.accepting || permission !== 'media' || !webContents || !requestingUrl || !isMainFrame) return false
-    const audioOnly = mediaTypes ? mediaTypes.length === 1 && mediaTypes[0] === 'audio' : mediaType === 'audio'
-    if (!audioOnly) return false
+    if (mediaTypes?.length !== 1 || mediaTypes[0] !== 'audio') return false
+    if (!this.canDiscoverMicrophones(webContents, permission, requestingUrl, isMainFrame)) return false
     const lease = this.lease
-    if (
-      !lease ||
-      lease.closed ||
-      lease.kind !== 'recording' ||
-      lease.phase !== 'recording' ||
-      lease.owner.webContents !== webContents
-    ) {
-      return false
-    }
-    const managed = application.get('WindowManager').getWindow(lease.owner.windowId)
     return Boolean(
-      managed && !managed.isDestroyed() && managed.webContents === webContents && isAppRendererUrl(requestingUrl)
+      lease &&
+      !lease.closed &&
+      lease.kind === 'recording' &&
+      lease.phase === 'recording' &&
+      lease.owner.webContents === webContents
     )
   }
 

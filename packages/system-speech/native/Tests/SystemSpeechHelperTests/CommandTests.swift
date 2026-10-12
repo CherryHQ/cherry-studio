@@ -96,6 +96,15 @@ struct CommandTests {
         #expect(result.supported.allSatisfy { !$0.contains("_") })
     }
 
+    @Test
+    func installedLocalesAreReadyForTranscription() async {
+        let result = await AppleAsr.listLocales()
+        for locale in result.supported {
+            let capability = await AppleAsr.capabilities(locale: locale)
+            #expect(result.installed.contains(locale) == (capability.assetStatus == .installed))
+        }
+    }
+
     @Test(arguments: [
         #"{"operation":"install_asr_assets","locale":"zh-CN"}"#,
         #"{"operation":"install_asr_assets","locale":"zh-CN","confirmDownload":false}"#,
