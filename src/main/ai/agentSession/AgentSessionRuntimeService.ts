@@ -306,6 +306,12 @@ type AgentSessionRuntimeEntry = {
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
   /**
+   * The autonomous reply the runtime is dissolving itself, named by turn id. Set around that
+   * interruption so `openTurnStream` can tell its abort from a user Stop: both land on the same
+   * signal, but only a Stop may tear the whole session down.
+   */
+  retainedReplyInterruption?: { turnId: string }
+  /**
    * Author identity and frozen turn config of the turn that spawned the connection's still-held
    * background work, captured before a same-session beginTurn adopts the next turn's agent. The
    * work streams on that connection, so its receive-only wake and persisted approval requests must
@@ -983,9 +989,13 @@ export class AgentSessionRuntimeService extends BaseService {
    * is handed back.
    */
   private closeRetainedConnection(entry: AgentSessionRuntimeEntry): void {
-    const interrupted = this.interruptAutonomousReply(entry)
-    this.closeConnectionAsync(entry)
-    if (interrupted) this.markTurnTerminal(entry.sessionId, 'paused', interrupted.turnId)
+    const interruption = this.interruptAutonomousReply(entry)
+    try {
+      this.closeConnectionAsync(entry)
+      if (interruption) this.markTurnTerminal(entry.sessionId, 'paused', interruption.turnId)
+    } finally {
+      entry.retainedReplyInterruption = undefined
+    }
   }
 
   /**
@@ -997,6 +1007,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private interruptAutonomousReply(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
     if (!isAgentSessionRuntimeAutonomous(entry.runtimeState)) return undefined
     const turn = this.currentTurn(entry)
+    if (!turn) return undefined
+    // Mark the dissolve before aborting: the abort is synchronous, and the stream's abort listener
+    // must see it to know this is not a Stop.
+    entry.retainedReplyInterruption = { turnId: turn.turnId }
     application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-connection-invalid')
     this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
     return turn
@@ -1039,9 +1053,14 @@ export class AgentSessionRuntimeService extends BaseService {
           turn.controller = controller
           this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
 
-          // A user Stop is the only abort source now (steer no longer interrupts) — tear the
-          // session down so `connection.close()` kills the warm query and its subagent.
-          const onAbort = () => void this.closeSession(entry.sessionId)
+          // A user Stop tears the session down so `connection.close()` kills the warm query and its
+          // subagent. The runtime dissolving its own retained reply aborts the same signal, but must
+          // NOT: `closeRetainedConnection` is mid-flight and its teardown would drop the deferred
+          // input before `markTurnTerminal` can hand it back.
+          const onAbort = () => {
+            if (entry.retainedReplyInterruption?.turnId === turn.turnId) return
+            void this.closeSession(entry.sessionId)
+          }
           if (input.signal.aborted) {
             onAbort()
             return
