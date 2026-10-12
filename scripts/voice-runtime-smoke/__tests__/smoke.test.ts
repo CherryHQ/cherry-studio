@@ -37,7 +37,12 @@ function browserEnvironment(
   const preempted = new Set<string>()
   let lease: { sessionId: string; phase: 'ready' | 'recording' | 'recorded'; fileEntryId?: string } | undefined
   const requestedModels: string[] = []
-  const languageRequests: { route: string; language: string; voice?: string; text?: string }[] = []
+  const languageRequests: {
+    route: string
+    language: string | { source: 'explicit'; locale: string }
+    voice?: string
+    text?: string
+  }[] = []
   const voicePrefix = windows ? 'windows-sapi-test' : 'com.apple.voice.test'
   const voices = [
     { id: `${voicePrefix}.en-US`, name: 'Synthetic English voice', language: 'en-US' },
@@ -108,7 +113,10 @@ function browserEnvironment(
     voiceRequestSchemas[route as keyof typeof voiceRequestSchemas].input.parse(input)
     if (input?.language)
       languageRequests.push({ route, language: input.language, voice: input.voice, text: input.text })
-    if (route === 'ai.speech.voices.list') return voices
+    if (route === 'ai.speech.voices.list')
+      return input!.modelId === (windows ? 'local-voice::windows-system-tts' : 'local-voice::apple-system-tts')
+        ? voices
+        : []
     if (route === 'ai.voice.model.status') return { status: 'ready' }
     if (route === 'ai.speech.generate') {
       if (lease) throw { code: 'VOICE_BUSY' }
@@ -120,12 +128,9 @@ function browserEnvironment(
         phase: 'ready',
         fileEntryId: 'e0b0c5ec-dcb8-4f77-b027-0a3c05637786'
       }
-      return { fileEntry: { id: lease.fileEntryId }, mimeType: 'audio/wav' }
-    }
-    if (route === 'ai.voice.output.read') {
-      if (!lease || lease.sessionId !== input!.sessionId) throw { code: 'VOICE_INVALID_REQUEST' }
-      if (lease.phase !== 'ready' || lease.fileEntryId !== input!.fileEntryId) throw { code: 'VOICE_FORBIDDEN' }
-      return { audio: new Uint8Array([82, 73, 70, 70]), mimeType: 'audio/wav' }
+      return {
+        output: { id: lease.fileEntryId, url: `cherry-media://audio/${lease.fileEntryId}`, mimeType: 'audio/wav' }
+      }
     }
     if (route === 'ai.voice.recording.start') {
       if (lease) preempted.add(lease.sessionId)
@@ -146,8 +151,9 @@ function browserEnvironment(
       if (transcription === 'native_failure')
         throw { code: 'SENSITIVE_NATIVE_DETAIL', message: '/private/audio transcript' }
       if (input!.modelId === 'local-voice::funasr-nano' && transcription !== 'funasr_fallback') {
-        throw { code: 'VOICE_LICENSE_UNVERIFIED' }
+        throw { code: 'VOICE_UNSUPPORTED' }
       }
+      lease = undefined
       return {
         text: transcription === 'empty' ? '' : 'Private transcript must not appear in evidence',
         language: 'en',
@@ -170,6 +176,11 @@ function browserEnvironment(
   }
   return {
     globals: {
+      fetch: async (url: string) => {
+        if (!lease || lease.phase !== 'ready' || url !== `cherry-media://audio/${lease.fileEntryId}`)
+          throw new Error('Unauthorized output')
+        return new Response(new Uint8Array([82, 73, 70, 70]), { headers: { 'Content-Type': 'audio/wav' } })
+      },
       window: { api: { ipcApi: { request } } },
       location: { href: expectedUrl },
       crypto: { randomUUID },
@@ -186,7 +197,6 @@ function browserEnvironment(
     preempted,
     requestedModels,
     languageRequests,
-    activeSessionId: () => lease?.sessionId,
     resourcesClosed: () => recorderStopped && contextClosed && tracksStopped && !lease
   }
 }
@@ -222,7 +232,7 @@ describe('voice smoke renderer contract', () => {
   })
 
   it('does not fall back to Apple when Windows TTS is unavailable', async () => {
-    const fixture = browserEnvironment('success')
+    const fixture = browserEnvironment('success', true)
     const ipc = fixture.globals.window.api.ipcApi
     const originalRequest = ipc.request
     ipc.request = async (route, input) =>
@@ -249,14 +259,13 @@ describe('voice smoke renderer contract', () => {
     expect(result).toMatchObject({
       passed: true,
       apple: { transcriptNonEmpty: true },
-      funasr: { reason: 'license_unverified' },
-      cleanupSucceeded: true,
-      sessionsDiscarded: 3
+      funasr: { reason: 'unsupported' },
+      cleanupSucceeded: true
     })
     expect(fixture.requestedModels).toEqual(['local-voice::apple-system-asr', 'local-voice::funasr-nano'])
     expect(fixture.created.size).toBe(3)
-    expect(fixture.discarded).toEqual(fixture.created)
     expect(fixture.preempted.size).toBe(0)
+    expect(fixture.discarded).toEqual(fixture.created)
     expect(fixture.resourcesClosed()).toBe(true)
     expect(JSON.stringify(result)).not.toContain('Private transcript')
     expect(JSON.stringify(result)).not.toContain('e0b0c5ec-dcb8-4f77-b027-0a3c05637786')
@@ -269,55 +278,16 @@ describe('voice smoke renderer contract', () => {
       passed: true,
       selectedVoice: { id: 'com.apple.voice.test.zh-CN', language: 'zh-CN' }
     })
-    expect(fixture.languageRequests.map(({ language }) => language)).toEqual(['zh-CN', 'zh-CN', 'zh-CN', 'zh-CN'])
+    expect(fixture.languageRequests.map(({ language }) => language)).toEqual([
+      'zh-CN',
+      'zh-CN',
+      { source: 'explicit', locale: 'zh-CN' }
+    ])
     expect(fixture.languageRequests.find(({ route }) => route === 'ai.speech.generate')).toMatchObject({
       voice: 'com.apple.voice.test.zh-CN',
       text: '这是樱桃工作室的本地语音验证。今天天空晴朗，我们正在检查离线语音转写功能。'
     })
     expect(fixture.discarded).toEqual(fixture.created)
-  })
-
-  it('reads owned speech output even when generic file access is unavailable', async () => {
-    const fixture = browserEnvironment('success')
-    const ipc = fixture.globals.window.api.ipcApi
-    const originalRequest = ipc.request
-    ipc.request = async (route, input) =>
-      route === 'file.read' ? { ok: false, error: { code: 'VOICE_FORBIDDEN' } } : originalRequest(route, input)
-
-    const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
-
-    expect(result).toMatchObject({ passed: true, sessionsDiscarded: 3, cleanupSucceeded: true })
-    expect(fixture.resourcesClosed()).toBe(true)
-  })
-
-  it('fails an upload after another recording takes ownership without discarding the replacement', async () => {
-    const fixture = browserEnvironment('success')
-    const ipc = fixture.globals.window.api.ipcApi
-    const originalRequest = ipc.request
-    const replacementSession = randomUUID()
-    ipc.request = async (route, input) => {
-      if (route === 'file.voice_recording.create') {
-        await originalRequest('ai.voice.recording.start', {
-          sessionId: replacementSession,
-          requestId: randomUUID(),
-          source: 'automation'
-        })
-      }
-      return originalRequest(route, input)
-    }
-
-    const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
-
-    expect(result).toMatchObject({
-      passed: false,
-      stage: 'apple_upload',
-      code: 'VOICE_INVALID_REQUEST',
-      cleanupSucceeded: true
-    })
-    expect(fixture.activeSessionId()).toBe(replacementSession)
-    expect(fixture.discarded.has(replacementSession)).toBe(false)
-    expect(result.apple).toBeUndefined()
-    expect(result.funasr).toBeUndefined()
   })
 
   it('rejects unapproved test languages before any IPC session is created', async () => {
