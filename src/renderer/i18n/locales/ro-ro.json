@@ -5768,6 +5768,8 @@
   "settings.voice.recognition.title": "Recunoaștere vocală",
   "settings.voice.recommended": "Recomandată · {{name}}",
   "settings.voice.resources.open_settings": "Deschide setările vocale de sistem",
+  "settings.voice.resources.remove_description": "Recunoașterea cu acest model nu va fi disponibilă până la o nouă descărcare. Selecția modelului va fi păstrată.",
+  "settings.voice.resources.remove_title": "Elimini modelul de recunoaștere vocală?",
   "settings.voice.speech.language": "Limba vorbirii",
   "settings.voice.speech.model": "Model vocal",
   "settings.voice.speech.sample": "Bună, aceasta este o mostră a vocii folosite pentru a citi răspunsurile.",

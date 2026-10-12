@@ -5768,6 +5768,8 @@
   "settings.voice.recognition.title": "Reconnaissance vocale",
   "settings.voice.recommended": "Recommandée · {{name}}",
   "settings.voice.resources.open_settings": "Ouvrir les paramètres vocaux du système",
+  "settings.voice.resources.remove_description": "La reconnaissance vocale avec ce modèle sera indisponible jusqu’à son prochain téléchargement. Votre sélection sera conservée.",
+  "settings.voice.resources.remove_title": "Supprimer le modèle de reconnaissance vocale ?",
   "settings.voice.speech.language": "Langue de synthèse",
   "settings.voice.speech.model": "Modèle vocal",
   "settings.voice.speech.sample": "Bonjour, voici un aperçu de la voix utilisée pour lire vos réponses.",

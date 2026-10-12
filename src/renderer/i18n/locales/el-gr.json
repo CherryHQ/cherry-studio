@@ -5768,6 +5768,8 @@
   "settings.voice.recognition.title": "Αναγνώριση ομιλίας",
   "settings.voice.recommended": "Προτεινόμενη · {{name}}",
   "settings.voice.resources.open_settings": "Άνοιγμα ρυθμίσεων φωνής συστήματος",
+  "settings.voice.resources.remove_description": "Η αναγνώριση με αυτό το μοντέλο δεν θα είναι διαθέσιμη μέχρι να το κατεβάσετε ξανά. Η επιλογή μοντέλου θα διατηρηθεί.",
+  "settings.voice.resources.remove_title": "Κατάργηση μοντέλου αναγνώρισης ομιλίας;",
   "settings.voice.speech.language": "Γλώσσα ομιλίας",
   "settings.voice.speech.model": "Μοντέλο ομιλίας",
   "settings.voice.speech.sample": "Γεια σας, αυτή είναι η φωνή που διαβάζει τις απαντήσεις σας.",
