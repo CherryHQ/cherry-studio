@@ -73,7 +73,10 @@ export interface SubagentPort {
 export interface Subagent {
   /** The `subagent` call that creates it. */
   parentToolCallId: string
-  /** Its Pi session id and its requests' `sessionId`: `<parent session id>.<parentToolCallId>`, characters Pi rejects replaced by `-`. */
+  /**
+   * Its Pi session id and its requests' `sessionId`: `<parent session id>.<parentToolCallId>`, characters Pi rejects
+   * replaced by `-`, with `-n` appended when the call id appears for the nth time in the parent.
+   */
   sessionId: string
   fork: boolean
 }
@@ -126,6 +129,42 @@ const PREAMBLE =
 
 const NO_FINAL_MESSAGE = 'The subagent finished without a final message.'
 
+/** Model requests one subagent may make before it is stopped (Claude Code's limit for a fork). */
+export const MAX_SUBAGENT_REQUESTS = 200
+
+const STOPPED: Record<Exclude<SubagentDetails['outcome'], 'completed'>, string> = {
+  failed: 'The subagent failed',
+  truncated: 'The subagent hit its output limit before finishing',
+  aborted: 'The subagent was stopped because the turn was aborted',
+  limit_reached: `The subagent was stopped after ${MAX_SUBAGENT_REQUESTS} model requests`
+}
+
+function outcomeOf(
+  last: AssistantMessage | undefined,
+  stopped: 'aborted' | 'limit_reached' | undefined
+): SubagentDetails['outcome'] {
+  if (stopped) return stopped
+  switch (last?.stopReason) {
+    case 'stop':
+      return 'completed'
+    case 'length':
+      return 'truncated'
+    case 'aborted':
+      return 'aborted'
+    default:
+      return 'failed'
+  }
+}
+
+const textOf = (message: AssistantMessage) =>
+  message.content.map((block) => (block.type === 'text' ? block.text : '')).join('')
+
+const notStarted = (base: Omit<SubagentDetails, 'outcome'>): AgentToolResult<SubagentDetails> => ({
+  content: [text('The subagent was not started because the turn was aborted.')],
+  details: { ...base, outcome: 'aborted' },
+  isError: true
+})
+
 const parameters = Type.Object({
   description: Type.String({ description: 'A short (3-5 word) title of the task, shown to the user.' }),
   prompt: Type.String({ description: 'The task for the subagent.' }),
@@ -139,9 +178,14 @@ const parameters = Type.Object({
 const text = (value: string) => ({ type: 'text' as const, text: value })
 const taskText = (prompt: string) => `${PREAMBLE}\n\nTask:\n${prompt}`
 
-/** Pi accepts session ids of letters, digits and `._-` that start and end with a letter or digit. */
-const subagentSessionId = (parentSessionId: string, toolCallId: string) =>
-  `${parentSessionId}.${toolCallId.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[._-]+|[._-]+$/g, '') || 'call'}`
+/**
+ * Pi accepts session ids of letters, digits and `._-` that start and end with a letter or digit.
+ * `occurrence` keeps ids apart when a provider reuses a call id across turns.
+ */
+const subagentSessionId = (parentSessionId: string, toolCallId: string, occurrence: number) => {
+  const callId = toolCallId.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[._-]+|[._-]+$/g, '') || 'call'
+  return `${parentSessionId}.${callId}${occurrence > 1 ? `-${occurrence}` : ''}`
+}
 
 const zeroUsage = (): Usage => ({
   input: 0,
@@ -176,37 +220,51 @@ function addUsage(sum: Usage, usage: Usage): Usage {
 async function run(
   child: AgentRuntimeSession,
   prompt: string,
+  signal: AbortSignal | undefined,
   base: Omit<SubagentDetails, 'outcome'>
 ): Promise<AgentToolResult<SubagentDetails>> {
   const { session } = child
+  let stopped: 'aborted' | 'limit_reached' | undefined
+  const stop = (reason: 'aborted' | 'limit_reached') => {
+    stopped ??= reason
+    void session.abort()
+  }
   // Not read from `session.messages`: Pi swaps it for the compacted context, dropping folded replies.
   const replies: AssistantMessage[] = []
+  let requests = 0
   const unsubscribe = session.subscribe((event) => {
     if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
+    // A turn with tool results leads to another request; stop before it.
+    if (event.type === 'turn_end' && ++requests >= MAX_SUBAGENT_REQUESTS && event.toolResults.length > 0)
+      stop('limit_reached')
   })
+  const onAbort = () => stop('aborted')
+  signal?.addEventListener('abort', onAbort, { once: true })
   let error: string | undefined
   try {
-    await session.prompt(taskText(prompt), { expandPromptTemplates: false, source: 'extension' })
+    if (signal?.aborted) stop('aborted')
+    else await session.prompt(taskText(prompt), { expandPromptTemplates: false, source: 'extension' })
   } catch (thrown) {
     error = thrown instanceof Error ? thrown.message : String(thrown)
   } finally {
     unsubscribe()
+    signal?.removeEventListener('abort', onAbort)
   }
+
   const usage = replies.reduce((sum, reply) => addUsage(sum, reply.usage), zeroUsage())
   const last = replies.at(-1)
-  if (error === undefined && last?.stopReason === 'stop') {
-    const finalText = last.content
-      .map((block) => (block.type === 'text' ? block.text : ''))
-      .join('')
-      .trim()
-    return { content: [text(finalText || NO_FINAL_MESSAGE)], details: { ...base, outcome: 'completed' }, usage }
-  }
-  return {
-    content: [text(`The subagent failed: ${error ?? last?.errorMessage ?? 'it ended without a reply'}`)],
-    details: { ...base, outcome: 'failed' },
-    usage,
-    isError: true
-  }
+  const outcome = error === undefined ? outcomeOf(last, stopped) : (stopped ?? 'failed')
+  const details = { ...base, outcome }
+  if (outcome === 'completed') return { content: [text(textOf(last!).trim() || NO_FINAL_MESSAGE)], details, usage }
+
+  const reason = error ?? (outcome === 'failed' ? last?.errorMessage : undefined)
+  const partial = replies
+    .map(textOf)
+    .filter((part) => part.trim())
+    .at(-1)
+  const lines = [reason ? `${STOPPED[outcome]}: ${reason}` : `${STOPPED[outcome]}.`]
+  if (partial) lines.push(`Partial output before it stopped:\n${partial}`)
+  return { content: [text(lines.join('\n'))], details, usage, isError: true }
 }
 
 /** The `subagent` tool: each call runs a subagent session in-process and returns its final report. */
@@ -218,19 +276,26 @@ export function subagentExtension({ port, createSession, parentTranscript }: Sub
       description: DESCRIPTION,
       parameters,
       exposure: 'model-only',
-      async execute(toolCallId, params, _signal, _onUpdate, ctx) {
+      async execute(toolCallId, params, signal, _onUpdate, ctx) {
         if (isSubagentSession(ctx.sessionManager.getBranch())) throw new Error('Subagents cannot start subagents.')
         const description = params.description.trim()
         const prompt = params.prompt.trim()
         if (!description || !prompt) throw new Error('A subagent needs a non-empty description and prompt.')
         const fork = params.fork ?? false
+        const parent = parentTranscript()
+        const occurrence = parent.filter((entry) =>
+          toolCallsOf(entry).some((call) => call.toolCallId === toolCallId)
+        ).length
         const subagent: Subagent = {
           parentToolCallId: toolCallId,
-          sessionId: subagentSessionId(ctx.sessionManager.getSessionId(), toolCallId),
+          sessionId: subagentSessionId(ctx.sessionManager.getSessionId(), toolCallId, occurrence),
           fork
         }
+        // Built before `configure`, so the host never configures a subagent that cannot start.
+        const transcript = [...(fork ? forkTranscript(parent, toolCallId) : []), originEntry(subagent)]
         const options = await port.configure(subagent)
-        const transcript = [...(fork ? forkTranscript(parentTranscript(), toolCallId) : []), originEntry(subagent)]
+        const base = { sessionId: subagent.sessionId, fork }
+        if (signal?.aborted) return notStarted(base)
         const child = await createSession({
           sessionId: subagent.sessionId,
           transcript,
@@ -240,7 +305,7 @@ export function subagentExtension({ port, createSession, parentTranscript }: Sub
         })
         try {
           options.onSessionCreated?.(child.session)
-          return await run(child, prompt, { sessionId: subagent.sessionId, fork })
+          return await run(child, prompt, signal, base)
         } finally {
           await child.dispose()
         }

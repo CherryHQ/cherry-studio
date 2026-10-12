@@ -536,6 +536,23 @@ describe('Pi agent loop over the AI SDK port', () => {
     expect(failures).toEqual([])
   })
 
+  it('does not call the port for a request whose signal is already aborted', async () => {
+    const { model, calls } = scriptedModel([[...textParts('t', 'never sent'), finish('stop')]])
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      extensionFactories: [
+        (pi) => {
+          pi.on('before_provider_request', (_event, ctx) => ctx.abort())
+        }
+      ]
+    })
+
+    await session.prompt('Hello')
+
+    expect(calls).toHaveLength(0)
+    expect(lastAssistant(session).stopReason).toBe('aborted')
+  })
+
   it('runs a tool round trip through a real provider package over HTTP', async () => {
     const weatherCalls: unknown[] = []
     const bodies: { tools?: { function: { name: string } }[]; messages: Record<string, any>[] }[] = []

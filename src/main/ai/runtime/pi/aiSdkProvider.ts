@@ -173,6 +173,8 @@ function streamModelCall<TRequestOptions>(
       // Pi contract: extensions see the request (`before_provider_request`) and may replace it.
       const replaced = await options?.onPayload?.(request, model)
       if (replaced !== undefined) request = replaced as ModelCallRequest<TRequestOptions>
+      // Pi may start one more request after an abort; never hand the host a request already cancelled.
+      if (signal?.aborted) throw new Error('Model call was aborted')
 
       const result = await provider.port.streamText(request)
       reader = result.fullStream.getReader()
