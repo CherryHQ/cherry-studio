@@ -153,7 +153,9 @@ name, so Cherry's renderer shows it as a Task card. Each call builds a session i
 parent's options (port, request options, model, prompts, tools, compaction, offload, recall,
 settings) plus the extensions the host returns from `SubagentPort.configure(subagent)`, starts it
 with `session.prompt()` so `before_agent_start` handlers run as in any turn, waits for it to settle
-and disposes it. The call blocks: the subagent's final message is the call's result, `details` is
+and disposes it. It shares the parent's `sideChannel`, so its requests' errors and unmapped parts
+reach the parent's side channel, told apart by the request `sessionId`; the parent's
+`extensionFactories` and `onEvent` are not inherited. The call blocks: the subagent's final message is the call's result, `details` is
 `{ sessionId, fork, outcome }`, and the result's `usage` is the sum of the subagent's replies (for
 budgets; the host already accounted each request). Its transcript events go only to the `onEvent`
 the host returned; `onSessionCreated` receives its session before its first request. Its session id
@@ -189,7 +191,8 @@ The host's approval layer must not ask approval for `AskUserQuestion` (the quest
 interaction, or the user would be asked twice) and may auto-allow `todo_write` (it only changes the
 session's list). `ASK_USER_TOOL_NAME` and `TODO_TOOL_NAME` hold the names.
 
-The approval layer may auto-allow `subagent`: each call the subagent makes is approved on its own.
+The approval layer may auto-allow `subagent` as long as `SubagentPort.configure()` returns the
+approval extension, so each call the subagent makes is approved on its own.
 
 ## Known gaps
 
