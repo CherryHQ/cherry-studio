@@ -337,9 +337,9 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
         )
       } catch (error) {
         signal.throwIfAborted()
-        logger.warn(
-          `frame extract failed timestampMs=${timestampMs}: ${error instanceof Error ? error.message : String(error)}`
-        )
+        const message = error instanceof Error ? error.message : String(error)
+        if (!message.startsWith('Media tool failed (exit ')) throw error
+        logger.warn(`frame extract failed timestampMs=${timestampMs}: ${message}`)
         continue
       }
       if (existsSync(outputPath)) frames.push({ path: outputPath, timestampMs })
