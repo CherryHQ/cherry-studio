@@ -33,6 +33,18 @@ describe('resolveAgentCapabilities', () => {
     expect(capabilities.environment).toBe('sealed')
   })
 
+  // A detached command outlives the turn and every per-call approval, so the roles whose reach is
+  // otherwise bounded have to say they have none of it.
+  it('withholds detached shell execution from Cherry Doctor', () => {
+    expect(resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.DOCTOR } }).detachedShell).toBe(
+      false
+    )
+    expect(
+      resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } }).detachedShell
+    ).toBeUndefined()
+    expect(resolveAgentCapabilities({ configuration: {} }).detachedShell).toBeUndefined()
+  })
+
   it('withholds arbitrary Agent creation from Cherry Support', () => {
     const support = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT } })
     const assistant = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } })

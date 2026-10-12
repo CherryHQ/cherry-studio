@@ -2023,6 +2023,22 @@ describe('cherry-tools autonomy tools', () => {
       expect(result.content[0].text).toContain('permanent file deletion')
     })
 
+    // Doctor runs headless under bypassPermissions, which lifts this tool's per-call approval, and
+    // it mounts cherry-tools like every other Agent — so nothing but this boundary holds it to the
+    // shell-less capability its bundle declares (native Bash/Edit/Write disabled).
+    it('rejects detached execution for Cherry Doctor and spawns nothing', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'doctor' } })
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: 'printf changed > config.json' },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('cannot run detached shell commands')
+      const storage = path.join(agentsDataDir, 'agent_test', 'background-tasks')
+      expect(await readdir(storage).catch(() => [] as string[])).toHaveLength(0)
+    })
+
     it('denies every detached shell command for Cherry Support in headless turns', async () => {
       mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'support' } })
       mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'stream' })
