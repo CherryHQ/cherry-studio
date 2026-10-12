@@ -288,7 +288,9 @@ export function buildPathRegistry() {
       createHash('sha256').update(path.resolve(appUserData)).digest('hex')
     ),
     'feature.voice.helper_file': app.isPackaged
-      ? path.join(appExtraResources, 'system-speech', voiceHelperFilename)
+      ? process.platform === 'darwin'
+        ? path.join(appExtraResources, '..', 'Helpers', voiceHelperFilename)
+        : path.join(appExtraResources, 'system-speech', voiceHelperFilename)
       : path.join(
           app.getAppPath(),
           'packages',

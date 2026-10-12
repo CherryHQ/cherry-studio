@@ -81,7 +81,7 @@ files:
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!node_modules/@cherrystudio/system-speech/{native,windows,src,tests,scripts}/**"
-  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through platform extraResources
+  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through platform packaging
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -159,9 +159,9 @@ portable:
   # electron-builder 26.15.6 uses true for a unique $PLUGINSDIR on every launch.
   unpackDirName: true
 mac:
-  extraResources:
+  extraFiles:
     - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
-      to: system-speech/cherry-system-speech
+      to: Helpers/cherry-system-speech
   entitlementsInherit: build/entitlements.mac.plist
   sign: scripts/packaging/mac-sign.js
   notarize: false
