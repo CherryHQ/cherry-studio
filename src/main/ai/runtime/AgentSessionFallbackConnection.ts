@@ -11,6 +11,7 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimePromptPolicy,
+  AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
   AgentSessionRuntimeDriver
@@ -147,6 +148,11 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private handoff?: AgentRuntimeConnection
   /** The model the in-flight replacement serves, so a handoff reconcile names it like the swap's. */
   private pendingModelId?: UniqueModelId
+  /** Set when a reconcile the replacement owned could not be applied: it may still be enforcing the
+   *  turn's OLD permission policy, so the swap must never publish it. */
+  private replacementPolicyFailed = false
+  /** Replacement reconciles whose verdict still decides whether the swap may publish it. */
+  private readonly pendingReplacementReconciles = new Set<Promise<unknown>>()
   /** The prompt the live turn was admitted with; a replay re-materializes it, never a later save. */
   private turnPrompt?: AgentRuntimePromptPolicy
 
@@ -205,7 +211,9 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     // the model has already started executing the prompt. Either way the old connection still gets
     // the save it can act on — retaining never suppresses that forward.
     if (this.handoff) {
-      void this.handoff.reconcile({ ...input, modelId: this.pendingModelId ?? input.modelId })
+      void this.trackReplacementReconcile(
+        this.handoff.reconcile({ ...input, modelId: this.pendingModelId ?? input.modelId })
+      )
     } else if (this.replacementInFlight) {
       this.retainedReconcile = input
     }
@@ -345,6 +353,9 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       // Policy saves that landed while the replacement was starting must reach it before the replay
       // is admitted: the replacement keeps the turn's frozen mode and only tightens disabled tools.
       await this.applyRetainedReconcile(connection, fallbackModelId)
+      // A retained restriction it could not apply leaves the replacement on the turn's OLD policy;
+      // the replay would then execute the very tool the user just disabled.
+      if (this.replacementPolicyFailed) throw new Error('fallback replay rejected: stale tool permissions')
       // From here until the swap publishes `current`, the replacement is the connection that will
       // serve this session's work: it owns the replay the moment it is submitted, so a save must
       // reach it in the same turn rather than wait behind that submission.
@@ -363,6 +374,10 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       // A save that raced the submission's own tail still lands before the swap publishes the
       // replacement as the connection the host reconciles.
       await this.applyRetainedReconcile(connection, fallbackModelId)
+      // A handoff reconcile can still be in flight past the drain: it names a verdict that decides
+      // adoption, so it must settle before the swap — and a failure it reported must veto it.
+      await this.awaitPendingReplacementReconciles()
+      if (this.replacementPolicyFailed) throw new Error('fallback replay rejected: stale tool permissions')
       const previousModelId = this.currentModelId
       this.current = connection
       this.handoff = undefined
@@ -383,10 +398,14 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       if (connection) await this.discard(connection)
       return false
     } finally {
+      // A handoff reconcile can still be in flight on the paths that return early; its verdict must
+      // land before this attempt's flag resets, or it would veto a later attempt's adoption.
+      await this.awaitPendingReplacementReconciles()
       this.replacementInFlight = false
       this.handoff = undefined
       this.pendingModelId = undefined
       this.retainedReconcile = undefined
+      this.replacementPolicyFailed = false
     }
   }
 
@@ -399,7 +418,49 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     while (this.retainedReconcile) {
       const retained = this.retainedReconcile
       this.retainedReconcile = undefined
-      await connection.reconcile({ ...retained, modelId })
+      const verdict = await connection.reconcile({ ...retained, modelId })
+      this.recordReplacementVerdict(verdict)
+    }
+  }
+
+  /**
+   * A replacement reconcile the host fired directly must have its verdict awaited before adoption:
+   * `failed` / `invalid` mean the replacement may still be enforcing the policy the user revoked.
+   * The tracking also keeps an in-flight one from settling after the attempt's state is reset.
+   */
+  private async trackReplacementReconcile(pending: Promise<AgentRuntimeReconcileResult>): Promise<void> {
+    const tracked = pending.then(
+      (verdict) => {
+        this.recordReplacementVerdict(verdict)
+      },
+      () => {
+        // A thrown reconcile reports no verdict at all, so the replacement's policy is unknown.
+        this.replacementPolicyFailed = true
+      }
+    )
+    this.pendingReplacementReconciles.add(tracked)
+    try {
+      await tracked
+    } finally {
+      this.pendingReplacementReconciles.delete(tracked)
+    }
+  }
+
+  /**
+   * `failed` means a live patch did not land (the old, looser policy may still be enforced) and
+   * `invalid` means the desired policy can no longer be derived; `rebuild` is the host's business
+   * and stays non-blocking — a spawn-frozen drift never loosens the turn's policy.
+   */
+  private recordReplacementVerdict(verdict: AgentRuntimeReconcileResult): void {
+    if (verdict === 'failed' || verdict === 'invalid') {
+      logger.warn('Declining the fallback replay: the replacement could not enforce the saved policy', { verdict })
+      this.replacementPolicyFailed = true
+    }
+  }
+
+  private async awaitPendingReplacementReconciles(): Promise<void> {
+    while (this.pendingReplacementReconciles.size > 0) {
+      await Promise.allSettled([...this.pendingReplacementReconciles])
     }
   }
 }
