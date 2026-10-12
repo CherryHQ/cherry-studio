@@ -1830,6 +1830,23 @@ describe('PiRuntimeConnection', () => {
     toolApprovalRegistry.abort(SESSION_ID, 'test-boundary')
   })
 
+  it('keeps an admitted absence of a System Prompt through the replay, not one saved mid-turn', async () => {
+    // The turn started with NO System Prompt configured; instructions are saved while the provider
+    // request backs off. The replay stays inside this host turn, so it keeps materializing the
+    // prompt the turn was admitted with — an explicit null, not the saved value (agent-prompt-layers.md).
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Saved mid-turn.',
+      configuration: {}
+    })
+    const conn = await new PiRuntimeConnection({ ...input, promptPolicy: { instructions: null } }).start()
+
+    expect(appendedSystemPrompt()).not.toContain('Saved mid-turn.')
+    expect(appendedSystemPrompt()).not.toContain('<agent_instructions>')
+    void conn
+  })
+
   it('defers a permission-mode change while streaming and applies it once idle', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     mocks.isStreaming = true

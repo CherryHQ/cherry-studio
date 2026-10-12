@@ -390,11 +390,16 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     }
   }
 
-  /** Re-apply the reconcile the replacement could not see, naming the model it now serves. */
+  /**
+   * Re-apply the reconciles the replacement could not see, naming the model it now serves. Drained
+   * to exhaustion: a save can land while an earlier one is still being applied (that apply awaits
+   * skill discovery), and the replay must not be admitted under a restriction already saved.
+   */
   private async applyRetainedReconcile(connection: AgentRuntimeConnection, modelId: UniqueModelId): Promise<void> {
-    const retained = this.retainedReconcile
-    this.retainedReconcile = undefined
-    if (!retained) return
-    await connection.reconcile({ ...retained, modelId })
+    while (this.retainedReconcile) {
+      const retained = this.retainedReconcile
+      this.retainedReconcile = undefined
+      await connection.reconcile({ ...retained, modelId })
+    }
   }
 }

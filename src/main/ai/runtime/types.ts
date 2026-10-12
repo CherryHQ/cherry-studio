@@ -77,8 +77,12 @@ export interface AgentRuntimePermissionPolicy {
  * an edit saved while the failed provider request was backing off (see agent-prompt-layers.md).
  */
 export interface AgentRuntimePromptPolicy {
-  /** `agent.instructions` as it stood when the turn was admitted; null ⇒ none configured. */
-  instructions?: string | null
+  /**
+   * `agent.instructions` as it stood when the turn was admitted. Required so a carried policy is
+   * always explicit: `null` is the admission of "none configured" and must never fall through to
+   * the agent row the way an absent `promptPolicy` does.
+   */
+  instructions: string | null
 }
 
 export interface AgentRuntimeConnectInput {

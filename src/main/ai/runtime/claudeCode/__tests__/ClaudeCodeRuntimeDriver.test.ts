@@ -470,12 +470,17 @@ function createAsyncQueue<T>() {
 /** Minimal stand-in for the shared, session-keyed tool-policy snapshot `canUseTool` resolves. */
 function createToolPolicySnapshot() {
   let disallowed = new Set<string>()
+  let permissionMode: string | undefined
   return {
     update(agent: any) {
       disallowed = new Set(agent?.disabledTools ?? [])
+      permissionMode = agent?.configuration?.permission_mode
     },
     isDisabled(runtimeName: string) {
       return disallowed.has(runtimeName)
+    },
+    getPermissionMode() {
+      return permissionMode
     }
   }
 }
@@ -3831,6 +3836,77 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     await expect(connection.reconcile({ modelId: 'other-provider::haiku' })).resolves.toBe('patched')
     expect(snapshot.isDisabled('Bash')).toBe(false)
+    void connection.close()
+  })
+
+  it("keeps the turn's pinned permission mode when reapplying the turn's tool disables", async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    // The turn was admitted under `default` with Bash disabled: the shared snapshot `canUseTool`
+    // resolves at fire-time must keep enforcing exactly that for the replay.
+    const snapshot = createToolPolicySnapshot()
+    snapshot.update({ disabledTools: ['Bash'], configuration: { permission_mode: 'default' } })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: 'default', disabledTools: ['Bash'], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: { toolPolicySnapshot: snapshot },
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: 'default', disabledTools: ['Bash'], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: { toolPolicySnapshot: snapshot },
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    // Saved while the provider request backs off: the row now says bypassPermissions — exactly the
+    // mode change mid-turn reconciliation defers to the next turn boundary.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      disabledTools: ['Bash'],
+      configuration: { permission_mode: 'bypassPermissions' }
+    })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    await delay(10)
+
+    // The disable-keep re-publish onto the shared snapshot must not import the saved mode: under
+    // bypassPermissions an enabled Write resolves to automatic approval, silently dropping the
+    // approvals this turn was admitted with. The turn's disable stays in force.
+    expect(snapshot.getPermissionMode()).toBe('default')
+    expect(snapshot.isDisabled('Bash')).toBe(true)
     void connection.close()
   })
 

@@ -63,6 +63,7 @@ import {
   type ClaudeCodeAgentSessionQueryRequest,
   type ConnectionConfig,
   deriveConnectionConfig,
+  type FallbackReplayPins,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
@@ -359,10 +360,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private connectionConfig?: ConnectionConfig
   /** The `agent.instructions` the current connection was built from (rebuild fact of its own). */
   private capturedInstructions?: string | null
-  /** Instructions the live turn admitted; a fallback replay materializes this prompt. */
-  private turnInstructions?: string | null
-  /** Tool disables applied while this turn is live; their union is what the turn runs under. */
-  private turnDisabledTools: string[] = []
+  /**
+   * The turn's frozen admission — the mode, prompt and tool disables the turn was admitted with,
+   * and therefore all a fallback replay may inherit. A mid-turn save never edits it; tool disables
+   * only union onto it.
+   */
+  private turnAdmission?: FallbackReplayPins
   private _usageCapture?: AgentSessionUsageCapture
   private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
   private readonly streamInvocationIdsByLane = new Map<string, string>()
@@ -526,11 +529,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.sdkInputQueue.push(sdkMessage)
     this.lastSdkUserMessage = sdkMessage
     this.lastUserInput = input
-    // What this turn was admitted with: the prompt it was built from (a System Prompt saved while
-    // the provider request is in flight applies on the NEXT fresh turn, not to this turn's replay)
-    // and the tool disables already in force — later ones union onto it during the turn.
-    this.turnInstructions = this.capturedInstructions
-    this.turnDisabledTools = [...(this.connectionConfig?.live.toolPolicy.disabledTools ?? [])]
+    // What this turn was admitted with: the mode it runs under, the prompt it was built from (a
+    // System Prompt saved while the provider request is in flight applies on the NEXT fresh turn,
+    // not to this turn's replay), and the tool disables already in force — later ones union onto it.
+    this.turnAdmission = {
+      permissionMode: (this.connectionConfig?.live.toolPolicy.permissionMode ?? null) as AgentPermissionMode | null,
+      instructions: this.capturedInstructions,
+      disabledTools: [...(this.connectionConfig?.live.toolPolicy.disabledTools ?? [])]
+    }
     this.lastSdkUserMessageSupportsImages = supportsImages
   }
 
@@ -635,7 +641,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
       // A turn's disables only ever accumulate: this is the set a fallback replay must preserve
       // regardless of what the builder later publishes onto the shared snapshot.
-      this.turnDisabledTools = [...new Set([...this.turnDisabledTools, ...applicableToolPolicy.disabledTools])]
+      if (this.turnAdmission) {
+        this.turnAdmission = {
+          ...this.turnAdmission,
+          disabledTools: [
+            ...new Set([...(this.turnAdmission.disabledTools ?? []), ...applicableToolPolicy.disabledTools])
+          ]
+        }
+      }
       patched = true
     }
 
@@ -926,14 +939,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     input: AgentRuntimeUserInput,
     previousMessage: SDKUserMessage
   ): Promise<boolean> {
-    // The replay re-opens the same host turn, so it keeps that turn's live permission mode — the
-    // one mid-turn reconciliation freezes (a row save defers to the next turn boundary). A mode
-    // saved during the backoff must not reach the rebuilt query's SDK settings or the shared
-    // approval snapshot; a baseline that cannot prove the live mode cannot preserve it — decline.
-    const livePermissionMode = (this.connectionConfig?.live.toolPolicy.permissionMode ??
-      null) as AgentPermissionMode | null
+    // The replay re-opens the same host turn, so it inherits the turn's frozen admission — the
+    // mode mid-turn reconciliation freezes (a row save defers to the next turn boundary), the
+    // prompt the turn was built from, and its accumulated disables. A baseline that cannot prove
+    // the live mode cannot preserve it — decline.
     const turnActive = this.adapter?.isTurnActive === true
-    if (turnActive && this.connectionConfig === undefined) {
+    if (turnActive && (this.connectionConfig === undefined || !this.turnAdmission)) {
       logger.warn('Declining the fallback replay: the live turn permission mode cannot be read', {
         sessionId: this.input.sessionId,
         fallbackModelId: decision.fallbackModelId
@@ -947,13 +958,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
-      turnActive
-        ? {
-            permissionMode: livePermissionMode,
-            instructions: this.turnInstructions,
-            disabledTools: this.turnDisabledTools
-          }
-        : undefined
+      turnActive ? this.turnAdmission : undefined
     ).catch((cause) => {
       logger.warn('Failed to build the fallback-model query request; surfacing the original turn error', {
         sessionId: this.input.sessionId,
@@ -1034,14 +1039,26 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
    * its own captured agent onto the shared snapshot, which can undo a disable that reconciled while
    * the build ran — without this, the replay executes that tool again, unapproved under
    * bypassPermissions. The baseline carries them so the next reconcile diffs against the right set.
+   * The update keeps the request's pinned mode — only the disables change, so a mode saved mid-backoff
+   * cannot re-admit the replay under what mid-turn reconciliation defers.
    */
   private async reapplyTurnDisabledTools(request: ClaudeCodeAgentSessionQueryRequest): Promise<void> {
-    if (!request.settings.toolPolicySnapshot || this.turnDisabledTools.length === 0) return
+    const turnDisabledTools = this.turnAdmission?.disabledTools ?? []
+    if (!request.settings.toolPolicySnapshot || turnDisabledTools.length === 0) return
     const agent = agentService.getAgent(this.input.agentId)
     if (!agent) return
     // Union, never replace: the row may have disabled others the turn never saw.
-    const disabledTools = [...new Set([...(agent.disabledTools ?? []), ...this.turnDisabledTools])]
-    await request.settings.toolPolicySnapshot.update({ ...agent, disabledTools })
+    const disabledTools = [...new Set([...(agent.disabledTools ?? []), ...turnDisabledTools])]
+    await request.settings.toolPolicySnapshot.update({
+      ...agent,
+      configuration: {
+        ...agent.configuration,
+        permission_mode: (request.connectionConfig.live.toolPolicy.permissionMode ?? undefined) as
+          | AgentPermissionMode
+          | undefined
+      },
+      disabledTools
+    })
     request.connectionConfig = {
       ...request.connectionConfig,
       live: {
@@ -1067,7 +1084,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private clearReplayInput(): void {
     this.lastUserInput = undefined
     this.lastSdkUserMessage = undefined
-    this.turnDisabledTools = []
+    this.turnAdmission = undefined
   }
 
   /**

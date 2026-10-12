@@ -251,8 +251,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       : normalizeDisabledTools(agent.disabledTools, initialSnapshot)
     this.replayTurnPending = this.input.permissionPolicy !== undefined
     // A replay stays inside the turn it was admitted for: it materializes that turn's System
-    // Prompt, not one saved while the failed provider request was backing off.
-    this.turnInstructions = this.input.promptPolicy?.instructions ?? initialSnapshot.agent.instructions ?? null
+    // Prompt — a captured `null` is an explicit "none configured", never the row's later save.
+    this.turnInstructions = this.input.promptPolicy
+      ? this.input.promptPolicy.instructions
+      : (initialSnapshot.agent.instructions ?? null)
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
