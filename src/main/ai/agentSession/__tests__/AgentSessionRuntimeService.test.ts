@@ -46,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   resolveToolApproval: vi.fn(),
+  awaitToolSettled: vi.fn<(topicId: string, toolCallId: string, timeoutMs: number) => Promise<boolean>>(),
   terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
@@ -513,6 +514,7 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
     mocks.applyToolApprovalDecision.mockReturnValue(true)
+    mocks.awaitToolSettled.mockResolvedValue(true)
     mocks.dbWithWriteTx.mockImplementation((fn: (tx: unknown) => unknown) => fn({}))
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
@@ -534,6 +536,7 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
           resolveToolApproval: mocks.resolveToolApproval,
+          awaitToolSettled: mocks.awaitToolSettled,
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
@@ -650,7 +653,7 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('respondToolApproval execution-model handoff (plan approval)', () => {
-    it('approves the plan, then stops the turn for a different execution model', () => {
+    it('approves the plan, then stops the turn for a different execution model', async () => {
       const resolve = vi.fn()
       toolApprovalRegistry.register({
         approvalId: 'approval-plan',
@@ -673,8 +676,77 @@ describe('AgentSessionRuntimeService', () => {
       expect(resolve).toHaveBeenCalledWith({ approved: true })
       expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-plan', true)
       // ...but the running turn is torn down so execution restarts on the chosen model.
-      expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'plan-approved-model-handoff')
-      expect(closeSession).toHaveBeenCalledWith('session-1')
+      await vi.waitFor(() => {
+        expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'plan-approved-model-handoff')
+        expect(closeSession).toHaveBeenCalledWith('session-1')
+      })
+    })
+
+    it('tears the approved turn down only after the plan tool result settles', async () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-settle',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-settle',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+      const settled = createDeferred<boolean>()
+      mocks.awaitToolSettled.mockReturnValue(settled.promise)
+
+      const service = new AgentSessionRuntimeService()
+      const closeSession = vi.spyOn(service, 'closeSession').mockResolvedValue()
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-settle' })
+
+      const result = service.respondToolApproval('approval-plan-settle', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      expect(mocks.awaitToolSettled).toHaveBeenCalledWith(
+        'agent-session:session-1',
+        'tool-call-plan-settle',
+        expect.any(Number)
+      )
+      // The approved tool's successful result is still racing toward persistence: tearing the turn
+      // down now would persist the plan as "Interrupted by user".
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 0))
+      expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
+      expect(closeSession).not.toHaveBeenCalled()
+
+      settled.resolve(true)
+      await vi.waitFor(() => {
+        expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'plan-approved-model-handoff')
+        expect(closeSession).toHaveBeenCalledWith('session-1')
+      })
+    })
+
+    it('tears the approved turn down even when the plan tool result never settles', async () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-wedge',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-wedge',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+      mocks.awaitToolSettled.mockResolvedValue(false)
+
+      const service = new AgentSessionRuntimeService()
+      const closeSession = vi.spyOn(service, 'closeSession').mockResolvedValue()
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-wedge' })
+
+      const result = service.respondToolApproval('approval-plan-wedge', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      // A bounded wait: a tool result that never comes really was interrupted, so the handoff must
+      // still stop the turn instead of leaving it running on the model the user asked to leave.
+      await vi.waitFor(() => {
+        expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'plan-approved-model-handoff')
+        expect(closeSession).toHaveBeenCalledWith('session-1')
+      })
     })
 
     it('keeps the turn running when the execution model matches the turn model', () => {
@@ -723,7 +795,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(closeSession).not.toHaveBeenCalled()
     })
 
-    it('hands off a plan-exit tool name the producer padded with whitespace', () => {
+    it('hands off a plan-exit tool name the producer padded with whitespace', async () => {
       const resolve = vi.fn()
       toolApprovalRegistry.register({
         approvalId: 'approval-plan-padded',
@@ -743,7 +815,7 @@ describe('AgentSessionRuntimeService', () => {
         executionModelId: switchedModelId
       })
       expect(result).toEqual({ dispatched: true, handoff: 'started' })
-      expect(closeSession).toHaveBeenCalledWith('session-1')
+      await vi.waitFor(() => expect(closeSession).toHaveBeenCalledWith('session-1'))
     })
 
     it('refuses the handoff when the session has no runtime entry to stop', () => {
