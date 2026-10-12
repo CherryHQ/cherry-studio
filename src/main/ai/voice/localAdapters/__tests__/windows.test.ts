@@ -100,7 +100,7 @@ describe('Windows system ASR adapter', () => {
   })
 
   it('lists Windows recognition locales through the shared discovery route', async () => {
-    expect(await listLocalAsrLocales()).toEqual({ supported: ['zh-CN'], installed: ['zh-CN'] })
+    expect(await listLocalAsrLocales(WINDOWS_ASR_MODEL_ID)).toEqual({ supported: ['zh-CN'], installed: ['zh-CN'] })
     expect(mocks.nativeRequest).toHaveBeenCalledWith({ operation: 'list_asr_locales' }, { signal: undefined })
   })
 
@@ -223,7 +223,7 @@ afterEach(async () => {
 
 describe('Windows system TTS adapter', () => {
   it('lists installed SAPI voices and is ready even when ASR is unsupported', async () => {
-    expect(await listLocalVoices()).toEqual(voices)
+    expect(await listLocalVoices(WINDOWS_TTS_MODEL_ID)).toEqual(voices)
     expect(await getLocalVoiceStatus(WINDOWS_TTS_MODEL_ID, { voice: voices[0].id, language: 'zh-CN' })).toEqual({
       status: 'ready'
     })

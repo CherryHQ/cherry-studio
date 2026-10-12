@@ -335,10 +335,12 @@ export class ServiceContainer {
 
     // Resolve dependencies
     for (const depName of metadata.dependencies) {
-      if (!this.services.has(depName)) {
+      const dependency = this.services.get(depName)
+      if (!dependency) {
         throw new Error(`[ServiceContainer] Dependency '${depName}' not found for service '${metadata.name}'`)
       }
-      deps.push(this.get(depName))
+      // Conditional dependencies stay on getOptional(); get() remains exclusive to unconditional services.
+      deps.push(dependency.provider.metadata.conditions?.length ? this.getOptional(depName) : this.get(depName))
     }
 
     // Create instance with dependencies

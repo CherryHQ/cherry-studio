@@ -1,43 +1,41 @@
 import { mkdir, rm } from 'node:fs/promises'
 
 import type { WebContents } from 'electron'
-import { session as electronSession, shell, systemPreferences } from 'electron'
+import { session as electronSession } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
-import {
-  APPLE_ASR_MODEL_ID,
-  DEFAULT_SPEECH_SPEED,
-  LOCAL_VOICE_MODELS,
-  type LocalVoiceModelId,
-  resolveDefaultAsrModel,
-  resolveDefaultSpeechModel,
-  type VoiceSessionSource,
-  type VoiceSessionTrigger,
-  WINDOWS_ASR_MODEL_ID,
-  WINDOWS_TTS_MODEL_ID
-} from '@shared/ai/localVoice'
+import { MediaKind } from '@main/services/mediaProtocol'
+import type { LocalTranscriptionModelId, LocalSpeechModelId } from '@shared/ai/localVoice'
+import { type LocalVoiceModelId, type VoiceSessionSource, type VoiceSessionTrigger } from '@shared/ai/localVoice'
 import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
 import type { VoiceSessionCommand, VoiceSessionPhase, VoiceSessionState } from '@shared/ipc/schemas/voice'
 import type { InputFor } from '@shared/ipc/types'
 
 import {
   getLocalVoiceStatus,
-  installAppleAsrAsset,
+  installVoiceLocale,
+  describeVoiceModel,
+  listVoiceModels,
+  resolveTranscriptionConfiguration,
+  resolveSpeechConfiguration,
+  getVoiceAdapterId,
+  resolveTranscriptionRequest,
+  resolveSpeechRequest,
+  downloadVoiceModel,
+  cancelVoiceModelDownload,
+  removeVoiceModel,
   listLocalAsrLocales,
   listLocalVoices,
   voiceAudioProcess
 } from './localAdapters'
+import { getMicrophoneStatus, openMicrophoneSettings, openSystemVoiceSettings } from './voicePlatform'
 import { VoiceRuntimeError } from './VoiceRuntimeError'
 
 const logger = loggerService.withContext('VoiceSessionService')
-const MICROPHONE_SETTINGS = {
-  darwin: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
-  win32: 'ms-settings:privacy-microphone'
-} as const
 
 type VoiceWebContents = Pick<WebContents, 'id' | 'isDestroyed' | 'on' | 'once' | 'removeListener'>
 
@@ -66,22 +64,29 @@ type Session = {
   detach: () => void
   requestId?: string
   operation?: VoiceOperation
+  speechPlan?: ReturnType<typeof resolveSpeechRequest>
   selectedModel?: LocalVoiceModelId
-  resolvedAdapter?: 'apple' | 'windows' | 'funasr'
+  resolvedAdapter?: string
   terminalStatus?: 'completed' | 'failed' | 'aborted'
   cleanup?: Promise<void>
-  outputId?: FileEntryId
+  outputId?: string
   chunkCount?: number
   currentChunkIndex?: number
   nextChunkIndex?: number
   generatedUnchunked?: boolean
-  outputAccess?: Promise<unknown>
 }
 type ActiveOperation = { session: Session; requestId: string; controller: AbortController }
 
 @Injectable('VoiceSessionService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AiService', 'FileManager', 'WindowManager', 'UtilityProcessManager', 'PowerService'])
+@DependsOn([
+  'AiService',
+  'FileManager',
+  'WindowManager',
+  'UtilityProcessManager',
+  'PowerService',
+  'MediaProtocolService'
+])
 export class VoiceSessionService extends BaseService {
   private accepting = false
   private readonly sessions = new Map<string, Session>()
@@ -128,24 +133,51 @@ export class VoiceSessionService extends BaseService {
 
   listModels() {
     this.requireAdmission()
-    return {
-      models: LOCAL_VOICE_MODELS,
-      defaultAsrModelId: this.defaultAsrModel(),
-      defaultSpeechModelId: this.defaultSpeechModel()
-    }
+    return listVoiceModels()
   }
 
-  listTranscriptionLocales(owner: VoiceOwner) {
-    return this.inspect(owner, (signal) => listLocalAsrLocales(signal))
+  resolveTranscription(owner: VoiceOwner, input: InputFor<'ai.voice.transcription.resolve'>) {
+    return this.inspect(owner, (signal) => resolveTranscriptionConfiguration(input, signal))
+  }
+
+  resolveSpeech(owner: VoiceOwner, input: InputFor<'ai.voice.speech.resolve'>) {
+    return this.inspect(owner, (signal) => resolveSpeechConfiguration(input, signal))
+  }
+
+  describeModel(modelId: string) {
+    this.requireAdmission()
+    return describeVoiceModel(modelId)
+  }
+
+  downloadModel(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+    this.requireAdmission()
+    this.requireOwner(owner)
+    return downloadVoiceModel(modelId)
+  }
+
+  cancelModelDownload(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+    this.requireAdmission()
+    this.requireOwner(owner)
+    return cancelVoiceModelDownload(modelId)
+  }
+
+  removeModel(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+    this.requireAdmission()
+    this.requireOwner(owner)
+    return removeVoiceModel(modelId)
+  }
+
+  listTranscriptionLocales(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+    return this.inspect(owner, (signal) => listLocalAsrLocales(modelId, signal))
   }
 
   status(owner: VoiceOwner, input: InputFor<'ai.voice.model.status'>) {
     return this.inspect(owner, (signal) => getLocalVoiceStatus(input.modelId, input, signal))
   }
 
-  voices(owner: VoiceOwner) {
+  voices(owner: VoiceOwner, modelId: LocalSpeechModelId) {
     return this.inspect(owner, async (signal) =>
-      (await listLocalVoices(signal)).map(({ id, name, locale }) => ({ id, name, language: locale }))
+      (await listLocalVoices(modelId, signal)).map(({ id, name, locale }) => ({ id, name, language: locale }))
     )
   }
 
@@ -153,6 +185,7 @@ export class VoiceSessionService extends BaseService {
     this.requireAdmission()
     this.requireOwner(owner)
     const powerEpoch = this.powerEpoch
+    if (input.source === 'settings' && (this.lease || this.active)) throw new VoiceRuntimeError('busy')
     if ((this.lease ?? this.active?.session)?.kind === 'recording') throw new VoiceRuntimeError('busy')
     const session = this.createSession(owner, input.sessionId, 'recording', input.source, input.sourceEntityId)
     session.requestId = input.requestId
@@ -162,6 +195,7 @@ export class VoiceSessionService extends BaseService {
         await Promise.allSettled(this.inspections.keys())
       }
       while (this.lease || this.active) {
+        if (input.source === 'settings') throw new VoiceRuntimeError('busy')
         const displaced = this.lease ?? this.active!.session
         if (displaced.kind === 'recording') throw new VoiceRuntimeError('busy')
         if (this.lease === displaced && !displaced.closed) this.sendCommand(displaced, 'stop')
@@ -210,15 +244,16 @@ export class VoiceSessionService extends BaseService {
     if (session.kind !== 'recording' || !['recorded', 'failed'].includes(session.phase ?? ''))
       throw new VoiceRuntimeError('invalid_request')
     if (!session.files.has(input.fileEntryId)) throw new VoiceRuntimeError('forbidden_owner')
-    const modelId = input.modelId ?? this.defaultAsrModel()
-    if (!modelId) throw new VoiceRuntimeError('unsupported')
+    const {
+      modelId,
+      options: { language }
+    } = resolveTranscriptionRequest(input)
     const result = await this.run(
       session,
       input.requestId,
       modelId,
       'transcription',
       async (signal) => {
-        await this.requireReady(modelId, input, signal)
         const files = application.get('FileManager')
         const entry = await files.getById(input.fileEntryId)
         if (
@@ -233,9 +268,7 @@ export class VoiceSessionService extends BaseService {
         if (!['audio/webm', 'video/webm', 'audio/webm;codecs=opus'].includes(audio.mime))
           throw new VoiceRuntimeError('invalid_audio')
         signal.throwIfAborted()
-        const transcript = await application
-          .get('AiService')
-          .transcribe(modelId, audio.content, { language: input.language }, signal)
+        const transcript = await application.get('AiService').transcribe(modelId, audio.content, { language }, signal)
         signal.throwIfAborted()
         await this.deleteFile(session, input.fileEntryId)
         return { sessionId: session.id, requestId: input.requestId, ...transcript }
@@ -243,7 +276,7 @@ export class VoiceSessionService extends BaseService {
       {
         startPhase: 'recognizing',
         failurePhase: 'failed',
-        log: { locale: input.language, mimeType: 'audio/webm;codecs=opus' }
+        log: { locale: language, mimeType: 'audio/webm;codecs=opus' }
       }
     )
     await this.closeSession(session)
@@ -251,10 +284,19 @@ export class VoiceSessionService extends BaseService {
   }
 
   async speech(owner: VoiceOwner, input: InputFor<'ai.speech.generate'>) {
-    const modelId = input.modelId ?? this.defaultSpeechModel()
-    if (!modelId) throw new VoiceRuntimeError('unsupported')
+    const plan = resolveSpeechRequest(input)
+    const { modelId, options: speechOptions } = plan
     const trigger = input.trigger ?? 'manual'
     const session = await this.preparePlayback(owner, input, trigger)
+    if (
+      session.speechPlan &&
+      (session.speechPlan.modelId !== modelId ||
+        session.speechPlan.options.voice !== speechOptions.voice ||
+        session.speechPlan.options.language !== speechOptions.language ||
+        session.speechPlan.options.speed !== speechOptions.speed)
+    )
+      throw new VoiceRuntimeError('invalid_request')
+    session.speechPlan ??= plan
     const normalizedText = input.text.normalize('NFC').trim()
     return this.run(
       session,
@@ -262,15 +304,7 @@ export class VoiceSessionService extends BaseService {
       modelId,
       'speech',
       async (signal) => {
-        await this.requireReady(modelId, input, signal)
-        const result = await application
-          .get('AiService')
-          .generateSpeech(
-            modelId,
-            normalizedText,
-            { voice: input.voice, language: input.language, speed: input.speed ?? DEFAULT_SPEECH_SPEED },
-            signal
-          )
+        const result = await application.get('AiService').generateSpeech(modelId, normalizedText, speechOptions, signal)
         signal.throwIfAborted()
         const wav = Buffer.from(result.audio)
         if (
@@ -281,13 +315,20 @@ export class VoiceSessionService extends BaseService {
           wav.readUInt32LE(4) + 8 !== wav.length
         )
           throw new VoiceRuntimeError('invalid_audio')
-        const fileEntry = await this.createFile(session, wav, 'wav')
-        session.outputId = fileEntry.id
+        if (session.closed || !this.accepting || session.owner.webContents.isDestroyed())
+          throw new VoiceRuntimeError('aborted')
+        const media = application.get('MediaProtocolService')
+        const outputId = media.store(MediaKind.Audio, wav, 'audio/wav', { webContentsId: owner.webContents.id })
+        session.outputId = outputId
         session.currentChunkIndex = input.chunkIndex
         if (input.chunkIndex === undefined) session.generatedUnchunked = true
         signal.throwIfAborted()
         if (session.phase !== 'paused') this.transition(session, 'ready')
-        return { sessionId: session.id, requestId: input.requestId, fileEntry, mimeType: 'audio/wav' as const }
+        return {
+          sessionId: session.id,
+          requestId: input.requestId,
+          output: { id: outputId, url: media.getUrl(MediaKind.Audio, outputId), mimeType: 'audio/wav' as const }
+        }
       },
       {
         startPhase: 'generating',
@@ -303,32 +344,20 @@ export class VoiceSessionService extends BaseService {
     )
   }
 
-  async readOutput(owner: VoiceOwner, input: InputFor<'ai.voice.output.read'>) {
-    const session = this.requireLeaseSession(owner, input.sessionId)
-    if (session.kind !== 'playback' || session.outputId !== input.fileEntryId) {
-      throw new VoiceRuntimeError('forbidden_owner')
-    }
-    const file = session.files.get(input.fileEntryId)
-    if (!file || file.entry.ext !== 'wav') throw new VoiceRuntimeError('forbidden_owner')
-    return this.withOutputAccess(session, async () => {
-      const output = await application.get('FileManager').read(input.fileEntryId, { encoding: 'binary' })
-      if (session.closed) throw new VoiceRuntimeError('aborted')
-      if (output.mime !== 'audio/wav') throw new VoiceRuntimeError('invalid_audio')
-      return { audio: Uint8Array.from(output.content), mimeType: 'audio/wav' as const }
-    })
-  }
-
   async releaseOutput(owner: VoiceOwner, input: InputFor<'ai.voice.output.release'>): Promise<void> {
     const session = this.requireLeaseSession(owner, input.sessionId)
-    if (session.kind !== 'playback' || session.outputId !== input.fileEntryId) {
-      throw new VoiceRuntimeError('forbidden_owner')
-    }
-    await this.withOutputAccess(session, async () => {
-      await this.deleteFile(session, input.fileEntryId)
-      session.outputId = undefined
-      if (session.currentChunkIndex !== undefined) session.nextChunkIndex = session.currentChunkIndex + 1
-      session.currentChunkIndex = undefined
-    })
+    if (session.kind !== 'playback') throw new VoiceRuntimeError('forbidden_owner')
+    if (!session.outputId) return
+    if (session.outputId !== input.outputId) throw new VoiceRuntimeError('forbidden_owner')
+    this.removeOutput(session)
+    if (session.currentChunkIndex !== undefined) session.nextChunkIndex = session.currentChunkIndex + 1
+    session.currentChunkIndex = undefined
+  }
+
+  private removeOutput(session: Session): void {
+    if (!session.outputId) return
+    application.get('MediaProtocolService').remove(MediaKind.Audio, session.outputId)
+    session.outputId = undefined
   }
 
   async updatePlayback(owner: VoiceOwner, input: InputFor<'ai.voice.playback.update'>): Promise<VoiceSessionState> {
@@ -337,10 +366,7 @@ export class VoiceSessionService extends BaseService {
     switch (input.phase) {
       case 'playing':
         if (this.active?.session === session) throw new VoiceRuntimeError('busy')
-        if (
-          !['ready', 'paused'].includes(session.phase ?? '') &&
-          !(session.phase === 'failed' && session.outputId && session.files.has(session.outputId))
-        )
+        if (!['ready', 'paused'].includes(session.phase ?? '') && !(session.phase === 'failed' && session.outputId))
           throw new VoiceRuntimeError('invalid_request')
         return this.transition(session, 'playing')
       case 'paused':
@@ -380,20 +406,19 @@ export class VoiceSessionService extends BaseService {
   getMicrophoneStatus(owner: VoiceOwner): 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown' {
     this.requireAdmission()
     this.requireOwner(owner)
-    if (process.platform !== 'darwin' && process.platform !== 'win32') return 'unknown'
-    try {
-      return systemPreferences.getMediaAccessStatus('microphone')
-    } catch {
-      return 'unknown'
-    }
+    return getMicrophoneStatus()
+  }
+
+  async openSystemVoiceSettings(owner: VoiceOwner): Promise<void> {
+    this.requireAdmission()
+    this.requireOwner(owner)
+    await openSystemVoiceSettings()
   }
 
   async openMicrophoneSettings(owner: VoiceOwner): Promise<void> {
     this.requireAdmission()
     this.requireOwner(owner)
-    const url = MICROPHONE_SETTINGS[process.platform as keyof typeof MICROPHONE_SETTINGS]
-    if (!url) throw new VoiceRuntimeError('unsupported')
-    await shell.openExternal(url)
+    await openMicrophoneSettings()
   }
 
   async installAsset(owner: VoiceOwner, input: InputFor<'ai.transcription.asset.install'>): Promise<void> {
@@ -402,10 +427,10 @@ export class VoiceSessionService extends BaseService {
     await this.run(
       session,
       input.requestId,
-      APPLE_ASR_MODEL_ID,
+      input.modelId,
       'install',
       async (signal) => {
-        await installAppleAsrAsset(input.language, signal)
+        await installVoiceLocale(input.modelId, input.language, signal)
       },
       { log: { locale: input.language } }
     )
@@ -496,21 +521,6 @@ export class VoiceSessionService extends BaseService {
     ) {
       throw new VoiceRuntimeError('invalid_request')
     }
-  }
-
-  private defaultSpeechModel() {
-    return resolveDefaultSpeechModel({
-      platform: process.platform,
-      arch: process.arch,
-      majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
-    })
-  }
-
-  private defaultAsrModel() {
-    return resolveDefaultAsrModel({
-      platform: process.platform,
-      majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
-    })
   }
 
   private requireAdmission(): void {
@@ -678,17 +688,6 @@ export class VoiceSessionService extends BaseService {
     })
   }
 
-  private async requireReady(
-    modelId: LocalVoiceModelId,
-    options: { language?: string; voice?: string },
-    signal: AbortSignal
-  ): Promise<void> {
-    signal.throwIfAborted()
-    const resource = await getLocalVoiceStatus(modelId, options, signal)
-    signal.throwIfAborted()
-    if (resource.status !== 'ready') throw new VoiceRuntimeError(resource.reason ?? 'operation_failed')
-  }
-
   private async run<T>(
     session: Session,
     requestId: string,
@@ -709,18 +708,14 @@ export class VoiceSessionService extends BaseService {
     if (this.active || this.inspections.size || session.pending.size) throw new VoiceRuntimeError('busy')
     if (session.requestId === requestId && session.operation !== undefined)
       throw new VoiceRuntimeError('invalid_request')
+    const adapterId = getVoiceAdapterId(modelId)
     const controller = new AbortController()
     const active: ActiveOperation = { session, requestId, controller }
     this.active = active
     this.syncSleepHold()
     session.requestId = requestId
     session.selectedModel = modelId
-    session.resolvedAdapter =
-      modelId === WINDOWS_TTS_MODEL_ID || modelId === WINDOWS_ASR_MODEL_ID
-        ? 'windows'
-        : modelId === 'local-voice::funasr-nano'
-          ? 'funasr'
-          : 'apple'
+    session.resolvedAdapter = adapterId
     session.operation = operation
     if (options.startPhase && session.phase !== 'paused') this.transition(session, options.startPhase)
     const startedAt = Date.now()
@@ -746,7 +741,7 @@ export class VoiceSessionService extends BaseService {
         session.terminalStatus = controller.signal.aborted ? 'aborted' : 'failed'
         if (controller.signal.aborted || options.cleanupOnFailure) {
           for (const id of [...session.files.keys()]) await this.deleteFile(session, id)
-          session.outputId = undefined
+          this.removeOutput(session)
         }
         const normalized = controller.signal.aborted
           ? new VoiceRuntimeError('aborted')
@@ -782,25 +777,20 @@ export class VoiceSessionService extends BaseService {
       return await work
     } finally {
       session.pending.delete(work)
-      if (!session.pending.size && !session.files.size && this.active?.session !== session && this.lease !== session) {
+      if (
+        !session.pending.size &&
+        !session.files.size &&
+        !session.outputId &&
+        this.active?.session !== session &&
+        this.lease !== session
+      ) {
         session.detach()
         this.sessions.delete(session.id)
       }
     }
   }
 
-  private async withOutputAccess<T>(session: Session, work: () => Promise<T>): Promise<T> {
-    if (session.outputAccess) throw new VoiceRuntimeError('busy')
-    const operation = Promise.resolve().then(work)
-    session.outputAccess = operation
-    try {
-      return await this.track(session, operation)
-    } finally {
-      if (session.outputAccess === operation) session.outputAccess = undefined
-    }
-  }
-
-  private async createFile(session: Session, bytes: Uint8Array, ext: 'webm' | 'wav'): Promise<InternalFileEntry> {
+  private async createFile(session: Session, bytes: Uint8Array, ext: 'webm'): Promise<InternalFileEntry> {
     const files = application.get('FileManager')
     const entry = await files.createInternalEntry({
       source: 'bytes',
@@ -839,6 +829,7 @@ export class VoiceSessionService extends BaseService {
       return terminal ? session.cleanup.catch(() => this.closeSession(session, true)) : session.cleanup
     }
     session.closed = true
+    this.removeOutput(session)
     this.syncSleepHold()
     session.detach()
     if (this.active?.session === session) this.active.controller.abort(new VoiceRuntimeError('aborted'))
@@ -915,24 +906,27 @@ export class VoiceSessionService extends BaseService {
       permission: string,
       _requestingOrigin: string,
       details: Electron.PermissionCheckHandlerHandlerDetails
-    ) => this.canUseMicrophone(webContents, permission, details.requestingUrl, details.isMainFrame, details.mediaType)
+    ) => {
+      if (permission === 'media') {
+        return (
+          details.mediaType === 'audio' &&
+          this.canDiscoverMicrophones(webContents, permission, details.requestingUrl, details.isMainFrame)
+        )
+      }
+      return this.canUseNonMediaPermission(webContents, permission, details.requestingUrl, details.isMainFrame)
+    }
     const request = (
       webContents: WebContents,
       permission: string,
       callback: (allowed: boolean) => void,
       details: Electron.PermissionRequest | Electron.MediaAccessPermissionRequest
     ) => {
-      const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
-      callback(
-        this.canUseMicrophone(
-          webContents,
-          permission,
-          details.requestingUrl,
-          details.isMainFrame,
-          undefined,
-          mediaTypes
-        )
-      )
+      if (permission === 'media') {
+        const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
+        callback(this.canUseMicrophone(webContents, permission, details.requestingUrl, details.isMainFrame, mediaTypes))
+        return
+      }
+      callback(this.canUseNonMediaPermission(webContents, permission, details.requestingUrl, details.isMainFrame))
     }
     electronSession.defaultSession.setPermissionCheckHandler(check)
     electronSession.defaultSession.setPermissionRequestHandler(request)
@@ -942,30 +936,56 @@ export class VoiceSessionService extends BaseService {
     })
   }
 
+  private canUseNonMediaPermission(
+    webContents: WebContents | null,
+    permission: string,
+    requestingUrl: string | undefined,
+    isMainFrame: boolean
+  ): boolean {
+    // Electron's default check grants every permission except this deprecated sync read.
+    if (permission === 'deprecated-sync-clipboard-read') return false
+    return this.isTrustedLiveAppMainFrame(webContents, requestingUrl, isMainFrame)
+  }
+
+  private isTrustedLiveAppMainFrame(
+    webContents: WebContents | null,
+    requestingUrl: string | undefined,
+    isMainFrame: boolean
+  ): boolean {
+    if (!this.accepting || !webContents || webContents.isDestroyed()) return false
+    if (!isMainFrame || !requestingUrl || !isAppRendererUrl(requestingUrl)) return false
+    const windows = application.get('WindowManager')
+    const windowId = windows.getWindowIdByWebContents(webContents)
+    const managed = windowId ? windows.getWindow(windowId) : undefined
+    return Boolean(managed && !managed.isDestroyed() && managed.webContents === webContents)
+  }
+
+  private canDiscoverMicrophones(
+    webContents: WebContents | null,
+    permission: string,
+    requestingUrl: string | undefined,
+    isMainFrame: boolean
+  ): boolean {
+    if (permission !== 'media') return false
+    return this.isTrustedLiveAppMainFrame(webContents, requestingUrl, isMainFrame)
+  }
+
   private canUseMicrophone(
     webContents: WebContents | null,
     permission: string,
     requestingUrl: string | undefined,
     isMainFrame: boolean,
-    mediaType?: string,
     mediaTypes?: readonly string[]
   ): boolean {
-    if (!this.accepting || permission !== 'media' || !webContents || !requestingUrl || !isMainFrame) return false
-    const audioOnly = mediaTypes ? mediaTypes.length === 1 && mediaTypes[0] === 'audio' : mediaType === 'audio'
-    if (!audioOnly) return false
+    if (mediaTypes?.length !== 1 || mediaTypes[0] !== 'audio') return false
+    if (!this.canDiscoverMicrophones(webContents, permission, requestingUrl, isMainFrame)) return false
     const lease = this.lease
-    if (
-      !lease ||
-      lease.closed ||
-      lease.kind !== 'recording' ||
-      lease.phase !== 'recording' ||
-      lease.owner.webContents !== webContents
-    ) {
-      return false
-    }
-    const managed = application.get('WindowManager').getWindow(lease.owner.windowId)
     return Boolean(
-      managed && !managed.isDestroyed() && managed.webContents === webContents && isAppRendererUrl(requestingUrl)
+      lease &&
+      !lease.closed &&
+      lease.kind === 'recording' &&
+      lease.phase === 'recording' &&
+      lease.owner.webContents === webContents
     )
   }
 

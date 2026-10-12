@@ -2,10 +2,10 @@ import i18n from 'i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  TranscriptionLanguageSource,
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
-  WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -53,156 +53,110 @@ function emitVoiceEvent(event: any): void {
 }
 
 describe('VoiceService state ownership', () => {
-  it.each([
-    ['zh-CN', 'zh-CN'],
-    ['zh-TW', 'zh-TW'],
-    ['ja-JP', 'ja-JP'],
-    ['fr-FR', 'fr-FR']
-  ])('uses the interface default for an unset recognition language in %s', async (locale, language) => {
-    await i18n.changeLanguage(locale)
+  it('resolves empty speech preferences through Main without persisting a guessed voice', async () => {
+    request.mockResolvedValue({
+      modelId: APPLE_TTS_MODEL_ID,
+      voice: 'recommended',
+      language: 'zh-CN',
+      speed: 1,
+      status: { status: 'ready' }
+    })
+    await i18n.changeLanguage('zh-CN')
+    const service = new VoiceService({
+      ipc: { request, on },
+      ownerWindow,
+      readSpeechPreferences: async () => ({ modelId: '', voice: '', language: '', speed: 1 })
+    })
+    await expect(service.resolveSpeechPreferences()).resolves.toEqual({
+      modelId: APPLE_TTS_MODEL_ID,
+      voice: 'recommended',
+      language: 'zh-CN',
+      speed: 1
+    })
+    expect(request).toHaveBeenCalledWith('ai.voice.speech.resolve', { language: 'zh-CN', speed: 1 })
+  })
+
+  it('freezes the Main resolved recognition model and language before recording', async () => {
+    request.mockResolvedValue({
+      modelId: FUNASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.ModelDefault },
+      status: { status: 'ready' }
+    })
     const service = new VoiceService({
       ipc: { request, on },
       ownerWindow,
       readTranscriptionPreferences: async () => ({ modelId: '', language: '' })
     })
-
-    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({ language })
-  })
-
-  it.each([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID])('updates only the implicit language for %s', async (modelId) => {
-    const preferences = { modelId, language: '' }
-    const service = new VoiceService({
-      ipc: { request, on },
-      ownerWindow,
-      readTranscriptionPreferences: async () => preferences
-    })
-
-    await i18n.changeLanguage('zh-CN')
     await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
-      modelId,
-      language: 'zh-CN'
+      modelId: FUNASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.ModelDefault }
     })
-    await i18n.changeLanguage('en-US')
-    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
-      modelId,
-      language: 'en-US'
-    })
-    expect(preferences.language).toBe('')
-
-    preferences.language = 'ja-JP'
-    await i18n.changeLanguage('zh-CN')
-    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
-      modelId,
-      language: 'ja-JP'
+    expect(request).toHaveBeenCalledWith('ai.voice.transcription.resolve', {
+      language: { source: TranscriptionLanguageSource.Interface, locale: 'en-US' }
     })
   })
 
-  it('keeps an existing Windows voice without adding a conflicting interface language', async () => {
-    await i18n.changeLanguage('en-US')
-    const service = new VoiceService({
-      ipc: { request, on },
-      ownerWindow,
-      readSpeechPreferences: async () => ({
-        modelId: WINDOWS_TTS_MODEL_ID,
-        voice: 'windows.zh-CN.huihui',
-        language: '',
-        speed: 1
-      })
-    })
-
-    await expect(service.resolveSpeechPreferences()).resolves.toEqual({
+  it('preserves an explicit voice without imposing the interface language', async () => {
+    request.mockResolvedValue({
       modelId: WINDOWS_TTS_MODEL_ID,
-      voice: 'windows.zh-CN.huihui',
+      voice: 'chinese',
+      language: 'zh-CN',
+      speed: 1,
+      status: { status: 'ready' }
+    })
+    const service = new VoiceService({
+      ipc: { request, on },
+      ownerWindow,
+      readSpeechPreferences: async () => ({ modelId: WINDOWS_TTS_MODEL_ID, voice: 'chinese', language: '', speed: 1 })
+    })
+    await expect(service.resolveSpeechPreferences()).resolves.toMatchObject({ voice: 'chinese', language: 'zh-CN' })
+    expect(request).toHaveBeenCalledWith('ai.voice.speech.resolve', {
+      modelId: WINDOWS_TTS_MODEL_ID,
+      voice: 'chinese',
+      language: undefined,
       speed: 1
     })
   })
 
-  it.each([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID])('resolves exact speech parameters for %s', async (modelId) => {
-    const readSpeechPreferences = vi.fn(async () => ({
-      modelId,
-      voice: 'voice.exact',
-      language: 'zh-CN',
-      speed: 1.25
-    }))
+  it('surfaces missing resources before opening the microphone', async () => {
+    request.mockResolvedValue({
+      modelId: APPLE_ASR_MODEL_ID,
+      status: { status: 'not_installed', reason: 'asset_required' }
+    })
     const service = new VoiceService({
       ipc: { request, on },
       ownerWindow,
-      createId: () => ids[nextId++],
-      readSpeechPreferences
+      readTranscriptionPreferences: async () => ({ modelId: APPLE_ASR_MODEL_ID, language: '' })
     })
-
-    await expect(service.resolveSpeechPreferences()).resolves.toEqual({
-      modelId,
-      voice: 'voice.exact',
-      language: 'zh-CN',
-      speed: 1.25
-    })
-    expect(request).not.toHaveBeenCalled()
+    await expect(service.resolveTranscriptionPreferences()).rejects.toMatchObject({ reason: 'asset_required' })
   })
 
-  it('rejects a missing Windows speech voice without choosing a system default', async () => {
+  it('keeps an unavailable explicit voice as an error instead of choosing a replacement', async () => {
+    request.mockResolvedValue({
+      modelId: APPLE_TTS_MODEL_ID,
+      voice: 'removed',
+      status: { status: 'not_installed', reason: 'voice_unavailable' }
+    })
     const service = new VoiceService({
       ipc: { request, on },
       ownerWindow,
       readSpeechPreferences: async () => ({
-        modelId: WINDOWS_TTS_MODEL_ID,
-        voice: ' ',
+        modelId: APPLE_TTS_MODEL_ID,
+        voice: 'removed',
         language: 'en-US',
         speed: 1
       })
     })
-
     await expect(service.resolveSpeechPreferences()).rejects.toMatchObject({ reason: 'voice_unavailable' })
-    expect(request).not.toHaveBeenCalled()
   })
 
-  it('uses the interface default for a legacy automatic recognition language', async () => {
-    const readTranscriptionPreferences = vi.fn(async () => ({ modelId: APPLE_ASR_MODEL_ID, language: 'auto' }))
+  it('rejects unknown explicit model identities', async () => {
     const service = new VoiceService({
       ipc: { request, on },
       ownerWindow,
-      createId: () => ids[nextId++],
-      readTranscriptionPreferences
+      readTranscriptionPreferences: async () => ({ modelId: 'removed', language: '' })
     })
-
-    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
-      modelId: APPLE_ASR_MODEL_ID,
-      language: 'en-US'
-    })
-    expect(request).not.toHaveBeenCalled()
-  })
-
-  it.each(['', 'en-US'])('omits the stored language %j for FunASR preferences', async (language) => {
-    const readTranscriptionPreferences = vi.fn(async () => ({ modelId: FUNASR_MODEL_ID, language }))
-    const service = new VoiceService({
-      ipc: { request, on },
-      ownerWindow,
-      createId: () => ids[nextId++],
-      readTranscriptionPreferences
-    })
-
-    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({ modelId: FUNASR_MODEL_ID })
-    expect(request).not.toHaveBeenCalled()
-  })
-
-  it('rejects an invalid explicit model instead of replacing it with a platform default', async () => {
-    const readTranscriptionPreferences = vi.fn(async () => ({ modelId: 'unknown-asr', language: '' }))
-    const readSpeechPreferences = vi.fn(async () => ({
-      modelId: 'unknown-tts',
-      voice: 'voice.exact',
-      language: '',
-      speed: 1
-    }))
-    const service = new VoiceService({
-      ipc: { request, on },
-      ownerWindow,
-      createId: () => ids[nextId++],
-      readTranscriptionPreferences,
-      readSpeechPreferences
-    })
-
     await expect(service.resolveTranscriptionPreferences()).rejects.toMatchObject({ reason: 'unsupported' })
-    await expect(service.resolveSpeechPreferences()).rejects.toMatchObject({ reason: 'unsupported' })
     expect(request).not.toHaveBeenCalled()
   })
 
@@ -601,7 +555,11 @@ describe('VoiceService state ownership', () => {
     await service.initialize()
     const recording = service.startRecording({ source: 'dictation' })
     await recording.result
-    const install = service.installTranscriptionAsset({ language: 'en-US', source: 'settings' })
+    const install = service.installTranscriptionAsset({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: 'en-US',
+      source: 'settings'
+    })
     await Promise.resolve()
 
     emitVoiceEvent({ type: 'command', revision: 2, sessionId: recording.sessionId, command: 'stop' })
@@ -653,7 +611,7 @@ describe('VoiceService error boundary', () => {
   it('maps unknown failures to operation_failed', async () => {
     request.mockRejectedValueOnce(new IpcError('VOICE_FUTURE_FAILURE', 'private provider response'))
 
-    await expect(createService().listVoices()).rejects.toMatchObject({ reason: 'operation_failed' })
+    await expect(createService().listVoices(APPLE_TTS_MODEL_ID)).rejects.toMatchObject({ reason: 'operation_failed' })
   })
 })
 
@@ -669,12 +627,14 @@ describe('VoiceService route facade', () => {
     const service = createService()
     const sessionId = ids[0]
     const install = service.installTranscriptionAsset({
+      modelId: APPLE_ASR_MODEL_ID,
       sessionId,
       requestId: ids[1],
       language: 'en-US',
       source: 'settings'
     })
     const duplicateInstall = service.installTranscriptionAsset({
+      modelId: APPLE_ASR_MODEL_ID,
       sessionId,
       requestId: ids[2],
       language: 'en-US',
@@ -703,8 +663,7 @@ describe('VoiceService route facade', () => {
         return Promise.resolve({
           sessionId: input.sessionId,
           requestId: input.requestId,
-          fileEntry: { id: `output-${input.chunkIndex}`, origin: 'internal' },
-          mimeType: 'audio/wav'
+          output: { id: `output-${input.chunkIndex}`, url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         })
       }
       if (route === 'ai.voice.output.release') return new Promise<void>((resolve) => (releaseOutput = resolve))
@@ -733,8 +692,8 @@ describe('VoiceService route facade', () => {
     })
     await expect(premature.result).rejects.toMatchObject({ reason: 'busy' })
 
-    const release = service.releaseOutput({ sessionId, fileEntryId: firstResult.fileEntry.id })
-    const duplicateRelease = service.releaseOutput({ sessionId, fileEntryId: firstResult.fileEntry.id })
+    const release = service.releaseOutput({ sessionId, outputId: firstResult.output.id })
+    const duplicateRelease = service.releaseOutput({ sessionId, outputId: firstResult.output.id })
     await expect(duplicateRelease).rejects.toMatchObject({ reason: 'busy' })
     releaseOutput()
     await release
@@ -801,11 +760,9 @@ describe('VoiceService route facade', () => {
         return {
           sessionId: input.sessionId,
           requestId: input.requestId,
-          fileEntry: { id: 'output-1', origin: 'internal' },
-          mimeType: 'audio/wav'
+          output: { id: 'output-1', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         }
       }
-      if (route === 'ai.voice.output.read') return { audio: new Uint8Array([82, 73, 70, 70]), mimeType: 'audio/wav' }
       if (route === 'ai.voice.playback.update' || route === 'ai.voice.playback.control') {
         return { revision: 7, phase: 'playing', sessionId: input.sessionId }
       }
@@ -823,8 +780,7 @@ describe('VoiceService route facade', () => {
       chunkCount: 2
     })
     await speech.result
-    await service.readOutput({ sessionId: speech.sessionId, fileEntryId: 'output-1' })
-    await service.releaseOutput({ sessionId: speech.sessionId, fileEntryId: 'output-1' })
+    await service.releaseOutput({ sessionId: speech.sessionId, outputId: 'output-1' })
     await service.updatePlayback({ sessionId: speech.sessionId, phase: 'playing' })
     await service.controlPlayback({ sessionId: speech.sessionId, command: 'pause' })
     await service.abortSpeech(speech)
@@ -845,11 +801,98 @@ describe('VoiceService route facade', () => {
       }
     ])
     expect(request.mock.calls.slice(1)).toEqual([
-      ['ai.voice.output.read', { sessionId: ids[0], fileEntryId: 'output-1' }],
-      ['ai.voice.output.release', { sessionId: ids[0], fileEntryId: 'output-1' }],
+      ['ai.voice.output.release', { sessionId: ids[0], outputId: 'output-1' }],
       ['ai.voice.playback.update', { sessionId: ids[0], phase: 'playing' }],
       ['ai.voice.playback.control', { sessionId: ids[0], command: 'pause' }],
       ['ai.speech.abort', { sessionId: ids[0], requestId: ids[1] }]
     ])
+  })
+})
+
+describe('settings microphone test lease', () => {
+  it('enumerates labels while capture is active, then releases tracks and the lease', async () => {
+    const stop = vi.fn()
+    const tracks = [{ stop }]
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: async () => ({ getTracks: () => tracks }),
+        enumerateDevices: async () => {
+          expect(stop).not.toHaveBeenCalled()
+          return [{ kind: 'audioinput', deviceId: 'usb', label: 'USB microphone' }]
+        }
+      }
+    })
+    request.mockImplementation(async (route, input) => {
+      if (route === 'ai.voice.session.state') return { revision: 1, phase: 'idle' }
+      if (route === 'ai.voice.recording.start') return { revision: 2, phase: 'recording', sessionId: input.sessionId }
+      return undefined
+    })
+    const service = createService()
+    try {
+      const controller = new AbortController()
+      const close = vi.fn(async () => undefined)
+      vi.stubGlobal(
+        'AudioContext',
+        class {
+          createAnalyser() {
+            return { fftSize: 256, getFloatTimeDomainData() {} }
+          }
+          createMediaStreamSource() {
+            return { connect() {} }
+          }
+          async resume() {}
+          close = close
+        }
+      )
+      const ready = vi.fn((devices) => {
+        expect(devices).toEqual([{ deviceId: 'usb', label: 'USB microphone' }])
+        expect(stop).not.toHaveBeenCalled()
+        controller.abort()
+      })
+      await service.testMicrophone(controller.signal, null, ready, () => undefined)
+      expect(ready).toHaveBeenCalledOnce()
+      expect(close).toHaveBeenCalledOnce()
+      expect(stop).toHaveBeenCalledOnce()
+      expect(request.mock.calls.filter(([route]) => route === 'ai.voice.session.discard')).toEqual([
+        ['ai.voice.session.discard', { sessionId: ids[0] }]
+      ])
+    } finally {
+      await service.teardown()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('drains an authorization request that resolves after the settings page closes', async () => {
+    let resolveCapture!: (stream: unknown) => void
+    const stop = vi.fn()
+    const capture = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveCapture = resolve
+        })
+    )
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: capture } })
+    request.mockImplementation(async (route, input) => {
+      if (route === 'ai.voice.session.state') return { revision: 1, phase: 'idle' }
+      if (route === 'ai.voice.recording.start') return { revision: 2, phase: 'recording', sessionId: input.sessionId }
+      return undefined
+    })
+    const service = createService()
+    try {
+      const controller = new AbortController()
+      const ready = vi.fn()
+      const work = service.testMicrophone(controller.signal, 'usb', ready, () => undefined)
+      await vi.waitFor(() => expect(capture).toHaveBeenCalledOnce())
+      controller.abort()
+      expect(request.mock.calls.some(([route]) => route === 'ai.voice.session.discard')).toBe(false)
+      resolveCapture({ getTracks: () => [{ stop }] })
+      await work
+      expect(ready).not.toHaveBeenCalled()
+      expect(stop).toHaveBeenCalledOnce()
+      expect(request.mock.calls.some(([route]) => route === 'ai.voice.session.discard')).toBe(true)
+    } finally {
+      await service.teardown()
+      vi.unstubAllGlobals()
+    }
   })
 })

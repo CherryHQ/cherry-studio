@@ -58,6 +58,12 @@ vi.mock('@application', async () => {
   })
   const delegated = mocked.application.get.getMockImplementation()
   mocked.application.get.mockImplementation((name: string) => {
+    if (name === 'AiService') return { transcribe: runtime.transcribe, generateSpeech: runtime.generateSpeech }
+    if (name === 'FileProcessingService') return { ocrImage: runtime.ocrImage }
+    return delegated?.call(mocked.application, name)
+  })
+  const delegatedOptional = mocked.application.getOptional.getMockImplementation()
+  mocked.application.getOptional.mockImplementation(((name: string) => {
     if (name === 'MediaFfmpegService') {
       return {
         probe: runtime.probe,
@@ -66,10 +72,8 @@ vi.mock('@application', async () => {
         detectSceneChanges: runtime.detectSceneChanges
       }
     }
-    if (name === 'AiService') return { transcribe: runtime.transcribe, generateSpeech: runtime.generateSpeech }
-    if (name === 'FileProcessingService') return { ocrImage: runtime.ocrImage }
-    return delegated?.call(mocked.application, name)
-  })
+    return delegatedOptional?.call(mocked.application, name)
+  }) as (name: string) => undefined)
   mocked.application.getPath.mockImplementation((_key: string, filename?: string) =>
     filename ? join(runtime.tempRoot, filename) : runtime.tempRoot
   )

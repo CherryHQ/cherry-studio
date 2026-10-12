@@ -13,10 +13,15 @@ enum AppleAsr {
             return AppleLegacyAsr.listLocales()
         }
 
-        return localesResult(
-            supported: await SpeechTranscriber.supportedLocales,
-            installed: await SpeechTranscriber.installedLocales
-        )
+        let supported = await SpeechTranscriber.supportedLocales
+        var installed: [Locale] = []
+        for locale in supported {
+            let capability = await capabilities(locale: locale.identifier)
+            if capability.assetStatus == .installed {
+                installed.append(locale)
+            }
+        }
+        return localesResult(supported: supported, installed: installed)
     }
 
     static func localesResult(supported: [Locale], installed: [Locale]) -> AsrLocalesResult {

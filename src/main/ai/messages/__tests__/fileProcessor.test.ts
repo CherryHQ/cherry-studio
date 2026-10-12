@@ -113,6 +113,22 @@ describe('materializeNativeFilePart — file:// inline', () => {
     await materializeNativeFilePart(filePart({ url: `file://${imgPath}`, mediaType: 'image/png' }))
     expect(readMock).not.toHaveBeenCalled()
   })
+
+  it('rescues an unreadable entry from its file:// URL using the on-disk MIME', async () => {
+    readMock.mockReset()
+    readMock.mockRejectedValueOnce(new Error('missing entry'))
+    const out = await materializeNativeFilePart(
+      filePart({
+        url: `file://${imgPath}`,
+        mediaType: 'video/webm',
+        filename: 'pixel.png',
+        providerMetadata: { cherry: { fileEntryId: 'gone' } }
+      })
+    )
+    expect(out?.mediaType).toBe('image/png')
+    expect(out?.url.startsWith('data:image/png;base64,')).toBe(true)
+    expect(out?.url).not.toContain('video/webm')
+  })
 })
 
 describe('materializeNativeFilePart — fileEntryId inline', () => {
@@ -134,5 +150,34 @@ describe('materializeNativeFilePart — fileEntryId inline', () => {
       filePart({ url: '', providerMetadata: { cherry: { fileEntryId: 'gone' } } })
     )
     expect(out).toBeNull()
+  })
+
+  it('keeps entry bytes when a trusted WebM probe MIME replaces the stored type', async () => {
+    readMock.mockReset()
+    readMock.mockResolvedValueOnce({ content: 'QVVESU8=', mime: 'video/webm' })
+    const out = await materializeNativeFilePart(
+      filePart({
+        mediaType: 'video/webm',
+        filename: 'clip.webm',
+        providerMetadata: { cherry: { fileEntryId: 'entry-webm' } }
+      }),
+      { mediaType: 'audio/webm' }
+    )
+    expect(out?.mediaType).toBe('audio/webm')
+    expect(out?.url).toBe('data:audio/webm;base64,QVVESU8=')
+  })
+
+  it('ignores a trusted override that is not a media type and keeps the stored MIME', async () => {
+    readMock.mockReset()
+    readMock.mockResolvedValueOnce({ content: 'QUJD', mime: 'image/png' })
+    const out = await materializeNativeFilePart(
+      filePart({
+        mediaType: 'audio/webm',
+        providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+      }),
+      { mediaType: '../secret' }
+    )
+    expect(out?.mediaType).toBe('image/png')
+    expect(out?.url).toBe('data:image/png;base64,QUJD')
   })
 })

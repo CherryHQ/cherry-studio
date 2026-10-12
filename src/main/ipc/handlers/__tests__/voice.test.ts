@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcRouter } from '@main/ipc/IpcRouter'
+import { APPLE_ASR_MODEL_ID, TranscriptionLanguageSource } from '@shared/ai/localVoice'
 import type { InternalFileEntry } from '@shared/data/types/file'
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import { voiceRequestSchemas } from '@shared/ipc/schemas/voice'
@@ -14,7 +15,6 @@ const boundary = vi.hoisted(() => ({
   getMicrophoneStatus: vi.fn(),
   getState: vi.fn(),
   openMicrophoneSettings: vi.fn(),
-  readOutput: vi.fn(),
   releaseOutput: vi.fn(),
   listTranscriptionLocales: vi.fn(),
   speech: vi.fn(),
@@ -36,7 +36,6 @@ vi.mock('@application', async () => {
         getMicrophoneStatus: boundary.getMicrophoneStatus,
         getState: boundary.getState,
         openMicrophoneSettings: boundary.openMicrophoneSettings,
-        readOutput: boundary.readOutput,
         releaseOutput: boundary.releaseOutput,
         listTranscriptionLocales: boundary.listTranscriptionLocales,
         speech: boundary.speech,
@@ -60,7 +59,7 @@ const transcription = {
   requestId: input.requestId,
   fileEntryId: '00000000-0000-4000-8000-000000000003',
   modelId: 'local-voice::apple-system-asr' as const,
-  language: 'en-US'
+  language: { source: TranscriptionLanguageSource.Explicit, locale: 'en-US' }
 }
 const recording = {
   sessionId: input.sessionId,
@@ -88,7 +87,6 @@ describe('Voice handlers through real IpcRouter', () => {
     boundary.window.mockReturnValue({ webContents })
     boundary.getState.mockReturnValue({ phase: 'idle', revision: 0 })
     boundary.startRecording.mockReturnValue({ phase: 'recording', revision: 1, sessionId: input.sessionId })
-    boundary.readOutput.mockResolvedValue({ audio: new Uint8Array([1]), mimeType: 'audio/wav' })
     boundary.getMicrophoneStatus.mockReturnValue('unknown')
 
     await router.dispatch('ai.voice.session.state', undefined, { senderId: 'owner' })
@@ -102,8 +100,11 @@ describe('Voice handlers through real IpcRouter', () => {
       },
       { senderId: 'owner' }
     )
-    await router.dispatch('ai.voice.output.read', { sessionId: input.sessionId, fileEntryId }, { senderId: 'owner' })
-    await router.dispatch('ai.voice.output.release', { sessionId: input.sessionId, fileEntryId }, { senderId: 'owner' })
+    await router.dispatch(
+      'ai.voice.output.release',
+      { sessionId: input.sessionId, outputId: fileEntryId },
+      { senderId: 'owner' }
+    )
     await router.dispatch(
       'ai.voice.playback.update',
       { sessionId: input.sessionId, phase: 'playing' },
@@ -120,7 +121,6 @@ describe('Voice handlers through real IpcRouter', () => {
     for (const method of [
       boundary.getState,
       boundary.startRecording,
-      boundary.readOutput,
       boundary.releaseOutput,
       boundary.updatePlayback,
       boundary.controlPlayback,
@@ -141,14 +141,12 @@ describe('Voice handlers through real IpcRouter', () => {
     boundary.window.mockReturnValue({ webContents: { id: 10, isDestroyed: () => false } })
     for (const [route, value] of [
       ['ai.voice.recording.start', { sessionId: input.sessionId, requestId: input.requestId, ownerWindowId: 'other' }],
-      ['ai.voice.output.read', { sessionId: input.sessionId, fileEntryId: transcription.fileEntryId, path: '/tmp/x' }],
       ['ai.voice.playback.control', { sessionId: input.sessionId, command: 'stop', adapter: 'apple' }],
       ['ai.voice.microphone.open_settings', { url: 'https://evil.test' }]
     ] as const) {
       await expectValidationFailure(router.dispatch(route, value, { senderId: 'owner' }))
     }
     expect(boundary.startRecording).not.toHaveBeenCalled()
-    expect(boundary.readOutput).not.toHaveBeenCalled()
     expect(boundary.controlPlayback).not.toHaveBeenCalled()
     expect(boundary.openMicrophoneSettings).not.toHaveBeenCalled()
   })
@@ -159,11 +157,13 @@ describe('Voice handlers through real IpcRouter', () => {
     boundary.window.mockReturnValue({ webContents })
     boundary.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })
 
-    await expect(router.dispatch('ai.transcription.locales.list', undefined, { senderId: 'owner' })).resolves.toEqual({
+    await expect(
+      router.dispatch('ai.transcription.locales.list', { modelId: APPLE_ASR_MODEL_ID }, { senderId: 'owner' })
+    ).resolves.toEqual({
       supported: ['en-US', 'zh-CN'],
       installed: ['en-US']
     })
-    expect(boundary.listTranscriptionLocales).toHaveBeenCalledWith(owner)
+    expect(boundary.listTranscriptionLocales).toHaveBeenCalledWith(owner, APPLE_ASR_MODEL_ID)
   })
 
   it.each(['local-voice::apple-system-asr', 'local-voice::windows-system-asr'])(
