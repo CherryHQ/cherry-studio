@@ -5,13 +5,14 @@ import {
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   TranscriptionLanguageSource,
-  WINDOWS_ASR_MODEL_ID
+  WINDOWS_ASR_MODEL_ID,
+  WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 
 import { resolveSpeechConfiguration, resolveTranscriptionConfiguration } from '../localAdapters'
 import { appleSpeechDefinition, appleTranscriptionDefinition } from '../localAdapters/apple'
 import { funAsrTranscriptionDefinition } from '../localAdapters/funasr'
-import { windowsTranscriptionDefinition } from '../localAdapters/windows'
+import { windowsSpeechDefinition, windowsTranscriptionDefinition } from '../localAdapters/windows'
 
 const mac = { platform: 'darwin', arch: 'arm64', majorVersion: 26 }
 const language = { source: TranscriptionLanguageSource.Interface, locale: 'zh-CN' } as const
@@ -85,6 +86,28 @@ describe('voice product defaults', () => {
       voice: 'b-chinese',
       speed: 1,
       status: { status: 'ready' }
+    })
+  })
+
+  it.each([
+    [mac, appleSpeechDefinition, APPLE_TTS_MODEL_ID],
+    [{ platform: 'win32', arch: 'x64' }, windowsSpeechDefinition, WINDOWS_TTS_MODEL_ID]
+  ])('matches language tags without regard to case on %j', async (environment, definition, modelId) => {
+    vi.spyOn(definition, 'voices').mockResolvedValue([{ id: 'english', name: 'English', locale: 'en-US' }])
+    vi.spyOn(definition, 'status').mockResolvedValue({ status: 'ready' })
+    for (const voice of [undefined, 'english']) {
+      expect(await resolveSpeechConfiguration({ language: 'en-us', voice }, undefined, environment)).toEqual({
+        modelId,
+        language: 'en-US',
+        voice: 'english',
+        speed: 1,
+        status: { status: 'ready' }
+      })
+    }
+    expect(
+      await resolveSpeechConfiguration({ language: 'en-GB', voice: 'english' }, undefined, environment)
+    ).toMatchObject({
+      status: { status: 'not_installed', reason: 'voice_unavailable' }
     })
   })
 
