@@ -310,6 +310,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
       signal.throwIfAborted()
       const timestampMs = timestampsMs[index]
       const outputPath = join(outputDir, `frame-${String(index).padStart(4, '0')}.jpg`)
+      rmSync(outputPath, { force: true })
       try {
         await runCommand(
           ffmpegPath,
