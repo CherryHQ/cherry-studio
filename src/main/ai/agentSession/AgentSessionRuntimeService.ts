@@ -367,16 +367,6 @@ function getChunkParentToolCallId(chunk: UIMessageChunk): string | undefined {
   return getParentToolCallIdFromMetadata(chunk.providerMetadata)
 }
 
-function getBackgroundFlowAnchorToolCallId(parts: CherryMessagePart[]): string | undefined {
-  for (const part of parts) {
-    if ((part.type.startsWith('tool-') || part.type === 'dynamic-tool') && 'toolCallId' in part) {
-      const toolCallId = part.toolCallId
-      if (typeof toolCallId === 'string' && toolCallId) return toolCallId
-    }
-  }
-  return undefined
-}
-
 @Injectable('AgentSessionRuntimeService')
 @ServicePhase(Phase.WhenReady)
 // The dependency is runtime, not lexical: this service's connections spawn CLI children through
@@ -2195,7 +2185,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (!accumulator.openParts.has(key)) {
           // The start raced persistence: the seed still holds this part as streaming.
           // Close it in place (the orphan end itself is spent) and converge the overlay.
-          if (this.completeSeedStreamingPart(accumulator, kind, flowOwnerToolCallId))
+          if (this.completeSeedStreamingPart(accumulator, kind, flowOwnerToolCallId, routedRootToolCallId))
             this.publishBackgroundFlowSnapshot(entry, accumulator)
           break
         }
@@ -2266,7 +2256,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private completeSeedStreamingPart(
     accumulator: BackgroundFlowAccumulator,
     kind: 'text' | 'reasoning',
-    flowOwnerToolCallId: string
+    flowOwnerToolCallId: string,
+    routedRootToolCallId: string
   ): boolean {
     const parts = accumulator.latest?.parts
     const seedIndexes = accumulator.seedPartIndexes
@@ -2282,10 +2273,17 @@ export class AgentSessionRuntimeService extends BaseService {
     const { part: match, index } = seedStreaming[0]
     const parent = getPartParentToolCallId(match)
     if (parent && parent !== flowOwnerToolCallId) return false
-    const anchorToolCallId = getBackgroundFlowAnchorToolCallId(parts)
-    if (parent === flowOwnerToolCallId && anchorToolCallId && flowOwnerToolCallId === anchorToolCallId) {
+    if (parent === flowOwnerToolCallId && flowOwnerToolCallId === routedRootToolCallId) {
       // DSH descendants route through the spawn anchor id; an orphan end cannot identify
       // which sibling flow ended, so terminal flush must settle ambiguous seed parts.
+      return false
+    }
+    if (
+      parent === flowOwnerToolCallId &&
+      flowOwnerToolCallId !== routedRootToolCallId &&
+      parent !== routedRootToolCallId
+    ) {
+      // Spawn-root owner metadata with a descendant routing id (flowOwner=R, routed=A).
       return false
     }
     if (match.type !== 'text' && match.type !== 'reasoning') return false
