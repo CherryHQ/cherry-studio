@@ -234,9 +234,11 @@ async function run(
   let requests = 0
   const unsubscribe = session.subscribe((event) => {
     if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
-    // A turn with tool results leads to another request; stop before it.
-    if (event.type === 'turn_end' && ++requests >= MAX_SUBAGENT_REQUESTS && event.toolResults.length > 0)
-      stop('limit_reached')
+    if (event.type === 'turn_end') requests++
+    // Checked as the next turn starts: tool results, follow-ups and continuations all lead to another request.
+    if (event.type === 'turn_start' && requests >= MAX_SUBAGENT_REQUESTS) stop('limit_reached')
+    // An abort before the run starts is a no-op in Pi, and the run clears it; repeat it once the run is live.
+    if (event.type === 'agent_start' && stopped) void session.abort()
   })
   const onAbort = () => stop('aborted')
   signal?.addEventListener('abort', onAbort, { once: true })
