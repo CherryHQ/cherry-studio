@@ -18,8 +18,9 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { RetiredAgentRuntimeSeeder } from '@data/db/seeding/seeders/retiredAgentRuntimeSeeder'
+import { RetiredAgentRuntimeSeeder } from '@data/db/seeding/seeders/RetiredAgentRuntimeSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import * as runtimeMigration from '@data/services/retiredAgentRuntimeMigration'
 import {
   getRetiredAgentSessionMigration,
@@ -423,6 +424,17 @@ describe('retired DSH session migration', () => {
   })
 
   it('retries after a generated history file could not be committed to the database', async () => {
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: 'unacknowledged-tail',
+        sessionId: 'conversation',
+        role: 'user',
+        status: 'success',
+        createdAt: 45,
+        data: { parts: [{ type: 'text', text: 'Retain until explicitly handled' }] }
+      })
+      .run()
     seeder.run(dbh.db)
     const commit = vi.spyOn(runtimeMigration, 'commitRetiredAgentSessionMigration')
     commit.mockImplementationOnce(() => {
@@ -430,6 +442,10 @@ describe('retired DSH session migration', () => {
     })
     await expect(ensureRetiredSessionHistory('conversation')).rejects.toThrow('interrupted before commit')
     expect(getRetiredAgentSessionMigration(dbh.db, 'conversation')).toBeDefined()
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'unacknowledged-tail')).get()
+        ?.status
+    ).toBe('success')
     expect(
       dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'assistant-1')).get()
         ?.runtimeResumeToken
@@ -443,6 +459,10 @@ describe('retired DSH session migration', () => {
       .get()!.runtimeResumeToken!
     const file = resolveResumeTokenSessionFile(token, path.join(directory, 'sessions'))!
     expect(SessionManager.open(file, path.dirname(file), directory).buildContextEntries()).toHaveLength(4)
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'unacknowledged-tail')).get()
+        ?.status
+    ).toBe('pending')
   })
 
   it('does not commit stale history when database content changes during file generation', async () => {
@@ -494,6 +514,191 @@ describe('retired DSH session migration', () => {
     expect(
       dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'queued')).get()?.status
     ).toBe('pending')
+  })
+
+  it('retains successful FIFO follow-ups as pending after crash recovery, including in later forks', async () => {
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ status: 'pending' })
+      .where(eq(agentSessionMessageTable.id, 'assistant-2'))
+      .run()
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: 'queued-after-crash',
+        sessionId: 'conversation',
+        role: 'user',
+        status: 'success',
+        createdAt: 45,
+        data: { parts: [{ type: 'text', text: 'Unconsumed FIFO prompt' }] }
+      })
+      .run()
+    const orphans = agentSessionMessageService.findCrashOrphanedAssistantMessages()
+    agentSessionMessageService.resolveCrashOrphanedMessages(orphans, ['conversation'])
+    const queued = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, 'queued-after-crash'))
+      .get()!
+    expect(queued).toMatchObject({ status: 'success', deliveryStatus: null, runtimeResumeToken: null })
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'assistant-2')).get()?.status
+    ).toBe('error')
+
+    seeder.run(dbh.db)
+    await ensureRetiredSessionHistory('conversation')
+    const retained = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, queued.id))
+      .get()!
+    const file = resolveResumeTokenSessionFile(retained.runtimeResumeToken!, path.join(directory, 'sessions'))!
+    const manager = SessionManager.open(file, path.dirname(file), directory)
+    expect(JSON.stringify(manager.buildContextEntries())).not.toContain('Unconsumed FIFO prompt')
+    expect(retained).toMatchObject({
+      status: 'pending',
+      data: queued.data,
+      createdAt: queued.createdAt,
+      updatedAt: queued.updatedAt
+    })
+
+    const answer = 'Continued after migration'
+    manager.appendMessage({
+      role: 'assistant',
+      content: [{ type: 'text', text: answer }],
+      timestamp: 60,
+      api: 'openai-completions',
+      provider: 'cherry-history',
+      model: 'imported-history',
+      stopReason: 'stop',
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+      }
+    })
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: 'assistant-3',
+        sessionId: 'conversation',
+        role: 'assistant',
+        status: 'success',
+        createdAt: 60,
+        runtimeResumeToken: retained.runtimeResumeToken,
+        data: {
+          parts: [{ type: 'text', text: answer }],
+          runtimeAnchor: {
+            checkpoint: { runtime: 'pi', runtimeSessionId: retained.runtimeResumeToken!, leafId: manager.getLeafId()! }
+          }
+        }
+      })
+      .run()
+    runtimeDriverRegistry.register(new PiRuntimeDriver())
+    try {
+      const child = await new AgentSessionForkOperations().fork('conversation', 'assistant-3')
+      const rows = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, child))
+        .all()
+      const childFile = resolveResumeTokenSessionFile(
+        agentSessionMessageService.getLastRuntimeResumeToken(child)!,
+        path.join(directory, 'sessions')
+      )!
+      const context = JSON.stringify(
+        SessionManager.open(childFile, path.dirname(childFile), directory).buildContextEntries()
+      )
+      expect(context).toContain(answer)
+      expect(context).not.toContain('Unconsumed FIFO prompt')
+      expect(JSON.stringify(rows)).toContain(answer)
+      expect(JSON.stringify(rows)).not.toContain('Unconsumed FIFO prompt')
+    } finally {
+      runtimeDriverRegistry.clearForTest()
+    }
+  })
+
+  it('imports a trailing input with an explicit consumption receipt', async () => {
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: 'consumed-tail',
+        sessionId: 'conversation',
+        role: 'user',
+        status: 'success',
+        deliveryStatus: 'consumed',
+        createdAt: 45,
+        data: { parts: [{ type: 'text', text: 'Acknowledged steering input' }] }
+      })
+      .run()
+    seeder.run(dbh.db)
+    await ensureRetiredSessionHistory('conversation')
+    const row = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, 'consumed-tail'))
+      .get()!
+    const file = resolveResumeTokenSessionFile(row.runtimeResumeToken!, path.join(directory, 'sessions'))!
+    expect(JSON.stringify(SessionManager.open(file, path.dirname(file), directory).buildContextEntries())).toContain(
+      'Acknowledged steering input'
+    )
+    expect(row.status).toBe('success')
+  })
+
+  it.each([1, 2])('excludes all unconsumed rows in the prefix of fork boundary %s', async (boundary) => {
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values([
+        {
+          id: 'failed-first',
+          sessionId: 'conversation',
+          role: 'user',
+          status: 'success',
+          deliveryStatus: 'failed',
+          createdAt: 15,
+          data: { parts: [{ type: 'text', text: 'Never dispatched' }] }
+        },
+        {
+          id: 'pending-second',
+          sessionId: 'conversation',
+          role: 'user',
+          status: 'pending',
+          createdAt: 35,
+          data: { parts: [{ type: 'text', text: 'Never delivered' }] }
+        }
+      ])
+      .run()
+    seeder.run(dbh.db)
+    await ensureRetiredSessionHistory('conversation')
+    runtimeDriverRegistry.register(new PiRuntimeDriver())
+    try {
+      const child = await new AgentSessionForkOperations().fork('conversation', `assistant-${boundary}`)
+      const rows = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, child))
+        .all()
+      const file = resolveResumeTokenSessionFile(
+        agentSessionMessageService.getLastRuntimeResumeToken(child)!,
+        path.join(directory, 'sessions')
+      )!
+      const context = JSON.stringify(SessionManager.open(file, path.dirname(file), directory).buildContextEntries())
+      for (const text of ['Never dispatched', 'Never delivered']) {
+        expect(context).not.toContain(text)
+        expect(JSON.stringify(rows)).not.toContain(text)
+      }
+      expect(context).toContain('cherry-pi-928')
+      expect(JSON.stringify(rows)).toContain('cherry-pi-928')
+      if (boundary === 2) {
+        expect(context).toContain('Second response')
+        expect(JSON.stringify(rows)).toContain('Second response')
+      }
+    } finally {
+      runtimeDriverRegistry.clearForTest()
+    }
   })
 
   it('retains published DSH fork files after replacing their recovery tokens and restarting recovery', async () => {

@@ -104,7 +104,8 @@ export function commitRetiredAgentSessionMigration(
   tx: DbOrTx,
   migration: RetiredAgentSessionMigration,
   anchors: ReadonlyMap<string, RuntimeForkAnchor>,
-  expectedHistory: ReturnType<typeof readRetiredAgentSessionHistory>
+  expectedHistory: ReturnType<typeof readRetiredAgentSessionHistory>,
+  pendingMessageIds: ReadonlySet<string>
 ): void {
   if (getRetiredAgentSessionMigration(tx, migration.sessionId)?.resumeToken !== migration.resumeToken)
     throw new Error('Retired session migration changed')
@@ -122,6 +123,7 @@ export function commitRetiredAgentSessionMigration(
     tx.update(agentSessionMessageTable)
       .set({
         data: { ...data, ...(anchor ? { runtimeAnchor: anchor } : {}) },
+        status: pendingMessageIds.has(row.id) ? 'pending' : row.status,
         runtimeResumeToken: migration.resumeToken,
         updatedAt: row.updatedAt
       })

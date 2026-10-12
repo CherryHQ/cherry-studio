@@ -47,7 +47,7 @@ async function importHistory(sessionId: string): Promise<void> {
   if (!history) {
     application
       .get('DbService')
-      .withWriteTx((tx) => commitRetiredAgentSessionMigration(tx, migration, new Map(), history))
+      .withWriteTx((tx) => commitRetiredAgentSessionMigration(tx, migration, new Map(), history, new Set()))
     return
   }
   const sdk = await loadPiSdk()
@@ -70,7 +70,16 @@ async function importHistory(sessionId: string): Promise<void> {
     orderedMessages.push(...queuedMessages.filter((message) => !boundaryExclusions.has(message.id)), row)
     queuedMessages = queuedMessages.filter((message) => boundaryExclusions.has(message.id))
   }
-  orderedMessages.push(...queuedMessages.filter((message) => !boundaryExclusions.has(message.id)))
+  // Ordinary FIFO inputs are saved as successful before dispatch; without a following
+  // assistant boundary or consumption receipt, retain them for explicit user handling.
+  const pendingMessageIds = new Set(
+    queuedMessages
+      .filter((message) => message.role === 'user' && message.status === 'success' && !message.deliveryStatus)
+      .map((message) => message.id)
+  )
+  orderedMessages.push(
+    ...queuedMessages.filter((message) => !boundaryExclusions.has(message.id) && !pendingMessageIds.has(message.id))
+  )
   for (const row of orderedMessages) {
     if (
       row.status === 'pending' ||
@@ -159,7 +168,7 @@ async function importHistory(sessionId: string): Promise<void> {
     await rename(temporary, file)
     application
       .get('DbService')
-      .withWriteTx((tx) => commitRetiredAgentSessionMigration(tx, migration, anchors, history))
+      .withWriteTx((tx) => commitRetiredAgentSessionMigration(tx, migration, anchors, history, pendingMessageIds))
   } finally {
     await rm(temporary, { force: true })
   }

@@ -1914,6 +1914,7 @@ describe('PiRuntimeConnection', () => {
 
       it.each([
         ['search_issues', 'mcp__12345678-1234-4234-8234-123456789abc__search_issues'],
+        ['123tool', 'mcp__12345678-1234-4234-8234-123456789abc__123tool'],
         [`search_issues_${'x'.repeat(70)}`, 'mcp___12345678123442348234123456789abc__searchIssu_deeb2a39f437']
       ])('starts and enforces the migrated ID restriction for %s', async (toolName, oldName) => {
         migrateRestriction(oldName, toolName)
