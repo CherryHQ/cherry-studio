@@ -278,6 +278,8 @@ function colorizeLine(line: string, commandMode: boolean, p: ColorPalette): stri
 }
 
 export function colorizeShellOutput(text: string, commandMode: boolean, palette: ColorPalette): string {
+  // Guard direct callers that bypass TerminalOutput's entry normalization (#20265 crash site).
+  if (typeof text !== 'string') return String(text)
   if (text.includes('\x1b[')) return text
 
   return text
