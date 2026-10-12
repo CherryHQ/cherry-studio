@@ -236,7 +236,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   return (
     <div ref={ref} id="app-sidebar" data-ui="app.sidebar" className="relative h-full [-webkit-app-region:no-drag]">
-      {layout === 'hidden' ? (
+      <Popover open={layout !== 'hidden' && userMenuOpen} onOpenChange={handleUserMenuOpenChange}>
         <UISidebar
           width={activeSidebarWidth}
           setWidth={setSidebarWidth}
@@ -244,18 +244,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           onResizePreview={setPreviewSidebarWidth}
           {...sidebarProps}
         />
-      ) : (
-        <Popover open={userMenuOpen} onOpenChange={handleUserMenuOpenChange}>
-          <UISidebar
-            width={activeSidebarWidth}
-            setWidth={setSidebarWidth}
-            onHoverChange={setHoverVisible}
-            onResizePreview={setPreviewSidebarWidth}
-            {...sidebarProps}
-          />
-          {renderUserMenu()}
-        </Popover>
-      )}
+        {layout !== 'hidden' && renderUserMenu()}
+      </Popover>
       {hoverVisible && layout === 'hidden' && (
         <Popover open={userMenuOpen} onOpenChange={handleUserMenuOpenChange}>
           <UISidebar
