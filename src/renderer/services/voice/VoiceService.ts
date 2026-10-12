@@ -7,6 +7,7 @@ import {
   FUNASR_MODEL_ID,
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED,
+  WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
   type LocalSpeechModelId,
   type LocalTranscriptionModelId
@@ -106,7 +107,7 @@ const reasonByCode = new Map<string, VoiceErrorReason>(
 )
 
 function isTranscriptionModelId(value: string): value is LocalTranscriptionModelId {
-  return value === APPLE_ASR_MODEL_ID || value === FUNASR_MODEL_ID
+  return value === APPLE_ASR_MODEL_ID || value === WINDOWS_ASR_MODEL_ID || value === FUNASR_MODEL_ID
 }
 
 export class VoiceDomainError extends Error {
