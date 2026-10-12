@@ -1,40 +1,25 @@
-import { ArrowLeft, CircleArrowLeft, Copy, Loader2, Pin } from 'lucide-react'
+import { ArrowLeft, Copy, LogOut } from 'lucide-react'
 import type { ButtonHTMLAttributes, FC } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 
 interface FooterProps {
   route: string
   canUseBackspace?: boolean
   loading?: boolean
-  setIsPinned: (isPinned: boolean) => void
-  isPinned: boolean
   clearClipboard?: () => void
   onEsc: () => void
   onCopy?: () => void
 }
 
-const Footer: FC<FooterProps> = ({
-  route,
-  canUseBackspace,
-  loading,
-  clearClipboard,
-  onEsc,
-  setIsPinned,
-  isPinned,
-  onCopy
-}) => {
+const Footer: FC<FooterProps> = ({ route, canUseBackspace, loading, clearClipboard, onEsc, onCopy }) => {
   const { t } = useTranslation()
 
-  useHotkeys('esc', () => {
-    onEsc()
-  })
+  useHotkeys('esc', onEsc, { preventDefault: true }, [onEsc])
 
-  useHotkeys('c', () => {
-    handleCopy()
-  })
+  useHotkeys('c', () => handleCopy(), { preventDefault: true }, [loading, onCopy])
 
   const handleCopy = () => {
     if (loading || !onCopy) return
@@ -45,18 +30,8 @@ const Footer: FC<FooterProps> = ({
     <div className="drag flex flex-row justify-between py-1.5 text-xs text-muted-foreground">
       <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
         <FooterAction onClick={onEsc}>
-          {loading ? (
-            <Loader2 size={12} className="animate-spin text-error" />
-          ) : (
-            <CircleArrowLeft size={14} className="text-foreground" />
-          )}
-          {t('quickAssistant.footer.esc', {
-            action: loading
-              ? t('quickAssistant.footer.esc_pause')
-              : route === 'home'
-                ? t('quickAssistant.footer.esc_close')
-                : t('quickAssistant.footer.esc_back')
-          })}
+          <LogOut size={14} />
+          {t('quickAssistant.footer.esc', { action: t('quickAssistant.footer.esc_close') })}
         </FooterAction>
         {route === 'home' && !canUseBackspace && (
           <FooterAction onClick={() => clearClipboard!()}>
@@ -71,29 +46,15 @@ const Footer: FC<FooterProps> = ({
           </FooterAction>
         )}
       </div>
-      <button
-        type="button"
-        onClick={() => setIsPinned(!isPinned)}
-        className="nodrag mr-1 flex items-center text-foreground transition-colors"
-        aria-pressed={isPinned}
-        aria-label={t('quickAssistant.tooltip.pin')}>
-        <Tooltip placement="left" content={t('quickAssistant.tooltip.pin')} delay={800}>
-          <Pin
-            size={14}
-            className={
-              isPinned ? 'rotate-[40deg] text-primary transition-transform' : 'text-foreground transition-transform'
-            }
-          />
-        </Tooltip>
-      </button>
     </div>
   )
 }
 
 const FooterAction: FC<ButtonHTMLAttributes<HTMLButtonElement>> = ({ className, ...props }) => (
-  <button
-    type="button"
-    className={`nodrag flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${className ?? ''}`}
+  <Button
+    variant="ghost"
+    size="sm"
+    className={`nodrag h-auto gap-1 px-1.5 py-1 text-xs text-muted-foreground ${className ?? ''}`}
     {...props}
   />
 )

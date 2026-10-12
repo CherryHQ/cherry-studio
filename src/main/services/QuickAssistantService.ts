@@ -372,7 +372,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     const window = this.getQuickAssistant()
     if (!window) return
 
-    this.proceedShow()
+    this.proceedShow(true)
   }
 
   public async openChat(input: QuickChatInput): Promise<void> {
@@ -391,7 +391,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   /** Inner show pipeline. Assumes the quick window exists and its content is ready. */
-  private proceedShow(positionOnRight = false) {
+  private proceedShow(centerOnDisplay = false) {
     const window = this.getQuickAssistant()
     if (!window) return
 
@@ -406,14 +406,13 @@ export class QuickAssistantService extends BaseService implements Activatable {
       window.show()
     }
 
-    if (positionOnRight) {
+    if (centerOnDisplay) {
       const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
       const bounds = window.getBounds()
       const width = Math.min(bounds.width, workArea.width)
       const height = Math.min(bounds.height, workArea.height)
-      const inset = Math.min(16, Math.max(0, workArea.width - width))
       window.setBounds({
-        x: workArea.x + workArea.width - width - inset,
+        x: workArea.x + Math.round((workArea.width - width) / 2),
         y: workArea.y + Math.round((workArea.height - height) / 2),
         width,
         height

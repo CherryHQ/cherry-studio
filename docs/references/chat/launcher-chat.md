@@ -13,13 +13,22 @@ sources:
 Use the Temporary Chat action in the chat navbar or the configurable
 `Ctrl/Cmd+Shift+N` shortcut to open a floating, in-memory conversation. Choose
 its model using Quick Assistant's existing model selector. Temporary chats stay
-out of normal history until **Save and open in Cherry Studio** is selected.
-Closing or replacing a temporary conversation with messages asks before discarding
-it. Hiding the window on blur preserves the conversation for the next show.
+out of normal history until **Save and open in Cherry Studio** or **Minimize** is selected.
+The floating model picker starts with the configured Quick Assistant model (or its
+assistant's model), falling back to the default chat model when appropriate. A local
+selection applies to subsequent turns. The shared reasoning control offers only the
+selected model's supported efforts, and restores provider Default on an incompatible switch.
+Replacing a temporary conversation with messages asks before discarding it.
+**Esc** hides the window without clearing the conversation, including during generation.
+**C**, outside text fields, copies the latest answer; the footer also offers Copy.
 
 Saved floating conversations offer **Open in Cherry Studio** and **Delete**.
 Delete uses Cherry's existing Recycle Bin archive command.
-Closing a saved conversation preserves its history.
+**Minimize** saves the conversation, hides the floating window, and leaves it available
+in the main app's chat history without opening the main window. For temporary chats,
+Minimize waits until generation finishes before enabling storage conversion.
+**X** asks before deleting the conversation and hiding the window; Cancel keeps it open.
+The launcher works while Cherry runs in the background with its main window closed.
 
 ## Launcher protocol
 
@@ -37,7 +46,7 @@ Explicit submission sends immediately using the configured Quick Assistant
 model or assistant. Without a configured model, the prompt remains ready to send.
 The handler does not change the Quick Assistant enabled preference.
 
-The floating window opens on the right of the cursor's display, within its work
+The floating window opens in the center of the cursor's display, within its work
 area. Wayland compositors may override requested window positioning.
 
 A Vicinae no-view extension can implement `!chat` by opening this URL with

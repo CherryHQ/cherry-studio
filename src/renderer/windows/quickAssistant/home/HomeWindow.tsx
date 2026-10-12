@@ -1,13 +1,16 @@
 import { useChat } from '@ai-sdk/react'
 import { isEmpty } from 'es-toolkit/compat'
+import { ArrowUp, Square } from 'lucide-react'
 import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Separator } from '@cherrystudio/ui'
+import { Button, Separator } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSpeedControl, resolveSupportedReasoningEffort } from '@renderer/components/ModelSpeedControl'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
@@ -19,11 +22,14 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { ThinkingOption } from '@renderer/types/reasoning'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
+import { isEmbeddingModel, isRerankModel } from '@renderer/utils/model'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 import type { QuickChatRequest } from '@shared/ipc/schemas/quickAssistant'
 
@@ -94,7 +100,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [isFirstMessage, setIsFirstMessage] = useState(true)
   const [userInputText, setUserInputText] = useState('')
   const [clipboardText, setClipboardText] = useState('')
-  const [isPinned, setIsPinnedState] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<Model | undefined>()
+  const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
   const [savedTopicId, setSavedTopicId] = useState<string | null>(null)
   const [saveOnSend, setSaveOnSend] = useState(false)
   const [pendingLaunch, setPendingLaunch] = useState<(QuickChatRequest & { previousTopicId: string | null }) | null>(
@@ -102,15 +109,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   )
   const launchRequest = useWindowInitData<QuickChatRequest>()
   const lastLaunchRequestId = useRef<string | null>(null)
-
-  // Wraps setState with an eager IPC call so main's pin flag is updated
-  // synchronously inside the click handler — a useEffect-based sync would
-  // defer IPC by at least one render, opening a race where blur fires with
-  // the main flag still stale.
-  const setIsPinned = useCallback((next: boolean) => {
-    void ipcApi.request('quick_assistant.set_pin', { isPinned: next })
-    setIsPinnedState(next)
-  }, [])
 
   const lastClipboardTextRef = useRef<string | null>(null)
   const inputBarRef = useRef<HTMLDivElement>(null)
@@ -120,7 +118,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
   const isAssistantMode = Boolean(quickAssistantId)
   const currentAssistant = chosenAssistant
-  const currentModel = isAssistantMode ? chosenApiModel : quickApiModel
+  const currentModel = selectedModel ?? (isAssistantMode ? chosenApiModel : quickApiModel)
+  const effectiveReasoningEffort = currentModel
+    ? resolveSupportedReasoningEffort(currentModel, reasoningEffort)
+    : 'default'
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
@@ -327,11 +328,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setUserInputText('')
         setIsPreparing(true)
         const message = { text: [prompt, text].filter(Boolean).join('\n\n') }
-        if (!isAssistantMode && currentModel) {
-          void sendMessage(message, { body: { mentionedModels: [currentModel.id] } })
-        } else {
-          void sendMessage(message)
-        }
+        void sendMessage(message, {
+          body: {
+            ...((selectedModel || !isAssistantMode) && currentModel ? { mentionedModels: [currentModel.id] } : {}),
+            ...(effectiveReasoningEffort !== 'default' ? { reasoningEffort: effectiveReasoningEffort } : {})
+          }
+        })
       } catch (streamError) {
         setIsPreparing(false)
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
@@ -341,6 +343,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     },
     [
       currentModel,
+      effectiveReasoningEffort,
+      selectedModel,
       isAssistantMode,
       isSavedChat,
       isTopicReady,
@@ -413,15 +417,33 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingLaunch, isTopicReady, temporaryTopicId, currentModel, currentAssistant])
 
+  const saveConversation = async () => {
+    if (!temporaryTopicId) return
+    if (!isSavedChat) {
+      const firstUserMessage = chatMessages.find((message) => message.role === 'user')
+      await persistTemporaryTopic(
+        firstUserMessage ? getTextFromParts(firstUserMessage.parts) : userInputText || undefined
+      )
+      setSavedTopicId(temporaryTopicId)
+    }
+  }
+
   const openInMainWindow = async () => {
     if (!temporaryTopicId || isLoading) return
     try {
-      if (!isSavedChat) {
-        const firstUserMessage = chatMessages.find((message) => message.role === 'user')
-        await persistTemporaryTopic(firstUserMessage ? getTextFromParts(firstUserMessage.parts) : undefined)
-        setSavedTopicId(temporaryTopicId)
-      }
+      await saveConversation()
       await ipcApi.request('navigation.open_route_in_main', { path: `/app/chat?topicId=${temporaryTopicId}` })
+      await handleCloseWindow()
+    } catch (error) {
+      setFlowError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const minimizeConversation = async () => {
+    if (!isSavedChat && isLoading) return
+    try {
+      if (route !== 'home' && route !== 'translate') await saveConversation()
+      await handleCloseWindow()
     } catch (error) {
       setFlowError(error instanceof Error ? error.message : String(error))
     }
@@ -436,48 +458,22 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       resetConversation()
       setRoute('home')
       setUserInputText('')
+      await handleCloseWindow()
     } catch (error) {
       setFlowError(error instanceof Error ? error.message : String(error))
     }
   }
 
-  const closeConversation = async () => {
-    if (isLoading) return
-    if (!isSavedChat && chatMessages.some((message) => message.role === 'user')) {
-      const confirmed = await popup.confirm({
-        title: t('quickAssistant.chat.temporary'),
-        content: t('quickAssistant.chat.discard_confirm')
-      })
-      if (!confirmed) return
-    }
-    resetConversation()
-    setRoute('home')
-    setUserInputText('')
-    await handleCloseWindow()
-  }
-
   const handleEsc = useCallback(() => {
-    if (isLoading) {
-      handlePause()
-      return
-    }
-
-    if (route === 'home') {
-      void handleCloseWindow()
-      return
-    }
-
-    resetConversation()
-    featureMenusRef.current?.resetSelectedIndex()
-    setFlowError(null)
-    setRoute('home')
-    setUserInputText('')
-  }, [handleCloseWindow, handlePause, isLoading, resetConversation, route])
+    void handleCloseWindow()
+  }, [handleCloseWindow])
 
   const handleCopy = useCallback(() => {
     if (!content) return
-    void navigator.clipboard.writeText(content)
-    toast.success(t('message.copy.success'))
+    void navigator.clipboard.writeText(content).then(
+      () => toast.success(t('message.copy.success')),
+      (error) => setFlowError(error instanceof Error ? error.message : String(error))
+    )
   }, [content, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -518,6 +514,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         }
         break
       case 'Escape':
+        e.preventDefault()
+        e.stopPropagation()
         handleEsc()
         break
     }
@@ -550,11 +548,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     () => ({
       route,
       loading: isLoading,
-      onEsc: handleEsc,
-      setIsPinned,
-      isPinned
+      onEsc: handleEsc
     }),
-    [route, isLoading, handleEsc, setIsPinned, isPinned]
+    [route, isLoading, handleEsc]
   )
 
   switch (route) {
@@ -571,21 +567,45 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             }
             onOpenInMainWindow={() => void openInMainWindow()}
             onDelete={() => void deleteConversation()}
-            onClose={() => void closeConversation()}
+            minimizeDisabled={(!isSavedChat && isLoading) || !isTopicReady || pendingLaunch !== null}
+            onMinimize={() => void minimizeConversation()}
           />
-          {route === 'chat' && (currentAssistant || currentModel) && (
-            <>
-              <InputBar
-                text={userInputText}
-                model={currentModel}
-                placeholder={inputPlaceholder}
-                loading={isLoading}
-                handleKeyDown={handleKeyDown}
-                handleChange={handleChange}
-                ref={inputBarRef}
+          {route === 'chat' && (
+            <div className="my-3 flex items-center gap-2 [-webkit-app-region:no-drag]">
+              <ModelSelector
+                multiple={false}
+                filter={(model) =>
+                  !isEmbeddingModel(model) &&
+                  !isRerankModel(model) &&
+                  (!model.outputModalities || model.outputModalities.includes('text'))
+                }
+                value={currentModel}
+                side="bottom"
+                onSelect={(model) => {
+                  if (!model) return
+                  setSelectedModel(model)
+                  setReasoningEffort(resolveSupportedReasoningEffort(model, reasoningEffort))
+                }}
+                trigger={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isLoading}
+                    aria-label={t('button.select_model')}
+                    className="min-w-0 max-w-full">
+                    <span className="truncate">{currentModel?.name ?? t('button.select_model')}</span>
+                  </Button>
+                }
               />
-              <Separator className="my-2.5" />
-            </>
+              {currentModel && !isLoading && (
+                <ModelSpeedControl
+                  model={currentModel}
+                  reasoningEffort={effectiveReasoningEffort}
+                  side="bottom"
+                  onReasoningEffortChange={setReasoningEffort}
+                />
+              )}
+            </div>
           )}
           {['summary', 'explanation'].includes(route) && (
             <div className="mt-2.5">
@@ -607,7 +627,26 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             </div>
           )}
 
-          <Separator className="my-2.5" />
+          {route === 'chat' && (
+            <div className="mt-3 flex items-center gap-3 rounded-xl border border-input bg-background p-3 [-webkit-app-region:no-drag]">
+              <InputBar
+                text={userInputText}
+                model={currentModel}
+                placeholder={inputPlaceholder}
+                loading={isLoading}
+                handleKeyDown={handleKeyDown}
+                handleChange={handleChange}
+                ref={inputBarRef}
+              />
+              <Button
+                size="icon-sm"
+                aria-label={t(isLoading ? 'common.stop' : 'chat.input.send')}
+                disabled={!isLoading && (!requestText || !currentModel || !isTopicReady)}
+                onClick={() => (isLoading ? handlePause() : void handleSendMessage())}>
+                {isLoading ? <Square className="size-4" /> : <ArrowUp className="size-4" />}
+              </Button>
+            </div>
+          )}
           <Footer key="footer" {...baseFooterProps} onCopy={handleCopy} />
         </div>
       )
@@ -661,7 +700,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
 const containerClassName = (draggable: boolean) =>
   cn(
-    'flex h-full w-full flex-1 flex-col px-2.5 py-2',
+    'm-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border px-4 py-3 shadow-lg',
     draggable ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]'
   )
 

@@ -287,13 +287,16 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     // Persist & restore position/size across launches (never maximized — maximizable:false).
     rememberBounds: true,
     windowOptions: {
-      width: 550,
-      height: 400,
-      minWidth: 350,
+      width: 600,
+      height: 520,
+      minWidth: 420,
       minHeight: 380,
       maxWidth: 1024,
       maxHeight: 768,
       frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      roundedCorners: true,
       alwaysOnTop: true,
       useContentSize: true,
       skipTaskbar: true,
@@ -305,7 +308,6 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           type: 'panel',
-          transparent: true,
           vibrancy: 'under-window',
           visualEffectState: 'followWindow'
         }

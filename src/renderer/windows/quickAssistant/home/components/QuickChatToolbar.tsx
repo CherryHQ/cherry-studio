@@ -1,4 +1,4 @@
-import { ExternalLink, EyeOff, Trash2, X } from 'lucide-react'
+import { ExternalLink, EyeOff, Minus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
@@ -9,7 +9,8 @@ interface QuickChatToolbarProps {
   onNewTemporaryChat: () => void
   onOpenInMainWindow: () => void
   onDelete: () => void
-  onClose: () => void
+  minimizeDisabled: boolean
+  onMinimize: () => void
 }
 
 export default function QuickChatToolbar({
@@ -18,17 +19,20 @@ export default function QuickChatToolbar({
   onNewTemporaryChat,
   onOpenInMainWindow,
   onDelete,
-  onClose
+  minimizeDisabled,
+  onMinimize
 }: QuickChatToolbarProps) {
   const { t } = useTranslation()
   const openLabel = t(saved ? 'quickAssistant.chat.open_in_app' : 'quickAssistant.chat.save_and_open')
 
   return (
-    <div className="flex items-center justify-between gap-2 [-webkit-app-region:no-drag]">
-      <span className="text-xs text-muted-foreground" role="status">
+    <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
+      <span
+        className="rounded-full border border-border bg-background-subtle px-2.5 py-1 text-xs text-muted-foreground"
+        role="status">
         {t(saved ? 'quickAssistant.chat.saved' : 'quickAssistant.chat.temporary')}
       </span>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
         <Tooltip content={t('quickAssistant.chat.new_temporary')}>
           <Button
             variant="ghost"
@@ -44,13 +48,18 @@ export default function QuickChatToolbar({
             <ExternalLink className="size-4" />
           </Button>
         </Tooltip>
-        <Tooltip content={t('common.delete')}>
-          <Button variant="ghost" size="icon-sm" disabled={loading} aria-label={t('common.delete')} onClick={onDelete}>
-            <Trash2 className="size-4" />
+        <Tooltip content={t('common.minimize')}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('common.minimize')}
+            disabled={minimizeDisabled}
+            onClick={onMinimize}>
+            <Minus className="size-4" />
           </Button>
         </Tooltip>
-        <Tooltip content={t('common.close')}>
-          <Button variant="ghost" size="icon-sm" disabled={loading} aria-label={t('common.close')} onClick={onClose}>
+        <Tooltip content={t('common.delete')}>
+          <Button variant="ghost" size="icon-sm" disabled={loading} aria-label={t('common.delete')} onClick={onDelete}>
             <X className="size-4" />
           </Button>
         </Tooltip>

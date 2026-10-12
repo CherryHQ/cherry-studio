@@ -1,8 +1,7 @@
-import React, { useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 
 import { Input } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { useTimer } from '@renderer/hooks/useTimer'
 import type { Model } from '@shared/data/types/model'
 
 interface InputBarProps {
@@ -24,12 +23,11 @@ const InputBar = ({
   handleChange
 }: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const inputRef = useRef<HTMLInputElement>(null)
-  const { setTimeoutTimer } = useTimer()
-  if (!loading) {
-    setTimeoutTimer('focus', () => inputRef.current?.focus(), 0)
-  }
+  useEffect(() => {
+    if (!loading) inputRef.current?.focus()
+  }, [loading])
   return (
-    <div ref={ref} className="mt-2.5 flex items-center gap-2">
+    <div ref={ref} className="flex min-w-0 flex-1 items-center gap-2">
       {model && <ModelAvatar model={model} size={30} />}
       <Input
         dir="auto"
@@ -40,7 +38,7 @@ const InputBar = ({
         autoFocus
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
       />
     </div>
   )
