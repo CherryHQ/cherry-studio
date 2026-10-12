@@ -13,6 +13,8 @@ import { loggerService } from '@logger'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import {
   appendNoResponseErrorPart,
+  EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY,
+  EMPTY_SUCCESS_NO_RESPONSE_MESSAGE,
   hasVisibleAgentSessionPart,
   type NoResponseErrorPartOptions
 } from '@shared/ai/agentSessionNoResponse'
@@ -25,9 +27,8 @@ const logger = loggerService.withContext('AgentSessionMessageBackend')
 
 /** Folded into turns that reach `success` without any renderable content (renderer-visible rule). */
 const EMPTY_SUCCESS_NO_RESPONSE_ERROR: NoResponseErrorPartOptions = {
-  message:
-    'This turn produced no output (it may have been interrupted). Resend the message or reply "continue" to recover.',
-  i18nKey: 'agent_turn_no_output',
+  message: EMPTY_SUCCESS_NO_RESPONSE_MESSAGE,
+  i18nKey: EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY,
   reason: 'empty-success-terminal'
 }
 
@@ -124,7 +125,10 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     return {
       messageId: saved.id,
       messageRevision: String(Date.parse(saved.updatedAt)),
-      historyRevision: String(Date.parse(agentSessionService.getById(this.opts.sessionId).updatedAt))
+      historyRevision: String(Date.parse(agentSessionService.getById(this.opts.sessionId).updatedAt)),
+      // Report the downgrade so terminal dispatch can reclassify the event: subscribers otherwise
+      // publish a completed execution for a row this backend just wrote as failed.
+      ...(isEmptySuccessTerminal ? { downgradedToError: true } : {})
     }
   }
 

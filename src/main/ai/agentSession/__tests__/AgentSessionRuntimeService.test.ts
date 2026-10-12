@@ -6053,14 +6053,18 @@ describe('AgentSessionRuntimeService', () => {
     }
     await persistenceListener(handle).onDone(result)
 
+    // The empty success is stored as an error, and the claim rides along so terminal dispatch
+    // publishes that classification rather than the SDK's clean finish.
     expect(result.persistence).toEqual({
       status: 'saved',
+      downgradedToError: true,
       message: {
         messageId: 'assistant-1',
         messageRevision: '1767225600000',
         historyRevision: '1767225601000'
       }
     })
+    expect(result.status).toBe('error')
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {

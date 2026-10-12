@@ -292,6 +292,11 @@ export function createNoResponseErrorPart(options: NoResponseErrorPartOptions): 
   }
 }
 
+/** The no-response message and catalog key shared by the persisted row and the terminal event. */
+export const EMPTY_SUCCESS_NO_RESPONSE_MESSAGE =
+  'This turn produced no output (it may have been interrupted). Resend the message or reply "continue" to recover.'
+export const EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY = 'agent_turn_no_output'
+
 /** Returns `data` with a no-response `data-error` part appended, unless one already exists. */
 export function appendNoResponseErrorPart<T extends { parts?: CherryMessagePart[] }>(
   data: T,
