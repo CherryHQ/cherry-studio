@@ -305,10 +305,11 @@ function AssistantEditDialogContent({
 
     // Rebase untouched fields while retaining only changes made against the editing snapshot.
     const nextDefaultValues = defaultValuesForAssistant(resource)
+    const currentValues = form.getValues()
     const localValues = justOpened
       ? {}
       : Object.fromEntries(
-          Object.entries(form.getValues()).filter(([name, value]) => {
+          Object.entries(currentValues).filter(([name, value]) => {
             const key = name as keyof AssistantEditFormValues
             const submittedValues = saveSnapshotRef.current?.values
             const changedSinceSave =
@@ -322,6 +323,15 @@ function AssistantEditDialogContent({
             )
           })
         )
+    // Reenabling an override also retains its configuration through the earlier OFF save.
+    if ('contextOverrideEnabled' in localValues && localValues.contextOverrideEnabled) {
+      Object.assign(localValues, {
+        contextCompressEnabled: currentValues.contextCompressEnabled,
+        contextTruncateThreshold: currentValues.contextTruncateThreshold,
+        contextCompressThresholdPercent: currentValues.contextCompressThresholdPercent,
+        contextCompressModelId: currentValues.contextCompressModelId
+      })
+    }
     form.reset(nextDefaultValues, { keepErrors: !justOpened })
     setFormValues(form, localValues)
     baselineValuesRef.current = nextDefaultValues
