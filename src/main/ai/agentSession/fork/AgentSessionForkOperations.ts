@@ -18,6 +18,7 @@ import { type RuntimeForkCheckpoint, RuntimeForkAnchorSchema } from '@main/ai/ru
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import { Sequencer } from '@shared/utils/async'
 
 import { ensureRetiredSessionHistory } from '../../runtime/pi/retiredSessionHistory'
 import { runtimeDriverRegistry } from '../../runtime/registry'
@@ -38,7 +39,7 @@ function isMissing(error: unknown): boolean {
 
 /** Owns native history publication for forks and in-place edits. */
 export class AgentSessionForkOperations {
-  private recoveryChain: Promise<void> = Promise.resolve()
+  private readonly recoveryQueue = new Sequencer()
   readonly edits = new Map<string, { operationId: string; controller: AbortController; promise: Promise<unknown> }>()
   readonly pending = new Map<
     string,
@@ -170,9 +171,7 @@ export class AgentSessionForkOperations {
   }
 
   recover(): Promise<void> {
-    const recovery = this.recoveryChain.then(() => this.recoverOnce())
-    this.recoveryChain = recovery.catch(() => undefined)
-    return recovery
+    return this.recoveryQueue.queue(() => this.recoverOnce())
   }
 
   private async recoverOnce(): Promise<void> {
