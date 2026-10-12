@@ -242,6 +242,31 @@ function warmConnection(send = vi.fn()) {
   }
 }
 
+/**
+ * One admitted subagent: the spawn-provenance edge every child gets (dshChildFlow.bindChild),
+ * plus its task-panel edge — which exists for direct children only, since `publishTaskEdge`
+ * folds grandchildren into their ancestor's flow. `parentSessionId` absent = root-spawned.
+ */
+function spawnDetachedChild(
+  service: InstanceType<typeof AgentSessionRuntimeService>,
+  childId: string,
+  parentSessionId?: string
+): void {
+  const entry = getEntry(service)
+  ;(service as any).handleRuntimeEvent(entry, {
+    type: 'background-child-provenance',
+    childSessionId: childId,
+    parentSessionId
+  })
+  if (parentSessionId === undefined) {
+    ;(service as any).handleRuntimeEvent(entry, {
+      type: 'background-task-event',
+      data: { event: 'started', taskId: childId, status: 'in_progress', taskType: 'subagent' }
+    })
+  }
+  ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+}
+
 /** The raw entry, or undefined once the session has been closed out. */
 function getEntryOrUndefined(service: InstanceType<typeof AgentSessionRuntimeService>) {
   return (service as unknown as { entries: Map<string, unknown> }).entries.get('session-1')
@@ -3334,21 +3359,14 @@ describe('AgentSessionRuntimeService', () => {
     // alone would authorize B and hand it the desktop follow-up's consent window.
     it('authorizes each detached child by its own spawning turn, not the retained responder', async () => {
       const service = new AgentSessionRuntimeService()
-      const spawn = (childId: string) => {
-        ;(service as any).handleRuntimeEvent(getEntry(service), {
-          type: 'background-task-event',
-          data: { event: 'started', taskId: childId, status: 'in_progress', taskType: 'subagent' }
-        })
-        ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: true })
-      }
 
       service.beginTurn(baseTurnInput)
       getEntry(service).connection = warmConnection()
-      spawn('child-a')
+      spawnDetachedChild(service, 'child-a')
       service.markTurnTerminal('session-1', 'success')
 
       service.beginTurn({ ...baseTurnInput, headless: true })
-      spawn('child-b')
+      spawnDetachedChild(service, 'child-b')
       service.markTurnTerminal('session-1', 'success')
 
       // Aggregate occupation retains A's interactive responder even though B is the newer child.
@@ -3357,6 +3375,7 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
       const turn = service.beginTurn(baseTurnInput)
       service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
 
@@ -3370,6 +3389,51 @@ describe('AgentSessionRuntimeService', () => {
       // A keeps its own interactive authorization and the live desktop host.
       expect(service.getSessionToolsAuthorization('session-1', 'child-a')).toMatchObject({ currentTurn: 'interactive' })
       expect(service.getMcpInteractionHost('session-1', 'child-a')).toMatchObject({ windowId: 'window-1' })
+    })
+
+    // Grandchildren never reach the task-panel edges (`publishTaskEdge` folds them into their
+    // ancestor's flow) while the bridge forwards their real session ids, so the spawning turn's
+    // authority must propagate through the whole descendant tree: an interactive turn leaves
+    // detached A running, a headless delivery spawns B and B spawns C, and the desktop follow-up
+    // that starts afterwards must not hand C the aggregate responder's retained authority.
+    it('carries spawning-turn provenance through nested children that never reach the task panel', async () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = warmConnection()
+      spawnDetachedChild(service, 'child-a')
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      spawnDetachedChild(service, 'child-b')
+      spawnDetachedChild(service, 'child-c', 'child-b')
+      // A's own child arrives while the headless delivery runs — it keeps A's authority.
+      spawnDetachedChild(service, 'child-a1', 'child-a')
+      service.markTurnTerminal('session-1', 'success')
+
+      // Aggregate occupation retains A's interactive responder even though the newer work is headless.
+      expect(getEntry(service).runtimeState.connection.occupancy).toEqual({
+        background: { responder: 'interactive' }
+      })
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+
+      // C inherits B's headless provenance through the tree: session tools stay forbidden and the
+      // follow-up's desktop window is not a consent host for it.
+      expect(service.getSessionToolsAuthorization('session-1', 'child-c')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      expect(service.getMcpInteractionHost('session-1', 'child-c')).toBeUndefined()
+
+      // Inverse direction: A's lineage keeps its interactive authority, consent host included.
+      expect(service.getSessionToolsAuthorization('session-1', 'child-a1')).toMatchObject({
+        currentTurn: 'interactive'
+      })
+      expect(service.getMcpInteractionHost('session-1', 'child-a1')).toMatchObject({ windowId: 'window-1' })
     })
 
     it('resolves a headless follow-up as unavailable even while interactive detached work holds the responder', async () => {
