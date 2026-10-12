@@ -1597,6 +1597,68 @@ async function run(
 
 并把 `return await run(child, prompt, { sessionId: subagent.sessionId, fork })` 改为 `return await run(child, prompt, signal, base)`。
 
+- [ ] **Step 5b: 调用 id 跨轮复用时的会话 id；`configure` 之前先拼 transcript**
+
+（Task 3 复审后的裁定。）有的模型按消息给调用 id 编号，同一个 id 会在不同轮次出现；会话 id 只由父会话 id 和调用 id 决定时，两个子代理会拿到同一个 id，宿主按 `Subagent.sessionId` 存的状态会互相覆盖。
+
+先在 `tests/subagent.test.ts` 的 `describe` 末尾加测试：
+
+```ts
+  it('gives each subagent its own session id when a provider reuses a call id across turns', async () => {
+    const { model } = routedModel(({ userText, lastRole }) => {
+      if (userText.includes('TASK-')) return [...textParts('r', 'REPORT'), finish('stop')]
+      if (lastRole !== 'user') return [...textParts('d', 'Done'), finish('stop')]
+      const task = userText.includes('Second prompt') ? 'TASK-TWO' : 'TASK-ONE'
+      return [subagentCall('call_a', { description: 'Check', prompt: task }), finish('tool-calls')]
+    })
+    const host = recordingSubagentPort()
+    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+
+    await session.prompt('First prompt')
+    await session.prompt('Second prompt')
+
+    expect(host.subagents.map((subagent) => subagent.sessionId)).toEqual([
+      `${session.sessionId}.call_a`,
+      `${session.sessionId}.call_a-2`
+    ])
+  })
+```
+
+运行它，确认失败（两个都是 `.call_a`）。然后把 `subagentSessionId` 换成：
+
+```ts
+/**
+ * Pi accepts session ids of letters, digits and `._-` that start and end with a letter or digit.
+ * `occurrence` keeps ids apart when a provider reuses a call id across turns.
+ */
+const subagentSessionId = (parentSessionId: string, toolCallId: string, occurrence: number) => {
+  const callId = toolCallId.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[._-]+|[._-]+$/g, '') || 'call'
+  return `${parentSessionId}.${callId}${occurrence > 1 ? `-${occurrence}` : ''}`
+}
+```
+
+`execute` 里从 `const fork = params.fork ?? false` 到 `if (signal?.aborted) return notStarted(base)` 换成：
+
+```ts
+        const fork = params.fork ?? false
+        const parent = parentTranscript()
+        const occurrence = parent.filter((entry) =>
+          toolCallsOf(entry).some((call) => call.toolCallId === toolCallId)
+        ).length
+        const subagent: Subagent = {
+          parentToolCallId: toolCallId,
+          sessionId: subagentSessionId(ctx.sessionManager.getSessionId(), toolCallId, occurrence),
+          fork
+        }
+        // Built before `configure`, so the host never configures a subagent that cannot start.
+        const transcript = [...(fork ? forkTranscript(parent, toolCallId) : []), originEntry(subagent)]
+        const options = await port.configure(subagent)
+        const base = { sessionId: subagent.sessionId, fork }
+        if (signal?.aborted) return notStarted(base)
+```
+
+并删掉后面原来那行 `const transcript = ...`。`tests/subagentSupport.ts` 的 `toolResultOf` 改用 `session.messages.findLast(...)`，让它在调用 id 复用的会话里取到最新的结果。
+
 - [ ] **Step 6: 运行测试，确认通过**
 
 Run: `pnpm exec vitest run --project agent-runtime packages/agent-runtime-pi/tests/subagentStops.test.ts packages/agent-runtime-pi/tests/bridge.test.ts packages/agent-runtime-pi/tests/subagent.test.ts packages/agent-runtime-pi/tests/subagentFork.test.ts`
@@ -1611,7 +1673,8 @@ A subagent that fails, is cut off by its output limit, is aborted with the paren
 200 model requests returns an `isError` result with the reason, its last partial output, `details`
 and `usage`; `outcome` is `failed`, `truncated`, `aborted` or `limit_reached`. A host whose
 `configure` throws fails that call only. The bridge never hands the port a request whose signal is
-already aborted.
+already aborted. When a provider reuses a call id across turns, the later subagents' session ids end
+in `-2`, `-3` and so on.
 ```
 
 - [ ] **Step 8: 门禁**
