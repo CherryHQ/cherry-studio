@@ -1,7 +1,6 @@
 import type * as ChildProcessModule from 'node:child_process'
 import type { ExecFileSyncOptions } from 'node:child_process'
 import { spawn } from 'node:child_process'
-import type * as FsModule from 'node:fs'
 import type * as FsPromisesModule from 'node:fs/promises'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -41,7 +40,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromisesModule>()
   return {
     ...actual,
-    writeFile: (async (target: FsModule.PathLike | FsModule.FileHandle, ...rest: unknown[]) => {
+    writeFile: (async (target: Parameters<typeof actual.writeFile>[0], ...rest: unknown[]) => {
       await writeHook.onWrite?.(String(target))
       // @ts-expect-error passthrough of the variadic overload set
       return actual.writeFile(target, ...rest)
