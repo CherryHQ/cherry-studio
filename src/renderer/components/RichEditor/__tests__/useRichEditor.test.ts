@@ -144,7 +144,10 @@ describe('useRichEditor autoFocus', () => {
     )
 
     await waitFor(() => expect(result.current.editor).toBeTruthy())
-    const editor = result.current.editor!
+    const editor = result.current.editor
+    if (!editor) {
+      throw new Error('expected editor')
+    }
     const before = editor.getHTML()
 
     rerender({ editable: false })

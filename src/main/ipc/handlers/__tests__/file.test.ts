@@ -76,7 +76,8 @@ import { ContentCommittedMetadataPendingError, DirectoryTreeStoppedError } from 
 import {
   NotesMigrationWriteBlockedError,
   releaseNotesMigrationSession,
-  setNotesMigrationBlockedRoots
+  setNotesMigrationBlockedRoots,
+  tryBeginNotesDirectoryMigration
 } from '@main/services/notesRelocation'
 import { PathStaleVersionError } from '@main/utils/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -264,6 +265,36 @@ describe('fileHandlers', () => {
         )
       ).rejects.toBeInstanceOf(NotesMigrationWriteBlockedError)
       expect(fileManager.writeIfUnchanged).not.toHaveBeenCalled()
+    } finally {
+      appGetMock.mockImplementation((name: string) => {
+        if (name === 'IpcApiService') return { broadcast: vi.fn() }
+        if (name === 'FileManager') return fileManager
+        if (name === 'DirectoryTreeManager') return directoryTreeManager
+        if (name === 'WindowManager') return windowManager
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      releaseNotesMigrationSession()
+    }
+  })
+
+  it('allows path writes after migration begins but before blocked roots are installed', async () => {
+    expect(tryBeginNotesDirectoryMigration()).toBe(true)
+    const data = new Uint8Array([5, 6])
+    const expectedVersion = { mtime: 1, size: 4 }
+    const nextVersion = { mtime: 2, size: 2 }
+    writeIfUnchangedByPathMock.mockResolvedValueOnce(nextVersion)
+
+    try {
+      await expect(
+        fileHandlers['file.write_if_unchanged'](
+          {
+            handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+            data,
+            expectedVersion
+          },
+          ctx
+        )
+      ).resolves.toBe(nextVersion)
     } finally {
       appGetMock.mockImplementation((name: string) => {
         if (name === 'IpcApiService') return { broadcast: vi.fn() }

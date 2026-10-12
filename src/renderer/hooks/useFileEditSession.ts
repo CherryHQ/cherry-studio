@@ -379,7 +379,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     const model = modelRef.current
     if (!model || model.draft !== model.snapshot.content) return
     debouncedWrite.cancel()
-    await model.chain
+    await model.writeTask.promise
     if (model.draft !== model.snapshot.content) return
     const draftBeforeRead = model.draft
     try {
