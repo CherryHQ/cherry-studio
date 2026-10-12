@@ -34,7 +34,7 @@ function fakeConnection(usageCapture = 'capture') {
     send,
     usageCapture,
     redirect: vi.fn(() => false),
-    reconcile: vi.fn(async () => 'current' as const),
+    reconcile: vi.fn(async (): Promise<AgentRuntimeReconcileResult> => 'current'),
     getPermissionPolicy: vi.fn(
       (): AgentRuntimePermissionPolicy => ({
         permissionMode: 'default',
@@ -274,17 +274,17 @@ describe('Pi/DSH connection fallback', () => {
     // The order the replacement sees its saves and its replay submission.
     const calls: string[] = []
     let releaseFirstReconcile!: () => void
-    fallback.reconcile.mockImplementationOnce(async () => {
+    fallback.reconcile.mockImplementationOnce(async (): Promise<AgentRuntimeReconcileResult> => {
       calls.push('reconcile')
       // The first retained save's application awaits skill discovery inside the replacement.
       await new Promise<void>((resolve) => {
         releaseFirstReconcile = resolve
       })
-      return 'current' as const
+      return 'current'
     })
-    fallback.reconcile.mockImplementation(async () => {
+    fallback.reconcile.mockImplementation(async (): Promise<AgentRuntimeReconcileResult> => {
       calls.push('reconcile')
-      return 'current' as const
+      return 'current'
     })
     fallback.send.mockImplementation(async () => {
       calls.push('send')
@@ -343,7 +343,7 @@ describe('Pi/DSH connection fallback', () => {
     // Disabling `write` while the replacement starts up is retained for it.
     await wrapper.reconcile({ modelId: 'primary::model' })
     // The replacement's own policy push fails: it may still be enforcing the OLD (looser) policy.
-    fallback.reconcile.mockResolvedValueOnce('failed' as AgentRuntimeReconcileResult)
+    fallback.reconcile.mockResolvedValueOnce('failed')
     releaseConnect()
 
     const seen = await collectEvents(wrapper)
@@ -378,7 +378,7 @@ describe('Pi/DSH connection fallback', () => {
 
     // The replacement already owns the replay, and saving `disabledTools: ['write']` now reaches it
     // directly — but its policy push fails, so `write` may still be permitted while it executes.
-    fallback.reconcile.mockResolvedValueOnce('failed' as AgentRuntimeReconcileResult)
+    fallback.reconcile.mockResolvedValueOnce('failed')
     await wrapper.reconcile({ modelId: 'primary::model' })
     releaseSend()
 
@@ -416,7 +416,7 @@ describe('Pi/DSH connection fallback', () => {
     // Disabling `write` mid-startup is retained; the fallback-only model row is deleted too, so the
     // replacement cannot resolve the policy the restriction belongs to.
     await wrapper.reconcile({ modelId: 'primary::model' })
-    fallback.reconcile.mockResolvedValueOnce('invalid' as AgentRuntimeReconcileResult)
+    fallback.reconcile.mockResolvedValueOnce('invalid')
     releaseConnect()
 
     const seen = await collectEvents(wrapper)
