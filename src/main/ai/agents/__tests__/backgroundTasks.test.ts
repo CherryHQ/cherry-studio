@@ -536,6 +536,48 @@ describe('backgroundTasks', () => {
     })
 
     it.skipIf(process.platform === 'win32')(
+      'stops a task whose start stamp ps padded for a single-digit day',
+      async () => {
+        // `ps -o lstart=` right-pads the day to two columns, so a task started on the 5th reads
+        // `Mon Oct  5 …`; the group table is parsed field-wise and collapses that padding while the
+        // single-pid query keeps it. Both must name the same instant in the same way, or the task's
+        // own live leader fails the ownership check and Stop/Kill is refused.
+        let signalled = false
+        const padded = 'Mon Oct  5 12:34:56 2026'
+        psSteer.read = (args) => {
+          if (args[0] === '-p') return `${padded}\n`
+          // Empty once the group signal has gone out, so the drain below is not held on a row this
+          // test invented for the identity check.
+          if (args[0] === '-axwwo') return signalled ? '' : `${record.pid} ${record.pid} 1 S ${padded}\n`
+          return null
+        }
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+          cwd: storageDir
+        })
+        expect(record.pidStartTime).toBeTruthy()
+
+        const realKill = process.kill.bind(process)
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+          if (pid < 0) signalled = true
+          return realKill(pid, signal)
+        })
+        try {
+          expect((await stopDetachedBackgroundTask(storageDir, record.id, true))?.status).toBe('stopped')
+        } finally {
+          killSpy.mockRestore()
+          psSteer.read = null
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // already drained
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32')(
       'refuses to signal a group holding a member it cannot account for',
       async () => {
         const pidFile = path.join(storageDir, 'worker.pid')
