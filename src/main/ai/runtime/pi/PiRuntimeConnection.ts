@@ -626,7 +626,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.permissionMode = applicablePermissionMode
     this.disabledTools = applicableDisabledTools
 
-    if (snapshot.signature !== this.connectionSignature) {
+    // A replay materializes its pinned prompt, so a row-matching signature does not prove this
+    // connection materialized the row's prompt; the divergence rebuilds on the next fresh turn.
+    if (
+      snapshot.signature !== this.connectionSignature ||
+      (snapshot.agent.instructions ?? null) !== this.turnInstructions
+    ) {
       return 'rebuild'
     }
     return policyChanged ? 'patched' : 'current'

@@ -1847,6 +1847,27 @@ describe('PiRuntimeConnection', () => {
     void conn
   })
 
+  it('rebuilds the fresh turn after a replay whose pinned prompt the saved row no longer has', async () => {
+    // The turn started on the primary with instructions A; the user saved the fallback model plus
+    // instructions B while the provider backed off. The replay on the fallback materializes A, but
+    // the next fresh turn targets the same saved row and must rebuild onto B — the startup
+    // signature was captured from a row whose prompt this connection never materialized.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'f::m', instructions: 'Saved B.', configuration: {} })
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      modelId: 'f::m',
+      permissionPolicy: { permissionMode: 'default', disabledTools: [] },
+      promptPolicy: { instructions: 'Pinned A.' }
+    }).start()
+    expect(appendedSystemPrompt()).toContain('Pinned A.')
+    expect(appendedSystemPrompt()).not.toContain('Saved B.')
+
+    conn.send(userInput('Replayed turn.'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('rebuild')
+  })
+
   it('defers a permission-mode change while streaming and applies it once idle', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     mocks.isStreaming = true
