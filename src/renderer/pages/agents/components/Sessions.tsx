@@ -639,7 +639,8 @@ const Sessions = ({
   const {
     groups: agentGroups,
     isLoading: isAgentGroupsLoading,
-    error: agentGroupsError
+    error: agentGroupsError,
+    refetch: refetchAgentGroups
   } = useGroups('agent', { enabled: dataEnabled && displayMode === 'group' })
   const agentGroupById = useMemo(() => new Map(agentGroups.map((group) => [group.id, group])), [agentGroups])
   // Group display mode keeps the per-agent buckets but orders the agents by custom-group rank
@@ -1381,7 +1382,10 @@ const Sessions = ({
     if (displayMode === 'workdir') {
       await refetchWorkspaces()
     }
-  }, [displayMode, refetchWorkspaces, reload])
+    if (displayMode === 'group') {
+      await refetchAgentGroups()
+    }
+  }, [displayMode, refetchAgentGroups, refetchWorkspaces, reload])
 
   const refreshAgentResources = useCallback(async () => {
     const outcomes = await Promise.allSettled([refetchAgents(), reload()])
