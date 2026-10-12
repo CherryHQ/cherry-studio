@@ -7,9 +7,19 @@ import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { loggerService } from '@logger'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, DEFAULT_APPLE_ASR_LOCALE } from '@shared/ai/localVoice'
+import { LOCAL_VOICE_MODELS, VoiceModelSupport, VoiceResourceOperation } from '@shared/ai/localVoice'
+import {
+  APPLE_ASR_MODEL_ID,
+  APPLE_TTS_MODEL_ID,
+  DEFAULT_APPLE_ASR_LOCALE,
+  DEFAULT_SPEECH_SPEED,
+  MAX_SPEECH_SPEED,
+  MIN_SPEECH_SPEED
+} from '@shared/ai/localVoice'
 
-import type { LocalVoiceStatus } from '../localAdapters'
+import type { TranscriptionModelDefinition, SpeechModelDefinition } from '../voiceModelTypes'
+import type { LocalVoiceStatus } from '../voiceModelTypes'
+import { getVoiceEnvironment, type VoiceEnvironment } from '../voicePlatform'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { inspectCanonicalWav } from './inspectCanonicalWav'
 import { checkAbort, decodeVoiceRecording, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
@@ -17,11 +27,11 @@ import { checkAbort, decodeVoiceRecording, nativeClient, normalizeFailure, withS
 const logger = loggerService.withContext('AppleVoiceAdapter')
 
 function supportsApple(): boolean {
-  return process.platform === 'darwin' && Number.parseInt(process.getSystemVersion(), 10) >= 13
+  return appleSupport(getVoiceEnvironment()) === VoiceModelSupport.Supported
 }
 
 function supportsAppleAssetInstall(): boolean {
-  return supportsApple() && Number.parseInt(process.getSystemVersion(), 10) >= 26
+  return supportsApple() && (getVoiceEnvironment().majorVersion ?? 0) >= 26
 }
 
 function normalizeAppleFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
@@ -122,8 +132,11 @@ export function createAppleSpeechModel(options: SpeechOptions): SpeechModelV3 {
     provider: 'local-voice',
     modelId: APPLE_TTS_MODEL_ID,
     async doGenerate(input) {
+      const speed = options.speed ?? DEFAULT_SPEECH_SPEED
       if (
-        (options.speed !== undefined && options.speed !== 1) ||
+        !Number.isFinite(speed) ||
+        speed < MIN_SPEECH_SPEED ||
+        speed > MAX_SPEECH_SPEED ||
         (input.outputFormat !== undefined && input.outputFormat !== 'wav')
       )
         throw new VoiceRuntimeError('invalid_request')
@@ -132,7 +145,7 @@ export function createAppleSpeechModel(options: SpeechOptions): SpeechModelV3 {
         async (directory) => {
           const outputPath = join(directory, 'output.wav')
           await nativeClient().request(
-            { operation: 'synthesize', voiceId: options.voice, text: input.text, outputPath, speed: 1 },
+            { operation: 'synthesize', voiceId: options.voice, text: input.text, outputPath, speed },
             { signal: input.abortSignal }
           )
           checkAbort(input.abortSignal)
@@ -186,4 +199,43 @@ export function createAppleTranscriptionModel(options: TranscriptionOptions): Tr
       )
     }
   }
+}
+
+function appleSupport(environment: VoiceEnvironment) {
+  if (environment.platform !== 'darwin') return VoiceModelSupport.UnsupportedPlatform
+  if (!Number.isInteger(environment.majorVersion) || (environment.majorVersion ?? 0) < 13)
+    return VoiceModelSupport.UnsupportedVersion
+  return VoiceModelSupport.Supported
+}
+
+export const appleTranscriptionDefinition: TranscriptionModelDefinition = {
+  id: APPLE_ASR_MODEL_ID,
+  adapterId: 'apple',
+  support: appleSupport,
+  describe: (environment) => ({
+    ...LOCAL_VOICE_MODELS.find((model) => model.id === APPLE_ASR_MODEL_ID)!,
+    localeSelection: { defaultLocale: DEFAULT_APPLE_ASR_LOCALE },
+    resourceOperations:
+      appleSupport(environment) === VoiceModelSupport.Supported && (environment.majorVersion ?? 0) >= 26
+        ? [VoiceResourceOperation.InstallLocale]
+        : []
+  }),
+  status: (options, signal) => getAppleVoiceStatus(APPLE_ASR_MODEL_ID, options, signal),
+  locales: listAppleAsrLocales,
+  installLocale: installAppleAsrAsset,
+  createModel: createAppleTranscriptionModel
+}
+
+export const appleSpeechDefinition: SpeechModelDefinition = {
+  id: APPLE_TTS_MODEL_ID,
+  adapterId: 'apple',
+  support: appleSupport,
+  describe: () => ({
+    ...LOCAL_VOICE_MODELS.find((model) => model.id === APPLE_TTS_MODEL_ID)!,
+    localeSelection: null,
+    resourceOperations: []
+  }),
+  status: (options, signal) => getAppleVoiceStatus(APPLE_TTS_MODEL_ID, options, signal),
+  voices: listAppleVoices,
+  createModel: createAppleSpeechModel
 }
