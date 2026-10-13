@@ -639,6 +639,98 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(voice.controlPlayback).toHaveBeenNthCalledWith(2, { sessionId, command: 'stop' })
   })
 
+  it.each(['before', 'after'] as const)(
+    'plays admitted auto-read when the preceding completion reply arrives %s synthesis',
+    async (replyOrder) => {
+      const { service, voice, audios } = createHarness()
+      const completion = Promise.withResolvers<void>()
+      const synthesis = Promise.withResolvers<void>()
+      const nextSessionId = '00000000-0000-4000-8000-000000000013'
+      const reportPlayback = voice.reportPlayback.getMockImplementation()!
+      voice.reportPlayback.mockImplementation(async (input) => {
+        const state = await reportPlayback(input)
+        if (input.sessionId === sessionId && input.phase === 'completed') await completion.promise
+        return state
+      })
+      await service.start(baseInput)
+      audios[0].dispatchEvent(new Event('ended'))
+      await vi.waitFor(() => expect(voice.getSnapshot().phase).toBe('idle'))
+
+      const generateSpeech = voice.generateSpeech.getMockImplementation()!
+      voice.generateSpeech.mockImplementationOnce((input) => {
+        const operation = generateSpeech({ ...input, sessionId: nextSessionId })
+        return { ...operation, result: synthesis.promise.then(() => operation.result) }
+      })
+      const starting = service.start({ ...baseInput, trigger: 'auto_read', sourceEntityId: 'message-2' })
+      const started = expect(starting).resolves.toEqual({ status: 'started' })
+      await vi.waitFor(() => expect(voice.getSnapshot()).toMatchObject({ sessionId: nextSessionId }))
+
+      if (replyOrder === 'before') {
+        completion.resolve()
+        await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
+      }
+      synthesis.resolve()
+      await started
+      expect(audios).toHaveLength(2)
+      expect(audios[1].paused).toBe(false)
+      expect(service.getSnapshot().phase).toBe('playing')
+      completion.resolve()
+      await service.pause()
+      expect(service.getSnapshot().phase).toBe('paused')
+      await service.resume()
+      expect(audios[1].paused).toBe(false)
+      audios[1].dispatchEvent(new Event('ended'))
+      await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
+      expect(audios.every((audio) => audio.src === '')).toBe(true)
+      expect(voice.getSnapshot().phase).toBe('idle')
+    }
+  )
+
+  it.each(['playing', 'completed'] as const)(
+    'discards an admitted auto-read superseded by a manual run that is %s',
+    async (manualPhase) => {
+      const { service, voice, audios } = createHarness()
+      const completion = Promise.withResolvers<void>()
+      const synthesis = Promise.withResolvers<void>()
+      const autoSessionId = '00000000-0000-4000-8000-000000000014'
+      const manualSessionId = '00000000-0000-4000-8000-000000000015'
+      const generateSpeech = voice.generateSpeech.getMockImplementation()!
+      const reportPlayback = voice.reportPlayback.getMockImplementation()!
+      voice.reportPlayback.mockImplementation(async (input) => {
+        const state = await reportPlayback(input)
+        if (input.sessionId === sessionId && input.phase === 'completed') await completion.promise
+        return state
+      })
+      await service.start(baseInput)
+      audios[0].dispatchEvent(new Event('ended'))
+      await vi.waitFor(() => expect(voice.getSnapshot().phase).toBe('idle'))
+      voice.generateSpeech.mockImplementationOnce((input) => {
+        const operation = generateSpeech({ ...input, sessionId: autoSessionId })
+        return { ...operation, result: synthesis.promise.then(() => operation.result) }
+      })
+      const starting = service.start({ ...baseInput, trigger: 'auto_read' })
+      const aborted = expect(starting).rejects.toMatchObject({ reason: 'aborted' })
+      await vi.waitFor(() => expect(voice.generateSpeech).toHaveBeenCalledTimes(2))
+
+      voice.generateSpeech.mockImplementationOnce((input) => generateSpeech({ ...input, sessionId: manualSessionId }))
+      await service.start({ ...baseInput, sourceLabel: 'selection' })
+      completion.resolve()
+      if (manualPhase === 'completed') {
+        audios[1].dispatchEvent(new Event('ended'))
+        await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
+      }
+      const manualSnapshot = service.getSnapshot()
+      synthesis.resolve()
+      await aborted
+
+      expect(audios).toHaveLength(2)
+      expect(service.getSnapshot()).toEqual(manualSnapshot)
+      expect(audios[1].paused).toBe(manualPhase === 'completed')
+      expect(voice.discardSession).toHaveBeenCalledWith(autoSessionId)
+      expect(voice.abortSpeech).not.toHaveBeenCalledWith(expect.objectContaining({ sessionId: autoSessionId }))
+    }
+  )
+
   it('does not replace a visible snapshot when a new start fails local validation', async () => {
     const { service, voice } = createHarness()
     await service.start(baseInput)
@@ -715,6 +807,101 @@ describe('SpeechPlaybackService planning and playback', () => {
     await service.teardown()
     expect(voice.discardSession).toHaveBeenCalledTimes(2)
     expect(service.getSnapshot().phase).toBe('idle')
+  })
+})
+
+describe('SpeechPlaybackService terminal ownership', () => {
+  function pauseBeforeCompletion(voice: FakeVoiceService) {
+    const completion = Promise.withResolvers<VoiceSessionState>()
+    const reportPlayback = voice.reportPlayback.getMockImplementation()!
+    voice.reportPlayback.mockImplementation(async (input) => {
+      if (input.phase === 'completed') await voice.controlPlayback({ sessionId: input.sessionId, command: 'pause' })
+      const state = await reportPlayback(input)
+      if (input.phase === 'completed') completion.resolve(state)
+      return state
+    })
+    return completion.promise
+  }
+
+  it('retains an exhausted run until an ignored completion is explicitly closed', async () => {
+    const { service, voice, audios } = createHarness()
+    const completion = pauseBeforeCompletion(voice)
+    const cleanup = Promise.withResolvers<void>()
+    const discardSession = voice.discardSession.getMockImplementation()!
+    voice.discardSession.mockImplementationOnce(async (id) => {
+      await cleanup.promise
+      await discardSession(id)
+    })
+    await service.start(baseInput)
+    audios[0].dispatchEvent(new Event('ended'))
+
+    await expect(completion).resolves.toMatchObject({ sessionId, playback: { desired: 'paused' } })
+    await vi.waitFor(() => expect(voice.discardSession).toHaveBeenCalledWith(sessionId))
+    expect(service.getSnapshot().phase).not.toBe('idle')
+    expect(voice.getSnapshot().phase).not.toBe('idle')
+    expect(audios[0].src).toBe('')
+    cleanup.resolve()
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
+    expect(voice.getSnapshot().phase).toBe('idle')
+
+    await expect(service.start({ ...baseInput, trigger: 'auto_read' })).resolves.toEqual({ status: 'started' })
+    expect(audios[1].paused).toBe(false)
+    await service.stop()
+    expect(voice.getSnapshot().phase).toBe('idle')
+  })
+
+  it('keeps failed terminal cleanup available for a later stop', async () => {
+    const { service, voice, audios } = createHarness()
+    const completion = pauseBeforeCompletion(voice)
+    const cleanup = Promise.withResolvers<void>()
+    voice.discardSession.mockReturnValueOnce(cleanup.promise)
+    await service.start(baseInput)
+    audios[0].dispatchEvent(new Event('ended'))
+
+    await expect(completion).resolves.toMatchObject({ sessionId })
+    await vi.waitFor(() => expect(voice.discardSession).toHaveBeenCalledWith(sessionId))
+    const stopped = expect(service.stop()).rejects.toMatchObject({ reason: 'operation_failed' })
+    cleanup.reject(new VoiceDomainError('operation_failed'))
+    await stopped
+    expect(service.getSnapshot().phase).not.toBe('idle')
+    expect(voice.getSnapshot().phase).not.toBe('idle')
+    expect(audios[0].src).toBe('')
+
+    await service.stop()
+    expect(service.getSnapshot().phase).toBe('idle')
+    expect(voice.getSnapshot().phase).toBe('idle')
+  })
+
+  it('does not stop a newer run when an ignored completion arrives late', async () => {
+    const { service, voice, audios } = createHarness()
+    const completion = pauseBeforeCompletion(voice)
+    const reply = Promise.withResolvers<void>()
+    const reportPlayback = voice.reportPlayback.getMockImplementation()!
+    voice.reportPlayback.mockImplementation(async (input) => {
+      const state = await reportPlayback(input)
+      if (input.sessionId === sessionId && input.phase === 'completed') await reply.promise
+      return state
+    })
+    await service.start(baseInput)
+    audios[0].dispatchEvent(new Event('ended'))
+    await expect(completion).resolves.toMatchObject({ sessionId })
+
+    const nextSessionId = '00000000-0000-4000-8000-000000000015'
+    const generateSpeech = voice.generateSpeech.getMockImplementation()!
+    voice.generateSpeech.mockImplementationOnce((input) => generateSpeech({ ...input, sessionId: nextSessionId }))
+    await service.start({ ...baseInput, sourceLabel: 'selection' })
+    reply.resolve()
+    await vi.waitFor(() => expect(voice.discardSession).toHaveBeenCalledWith(sessionId))
+
+    expect(service.getSnapshot()).toMatchObject({ phase: 'playing', sourceLabel: 'selection' })
+    expect(voice.getSnapshot()).toMatchObject({ sessionId: nextSessionId, phase: 'playing' })
+    expect(audios[1].paused).toBe(false)
+    await service.pause()
+    expect(audios[1].paused).toBe(true)
+    await service.resume()
+    await vi.waitFor(() => expect(audios[1].paused).toBe(false))
+    await service.stop()
+    expect(voice.getSnapshot().phase).toBe('idle')
   })
 })
 
@@ -933,248 +1120,6 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
       sourceLabel: 'document',
       progress: { completed: 0, total: 1 }
     })
-  })
-
-  it('adopts auto-read after the claimed predecessor releases visibility', async () => {
-    const successorSessionId = '00000000-0000-4000-8000-000000000021'
-    const { service, voice, audios } = createHarness()
-    const reportPlayback = voice.reportPlayback.getMockImplementation()!
-    let releaseCompleted!: () => void
-    voice.reportPlayback.mockImplementation(async (input) => {
-      if (input.phase === 'completed' && input.sessionId === sessionId) {
-        await new Promise<void>((resolve) => {
-          releaseCompleted = resolve
-        })
-      }
-      return reportPlayback(input)
-    })
-
-    await service.start(baseInput)
-    audios[0].dispatchEvent(new Event('ended'))
-    await vi.waitFor(() => expect(releaseCompleted).toBeTypeOf('function'))
-    expect(voice.events).toContain('release:file-1')
-    expect(service.getSnapshot().sourceLabel).toBe('message')
-
-    let finishSuccessor!: () => void
-    voice.generateSpeech.mockImplementationOnce(() => ({
-      sessionId: successorSessionId,
-      requestId,
-      result: new Promise((resolve) => {
-        finishSuccessor = () =>
-          resolve({
-            sessionId: successorSessionId,
-            requestId,
-            output: {
-              id: 'successor-output',
-              url: 'cherry-media://audio/successor',
-              mimeType: 'audio/wav'
-            }
-          })
-      })
-    }))
-    const successor = service.start({
-      ...baseInput,
-      text: 'automatic follow-up',
-      trigger: 'auto_read',
-      sourceLabel: 'document',
-      sourceEntityId: 'message-2'
-    })
-    await vi.waitFor(() => expect(finishSuccessor).toBeTypeOf('function'))
-    expect(service.getSnapshot().sourceLabel).toBe('message')
-    expect(audios).toHaveLength(1)
-
-    releaseCompleted()
-    await vi.waitFor(() =>
-      expect(service.getSnapshot()).toEqual({ phase: 'idle', progress: { completed: 0, total: 0 } })
-    )
-    expect(audios).toHaveLength(1)
-    expect(voice.discardSession).not.toHaveBeenCalledWith(successorSessionId)
-
-    finishSuccessor()
-    await expect(successor).resolves.toEqual({ status: 'started' })
-    expect(service.getSnapshot()).toEqual({
-      phase: 'playing',
-      sourceLabel: 'document',
-      progress: { completed: 0, total: 1 }
-    })
-    expect(audios[1]?.src).toBe('cherry-media://audio/successor')
-    expect(audios[1]?.play).toHaveBeenCalledTimes(1)
-    expect(voice.abortSpeech).not.toHaveBeenCalled()
-
-    await service.stop()
-    expect(voice.abortSpeech).not.toHaveBeenCalled()
-    expect(voice.reportPlayback).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: successorSessionId, phase: 'stopped' })
-    )
-    expect(service.getSnapshot().phase).toBe('idle')
-  })
-
-  it('rejects auto-read when another run claims visibility before synthesis completes', async () => {
-    const successorSessionId = '00000000-0000-4000-8000-000000000021'
-    const manualSessionId = '00000000-0000-4000-8000-000000000022'
-    const { service, voice, audios } = createHarness()
-    const reportPlayback = voice.reportPlayback.getMockImplementation()!
-    let releaseCompleted!: () => void
-    voice.reportPlayback.mockImplementation(async (input) => {
-      if (input.phase === 'completed' && input.sessionId === sessionId) {
-        await new Promise<void>((resolve) => {
-          releaseCompleted = resolve
-        })
-      }
-      return reportPlayback(input)
-    })
-
-    await service.start(baseInput)
-    audios[0].dispatchEvent(new Event('ended'))
-    await vi.waitFor(() => expect(releaseCompleted).toBeTypeOf('function'))
-    expect(service.getSnapshot().sourceLabel).toBe('message')
-
-    let finishSuccessor!: () => void
-    voice.generateSpeech.mockImplementationOnce(() => ({
-      sessionId: successorSessionId,
-      requestId,
-      result: new Promise((resolve) => {
-        finishSuccessor = () =>
-          resolve({
-            sessionId: successorSessionId,
-            requestId,
-            output: {
-              id: 'successor-output',
-              url: 'cherry-media://audio/successor',
-              mimeType: 'audio/wav'
-            }
-          })
-      })
-    }))
-    const successor = service.start({
-      ...baseInput,
-      text: 'automatic follow-up',
-      trigger: 'auto_read',
-      sourceLabel: 'document',
-      sourceEntityId: 'message-2'
-    })
-    await vi.waitFor(() => expect(finishSuccessor).toBeTypeOf('function'))
-
-    releaseCompleted()
-    await vi.waitFor(() =>
-      expect(service.getSnapshot()).toEqual({ phase: 'idle', progress: { completed: 0, total: 0 } })
-    )
-
-    voice.generateSpeech.mockImplementationOnce(() => ({
-      sessionId: manualSessionId,
-      requestId,
-      result: Promise.resolve({
-        sessionId: manualSessionId,
-        requestId,
-        output: { id: 'manual-output', url: 'cherry-media://audio/manual', mimeType: 'audio/wav' }
-      })
-    }))
-    await service.start({
-      ...baseInput,
-      text: 'manual takeover',
-      sourceLabel: 'selection',
-      sourceEntityId: 'message-3'
-    })
-    expect(service.getSnapshot()).toEqual({
-      phase: 'playing',
-      sourceLabel: 'selection',
-      progress: { completed: 0, total: 1 }
-    })
-
-    finishSuccessor()
-    await expect(successor).rejects.toMatchObject({ reason: 'aborted' })
-    expect(service.getSnapshot()).toEqual({
-      phase: 'playing',
-      sourceLabel: 'selection',
-      progress: { completed: 0, total: 1 }
-    })
-    expect(audios.some((audio) => audio.src === 'cherry-media://audio/successor')).toBe(false)
-    expect(voice.discardSession).toHaveBeenCalledWith(successorSessionId)
-  })
-
-  it('rejects auto-read after a later run claims visibility and then releases', async () => {
-    const successorSessionId = '00000000-0000-4000-8000-000000000021'
-    const manualSessionId = '00000000-0000-4000-8000-000000000022'
-    const { service, voice, audios } = createHarness()
-    const reportPlayback = voice.reportPlayback.getMockImplementation()!
-    let releaseCompleted!: () => void
-    voice.reportPlayback.mockImplementation(async (input) => {
-      if (input.phase === 'completed' && input.sessionId === sessionId) {
-        await new Promise<void>((resolve) => {
-          releaseCompleted = resolve
-        })
-      }
-      return reportPlayback(input)
-    })
-
-    await service.start(baseInput)
-    audios[0].dispatchEvent(new Event('ended'))
-    await vi.waitFor(() => expect(releaseCompleted).toBeTypeOf('function'))
-    expect(service.getSnapshot().sourceLabel).toBe('message')
-
-    let finishSuccessor!: () => void
-    voice.generateSpeech.mockImplementationOnce(() => ({
-      sessionId: successorSessionId,
-      requestId,
-      result: new Promise((resolve) => {
-        finishSuccessor = () =>
-          resolve({
-            sessionId: successorSessionId,
-            requestId,
-            output: {
-              id: 'successor-output',
-              url: 'cherry-media://audio/successor',
-              mimeType: 'audio/wav'
-            }
-          })
-      })
-    }))
-    const successor = service.start({
-      ...baseInput,
-      text: 'automatic follow-up',
-      trigger: 'auto_read',
-      sourceLabel: 'document',
-      sourceEntityId: 'message-2'
-    })
-    await vi.waitFor(() => expect(finishSuccessor).toBeTypeOf('function'))
-
-    releaseCompleted()
-    await vi.waitFor(() =>
-      expect(service.getSnapshot()).toEqual({ phase: 'idle', progress: { completed: 0, total: 0 } })
-    )
-
-    voice.generateSpeech.mockImplementationOnce(() => ({
-      sessionId: manualSessionId,
-      requestId,
-      result: Promise.resolve({
-        sessionId: manualSessionId,
-        requestId,
-        output: { id: 'manual-output', url: 'cherry-media://audio/manual', mimeType: 'audio/wav' }
-      })
-    }))
-    await service.start({
-      ...baseInput,
-      text: 'manual takeover',
-      sourceLabel: 'selection',
-      sourceEntityId: 'message-3'
-    })
-    expect(service.getSnapshot()).toEqual({
-      phase: 'playing',
-      sourceLabel: 'selection',
-      progress: { completed: 0, total: 1 }
-    })
-
-    audios.find((audio) => audio.src === 'cherry-media://audio/manual')!.dispatchEvent(new Event('ended'))
-    await vi.waitFor(() =>
-      expect(service.getSnapshot()).toEqual({ phase: 'idle', progress: { completed: 0, total: 0 } })
-    )
-    expect(voice.events).toContain('release:manual-output')
-
-    finishSuccessor()
-    await expect(successor).rejects.toMatchObject({ reason: 'aborted' })
-    expect(service.getSnapshot()).toEqual({ phase: 'idle', progress: { completed: 0, total: 0 } })
-    expect(audios.some((audio) => audio.src === 'cherry-media://audio/successor')).toBe(false)
-    expect(voice.discardSession).toHaveBeenCalledWith(successorSessionId)
   })
 
   it('rejects a second deferred auto-read after the first deferred owner claims and releases', async () => {
