@@ -107,10 +107,9 @@ function linkTree(srcDir, destDir, stats) {
 }
 
 /**
- * Assemble the bundle from the shared cache: hard-link each tool's cached
- * version into `bundleDir` and write its version marker. Only tools present in
- * the cache are touched, so a tool that failed to download leaves whatever the
- * bundle already had rather than losing it.
+ * Assemble the bundle from the shared cache: hard-link each complete cached
+ * version into `bundleDir` and write its version marker. An incomplete version
+ * is skipped, so a failed download leaves its staging and the existing bundle.
  */
 function materialize(tools, platformKey, cacheRoot, bundleDir) {
   fs.mkdirSync(bundleDir, { recursive: true })
@@ -120,6 +119,11 @@ function materialize(tools, platformKey, cacheRoot, bundleDir) {
     if (!pkg) continue
     const versionDir = cachedVersionDir(cacheRoot, platformKey, tool)
     if (!fs.existsSync(versionDir)) continue
+    const binaryPaths = pkg.binaries.map((binary) => path.join(versionDir, binary))
+    const treeRoot = pkg.dir ? path.join(versionDir, pkg.dir) : null
+    // Cache versions are directory-scoped. Staging from a failed transfer is not
+    // a published tree and must not replace the bundle.
+    if (!isUpToDate(binaryPaths, null, packageVersion(tool, platformKey), treeRoot, pkg.tree)) continue
 
     if (pkg.dir) linkTree(path.join(versionDir, pkg.dir), path.join(bundleDir, pkg.dir), stats)
     else for (const binary of pkg.binaries) linkFile(path.join(versionDir, binary), path.join(bundleDir, binary), stats)
