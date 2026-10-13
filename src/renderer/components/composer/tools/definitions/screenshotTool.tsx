@@ -62,7 +62,12 @@ const useScreenshotToolController = ({ launcher, couldAddImageFile, extensions, 
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.screenshot', ['screenshot']),
         disabledReason: supported ? undefined : t('chat.input.upload.image_not_supported'),
         disabled: !supported,
-        action: () => void ipcApi.request('screenshot.capture')
+        action: () => {
+          ipcApi.request('screenshot.capture').catch((error) => {
+            logger.error('Failed to start the capture', error as Error)
+            toast.error(t('chat.input.screenshot_failed'))
+          })
+        }
       }
     ])
   }, [launcher, screenshotEnabled, supported, t])

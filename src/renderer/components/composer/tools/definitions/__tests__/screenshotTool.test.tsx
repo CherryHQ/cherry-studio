@@ -71,6 +71,7 @@ describe('screenshotTool', () => {
     vi.clearAllMocks()
     ipcHandlers.clear()
     mockUsePreference.mockReturnValue([true, vi.fn()])
+    mockRequest.mockResolvedValue(undefined)
     mockAttachImageBytes.mockResolvedValue(true)
   })
 
@@ -86,6 +87,17 @@ describe('screenshotTool', () => {
     launcher.action?.({} as never)
 
     expect(mockRequest).toHaveBeenCalledWith('screenshot.capture')
+  })
+
+  it('reports a capture that could not be started', async () => {
+    mockRequest.mockRejectedValue(new Error('screen recording unavailable'))
+    const launcher = await firstLauncher(renderRuntime())
+
+    launcher.action?.({} as never)
+
+    // Nothing lands on the clipboard on this path, so the attach-failure wording would
+    // send the user to paste something that is not there.
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('chat.input.screenshot_failed'))
   })
 
   it('disables the button when the composer cannot take an image', async () => {

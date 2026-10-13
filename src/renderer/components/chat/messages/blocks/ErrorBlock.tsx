@@ -58,7 +58,11 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
                 type="button"
                 style={{ color: 'var(--link)' }}
                 className="cursor-pointer bg-transparent p-0 underline-offset-2 hover:underline"
-                onClick={() => void navigateToRoute?.({ path: '/settings/provider', query: { id: providerId } })}
+                onClick={(event) => {
+                  // The surrounding error row opens the detail popup on click.
+                  event.stopPropagation()
+                  void navigateToRoute?.({ path: '/settings/provider', query: { id: providerId } })
+                }}
               />
             )
           }}

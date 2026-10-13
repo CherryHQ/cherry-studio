@@ -14,7 +14,7 @@ switching, plus a new screenshot button. Sending grows the window into a message
 that renders answers exactly like the main window, with a control bar to save the
 conversation as a topic or open it in the main window.
 
-Three things went away with the old layout:
+Four things went away with the old layout:
 
 - The feature menu (Translate / Summary / Explanation) and its dedicated translate view.
   These overlap with the selection assistant, which keeps them.

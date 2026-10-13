@@ -517,4 +517,23 @@ describe('mcpStatusTool', () => {
     footer?.action?.({} as any)
     expect(editDialogMocks.openResourceEditDialog).toHaveBeenCalledWith(target)
   })
+
+  it('drives MCP from assistant settings in scopes that inherit the chat tool', async () => {
+    mocks.mcpServers = [server({ id: 'active', name: 'filesystem', isActive: true })]
+    // Quick assistant inherits this tool from Chat and carries an assistant, but runs
+    // under its own scope name — an identity check against TopicType.Chat would resolve
+    // no MCP mode and leave every binding row read-only.
+    renderMcpRuntime({
+      scope: 'quick-assistant',
+      assistant: { id: 'a1', settings: { mcpMode: 'manual' }, mcpServerIds: [] as string[] } as Assistant
+    })
+    await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
+
+    let items: ReturnType<typeof openLatestRegisteredPanel> = []
+    act(() => {
+      items = openLatestRegisteredPanel()
+    })
+
+    expect(items[0]).toMatchObject({ label: 'filesystem', disabled: false })
+  })
 })

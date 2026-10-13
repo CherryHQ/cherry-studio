@@ -1085,7 +1085,20 @@ describe('ScreenshotOverlayService', () => {
       expect(service.isSessionRequestedBy('quick-assistant')).toBe(false)
     })
 
-    it('announces the end of the session so a suppressed hide can settle', async () => {
+    it('announces an abandoned session so the requester can settle its suppressed hide', async () => {
+      singleDisplaySetup()
+      const ended = vi.fn()
+      service.onSessionEnded(ended)
+      await service.startCapture('quick-assistant')
+
+      service.dismiss()
+
+      // Nothing refocuses the requester on this path, and the blur it swallowed to open
+      // the overlay is never coming back.
+      expect(ended).toHaveBeenCalledWith('quick-assistant')
+    })
+
+    it('claims no owner when the commit is about to refocus the requester', async () => {
       singleDisplaySetup()
       const ended = vi.fn()
       service.onSessionEnded(ended)
@@ -1093,7 +1106,9 @@ describe('ScreenshotOverlayService', () => {
 
       service.commit({ pngBytes: PNG_BYTES })
 
-      expect(ended).toHaveBeenCalledWith('quick-assistant')
+      // dismiss() fires this synchronously, before commit's focus() runs — reporting the
+      // requester here would hide the window that is about to receive the capture.
+      expect(ended).toHaveBeenCalledWith(null)
     })
 
     it('still dismisses the overlays when the clipboard write throws', async () => {

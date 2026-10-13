@@ -129,7 +129,10 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
   }, [handleEsc])
 
   useIpcOn('quick_assistant.shown', () => {
-    barRef.current?.querySelector<HTMLTextAreaElement>('[data-ui~="part:composer-input"]')?.focus()
+    // `part:composer-input` marks a plain wrapper in the runtime editor — focusing it is
+    // a no-op. The caret belongs in the contenteditable Tiptap renders inside.
+    const frame = barRef.current?.querySelector<HTMLElement>('[data-ui~="part:composer-input"]')
+    ;(frame?.querySelector<HTMLElement>('[contenteditable="true"]') ?? frame)?.focus()
   })
 
   useEffect(() => {
@@ -156,10 +159,10 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
   const handleAssistantChange = useCallback(
     async (nextId: string | null) => {
       if (!nextId) return
-      // Re-leasing happens inside useTemporaryTopic when assistantId changes; dropping the
-      // half-finished exchange first keeps the panel from mixing two assistants' turns.
-      await setAssistantId(nextId)
+      // Collapse first: the preference update is optimistic, so awaiting it renders the
+      // new assistant against the outgoing conversation for a frame before the reset.
       collapse()
+      await setAssistantId(nextId)
     },
     [collapse, setAssistantId]
   )

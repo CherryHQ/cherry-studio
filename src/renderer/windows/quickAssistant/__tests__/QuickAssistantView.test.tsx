@@ -69,8 +69,11 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
       data-new-topic={String(Boolean(onNewTopic))}
       data-placement={placement}
       data-testid="quick-composer">
-      {/* ComposerSurface puts this marker on the textarea itself, not a wrapper. */}
-      <textarea aria-label="message" data-ui="part:composer-input" />
+      {/* Mirrors ComposerSurfaceRuntime: the marker sits on a non-focusable wrapper and
+          the caret target is the contenteditable Tiptap renders inside it. */}
+      <div data-ui="part:composer-input">
+        <div aria-label="message" contentEditable role="textbox" suppressContentEditableWarning tabIndex={0} />
+      </div>
       <button type="button" onClick={() => onSend('hello')}>
         mock send
       </button>
@@ -281,7 +284,9 @@ describe('QuickAssistantView', () => {
     const titleBar = container.querySelector('[data-ui="quick-assistant.titlebar"]')
     const contextBar = container.querySelector('[data-ui="quick-assistant.contextbar"]')
     const composer = screen.getByTestId('quick-composer')
-    expect(titleBar).not.toHaveTextContent('Assistant 1')
+    // The name the mock actually renders — 'Assistant 1' never appears in this tree, so
+    // asserting its absence would hold even if the title bar grew an assistant label.
+    expect(titleBar).not.toHaveTextContent('Assistant assistant-1')
     expect(titleBar).not.toHaveTextContent('🙂')
     expect(titleBar?.compareDocumentPosition(contextBar as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(contextBar?.compareDocumentPosition(messages)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)

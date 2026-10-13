@@ -11,11 +11,9 @@ import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import QuickAssistantView from './QuickAssistantView'
 
 // Headless runtime leaf inside the providers: this window's language + custom-CSS
-// owners (moved out of HomeWindow's business logic). No dayjs sync — this light window
-// has no localized-date consumer (dayjs lives in useWindowRuntime, main/sub only). It
-// renders nothing; HomeWindow and the popup/toast hosts are explicit siblings in the
-// App JSX below. The <ToastHost/> there renders the toast viewport this window
-// previously lacked (the toast black hole), so translate/copy toasts are visible.
+// owners. No dayjs sync — this light window has no localized-date consumer (dayjs lives
+// in useWindowRuntime, main/sub only). It renders nothing; the view and the popup/toast
+// hosts are explicit siblings in the App JSX below.
 function QuickAssistantRuntime(): null {
   useLanguageSync()
   useCustomCss()
@@ -30,8 +28,6 @@ function QuickAssistantRuntime(): null {
  * `useQuery('/models/:id')` via assistant hooks / `useDefaultModel`), so
  * there is no dependency on Redux rehydration and no `<PersistGate>` is needed.
  *
- * Why not migrate further to DataApi `useQuery('/assistants/:id')`: see the
- * design note above `currentAssistant` in HomeWindow.
  */
 function QuickAssistantApp(): React.ReactElement {
   return (

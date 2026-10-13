@@ -175,7 +175,14 @@ describe('QuickAssistantService', () => {
 
     service.setView({ view: 'bar', contentHeight: 135, animate: false })
     service.setView({ view: 'quick-panel', contentHeight: 560, animate: false })
-
+    expect(window.setBounds).toHaveBeenLastCalledWith(expect.objectContaining({ height: 560 }))
+    // The transparent expansion is scratch space for a tool menu, so it must not become
+    // the height the bar is restored to.
     expect((service as unknown as { barHeight: number }).barHeight).toBe(135)
+
+    service.setView({ view: 'bar', contentHeight: 135, animate: false })
+    expect(window.setBounds).toHaveBeenLastCalledWith(expect.objectContaining({ height: 135 }))
+    // Only the panel height is remembered across a drag; quick-panel leaves no trace.
+    expect((service as unknown as { lastPanelHeight: number | null }).lastPanelHeight).toBeNull()
   })
 })

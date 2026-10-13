@@ -414,6 +414,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
     const window = this.getQuickAssistant()
     if (!window) return
 
+    // Only the panel fills its window. The bar and the quick-panel expansion are rounded
+    // cards inside a transparent frame, where an OS shadow traces the frame's rectangle
+    // instead of the card — those get their edge from the composer surface's own shadow.
     window.setHasShadow(view === 'panel')
 
     const requested = view === 'panel' ? (this.lastPanelHeight ?? contentHeight) : contentHeight
@@ -525,6 +528,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * between displays.
    */
   private positionAtCursorDisplayBottom(window: BrowserWindow) {
+    // Summoning re-anchors the window; an in-flight tween would overwrite that with
+    // bounds it computed for the previous display.
+    this.stopViewTween()
     const bounds = window.getBounds()
     const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
     const workArea = cursorDisplay.workArea
@@ -540,6 +546,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
   public hideQuickAssistant() {
     const window = this.getQuickAssistant()
     if (!window) return
+
+    // A tween still running would keep writing bounds computed for the outgoing view.
+    this.stopViewTween()
 
     if (isWin) {
       // Hide() vs minimize() on Windows: minimize avoids a visible flicker on next show

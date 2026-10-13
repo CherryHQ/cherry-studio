@@ -23,10 +23,12 @@ interface Props {
 }
 
 /**
- * Panel title bar. The conversation lives in memory until "save as topic" is pressed;
- * main switches the stream to the persistent backend on its own after that
- * (`TemporaryChatContextProvider` routes on whether the topic is still in its map),
- * so saving never interrupts an ongoing exchange.
+ * Panel title bar. The conversation lives in memory until "save as topic" is pressed.
+ *
+ * Saving is blocked while a turn streams: `TemporaryChatContextProvider.canHandle` runs
+ * once per dispatch, so an in-flight stream keeps the temporary backend it was bound to
+ * and its terminal append would fail against a topic persist has already removed from
+ * the map — saving the conversation without the answer being written.
  */
 const ControlBar: FC<Props> = ({ loading, isPinned, isSaved, topicId, topicTitle, onEsc, onSetPinned, onPersist }) => {
   const { t } = useTranslation()
@@ -78,13 +80,13 @@ const ControlBar: FC<Props> = ({ loading, isPinned, isSaved, topicId, topicTitle
         <Action
           label={isSaved ? t('quickAssistant.control_bar.saved') : t('quickAssistant.control_bar.save_topic')}
           onClick={() => void persist()}
-          disabled={isSaved || saving || !topicId}>
+          disabled={isSaved || saving || loading || !topicId}>
           {isSaved ? <Check size={14} className="text-success" /> : <Save size={14} className="text-foreground" />}
         </Action>
         <Action
           label={t('quickAssistant.control_bar.open_in_main')}
           onClick={() => void openInMain()}
-          disabled={saving || !topicId}>
+          disabled={saving || loading || !topicId}>
           <ExternalLink size={14} className="text-foreground" />
         </Action>
         <Action label={t('quickAssistant.tooltip.pin')} onClick={() => onSetPinned(!isPinned)} aria-pressed={isPinned}>

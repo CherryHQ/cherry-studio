@@ -127,6 +127,20 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     if (isPending) setIsPreparing(false)
   }, [isPending])
 
+  const topicIdRef = useRef(topicId)
+  useEffect(() => {
+    if (topicIdRef.current === topicId) return
+    topicIdRef.current = topicId
+    // A re-leased topic is a different conversation. The preference this hook keys on is
+    // shared across windows, so the lease can turn over without this window asking —
+    // leaving the previous transcript on screen and the new topic marked as saved.
+    setCompletedRounds([])
+    setIsSaved(false)
+    setError(null)
+    messageTimestampsRef.current.clear()
+    clearExecutionMessages()
+  }, [clearExecutionMessages, topicId])
+
   const rounds = useMemo<CherryUIMessage[][]>(
     () => (liveAssistants.length ? [...completedRounds, liveAssistants] : completedRounds),
     [completedRounds, liveAssistants]
@@ -246,14 +260,19 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
   )
 
   const reset = useCallback(() => {
-    // Drop the current temporary topic and let useTemporaryTopic lease a fresh one.
+    // Drop the current temporary topic and let useTemporaryTopic lease a fresh one; the
+    // effect above clears the transcript once the new lease lands.
     resetTemporaryTopic()
     setIsSaved(false)
     clear()
   }, [clear, resetTemporaryTopic])
 
   const save = useCallback(async () => {
+    const savingTopicId = topicIdRef.current
     await persist()
+    // Esc, collapse, or an assistant switch can drop the lease mid-request. Marking the
+    // fresh empty one as saved would claim a conversation was written that never was.
+    if (topicIdRef.current !== savingTopicId) return
     setIsSaved(true)
   }, [persist])
 

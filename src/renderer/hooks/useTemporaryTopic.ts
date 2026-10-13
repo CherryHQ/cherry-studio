@@ -88,6 +88,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     // Scoped to this run, not shared: two overlapping leases would otherwise overwrite
     // each other's id and leak whichever topic the user is actually looking at.
     let createdId: string | null = null
+    const persistedIds = persistedIdsRef.current
 
     const body = assistantId ? { assistantId } : {}
 
@@ -113,6 +114,9 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
       if (createdId) {
         if (leaseRef.current === createdId) leaseRef.current = null
         releaseLease(createdId, 'Failed to release temporary topic on unmount')
+        // Nothing can release this lease once its run is gone, so the claim that kept
+        // cleanup off it has no reader left.
+        persistedIds.delete(createdId)
       }
     }
   }, [enabled, assistantId, epoch, releaseLease])

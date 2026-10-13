@@ -116,14 +116,20 @@ export class ScreenshotOverlayService extends BaseService {
   /** The overlay the user is currently interacting with, at most one per session. */
   private activeOverlayWindowId: WindowId | null = null
 
-  /** The in-app window that started this session, notified once a result is on the
-   *  clipboard. Null for hotkey-started sessions, which have no window to answer to. */
+  /** The in-app window that started this session, handed the capture once it decodes.
+   *  Null for hotkey-started sessions, which have no window to answer to. */
   private requesterWindowId: WindowId | null = null
 
   private readonly _onSessionEnded = new Emitter<WindowId | null>()
   /** Fires with the requester once a session is over, so a window that suppressed its
    *  own hide-on-blur for the overlay can settle whether it should still be visible. */
   public readonly onSessionEnded: Event<WindowId | null> = this._onSessionEnded.event
+
+  /** Set by a successful commit: the requester is about to be refocused by hand. */
+  private restoringRequesterFocus = false
+
+  /** Requester waiting behind the screen-recording permission dialog, if any. */
+  private permissionGuideRequesterWindowId: WindowId | null = null
 
   /** Pending reveal per overlay, with the fallback timer it races. Cleared together. */
   private pendingReveals = new Map<WindowId, { reveal: () => void; timer: NodeJS.Timeout }>()
@@ -224,7 +230,7 @@ export class ScreenshotOverlayService extends BaseService {
    * the user instead).
    *
    * @param requesterWindowId - Window that asked for the capture, so {@link commit} can
-   *   tell it the clipboard holds a result. Omitted for the global hotkey.
+   *   hand it the result. Omitted for the global hotkey.
    */
   public async startCapture(requesterWindowId?: WindowId): Promise<void> {
     // `capturing` carries the guard across the capture await, during which
@@ -239,7 +245,15 @@ export class ScreenshotOverlayService extends BaseService {
 
       const status = getScreenCapturePermissionStatus()
       if (status !== 'authorized') {
-        void this.guideToPermission(status)
+        // Held across the guide dialog, not awaited: the requester still counts as
+        // owning a session so it does not auto-hide behind the prompt it triggered,
+        // while `screenshot.capture` returns to the renderer right away.
+        this.permissionGuideRequesterWindowId = requesterWindowId ?? null
+        void this.guideToPermission(status).finally(() => {
+          const guided = this.permissionGuideRequesterWindowId
+          this.permissionGuideRequesterWindowId = null
+          this._onSessionEnded.fire(guided)
+        })
         return
       }
 
@@ -401,6 +415,7 @@ export class ScreenshotOverlayService extends BaseService {
    * a capture some other window asked for is an ordinary focus loss and should.
    */
   public isSessionRequestedBy(windowId: WindowId): boolean {
+    if (this.permissionGuideRequesterWindowId === windowId) return true
     return this.requesterWindowId === windowId && (this.capturing || this.overlayWindowIds.length > 0)
   }
 
@@ -618,6 +633,11 @@ export class ScreenshotOverlayService extends BaseService {
     // Read before dismiss(): cleanup() clears the session, this window included.
     const requesterWindowId = this.requesterWindowId
 
+    // Set before dismiss(): cleanup() fires onSessionEnded synchronously, and a listener
+    // that settles an unfocused window would hide the requester before the focus() below
+    // ever runs. A handed-back requester has nothing to settle.
+    this.restoringRequesterFocus = decoded && requesterWindowId !== null
+
     // Outside the try: the overlays come down whether or not the clipboard took it.
     this.dismiss()
 
@@ -803,8 +823,11 @@ export class ScreenshotOverlayService extends BaseService {
     this.latestOcrToken = null
 
     // Fired once the session state is fully torn down, so a listener that asks
-    // isSessionRequestedBy() sees the session as over.
-    this._onSessionEnded.fire(endedRequesterWindowId)
+    // isSessionRequestedBy() sees the session as over. Reported as unowned when the
+    // requester is being handed the capture and refocused — there is nothing to settle.
+    const restoringRequesterFocus = this.restoringRequesterFocus
+    this.restoringRequesterFocus = false
+    this._onSessionEnded.fire(restoringRequesterFocus ? null : endedRequesterWindowId)
   }
 
   /** The overlay holding the live selection, used as the save dialog's parent. */
