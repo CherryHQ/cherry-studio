@@ -275,7 +275,13 @@ export class SpeechPlaybackService {
         this.rejectUnadmittedRun(run, reason)
         throw new VoiceDomainError(reason)
       }
-      if (!run.stopped && reason !== 'aborted') await this.handleFailure(run, reason)
+      // A newer attempt in this same run also rejects with aborted. Only an unstarted startup is invalid.
+      const unstartedAbort = !run.outputId && !run.outputUrl && !run.audio && run.audioAttemptId === undefined
+      if (!run.stopped && reason === 'aborted' && unstartedAbort) {
+        await this.terminate(run, true).catch(() => undefined)
+      } else if (!run.stopped && reason !== 'aborted') {
+        await this.handleFailure(run, reason)
+      }
       throw new VoiceDomainError(reason)
     }
   }

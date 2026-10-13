@@ -835,6 +835,31 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(service.getSnapshot().phase).toBe('idle')
   })
 
+  it('retries discard of an aborted unstarted preview and then stops', async () => {
+    const { service, voice } = createHarness()
+    let rejectStart!: (error: VoiceDomainError) => void
+    voice.generateSpeech.mockImplementationOnce(() => ({
+      sessionId,
+      requestId,
+      result: new Promise<never>((_resolve, reject) => {
+        rejectStart = reject
+      })
+    }))
+    const starting = service.start({ ...baseInput, sourceLabel: 'preview', sourceEntityId: 'voice-settings' })
+    await vi.waitFor(() => expect(rejectStart).toBeTypeOf('function'))
+    voice.discardSession.mockRejectedValueOnce(new VoiceDomainError('operation_failed'))
+
+    rejectStart(new VoiceDomainError('aborted'))
+    await expect(starting).rejects.toMatchObject({ reason: 'aborted' })
+    expect(service.getSnapshot()).toMatchObject({ phase: 'generating', sourceLabel: 'preview' })
+    expect(service.getSnapshot().error).toBeUndefined()
+
+    await service.stop()
+    expect(voice.discardSession).toHaveBeenCalledTimes(2)
+    expect(voice.discardSession).toHaveBeenNthCalledWith(1, sessionId)
+    expect(service.getSnapshot()).toEqual({ phase: 'idle', progress: { completed: 0, total: 0 } })
+  })
+
   it('rejects teardown on discard failure and retains the run for a successful teardown retry', async () => {
     const { service, voice } = createHarness()
     voice.discardSession.mockRejectedValueOnce(new VoiceDomainError('operation_failed'))
@@ -1115,6 +1140,45 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
     rejectOld(new Error('old generation failed'))
     await oldFailure
 
+    expect(service.getSnapshot()).toEqual({
+      phase: 'playing',
+      sourceLabel: 'selection',
+      progress: { completed: 0, total: 1 }
+    })
+  })
+
+  it('discards an aborted unstarted run without stopping a newer visible run', async () => {
+    const { service, voice, audios } = createHarness()
+    const oldSessionId = '00000000-0000-4000-8000-000000000010'
+    const newSessionId = '00000000-0000-4000-8000-000000000011'
+    let rejectOld!: (error: VoiceDomainError) => void
+    voice.generateSpeech
+      .mockImplementationOnce(() => ({
+        sessionId: oldSessionId,
+        requestId,
+        result: new Promise<never>((_resolve, reject) => {
+          rejectOld = reject
+        })
+      }))
+      .mockImplementationOnce(() => ({
+        sessionId: newSessionId,
+        requestId,
+        result: Promise.resolve({
+          sessionId: newSessionId,
+          requestId,
+          output: { id: 'new-output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+        })
+      }))
+    const oldStart = service.start(baseInput)
+    await vi.waitFor(() => expect(rejectOld).toBeTypeOf('function'))
+
+    await service.start({ ...baseInput, text: 'newer text', sourceLabel: 'selection' })
+    rejectOld(new VoiceDomainError('aborted'))
+    await expect(oldStart).rejects.toMatchObject({ reason: 'aborted' })
+
+    expect(voice.discardSession).toHaveBeenCalledWith(oldSessionId)
+    expect(voice.discardSession).not.toHaveBeenCalledWith(newSessionId)
+    expect(audios[0].paused).toBe(false)
     expect(service.getSnapshot()).toEqual({
       phase: 'playing',
       sourceLabel: 'selection',

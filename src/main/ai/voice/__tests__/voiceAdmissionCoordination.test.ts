@@ -494,6 +494,85 @@ describe('voice admission coordination through the renderer coordinators', () =>
     }
   )
 
+  it('returns an admitted Settings preview to idle after suspend so preview can start again', async () => {
+    // Settings treats generating/ready/playing/paused as Stop. Suspend must return this unstarted preview to idle.
+    let releaseConfiguration!: (value: ReturnType<typeof readySpeech>) => void
+    native.resolveSpeech.mockImplementationOnce(
+      (_input, signal: AbortSignal) =>
+        new Promise((resolve, reject) => {
+          const fail = () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+          if (signal?.aborted) {
+            fail()
+            return
+          }
+          signal?.addEventListener('abort', fail, { once: true })
+          releaseConfiguration = (value) => {
+            signal?.removeEventListener('abort', fail)
+            resolve(value)
+          }
+        })
+    )
+    const { playback, voice, voiceOwner } = createPlayback()
+    const preview = {
+      text: 'Hello, this is a preview of the voice used to read your responses.',
+      trigger: 'manual' as const,
+      sourceLabel: 'preview' as const,
+      sourceEntityId: 'voice-settings'
+    }
+    const started = playback.start(preview)
+    await vi.waitFor(() => expect(native.resolveSpeech).toHaveBeenCalledOnce())
+    await vi.waitFor(() =>
+      expect(rootService.getState(voiceOwner)).toMatchObject({
+        phase: 'generating',
+        source: 'playback',
+        trigger: 'manual'
+      })
+    )
+    expect(playback.getSnapshot()).toMatchObject({ phase: 'generating', sourceLabel: 'preview' })
+
+    powerEvents.emit('suspend')
+    releaseConfiguration?.(readySpeech())
+    await expect(started).rejects.toMatchObject({ reason: 'aborted' })
+    expect(native.speech).not.toHaveBeenCalled()
+    expect(rootService.getState(voiceOwner)).toMatchObject({ phase: 'idle' })
+
+    const stopPhases = ['generating', 'ready', 'playing', 'paused']
+    const snapshotAfterAbort = playback.getSnapshot()
+    let stopReason: string | null = null
+    if (stopPhases.includes(snapshotAfterAbort.phase)) {
+      try {
+        await playback.stop()
+      } catch (error) {
+        stopReason =
+          typeof error === 'object' && error !== null && 'reason' in error && typeof error.reason === 'string'
+            ? error.reason
+            : 'thrown'
+      }
+    }
+    expect({
+      snapshotAfterAbort,
+      stopReason,
+      snapshotAfterStop: playback.getSnapshot(),
+      voicePhase: voice.getSnapshot().phase
+    }).toEqual({
+      snapshotAfterAbort: { phase: 'idle', progress: { completed: 0, total: 0 } },
+      stopReason: null,
+      snapshotAfterStop: { phase: 'idle', progress: { completed: 0, total: 0 } },
+      voicePhase: 'idle'
+    })
+
+    const second = playback.start(preview)
+    await vi.waitFor(() => expect(native.speech).toHaveBeenCalledOnce())
+    native.releases[0]?.()
+    await expect(second).resolves.toEqual({ status: 'started' })
+    expect(playback.getSnapshot()).toMatchObject({ phase: 'playing', sourceLabel: 'preview' })
+    expect(rootService.getState(voiceOwner)).toMatchObject({
+      phase: 'playing',
+      source: 'playback',
+      trigger: 'manual'
+    })
+  })
+
   it('aborts only the matching speech request during preference resolution', async () => {
     let signal: AbortSignal | undefined
     native.resolveSpeech.mockImplementationOnce(
