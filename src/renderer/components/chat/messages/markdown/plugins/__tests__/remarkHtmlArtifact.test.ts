@@ -166,6 +166,67 @@ After`
     expect(tree.children[3]).toMatchObject({ type: 'html', value: '</details>' })
   })
 
+  it('never pairs on tag-like text inside comments, raw-text bodies or attributes', () => {
+    const source = `Before
+
+<details>
+<summary>Answer</summary>
+
+<script>const example = "</details>";</script>
+
+<!-- </details> -->
+
+<div title="</details>">still hidden</div>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // Only the real boundaries stay raw HTML: the script and the attribute decoy take the
+    // artifact path (code nodes), and the comment passes through without closing anything.
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
+    expect(htmlValues).toEqual(['<details>\n<summary>Answer</summary>', '<!-- </details> -->', '</details>'])
+  })
+
+  it('keeps both disclosures raw when the close and the next open share one html node', () => {
+    const source = `Before
+
+<details>
+<summary>First</summary>
+
+</details>
+<details>
+<summary>Second</summary>
+
+Second body.
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // CommonMark merges `</details>\n<details>…` into one html node: the pairing must exempt
+    // only the close and re-process the remainder as the second disclosure's opening, so its
+    // own close never becomes an artifact preview.
+    expect(tree.children.map((child) => child.type)).toEqual([
+      'paragraph',
+      'html',
+      'html',
+      'html',
+      'paragraph',
+      'html',
+      'paragraph'
+    ])
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
+    expect(htmlValues).toEqual([
+      '<details>\n<summary>First</summary>',
+      '</details>',
+      '<details>\n<summary>Second</summary>',
+      '</details>'
+    ])
+  })
+
   it('still processes Markdown inside paired containers', () => {
     const source = `<details>
 <summary>Math</summary>
