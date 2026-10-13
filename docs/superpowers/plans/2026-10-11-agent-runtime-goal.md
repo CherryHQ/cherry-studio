@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md`
 
-**执行时机：** 排在 L4 之后。任务 1–10 不依赖 L4；任务 8 的 `onApproval` / `hasRunningChildren` 只在包内按端口测试，宿主适配属于 L4 之后的接入 PR。
+**执行时机：** 基于 L4（前台子代理，PR #21578）：分支 `feature/agent-runtime-goal` 已 rebase 到 `feature/agent-runtime-subagent`。任务 1–4 已实现，任务 5–11 待做。任务 5 的 `turn_end` 记账读 L4 放在工具结果上的 `usage`，任务 10 用 L4 的 `isSubagentSession` 让 goal 在子代理里不生效；任务 8 的 `onApproval` / `hasRunningSubagents` 只在包内按端口测试：`onApproval` 由宿主接入 PR 接到 `ToolApprovalRegistry`，`hasRunningSubagents` 等 L6 的后台子代理。
 
 ## Global Constraints
 
@@ -22,6 +22,9 @@
 - 工具名、输出形状沿用 DSH：`{ goal: null }` 或 `{ goal, activation }`；空字符串和 0 视为未填（spec §8.1）。
 - objective 1–4000 字符；`maxGoalRounds ≤ maxGoalRoundsCeiling`（spec §5.1、§7.1）。
 - 默认值：`maxGoalRounds` 100、ceiling 1000、`blockedAfter` 3、无进展 2 轮提示 3 轮停、轮内重复 3 次提示 5 次停（spec §12）。
+- 子代理（L4）：工具结果自带的 `usage` 计入 goal 预算，不认工具名（spec §6.1）；`subagent` 算有进展（spec §7.2）；子代理内部的请求不算轮（spec §2）；子代理的 session 里 goal 工具报 `in_subagent`、不续跑、忽略继承来的 goal 状态（spec §8.4）。
+- 命名不带 `child`（子代理本来就是 child）：`GoalPort.hasRunningSubagents`、停止码 `waiting_subagents`；代码里的旧名由任务 8 改掉。
+- 权限模式按 Claude Code 的五档 auto（默认）/ manual / edit / plan / full，存储值 `auto / default / acceptEdits / plan / bypassPermissions`（spec §3.3）；plan 模式下不续跑归宿主接入 / 权限 PR（spec §1.1），包内不做。
 - 测试：每个测试写明破坏什么时失败；不写只记录现状的测试（CLAUDE.md "No behavior-pinning tests"）。
 - 提交：`git commit -S --signoff`，Conventional Commits，scope `agent-runtime`。
 - 门禁：`pnpm test:agent-runtime`、`pnpm --filter @cherrystudio/agent-runtime typecheck`、`pnpm exec oxlint --deny-warnings <files>`、`pnpm exec eslint <files>`、`pnpm exec oxfmt --write <files>`。
@@ -35,6 +38,8 @@ spec 没有逐条写、但用户一定会碰到的输入。每条都在所属任
 3. 模型每轮只调一次只读工具就停（弱模型常见）：三轮后必须以 `no_progress` 停下，而不是跑满 100 轮（任务 7）。
 4. 应用在 goal 轮中间崩溃，下次打开：目标显示为非武装，不自动续跑，`/goal resume` 能继续（任务 10）。
 5. 后加载的扩展把 `continue` 覆盖为 `false`：轮数不能递增，UI 必须看到 `continuation_rejected`（任务 5）。
+6. goal 轮里模型把一大块工作交给子代理：子代理的 token 和金额必须计入父 goal 的预算，否则预算形同虚设（任务 5）。
+7. goal 轮里模型开了一个 fork 子代理：fork 继承了活跃的 goal，但不能读写它，也不能在 fork 里续跑（任务 10）。
 
 ## 文件结构
 
@@ -49,7 +54,7 @@ spec 没有逐条写、但用户一定会碰到的输入。每条都在所属任
 | `packages/agent-runtime-pi/tests/goalSupport.ts` | 测试助手：`goalPort()`、`goalModel()`、`snapshots()` |
 | `packages/agent-runtime-pi/tests/goal.test.ts` | 工具、命令、续跑、接纳 |
 | `packages/agent-runtime-pi/tests/goalStops.test.ts` | 上限、预算、无进展、需要人、错误、中止、自报 |
-| `packages/agent-runtime-pi/tests/goalRebuild.test.ts` | 门控、重建、压缩 |
+| `packages/agent-runtime-pi/tests/goalRebuild.test.ts` | 门控、重建、压缩、子代理里不生效 |
 
 ---
 
@@ -1392,8 +1397,8 @@ git commit -S --signoff -m "feat(agent-runtime): add goal tools and the /goal co
 - Test: `packages/agent-runtime-pi/tests/goal.test.ts`
 
 **Interfaces:**
-- Consumes：任务 4 的 `runtime`、`commit`、`stop`、`notice`。
-- Produces：`turn_start` / `turn_end` / `agent_before_settle` / `agent_settled` 处理器；`startRound(ctx)` 供命令使用。任务 6–9 在 `decide()` 里加判断。
+- Consumes：任务 4 的 `runtime`、`commit`、`stop`、`notice`；L4 放在工具结果上的 `usage`（Pi `ToolResultMessage.usage?: Usage`，随 `turn_end` 的 `toolResults` 到达）。
+- Produces：`turn_start` / `turn_end` / `agent_before_settle` / `agent_settled` 处理器；`startRound(ctx)` 供命令使用。任务 6–9 在 `decide()` 里加判断（spec §6.2 第 8 条 `hasRunningSubagents` 由任务 8 连同改名一起加）。
 
 **Notes from Tasks 1–4 (apply before the steps below):**
 
@@ -1404,10 +1409,16 @@ git commit -S --signoff -m "feat(agent-runtime): add goal tools and the /goal co
 - `stop('continuation_rejected')` 得到 `phase: 'blocked'`（spec §6.3 已改）。
 - 没有 goal 时，`/goal` 开头的 `edit` 落入创建分支。
 - 加 `not_human_turn` 测试：goal 轮里调用 `create_goal` / `update_goal(pause)` 被拒。
+- spec 修订（随本任务提交）：§7.6 第二条补上 §8.2 已有的限定——命令只在 goal 原为 `active` 且 agent 正忙时才调用 `ctx.abort()`。
+
+**L4 rebase 之后（spec 2026-10-13 修订）：**
+
+- `turn_end` 记账加上工具结果自带的 `usage`（spec §6.1），见 Step 3；Step 1 的 "counts the usage a subagent result reports toward the goal budget" 守这一条。
+- `decide()` 这里不写 spec §6.2 第 8 条；任务 8 先把 `hasRunningChildren` / `waiting_children` 改名，再把这条加进 `decide()`。
 
 - [ ] **Step 1: 写失败的测试**
 
-追加到 `tests/goal.test.ts`（把 `rounds` 加进顶部的 `./goalSupport` import）：
+追加到 `tests/goal.test.ts`（把 `rounds` 加进顶部的 `./goalSupport` import，`textParts` 加进 `./support` import，再加一行 `import { recordingSubagentPort, routedModel, subagentCall, toolResultOf } from './subagentSupport'`）：
 
 ```ts
 describe('goal continuation', () => {
@@ -1497,6 +1508,36 @@ describe('goal continuation', () => {
     expect(rounds(host.entries).map((r) => r.round)).toEqual([1, 2])
     expect(lastSnapshot(host.entries)).toMatchObject({ lastStop: { code: 'round_limit' } })
   })
+
+  // Breaks when turn_end counts only the assistant message's usage: the parent's own 17 tokens per
+  // reply never reach the budget, so the goal runs to its round cap instead.
+  it('counts the usage a subagent result reports toward the goal budget', async () => {
+    const { model } = routedModel(({ userText, lastRole }) => {
+      // The subagent's one reply: 1000 + 2 cached input and 500 output tokens.
+      if (userText.includes('TASK-SUB')) return [...textParts('r', 'REPORT'), finish('stop', 1_000, 500)]
+      if (lastRole !== 'user') return [...textParts('d', 'Delegated the check.'), finish('stop')]
+      return userText.includes('Do not start new work')
+        ? [...textParts('w', 'Summary: the check ran in a subagent.'), finish('stop')]
+        : [subagentCall('sub_1', { description: 'Check', prompt: 'TASK-SUB' }), finish('tool-calls')]
+    })
+    const host = hostStore()
+    const { session: s } = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: recordingSubagentPort().port,
+      extensionFactories: [createGoalExtension(goalPort({ defaults: { maxGoalRounds: 3, budget: { tokens: 1_000 } } }))],
+      onEvent: host.onEvent
+    })
+    await s.prompt('/goal Keep working')
+
+    // Round 1's parent replies use 34 tokens; only the subagent's usage crosses the budget.
+    expect(rounds(host.entries).map((r) => r.kind)).toEqual(['work', 'wrap-up'])
+    const usage = toolResultOf(s, 'sub_1').usage!
+    const goal = lastSnapshot(host.entries)!
+    expect(goal).toMatchObject({ phase: 'blocked', lastStop: { code: 'budget_exhausted' } })
+    // Three parent replies of 17 tokens each; MODEL prices each at $0.0000202.
+    expect(goal.tokensUsed).toBe(3 * 17 + usage.totalTokens)
+    expect(goal.costUsed).toBeCloseTo(3 * 0.0000202 + usage.cost.total, 10)
+  })
 })
 ```
 
@@ -1567,10 +1608,6 @@ Expected: FAIL，没有任何 round 条目。
         return undefined
       }
       if (event.context.pendingMessages.length > 0) return undefined
-      if (port.hasRunningChildren?.() === true) {
-        stop('waiting_children')
-        return undefined
-      }
       if (runtime.noProgressRounds >= 3) {
         stop('no_progress')
         return undefined
@@ -1613,6 +1650,12 @@ Expected: FAIL，没有任何 round 条目。
       const usage = event.message.usage
       runtime.pendingUsage.tokens += usage.input + usage.output + usage.cacheRead + usage.cacheWrite
       runtime.pendingUsage.usd += usage.cost.total
+      // A tool's own usage (a subagent's requests) counts too: the host billed it, the budget has not seen it.
+      for (const result of event.toolResults) {
+        if (!result.usage) continue
+        runtime.pendingUsage.tokens += result.usage.totalTokens
+        runtime.pendingUsage.usd += result.usage.cost.total
+      }
       const progressed = turnProgress(event.message, event.toolResults, runtime.previousText)
       runtime.previousText = assistantText(event.message)
       if (progressed) runtime.lastRoundProgressed = true
@@ -1643,7 +1686,7 @@ Expected: FAIL，没有任何 round 条目。
 
 命令里两处 `// Task 5 starts the first round` 换成 `startRound(ctx)`。`decide` 用到的 `budgetExceeded` 从 `./goalState` 导入。
 
-`decide()` 的判断顺序就是 spec §6.2 的顺序；无进展（第 9 条）排在预算（第 10 条）之前，所以测试里凡是想验证 `round_limit` / `budget_exhausted` 的场景，每轮的回复文本必须不同，否则会先以 `no_progress` 停下。
+`decide()` 的判断顺序就是 spec §6.2 的顺序（第 8 条 `hasRunningSubagents` 由任务 8 插在让路和无进展之间）；无进展（第 9 条）排在预算（第 10 条）之前，所以测试里凡是想验证 `round_limit` / `budget_exhausted` 的场景，每轮的回复文本必须不同，否则会先以 `no_progress` 停下。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -1655,7 +1698,7 @@ Expected: PASS。"a goal created by the model" 用例的 `complete` 仍会以错
 ```bash
 pnpm exec oxfmt --write packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goal.test.ts
 pnpm exec oxlint --deny-warnings packages/agent-runtime-pi/src packages/agent-runtime-pi/tests
-git add packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goal.test.ts
+git add packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goal.test.ts docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md
 git commit -S --signoff -m "feat(agent-runtime): continue goals at the settle boundary and count admitted rounds"
 ```
 
@@ -1927,18 +1970,56 @@ git commit -S --signoff -m "feat(agent-runtime): stop goals that make no progres
 ### Task 8: 需要人、错误、中止、命令抢占
 
 **Files:**
+- Modify: `packages/agent-runtime-pi/src/goalState.ts`（`GoalStopCode` 改名）
 - Modify: `packages/agent-runtime-pi/src/goalExtension.ts`
+- Modify: `packages/agent-runtime-pi/tests/goalState.test.ts`（引用旧停止码的一行）
 - Test: `packages/agent-runtime-pi/tests/goalStops.test.ts`
 
 **Interfaces:**
-- Consumes：`port.onApproval`、L3 的 `createAskUserExtension` 与 `AskUserQuestionDetails.outcome`（任务 1）、`runtime.stopRequest`。
-- Produces：审批监听、`AskUserQuestion` 结果检查（在 `turn_end`）、`session_shutdown` 清理。
+- Consumes：`port.onApproval`、`port.hasRunningSubagents`、L3 的 `createAskUserExtension` 与 `AskUserQuestionDetails.outcome`（任务 1）、`runtime.stopRequest`。
+- Produces：审批监听、`AskUserQuestion` 结果检查（在 `turn_end`）、`session_shutdown` 清理；`decide()` 的 spec §6.2 第 8 条。
 
 **Notes from Tasks 1–4 (apply before the steps below):**
 
 - 防御性地读 `details?.outcome`（旧会话和抛错的调用没有 `outcome`）。
 
-- [ ] **Step 1: 写失败的测试**
+**L4 rebase 之后（spec 2026-10-13 修订）：**
+
+- 本任务是第一个读 `GoalPort` 可选成员的任务，先按 L4 的命名约定改名（Step 1），再加 `waiting_subagents` 的判断（Step 4）。前台子代理在自己的工具调用里跑完，所以 `hasRunningSubagents` 在 L6 之前没有宿主接线；这里只按端口测试。
+- `onApproval` 由宿主接入 PR 接到 `ToolApprovalRegistry`（不是 L4）；权限模式按五档 auto / manual / edit / plan / full（spec §3.3）。
+
+- [ ] **Step 1: 改名：`hasRunningChildren` → `hasRunningSubagents`，`waiting_children` → `waiting_subagents`**
+
+`src/goalState.ts` 的 `GoalStopCode` 里把 `| 'waiting_children'` 换成：
+
+```ts
+  | 'waiting_subagents'
+```
+
+`src/goalExtension.ts` 的 `GoalPort` 里把两个可选成员的注释和名字换成：
+
+```ts
+  /** Wired by the host integration (its ToolApprovalRegistry): approval events of this session's tool calls. */
+  onApproval?(listener: (event: GoalApprovalEvent) => void): () => void
+  /** L6: background subagents of this session still running; foreground subagents finish inside their call. */
+  hasRunningSubagents?(): boolean
+```
+
+`tests/goalState.test.ts` 的 "maps every stop code to the phase the spec assigns" 里，`'waiting_children'` 换成 `'waiting_subagents'`。这个 `as const` 列表守的是旧名不能残留：漏改测试时 `phaseForStop('waiting_children')` 不再通过类型检查；漏改 `GoalStopCode` 时 `'waiting_subagents'` 不通过。
+
+Run: `grep -rn 'hasRunningChildren\|waiting_children' packages/agent-runtime-pi/src packages/agent-runtime-pi/tests`
+Expected: 无输出。
+
+Run: `pnpm exec vitest run --project agent-runtime packages/agent-runtime-pi/tests/goalState.test.ts && pnpm --filter @cherrystudio/agent-runtime typecheck`
+Expected: PASS
+
+```bash
+pnpm exec oxfmt --write packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalState.test.ts
+git add packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalState.test.ts
+git commit -S --signoff -m "refactor(agent-runtime): name the goal's subagent hook and stop code after subagents"
+```
+
+- [ ] **Step 2: 写失败的测试**
 
 ```ts
 import { createAskUserExtension, type GoalApprovalEvent } from '../src'
@@ -2068,15 +2149,26 @@ describe('goal stops for people, errors and aborts', () => {
     expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'paused', lastStop: { code: 'paused_by_user' } })
     expect(calls.length).toBe(1)
   })
+
+  // Breaks when decide() never asks the port: the goal would open round 2 while subagents still run.
+  it('a host reporting running subagents ends the goal after the round with waiting_subagents', async () => {
+    const { session: s, host, calls } = await session(
+      [(_prompt, call) => say(`working on step ${call}`)],
+      goalPort({ hasRunningSubagents: () => true })
+    )
+    await s.prompt('/goal Keep working')
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'blocked', roundsStarted: 1, lastStop: { code: 'waiting_subagents' } })
+    expect(calls.length).toBe(1)
+  })
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [ ] **Step 3: 跑测试确认失败**
 
 Run: `pnpm exec vitest run --project agent-runtime packages/agent-runtime-pi/tests/goalStops.test.ts -t "people, errors"`
-Expected: 审批和提问的用例 FAIL；错误、中止、pause 的用例可能已通过（任务 5 的 `decide` 处理了 outcome）。
+Expected: 审批、提问和 `waiting_subagents` 的用例 FAIL；错误、中止、pause 的用例可能已通过（任务 5 的 `decide` 处理了 outcome）。
 
-- [ ] **Step 3: 实现**
+- [ ] **Step 4: 实现**
 
 在 `session_start` 处理器里订阅审批，在 `session_shutdown` 里退订：
 
@@ -2112,12 +2204,23 @@ Expected: 审批和提问的用例 FAIL；错误、中止、pause 的用例可�
 
 `decide()` 已经把 `stopRequest` 排在第 4 位；审批被拒不触碰 `blockedRounds`。
 
-- [ ] **Step 4: 跑测试确认通过**
+在 `decide()` 里、`pendingMessages` 让路之后、无进展判断之前插入 spec §6.2 第 8 条：
+
+```ts
+      if (event.context.pendingMessages.length > 0) return undefined
+      if (port.hasRunningSubagents?.() === true) {
+        stop('waiting_subagents')
+        return undefined
+      }
+      if (runtime.noProgressRounds >= 3) {
+```
+
+- [ ] **Step 5: 跑测试确认通过**
 
 Run: `pnpm exec vitest run --project agent-runtime packages/agent-runtime-pi/tests/goalStops.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: 格式、lint、提交**
+- [ ] **Step 6: 格式、lint、提交**
 
 ```bash
 pnpm exec oxfmt --write packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalStops.test.ts
@@ -2319,19 +2422,25 @@ git commit -S --signoff -m "feat(agent-runtime): accept goal completion and bloc
 
 ---
 
-### Task 10: 门控、重建、压缩
+### Task 10: 门控、重建、压缩、子代理里不生效
 
 **Files:**
+- Modify: `packages/agent-runtime-pi/src/goalState.ts`（`GoalErrorCode` 加 `in_subagent`）
 - Modify: `packages/agent-runtime-pi/src/goalExtension.ts`
 - Create: `packages/agent-runtime-pi/tests/goalRebuild.test.ts`
 
 **Interfaces:**
-- Consumes：L2 的 `transcript` 选项与 `hostStore`；`port.modelSupportsTools`。
-- Produces：`unsupported_model` 快照。
+- Consumes：L2 的 `transcript` 选项与 `hostStore`；`port.modelSupportsTools`；L4 的 `isSubagentSession`（包内，`src/subagent.ts`）、`subagents` 选项和 `tests/subagentSupport.ts` 的 `routedModel` / `recordingSubagentPort` / `subagentCall` / `toolCallPart` / `toolResults` / `outputText`。
+- Produces：`unsupported_model` 快照；子代理 session 里的门控（spec §8.4）。
 
 **Notes from Tasks 1–4 (apply before the steps below):**
 
 - 另加 `session_start` 恢复测试：持久化的 goal 回来时是 disarmed。
+
+**L4 rebase 之后（spec 2026-10-13 修订）：**
+
+- fork 子代理继承父 session 的 `cherry.goal` 条目，宿主又必须给 fork 返回父 session 的扩展，所以 goal 扩展会在 fork 里加载（spec §8.4）。Step 4 让它在子代理的 session 里不生效；Step 1 的 "a fork started in a goal round …" 守这一条。
+- 新错误码 `in_subagent`：现有的 `GoalErrorCode` 都说的是目标本身的问题（不存在、已存在、陈旧、非人类回合……），没有一个表示"这个 session 不该碰目标"。
 
 - [ ] **Step 1: 写失败的测试**
 
@@ -2341,8 +2450,16 @@ import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import { createGoalExtension } from '../src'
-import { goalModel, goalPort, lastSnapshot, rounds, say } from './goalSupport'
-import { createTestSession, hostStore, MODEL, plain, streamTextPort, tempDir } from './support'
+import { goalModel, goalPort, lastSnapshot, readGoal, rounds, say } from './goalSupport'
+import {
+  outputText,
+  recordingSubagentPort,
+  routedModel,
+  subagentCall,
+  toolCallPart,
+  toolResults
+} from './subagentSupport'
+import { createTestSession, finish, hostStore, MODEL, plain, streamTextPort, tempDir, textParts } from './support'
 
 describe('goal across sessions', () => {
   it('a rebuilt session restores the goal disarmed and resume continues it', async () => {
@@ -2442,12 +2559,57 @@ describe('goal across sessions', () => {
     expect(lastSnapshot(host.entries)).toMatchObject({ lastStop: { code: 'round_limit' } })
   })
 })
+
+describe('goal inside a subagent', () => {
+  // Breaks when the fork treats the goal entries it inherited as its own: get_goal returns the
+  // parent's goal, resume arms it, and the fork gets a goal round of its own after its report.
+  it('a fork started in a goal round inherits the goal entries but cannot read, resume or continue the goal', async () => {
+    const { model, calls } = routedModel((call) => {
+      if (call.userText.includes('TASK-FORK')) {
+        if (call.lastRole === 'user') return [toolCallPart('fork_get', 'get_goal'), finish('tool-calls')]
+        if (toolResults(call).at(-1)?.toolName === 'get_goal') {
+          // Copy what get_goal returned, as a model would; a failed get_goal leaves nothing to copy.
+          const { goal } = readGoal(call.options.prompt)
+          return [
+            toolCallPart('fork_resume', 'update_goal', { goal_id: goal?.id ?? 'none', revision: goal?.revision ?? 0, action: 'resume' }),
+            finish('tool-calls')
+          ]
+        }
+        return [...textParts('r', 'FORK-REPORT'), finish('stop')]
+      }
+      return call.lastRole === 'user'
+        ? [subagentCall('call_fork', { description: 'Fork check', prompt: 'TASK-FORK', fork: true }), finish('tool-calls')]
+        : [...textParts('d', 'The fork reported back.'), finish('stop')]
+    })
+    const port = goalPort({ defaults: { autonomy: () => 'confirm-each-round' } })
+    // A fork must get the parent's extensions (README "Subagents"), so the goal extension loads in it too.
+    const subagents = recordingSubagentPort(() => ({ extensionFactories: [createGoalExtension(port)] }))
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: subagents.port,
+      extensionFactories: [createGoalExtension(port)]
+    })
+    await session.prompt('/goal Keep working')
+
+    const forkCalls = calls.filter((call) => call.userText.includes('TASK-FORK'))
+    // The fork started from the goal round, so the goal was on its branch.
+    expect(forkCalls[0].userText).toContain('<goal_round>')
+    // get_goal, update_goal, the report: no goal round follows in the fork.
+    expect(forkCalls).toHaveLength(3)
+    const goalResults = toolResults(forkCalls.at(-1)!).filter((part) => part.toolCallId.startsWith('fork_'))
+    expect(goalResults.map((part) => [part.toolName, part.output.type])).toEqual([
+      ['get_goal', 'error-text'],
+      ['update_goal', 'error-text']
+    ])
+    for (const part of goalResults) expect(outputText(part.output)).toMatch(/belong to the main agent/)
+  })
+})
 ```
 
 - [ ] **Step 2: 跑测试确认失败**
 
 Run: `pnpm exec vitest run --project agent-runtime packages/agent-runtime-pi/tests/goalRebuild.test.ts`
-Expected: 第二个 FAIL（没有 `unsupported_model` 快照）；第一、三个应已通过。
+Expected: "unsupported" 和 "a fork started in a goal round" FAIL（没有 `unsupported_model` 快照；fork 里 `get_goal` 成功，`resume` 后 fork 多出一个 goal 轮）；其余应已通过。
 
 - [ ] **Step 3: 实现门控快照**
 
@@ -2463,18 +2625,61 @@ Expected: 第二个 FAIL（没有 `unsupported_model` 快照）；第一、三�
     }
 ```
 
-- [ ] **Step 4: 跑测试确认通过；跑整包**
+这个分支不需要子代理判断：不支持工具调用的模型调不了 `subagent`，不会有 fork。
+
+- [ ] **Step 4: 实现子代理里不生效（spec §8.4）**
+
+`src/goalState.ts` 的 `GoalErrorCode` 末尾加一项：
+
+```ts
+  | 'invalid_action'
+  | 'in_subagent'
+```
+
+`src/goalExtension.ts`：导入 `import { isSubagentSession } from './subagent'`；`Runtime` 加一个字段，初值 `inSubagent: false`：
+
+```ts
+  /** This is a subagent's session: the goal belongs to the main agent (spec §8.4). */
+  inSubagent: boolean
+```
+
+`session_start` 处理器开头改成下面这样，之后的行（`armed`、`inGoalRound`、任务 8 的审批订阅）不变：
+
+```ts
+    pi.on('session_start', (_event, ctx) => {
+      const entries = ctx.sessionManager.getBranch()
+      runtime.inSubagent = isSubagentSession(entries)
+      // A fork inherits the parent's goal entries; the goal stays the parent's, so this session has none.
+      if (runtime.inSubagent) return
+      runtime.goal = currentGoal(entries)
+```
+
+在 `requireGoal` 旁边加：
+
+```ts
+    const requireMainAgent = () => {
+      if (runtime.inSubagent)
+        throw new GoalError(
+          'in_subagent',
+          'Goals belong to the main agent; a subagent cannot read or change them. Finish the task you were given and report back.'
+        )
+    }
+```
+
+三个工具的 `execute` 第一行都调用它：`get_goal` 改成 `execute: async () => { requireMainAgent(); return ok() }`；`create_goal` 放在 `requireHumanTurn` 之前，`update_goal` 放在 `requireRevision` 之前（stale 错误会附上当前视图，门控必须先于它）。`agent_before_settle` 处理器第一行加 `if (runtime.inSubagent) return undefined`。`runtime.goal` 在子代理里始终为空，`turn_start` / `tool_call` / `turn_end` 的现有 `!runtime.goal` 判断已经让它们什么都不做，不用改。
+
+- [ ] **Step 5: 跑测试确认通过；跑整包**
 
 Run: `pnpm test:agent-runtime && pnpm --filter @cherrystudio/agent-runtime typecheck`
 Expected: PASS
 
-- [ ] **Step 5: 格式、lint、提交**
+- [ ] **Step 6: 格式、lint、提交**
 
 ```bash
-pnpm exec oxfmt --write packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalRebuild.test.ts
+pnpm exec oxfmt --write packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalRebuild.test.ts
 pnpm exec oxlint --deny-warnings packages/agent-runtime-pi/src packages/agent-runtime-pi/tests
-git add packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalRebuild.test.ts
-git commit -S --signoff -m "feat(agent-runtime): keep goals consistent across rebuilds and unsupported models"
+git add packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalRebuild.test.ts
+git commit -S --signoff -m "feat(agent-runtime): keep goals consistent across rebuilds, unsupported models and subagents"
 ```
 
 ---
@@ -2500,7 +2705,10 @@ git commit -S --signoff -m "feat(agent-runtime): keep goals consistent across re
   `update_goal(blocked)` needs the same condition in `blockedAfter` consecutive rounds. Tools are
   `get_goal` / `create_goal` / `update_goal` with DSH's output shape; `/goal` manages it without a
   model turn and reports through `cherry.goal-notice` entries. A rebuilt session restores the goal
-  disarmed; `/goal resume` continues it. Design: `docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md`.
+  disarmed; `/goal resume` continues it. The budget also counts the `usage` a tool result carries,
+  so a `subagent` call's requests count toward it. In a subagent's session the goal tools fail and
+  nothing continues, so a fork ignores the goal entries it inherits. Design:
+  `docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md`.
 ```
 
 在 "The host's approval layer…" 段后加一句：
@@ -2513,9 +2721,10 @@ user through the existing approval card.
 Known gaps 加：
 
 ```markdown
-- Goals: no `waiting` state for background work (the goal blocks with `waiting_children` when the
-  host reports running children), no fresh-context (Ralph) mode, and a subagent's usage is not
-  counted toward the parent goal's budget.
+- Goals: no `waiting` state for background work (the goal blocks with `waiting_subagents` when the
+  host reports running background subagents, which only L6 adds) and no fresh-context (Ralph)
+  mode. The package does not know the permission mode; keeping goals from running rounds in plan
+  mode is up to the host.
 ```
 
 - [ ] **Step 2: 文档门禁与整包门禁**
@@ -2534,7 +2743,7 @@ git commit -S --signoff -m "docs(agent-runtime): document the goal extension"
 
 ## Self-review 记录
 
-- **Spec 覆盖**：§5 数据模型 → 任务 2、3；§6.0 首轮 → 任务 5 `startRound`；§6.2 十一步 → 任务 5 `decide` 加任务 6–9 的分支；§6.3 接纳 → 任务 5；§7.1 上限 → 任务 6；§7.2 无进展 → 任务 7；§7.3 需要人 → 任务 8；§7.4 错误 → 任务 5/8；§7.5 自报 → 任务 9；§7.6 停止压过续跑 → 任务 4（命令里 `ctx.abort()`）和任务 8 的测试；§8 工具命令 → 任务 4；§8.3 门控 → 任务 10；§9 核验 → 任务 9；§10 端口 → 任务 4；§11 衔接 → 任务 10；§13 测试计划 19 条全部落在任务 2–10。
+- **Spec 覆盖**：§5 数据模型 → 任务 2、3；§6.0 首轮 → 任务 5 `startRound`；§6.2 十一步 → 任务 5 `decide` 加任务 6–9 的分支；§6.3 接纳 → 任务 5；§7.1 上限 → 任务 6；§7.2 无进展 → 任务 7；§7.3 需要人 → 任务 8；§7.4 错误 → 任务 5/8；§7.5 自报 → 任务 9；§7.6 停止压过续跑 → 任务 4（命令里 `ctx.abort()`）和任务 8 的测试；§8 工具命令 → 任务 4；§8.3 门控 → 任务 10；§8.4 子代理里不生效 → 任务 10；§6.1 工具结果的 usage → 任务 5；§6.2 第 8 条与改名 → 任务 8；§9 核验 → 任务 9；§10 端口 → 任务 4；§11 衔接 → 任务 10；§13 测试计划全部落在任务 2–10。
 - **spec 相对本计划的三处调整**（已同步进 spec）：快照新增 `progressRounds`；命令反馈走 `cherry.goal-notice` 状态条目；`GoalVerifier` 收 `ConversationModelMessage[]`。
 - **类型一致性**：`RoundDetails`、`GoalStopCode`、`GoalPort.defaults` 在任务 2–4 定义，后续任务只引用。`stop()` / `commit()` / `notice()` 的签名贯穿任务 4–10。
-- **Review Focus 覆盖**：1 → 任务 5 "yields to a user message"；2 → 任务 4 "rejects a stale revision"；3 → 任务 7 "hints on the third round"；4 → 任务 10 "rebuilt session restores the goal disarmed"；5 → 任务 5 "does not count a round that a later extension vetoed"。
+- **Review Focus 覆盖**：1 → 任务 5 "yields to a user message"；2 → 任务 4 "rejects a stale revision"；3 → 任务 7 "hints on the third round"；4 → 任务 10 "rebuilt session restores the goal disarmed"；5 → 任务 5 "does not count a round that a later extension vetoed"；6 → 任务 5 "counts the usage a subagent result reports toward the goal budget"；7 → 任务 10 "a fork started in a goal round inherits the goal entries but cannot read, resume or continue the goal"。
