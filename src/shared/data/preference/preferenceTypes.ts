@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import type { DirectEndpoint } from '@cherrystudio/remote-protocol'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -448,3 +449,5 @@ export type CustomToolDefinition = {
   tool: string
   requestedVersion?: string
 }
+
+export type AdvertisedRemoteEndpoint = DirectEndpoint
