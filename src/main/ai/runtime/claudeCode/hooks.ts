@@ -223,8 +223,6 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
-<<<<<<< HEAD
-=======
   // Bind each native child to the turn that spawned it, before it can call a tool. `agent_id` is
   // per-session-set, so the binding is what stops a still-running child from inheriting whichever
   // turn is live when it finally calls (a headless child must stay headless under a desktop
@@ -235,9 +233,6 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
-  const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
-
->>>>>>> e62eb5d87e (fix(claude-code): keep a native child's originating authority across a desktop follow-up)
   // Subagent Bash history is scoped per agent_id; when the subagent stops, its scope is dropped so
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
