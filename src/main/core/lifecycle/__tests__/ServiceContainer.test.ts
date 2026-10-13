@@ -408,4 +408,102 @@ describe('ServiceContainer', () => {
       expect(a).toBe(b)
     })
   })
+
+  describe('conditional dependency resolution', () => {
+    const activeContext: ConditionContext = {
+      platform: 'darwin',
+      arch: 'arm64',
+      cpuModel: 'Apple M2',
+      env: {}
+    }
+
+    @Injectable('PlainDependency')
+    class PlainDependency extends BaseService {
+      readonly kind = 'plain'
+    }
+
+    @Injectable('ActiveCapability')
+    @Conditional(when(() => true, 'capability active'))
+    @DependsOn(['PlainDependency'])
+    class ActiveCapability extends BaseService {
+      readonly marker = 'ready'
+      readonly plain: PlainDependency
+      constructor(...args: unknown[]) {
+        super()
+        const plain = args[0]
+        if (!(plain instanceof PlainDependency)) throw new Error('ActiveCapability requires PlainDependency')
+        this.plain = plain
+      }
+    }
+
+    @Injectable('CapabilityConsumer')
+    @DependsOn(['ActiveCapability'])
+    class CapabilityConsumer extends BaseService {
+      readonly capability: ActiveCapability
+      constructor(...args: unknown[]) {
+        super()
+        const capability = args[0]
+        if (!(capability instanceof ActiveCapability)) throw new Error('CapabilityConsumer requires ActiveCapability')
+        this.capability = capability
+      }
+    }
+
+    @Injectable('ExcludedCapability')
+    @Conditional(when(() => false, 'capability excluded'))
+    class ExcludedCapability extends BaseService {}
+
+    @Injectable('ExcludedCapabilityConsumer')
+    @DependsOn(['ExcludedCapability'])
+    class ExcludedCapabilityConsumer extends BaseService {}
+
+    @Injectable('TransitiveExcludedConsumer')
+    @DependsOn(['ExcludedCapabilityConsumer'])
+    class TransitiveExcludedConsumer extends BaseService {}
+
+    it('injects an active conditional dependency and keeps get/getOptional exclusive', () => {
+      const container = ServiceContainer.getInstance()
+      container.setConditionContext(activeContext)
+      container.register(PlainDependency)
+      container.register(ActiveCapability)
+      container.register(CapabilityConsumer)
+
+      const consumer = container.get<CapabilityConsumer>('CapabilityConsumer')
+      const capability = container.getOptional<ActiveCapability>('ActiveCapability')
+
+      expect(container.get('CapabilityConsumer')).toBe(consumer)
+      expect(consumer.capability).toBe(capability)
+      expect(consumer.capability.marker).toBe('ready')
+      expect(consumer.capability.plain.kind).toBe('plain')
+      expect(container.get('PlainDependency')).toBe(consumer.capability.plain)
+      expect(() => container.get('ActiveCapability')).toThrow(
+        "Service 'ActiveCapability' is conditional — use getOptional('ActiveCapability')."
+      )
+      expect(() => container.getOptional('PlainDependency')).toThrow(
+        "Service 'PlainDependency' is not conditional — use get('PlainDependency')."
+      )
+    })
+
+    it('rejects excluded conditional dependencies and transitively excludes dependents', () => {
+      const container = ServiceContainer.getInstance()
+      container.setConditionContext(activeContext)
+      container.register(ExcludedCapability)
+      container.register(ExcludedCapabilityConsumer)
+      container.register(TransitiveExcludedConsumer)
+
+      expect(() => container.get('ExcludedCapabilityConsumer')).toThrow(
+        "Dependency 'ExcludedCapability' not found for service 'ExcludedCapabilityConsumer'"
+      )
+      expect(container.getOptional('ExcludedCapability')).toBeUndefined()
+
+      container.excludeDependentsOfExcluded()
+
+      expect(container.isExcluded('ExcludedCapability')).toBe(true)
+      expect(container.isExcluded('ExcludedCapabilityConsumer')).toBe(true)
+      expect(container.isExcluded('TransitiveExcludedConsumer')).toBe(true)
+      expect(container.has('TransitiveExcludedConsumer')).toBe(false)
+      expect(() => container.get('ExcludedCapability')).toThrow(
+        "Service 'ExcludedCapability' was conditionally excluded — use getOptional('ExcludedCapability')."
+      )
+    })
+  })
 })
