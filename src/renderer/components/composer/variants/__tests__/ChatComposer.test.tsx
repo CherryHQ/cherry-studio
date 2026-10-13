@@ -895,6 +895,54 @@ describe('ChatComposer', () => {
     expect(ipcRequestMock).toHaveBeenCalledWith('screenshot.chat_received', { deliveryId: 'overflow', accepted: false })
   })
 
+  it.each(['', 'Explain this'])(
+    'rejects capture during direct send and accepts a retry afterward (%j)',
+    async (text) => {
+      const pendingSend = createDeferred<boolean>()
+      const onSend = vi.fn(() => pendingSend.promise)
+      render(<ChatComposer topic={topic} onSend={onSend} />)
+      act(() => mocks.surfaceProps?.onTextChange('Original draft'))
+      let sending: Promise<unknown> | undefined
+      act(() => {
+        sending = Promise.resolve(mocks.surfaceProps?.onSendDraft({ text: 'Original draft', tokens: [] }))
+      })
+      await waitFor(() => expect(onSend).toHaveBeenCalledOnce())
+      const capture = {
+        deliveryId: `pending-send-${text}`,
+        path: 'C:/screenshots/capture.png',
+        name: 'capture.png',
+        size: 42,
+        text,
+        scopeKey: ipcRequestMock.mock.calls.findLast(([route]) => route === 'screenshot.chat_target')?.[1].scopeKey
+      }
+      await act(async () => mocks.eventListeners.get('screenshot.chat_attachment')?.(capture))
+      expect(mocks.files).toHaveLength(0)
+      expect(mocks.surfaceProps?.text).toBe('Original draft')
+      expect(ipcRequestMock).toHaveBeenCalledWith('screenshot.chat_received', {
+        deliveryId: capture.deliveryId,
+        accepted: false
+      })
+      await act(async () => {
+        pendingSend.resolve(true)
+        await sending
+      })
+      expect(mocks.surfaceProps?.text).toBe('')
+      await act(async () =>
+        mocks.eventListeners.get('screenshot.chat_attachment')?.({
+          ...capture,
+          deliveryId: capture.deliveryId + '-retry'
+        })
+      )
+      expect(mocks.files).toEqual([expect.objectContaining({ path: capture.path })])
+      expect(mocks.surfaceProps?.text).toBe(text)
+      expect(ipcRequestMock).toHaveBeenCalledWith('screenshot.chat_received', {
+        deliveryId: capture.deliveryId + '-retry',
+        accepted: true
+      })
+      expect(onSend).toHaveBeenCalledOnce()
+    }
+  )
+
   it('rejects a capture started before entering message editing in the same chat', async () => {
     const message = { id: 'edit-target', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
     render(

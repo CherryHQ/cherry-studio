@@ -85,10 +85,10 @@ vi.mock('electron', () => ({
 /** A stand-in for an encoded PNG; only its identity matters to these assertions. */
 const PNG_BYTES = new Uint8Array([137, 80, 78, 71])
 
-const { writeFileSyncMock } = vi.hoisted(() => ({ writeFileSyncMock: vi.fn() }))
+const { writeFileSyncMock, rmSyncMock } = vi.hoisted(() => ({ writeFileSyncMock: vi.fn(), rmSyncMock: vi.fn() }))
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFs>()
-  return { ...actual, default: actual, writeFileSync: writeFileSyncMock }
+  return { ...actual, default: actual, writeFileSync: writeFileSyncMock, rmSync: rmSyncMock }
 })
 
 // ─── Lifecycle base ───────────────────────────────────────────────────────────
@@ -396,6 +396,7 @@ describe('ScreenshotOverlayService', () => {
       )![2]
       service.receiveChatResult('chat', payload.deliveryId, false)
       await result
+      expect(rmSyncMock).toHaveBeenCalledExactlyOnceWith(payload.path, { force: true })
       expect(container.mediaEntries.size).toBe(1)
       const retry = service.sendToChat({ pngBytes: PNG_BYTES, text: '' })
       const retried = container.ipcApiService.send.mock.calls.findLast(
@@ -404,6 +405,7 @@ describe('ScreenshotOverlayService', () => {
       service.receiveChatResult('chat', retried.deliveryId, true)
       await retry
       expect(container.mediaEntries.size).toBe(0)
+      expect(rmSyncMock).not.toHaveBeenCalledWith(retried.path, expect.anything())
     })
 
     it('reuses the delivery id and file after an unconfirmed timeout', async () => {
@@ -420,6 +422,7 @@ describe('ScreenshotOverlayService', () => {
       await vi.advanceTimersByTimeAsync(10000)
       await result
       expect(container.mediaEntries.size).toBe(1)
+      expect(rmSyncMock).not.toHaveBeenCalled()
       const retry = service.sendToChat({ pngBytes: PNG_BYTES, text: 'note' })
       const retried = container.ipcApiService.send.mock.calls.findLast(
         (call) => call[1] === 'screenshot.chat_attachment'
@@ -428,6 +431,7 @@ describe('ScreenshotOverlayService', () => {
       service.receiveChatResult('chat', retried.deliveryId, true)
       await retry
       expect(writeFileSyncMock).toHaveBeenCalledTimes(1)
+      expect(rmSyncMock).not.toHaveBeenCalled()
     })
     it('does not redirect an unregistered source window to another window chat', async () => {
       singleDisplaySetup()

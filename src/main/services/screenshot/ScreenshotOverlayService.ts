@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
+import { rmSync, writeFileSync } from 'node:fs'
 
 import dayjs from 'dayjs'
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, type Display, nativeImage, screen } from 'electron'
@@ -198,6 +198,7 @@ export class ScreenshotOverlayService extends BaseService {
     const target = this.captureChatTarget
     const delivery = this.chatDelivery
     if (!target || target.windowId !== windowId || delivery?.payload.deliveryId !== deliveryId) return
+    if (!accepted) rmSync(delivery.payload.path, { force: true })
     delivery.settle?.(accepted)
     this.chatDelivery = null
     if (!accepted) return

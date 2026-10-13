@@ -1476,7 +1476,7 @@ const ChatComposerInner = ({
         return
       }
       if (!isActiveTab || !layerActive) return
-      if (targetScopeKey !== screenshotTarget || isSavingEdit) {
+      if (targetScopeKey !== screenshotTarget || isSavingEdit || directSendInFlightRef.current) {
         report(false)
         return
       }
