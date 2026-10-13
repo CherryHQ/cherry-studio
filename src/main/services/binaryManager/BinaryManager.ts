@@ -198,9 +198,7 @@ function isExecutableShim(shimPath: string): Promise<boolean> {
 const BUNDLED_TOOLS: Array<{
   name: string
   binaries: string[]
-  platforms?: NodeJS.Platform[]
   windowsBinaries?: string[]
-  windowsSupportFiles?: string[]
   versionFile: string
   internal?: boolean
 }> = [
@@ -213,21 +211,7 @@ const BUNDLED_TOOLS: Array<{
   },
   { name: 'bun', binaries: ['bun'], versionFile: '.bun-version' },
   { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
-  { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' },
-  {
-    name: 'ffmpeg',
-    binaries: ['ffmpeg', 'ffprobe'],
-    platforms: ['darwin', 'win32'],
-    windowsSupportFiles: [
-      'libvpl-2.dll',
-      'libwinpthread-1.dll',
-      'libgcc_s_seh-1.dll',
-      'libstdc++-6.dll',
-      'libopenh264-7.dll'
-    ],
-    versionFile: '.ffmpeg-version',
-    internal: true
-  }
+  { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
 ]
 
 export type ManagedCliStatus = 'ready' | 'not_installed' | 'installing' | 'removing' | 'failed' | 'unknown'
@@ -805,12 +789,10 @@ export class BinaryManager extends BaseService {
     await fsp.mkdir(binDir, { recursive: true })
 
     for (const tool of BUNDLED_TOOLS) {
-      if (tool.platforms && !tool.platforms.includes(process.platform)) continue
       try {
         const executables = [...tool.binaries, ...(isWin ? (tool.windowsBinaries ?? []) : [])].map((bin) =>
           getBinaryName(bin)
         )
-        const binaries = [...executables, ...(isWin ? (tool.windowsSupportFiles ?? []) : [])]
         const versionPath = path.join(bundledDir, tool.versionFile)
         const bundledVersion = this.readVersionMarker(versionPath)
         if (!bundledVersion) {
@@ -818,7 +800,7 @@ export class BinaryManager extends BaseService {
           continue
         }
 
-        const missingBundled = binaries.filter((bin) => !fs.existsSync(path.join(bundledDir, bin)))
+        const missingBundled = executables.filter((bin) => !fs.existsSync(path.join(bundledDir, bin)))
         if (missingBundled.length > 0) {
           logger.error(
             `Expected bundled ${tool.name} binaries missing`,
@@ -832,17 +814,17 @@ export class BinaryManager extends BaseService {
         // against partial deletions / AV quarantine of secondary binaries
         // (e.g. uvx alongside uv).
         const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
-        const allDestsPresent = binaries.every((b) => fs.existsSync(path.join(binDir, b)))
+        const allDestsPresent = executables.every((bin) => fs.existsSync(path.join(binDir, bin)))
         if (allDestsPresent && bundledVersion === installedVersion) continue
 
         // Copy each binary via dest.tmp + rename so an EBUSY on Windows
         // (binary in use) doesn't leave a half-written file at `dest`.
-        for (const bin of binaries) {
+        for (const bin of executables) {
           const src = path.join(bundledDir, bin)
           const dest = path.join(binDir, bin)
           const tmp = `${dest}.tmp-${process.pid}`
           await fsp.copyFile(src, tmp)
-          if (!isWin && executables.includes(bin)) await fsp.chmod(tmp, 0o755)
+          if (!isWin) await fsp.chmod(tmp, 0o755)
           await fsp.rename(tmp, dest)
         }
         await fsp.writeFile(path.join(binDir, tool.versionFile), bundledVersion)

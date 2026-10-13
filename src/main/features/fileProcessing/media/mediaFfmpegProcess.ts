@@ -1,7 +1,11 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import type { UtilityProcessMethod } from '@main/core/utilityProcess/types'
 import type { ClassifiedMediaProbe } from '@main/features/fileProcessing/media/probeClassification'
+import { toAsarUnpackedPath } from '@main/utils/asar'
+import { getBinaryName } from '@main/utils/binaryResolver'
 
 export interface MediaFfmpegInitData {
   ffmpegPath: string
@@ -60,9 +64,19 @@ export const mediaFfmpegProcess = defineUtilityProcess<MediaFfmpegContract, Medi
   entry: 'media-ffmpeg',
   cancellation: 'cooperative',
   idleTimeoutMs: 5 * 60 * 1000,
-  createInitData: () => {
-    const binaryPath = (name: string) =>
-      application.getPath('cherry.bin', process.platform === 'win32' ? `${name}.exe` : name)
-    return { ffmpegPath: binaryPath('ffmpeg'), ffprobePath: binaryPath('ffprobe') }
-  }
+  // The packaged tree is immutable. cherry.bin is filled later by Background extraction.
+  createInitData: () => ({
+    ffmpegPath: packagedMediaBinary('ffmpeg'),
+    ffprobePath: packagedMediaBinary('ffprobe')
+  })
 })
+
+function packagedMediaBinary(name: string): string {
+  return toAsarUnpackedPath(
+    path.join(
+      application.getPath('app.root.resources.binaries'),
+      `${process.platform}-${process.arch}`,
+      getBinaryName(name)
+    )
+  )
+}
