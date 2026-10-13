@@ -1402,7 +1402,6 @@ git commit -S --signoff -m "feat(agent-runtime): add goal tools and the /goal co
 - Modify: `packages/agent-runtime-pi/tests/goalSupport.ts`（共享会话、等待和挂起助手）
 - Modify: `packages/agent-runtime-pi/tests/goalState.test.ts`
 - Modify: `packages/agent-runtime-pi/tests/goal.test.ts`（任务 4 的用例按"命令会开轮"更新，加续跑用例）
-- Modify: `docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md`（§7.6 补限定，C4）
 
 **Interfaces:**
 - Consumes：任务 4 的 `runtime`、`commit`、`stop`、`notice`、`create`、`pause`、`resume`、`clear`、`resetGoalRuntime`、`requireHumanTurn`；`goalState` 的 `admitRound`、`assistantText`、`budgetExceeded`、`GOAL_ROUND_TYPE`、`recordUsage`、`renderRoundPrompt`；Pi 的 `AgentBeforeSettleEvent` / `AgentBeforeSettleEventResult`（`@earendil-works/pi-coding-agent` 导出）；L4 放在工具结果上的 `usage`（`ToolResultMessage.usage?: Usage`，随 `turn_end` 的 `toolResults` 到达）。
@@ -1419,8 +1418,8 @@ const admit: (details: RoundDetails | undefined) => void
 const roundProgressed: () => boolean // 任务 9 的退化检查读它
 const closeRound: () => void
 const startHumanTurn: () => void
-const decide: (event: AgentBeforeSettleEvent, ctx: ExtensionContext, goalRoundEnded: boolean) => AgentBeforeSettleEventResult | undefined
-// Runtime：`round: { toolProgress; text }` 取代 `lastRoundProgressed`；`blocked: { round; count }` 取代 `blockedRounds`
+const decide: (event: AgentBeforeSettleEvent, ctx: ExtensionContext) => AgentBeforeSettleEventResult | undefined
+// Runtime：`round: { toolProgress; text }` 取代 `lastRoundProgressed`；`blocked: { round; count }` 取代 `blockedRounds`；新增 `roundAdmitted`
 // tests/goalSupport.ts
 export const working: (prompt: LanguageModelV3Prompt, call: number) => LanguageModelV3StreamPart[]
 export function roundStart(prompt: LanguageModelV3Prompt): number | undefined
@@ -1448,11 +1447,6 @@ export async function crashedTranscript(objective: string, port: GoalPort, cwd: 
 10. 工具循环里每个 turn 都有自己的 `turn_start`，所以轮内重复计数在接纳时清零（spec §7.2），不能在 `turn_start` 清零；两个接纳点（命令轮的 `message_end`、续跑轮的 `turn_start`）都在这一轮第一个 `tool_call` 之前。
 11. `pi.appendEntry` 直接写 session：命令轮在 `message_end` 里追加的接纳快照排在这条轮消息之前，续跑轮的排在它之后；测试不要断言二者的先后。
 
-**spec 与 Pi 不符的两处（本任务不改 spec，交 controller 裁定）：**
-
-- spec §4 的事件表和 §6.3 把接纳放在轮消息的 `message_end` 上。Pi 只为命令发出的轮向扩展发这个事件（第 2 条），settle 续跑的轮收不到（第 3 条）。本计划两处都接：命令轮在 `message_end`，续跑轮在随后的 `turn_start` 用 `tailRound` 从 branch 读出。§4 的事件表因此还需要 `turn_start`（任务 8 另加 `session_shutdown`）。
-- spec §6.2 第 1 条和 §7.6 第一条说 `session.abort()` 后在 `agent_before_settle` 看到 `outcome: 'aborted'`；实际上 Pi 跳过这个事件（第 7 条），§7.6 第二条"之后 `agent_before_settle` 看到的 phase 已不是 `active`"也不会发生。本计划在 `agent_settled` 上暂停（任务 8），第 1 条保留给端口自己中止请求、Pi 没收到 `session.abort()` 的情形。
-
 **Notes（ledger 带进本任务的条目）：**
 
 - C6 已在代码里（`commit()` 只在 goal id 相同时折入用量）；C11 的 `create()` / `resume()` / `pause()` / `clear()` / `resetGoalRuntime()` 照用。
@@ -1461,9 +1455,11 @@ export async function crashedTranscript(objective: string, port: GoalPort, cwd: 
 - C9：`not_human_turn` 用例覆盖 `create_goal`、`edit`、`pause`、`resume` 四个动作（S5.1）。
 - C10：`tailRound` 从末尾往回走，越过所有非 `message` 条目（其他扩展的草稿、状态条目、`context_edit`、compaction）找我们的轮消息；遇到 `message` 条目就停。
 - C13：`subagent` 不在 `NON_PROGRESS_TOOLS` 里；`goalState.test.ts` 加一行断言守它。
-- C4：spec §7.6 第二条补上 §8.2 已有的限定（Step 5）。
+- C4：spec §7.6 第二条的限定（命令只在 goal 原为 `active` 且 agent 正忙时 `ctx.abort()`）已在 spec 里，2026-10-13 复查时与 N2 一起改，本任务不再动 spec。
+- confirm-each-round（复查 N6，spec §6.2 第 6 条）：自上次武装以来有轮被接纳，settle 就暂停，即使那一轮被人类回合结束。`runtime.roundAdmitted` 在 `admit()` 置真，在 `resetGoalRuntime()`（create / resume / clear）清零，所以同一次运行里后来的 `/goal resume` 仍能跑一轮。
+- 中止不进 `decide()`（复查 N4，spec §6.2 第 1 条）：Pi 在中止后跳过 `agent_before_settle`；任务 8 在 `agent_settled` 处理。
 - 用户裁定（2026-10-13，spec 7be08c2c58）：进展按轮算（任一 turn 有成功的非只读工具调用，或这一轮最后一条带文字的回复与上一轮的不同；只调工具的 turn 不更新"上一轮的文字"）；重复计数在接纳时清零；人类回合清零无进展计数和 blocked 计数，它的用量和工具调用不算 goal 的。
-- 预检 Q3 的附带问题（中止后紧接着新建目标）：被中止的运行落定时仍按 §6.2 第 1 条（任务 8 起在 `agent_settled`）暂停这时 `active` 的目标，停止压过续跑。命令等不了运行落定（Pi 行为第 7 条），而 Pi 落定一个中止的运行不等挂住的模型调用，窗口只有那一下；不为此加状态，用户 `/goal resume` 即可。任务 4 的 `'/goal rounds of tests …'` 用例改成在 clear 前等运行落定，不再碰这个窗口。
+- 预检 Q3 的附带问题（中止后紧接着新建目标）：被中止的运行落定时，`agent_settled`（任务 8）仍会暂停这时 `active` 的目标，停止压过续跑。命令等不了运行落定（Pi 行为第 7 条），而 Pi 落定一个中止的运行不等挂住的模型调用，窗口只有那一下；不为此加状态，用户 `/goal resume` 即可。任务 4 的 `'/goal rounds of tests …'` 用例改成在 clear 前等运行落定，不再碰这个窗口。
 - `stop('continuation_rejected')` 得到 `phase: 'blocked'`（R2）。
 
 - [ ] **Step 1: 写测试助手和失败的测试**
@@ -1655,6 +1651,16 @@ import { textOf, toolResults } from './toolResults'
 
 /** One round per command or resume, so command tests see a settled goal. */
 const confirmEachRound = goalPort({ defaults: { autonomy: () => 'confirm-each-round' } })
+
+/** Queues a user message at the first turn end; Pi takes it in within the same run. */
+function askAtFirstTurnEnd(s: AgentSession) {
+  let asked = false
+  s.subscribe((event) => {
+    if (event.type !== 'turn_end' || asked) return
+    asked = true
+    void s.prompt('a question from the user', { streamingBehavior: 'followUp' })
+  })
+}
 ```
 
 2. `describe('goal tools')` 里七个用例的 `session(` 都改成 `goalSession(`。模型在人类回合里建的目标现在会在本次运行里进入 goal 轮（spec §6.0 第 3 行），所以最后两个用例（"refuses an edit that changes nothing…"、"resuming an active goal returns its view…"）的最后一行换成只数轮次之前的快照：
@@ -1892,12 +1898,7 @@ describe('goal continuation', () => {
   // Breaks when a human turn is looked for at turn_start (the user message is not on the branch yet): its reply would be billed.
   it('a user message taken in during a goal run is a human turn, not billed to the goal', async () => {
     const { session: s, host, calls } = await goalSession([working], goalPort({ defaults: { maxGoalRounds: 2 } }))
-    let asked = false
-    s.subscribe((event) => {
-      if (event.type !== 'turn_end' || asked) return
-      asked = true
-      void s.prompt('a question from the user', { streamingBehavior: 'followUp' })
-    })
+    askAtFirstTurnEnd(s)
     await promptIdle(s, '/goal Keep working')
 
     expect(calls.map((call) => roundStart(call.prompt))).toEqual([1, undefined, 2])
@@ -1925,6 +1926,47 @@ describe('goal continuation', () => {
       lastStop: { code: 'paused_each_round' }
     })
     expect(calls).toHaveLength(2)
+  })
+
+  // Breaks when the pause looks only at whether the last turn was a goal round: the user's message
+  // ends round 1, and the settle would start round 2 without a resume.
+  it('in confirm-each-round mode a run that ran a goal round pauses, even when a user message ended it', async () => {
+    const { session: s, host, calls } = await goalSession([working], confirmEachRound)
+    askAtFirstTurnEnd(s)
+    await promptIdle(s, '/goal Keep working')
+
+    expect(calls.map((call) => roundStart(call.prompt))).toEqual([1, undefined])
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      roundsStarted: 1,
+      phase: 'paused',
+      lastStop: { code: 'paused_each_round' }
+    })
+    await promptIdle(s, 'hello')
+    expect(rounds(host.entries)).toHaveLength(1)
+  })
+
+  // Breaks when a resume does not start the run's count over: the settle after it would pause again
+  // before any round ran.
+  it('in confirm-each-round mode a resume typed later in the same run gets one more round', async () => {
+    const user: { session?: AgentSession } = {}
+    let settles = 0
+    // Loaded before the goal extension: asks at the first settle, resumes at the second.
+    const askThenResume: ExtensionFactory = (pi) => {
+      pi.on('agent_before_settle', async () => {
+        settles += 1
+        if (settles === 1) await user.session!.prompt('a question from the user', { streamingBehavior: 'followUp' })
+        if (settles === 2) await user.session!.prompt('/goal resume')
+      })
+    }
+    const opened = await goalSession([working], confirmEachRound, { extensionFactories: [askThenResume] })
+    user.session = opened.session
+    await promptIdle(opened.session, '/goal Keep working')
+
+    expect(opened.calls.map((call) => roundStart(call.prompt))).toEqual([1, undefined, 2])
+    expect(lastSnapshot(opened.host.entries)).toMatchObject({
+      roundsStarted: 2,
+      lastStop: { code: 'paused_each_round' }
+    })
   })
 
   it('a goal the model creates in a human turn continues in that run', async () => {
@@ -2038,6 +2080,8 @@ describe('goal continuation', () => {
 | yields to a user message waiting at the settle and continues after it | 去掉 §6.2 第 7 条（Pi 先发轮消息，调用顺序变成 1, 2, 提问, 3），或让路后目标没再续跑 |
 | a user message taken in during a goal run is a human turn, not billed to the goal | 在 `turn_start` 读 branch 判断人类回合（X2）：提问的回复记进 goal，`tokensUsed` 变成 51 |
 | in confirm-each-round mode each round ends paused… | 模式不生效；空闲时 `/goal resume` 不开轮 |
+| in confirm-each-round mode a run that ran a goal round pauses, even when a user message ended it | 第 6 条只看刚结束的是不是 goal 轮：用户消息结束了第 1 轮，settle 不经 resume 就开第 2 轮（复查 N6） |
+| in confirm-each-round mode a resume typed later in the same run gets one more round | `resume` 不清零 `roundAdmitted`：同一次运行里 resume 之后的 settle 一轮不跑就又暂停 |
 | a goal the model creates in a human turn continues in that run | 工具武装的目标没在本次 settle 续跑 |
 | a command typed during a human turn only arms the goal… | 忙时命令自己发轮消息：Pi 当作 steering 插在人类回合的工具结果之后 |
 | refuses create, edit, pause and resume in a goal round | 人类回合判断看不到轮消息（S5.1、C9） |
@@ -2131,7 +2175,7 @@ const HINT_AFTER_ROUNDS = 2
 const STOP_AFTER_ROUNDS = 3
 ```
 
-3. `interface Runtime` 换成（`round` 取代 `lastRoundProgressed`，`blocked` 取代按 revision 记的 `blockedRounds`，见 spec §7.5）：
+3. `interface Runtime` 换成（`round` 取代 `lastRoundProgressed`，`blocked` 取代按 revision 记的 `blockedRounds`，见 spec §7.5；`roundAdmitted` 记自上次武装以来有没有轮被接纳，见 spec §6.2 第 6 条）：
 
 ```ts
 interface Runtime {
@@ -2151,6 +2195,8 @@ interface Runtime {
   blocked: { round: number; count: number }
   /** Usage since the last snapshot write; folded into the next one. */
   pendingUsage: { tokens: number; usd: number }
+  /** A goal round was admitted since the goal was last armed (spec §6.2 step 6). */
+  roundAdmitted: boolean
 }
 ```
 
@@ -2168,7 +2214,8 @@ interface Runtime {
       repeat: { key: undefined, count: 0 },
       stopRequest: undefined,
       blocked: { round: 0, count: 0 },
-      pendingUsage: { tokens: 0, usd: 0 }
+      pendingUsage: { tokens: 0, usd: 0 },
+      roundAdmitted: false
     }
     const limits = () => ({
       maxGoalRounds: port.defaults.maxGoalRounds,
@@ -2187,6 +2234,7 @@ interface Runtime {
       runtime.repeat = { key: undefined, count: 0 }
       runtime.stopRequest = undefined
       runtime.blocked = { round: 0, count: 0 }
+      runtime.roundAdmitted = false
     }
 ```
 
@@ -2241,6 +2289,7 @@ interface Runtime {
         return
       runtime.reservation = undefined
       runtime.inGoalRound = true
+      runtime.roundAdmitted = true
       runtime.round = { toolProgress: false, text: undefined }
       runtime.repeat = { key: undefined, count: 0 }
       commit(admitRound(runtime.goal, reserved.kind, now()))
@@ -2268,16 +2317,8 @@ interface Runtime {
     }
 
     /** Spec §6.2, in order; `undefined` lets the run settle. */
-    const decide = (
-      event: AgentBeforeSettleEvent,
-      ctx: ExtensionContext,
-      goalRoundEnded: boolean
-    ): AgentBeforeSettleEventResult | undefined => {
+    const decide = (event: AgentBeforeSettleEvent, ctx: ExtensionContext): AgentBeforeSettleEventResult | undefined => {
       const goal = runtime.goal
-      if (event.outcome === 'aborted') {
-        if (goal?.phase === 'active') stop('aborted')
-        return undefined
-      }
       if (event.outcome === 'error') {
         if (goal?.phase === 'active') stop('provider_error', lastErrorMessage(ctx))
         return undefined
@@ -2290,7 +2331,7 @@ interface Runtime {
         return undefined
       }
       if (!runtime.armed) return undefined
-      if (goalRoundEnded && port.defaults.autonomy() === 'confirm-each-round') {
+      if (runtime.roundAdmitted && port.defaults.autonomy() === 'confirm-each-round') {
         stop('paused_each_round')
         return undefined
       }
@@ -2336,9 +2377,8 @@ interface Runtime {
     })
 
     pi.on('agent_before_settle', (event, ctx) => {
-      const goalRoundEnded = runtime.inGoalRound
       closeRound()
-      return decide(event, ctx, goalRoundEnded)
+      return decide(event, ctx)
     })
 
     pi.on('agent_settled', () => {
@@ -2360,24 +2400,20 @@ interface Runtime {
           }
 ```
 
-`decide()` 的判断顺序就是 spec §6.2 的顺序；预算判断读的是 `projected`（`pendingUsage` 折进去的副本），真正的折入发生在随后那次 `commit()`（停下或接纳），不在 `decide()` 里重复 `commit()` 的两行（D8）。无进展（第 9 条）排在预算（第 10 条）之前，所以测试里凡是要验证 `round_limit` / `budget_exhausted` 的场景，每轮回复都要不同（`working`），否则先以 `no_progress` 停下。
+`decide()` 的判断顺序就是 spec §6.2 的顺序（第 1 条：中止不到这里，任务 8 在 `agent_settled` 处理）；预算判断读的是 `projected`（`pendingUsage` 折进去的副本），真正的折入发生在随后那次 `commit()`（停下或接纳），不在 `decide()` 里重复 `commit()` 的两行（D8）。无进展（第 9 条）排在预算（第 10 条）之前，所以测试里凡是要验证 `round_limit` / `budget_exhausted` 的场景，每轮回复都要不同（`working`），否则先以 `no_progress` 停下。
 
-- [ ] **Step 5: spec §7.6 补限定（C4）**
-
-`docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md` §7.6 第二条的"再调用 `ctx.abort()` 中止当前轮"改成"再在 goal 原为 `active` 且 agent 正忙时调用 `ctx.abort()` 中止当前轮"（与 §8.2 一致）。上面"spec 与 Pi 不符"的两处不在这里改。
-
-- [ ] **Step 6: 跑测试确认通过**
+- [ ] **Step 5: 跑测试确认通过**
 
 Run: `pnpm exec vitest run --project agent-runtime packages/agent-runtime-pi/tests/goal.test.ts packages/agent-runtime-pi/tests/goalState.test.ts && pnpm --filter @cherrystudio/agent-runtime typecheck`
-Expected: PASS（goal.test.ts 28 个、goalState.test.ts 31 个）。
+Expected: PASS（goal.test.ts 30 个、goalState.test.ts 31 个）。
 
-- [ ] **Step 7: 格式、lint、提交**
+- [ ] **Step 6: 格式、lint、提交**
 
 ```bash
 pnpm exec oxfmt --write packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalSupport.ts packages/agent-runtime-pi/tests/goalState.test.ts packages/agent-runtime-pi/tests/goal.test.ts
 pnpm exec oxlint --deny-warnings packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalSupport.ts packages/agent-runtime-pi/tests/goalState.test.ts packages/agent-runtime-pi/tests/goal.test.ts
 pnpm exec eslint packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalSupport.ts packages/agent-runtime-pi/tests/goalState.test.ts packages/agent-runtime-pi/tests/goal.test.ts
-git add packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalSupport.ts packages/agent-runtime-pi/tests/goalState.test.ts packages/agent-runtime-pi/tests/goal.test.ts docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md
+git add packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalSupport.ts packages/agent-runtime-pi/tests/goalState.test.ts packages/agent-runtime-pi/tests/goal.test.ts
 git -c core.hooksPath=/dev/null commit -S --signoff -m "feat(agent-runtime): continue goals at the settle boundary and count admitted rounds"
 git cat-file commit HEAD | grep -E '^gpgsig|Signed-off-by'
 ```
@@ -2816,11 +2852,12 @@ git cat-file commit HEAD | grep -E '^gpgsig|Signed-off-by'
 - Modify: `packages/agent-runtime-pi/src/goalState.ts`（`GoalStopCode` 改名）
 - Modify: `packages/agent-runtime-pi/src/goalExtension.ts`
 - Modify: `packages/agent-runtime-pi/tests/goalState.test.ts`（引用旧停止码的一行）
+- Modify: `packages/agent-runtime-pi/tests/goalSupport.ts`（`approvals()`，任务 10 也用）
 - Test: `packages/agent-runtime-pi/tests/goalStops.test.ts`
 
 **Interfaces:**
 - Consumes：`port.onApproval`、`port.hasRunningSubagents`、L3 的 `createAskUserExtension` / `ASK_USER_TOOL_NAME`（`src/askUserExtension.ts`）与 `AskUserQuestionDetails.outcome`（任务 1）、`runtime.stopRequest`、任务 5 的 `decide()` 和 `agent_settled` 处理器。
-- Produces：审批订阅（`session_start` 订阅、`session_shutdown` 退订）；`turn_end` 里的 AskUserQuestion 检查；`decide()` 的 spec §6.2 第 8 条；`agent_settled` 上的中止（Pi 行为第 7 条）。
+- Produces：审批订阅（`session_start` 订阅、`session_shutdown` 退订）；`turn_end` 里的 AskUserQuestion 检查；`decide()` 的 spec §6.2 第 8 条；`agent_settled` 上的中止（Pi 行为第 7 条，spec §6.4）；测试助手 `approvals(kind: GoalApprovalEvent['kind'], overrides?: Parameters<typeof goalPort>[0]): { port: GoalPort; tool }`（只有一个监听位的端口，加一个替自己的调用报审批事件的工具）。
 
 **Notes：**
 
@@ -2852,6 +2889,7 @@ pnpm exec vitest run --project agent-runtime packages/agent-runtime-pi/tests/goa
 pnpm --filter @cherrystudio/agent-runtime typecheck
 pnpm exec oxfmt --write packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalState.test.ts
 pnpm exec oxlint --deny-warnings packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalState.test.ts
+pnpm exec eslint packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalState.test.ts
 git add packages/agent-runtime-pi/src/goalState.ts packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalState.test.ts
 git -c core.hooksPath=/dev/null commit -S --signoff -m "refactor(agent-runtime): name the goal's subagent hook and stop code after subagents"
 git cat-file commit HEAD | grep -E '^gpgsig|Signed-off-by'
@@ -2867,8 +2905,9 @@ import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createAskUserExtension, type GoalApprovalEvent } from '../src'
+import { createAskUserExtension } from '../src'
 import {
+  approvals,
   goalPort,
   goalSession,
   heldGoalSession,
@@ -2885,13 +2924,24 @@ import { finish, MODEL, textParts } from './support'
 import { textOf, toolResults } from './toolResults'
 ```
 
-文件末尾追加。两种审批事件共用一个端口和工具工厂，AskUserQuestion 的输入只写一次（D7）：
+`tests/goalSupport.ts`：`import type { AgentSession } from '@earendil-works/pi-coding-agent'` 换成下面两行，`'../src'` 的 import 按字母序加 `type GoalApprovalEvent`：
 
 ```ts
-/** A port listening for approval events and a tool that reports `kind` for its own call, as the host's approval layer would. */
-function approvals(kind: GoalApprovalEvent['kind']) {
+import { Type } from '@earendil-works/pi-ai'
+import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
+```
+
+在 `goalStates` 之前加（两种审批事件共用它，任务 10 的 fork 用例也用；D7）：
+
+```ts
+/**
+ * A port with a single approval listener, and a tool that reports `kind` for its own call, as the
+ * host's approval layer would.
+ */
+export function approvals(kind: GoalApprovalEvent['kind'], overrides: Parameters<typeof goalPort>[0] = {}) {
   let listener: ((event: GoalApprovalEvent) => void) | undefined
   const port = goalPort({
+    ...overrides,
     onApproval: (next) => {
       listener = next
       return () => (listener = undefined)
@@ -2909,7 +2959,11 @@ function approvals(kind: GoalApprovalEvent['kind']) {
   })
   return { port, tool }
 }
+```
 
+`tests/goalStops.test.ts` 文件末尾追加。AskUserQuestion 的输入只写一次（D7）：
+
+```ts
 /** Every round asks one question, then replies. */
 const askEachRound = [
   (prompt: LanguageModelV3Prompt, call: number) =>
@@ -3106,11 +3160,11 @@ Expected: PASS
 - [ ] **Step 6: 格式、lint、提交**
 
 ```bash
-pnpm exec oxfmt --write packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalStops.test.ts
-pnpm exec oxlint --deny-warnings packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalStops.test.ts
-pnpm exec eslint packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalStops.test.ts
+pnpm exec oxfmt --write packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalSupport.ts packages/agent-runtime-pi/tests/goalStops.test.ts
+pnpm exec oxlint --deny-warnings packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalSupport.ts packages/agent-runtime-pi/tests/goalStops.test.ts
+pnpm exec eslint packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalSupport.ts packages/agent-runtime-pi/tests/goalStops.test.ts
 pnpm --filter @cherrystudio/agent-runtime typecheck
-git add packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalStops.test.ts
+git add packages/agent-runtime-pi/src/goalExtension.ts packages/agent-runtime-pi/tests/goalSupport.ts packages/agent-runtime-pi/tests/goalStops.test.ts
 git -c core.hooksPath=/dev/null commit -S --signoff -m "feat(agent-runtime): stop goals when a person is needed, on errors and on abort"
 git cat-file commit HEAD | grep -E '^gpgsig|Signed-off-by'
 ```
@@ -3145,7 +3199,7 @@ const commitEdit: (next: GoalSnapshot) => void // commit() 之后把 blocked 计
 
 - [ ] **Step 1: 写失败的测试**
 
-`tests/goalStops.test.ts` 的 import 再加三个名字：`@earendil-works/pi-coding-agent` 那行改成 `import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'`，`'../src'` 那行加 `type GoalSnapshot`，`./goalSupport` 加 `readGoal`。最终的 import 段：
+`tests/goalStops.test.ts` 的 import 再加三个名字：`@earendil-works/pi-coding-agent` 那行改成 `import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'`，`'../src'` 那行改成 `import { createAskUserExtension, type GoalSnapshot } from '../src'`，`./goalSupport` 加 `readGoal`。最终的 import 段：
 
 ```ts
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
@@ -3153,8 +3207,9 @@ import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createAskUserExtension, type GoalApprovalEvent, type GoalSnapshot } from '../src'
+import { createAskUserExtension, type GoalSnapshot } from '../src'
 import {
+  approvals,
   goalPort,
   goalSession,
   heldGoalSession,
@@ -3507,7 +3562,7 @@ git cat-file commit HEAD | grep -E '^gpgsig|Signed-off-by'
 - Create: `packages/agent-runtime-pi/tests/goalRebuild.test.ts`
 
 **Interfaces:**
-- Consumes：L2 的 `transcript` 选项与 `hostStore`；`port.modelSupportsTools`；L4 的 `isSubagentSession`（包内，`src/subagent.ts`，看 branch 上有没有 `cherry.subagent-origin` 条目；不从 `index.ts` 导出）、`subagents` 选项和 `tests/subagentSupport.ts` 的 `routedModel` / `recordingSubagentPort` / `subagentCall` / `toolCallPart` / `toolResults` / `outputText`；任务 5 的 `crashedTranscript()`、`openGoalSession()`。
+- Consumes：L2 的 `transcript` 选项与 `hostStore`；`port.modelSupportsTools`；L4 的 `isSubagentSession`（包内，`src/subagent.ts`，看 branch 上有没有 `cherry.subagent-origin` 条目；不从 `index.ts` 导出）、`subagents` 选项和 `tests/subagentSupport.ts` 的 `routedModel` / `recordingSubagentPort` / `subagentCall` / `toolCallPart` / `toolResults` / `outputText`；任务 5 的 `crashedTranscript()`、`openGoalSession()`，任务 8 的 `approvals()`。
 - Produces：`unsupported_model` 快照；`Runtime.inSubagent` 和 `requireMainAgent()`（子代理的 session 里三个工具都抛 `GoalError('in_subagent')`，`session_start` 不恢复目标，`agent_before_settle` 不续跑，spec §8.4）。
 
 **Notes：**
@@ -3515,7 +3570,7 @@ git cat-file commit HEAD | grep -E '^gpgsig|Signed-off-by'
 - C8：恢复测试用 `crashedTranscript()` 拿到一个 `active` 的目标（原计划用 `confirm-each-round`，目标在重建时已是 `paused`，测不出是否武装，D5），并用 `/goal` 的状态文本看 activation。
 - 不支持工具调用的用例同样用崩溃的 transcript（S10.1：原计划的 `paused` 目标不会被标 `unsupported_model`），并检查命令没有注册（D11）。
 - 压缩用例用宿主摘要器（`compaction.summarize`），模型调用就只有轮次；`finish(unified, input, output)` 直接给出按提示长度估的输入 token，不复制 `compaction.test.ts` 的 `sizedFinish`（D7）。断言压缩后的那次请求不再含第 1 轮的回复、而它的最后一条消息（本轮提示）仍含目标（D6：原断言在任何情况下都成立）。"模型请求与重建一致"由 L2 的 `transcript.test.ts`（"rebuilds a session that sends the same request as the live one…"，其中包括 `cherry.goal-round` 消息）覆盖，这里不重复。
-- `session_start` 在子代理里提前返回，也就不订阅审批、不恢复目标；没有单独的用例（fork 用例守的是工具和续跑，它们由 `requireMainAgent()` 和 `agent_before_settle` 的门控保证）。这个分支让 fork 在被中止时不往自己的 transcript 里写 goal 快照。
+- `session_start` 在子代理里提前返回，也就不恢复目标、不订阅审批（复查 N8，spec §8.4）。用例 "a fork does not take the parent's approval listener" 守它：宿主把同一个只有一个监听位的端口给 fork 时，fork 的订阅会顶掉父 session 的监听，父 goal 轮里的拒绝就没人听见（去掉提前返回即失败，已做变异检查）。
 
 - [ ] **Step 1: 写失败的测试**
 
@@ -3525,6 +3580,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createGoalExtension } from '../src'
 import {
+  approvals,
   crashedTranscript,
   goalPort,
   goalSession,
@@ -3662,6 +3718,32 @@ describe('goal inside a subagent', () => {
     ])
     for (const part of goalResults) expect(outputText(part.output)).toMatch(/belong to the main agent/)
   })
+
+  // Breaks when a subagent's session_start subscribes to the approval port too: on a port with a single
+  // listener the fork's subscription replaces the parent's, and the parent's denial goes unheard.
+  it("a fork does not take the parent's approval listener", async () => {
+    const { port, tool } = approvals('denied', { defaults: { maxGoalRounds: 2 } })
+    const { model } = routedModel((call) => {
+      if (call.userText.includes('TASK-FORK')) return [...textParts('r', 'FORK-REPORT'), finish('stop')]
+      if (call.lastRole === 'user')
+        return [
+          subagentCall('call_fork', { description: 'Fork check', prompt: 'TASK-FORK', fork: true }),
+          finish('tool-calls')
+        ]
+      return toolResults(call).at(-1)?.toolName === 'subagent'
+        ? [toolCallPart('call_risky', 'risky'), finish('tool-calls')]
+        : [...textParts('d', 'Checked.'), finish('stop')]
+    })
+    const subagents = recordingSubagentPort(() => ({ extensionFactories: [createGoalExtension(port)] }))
+    const { session: s, host } = await openGoalSession(model, port, { tools: [tool], subagents: subagents.port })
+    await promptIdle(s, '/goal Keep working')
+
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'blocked',
+      roundsStarted: 1,
+      lastStop: { code: 'approval_denied' }
+    })
+  })
 })
 ```
 
@@ -3671,11 +3753,12 @@ describe('goal inside a subagent', () => {
 | a model without tool calling gets no goal tools or command, and an active goal is marked unsupported | 不支持工具的模型仍拿到 goal 工具或 `/goal` 命令；`active` 目标没被标 `unsupported_model` |
 | after compaction folds the first rounds, the next round prompt still carries the objective | 轮提示依赖历史给出目标（例如只有第 1 轮带目标），压缩后请求里就没有它 |
 | a fork started in a goal round inherits the goal entries but cannot read, resume or continue the goal | fork 把继承来的目标当成自己的：`get_goal` 返回父目标，`resume` 武装后 fork 多出一个 goal 轮 |
+| a fork does not take the parent's approval listener | 子代理的 `session_start` 照样订阅审批：单监听位的端口上 fork 顶掉父 session 的监听，父 goal 轮里的拒绝被漏掉，goal 跑到上限 |
 
 - [ ] **Step 2: 跑测试确认失败**
 
 Run: `pnpm exec vitest run --project agent-runtime packages/agent-runtime-pi/tests/goalRebuild.test.ts`
-Expected: "without tool calling" 和 "a fork started in a goal round" FAIL（没有 `unsupported_model` 快照；fork 里 `get_goal` 成功、`resume` 后 fork 多出一个 goal 轮）；另两条 PASS（守任务 4 的恢复和任务 3 的提示词）。
+Expected: "without tool calling"、"a fork started in a goal round" 和 "a fork does not take the parent's approval listener" FAIL（没有 `unsupported_model` 快照；fork 里 `get_goal` 成功、`resume` 后 fork 多出一个 goal 轮；fork 顶掉了父 session 的审批监听，goal 以 `round_limit` 结束）；另两条 PASS（守任务 4 的恢复和任务 3 的提示词）。
 
 - [ ] **Step 3: 实现门控快照**
 
@@ -3736,7 +3819,7 @@ Expected: "without tool calling" 和 "a fork started in a goal round" FAIL（没
 - [ ] **Step 5: 跑测试确认通过**
 
 Run: `pnpm exec vitest run --project agent-runtime packages/agent-runtime-pi/tests/goalRebuild.test.ts packages/agent-runtime-pi/tests/goal.test.ts packages/agent-runtime-pi/tests/goalStops.test.ts packages/agent-runtime-pi/tests/goalState.test.ts && pnpm --filter @cherrystudio/agent-runtime typecheck`
-Expected: PASS（四个文件共 91 个用例）。
+Expected: PASS（四个文件共 94 个用例）。
 
 - [ ] **Step 6: 格式、lint、提交**
 
@@ -3827,12 +3910,12 @@ git cat-file commit HEAD | grep -E '^gpgsig|Signed-off-by'
 
 ## Self-review 记录
 
-- **Spec 覆盖**：§5 数据模型 → 任务 2、3；§6.0 首轮 → 任务 5 `startRound`（空闲时开轮，忙时只武装）；§6.1 记账与人类回合 → 任务 5 `turn_end` / `startHumanTurn`；§6.2 十一步 → 任务 5 `decide`，第 8 条任务 8；§6.3 接纳 → 任务 5 `admit`（两个接纳点，见任务 5 "spec 与 Pi 不符"）；§6.4 → 任务 5、8 的 `agent_settled`；§7.1 上限 → 任务 6；§7.2 无进展 → 任务 5（轮级计数、hint）和任务 7（轮内重复、截断）；§7.3 需要人 → 任务 8；§7.4 错误 → 任务 5 `decide` 第 2 条、任务 8 用例；§7.5 自报 → 任务 9；§7.6 停止压过续跑 → 任务 4 的命令 `ctx.abort()`、任务 5 用例、任务 8 `agent_settled`；§8 工具命令 → 任务 4（C2 在任务 5）；§8.3 门控、§8.4 子代理里不生效、§11 衔接 → 任务 10；§9 核验 → 任务 9；§10 端口 → 任务 4、8。
-- **§13 测试计划逐行落点**：创建后空闲续跑、只在接纳后递增 → 任务 5 "an idle /goal starts round 1…"、"does not count a round that a later extension vetoed"；空闲时命令开轮、运行中只武装 → 任务 5 同一条和 "in confirm-each-round mode…"、"a command typed during a human turn only arms the goal…"；后加载扩展覆盖 → 任务 5 veto；用户消息在 `pendingMessages` → 任务 5 "yields to a user message waiting at the settle…"；wrap-up 与 `round_limit`、调高后 resume → 任务 6 前两条；token / 金额预算、无定价只按 token → 任务 6 第 3–5 条；子代理 usage → 任务 5；`hasRunningSubagents` → 任务 8；fork → 任务 10；无进展 hint / 停止 → 任务 7 前两条；轮内重复 → 任务 7 第 4 条；审批被拒 → 任务 8；`session.abort()` → 任务 8；`/goal pause` 在流式输出中生效 → 任务 5 "pausing an active goal stops its round…"；blocked 门槛 → 任务 9；陈旧 revision → 任务 4；goal 轮里的权限 → 任务 5 "refuses create, edit, pause and resume in a goal round"（人类回合一侧在任务 4）；重建后 disarmed → 任务 10；`confirm-each-round` → 任务 5；无 / 有 `verify` → 任务 9；`modelSupportsTools() === false` → 任务 10；压缩 → 任务 10（重建后请求一致由 L2 的 `transcript.test.ts` 覆盖）。
-- **spec 相对本计划的三处调整**（已同步进 spec）：快照新增 `progressRounds`；命令反馈走 `cherry.goal-notice` 状态条目；`GoalVerifier` 收 `ConversationModelMessage[]`。另有两处 spec 与 Pi 的实际行为不符（接纳点、中止的可见位置），见任务 5，待 controller 裁定。
+- **Spec 覆盖**：§5 数据模型 → 任务 2、3；§6.0 首轮 → 任务 5 `startRound`（空闲时开轮，忙时只武装）；§6.1 记账与人类回合 → 任务 5 `turn_end` / `startHumanTurn`；§6.2 十一步 → 任务 5 `decide`，第 8 条任务 8；§6.3 接纳 → 任务 5 `admit`（命令轮在 `message_end`，续跑轮在 `turn_start`）；§6.4 → 任务 5、8 的 `agent_settled`（预约作废、中止）；§7.1 上限 → 任务 6；§7.2 无进展 → 任务 5（轮级计数、hint）和任务 7（轮内重复、截断）；§7.3 需要人 → 任务 8；§7.4 错误 → 任务 5 `decide` 第 2 条、任务 8 用例；§7.5 自报 → 任务 9；§7.6 停止压过续跑 → 任务 4 的命令 `ctx.abort()`、任务 5 用例、任务 8 `agent_settled`；§8 工具命令 → 任务 4（C2 在任务 5）；§8.3 门控、§8.4 子代理里不生效、§11 衔接 → 任务 10；§9 核验 → 任务 9；§10 端口 → 任务 4、8。
+- **§13 测试计划逐行落点**：创建后空闲续跑、只在接纳后递增 → 任务 5 "an idle /goal starts round 1…"、"does not count a round that a later extension vetoed"；空闲时命令开轮、运行中只武装 → 任务 5 同一条和 "in confirm-each-round mode…"、"a command typed during a human turn only arms the goal…"；后加载扩展覆盖 → 任务 5 veto；用户消息在 `pendingMessages` → 任务 5 "yields to a user message waiting at the settle…"；wrap-up 与 `round_limit`、调高后 resume → 任务 6 前两条；token / 金额预算、无定价只按 token → 任务 6 第 3–5 条；子代理 usage → 任务 5；`hasRunningSubagents` → 任务 8；fork → 任务 10；无进展 hint / 停止 → 任务 7 前两条；轮内重复 → 任务 7 第 4 条；审批被拒 → 任务 8；`session.abort()` → 任务 8；`/goal pause` 在流式输出中生效 → 任务 5 "pausing an active goal stops its round…"；blocked 门槛 → 任务 9；陈旧 revision → 任务 4；goal 轮里的权限 → 任务 5 "refuses create, edit, pause and resume in a goal round"（人类回合一侧在任务 4）；重建后 disarmed → 任务 10；`confirm-each-round` → 任务 5（含人类回合结束了那一轮、运行中途 resume 两条）；无 / 有 `verify` → 任务 9；`modelSupportsTools() === false` → 任务 10；压缩 → 任务 10（重建后请求一致由 L2 的 `transcript.test.ts` 覆盖）。
+- **spec 相对本计划的三处调整**（已同步进 spec）：快照新增 `progressRounds`；命令反馈走 `cherry.goal-notice` 状态条目；`GoalVerifier` 收 `ConversationModelMessage[]`。接纳点和中止的可见位置按探针结果写进了 spec（2ce25900ae），复查的 N2、N3、N5、N6、N9 也已改进 spec。
 - **类型一致性**：`RoundDetails`、`GoalStopCode`、`GoalPort.defaults` 在任务 2–4 定义；任务 5 把 `Runtime.lastRoundProgressed` / `blockedRounds` 换成 `round` / `blocked`，任务 8 改名 `hasRunningSubagents` / `waiting_subagents`，任务 10 加 `inSubagent` 和 `in_subagent`。`stop()` / `commit()` / `notice()` 的签名贯穿任务 4–10；`completeGoal` / `blockGoal` 在任务 9 多一个 `ctx` 参数，调用处同时改。
 - **Review Focus 覆盖**：1 → 任务 5 "a user message taken in during a goal run…"、"yields to a user message waiting at the settle…"；2 → 任务 4 "rejects a stale revision"；3 → 任务 7 "hints after two rounds without progress…"；4 → 任务 10 "a session rebuilt after a crash mid-round…"、任务 5 "resume refuses an active goal that has no round left"；5 → 任务 5 veto；6 → 任务 5 "counts the usage a subagent result reports…"；7 → 任务 10 fork；8 → 任务 8 "aborting the run pauses the goal…"；9 → 任务 5 "a command typed during a human turn…"。
-- **怎么验证的**：重写任务 5–11 时，把任务 5 结束时和任务 10 结束时的 `goalState.ts`、`goalExtension.ts`、`goalSupport.ts` 和四个测试文件放在包内临时目录里跑通（任务 5 状态 59 个用例，最终 91 个），typecheck、`oxlint --deny-warnings`、`eslint`、`oxfmt` 都过；再逐条变异实现（去掉 `message_end` 接纳、去掉 `turn_start` 接纳、去掉人类回合、去掉第 7 条让路、按 turn 清零重复计数、截断算进展、只在 settle 前处理中止、旧的 `resume()`……四十多条），每条都让对应用例失败，唯一没被抓到的是子代理 `session_start` 的提前返回（见任务 10 Notes）。计划里的代码块就是这些文件的内容，路径换回包内；临时文件已删除。
+- **怎么验证的**：重写任务 5–11 时，把任务 5 结束时和任务 10 结束时的 `goalState.ts`、`goalExtension.ts`、`goalSupport.ts` 和四个测试文件放在包内临时目录里跑通，typecheck、`oxlint --deny-warnings`、`eslint`、`oxfmt` 都过；再逐条变异实现（去掉 `message_end` 接纳、去掉 `turn_start` 接纳、去掉人类回合、去掉第 7 条让路、按 turn 清零重复计数、截断算进展、只在 settle 前处理中止、旧的 `resume()`……四十多条），每条都让对应用例失败。复查之后（N4、N6、N8）把本计划的代码块按各任务的步骤逐条回放到 `src` 的临时副本上：任务 5 结束时 61 个用例（goal 30、goalState 31），任务 10 结束时 94 个（goal 30、goalState 33、goalStops 26、goalRebuild 5），typecheck 和 lint 都过；新加的三条用例各用变异验证过（`roundAdmitted` 在人类回合清零、`resume` 不清零、子代理的 `session_start` 不提前返回）。计划里的代码块就是这些文件的内容，路径换回包内；临时文件已删除。
 
 ## 预检结论落点（`.superpowers/sdd/2026-10-11-agent-runtime-goal/preflight-5-11.md`）
 
@@ -3874,7 +3957,7 @@ git cat-file commit HEAD | grep -E '^gpgsig|Signed-off-by'
 | Q13 | 不变 |
 | Q14 | 不变 |
 | Q15 | 任务 11 改写 "Both tools are `model-only`" 一句 |
-| S5 | S5.1 → 任务 5 权限用例覆盖四个动作；S5.2 → 删掉错误的 Step 4 说明；S5.3 → spec 进了任务 5 的 Files；edit 落入创建 → 任务 5 C2 用例 |
+| S5 | S5.1 → 任务 5 权限用例覆盖四个动作；S5.2 → 删掉错误的 Step 4 说明；S5.3 → 任务 5 原要改的 spec 句子已在复查时改进 spec，任务 5 不再提交 spec；edit 落入创建 → 任务 5 C2 用例 |
 | S6 | 见 Q6、D3、P7；X1 / X3 已解决 |
 | S7 | S7.1 → 任务 7 脚本用单个 `(prompt, call)` 脚本加 `roundStart`；S7.2 → Step 2 写明前两条直接通过；S7.3 → 标题改为 "stops after the third" |
 | S8 | D9 → 标题改为 "blocks"；X1 / X3 / X4 已解决 |
@@ -3884,7 +3967,7 @@ git cat-file commit HEAD | grep -E '^gpgsig|Signed-off-by'
 | C1 | 任务 5：`resume()` 先调 `resumeGoal`；用例 "resume refuses an active goal that has no round left" |
 | C2 | 任务 5：`edit` 分支加 `runtime.goal` 条件；用例 "with no goal, a leading edit…" |
 | C3 | 任务 6 Step 1–3 |
-| C4 | 任务 5 Step 5 |
+| C4 | spec §7.6 第二条（复查时与 N2 一并改进 spec），任务 5 不再改 spec |
 | C5 | 任务 8（`details?.outcome`） |
 | C6 | 已在代码里，任务 5 不动 `commit()` |
 | C7 | 任务 9：CAS 复核和 pause-on-complete 两条用例 |
@@ -3908,3 +3991,17 @@ git cat-file commit HEAD | grep -E '^gpgsig|Signed-off-by'
 | D9 | 任务 8 用例标题 |
 | D10 | 脚本不再有未用的参数（用 `_prompt`） |
 | D11 | spec:460 → 任务 5 "a command typed during a human turn…"；spec:475 → 任务 5 权限用例；spec:470 → 任务 8 审批用例；spec:480 → 任务 10 命令未注册；spec:464 → 任务 6 无定价用例；spec:481 → 任务 10 压缩用例（重建一致见上）；§7.2 `subagent` 算进展 → 任务 5 单元测试 |
+
+### 复查（`.superpowers/sdd/2026-10-11-agent-runtime-goal/preflight-5-11-recheck.md`）
+
+| ID | 落点 |
+|---|---|
+| N1 | 删掉任务 5 的"spec 与 Pi 不符…交 controller 裁定"一节和 Self-review 里说它们待定的句子；spec 2ce25900ae 已写明两处 |
+| N2 | spec §7.6 第二条：命令只在 goal 原为 `active` 且 agent 正忙时 `ctx.abort()`（C4 一并落进 spec，任务 5 不再有改 spec 的步骤）；最后一句改成 Pi 跳过 `agent_before_settle`，`agent_settled` 到来时 goal 已不是 `active` |
+| N3 | spec §4：引言去掉"四个"，加 `session_shutdown` 行，`session_start` 行写明订阅审批，`agent_settled` 行写明中止时 `paused / aborted`；spec §6.4 同样写明 |
+| N4 | 任务 5 的 `decide()` 去掉 `outcome === 'aborted'` 分支，签名变成 `decide(event, ctx)`；中止只在任务 8 的 `agent_settled` 里处理 |
+| N5 | spec §7.2：被截断的回复的文字不算进展，同一轮里成功的非只读工具调用仍算；与任务 7 的代码一致 |
+| N6 | spec §6.2 第 6 条改成"本次运行里跑过 goal 轮（自上次武装以来有轮被接纳）"；任务 5 加 `runtime.roundAdmitted`（`admit()` 置真，`resetGoalRuntime()` 清零）和两条用例："…a run that ran a goal round pauses, even when a user message ended it"、"…a resume typed later in the same run gets one more round" |
+| N7 | 任务 8 Step 1 的门禁加 eslint；Step 6 的门禁带上 `goalSupport.ts` |
+| N8 | `approvals()` 移进 `goalSupport.ts`（任务 8），任务 10 加用例 "a fork does not take the parent's approval listener"（去掉子代理 `session_start` 的提前返回即失败）；spec §8.4 写明子代理不订阅审批 |
+| N9 | spec §4 和 §6.3：续跑的轮是 branch 上最后一条 message 条目之后的 round 消息，其他扩展追加的条目跳过 |
