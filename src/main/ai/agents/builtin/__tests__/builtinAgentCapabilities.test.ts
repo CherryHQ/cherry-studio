@@ -67,7 +67,6 @@ describe('hostToolsEnabled', () => {
     for (const channelLinked of [false, true]) {
       expect(hostToolsEnabled(agentOf('claude-code', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(true)
       expect(hostToolsEnabled(agentOf('pi', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(false)
-      expect(hostToolsEnabled(agentOf('dsh', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(false)
     }
   })
 

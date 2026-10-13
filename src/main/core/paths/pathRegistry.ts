@@ -125,6 +125,8 @@ export function buildPathRegistry() {
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
+    'feature.claude_code.binary': path.join(appUserDataToolchain, 'claude-agent-sdk'),
+
     // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
     // use of local embedding or local OCR — see ai/localModel's shared artifacts.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
@@ -208,10 +210,6 @@ export function buildPathRegistry() {
     'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
     'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
     'feature.agents.pi.vcc_file': path.join(app.getAppPath(), 'out', 'main', 'pi-vcc.mjs'),
-    // NOTE(app-managed-dirs): dsh dirs are new in this PR and freely relocatable —
-    // dsh resume tokens persist the session id, never a filesystem path.
-    'feature.agents.dsh.root': path.join(appUserDataData, 'Agents', '.dsh'), // Cherry-owned dsh home (DSH_HOME) + per-connection compositions
-    'feature.agents.dsh.sessions': path.join(appUserDataData, 'Agents', '.dsh', 'sessions'), // JSONL session-persistence root
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
@@ -279,7 +277,6 @@ export function buildPathRegistry() {
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
     'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
     'feature.files.intakes': path.join(appUserDataData, 'FileIntakes'),
-    'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
     // FileManager's `withTempCopy` escape hatch parent dir; each call mkdtemps a
     // unique sub-directory under here.
     'feature.files.tempcopy.temp': path.join(appTemp, 'files-tempcopy'),
