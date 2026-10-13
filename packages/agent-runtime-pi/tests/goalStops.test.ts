@@ -461,8 +461,8 @@ describe('goal stops for people, errors and aborts', () => {
   })
 })
 
-/** Each round reads the goal, sends update_goal with `update(goal)` when it returns arguments, then replies. */
-function eachRound(update: (goal: GoalSnapshot) => Record<string, unknown> | undefined) {
+/** Each round reads the goal, sends one update_goal call per argument set `update(goal)` returns, then replies. */
+function eachRound(update: (goal: GoalSnapshot) => Record<string, unknown> | Record<string, unknown>[] | undefined) {
   return (prompt: LanguageModelV3Prompt, call: number) => {
     if (roundStart(prompt) !== undefined) return [toolCall(`g${call}`, 'get_goal', {}), finish('tool-calls')]
     const last = prompt.at(-1)
@@ -472,7 +472,11 @@ function eachRound(update: (goal: GoalSnapshot) => Record<string, unknown> | und
     const args = goal ? update(goal) : undefined
     return args
       ? [
-          toolCall(`u${call}`, 'update_goal', { goal_id: goal!.id, revision: goal!.revision, ...args }),
+          ...[args]
+            .flat()
+            .map((one, i) =>
+              toolCall(`u${call}.${i}`, 'update_goal', { goal_id: goal!.id, revision: goal!.revision, ...one })
+            ),
           finish('tool-calls')
         ]
       : say(`reply ${call}`)
@@ -481,6 +485,46 @@ function eachRound(update: (goal: GoalSnapshot) => Record<string, unknown> | und
 const updates = (s: AgentSession) => toolResults(s).filter((result) => result.toolName === 'update_goal')
 const CLOSING =
   'The goal is complete. End your turn with a short summary for the user of what was delivered and how it was checked; do not start new work.'
+const TERMINAL = 'The goal is already complete; new work needs a new goal.'
+/** An accepted completion: exactly the goal view, then the closing instruction (spec §7.5). */
+function expectCompletion(result: ReturnType<typeof updates>[number]) {
+  expect(result.content).toEqual([
+    { type: 'text', text: expect.any(String) },
+    { type: 'text', text: CLOSING }
+  ])
+  const [view] = result.content
+  expect(JSON.parse(view.type === 'text' ? view.text : '')).toMatchObject({
+    goal: { phase: 'complete' },
+    activation: 'disarmed'
+  })
+}
+/** Echoes (a progressing call) at a round start or a user message, then reads the goal and completes it. */
+function workThenComplete(prompt: LanguageModelV3Prompt, call: number) {
+  const last = prompt.at(-1)
+  const after = (name: string) =>
+    last?.role === 'tool' && last.content.some((part) => part.type === 'tool-result' && part.toolName === name)
+  if (roundStart(prompt) !== undefined || last?.role === 'user')
+    return [toolCall(`e${call}`, 'echo', { value: 'x' }), finish('tool-calls')]
+  if (after('echo')) return [toolCall(`g${call}`, 'get_goal', {}), finish('tool-calls')]
+  if (!after('get_goal')) return say(`reply ${call}`)
+  const { goal } = readGoal(prompt)
+  return [
+    toolCall(`u${call}`, 'update_goal', {
+      goal_id: goal!.id,
+      revision: goal!.revision,
+      action: 'complete',
+      evidence: 'the echo ran'
+    }),
+    finish('tool-calls')
+  ]
+}
+const blockedCall = (id: string, goal: GoalSnapshot) =>
+  toolCall(id, 'update_goal', {
+    goal_id: goal.id,
+    revision: goal.revision,
+    action: 'blocked',
+    blocked_reason: 'the API key is missing'
+  })
 
 describe('goal self-reports', () => {
   // Breaks when the fallback skips a check: round 1 would complete with no progress, round 2 without evidence.
@@ -494,9 +538,45 @@ describe('goal self-reports', () => {
     expect(attempts.map((result) => result.isError)).toEqual([true, true, false])
     expect(textOf(attempts[0])).toMatch(/No round of this goal changed anything yet/)
     expect(textOf(attempts[1])).toMatch(/complete needs evidence/)
-    expect(attempts[2].content.at(-1)).toEqual({ type: 'text', text: CLOSING })
+    expectCompletion(attempts[2])
     expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete', lastStop: { code: 'complete' } })
     expect(rounds(host.entries)).toHaveLength(3)
+  })
+
+  // Breaks when the fallback reads only progressRounds: the round doing the work is counted only when it
+  // ends, so a goal could never complete in the round that finished it.
+  it('without a verifier, the round that did the work can complete the goal', async () => {
+    const { session: s, host } = await goalSession([workThenComplete], goalPort(), { tools: [echoTool] })
+    await promptIdle(s, '/goal Keep working')
+
+    const [completed] = updates(s)
+    expectCompletion(completed)
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete', roundsStarted: 1, progressRounds: 0 })
+  })
+
+  // Breaks when the fallback reads the round state outside a goal round: an aborted round's work, never
+  // counted, would let a later human turn complete the goal (that turn's own echo is not counted either).
+  it("without a verifier, an aborted round's work does not count in a later human turn", async () => {
+    const { session: s, host } = await goalSession([workThenComplete], goalPort(), { tools: [echoTool] })
+    let aborted = false
+    s.subscribe((event) => {
+      if (event.type !== 'turn_end' || aborted || !event.toolResults.some((result) => result.toolName === 'echo'))
+        return
+      aborted = true
+      void s.abort()
+    })
+    await promptIdle(s, '/goal Keep working')
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'paused',
+      progressRounds: 0,
+      lastStop: { code: 'aborted' }
+    })
+
+    await promptIdle(s, 'the echo was all it needed; mark the goal complete')
+    const [refused] = updates(s)
+    expect(refused.isError).toBe(true)
+    expect(textOf(refused)).toMatch(/No round of this goal changed anything yet/)
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'paused' })
   })
 
   // Breaks when not_met lets the goal complete, impossible does not block it, or the verifier gets no conversation.
@@ -570,7 +650,7 @@ describe('goal self-reports', () => {
     expect(stale.isError).toBe(true)
     expect(textOf(stale)).toMatch(/Stale goal reference/)
     expect(completed.isError).toBe(false)
-    expect(completed.content.at(-1)).toEqual({ type: 'text', text: CLOSING })
+    expectCompletion(completed)
     expect(lastSnapshot(opened.host.entries)).toMatchObject({ objective: 'Ship v2 instead', phase: 'complete' })
   })
 
@@ -582,7 +662,7 @@ describe('goal self-reports', () => {
     expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete' })
 
     await s.prompt('/goal pause')
-    expect(notices(host.entries).at(-1)).toBe('the goal is complete; create a new one')
+    expect(notices(host.entries).at(-1)).toBe(TERMINAL)
     expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete' })
   })
 
@@ -611,12 +691,12 @@ describe('goal self-reports', () => {
 
     const [, blocked, again] = updates(s)
     expect(updates(s).map((result) => result.isError)).toEqual([false, true, true])
-    expect(textOf(blocked)).toMatch(/already complete/)
-    expect(textOf(again)).toMatch(/already complete/)
+    expect(textOf(blocked)).toBe(TERMINAL)
+    expect(textOf(again)).toBe(TERMINAL)
     expect(snapshots(host.entries).map((snapshot) => snapshot.phase)).toEqual(['active', 'complete'])
 
     await s.prompt('/goal resume')
-    expect(notices(host.entries).at(-1)).toBe('the goal is complete; create a new one')
+    expect(notices(host.entries).at(-1)).toBe(TERMINAL)
   })
 
   // Breaks when create() keeps the finished goal's round open: that round's last reply would count as
@@ -686,6 +766,38 @@ describe('goal self-reports', () => {
 
     expect(updates(s).map((result) => result.isError)).toEqual([true, true, true, true, false])
     expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 5, lastStop: { code: 'model_blocked' } })
+  })
+
+  // Breaks when each report counts instead of each round: round 2's report would be the third and pass.
+  it('several blocked reports in one goal round count once', async () => {
+    const report = { action: 'blocked', blocked_reason: 'the API key is missing' }
+    const { session: s, host } = await goalSession([
+      eachRound((goal) => (goal.roundsStarted === 1 ? [report, report] : report))
+    ])
+    await promptIdle(s, '/goal Keep working')
+
+    const attempts = updates(s)
+    expect(attempts.map((result) => result.isError)).toEqual([true, true, true, false])
+    expect(textOf(attempts[1])).toContain('(1/3)')
+    expect(textOf(attempts[2])).toContain('(2/3)')
+    expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 3, lastStop: { code: 'model_blocked' } })
+  })
+
+  // Breaks when blocked on a blocked goal stops it again: a second snapshot with a new lastStop.
+  it('blocked on a goal that is already blocked changes nothing', async () => {
+    const { session: s, host } = await goalSession([
+      () => [toolCall('c', 'create_goal', { objective: 'g' }), finish('tool-calls')],
+      (prompt) => [blockedCall('b1', readGoal(prompt).goal!), finish('tool-calls')],
+      () => [toolCall('g', 'get_goal', {}), finish('tool-calls')],
+      (prompt) => [blockedCall('b2', readGoal(prompt).goal!), finish('tool-calls')],
+      () => say('Blocked.')
+    ])
+    await s.prompt('please do g')
+
+    const [, again] = updates(s)
+    expect(updates(s).map((result) => result.isError)).toEqual([false, false])
+    expect(JSON.parse(textOf(again))).toMatchObject({ goal: { phase: 'blocked', revision: 2 } })
+    expect(snapshots(host.entries).map((snapshot) => snapshot.phase)).toEqual(['active', 'blocked'])
   })
 
   // Breaks when the round threshold also applies in a human turn, where a person is there to resume.
