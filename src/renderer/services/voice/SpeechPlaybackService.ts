@@ -538,7 +538,7 @@ export class SpeechPlaybackService {
       run.pendingEnded = audio
       return
     }
-    if (run.failedAttempt === run.audioAttemptId || (this.isPaused(run) && !pending)) return
+    if (run.failedAttempt === run.audioAttemptId || (this.isPaused(run) && !pending && !audio.ended)) return
     run.releasing = true
     const outputId = run.outputId
     this.disposeAudio(run)

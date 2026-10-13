@@ -23,9 +23,15 @@ class FakeAudio extends EventTarget {
     if (name === 'src') this.src = ''
   }
   load() {}
+  duration = 1
   currentTime = 0
   paused = true
+  ended = false
   readonly play = vi.fn(async () => {
+    if (this.ended) {
+      this.currentTime = 0
+      this.ended = false
+    }
     this.paused = false
   })
   readonly pause = vi.fn(() => {
@@ -399,6 +405,46 @@ describe('SpeechPlaybackService planning and playback', () => {
     await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
     expect(audios[0].currentTime).toBe(12.5)
     expect(audios[0].play).toHaveBeenCalledTimes(2)
+  })
+
+  it('retires naturally ended audio when pause arrives before the queued ended event', async () => {
+    const { service, voice, audios } = createHarness({ chunks: ['first', 'second'] })
+    await service.start(baseInput)
+    const finished = audios[0]
+    expect(service.getSnapshot().phase).toBe('playing')
+    expect(finished.ended).toBe(false)
+    expect(finished.play).toHaveBeenCalledTimes(1)
+
+    // The user agent latches ended before delivering the queued ended event.
+    finished.currentTime = finished.duration
+    finished.paused = true
+    finished.ended = true
+
+    await service.pause()
+    expect(finished.ended).toBe(true)
+    finished.dispatchEvent(new Event('ended'))
+
+    await vi.waitFor(() => expect(voice.events).toContain('release:file-1'))
+    expect(service.getSnapshot().phase).toBe('paused')
+    expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
+    expect(finished.play).toHaveBeenCalledTimes(1)
+    expect(finished.src).toBe('')
+    expect(audios).toHaveLength(1)
+
+    await service.resume()
+    await vi.waitFor(() =>
+      expect(service.getSnapshot()).toMatchObject({ phase: 'playing', progress: { completed: 1, total: 2 } })
+    )
+    expect(voice.generateSpeech).toHaveBeenCalledTimes(2)
+    expect(finished.play).toHaveBeenCalledTimes(1)
+    expect(audios[1].paused).toBe(false)
+    expect(voice.events).toEqual([
+      'generate:first',
+      'create-audio:cherry-media://audio/output',
+      'release:file-1',
+      'generate:second',
+      'create-audio:cherry-media://audio/output'
+    ])
   })
 
   it('does not play or regenerate the current chunk when paused during synthesis', async () => {
