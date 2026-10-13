@@ -199,6 +199,8 @@ describe('MessageMcpTool', () => {
 
   it('previews links in MCP text and resource blocks without displaying their JSON', async () => {
     const user = userEvent.setup()
+    const headResponse = Promise.withResolvers<Response>()
+    vi.mocked(fetch).mockReturnValue(headResponse.promise)
     render(
       <MessageMcpTool
         toolResponse={createMcpToolResponse({
@@ -224,7 +226,8 @@ describe('MessageMcpTool', () => {
       'src',
       'https://example.com/download?id=1'
     )
-    expect(screen.getByRole('img', { name: 'message.tools.sections.output' })).toHaveAttribute(
+    headResponse.resolve(new Response(null, { status: 405 }))
+    expect(await screen.findByRole('img', { name: 'message.tools.sections.output' })).toHaveAttribute(
       'src',
       'https://example.com/result.png?signature=abc'
     )
