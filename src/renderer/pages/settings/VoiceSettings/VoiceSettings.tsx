@@ -199,6 +199,8 @@ function VoiceSettings() {
   const [installingLocale, setInstallingLocale] = useState(false)
   const localeSelectionPending = useRef(false)
   const localeSelectionGeneration = useRef(0)
+  const recognitionInspectionRef = useRef<Promise<void>>(Promise.resolve())
+  const installingRecognitionLocaleRef = useRef(false)
   const [actionFailed, setActionFailed] = useState<boolean | VoiceErrorReason>(false)
   const [previewFailure, setPreviewFailure] = useState<{ snapshot: SpeechPlaybackSnapshot; reason: VoiceErrorReason }>()
   const autoReadRef = useRef<HTMLButtonElement>(null)
@@ -375,19 +377,20 @@ function VoiceSettings() {
   useEffect(() => {
     if (hasConfiguredRecognitionModel && !configuredRecognitionModel) return
     let current = true
-    setQueriedRecognitionStatus(undefined)
-    void voiceService
-      .resolveTranscriptionConfiguration({
-        modelId: configuredRecognitionModel,
-        language: {
-          source: languageValue(recognitionLanguage)
-            ? TranscriptionLanguageSource.Explicit
-            : TranscriptionLanguageSource.Interface,
-          locale: effectiveRecognitionLanguage
-        }
-      })
-      .then((resolved) => {
-        if (!current) return
+    recognitionInspectionRef.current = recognitionInspectionRef.current.then(async () => {
+      if (!current || installingRecognitionLocaleRef.current) return
+      setQueriedRecognitionStatus(undefined)
+      try {
+        const resolved = await voiceService.resolveTranscriptionConfiguration({
+          modelId: configuredRecognitionModel,
+          language: {
+            source: languageValue(recognitionLanguage)
+              ? TranscriptionLanguageSource.Explicit
+              : TranscriptionLanguageSource.Interface,
+            locale: effectiveRecognitionLanguage
+          }
+        })
+        if (!current || installingRecognitionLocaleRef.current) return
         if (!hasConfiguredRecognitionModel) setDefaultAsrModel(resolved.modelId)
         if (resolved.modelId)
           setQueriedRecognitionStatus({
@@ -395,10 +398,10 @@ function VoiceSettings() {
             language: effectiveRecognitionLanguage,
             result: resolved.status
           })
-      })
-      .catch(() => {
-        if (current) setCatalogFailed(true)
-      })
+      } catch {
+        if (current && !installingRecognitionLocaleRef.current) setCatalogFailed(true)
+      }
+    })
     return () => {
       current = false
     }
@@ -625,26 +628,31 @@ function VoiceSettings() {
     const modelId = effectiveRecognitionModel
     const generation = ++localeSelectionGeneration.current
     localeSelectionPending.current = true
+    if (install) installingRecognitionLocaleRef.current = true
     setInstallingLocale(install)
     setActionFailed(false)
     try {
       await setRecognitionPreferences({ language })
       if (generation !== localeSelectionGeneration.current) return
       if (install && modelId) {
+        await recognitionInspectionRef.current
+        if (generation !== localeSelectionGeneration.current) return
         await voiceService.installTranscriptionAsset({
           modelId,
           language: language || defaultLanguage,
           source: 'settings'
         }).result
-        if (generation === localeSelectionGeneration.current) setQueryRevision((revision) => revision + 1)
       }
     } catch (error) {
       if (generation === localeSelectionGeneration.current)
         setActionFailed(error instanceof VoiceDomainError ? error.reason : true)
     } finally {
       if (generation === localeSelectionGeneration.current) {
+        const refreshStatus = install && Boolean(modelId)
+        installingRecognitionLocaleRef.current = false
         localeSelectionPending.current = false
         setInstallingLocale(false)
+        if (refreshStatus) setQueryRevision((revision) => revision + 1)
       }
     }
   }

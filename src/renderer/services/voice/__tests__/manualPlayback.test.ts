@@ -44,6 +44,16 @@ describe('readTextAloud', () => {
     })
   })
 
+  it('still reads code when explicitly selected instead of treating the selection as a document', async () => {
+    const start = vi.spyOn(speechPlaybackService, 'start').mockResolvedValue({ status: 'started' })
+    const text = '```ts\nconst answer = 42\n```'
+
+    await readTextAloud({ text, mode: 'selection', sourceLabel: 'selection', sourceEntityId: 'selection-1' })
+
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({ text, mode: 'selection' }))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   it('requires confirmation above 5,000 normalized characters and preserves focus', async () => {
     const start = vi
       .spyOn(speechPlaybackService, 'start')
