@@ -924,6 +924,59 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('discards a prompt whose Stop landed while its attachments were still materializing', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(async () => undefined),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    // A turn is live on the CLI, so the Stop really interrupts work.
+    await connection.send({ message: userMessage() })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const pulled: any[] = []
+    const consuming = (async () => {
+      for await (const message of sdkInput) pulled.push(message)
+    })()
+    await vi.waitFor(() => expect(pulled).toHaveLength(1))
+
+    // The follow-up's attachments are still being read when the user hits Stop.
+    const materializing = createDeferred<any>()
+    mocks.materializeNativeFilePart.mockReturnValueOnce(materializing.promise)
+    const sending = connection.send({
+      message: {
+        ...userMessage(),
+        id: 'user-2',
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      }
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // The interrupt reaches a CLI that already has the stopped turn; the pending prompt is not in it.
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'session-1' })
+    await expect(connection.abortTurn!()).resolves.toBe(true)
+    materializing.resolve({ type: 'file', url: 'data:image/png;base64,QUJD', mediaType: 'image/png' })
+    await sending
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(pulled.map((message) => message.message.content)).toEqual(['hello'])
+    void connection.close()
+    await consuming
+  })
+
   it('rejects the SDK-owned /fast command before it enters the input queue', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

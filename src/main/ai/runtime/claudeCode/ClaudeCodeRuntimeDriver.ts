@@ -354,6 +354,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Set when a steer hook (PreToolUse or PostToolBatch) injects a steer; the next top-level
    *  assistant `message_start` emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
+  /** Invalidates a `send()` still materializing attachments when a Stop lands in that window. */
+  private sendSequence = 0
 
   readonly events = this.eventQueue
   get usageCapture(): AgentSessionUsageCapture | undefined {
@@ -472,12 +474,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    this.adapter?.beginTurn()
-
+    const sendId = ++this.sendSequence
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
+    // Attachment materialization is async, so a Stop can land in that window. The stopped prompt
+    // never reached the CLI — admitting it now would execute it inside the settlement window.
+    if (sendId !== this.sendSequence) return
+    // Claim the session-scoped adapter only once the prompt is actually on its way to the CLI, so
+    // a stop arriving before then sees an idle turn instead of one that never started.
+    this.adapter?.beginTurn()
     this.sdkInputQueue.push(sdkMessage)
   }
 
@@ -652,6 +659,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async abortTurn(): Promise<boolean> {
     const query = this.query
     if (!query) return false
+    // Invalidate any send still materializing attachments: its prompt is not in the CLI yet, so it
+    // must never be admitted behind this stop.
+    this.sendSequence++
     // A warm connection whose turn already settled has nothing to interrupt: report success so
     // the stop keeps the preserved runtime instead of falling back to the teardown.
     if (this.adapter?.isTurnActive !== true) return true
