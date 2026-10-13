@@ -61,10 +61,10 @@ export interface GoalPort {
     autonomy: () => 'auto' | 'confirm-each-round'
   }
   modelSupportsTools(): boolean
-  /** L4: approval events of this session's tool calls. */
+  /** Wired by the host integration (its ToolApprovalRegistry): approval events of this session's tool calls. */
   onApproval?(listener: (event: GoalApprovalEvent) => void): () => void
-  /** L4: background subagents of this session still running. */
-  hasRunningChildren?(): boolean
+  /** L6: background subagents of this session still running; foreground subagents finish inside their call. */
+  hasRunningSubagents?(): boolean
   verify?: GoalVerifier
 }
 
