@@ -5785,6 +5785,7 @@
   "settings.voice.recommended": "Empfohlen · {{name}}",
   "settings.voice.resources.open_settings": "Systemspracheinstellungen öffnen",
   "settings.voice.speech.language": "Ausgabesprache",
+  "settings.voice.speech.language_default": "Sprachstandard · {{name}}",
   "settings.voice.speech.model": "Sprachmodell",
   "settings.voice.speech.sample": "Hallo, dies ist eine Vorschau der Stimme, die Ihre Antworten vorliest.",
   "settings.voice.speech.speed": "Sprechgeschwindigkeit",

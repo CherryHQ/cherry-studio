@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SpeechPlaybackService, type SpeechPlaybackStartInput } from '../SpeechPlaybackService'
-import { VoiceDomainError } from '../VoiceService'
+import { VoiceDomainError, type VoiceService } from '../VoiceService'
 
 const sessionId = '00000000-0000-4000-8000-000000000001'
 const requestId = '00000000-0000-4000-8000-000000000002'
@@ -24,12 +24,14 @@ class FakeAudio extends EventTarget {
 class FakeVoiceService {
   readonly events: string[] = []
   readonly initialize = vi.fn(async (): Promise<void> => undefined)
-  readonly readSpeechPreferenceInput = vi.fn(async () => ({
-    modelId: 'local-voice::apple-system-tts' as const,
-    voice: 'configured-voice',
-    language: 'zh-CN',
-    speed: 0.75
-  }))
+  readonly readSpeechPreferenceInput = vi.fn(
+    async (): ReturnType<VoiceService['readSpeechPreferenceInput']> => ({
+      modelId: 'local-voice::apple-system-tts' as const,
+      voice: 'configured-voice',
+      language: 'zh-CN',
+      speed: 0.75
+    })
+  )
   readonly generateSpeech = vi.fn((input: any) => {
     const index = this.generateSpeech.mock.calls.length
     const id = input.sessionId ?? sessionId
@@ -127,6 +129,40 @@ describe('SpeechPlaybackService planning and playback', () => {
       expect(service.getSnapshot().phase).toBe('idle')
     }
   )
+
+  it('keeps the resolved voice for all chunks and refreshes it for the next playback', async () => {
+    const { service, voice, audios } = createHarness({ chunks: ['first', 'second'] })
+    voice.readSpeechPreferenceInput.mockResolvedValue({
+      modelId: 'local-voice::apple-system-tts',
+      language: 'zh-CN',
+      speed: 1
+    })
+    let defaultVoice = 'tingting'
+    const synthesizedVoices: string[] = []
+    voice.generateSpeech.mockImplementation((input) => {
+      const selected = input.voice || defaultVoice
+      synthesizedVoices.push(selected)
+      return {
+        sessionId,
+        requestId,
+        result: Promise.resolve({
+          sessionId,
+          requestId,
+          resolved: { modelId: 'local-voice::apple-system-tts', voice: selected, language: 'zh-CN', speed: 1 },
+          output: { id: `file-${synthesizedVoices.length}`, url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+        })
+      }
+    })
+    await service.start(baseInput)
+    defaultVoice = 'eddy'
+    audios[0].dispatchEvent(new Event('ended'))
+    await vi.waitFor(() => expect(audios).toHaveLength(2))
+    expect(synthesizedVoices).toEqual(['tingting', 'tingting'])
+    await service.stop()
+    await service.start(baseInput)
+    expect(synthesizedVoices).toEqual(['tingting', 'tingting', 'eddy'])
+    await service.stop()
+  })
 
   it('releases audio that ends before Main acknowledges playback and completes each chunk once', async () => {
     const { service, voice, audios } = createHarness({ chunks: ['first', 'second'] })

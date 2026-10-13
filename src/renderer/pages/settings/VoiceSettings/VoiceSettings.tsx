@@ -214,8 +214,10 @@ function VoiceSettings() {
   const [asrLocales, setAsrLocales] = useState<Awaited<ReturnType<typeof voiceService.listTranscriptionLocales>>>()
   const [defaultAsrModel, setDefaultAsrModel] = useState<LocalTranscriptionModelId>()
   const [defaultSpeechModel, setDefaultSpeechModel] = useState<LocalSpeechModelId>()
-  const [recommendedVoice, setRecommendedVoice] = useState<string>()
+  const [defaultVoice, setDefaultVoice] =
+    useState<Awaited<ReturnType<typeof voiceService.resolveSpeechConfiguration>>>()
   const [voices, setVoices] = useState<readonly { id: string; name: string; language: string }[]>([])
+  const [voicesLoading, setVoicesLoading] = useState(true)
   const [queriedRecognitionStatus, setQueriedRecognitionStatus] = useState<QueriedRecognitionStatus>()
   const [queriedSpeechStatus, setQueriedSpeechStatus] = useState<QueriedSpeechStatus>()
   const [microphoneStatus, setMicrophoneStatus] =
@@ -311,7 +313,7 @@ function VoiceSettings() {
   const incompatibleLanguage = automaticLanguage ? languageValue(recognitionLanguage) : undefined
   const defaultLanguage = getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
   const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? defaultLanguage
-  const selectedVoice = voices.find((voice) => voice.id === (speechVoice || recommendedVoice))
+  const selectedVoice = voices.find((voice) => voice.id === speechVoice)
   const effectiveSpeechLanguage = languageValue(speechLanguage) ?? selectedVoice?.language ?? defaultLanguage
   useEffect(() => {
     ++previewGenerationRef.current
@@ -342,8 +344,12 @@ function VoiceSettings() {
   const speechVoiceOptions: VoiceSelectOption[] = [
     {
       value: EMPTY_VALUE,
-      label: t('settings.voice.recommended', {
-        name: voices.find((voice) => voice.id === recommendedVoice)?.name ?? t('common.loading')
+      label: t('settings.voice.speech.language_default', {
+        name:
+          defaultVoice?.status.status === 'ready'
+            ? (voices.find((voice) => voice.id === defaultVoice.voice)?.name ??
+              t(voicesLoading ? 'common.loading' : 'settings.voice.status.voice_unavailable'))
+            : t(defaultVoice ? statusKey(defaultVoice.status) : 'common.loading')
       })
     },
     ...voices
@@ -450,7 +456,7 @@ function VoiceSettings() {
   useEffect(() => {
     if (installingRecognitionLocaleRef.current) return
     setQueriedSpeechStatus(undefined)
-    setRecommendedVoice(undefined)
+    setDefaultVoice(undefined)
     if (!configuredSpeechModel) return
     let current = true
     const query = { modelId: configuredSpeechModel, language: configuredSpeechLanguage, voice: configuredSpeechVoice }
@@ -459,15 +465,29 @@ function VoiceSettings() {
       try {
         const resolved = await voiceService.resolveSpeechConfiguration({
           ...query,
-          language: configuredSpeechLanguage ?? (configuredSpeechVoice ? undefined : defaultLanguage),
+          language: effectiveSpeechLanguage,
           speed: speechSpeed
         })
         if (current) {
-          setRecommendedVoice(resolved.voice)
           setQueriedSpeechStatus({ ...query, result: resolved.status })
+          if (!configuredSpeechVoice) setDefaultVoice(resolved)
+        }
+        if (current && configuredSpeechVoice) {
+          try {
+            const automatic = await voiceService.resolveSpeechConfiguration({
+              modelId: configuredSpeechModel,
+              language: effectiveSpeechLanguage
+            })
+            if (current) setDefaultVoice(automatic)
+          } catch {
+            if (current) setDefaultVoice({ speed: 1, status: { status: 'failed', reason: 'operation_failed' } })
+          }
         }
       } catch {
-        if (current) setQueriedSpeechStatus({ ...query, result: { status: 'failed', reason: 'operation_failed' } })
+        if (current) {
+          setQueriedSpeechStatus({ ...query, result: { status: 'failed', reason: 'operation_failed' } })
+          setDefaultVoice({ speed: 1, status: { status: 'failed', reason: 'operation_failed' } })
+        }
       }
     })
     speechStatusCheckRef.current = inspection
@@ -479,7 +499,7 @@ function VoiceSettings() {
     configuredSpeechLanguage,
     configuredSpeechModel,
     configuredSpeechVoice,
-    defaultLanguage,
+    effectiveSpeechLanguage,
     speechSpeed,
     queryRevision
   ])
@@ -508,7 +528,9 @@ function VoiceSettings() {
     if (installingRecognitionLocaleRef.current) return
     let current = true
     setVoices([])
+    setVoicesLoading(false)
     if (configuredSpeechModel && models.some((model) => model.id === configuredSpeechModel)) {
+      setVoicesLoading(true)
       const inspection = voiceService.listVoices(configuredSpeechModel)
       trackSettingsInspection(pendingSettingsInspectionsRef.current, inspection)
       void inspection
@@ -517,6 +539,9 @@ function VoiceSettings() {
         })
         .catch(() => {
           if (current) setCatalogFailed(true)
+        })
+        .finally(() => {
+          if (current) setVoicesLoading(false)
         })
     }
     return () => {
@@ -1089,8 +1114,7 @@ function VoiceSettings() {
                 onValueChange={(value) => {
                   savePreference(() =>
                     setSpeechPreferences({
-                      voiceId: value === EMPTY_VALUE ? '' : value,
-                      language: effectiveSpeechLanguage
+                      voiceId: value === EMPTY_VALUE ? '' : value
                     })
                   )
                 }}>

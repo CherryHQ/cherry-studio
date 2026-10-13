@@ -5785,6 +5785,7 @@
   "settings.voice.recommended": "Önerilen · {{name}}",
   "settings.voice.resources.open_settings": "Sistem ses ayarlarını aç",
   "settings.voice.speech.language": "Konuşma dili",
+  "settings.voice.speech.language_default": "Dil varsayılanı · {{name}}",
   "settings.voice.speech.model": "Konuşma modeli",
   "settings.voice.speech.sample": "Merhaba, bu yanıtlarınızı okumak için kullanılan sesin bir örneğidir.",
   "settings.voice.speech.speed": "Konuşma hızı",

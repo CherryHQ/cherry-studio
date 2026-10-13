@@ -5785,6 +5785,7 @@
   "settings.voice.recommended": "推荐 · {{name}}",
   "settings.voice.resources.open_settings": "打开系统语音设置",
   "settings.voice.speech.language": "朗读语言",
+  "settings.voice.speech.language_default": "语言默认 · {{name}}",
   "settings.voice.speech.model": "语音模型",
   "settings.voice.speech.sample": "你好，这是朗读回复时使用的声音。",
   "settings.voice.speech.speed": "语速",

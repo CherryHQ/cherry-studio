@@ -5785,6 +5785,7 @@
   "settings.voice.recommended": "Recomandată · {{name}}",
   "settings.voice.resources.open_settings": "Deschide setările vocale de sistem",
   "settings.voice.speech.language": "Limba vorbirii",
+  "settings.voice.speech.language_default": "Vocea implicită a limbii · {{name}}",
   "settings.voice.speech.model": "Model vocal",
   "settings.voice.speech.sample": "Bună, aceasta este o mostră a vocii folosite pentru a citi răspunsurile.",
   "settings.voice.speech.speed": "Viteza vorbirii",

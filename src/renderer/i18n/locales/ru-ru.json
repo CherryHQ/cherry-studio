@@ -5785,6 +5785,7 @@
   "settings.voice.recommended": "Рекомендуемый · {{name}}",
   "settings.voice.resources.open_settings": "Открыть системные настройки голоса",
   "settings.voice.speech.language": "Язык речи",
+  "settings.voice.speech.language_default": "По умолчанию для языка · {{name}}",
   "settings.voice.speech.model": "Модель речи",
   "settings.voice.speech.sample": "Здравствуйте, это пример голоса для чтения ваших ответов.",
   "settings.voice.speech.speed": "Скорость речи",

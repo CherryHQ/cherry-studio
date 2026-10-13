@@ -2,6 +2,7 @@ import Foundation
 
 enum Operation: String, Codable, Sendable {
     case capabilities
+    case resolveVoice = "resolve_voice"
     case listAsrLocales = "list_asr_locales"
     case installAsrAssets = "install_asr_assets"
     case transcribe
@@ -21,6 +22,7 @@ struct NativeRequest: Decodable, Sendable {
 
 enum ValidatedCommand: Sendable {
     case capabilities(locale: String)
+    case resolveVoice(locale: String?)
     case listAsrLocales
     case installAsrAssets(locale: String)
     case transcribe(locale: String, inputPath: String)
@@ -30,6 +32,8 @@ enum ValidatedCommand: Sendable {
 extension NativeRequest {
     func validated() throws -> ValidatedCommand {
         switch operation {
+        case .resolveVoice:
+            return .resolveVoice(locale: try locale.map { try required($0) })
         case .capabilities:
             return .capabilities(locale: try required(locale))
         case .listAsrLocales:
@@ -172,4 +176,20 @@ struct TranscribeResult: Encodable, Sendable {
 struct TranscribeSuccess: Encodable, Sendable {
     let operation = "transcribe"
     let result: TranscribeResult
+}
+
+struct ResolveVoiceResult: Encodable, Sendable {
+    let voice: InstalledVoice?
+
+    enum CodingKeys: String, CodingKey { case voice }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(voice, forKey: .voice)
+    }
+}
+
+struct ResolveVoiceSuccess: Encodable, Sendable {
+    let operation = "resolve_voice"
+    let result: ResolveVoiceResult
 }

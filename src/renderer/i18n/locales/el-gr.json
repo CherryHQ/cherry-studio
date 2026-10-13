@@ -5785,6 +5785,7 @@
   "settings.voice.recommended": "Προτεινόμενη · {{name}}",
   "settings.voice.resources.open_settings": "Άνοιγμα ρυθμίσεων φωνής συστήματος",
   "settings.voice.speech.language": "Γλώσσα ομιλίας",
+  "settings.voice.speech.language_default": "Προεπιλογή γλώσσας · {{name}}",
   "settings.voice.speech.model": "Μοντέλο ομιλίας",
   "settings.voice.speech.sample": "Γεια σας, αυτή είναι η φωνή που διαβάζει τις απαντήσεις σας.",
   "settings.voice.speech.speed": "Ταχύτητα ομιλίας",

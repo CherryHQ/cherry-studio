@@ -5785,6 +5785,7 @@
   "settings.voice.recommended": "Recommandée · {{name}}",
   "settings.voice.resources.open_settings": "Ouvrir les paramètres vocaux du système",
   "settings.voice.speech.language": "Langue de synthèse",
+  "settings.voice.speech.language_default": "Voix par défaut de la langue · {{name}}",
   "settings.voice.speech.model": "Modèle vocal",
   "settings.voice.speech.sample": "Bonjour, voici un aperçu de la voix utilisée pour lire vos réponses.",
   "settings.voice.speech.speed": "Vitesse de lecture",

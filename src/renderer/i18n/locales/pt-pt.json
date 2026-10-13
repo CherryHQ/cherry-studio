@@ -5785,6 +5785,7 @@
   "settings.voice.recommended": "Recomendada · {{name}}",
   "settings.voice.resources.open_settings": "Abrir definições de voz do sistema",
   "settings.voice.speech.language": "Idioma da voz",
+  "settings.voice.speech.language_default": "Predefinição do idioma · {{name}}",
   "settings.voice.speech.model": "Modelo de voz",
   "settings.voice.speech.sample": "Olá, esta é uma amostra da voz utilizada para ler as suas respostas.",
   "settings.voice.speech.speed": "Velocidade da voz",
