@@ -190,6 +190,32 @@ describe('sweepAgentOrphans', () => {
     expect(existsSync(orphan)).toBe(true)
   })
 
+  it('keeps a former main directory until its additional-directory claim is removed', async () => {
+    const dateDir = path.join(workspacesRoot, '2026-08-19')
+    const retained = path.join(dateDir, 'retained')
+    const orphan = path.join(dateDir, 'orphan')
+    for (const directory of [retained, orphan]) {
+      mkdirSync(directory, { recursive: true })
+      writeFileSync(path.join(directory, 'report.md'), 'keep this document')
+      makeStale(directory)
+    }
+    await seedWorkspace('ws-1', path.join(root, 'new-main'))
+    dbh.db
+      .update(agentWorkspaceTable)
+      .set({ additionalDirectories: [retained] })
+      .run()
+
+    const first = await sweepAgentOrphans()
+
+    expect(first.removed).toEqual([orphan])
+    expect(existsSync(path.join(retained, 'report.md'))).toBe(true)
+
+    dbh.db.update(agentWorkspaceTable).set({ additionalDirectories: [] }).run()
+    const second = await sweepAgentOrphans()
+    expect(second.removed).toEqual([retained, dateDir])
+    expect(existsSync(retained)).toBe(false)
+  })
+
   it('leaves plain files untouched at either root', async () => {
     const stray = path.join(root, 'stray.txt')
     const strayWorkspace = path.join(workspacesRoot, '2026-08-19', 'notes.txt')

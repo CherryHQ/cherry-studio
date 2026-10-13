@@ -36,7 +36,7 @@ export interface AgentSweepReport {
  *    to the app-owned runtime roots (`.claude`, `.pi`, `system`), so
  *    only uuid-named children are ever candidates.
  *  - `{agents.system_workspaces}/{date}/{sessionId}` — app-owned session
- *    workspaces, claimed by `agent_workspace.path`. Workspace rows survive
+ *    workspaces, claimed by workspace main and additional paths. Workspace rows survive
  *    Delete and are removed at session purge.
  *  - each runtime driver's own session persistence, claimed by the union of
  *    resume tokens on surviving `agent_session_message` rows and the live runtime snapshot.
@@ -69,10 +69,10 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
   )
   const claimedWorkspaces = new Set(
     db
-      .select({ path: agentWorkspaceTable.path })
+      .select({ path: agentWorkspaceTable.path, additionalDirectories: agentWorkspaceTable.additionalDirectories })
       .from(agentWorkspaceTable)
       .all()
-      .map((row) => path.resolve(row.path))
+      .flatMap((row) => [row.path, ...row.additionalDirectories].map((directory) => path.resolve(directory)))
   )
 
   const removed: string[] = []
