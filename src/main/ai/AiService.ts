@@ -637,12 +637,11 @@ export class AiService extends BaseService {
       fileAttachments
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
     const requestContext = options.context as RequestContext | undefined
-    if (request.streamErrorSerialization) {
-      if (requestContext?.ollamaNumCtx) {
-        request.streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
-      } else {
-        delete request.streamErrorSerialization.ollamaNumCtx
-      }
+    const streamErrorSerialization = request.streamErrorSerialization ?? (request.streamErrorSerialization = {})
+    if (requestContext?.ollamaNumCtx) {
+      streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
+    } else {
+      delete streamErrorSerialization.ollamaNumCtx
     }
     const usageContext = createCaptureContext({
       provider,
@@ -772,23 +771,20 @@ export class AiService extends BaseService {
         onFallbackActivated: (fallback) => {
           activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
           if (fallback.streamErrorSerialization !== undefined) {
-            request.streamErrorSerialization ??= {}
             if (fallback.streamErrorSerialization === null) {
-              delete request.streamErrorSerialization.ollamaNumCtx
+              delete streamErrorSerialization.ollamaNumCtx
             } else {
-              Object.assign(request.streamErrorSerialization, fallback.streamErrorSerialization)
+              Object.assign(streamErrorSerialization, fallback.streamErrorSerialization)
             }
           }
         },
         onPrimaryActivated: () => {
           activeRepairToolCall = options.repairToolCall
           const requestContext = options.context as RequestContext | undefined
-          if (request.streamErrorSerialization) {
-            if (requestContext?.ollamaNumCtx) {
-              request.streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
-            } else {
-              delete request.streamErrorSerialization.ollamaNumCtx
-            }
+          if (requestContext?.ollamaNumCtx) {
+            streamErrorSerialization.ollamaNumCtx = requestContext.ollamaNumCtx
+          } else {
+            delete streamErrorSerialization.ollamaNumCtx
           }
         },
         // Stable `id` so repeated retries reconcile into one live status part (latest wins).

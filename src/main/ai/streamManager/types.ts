@@ -2,6 +2,7 @@ import type { Span } from '@opentelemetry/api'
 import type { UIMessageChunk } from 'ai'
 
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
+import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
@@ -154,6 +155,12 @@ export interface StreamExecution {
   runtimeTiming: MessageRuntimeTimingCollector
   /** OTel root span set as active context around `runExecutionLoop`. */
   rootSpan?: Span
+  /**
+   * Mutable per-execution error-serialization context (Ollama `num_ctx` snapshot).
+   * Owned here so fallback retries can update it without relying on the shallow
+   * copy passed into `AiService.streamText`.
+   */
+  streamErrorSerialization?: SerializeErrorContext
 }
 
 // ── ActiveStream ────────────────────────────────────────────────────

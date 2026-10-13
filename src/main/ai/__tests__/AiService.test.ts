@@ -1809,6 +1809,52 @@ describe('AiService tool approval', () => {
     expect(streamErrorSerialization).not.toHaveProperty('ollamaNumCtx')
   })
 
+  it('updates caller-owned stream error context when fallback activates across a shallow copy', async () => {
+    const service = createService()
+    mockCreateRetryableWrap.mockReturnValueOnce((model: unknown) => model)
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: { context: {} },
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    })
+
+    const managedRequest = {
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
+      trigger: 'submit-message' as const,
+      messages: []
+    }
+    const streamErrorSerialization = {}
+    managedRequest.streamErrorSerialization = streamErrorSerialization
+
+    await service.streamText({
+      ...managedRequest,
+      streamErrorSerialization,
+      requestOptions: { signal: new AbortController().signal }
+    } as never)
+
+    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
+      onFallbackActivated: (fallback: { streamErrorSerialization: { ollamaNumCtx: object } }) => void
+    }
+    retryOptions.onFallbackActivated({
+      streamErrorSerialization: {
+        ollamaNumCtx: { uniqueModelId: 'ollama::fallback', trainedContextWindow: 32_768, numCtx: 16_384 }
+      }
+    })
+
+    expect(streamErrorSerialization).toMatchObject({
+      ollamaNumCtx: { uniqueModelId: 'ollama::fallback', trainedContextWindow: 32_768, numCtx: 16_384 }
+    })
+  })
+
   it('passes an explicit API key override to key-pool resolution', async () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
