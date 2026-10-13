@@ -1,6 +1,6 @@
 import type * as ChildProcessModule from 'node:child_process'
 import type { ExecFileSyncOptions } from 'node:child_process'
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import type * as FsPromisesModule from 'node:fs/promises'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -663,6 +663,124 @@ describe('backgroundTasks', () => {
           } catch {
             // already drained
           }
+        }
+      }
+    )
+
+    // A stop can be the first call that reads the process table successfully. It then seeds the
+    // identity in memory only, and a task that ignores SIGTERM survives the stop: every later
+    // pulse sees the member set already populated, so the conditional persistence at adoption never
+    // fires again and the running record keeps no `pidStartTime`. After a restart nothing can
+    // re-identify the leader, so Stop/Kill refuses the task and a permanent purge cannot clean it.
+    it.skipIf(process.platform === 'win32')(
+      'writes the identity a stop recovers onto the record it leaves running',
+      async () => {
+        // The spawn stamp lookup fails, and so does the group read that would recover it, so the
+        // ownership the spawn registered holds no member at all. The group table stays unreadable
+        // until the stop below, which is therefore the call that performs the first real probe.
+        let stampLookups = 0
+        let groupReadable = false
+        psSteer.read = (args) => {
+          if (args[0] === '-p') {
+            stampLookups++
+            if (stampLookups === 1) throw Object.assign(new Error('ps: command timed out'), { code: 'ETIMEDOUT' })
+            return null
+          }
+          if (args[0] === '-axwwo') {
+            if (!groupReadable) throw Object.assign(new Error('ps: command timed out'), { code: 'ETIMEDOUT' })
+          }
+          return null
+        }
+
+        // A worker that ignores SIGTERM: the stop is delivered but the task survives it, which is
+        // the state that leaves the recovered identity no later chance to be persisted.
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "process.on('SIGTERM', () => {}); setInterval(() => {}, 60_000)"`,
+          cwd: storageDir
+        })
+        expect(record.pidStartTime).toBeUndefined()
+
+        try {
+          groupReadable = true
+          const stopped = await stopDetachedBackgroundTask(storageDir, record.id)
+          // The stop reached the group and the survivor keeps the task open.
+          expect(stopped?.status).toBe('running')
+          expect(isPidAlive(record.pid)).toBe(true)
+          expect(stopped?.pidStartTime).toBeTruthy()
+
+          // The contract is the on-disk record: a restart reads nothing else.
+          const persisted = JSON.parse(
+            await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_RECORD_EXT}`), 'utf8')
+          ) as BackgroundTaskRecord
+          expect(persisted.pidStartTime).toBeTruthy()
+          // And it names the actual leader, so a restart can re-identify it rather than trust any
+          // process that happens to hold the number.
+          const liveStamp = execFileSync('ps', ['-p', String(record.pid), '-o', 'lstart='], {
+            encoding: 'utf8'
+          })
+          expect(persisted.pidStartTime).toBe(liveStamp.trim().replace(/\s+/g, ' '))
+        } finally {
+          psSteer.read = null
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // already drained
+          }
+        }
+      }
+    )
+
+    // A pgid is only a number, and it comes back into circulation the moment this app reaps the
+    // leader it spawned. An ownership entry the spawn could not seed has nothing tying it to that
+    // leader, so a group that later takes the number — an unrelated detached leader with its own
+    // workers — is exactly what it is left looking at. Adopting that leader's start stamp vouches
+    // for its whole group, and Stop/Kill or a permanent agent purge would then signal real work
+    // this app never started.
+    it.skipIf(process.platform === 'win32')(
+      'does not adopt an unrelated leader that took the pgid after this app reaped its own',
+      async () => {
+        const foreignWorker = 4_194_304
+        let reaped = false
+        // The task's own leader is alive only until the command exits; from then on the table shows
+        // a foreign group behind its pgid, which is what keeps the drain poll — and with it the
+        // unseeded ownership entry — alive past the child's close.
+        psSteer.read = (args) => {
+          if (args[0] === '-p') {
+            if (!reaped) throw Object.assign(new Error('ps: command timed out'), { code: 'ETIMEDOUT' })
+            return 'Mon Jan  1 00:00:00 2001\n'
+          }
+          if (args[0] === '-axwwo') {
+            if (!reaped) throw Object.assign(new Error('ps: command timed out'), { code: 'ETIMEDOUT' })
+            return (
+              `${record.pid} ${record.pid} 1 S Mon Jan  1 00:00:00 2001\n` +
+              `${record.pid} ${foreignWorker} ${record.pid} S Mon Jan  1 00:00:00 2001\n`
+            )
+          }
+          return null
+        }
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setTimeout(() => {}, 1_200)"`,
+          cwd: storageDir
+        })
+        // The seed failed at spawn, so the ownership holds the pgid and nothing else.
+        expect(record.pidStartTime).toBeUndefined()
+
+        const killSpy = vi.spyOn(process, 'kill')
+        try {
+          // The child is reaped here, and the foreign group is what the table now reports.
+          await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+          reaped = true
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+
+          // Nothing ties that group to this task, so no stop may signal it.
+          await expect(stopDetachedBackgroundTask(storageDir, record.id, true)).resolves.toBeUndefined()
+          expect(killSpy.mock.calls.filter(([pid]) => pid < 0)).toEqual([])
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+        } finally {
+          psSteer.read = null
+          killSpy.mockRestore()
         }
       }
     )
