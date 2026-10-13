@@ -4220,7 +4220,7 @@ describe('BinaryManager', () => {
       }
     })
 
-    it('restores FFmpeg support DLLs without treating them as executables', async () => {
+    it('does not copy the internal FFmpeg runtime or its Windows DLLs into cherry.bin', async () => {
       platformMock.isWin = true
       const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
       const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
@@ -4243,11 +4243,13 @@ describe('BinaryManager', () => {
 
         await (service as any).extractBundledBinaries()
 
-        expect(mockFsp.copyFile).toHaveBeenCalledWith(
-          expect.stringContaining('app.root.resources.binaries/win32-x64/libopenh264-7.dll'),
-          expect.stringContaining('cherry.bin/libopenh264-7.dll.tmp-')
-        )
-        expect(mockFsp.chmod.mock.calls.some(([path]) => String(path).endsWith('.dll'))).toBe(false)
+        const copiedSources = mockFsp.copyFile.mock.calls.map(([source]) => String(source))
+        expect(
+          copiedSources.some((source) =>
+            /ffmpeg|ffprobe|libopenh264|libvpl-2|libwinpthread|libgcc_s_seh|libstdc\+\+-6/.test(source)
+          )
+        ).toBe(false)
+        expect(mockFs.readFileSync.mock.calls.some(([path]) => String(path).includes('.ffmpeg-version'))).toBe(false)
       } finally {
         Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
       }
