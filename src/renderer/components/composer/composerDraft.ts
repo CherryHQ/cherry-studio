@@ -19,9 +19,6 @@ import { normalizeComposerTokenAttrs } from './tokens'
 
 const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 
-/** Upper bound on a serialized draft's text — enforced by every path that grows the composer. */
-export const COMPOSER_INPUT_MAX_LENGTH = 40000
-
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
 type PersistedComposerSerializedToken = ComposerSerializedToken & {
   kind: ComposerMessageToken['kind']

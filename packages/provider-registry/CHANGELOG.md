@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.1.1
+
+### Patch Changes
+
+- [#21547](https://github.com/CherryHQ/cherry-studio/pull/21547) [`cbc8088`](https://github.com/CherryHQ/cherry-studio/commit/cbc8088e51c060c83d129889230dadbed2fde545) Thanks [@pczhao1210](https://github.com/pczhao1210)! - Route New API image generation and editing through the New API adapter so gateway URLs receive the required API version prefix.
+
 ## 0.1.0
 
 ### Minor Changes

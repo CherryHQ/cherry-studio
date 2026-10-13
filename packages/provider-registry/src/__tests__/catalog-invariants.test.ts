@@ -97,6 +97,14 @@ describe('catalog invariants (data/*.json)', () => {
   const ids = models.map((m) => m.id)
   const baseIds = new Set(ids)
 
+  it.each(['openai-image-generation', 'openai-image-edit'] as const)(
+    'ships the New API adapter for %s without a secondary host',
+    (endpointType) => {
+      const preset = providers.find((provider) => provider.id === 'new-api')
+      expect(preset?.endpointConfigs?.[endpointType]).toEqual({ adapterFamily: 'newapi' })
+    }
+  )
+
   it.each([
     // OpenRouter renamed the vendor prefix (Microsoft → MicrosoftAI) in the same batch as MiniMax → MiniMaxAI.
     ['mai-image-2-5', 'microsoft', 'MicrosoftAI: MAI-Image-2.5'],

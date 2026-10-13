@@ -103,7 +103,6 @@ import {
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import {
   buildComposerQueuedPayload,
-  validateComposerDraftLength,
   getComposerHistoryText,
   hasUnsyncedComposerAttachments
 } from './shared/composerQueuedPayload'
@@ -1602,7 +1601,6 @@ const ChatComposerInner = ({
   const buildEditedMessageParts = useCallback(
     async (draft: ComposerSerializedDraft) => {
       const normalizedDraft = trimComposerDraftBoundaryBlankLines(draft)
-      if (!validateComposerDraftLength(normalizedDraft)) return null
       const tokenIds = getComposerTokenIds(normalizedDraft.tokens)
       const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
       if (hasUnsyncedComposerAttachments(files, payloadFiles)) return null

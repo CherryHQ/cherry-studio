@@ -6,7 +6,6 @@ import type { MessageQuote } from '@shared/data/types/message'
 
 import { useComposerLayerActive } from '../../ComposerContext'
 import type { ComposerSurfaceActions } from '../../ComposerSurface'
-import { validateComposerDraftLength } from './composerQueuedPayload'
 
 export function useComposerMessageQuotes(
   topicId: string | undefined,
@@ -18,8 +17,6 @@ export function useComposerMessageQuotes(
   const active = useComposerLayerActive()
   const insert = useEffectEvent((quote: MessageQuote) => {
     const draft = actionsRef.current.getDraft()
-    const next = [...quotes, quote]
-    if (!validateComposerDraftLength({ text: draft.text, quotes: next })) return
     if (onInsert(draft.text) === false) return
     setQuotes((current) => [...current, quote])
     actionsRef.current.focus('end')

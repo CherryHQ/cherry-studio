@@ -5,7 +5,7 @@ import { gte as semverGte } from 'semver'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { executeCommand } from '@main/utils/processRunner'
+import { CommandFailedError, executeCommand } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 const logger = loggerService.withContext('Utils:Rtk')
 
@@ -129,21 +129,38 @@ export async function rtkRewrite(command: string): Promise<string | null> {
   const execution = await getRtkExecution()
   if (!execution) return null
 
+  let stdout: string
   try {
-    const stdout = await executeCommand(execution.path, ['rewrite', command], {
+    stdout = await executeCommand(execution.path, ['rewrite', command], {
       capture: true,
       env: execution.env,
       timeout: REWRITE_TIMEOUT_MS
     })
-    const rewritten = stdout.trim()
-
-    if (!rewritten || rewritten === command) {
-      return null
+  } catch (error) {
+    if (error instanceof CommandFailedError) {
+      // Upstream contract violation (rtk-ai/rtk#3634): `rtk rewrite` prints the
+      // rewritten command but exits 3 on success, so accept it while rtk ships
+      // the fix. Exit 1 is the documented "no rtk equivalent" outcome.
+      if (error.code === 3) {
+        const rewritten = error.stdout.trim()
+        if (rewritten && rewritten !== command) {
+          logger.warn('rtk rewrite reported success via its non-standard exit code 3 (rtk-ai/rtk#3634)', {
+            code: error.code
+          })
+          return rewritten
+        }
+      } else if (error.code !== 1) {
+        logger.warn('rtk rewrite failed', { code: error.code, error: error.message })
+      }
+    } else {
+      logger.warn('rtk rewrite failed', { error: error instanceof Error ? error.message : String(error) })
     }
-
-    return rewritten
-  } catch {
-    // rtk rewrite exits 1 when there's no rewrite — expected behavior
     return null
   }
+
+  const rewritten = stdout.trim()
+  if (!rewritten || rewritten === command) {
+    return null
+  }
+  return rewritten
 }
