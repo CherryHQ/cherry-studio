@@ -169,6 +169,46 @@ describe('Pi agent loop over the AI SDK port', () => {
     })
   })
 
+  // Breaks when a tool result's text parts reach the model glued into one string.
+  it('separates the text parts of a tool result with newlines, for results and errors', async () => {
+    const { model, calls } = scriptedModel([
+      [
+        { type: 'tool-call', toolCallId: 'ok_1', toolName: 'two_lines', input: '{"fail":false}' },
+        { type: 'tool-call', toolCallId: 'err_1', toolName: 'two_lines', input: '{"fail":true}' },
+        finish('tool-calls')
+      ],
+      [...textParts('t', 'Done.'), finish('stop')]
+    ])
+    const twoLines = defineTool({
+      name: 'two_lines',
+      label: 'Two lines',
+      description: 'Answer in two text parts',
+      parameters: Type.Object({ fail: Type.Boolean() }),
+      async execute(_id, { fail }) {
+        return {
+          content: [
+            { type: 'text', text: 'first' },
+            { type: 'text', text: 'second' }
+          ],
+          details: undefined,
+          isError: fail
+        }
+      }
+    })
+    const { session } = await createTestSession({ port: streamTextPort(model).port, tools: [twoLines] })
+    await session.prompt('Run both')
+
+    const outputs = calls[1].prompt.flatMap((m) =>
+      m.role === 'tool'
+        ? m.content.flatMap((part) => (part.type === 'tool-result' ? [[part.toolCallId, part.output]] : []))
+        : []
+    )
+    expect(Object.fromEntries(outputs)).toEqual({
+      ok_1: { type: 'text', value: 'first\nsecond' },
+      err_1: { type: 'error-text', value: 'first\nsecond' }
+    })
+  })
+
   it('keeps the host plugin chain (model middleware, stream transforms) in force for Pi requests', async () => {
     const { model } = scriptedModel([
       [...textParts('t', '<think>plan the answer</think>', 'Final answer'), finish('stop')]
