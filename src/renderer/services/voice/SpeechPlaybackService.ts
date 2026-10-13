@@ -313,6 +313,8 @@ export class SpeechPlaybackService {
   }
 
   private async retryRun(run: PlaybackRun): Promise<void> {
+    // The pause that preceded this failure is stale. A later pause command sets the flag again.
+    run.desiredPaused = false
     try {
       await this.playAudio(run, true)
     } catch (error) {
