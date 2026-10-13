@@ -23,18 +23,27 @@ export function isPathologicalLineShape(lines: number, contentChars: number): bo
 /** Line count and content length without materializing the line array. */
 function measureLines(content: string): { lines: number; contentChars: number } {
   if (content.length === 0) return { lines: 0, contentChars: 0 }
-  let newlines = 0
-  let crlf = 0
+  // A line ends at LF, CR, or CRLF, so a document written with any of them is counted the same way.
+  let terminators = 0
+  let terminatorChars = 0
   for (let i = 0; i < content.length; i++) {
-    if (content.charCodeAt(i) !== 10) continue
-    newlines++
-    if (i > 0 && content.charCodeAt(i - 1) === 13) crlf++
+    const code = content.charCodeAt(i)
+    if (code === 13) {
+      terminators++
+      if (content.charCodeAt(i + 1) === 10) terminatorChars += 2
+      else terminatorChars += 1
+    } else if (code === 10) {
+      // A CR already counted this separator as the CRLF's first character.
+      if (content.charCodeAt(i - 1) !== 13) {
+        terminators++
+        terminatorChars += 1
+      }
+    }
   }
-  // Line terminators are not content: a CRLF is two characters for one separator, and a trailing
-  // newline terminates its line rather than starting a second one.
+  // A trailing terminator ends its line rather than starting a second one.
   return {
-    lines: content.endsWith('\n') ? newlines : newlines + 1,
-    contentChars: content.length - newlines - crlf
+    lines: /[\r\n]$/.test(content) ? terminators : terminators + 1,
+    contentChars: content.length - terminatorChars
   }
 }
 

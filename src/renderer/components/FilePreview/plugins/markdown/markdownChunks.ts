@@ -11,6 +11,9 @@
  * definition is therefore carried into every chunk, where an unused one renders nothing.
  */
 
+import { decodeNamedCharacterReference } from 'decode-named-character-reference'
+import { decodeNumericCharacterReference } from 'micromark-util-decode-numeric-character-reference'
+
 import { normalizeHeadingText } from '@cherrystudio/ui'
 
 import { isPathologicalLineShape } from '../../textPreviewGuard'
@@ -68,7 +71,10 @@ function isClosingFence(line: string, fence: Fence): boolean {
 /** A fenced code block open behind the container its opening line was written behind. */
 interface ContainerFence {
   fence: Fence
-  /** How many block quote markers each of its lines has to reproduce. */
+  /**
+   * How many block quote markers each of its lines has to reproduce — every marker in the chain,
+   * whether it sits outside a list item or inside one: a continuation line carries them all.
+   */
   quotes: number
   /**
    * The column the item's content starts at when a list marker holds the fence. Its lines are code
@@ -79,30 +85,43 @@ interface ContainerFence {
 }
 
 /**
- * A fenced code block opened behind a container — block quote markers, a list item's marker, or
- * both — or null. The fence belongs to the block those markers open, so every line that reproduces
- * them is its code and a definition-shaped line among them is one the parser never reads. A list
- * marker indented four columns is indented code, and five columns of whitespace behind a marker
- * leave what follows in code the item never sees, so no fence opens behind either.
+ * A fenced code block opened behind a container — block quote markers, a list item's marker, or any
+ * nesting of the two — or null. The fence belongs to the block those markers open, so every line
+ * that reproduces them is its code and a definition-shaped line among them is one the parser never
+ * reads.
+ *
+ * The chain is walked in the order it was written, because that is the order the parser opens the
+ * blocks in: `- > ``` ` is an item holding a quote, and `> - ``` ` a quote holding an item, and the
+ * two hold their content at different columns. The last item in the chain sets the content column,
+ * and every quote marker in the chain has to be reproduced, because a continuation line carries them
+ * all. A list marker indented four columns is indented code, and five columns of whitespace behind a
+ * marker leave what follows in code the item never sees, so no fence opens behind either.
  */
 function openContainerFence(line: string): ContainerFence | null {
-  const { content, quotes } = pastQuoteMarkers(line)
   if (leadingColumns(line) >= 4) return null
-  const marker = LIST_MARKER_PREFIX.exec(content)
-  let head = content
+  let content = line
+  let quotes = 0
   let contentColumn = -1
-  if (marker) {
+  // The chain is finite: each step consumes at least one marker character, so the walk terminates.
+  for (;;) {
+    const quote = QUOTE_MARKER.exec(content)
+    const item = quote ? null : LIST_MARKER_PREFIX.exec(content)
+    if (quote) {
+      content = content.slice(quote[0].length)
+      quotes += 1
+      continue
+    }
+    if (!item) break
     // The marker's separator is the whitespace run that follows it, and its columns set the item's
     // content column — the fence sits at it. Counted on the line itself: a tab advances to the next
-    // multiple of four wherever it falls, so the quote markers in front of the marker count too.
-    const separator = /^[ \t]*/.exec(content.slice(marker[0].length))?.[0] ?? ''
-    const toMarker = line.length - content.length + marker[0].length
-    const markerColumns = columnCount(line.slice(0, toMarker))
-    contentColumn = columnCount(line.slice(0, toMarker + separator.length))
+    // multiple of four wherever it falls, so the markers in front of the marker count too.
+    const separator = /^[ \t]*/.exec(content.slice(item[0].length))?.[0] ?? ''
+    const markerColumns = columnCount(line.slice(0, line.length - content.length + item[0].length))
+    contentColumn = columnCount(line.slice(0, line.length - content.length + item[0].length + separator.length))
     if (contentColumn - markerColumns >= 5) return null
-    head = content.slice(marker[0].length + separator.length)
+    content = content.slice(item[0].length + separator.length)
   }
-  const fence = parseFence(head)
+  const fence = parseFence(content)
   return fence ? { fence, quotes, contentColumn } : null
 }
 
@@ -744,6 +763,50 @@ function emphasisSpans(source: string): Set<number> {
 }
 
 /**
+ * A character reference — the form micromark's `characterReference` construct accepts: a numeric
+ * one up to seven decimal or six hexadecimal digits, or a named one up to thirty-one alphanumerics,
+ * each closed by the semicolon. Anything else is not a reference at all.
+ */
+const ENTITY_REFERENCE = /^&(#(?:\d{1,7}|x[\dA-Fa-f]{1,6})|[\dA-Za-z]{1,31});/
+
+/**
+ * The character a reference renders as, or null when the renderer leaves it as the literal text it
+ * was written as — a name it does not know, or a number outside what a character can be.
+ */
+function decodeEntity(value: string): string | null {
+  const numeric = /^#(?:x([\dA-Fa-f]{1,6})|(\d{1,7}))$/.exec(value)
+  if (numeric) return decodeNumericCharacterReference(numeric[1] ?? numeric[2], numeric[1] ? 16 : 10)
+  return decodeNamedCharacterReference(value) || null
+}
+
+/**
+ * Whether a segment holds a link — a bracketed label a destination or reference follows. A link
+ * inside a link's label is one the parser refuses, so the label's own brackets stay literal text:
+ * finding one decides that the enclosing bracket run is not a link either. An image is allowed
+ * inside a label, so only a label not written as one counts. Each candidate is found from its
+ * closing bracket backwards, so a run of thousands of unclosed brackets costs one walk rather than
+ * one per bracket.
+ */
+function holdsLink(source: string): boolean {
+  for (let end = 0; end < source.length - 1; end += 1) {
+    if (source[end] !== ']' || (source[end + 1] !== '(' && source[end + 1] !== '[')) continue
+    let depth = 0
+    let open = end
+    for (; open >= 0; open -= 1) {
+      if (source[open] === ']') depth += 1
+      else if (source[open] === '[' && (depth -= 1) === 0) break
+    }
+    if (open < 0 || (open > 0 && source[open - 1] === '!')) continue
+    if (source[end + 1] === '(') {
+      if (pastParenRun(source, end + 1) > end + 1) return true
+    } else if (pastBracketRun(source, end + 1).closed) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
  * The plain text a heading's inline source renders — the text the renderer numbers the heading's
  * id from. A link renders its label while its destination stays out of the text, an image with a
  * destination and a raw tag or comment render none at all, and an autolink renders its URL. What
@@ -751,82 +814,100 @@ function emphasisSpans(source: string): Set<number> {
  * untouched and only the constructs that carry readable text need reading.
  */
 function headingRenderedText(source: string): string {
-  const spans = emphasisSpans(source)
   let text = ''
-  let index = 0
-  while (index < source.length) {
-    const character = source[index]
-    if (character === '\\') {
-      text += source[index + 1] ?? ''
-      index += 2
-    } else if (character === '`') {
-      // A code span's content is literal, and only a run of the opener's own length closes it.
-      const run = /^`+/.exec(source.slice(index))?.[0] ?? '`'
-      const close = source.indexOf(run, index + run.length)
-      const closed = close >= 0 && source[close + run.length] !== '`'
-      text += source.slice(index + run.length, closed ? close : index + run.length)
-      if (!closed) text += run
-      index = closed ? close + run.length : index + run.length
-    } else if (character === '&') {
-      const entity = /^&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(amp|lt|gt|quot|apos|nbsp));/.exec(source.slice(index))
-      const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' } as Record<string, string>
-      const code = entity?.[1] ? parseInt(entity[1], 10) : entity?.[2] ? parseInt(entity[2], 16) : 0
-      const decoded =
-        code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : entity?.[3] ? named[entity[3]] : undefined
-      if (entity && decoded !== undefined) {
-        text += decoded
-        index += entity[0].length
+  // The inline segments still to be read, innermost first. A link's label is queued here rather
+  // than read by a recursive call: a heading whose label nests another label tens of thousands deep
+  // would exhaust the call stack, and the renderer has no budget left for it either way.
+  const pending: Array<{ text: string; label: boolean }> = [{ text: source, label: false }]
+  while (pending.length > 0) {
+    const entry = pending.pop() as { text: string; label: boolean }
+    const segment = entry.text
+    // A label is inline content of its own, so its emphasis pairs within it rather than across the
+    // link that holds it. Matched on first use, so a segment with no emphasis never pays the scan.
+    let spans: Set<number> | null = null
+    let index = 0
+    while (index < segment.length) {
+      const character = segment[index]
+      if (character === '\\') {
+        text += segment[index + 1] ?? ''
+        index += 2
+      } else if (character === '`') {
+        // A code span's content is literal, and only a run of the opener's own length closes it.
+        const run = /^`+/.exec(segment.slice(index))?.[0] ?? '`'
+        const close = segment.indexOf(run, index + run.length)
+        const closed = close >= 0 && segment[close + run.length] !== '`'
+        text += segment.slice(index + run.length, closed ? close : index + run.length)
+        if (!closed) text += run
+        index = closed ? close + run.length : index + run.length
+      } else if (character === '&') {
+        const entity = ENTITY_REFERENCE.exec(segment.slice(index))
+        // A reference the renderer refuses stays the literal text it was written as.
+        const decoded = entity ? decodeEntity(entity[1]) : null
+        if (entity && decoded !== null) {
+          text += decoded
+          index += entity[0].length
+        } else {
+          text += character
+          index += 1
+        }
+      } else if (character === '<') {
+        const rest = segment.slice(index)
+        const autolink =
+          /^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\s]*)>/.exec(rest) ?? /^<([^\s<>@]+@[^\s<>@]+)>/.exec(rest)
+        // An autolink renders its URL; a tag, comment or declaration renders no text of its own.
+        const raw = autolink
+          ? null
+          : (/^<!--[\s\S]*?-->|^<\?[^\n]*?\?>|^<!\[CDATA\[[\s\S]*?\]\]>|^<![A-Za-z][^<>]*>/.exec(rest) ??
+            /^<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t]+[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*[ \t]*\/?>/.exec(
+              rest
+            ))
+        if (autolink) text += autolink[1]
+        index += (autolink ?? raw)?.[0].length ?? 1
+        if (!autolink && !raw) text += character
+      } else if (character === '*' || character === '_') {
+        const run = EMPHASIS_RUN.exec(segment.slice(index))?.[0] ?? character
+        // Only a run that paired with a partner is the markers of a span; one that did not is text.
+        if (!(spans ??= emphasisSpans(segment)).has(index)) text += run
+        index += run.length
+      } else if ((character === '[' && !entry.label) || (character === '!' && segment[index + 1] === '[')) {
+        const open = index + (character === '!' ? 1 : 0)
+        const label = pastBracketRun(segment, open)
+        // A destination or reference follows only a label that closed; otherwise the scan already
+        // read to the end of the segment, and the run cannot be part of a construct at all.
+        const reference =
+          segment[label.end] === '[' ? pastBracketRun(segment, label.end) : { end: label.end, closed: true }
+        const follow = label.closed
+          ? segment[label.end] === '('
+            ? pastParenRun(segment, label.end)
+            : reference.closed
+              ? reference.end
+              : -1
+          : -1
+        // A link the label holds forbids the one around it, which leaves the outer brackets as text
+        // — so the scan moves one character and reads the inner link where it stands. An image is
+        // allowed inside a label, so only a link decides this.
+        const nested = label.closed && holdsLink(segment.slice(open + 1, label.end - 1))
+        if (label.closed && !nested && follow >= label.end) {
+          // A link renders its label; an image renders none once it has a destination, while one
+          // without is the literal text the parser leaves standing. A label cannot hold a link, so
+          // reading it is one level deep and never recurses again.
+          if (character !== '!' || follow === label.end)
+            pending.push({ text: segment.slice(open + 1, label.end - 1), label: true })
+          index = follow
+        } else if (nested) {
+          text += character
+          index += 1
+        } else {
+          // A bracket that opens a run no later bracket closes is text, and so is every bracket in
+          // it: the scan has already read as far as `end`, so the run is appended whole rather than
+          // rescanned from each bracket in turn.
+          text += segment.slice(index, label.end)
+          index = label.end
+        }
       } else {
         text += character
         index += 1
       }
-    } else if (character === '<') {
-      const rest = source.slice(index)
-      const autolink = /^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\s]*)>/.exec(rest) ?? /^<([^\s<>@]+@[^\s<>@]+)>/.exec(rest)
-      // An autolink renders its URL; a tag, comment or declaration renders no text of its own.
-      const raw = autolink
-        ? null
-        : (/^<!--[\s\S]*?-->|^<\?[^\n]*?\?>|^<!\[CDATA\[[\s\S]*?\]\]>|^<![A-Za-z][^<>]*>/.exec(rest) ??
-          /^<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t]+[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*[ \t]*\/?>/.exec(
-            rest
-          ))
-      if (autolink) text += autolink[1]
-      index += (autolink ?? raw)?.[0].length ?? 1
-      if (!autolink && !raw) text += character
-    } else if (character === '*' || character === '_') {
-      const run = EMPHASIS_RUN.exec(source.slice(index))?.[0] ?? character
-      // Only a run that paired with a partner is the markers of a span; one that did not is text.
-      if (!spans.has(index)) text += run
-      index += run.length
-    } else if (character === '[' || (character === '!' && source[index + 1] === '[')) {
-      const open = index + (character === '!' ? 1 : 0)
-      const label = pastBracketRun(source, open)
-      // A destination or reference follows only a label that closed; otherwise the scan already
-      // read to the end of the source, and the run cannot be part of a construct at all.
-      const reference = source[label.end] === '[' ? pastBracketRun(source, label.end) : { end: label.end, closed: true }
-      const follow = label.closed
-        ? source[label.end] === '('
-          ? pastParenRun(source, label.end)
-          : reference.closed
-            ? reference.end
-            : -1
-        : -1
-      if (label.closed && follow >= label.end) {
-        // A link renders its label; an image renders none once it has a destination, while one
-        // without is the literal text the parser leaves standing.
-        if (character !== '!' || follow === label.end)
-          text += headingRenderedText(source.slice(open + 1, label.end - 1))
-        index = follow
-      } else {
-        // A bracket that opens a run no later bracket closes is text, and so is every bracket in
-        // it: the scan has already read as far as `end`, so the run is appended whole rather than
-        // rescanned from each bracket in turn.
-        text += source.slice(index, label.end)
-        index = label.end
-      }
-    } else {
-      text += character
-      index += 1
     }
   }
   return text
@@ -1115,14 +1196,14 @@ export function splitMarkdownChunks(
 ): MarkdownWindow {
   if (content.length === 0) return { chunks: [], longLines: false }
 
-  // CommonMark normalizes CRLF to LF before parsing, so chunks carry LF too. Every line-anchored
-  // match below would otherwise be blind to the `\r` a CRLF document leaves at each line end: a
-  // `$$` run that never closes, or a list marker that never matches, suppresses every later
-  // boundary and sends the whole document to the plain-text fallback.
-  const lines = content.split(/\r?\n/)
+  // CommonMark normalizes CRLF, and a bare CR, to LF before parsing, so chunks carry LF too. Every
+  // line-anchored match below would otherwise be blind to the terminator a document leaves at each
+  // line end: a `$$` run that never closes, or a list marker that never matches, suppresses every
+  // later boundary and sends the whole document to the plain-text fallback.
+  const lines = content.split(/\r\n|\r|\n/)
   // A trailing terminator ends its line rather than starting another, so the split's last element is
   // not a line. The long-line average counts lines, and an extra empty one would halve it.
-  const lineCount = content.endsWith('\n') ? lines.length - 1 : lines.length
+  const lineCount = content.length > 0 && /[\r\n]$/.test(content) ? lines.length - 1 : lines.length
   // The next line with content on it, so a run of blank lines belongs to the block that spans it.
   const nextContent = new Array<number>(lines.length).fill(-1)
   for (let i = lines.length - 2, next = -1; i >= 0; i--) {
