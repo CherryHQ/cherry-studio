@@ -33,6 +33,7 @@ import {
   SCENE_SAMPLE_FPS,
   SCENE_SCAN_EDGE_PX,
   SCENE_SCORE_THRESHOLD,
+  sceneCandidateLimit,
   selectDistinctFrameIndexes
 } from '../frameSelection'
 import { readFrameSignature } from '../frameSignature'
@@ -664,6 +665,75 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     }
   )
 
+  it('returns a white frame when a resampled scene label sits before the source frame', async () => {
+    const cutPath = join(root, 'phase-shift-red-white.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:s=320x240:r=25:d=8.04',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=white:s=320x240:r=25:d=0.52',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:s=320x240:r=25:d=7.44',
+        '-filter_complex',
+        '[0:v][1:v][2:v]concat=n=3:v=1:a=0',
+        '-c:v',
+        'mpeg4',
+        '-q:v',
+        '5',
+        cutPath
+      ])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: cutPath, fallbackExt: 'mp4' }, context())
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(
+      {
+        filePath: cutPath,
+        durationMs: probe.durationMs,
+        sampleFps: SCENE_SAMPLE_FPS,
+        scoreThreshold: SCENE_SCORE_THRESHOLD,
+        scanEdgePx: SCENE_SCAN_EDGE_PX,
+        maxCandidates: sceneCandidateLimit(5)
+      },
+      context()
+    )
+    const planned = planAnalysisFrameTimestamps({
+      durationMs: probe.durationMs,
+      maxFrames: 5,
+      targetIntervalMs: 4_000,
+      sceneChanges: detected.changes
+    })
+    const extracted = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: cutPath,
+        outputDir: join(root, 'phase-shift-frames'),
+        timestampsMs: planned,
+        maxEdgePx: 160,
+        jpegQuality: 70
+      },
+      context()
+    )
+    const colors = extracted.frames.map((frame) => averageColor(frame.path))
+    const evidence = JSON.stringify({
+      durationMs: probe.durationMs,
+      detected: detected.changes,
+      planned,
+      extracted: extracted.frames.map((frame) => frame.timestampMs),
+      colors
+    })
+
+    expect(colors[0], evidence).toBe('red')
+    expect(
+      colors.some((color) => color === 'white'),
+      evidence
+    ).toBe(true)
+  })
+
   it('detects cuts on the first video stream when a larger static stream is default', async () => {
     const cutPath = join(root, 'multi-stream-cuts.mp4')
     expect(
@@ -933,6 +1003,29 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     const red = decoded.stdout[0] ?? 0
     const green = decoded.stdout[1] ?? 0
     return green > red ? 'green' : 'red'
+  }
+
+  function averageColor(imagePath: string): 'red' | 'white' | 'other' {
+    const decoded = spawnSync(
+      ffmpegPath,
+      ['-v', 'error', '-i', imagePath, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'],
+      { encoding: 'buffer' }
+    )
+    expect(decoded.status).toBe(0)
+    const bytes = decoded.stdout
+    let red = 0
+    let green = 0
+    let blue = 0
+    const pixels = Math.floor(bytes.length / 3)
+    for (let index = 0; index < pixels; index += 1) {
+      red += bytes[index * 3] ?? 0
+      green += bytes[index * 3 + 1] ?? 0
+      blue += bytes[index * 3 + 2] ?? 0
+    }
+    const channels = [red / pixels, green / pixels, blue / pixels]
+    if (channels.every((channel) => channel > 180)) return 'white'
+    if (channels[0] > 150 && channels[1] < 80 && channels[2] < 80) return 'red'
+    return 'other'
   }
 })
 
