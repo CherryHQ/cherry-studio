@@ -136,6 +136,8 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Monotonic session id; a callback carrying an older one must not act. */
   private sessionGeneration = 0
+  /** The session a commit already owns; a second confirm must not hand the capture back again. */
+  private committedGeneration: number | null = null
 
   /** Overlays whose renderer reported a painted frame. Gates the Escape rescue below. */
   private renderersReady = new Set<WindowId>()
@@ -612,6 +614,10 @@ export class ScreenshotOverlayService extends BaseService {
   /** Copy the overlay's result to the clipboard and end the session. */
   public async commit(result: ScreenshotResultData): Promise<void> {
     const generation = this.sessionGeneration
+    // Claimed before the clipboard write yields: a double confirm would otherwise deliver the
+    // same capture twice, and each delivery stages its own attachment.
+    if (this.committedGeneration === generation) return
+    this.committedGeneration = generation
     // Both read before the clipboard write yields: a newer session may replace the
     // requester by the time it resolves, and these bytes belong to the one that asked.
     const requesterWindowId = this.requesterWindowId

@@ -1068,6 +1068,31 @@ describe('ScreenshotOverlayService', () => {
       })
     })
 
+    it('hands the capture back once when the user confirms twice during a slow clipboard write', async () => {
+      singleDisplaySetup()
+      await service.startCapture('quick-assistant')
+      let finishWrite: () => void = () => {}
+      electron.clipboard.write.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finishWrite = resolve
+        })
+      )
+      const captured = () =>
+        container.ipcApiService.send.mock.calls.filter(([, channel]) => channel === 'screenshot.captured').length
+
+      // Each delivery stages its own attachment, so a double confirm must not deliver twice.
+      const first = service.commit({ pngBytes: PNG_BYTES })
+      const second = service.commit({ pngBytes: PNG_BYTES })
+      finishWrite()
+      await Promise.all([first, second])
+      expect(captured()).toBe(1)
+
+      // The claim belongs to that session only; the next capture is delivered as usual.
+      await service.startCapture('quick-assistant')
+      await service.commit({ pngBytes: PNG_BYTES })
+      expect(captured()).toBe(2)
+    })
+
     it('notifies nobody when the capture came from the global shortcut', async () => {
       singleDisplaySetup()
       await service.startCapture()
