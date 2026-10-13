@@ -1019,7 +1019,9 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       onInsertSelectionReference={insertSelectionReference}
     />
   )
-  const workspacePath = AbsoluteFilePathSchema.safeParse(state.workspacePath)
+  const workspacePath = AbsoluteFilePathSchema.safeParse(
+    state.previewFileSelection?.workspacePath ?? state.workspacePath
+  )
 
   return actions.canOpenArtifactFile && workspacePath.success ? (
     <FilePreviewNavigationProvider openFile={actions.openArtifactFile} workspacePath={workspacePath.data}>
