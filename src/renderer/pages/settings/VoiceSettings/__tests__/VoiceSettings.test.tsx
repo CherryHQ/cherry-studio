@@ -879,16 +879,28 @@ describe('VoiceSettings', () => {
     expect(voice.speechStop).toHaveBeenCalledOnce()
   })
 
-  it('does not show an older preview failure after a new preview has started', async () => {
-    const old = deferred<any>()
-    voice.speechStart.mockReturnValueOnce(old.promise).mockResolvedValue({ status: 'started' })
+  it('cancels a pending preview while playback is still idle instead of starting another', async () => {
+    const starting = deferred<{ status: 'started' }>()
+    voice.speechStart.mockReturnValueOnce(starting.promise)
     render(<VoiceSettings />)
-    const button = screen.getByRole('button', { name: 'Preview voice' })
-    await waitFor(() => expect(button).toBeEnabled())
-    await userEvent.setup().click(button)
-    await userEvent.setup().click(button)
-    await act(async () => old.reject(new VoiceDomainError('operation_failed')))
+    const preview = screen.getByRole('button', { name: 'Preview voice' })
+    await waitFor(() => expect(preview).toBeEnabled())
+    const user = userEvent.setup()
+    await user.click(preview)
+    await waitFor(() => expect(voice.speechStart).toHaveBeenCalledOnce())
+    expect(voice.speech).toMatchObject({ phase: 'idle' })
+    const stop = screen.getByRole('button', { name: 'Stop' })
+    expect(stop).toBeEnabled()
+
+    await user.click(stop)
+
+    expect(voice.speechStart).toHaveBeenCalledOnce()
+    expect(voice.speechStart.mock.calls[0][0].signal).toEqual(expect.any(AbortSignal))
+    expect(voice.speechStart.mock.calls[0][0].signal.aborted).toBe(true)
+    expect(voice.speechStop).not.toHaveBeenCalled()
+    await act(async () => starting.reject(new VoiceDomainError('aborted')))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled()
   })
 
   it('reports a published preview failure once and clears it when playback recovers elsewhere', async () => {
