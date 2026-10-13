@@ -137,6 +137,7 @@ describe('VoiceSettings', () => {
   })
 
   beforeEach(async () => {
+    vi.restoreAllMocks()
     await i18n.changeLanguage('en-US')
     MockUsePreferenceUtils.resetMocks()
     voice.enumerateMicrophones.mockReset().mockResolvedValue([{ deviceId: 'usb-mic', label: 'USB Microphone' }])
@@ -219,6 +220,53 @@ describe('VoiceSettings', () => {
     )
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Use custom preview text' })).not.toBeInTheDocument()
+  })
+
+  it('loads an initially absent speech-language catalog without changing the interface language', async () => {
+    expect(i18n.hasResourceBundle('de-DE', 'translation')).toBe(false)
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
+      'feature.voice.speech.language': 'de-DE'
+    })
+    voice.resolveSpeech.mockResolvedValue({
+      modelId: APPLE_TTS_MODEL_ID,
+      voice: 'german',
+      language: 'de-DE',
+      speed: 1,
+      status: { status: 'ready' }
+    })
+    voice.listVoices.mockResolvedValue([{ id: 'german', name: 'German Voice', language: 'de-DE' }])
+    render(<VoiceSettings />)
+    const play = screen.getByRole('button', { name: 'Preview voice' })
+    await waitFor(() => expect(play).toBeEnabled())
+    await userEvent.setup().click(play)
+    await waitFor(() =>
+      expect(voice.speechStart).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: 'Hallo, dies ist eine Vorschau der Stimme, die Ihre Antworten vorliest.'
+        })
+      )
+    )
+    expect(i18n.language).toBe('en-US')
+  })
+
+  it.each(['stop', 'unmount', 'preference'])('discards a pending preview catalog after %s', async (action) => {
+    const loading = deferred<any>()
+    const load = vi.spyOn(i18n, 'loadLanguages').mockReturnValueOnce(loading.promise)
+    const { unmount, rerender } = render(<VoiceSettings />)
+    const play = screen.getByRole('button', { name: 'Preview voice' })
+    await waitFor(() => expect(play).toBeEnabled())
+    const user = userEvent.setup()
+    await user.click(play)
+    if (action === 'stop') await user.click(screen.getByRole('button', { name: 'Stop' }))
+    else if (action === 'unmount') unmount()
+    else {
+      MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.speed', 1.5)
+      rerender(<VoiceSettings />)
+    }
+    await act(async () => loading.resolve(i18n.t))
+    expect(voice.speechStart).not.toHaveBeenCalled()
+    load.mockRestore()
   })
 
   it('opens model downloads from the recognition menu without changing the selected engine', async () => {
