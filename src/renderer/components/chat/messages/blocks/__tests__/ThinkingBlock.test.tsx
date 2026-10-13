@@ -1,7 +1,12 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ThinkingBlock, { THINKING_CONTENT_PANEL_CLASSNAME } from '../ThinkingBlock'
+import { Scrollbar } from '@cherrystudio/ui'
+
+import ThinkingBlock from '../ThinkingBlock'
+
+// Exercise the real nested scrollbars; the renderer-wide mock only renders a div.
+vi.unmock('@cherrystudio/ui')
 
 // Mock dependencies
 const mockUseTranslation = vi.fn()
@@ -297,26 +302,38 @@ describe('ThinkingBlock', () => {
   })
 
   describe('layout and readability', () => {
-    it('keeps its own scrollbar visible under the idle message scrollbar', () => {
+    it('keeps its own scrollbar visible when the message scrollbar returns to idle', async () => {
       mockRenderConfig.thoughtAutoCollapse = false
       const block = createThinkingBlock()
       render(
-        <div style={{ scrollbarColor: 'transparent transparent' }}>
+        <Scrollbar data-testid="message-scrollbar">
           <ThinkingBlock id={block.id} content={block.content} isStreaming={false} />
-        </div>
+        </Scrollbar>
       )
 
-      // Inherited transparent hides the panel's own bar, so the panel must declare auto.
-      const panelClasses = getContentContainer()!.className.split(/\s+/)
-      expect(panelClasses).toEqual(expect.arrayContaining(['overflow-auto', '[scrollbar-color:auto]']))
+      const messageScrollbar = screen.getByTestId('message-scrollbar')
+      const panel = getContentContainer()!
+      // The inner scrollbar must retain its theme color even when its ancestor becomes transparent.
+      expect(messageScrollbar).toHaveStyle({ scrollbarColor: 'transparent transparent' })
+      expect(panel).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
+
+      fireEvent.scroll(messageScrollbar)
+      fireEvent.scroll(panel)
+      expect(messageScrollbar).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
+
+      await act(() => vi.advanceTimersByTime(2000))
+
+      expect(messageScrollbar).toHaveStyle({ scrollbarColor: 'transparent transparent' })
+      expect(panel).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
     })
 
-    it('uses viewport-aware max height and overscroll containment on the content panel', () => {
+    it('uses viewport-aware max height on the content panel', () => {
       mockRenderConfig.thoughtAutoCollapse = false
       const block = createThinkingBlock()
       renderThinkingBlock(block)
 
-      expect(getContentContainer()).toHaveClass(THINKING_CONTENT_PANEL_CLASSNAME)
+      // Bound long reasoning to the viewport so the message list remains reachable.
+      expect(getContentContainer()).toHaveClass('max-h-[min(32rem,60dvh)]')
     })
 
     it('uses theme-aware muted foreground for panel and markdown content', () => {
@@ -326,7 +343,6 @@ describe('ThinkingBlock', () => {
 
       const panel = getContentContainer()!
       expect(panel).toHaveClass('text-muted-foreground')
-      expect(panel).not.toHaveAttribute('style')
 
       const markdownWrapper = screen.getByText('Markdown: Readable reasoning text').parentElement
       expect(markdownWrapper).toHaveClass('text-muted-foreground')
