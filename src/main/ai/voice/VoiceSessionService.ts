@@ -581,6 +581,8 @@ export class VoiceSessionService extends BaseService {
       if (session.closed || powerEpoch !== this.powerEpoch) throw new VoiceRuntimeError('aborted')
       if (input.chunkIndex !== undefined && input.chunkIndex !== 0) throw new VoiceRuntimeError('invalid_request')
       this.acquireLease(session)
+      session.playback = beginPlaybackSynthesis(session.playback!)
+      this.publishPlayback(session)
       return session
     } catch (error) {
       await this.closeSession(session, true)
@@ -991,7 +993,7 @@ export class VoiceSessionService extends BaseService {
 
   private async abandonUnstartedPlayback(session: Session, requestId: string): Promise<void> {
     if (session.closed || this.lease !== session || session.requestId !== requestId || session.outputId) return
-    if (session.phase && session.phase !== 'paused') return
+    if (session.operation) return
     await this.closeSession(session, true)
   }
 
@@ -1124,11 +1126,12 @@ export class VoiceSessionService extends BaseService {
       ipc.broadcastToType(type, 'ai.voice.session_event', event)
     }
     const session = this.lease
-    if (!session || session.closed || session.phase === 'paused') return
-    if (session.preflightAbort && !session.phase) {
+    if (!session || session.closed) return
+    if (session.preflightAbort) {
       session.preflightAbort.abort(new VoiceRuntimeError('aborted'))
       return
     }
+    if (session.phase === 'paused') return
     if (session.kind === 'recording') {
       this.sendCommand(session, 'interrupt')
       return
