@@ -7,6 +7,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { type SpeechPlaybackSnapshot, VoiceDomainError } from '@renderer/services/voice'
+import { SpeechPlaybackService } from '@renderer/services/voice/SpeechPlaybackService'
+import { VoiceService } from '@renderer/services/voice/VoiceService'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID, VoiceResourceOperation } from '@shared/ai/localVoice'
 
 vi.unmock('@cherrystudio/ui')
@@ -891,15 +893,161 @@ describe('VoiceSettings', () => {
     expect(voice.speech).toMatchObject({ phase: 'idle' })
     const stop = screen.getByRole('button', { name: 'Stop' })
     expect(stop).toBeEnabled()
+    const signal = voice.speechStart.mock.calls[0][0].signal as AbortSignal
 
     await user.click(stop)
 
     expect(voice.speechStart).toHaveBeenCalledOnce()
-    expect(voice.speechStart.mock.calls[0][0].signal).toEqual(expect.any(AbortSignal))
-    expect(voice.speechStart.mock.calls[0][0].signal.aborted).toBe(true)
-    expect(voice.speechStop).not.toHaveBeenCalled()
+    expect(signal.aborted).toBe(true)
     await act(async () => starting.reject(new VoiceDomainError('aborted')))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled()
+  })
+
+  it('stops a pending preview through the playback service and never plays its late output', async () => {
+    const generating = deferred<void>()
+    const output = deferred<void>()
+    const audioPlay = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined)
+    const ipc = { request: vi.fn(), on: vi.fn(() => () => undefined) }
+    let first = true
+    let revision = 0
+    const playbackState = {
+      attemptId: 1,
+      commandRevision: 0,
+      synthesis: 'completed',
+      desired: 'playing',
+      observed: 'ready',
+      pendingCommand: 'resume',
+      availableCommands: ['pause', 'stop']
+    }
+    ipc.request.mockImplementation(async (route, input) => {
+      if (route === 'ai.voice.session.state') return { phase: 'idle', revision }
+      if (route === 'ai.speech.generate') {
+        if (first) {
+          first = false
+          generating.resolve()
+          await output.promise
+        }
+        return {
+          sessionId: input.sessionId,
+          requestId: input.requestId,
+          output: { id: crypto.randomUUID(), url: 'cherry-media://audio/preview', mimeType: 'audio/wav' },
+          playback: playbackState
+        }
+      }
+      if (route === 'ai.voice.playback.report') {
+        return {
+          phase: input.phase,
+          revision: ++revision,
+          sessionId: input.sessionId,
+          source: 'playback',
+          playback: { ...playbackState, observed: input.phase, pendingCommand: null }
+        }
+      }
+      if (route === 'ai.speech.abort' || route === 'ai.voice.session.discard') return
+      throw new Error(`Unexpected IPC route: ${route}`)
+    })
+    const client = new VoiceService({
+      ipc,
+      ownerWindow: new EventTarget() as Window,
+      readSpeechPreferences: async () => ({ modelId: APPLE_TTS_MODEL_ID, voice: 'exact', language: 'en-US', speed: 1 })
+    })
+    const playback = new SpeechPlaybackService({ voice: client, ownerWindow: new EventTarget() as Window })
+    const unsubscribe = playback.subscribe(() => {
+      voice.speech = playback.getSnapshot()
+      voice.speechListeners.forEach((listener) => listener())
+    })
+    voice.speechStart.mockImplementation((input) => playback.start(input))
+    voice.speechStop.mockImplementation(() => playback.stop())
+    try {
+      const { user, play } = await renderPreviewTest()
+      await user.click(play)
+      await generating.promise
+      await user.click(screen.getByRole('button', { name: 'Stop' }))
+      await act(async () => {
+        output.resolve()
+        await voice.speechStart.mock.results[0].value.catch(() => undefined)
+      })
+      expect(audioPlay).not.toHaveBeenCalled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Preview voice' }))
+      await waitFor(() => expect(audioPlay).toHaveBeenCalledOnce())
+      expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled()
+    } finally {
+      output.resolve()
+      await act(async () => playback.teardown())
+      unsubscribe()
+      await client.teardown()
+    }
+  })
+
+  it.each(['unmount', 'preference', 'hide'] as const)(
+    'cancels a pending preview start after %s even when the sample catalog is already loaded',
+    async (action) => {
+      const starting = deferred<{ status: 'started' }>()
+      voice.speechStart.mockReturnValueOnce(starting.promise)
+      const view = render(
+        <Activity mode="visible">
+          <VoiceSettings />
+        </Activity>
+      )
+      const user = userEvent.setup()
+      const play = screen.getByRole('button', { name: 'Preview voice' })
+      await waitFor(() => expect(play).toBeEnabled())
+      await user.click(play)
+      await waitFor(() => expect(voice.speechStart).toHaveBeenCalledOnce())
+      expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled()
+      const signal = voice.speechStart.mock.calls[0][0].signal as AbortSignal
+
+      if (action === 'unmount') view.unmount()
+      else if (action === 'hide')
+        view.rerender(
+          <Activity mode="hidden">
+            <VoiceSettings />
+          </Activity>
+        )
+      else {
+        MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.speed', 1.2)
+        view.rerender(
+          <Activity mode="visible">
+            <VoiceSettings />
+          </Activity>
+        )
+      }
+
+      expect(signal.aborted).toBe(true)
+      await act(async () => starting.reject(new VoiceDomainError('aborted')))
+      if (action === 'hide')
+        view.rerender(
+          <Activity mode="visible">
+            <VoiceSettings />
+          </Activity>
+        )
+      if (action !== 'unmount') {
+        expect(await screen.findByRole('button', { name: 'Preview voice' })).toBeEnabled()
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      }
+    }
+  )
+
+  it('keeps a new preview pending when a cancelled preview reports a late failure', async () => {
+    const old = deferred<any>()
+    const next = deferred<{ status: 'started' }>()
+    voice.speechStart.mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise)
+    render(<VoiceSettings />)
+    const button = screen.getByRole('button', { name: 'Preview voice' })
+    await waitFor(() => expect(button).toBeEnabled())
+    const user = userEvent.setup()
+    await user.click(button)
+    await user.click(screen.getByRole('button', { name: 'Stop' }))
+    await user.click(screen.getByRole('button', { name: 'Preview voice' }))
+    await act(async () => old.reject(new VoiceDomainError('operation_failed')))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled()
+    await act(async () => next.resolve({ status: 'started' }))
     expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled()
   })
 

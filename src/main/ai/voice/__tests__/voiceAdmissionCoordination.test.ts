@@ -425,7 +425,7 @@ describe('voice admission coordination through the renderer coordinators', () =>
     expect(native.speech).toHaveBeenCalledTimes(1)
   })
 
-  it.each(['abort', 'teardown', 'power'] as const)(
+  it.each(['abort', 'remote-stop', 'teardown', 'power', 'paused-power'] as const)(
     'releases an unstarted playback lease when configuration is cancelled by %s',
     async (mode) => {
       let releaseConfiguration!: (value: ReturnType<typeof readySpeech>) => void
@@ -445,6 +445,8 @@ describe('voice admission coordination through the renderer coordinators', () =>
           })
       )
       const { playback, voiceOwner } = createPlayback()
+      const observer = createPlayback()
+      await observer.voice.initialize()
       const controller = new AbortController()
       const started = playback.start({
         text: 'configure me',
@@ -453,16 +455,42 @@ describe('voice admission coordination through the renderer coordinators', () =>
         sourceEntityId: 'message-1',
         signal: controller.signal
       })
+      const cancelled = started.catch((error: unknown) => error)
       await vi.waitFor(() => expect(native.resolveSpeech).toHaveBeenCalled())
+      const state = observer.voice.getSnapshot()
+      expect(state).toMatchObject({
+        phase: 'generating',
+        playback: { availableCommands: expect.arrayContaining(['stop']) }
+      })
+      if (state.phase === 'idle') throw new Error('Missing pending playback session')
 
       if (mode === 'abort') controller.abort()
-      else if (mode === 'teardown') await playback.teardown()
-      else powerEvents.emit('suspend')
+      else if (mode === 'remote-stop') {
+        await observer.voice.controlPlayback({ sessionId: state.sessionId, command: 'stop' })
+      } else if (mode === 'teardown') await playback.teardown()
+      else {
+        if (mode === 'paused-power') {
+          await observer.voice.controlPlayback({ sessionId: state.sessionId, command: 'pause' })
+          await vi.waitFor(() => expect(rootService.getState(voiceOwner).phase).toBe('paused'))
+        }
+        powerEvents.emit('suspend')
+      }
       releaseConfiguration?.(readySpeech())
 
-      await expect(started).rejects.toMatchObject({ reason: 'aborted' })
+      await expect(cancelled).resolves.toMatchObject({ reason: 'aborted' })
       expect(native.speech).not.toHaveBeenCalled()
       expect(rootService.getState(voiceOwner)).toMatchObject({ phase: 'idle' })
+
+      const next = observer.playback.start({
+        text: 'next read',
+        trigger: 'auto_read',
+        sourceLabel: 'message',
+        sourceEntityId: 'next'
+      })
+      await vi.waitFor(() => expect(native.speech).toHaveBeenCalledOnce())
+      native.releases[0]?.()
+      await expect(next).resolves.toEqual({ status: 'started' })
+      expect(rootService.getState(observer.voiceOwner)).toMatchObject({ phase: 'playing', trigger: 'auto_read' })
     }
   )
 
