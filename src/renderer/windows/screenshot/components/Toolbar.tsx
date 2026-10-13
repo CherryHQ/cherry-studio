@@ -18,6 +18,8 @@ import { PROPERTY_PANEL_HEIGHT, Z_INDEX } from '../constants'
 import type { AnnotationTool, SelectionRect } from '../types'
 
 interface ToolbarProps {
+  chatMessage: string
+  onChatMessageChange: (text: string) => void
   selection: SelectionRect
   logicalHeight: number
   activeTool: AnnotationTool | null
@@ -82,6 +84,8 @@ const TOOL_ICONS: { tool: AnnotationTool; icon: ComponentType<{ className?: stri
 ]
 
 export const Toolbar = memo(function Toolbar({
+  chatMessage,
+  onChatMessageChange,
   selection,
   logicalHeight,
   activeTool,
@@ -182,7 +186,7 @@ export const Toolbar = memo(function Toolbar({
 
       <ToolbarDivider />
 
-      <SendToChat onSend={onSendToChat} />
+      <SendToChat text={chatMessage} setText={onChatMessageChange} onSend={onSendToChat} />
       <ToolbarButton icon={<Download className="size-5" />} label={t('screenshot.action.save')} onClick={onSave} />
       <ToolbarButton
         icon={<X className="size-5" />}
@@ -200,10 +204,17 @@ export const Toolbar = memo(function Toolbar({
   )
 })
 
-function SendToChat({ onSend }: { onSend?: (text: string) => Promise<void> }) {
+function SendToChat({
+  text,
+  setText,
+  onSend
+}: {
+  text: string
+  setText: (text: string) => void
+  onSend?: (text: string) => Promise<void>
+}) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const [text, setText] = useState('')
   const [pending, setPending] = useState(false)
   const [failed, setFailed] = useState(false)
   const sending = useRef(false)

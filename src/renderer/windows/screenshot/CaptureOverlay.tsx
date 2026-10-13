@@ -465,6 +465,8 @@ function OverlayContent({
 
       {state.phase === 'selected' && state.selection && (
         <Toolbar
+          chatMessage={state.chatMessage}
+          onChatMessageChange={(text) => dispatch({ type: 'SET_CHAT_MESSAGE', text })}
           selection={state.selection}
           logicalHeight={logicalHeight}
           activeTool={activeTool}

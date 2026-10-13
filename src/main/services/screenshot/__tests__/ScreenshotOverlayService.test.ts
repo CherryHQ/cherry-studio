@@ -373,6 +373,34 @@ describe('ScreenshotOverlayService', () => {
   })
 
   describe('chat delivery', () => {
+    it.each([false, true])(
+      'handles a late receipt after dismissal without affecting a new capture (accepted: %s)',
+      async (accepted) => {
+        singleDisplaySetup()
+        container.windows.set('chat', createFakeWindow())
+        service.setChatTarget('chat', 'draft')
+        await service.startCapture('chat')
+        const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: 'message' })
+        const rejected = expect(sending).rejects.toThrow('could not accept')
+        const delivery = container.ipcApiService.send.mock.calls.find(
+          (call) => call[1] === 'screenshot.chat_attachment'
+        )![2]
+        service.dismiss()
+        await rejected
+        expect(rmSyncMock).not.toHaveBeenCalled()
+        await service.startCapture('chat')
+        service.receiveChatResult('wrong-window', delivery.deliveryId, false)
+        expect(rmSyncMock).not.toHaveBeenCalled()
+        service.receiveChatResult('chat', delivery.deliveryId, accepted)
+        if (accepted) expect(rmSyncMock).not.toHaveBeenCalled()
+        else expect(rmSyncMock).toHaveBeenCalledWith(delivery.path, { force: true })
+        expect(container.mediaEntries.size).toBe(1)
+        rmSyncMock.mockClear()
+        service.receiveChatResult('chat', delivery.deliveryId, false)
+        expect(rmSyncMock).not.toHaveBeenCalled()
+      }
+    )
+
     it('uses the most recently focused chat rather than the most recently registered chat', async () => {
       singleDisplaySetup()
       const first = createFakeWindow()

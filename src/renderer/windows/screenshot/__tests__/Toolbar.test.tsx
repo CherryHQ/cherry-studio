@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
-import type { PropsWithChildren } from 'react'
+import type { ComponentProps, PropsWithChildren } from 'react'
+import { useReducer } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { Toolbar } from '../components/Toolbar'
+import { Toolbar as ScreenshotToolbar } from '../components/Toolbar'
+import { initialState, overlayReducer } from '../reducer'
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) } }))
 vi.mock('@cherrystudio/ui', async () => ({
@@ -27,10 +29,64 @@ const baseProps = {
   onCancel: vi.fn()
 }
 
+function Toolbar(props: Omit<ComponentProps<typeof ScreenshotToolbar>, 'chatMessage' | 'onChatMessageChange'>) {
+  const [state, dispatch] = useReducer(overlayReducer, {
+    ...initialState,
+    phase: 'selected',
+    selection: props.selection
+  })
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          dispatch({ type: 'POINTER_DOWN_SELECTION', x: 10, y: 10 })
+          dispatch({ type: 'POINTER_MOVE', x: 30, y: 30 })
+        }}>
+        Move selection
+      </button>
+      <button type="button" onClick={() => dispatch({ type: 'POINTER_DOWN_HANDLE', handle: 'se', x: 400, y: 300 })}>
+        Resize selection
+      </button>
+      <button type="button" onClick={() => dispatch({ type: 'POINTER_UP' })}>
+        Release selection
+      </button>
+      {state.phase === 'selected' && (
+        <ScreenshotToolbar
+          {...props}
+          chatMessage={state.chatMessage}
+          onChatMessageChange={(text) => dispatch({ type: 'SET_CHAT_MESSAGE', text })}
+        />
+      )}
+    </>
+  )
+}
+
 describe('Toolbar accessible names', () => {
   beforeAll(async () => {
     await i18n.changeLanguage('en-US')
   })
+
+  it.each(['Move selection', 'Resize selection'])(
+    'preserves failed-delivery text after %s unmounts the toolbar',
+    async (adjustment) => {
+      const onSend = vi.fn().mockRejectedValueOnce(new Error('target unavailable')).mockResolvedValue(undefined)
+      render(<Toolbar {...baseProps} activeTool={null} onSendToChat={onSend} />)
+      await userEvent.click(screen.getByRole('button', { name: 'Add to chat' }))
+      await userEvent.type(screen.getByRole('textbox'), 'Keep this message for retry')
+      await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to chat' }))
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+      await userEvent.click(screen.getByRole('button', { name: adjustment }))
+      expect(screen.queryByRole('button', { name: 'Add to chat' })).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Release selection' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Add to chat' }))
+      expect(screen.getByRole('textbox')).toHaveValue('Keep this message for retry')
+      await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to chat' }))
+      expect(onSend).toHaveBeenLastCalledWith('Keep this message for retry')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    }
+  )
 
   it('lets the user attach a message and keeps the message editable after delivery fails', async () => {
     const onSend = vi.fn().mockRejectedValueOnce(new Error('target unavailable')).mockResolvedValue(undefined)

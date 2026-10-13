@@ -127,6 +127,8 @@ export class ScreenshotOverlayService extends BaseService {
   private lastChatWindowId: WindowId | null = null
   private hiddenSourceWindow: BrowserWindow | null = null
   private captureChatTarget: { windowId: WindowId; scopeKey: string } | null = null
+  // Outlive the overlay: a delayed receipt still owns the file, and silence does not prove rejection.
+  private unconfirmedChatFiles = new Map<string, { windowId: WindowId; path: string }>()
   private chatDelivery: {
     payload: ScreenshotEventSchemas['screenshot.chat_attachment']
     bytes: Uint8Array
@@ -183,6 +185,10 @@ export class ScreenshotOverlayService extends BaseService {
       }
     }
     const delivery = this.chatDelivery
+    this.unconfirmedChatFiles.set(delivery.payload.deliveryId, {
+      windowId: target.windowId,
+      path: delivery.payload.path
+    })
     const accepted = await new Promise<boolean>((resolve, reject) => {
       const timer = setTimeout(() => {
         delivery.settle = undefined
@@ -204,10 +210,13 @@ export class ScreenshotOverlayService extends BaseService {
   }
 
   public receiveChatResult(windowId: WindowId, deliveryId: string, accepted: boolean): void {
+    const file = this.unconfirmedChatFiles.get(deliveryId)
+    if (!file || file.windowId !== windowId) return
+    if (!accepted) rmSync(file.path, { force: true })
+    this.unconfirmedChatFiles.delete(deliveryId)
     const target = this.captureChatTarget
     const delivery = this.chatDelivery
     if (!target || target.windowId !== windowId || delivery?.payload.deliveryId !== deliveryId) return
-    if (!accepted) rmSync(delivery.payload.path, { force: true })
     delivery.settle?.(accepted)
     this.chatDelivery = null
     if (!accepted) return
