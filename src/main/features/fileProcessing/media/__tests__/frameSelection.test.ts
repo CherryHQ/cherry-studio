@@ -214,6 +214,55 @@ describe('planAnalysisFrameTimestamps', () => {
     expect(timestamps.filter((timestamp) => timestamp > 0 && timestamp < 5_000).length).toBeLessThanOrEqual(1)
   })
 
+  it('snaps a lower-ranked internal cut onto a nearby backbone anchor after the scene reserve is full', () => {
+    expect(
+      planAnalysisFrameTimestamps({
+        durationMs: 60_000,
+        maxFrames: 9,
+        targetIntervalMs: 4_000,
+        sceneChanges: [
+          { timestampMs: 5_000, score: 0.99 },
+          { timestampMs: 30_000, score: 0.9 },
+          { timestampMs: 50_000, score: 0.8 },
+          { timestampMs: 12_050, score: 0.4 }
+        ]
+      })
+    ).toEqual([0, 5_000, 12_050, 23_980, 30_000, 35_970, 47_960, 50_000, 59_950])
+  })
+
+  it('snaps a lower-ranked internal cut onto a nearby backbone anchor when a higher-ranked cut already filled its bin', () => {
+    expect(
+      planAnalysisFrameTimestamps({
+        durationMs: 60_000,
+        maxFrames: 9,
+        targetIntervalMs: 4_000,
+        sceneChanges: [
+          { timestampMs: 5_000, score: 0.99 },
+          { timestampMs: 12_050, score: 0.4 }
+        ]
+      })
+    ).toEqual([0, 5_000, 7_494, 12_050, 14_988, 23_980, 35_970, 47_960, 59_950])
+  })
+
+  it('keeps the highest-ranked snap when a lower-ranked cut stays within one sample of that internal anchor', () => {
+    const timestamps = planAnalysisFrameTimestamps({
+      durationMs: 60_000,
+      maxFrames: 9,
+      targetIntervalMs: 4_000,
+      sceneChanges: [
+        { timestampMs: 12_020, score: 0.9 },
+        { timestampMs: 12_100, score: 0.4 }
+      ]
+    })
+
+    expect(timestamps).toContain(12_020)
+    expect(timestamps).not.toContain(12_100)
+    expect(timestamps).not.toContain(11_990)
+    expect(timestamps[0]).toBe(0)
+    expect(timestamps.at(-1)).toBe(59_950)
+    expect(timestamps.length).toBeLessThanOrEqual(9)
+  })
+
   it('covers a long clip from start to end inside a strict frame budget', () => {
     const durationMs = 30 * 60 * 1000
     const timestamps = planAnalysisFrameTimestamps({

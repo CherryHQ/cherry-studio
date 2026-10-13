@@ -152,7 +152,8 @@ function selectDistributedScenes(
   const width = durationMs / sceneReserve
   const filledBins = new Set<number>()
   const binOf = (timestampMs: number) => (width <= 0 ? 0 : Math.min(sceneReserve - 1, Math.floor(timestampMs / width)))
-  const place = (timestampMs: number): boolean => {
+  const claimedAnchors = new Set<number>()
+  const place = (timestampMs: number, allowNewScene: boolean): boolean => {
     if (scenes.some((timestamp) => Math.abs(timestamp - timestampMs) <= minGapMs)) return false
     let nearestIndex = -1
     let nearestDistance = Number.POSITIVE_INFINITY
@@ -166,7 +167,8 @@ function selectDistributedScenes(
     if (nearestIndex >= 0) {
       const anchor = anchors[nearestIndex]
       // Replacing 0 or the end drops an endpoint a caller still has budget to keep.
-      if ((anchor === 0 || anchor === lastMs) && anchor < timestampMs && scenes.length < sceneReserve) {
+      if ((anchor === 0 || anchor === lastMs) && anchor < timestampMs) {
+        if (!allowNewScene) return false
         scenes.push(timestampMs)
         return true
       }
@@ -174,19 +176,24 @@ function selectDistributedScenes(
         covered = true
         return false
       }
+      // Ranked order is score-descending, so the first valid snap keeps the anchor.
+      if (claimedAnchors.has(nearestIndex)) return false
       anchors[nearestIndex] = timestampMs
+      claimedAnchors.add(nearestIndex)
       replaced = true
       return true
     }
+    if (!allowNewScene) return false
     scenes.push(timestampMs)
     return true
   }
 
   for (const candidate of ranked) {
-    if (scenes.length >= sceneReserve) break
     const bin = binOf(candidate.timestampMs)
-    if (filledBins.has(bin) || !place(candidate.timestampMs)) continue
-    filledBins.add(bin)
+    // A full reserve or a filled bin cannot add a scene, but an internal anchor can still snap.
+    const allowNewScene = scenes.length < sceneReserve && !filledBins.has(bin)
+    if (!place(candidate.timestampMs, allowNewScene)) continue
+    if (allowNewScene) filledBins.add(bin)
   }
 
   if (scenes.length < sceneReserve) {
@@ -201,7 +208,7 @@ function selectDistributedScenes(
     for (const candidate of leftovers) {
       if (scenes.length >= sceneReserve) break
       const bin = binOf(candidate.timestampMs)
-      if (filledBins.has(bin) || !place(candidate.timestampMs)) continue
+      if (filledBins.has(bin) || !place(candidate.timestampMs, true)) continue
       filledBins.add(bin)
     }
   }
