@@ -18,12 +18,14 @@ type PreviewGroup = {
   leave: (id: string) => void
   change: (id: string, open: boolean) => void
   remove: (id: string) => void
+  contextMenuChange: (id: string, open: boolean) => void
 }
 
 const PreviewContext = createContext<PreviewGroup | null>(null)
 
 export function SessionHoverPreviewGroup({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
   const [activeId, setActiveId] = useState<string | null>(null)
+  const contextMenus = useRef(new Set<string>())
   const warm = useRef(false)
   const candidate = useRef<string | null>(null)
   const reset = useCallback(() => {
@@ -31,6 +33,14 @@ export function SessionHoverPreviewGroup({ children, enabled = true }: { childre
     candidate.current = null
     setActiveId(null)
   }, [])
+  const contextMenuChange = useCallback(
+    (id: string, open: boolean) => {
+      if (open) contextMenus.current.add(id)
+      else if (!contextMenus.current.delete(id)) return
+      reset()
+    },
+    [reset]
+  )
   const remove = useCallback((id: string) => {
     if (candidate.current === id) candidate.current = null
     setActiveId((current) => (current === id ? null : current))
@@ -59,7 +69,7 @@ export function SessionHoverPreviewGroup({ children, enabled = true }: { childre
     () => ({
       activeId: enabled ? activeId : null,
       enter(id) {
-        if (!enabled) return
+        if (!enabled || contextMenus.current.size > 0) return
         candidate.current = id
         if (activeId === id) warm.current = true
         if (warm.current) setActiveId(id)
@@ -70,16 +80,17 @@ export function SessionHoverPreviewGroup({ children, enabled = true }: { childre
       change(id, open) {
         if (open) {
           // Ignore delayed opens after scrolling, dismissal, or moving to another row.
-          if (!enabled || candidate.current !== id) return
+          if (!enabled || contextMenus.current.size > 0 || candidate.current !== id) return
           warm.current = true
           setActiveId(id)
         } else {
           setActiveId((current) => (current === id ? null : current))
         }
       },
-      remove
+      remove,
+      contextMenuChange
     }),
-    [activeId, enabled, remove]
+    [activeId, enabled, remove, contextMenuChange]
   )
 
   return (
@@ -97,6 +108,12 @@ export function SessionHoverPreviewGroup({ children, enabled = true }: { childre
       </div>
     </PreviewContext>
   )
+}
+
+export function useSessionHoverPreviewContextMenu(id: string) {
+  const contextMenuChange = use(PreviewContext)?.contextMenuChange
+  useEffect(() => () => contextMenuChange?.(id, false), [contextMenuChange, id])
+  return useCallback((open: boolean) => contextMenuChange?.(id, open), [contextMenuChange, id])
 }
 
 export function SessionHoverPreview({
