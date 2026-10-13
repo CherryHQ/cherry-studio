@@ -27,6 +27,16 @@ vi.mock('node:child_process', async () => {
 })
 
 import {
+  FRAME_SIMILARITY_MAD_THRESHOLD,
+  meanAbsoluteDifference,
+  planAnalysisFrameTimestamps,
+  SCENE_SAMPLE_FPS,
+  SCENE_SCAN_EDGE_PX,
+  SCENE_SCORE_THRESHOLD,
+  selectDistinctFrameIndexes
+} from '../frameSelection'
+import { readFrameSignature } from '../frameSignature'
+import {
   applyMediaFfmpegInitData,
   disposeMediaChildren,
   mediaFfmpegHandlers
@@ -478,6 +488,285 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     expect(existsSync(pidRegistryPath)).toBe(false)
   })
 
+  it('keeps a short color cut and a later cut inside the frame budget', async () => {
+    const cutPath = join(root, 'color-cuts.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:s=320x240:r=25:d=5',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=white:s=320x240:r=25:d=0.45',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:s=320x240:r=25:d=4.55',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=green:s=320x240:r=25:d=6',
+        '-filter_complex',
+        '[0:v][1:v][2:v][3:v]concat=n=4:v=1:a=0',
+        '-c:v',
+        'mpeg4',
+        '-q:v',
+        '5',
+        cutPath
+      ])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: cutPath, fallbackExt: 'mp4' }, context())
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(
+      {
+        filePath: cutPath,
+        durationMs: probe.durationMs,
+        sampleFps: SCENE_SAMPLE_FPS,
+        scoreThreshold: SCENE_SCORE_THRESHOLD,
+        scanEdgePx: SCENE_SCAN_EDGE_PX,
+        maxCandidates: 32
+      },
+      context()
+    )
+    const planned = planAnalysisFrameTimestamps({
+      durationMs: probe.durationMs,
+      maxFrames: 24,
+      targetIntervalMs: 4_000,
+      sceneChanges: detected.changes
+    })
+
+    expect(detected.changes.some((change) => change.timestampMs >= 4_500 && change.timestampMs <= 6_000)).toBe(true)
+    expect(detected.changes.some((change) => change.timestampMs >= 9_000 && change.timestampMs <= 11_000)).toBe(true)
+    expect(planned.length).toBeLessThanOrEqual(24)
+    expect(planned[0]).toBe(0)
+    expect(planned.at(-1)).toBeGreaterThan(probe.durationMs * 0.9)
+    expect(planned.some((timestamp) => timestamp >= 4_500 && timestamp <= 6_500)).toBe(true)
+    expect(planned.some((timestamp) => timestamp >= 9_000 && timestamp <= 11_500)).toBe(true)
+  })
+
+  it.each([
+    {
+      label: '16s half-second cut',
+      fileName: 'near-anchor-cut.mp4',
+      framesDir: 'near-anchor-frames',
+      segments: [
+        { color: 'red', duration: '8.16' },
+        { color: 'white', duration: '0.52' },
+        { color: 'red', duration: '7.32' }
+      ],
+      detectedRange: [8_000, 8_800]
+    },
+    {
+      label: '6s red-white-red cut',
+      fileName: 'six-second-red-white.mp4',
+      framesDir: 'six-second-frames',
+      segments: [
+        { color: 'red', duration: '3' },
+        { color: 'white', duration: '1' },
+        { color: 'red', duration: '2' }
+      ],
+      detectedRange: [2_500, 4_500]
+    },
+    {
+      label: '3s red-white-red cut',
+      fileName: 'three-second-red-white.mp4',
+      framesDir: 'three-second-frames',
+      segments: [
+        { color: 'red', duration: '1' },
+        { color: 'white', duration: '0.5' },
+        { color: 'red', duration: '1.5' }
+      ],
+      detectedRange: [800, 1_800]
+    }
+  ])(
+    'keeps a real white frame through detect, plan, extract, and dedup ($label)',
+    async ({ fileName, framesDir, segments, detectedRange }) => {
+      const cutPath = join(root, fileName)
+      const inputs = segments.flatMap((segment) => [
+        '-f',
+        'lavfi',
+        '-i',
+        `color=c=${segment.color}:s=320x240:r=25:d=${segment.duration}`
+      ])
+      expect(
+        runFfmpeg([
+          ...inputs,
+          '-filter_complex',
+          `${segments.map((_, index) => `[${index}:v]`).join('')}concat=n=${segments.length}:v=1:a=0`,
+          '-c:v',
+          'mpeg4',
+          '-q:v',
+          '5',
+          cutPath
+        ])
+      ).toBe(0)
+      const probe = await mediaFfmpegHandlers.probe({ filePath: cutPath, fallbackExt: 'mp4' }, context())
+      const detected = await mediaFfmpegHandlers.detectSceneChanges(
+        {
+          filePath: cutPath,
+          durationMs: probe.durationMs,
+          sampleFps: SCENE_SAMPLE_FPS,
+          scoreThreshold: SCENE_SCORE_THRESHOLD,
+          scanEdgePx: SCENE_SCAN_EDGE_PX,
+          maxCandidates: 32
+        },
+        context()
+      )
+      const planned = planAnalysisFrameTimestamps({
+        durationMs: probe.durationMs,
+        maxFrames: 24,
+        targetIntervalMs: 4_000,
+        sceneChanges: detected.changes
+      })
+      const extracted = await mediaFfmpegHandlers.extractFrames(
+        {
+          filePath: cutPath,
+          outputDir: join(root, framesDir),
+          timestampsMs: planned,
+          maxEdgePx: 160,
+          jpegQuality: 70
+        },
+        context()
+      )
+      const signatures = await Promise.all(extracted.frames.map((frame) => readFrameSignature(frame.path)))
+      const kept = selectDistinctFrameIndexes(signatures, FRAME_SIMILARITY_MAD_THRESHOLD)
+      const opening = signatures[0]
+      const whiteKeptIndex = kept.find((index) => {
+        const signature = signatures[index]
+        return signature != null && isBrightNeutral(signature)
+      })
+      const whiteSignature = whiteKeptIndex == null ? undefined : signatures[whiteKeptIndex]
+      const evidence = JSON.stringify({
+        durationMs: probe.durationMs,
+        detected: detected.changes,
+        planned,
+        extracted: extracted.frames.map((frame) => frame.timestampMs),
+        kept: kept.map((index) => extracted.frames[index]?.timestampMs)
+      })
+
+      expect(
+        detected.changes.some(
+          (change) => change.timestampMs >= detectedRange[0] && change.timestampMs <= detectedRange[1]
+        ),
+        evidence
+      ).toBe(true)
+      expect(planned.length, evidence).toBeLessThanOrEqual(24)
+      expect(kept.length, evidence).toBeGreaterThan(0)
+      expect(kept.length, evidence).toBeLessThanOrEqual(planned.length)
+      expect(planned[0], evidence).toBe(0)
+      expect(planned.at(-1), evidence).toBeGreaterThan(probe.durationMs * 0.9)
+      expect(opening, evidence).toBeInstanceOf(Uint8Array)
+      expect(whiteSignature, evidence).toBeInstanceOf(Uint8Array)
+      if (opening instanceof Uint8Array && whiteSignature instanceof Uint8Array) {
+        expect(meanAbsoluteDifference(whiteSignature, opening), evidence).toBeGreaterThan(40)
+      }
+    }
+  )
+
+  it('collapses static frames and leaves an explicit timestamp extract unchanged', async () => {
+    const staticPath = join(root, 'static-gray.mp4')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=gray:s=320x240:r=25:d=12', '-c:v', 'mpeg4', '-q:v', '5', staticPath])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: staticPath, fallbackExt: 'mp4' }, context())
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(
+      {
+        filePath: staticPath,
+        durationMs: probe.durationMs,
+        sampleFps: SCENE_SAMPLE_FPS,
+        scoreThreshold: SCENE_SCORE_THRESHOLD,
+        scanEdgePx: SCENE_SCAN_EDGE_PX,
+        maxCandidates: 32
+      },
+      context()
+    )
+    const planned = planAnalysisFrameTimestamps({
+      durationMs: probe.durationMs,
+      maxFrames: 8,
+      targetIntervalMs: 4_000,
+      sceneChanges: detected.changes
+    })
+    const extracted = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: staticPath,
+        outputDir: join(root, 'static-frames'),
+        timestampsMs: planned,
+        maxEdgePx: 160,
+        jpegQuality: 70
+      },
+      context()
+    )
+    const signatures = await Promise.all(extracted.frames.map((frame) => readFrameSignature(frame.path)))
+    expect(detected.changes).toEqual([])
+    expect(planned.length).toBeGreaterThan(1)
+    expect(selectDistinctFrameIndexes(signatures, FRAME_SIMILARITY_MAD_THRESHOLD)).toEqual([0])
+
+    const explicit = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: videoPath,
+        outputDir: join(root, 'explicit-frames'),
+        timestampsMs: [0, 1_000],
+        maxEdgePx: 80,
+        jpegQuality: 60
+      },
+      context()
+    )
+    expect(explicit.frames.map((frame) => frame.timestampMs)).toEqual([0, 1_000])
+  })
+
+  it('rejects a scene scan of a non-media file and aborts a running scan', async () => {
+    const bogusPath = join(root, 'not-media.txt')
+    writeFileSync(bogusPath, 'not a video')
+    await expect(
+      mediaFfmpegHandlers.detectSceneChanges(
+        {
+          filePath: bogusPath,
+          durationMs: 1_000,
+          sampleFps: SCENE_SAMPLE_FPS,
+          scoreThreshold: SCENE_SCORE_THRESHOLD,
+          scanEdgePx: SCENE_SCAN_EDGE_PX,
+          maxCandidates: 8
+        },
+        context()
+      )
+    ).rejects.toThrow(/Media tool failed/)
+
+    const longPath = join(root, 'long-scan.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'testsrc2=size=1280x720:rate=25:duration=20',
+        '-c:v',
+        'mpeg4',
+        '-q:v',
+        '8',
+        longPath
+      ])
+    ).toBe(0)
+    const controller = new AbortController()
+    const pidRegistryPath = join(root, 'scene-child.pid')
+    const pending = mediaFfmpegHandlers.detectSceneChanges(
+      {
+        filePath: longPath,
+        durationMs: 20_000,
+        sampleFps: SCENE_SAMPLE_FPS,
+        scoreThreshold: SCENE_SCORE_THRESHOLD,
+        scanEdgePx: SCENE_SCAN_EDGE_PX,
+        maxCandidates: 32,
+        pidRegistryPath
+      },
+      context(controller.signal)
+    )
+    await waitForFile(pidRegistryPath)
+    const reason = new Error('cancel scene scan')
+    controller.abort(reason)
+    await expect(pending).rejects.toBe(reason)
+    expect(existsSync(pidRegistryPath)).toBe(false)
+  })
+
   function runFfmpeg(args: string[]): number | null {
     return spawnSync(ffmpegPath, ['-hide_banner', '-nostdin', '-y', ...args], { encoding: 'utf8' }).status
   }
@@ -687,4 +976,12 @@ async function waitForFile(filePath: string): Promise<void> {
     if (Date.now() >= deadline) throw new Error(`Timed out waiting for ${filePath}`)
     await new Promise((resolve) => setTimeout(resolve, 5))
   }
+}
+
+function isBrightNeutral(signature: Uint8Array): boolean {
+  if (signature.length === 0 || signature.length % 3 !== 0) return false
+  const totals = [0, 0, 0]
+  for (let index = 0; index < signature.length; index += 1) totals[index % 3] += signature[index]
+  const pixels = signature.length / 3
+  return totals.every((total) => total / pixels > 170)
 }

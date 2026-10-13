@@ -15,6 +15,7 @@ import { codeCliHandlers } from './codeCli'
 import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
 import { doctorHandlers } from './doctor'
+import { doctorAgentHandlers } from './doctorAgent'
 import { exportHandlers } from './export'
 import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
@@ -41,6 +42,7 @@ import { systemHandlers } from './system'
 import { tabHandlers } from './tab'
 import { translateHandlers } from './translate'
 import { trashHandlers } from './trash'
+import { voiceHandlers } from './voice'
 import { webSearchHandlers } from './webSearch'
 import { webviewHandlers } from './webview'
 import { windowHandlers } from './window'
@@ -56,6 +58,7 @@ import { windowHandlers } from './window'
  */
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...aiHandlers,
+  ...voiceHandlers,
   ...apiGatewayHandlers,
   ...appHandlers,
   ...backupHandlers,
@@ -69,6 +72,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...deepSeekHarnessHandlers,
   ...diagnosticsHandlers,
   ...doctorHandlers,
+  ...doctorAgentHandlers,
   ...exportHandlers,
   ...externalAppHandlers,
   ...fileHandlers,

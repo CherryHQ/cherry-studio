@@ -1,9 +1,40 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
+import { createInstance } from 'i18next'
+import { I18nextProvider } from 'react-i18next'
 import { describe, expect, it } from 'vitest'
+
+import de from '@renderer/i18n/locales/de-de.json'
+import en from '@renderer/i18n/locales/en-us.json'
 
 import { ContextUsageMeter, ContextUsageSummary } from '..'
 
 describe('context usage presentation', () => {
+  it('formats token totals using the interface language and updates when it changes', async () => {
+    const i18n = createInstance()
+    await i18n.init({
+      lng: 'en-US',
+      keySeparator: false,
+      resources: { 'en-US': { translation: en }, 'de-DE': { translation: de } }
+    })
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ContextUsageSummary
+          title="Context usage"
+          emptyLabel="None"
+          data={{ usedTokens: 1234, maxTokens: 10000, percentage: 12, modelName: 'Model' }}
+        />
+      </I18nextProvider>
+    )
+
+    expect(screen.getByText('1,234 / 10,000 (12%)')).toBeInTheDocument()
+
+    await act(() => i18n.changeLanguage('de-DE'))
+    expect(screen.getByText('1.234 / 10.000 (12%)')).toBeInTheDocument()
+
+    await act(() => i18n.changeLanguage('en-US'))
+    expect(screen.getByText('1,234 / 10,000 (12%)')).toBeInTheDocument()
+  })
+
   it('uses the same normalized percentage for the summary and accessible meter', () => {
     render(
       <>

@@ -16,11 +16,13 @@ import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
 import {
+  ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
+import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -29,7 +31,12 @@ import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessM
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { BrowserSessionService } from '@main/features/browser'
-import { FileProcessingService, MediaFfmpegService, TesseractRuntimeService } from '@main/features/fileProcessing'
+import {
+  FileProcessingService,
+  MediaAnalysisService,
+  MediaFfmpegService,
+  TesseractRuntimeService
+} from '@main/features/fileProcessing'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
 import { MiniAppRuntimeService } from '@main/features/miniApp/runtime/MiniAppRuntimeService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
@@ -45,10 +52,9 @@ import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
-import { DoctorService } from '@main/services/diagnostics'
-import { DirectoryTreeManager, FileManager } from '@main/services/file'
+import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
+import { DirectoryTreeManager, FileManager, FileIntakeService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
-import { LanTransferService } from '@main/services/lanTransfer'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -64,7 +70,7 @@ import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryU
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
-import { RemoteAccessService } from '@main/services/remoteAccess'
+import { AttachmentPresenceService, RemoteAccessService } from '@main/services/remoteAccess'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SentryLogService } from '@main/services/SentryLogService'
@@ -123,11 +129,13 @@ export const services = {
   CherryCloudService,
   DeepSeekHarnessService,
   HermesDashboardService,
-  LanTransferService,
   FileManager,
+  AttachmentPresenceService,
+  FileIntakeService,
   DirectoryTreeManager,
   FileProcessingService,
   MediaFfmpegService,
+  MediaAnalysisService,
   PowerService,
   SelectionService,
   ShortcutService,
@@ -143,6 +151,7 @@ export const services = {
   NetworkService,
   StorageMonitorService,
   DoctorService,
+  DoctorAgentService,
   LogRetentionService,
   PythonService,
   TrayService,
@@ -159,6 +168,7 @@ export const services = {
   BinaryManager,
   OpenClawService,
   PdfTranslationService,
+  ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,
@@ -166,6 +176,7 @@ export const services = {
   AgentLifecycleService,
   ChannelManager,
   AiService,
+  VoiceSessionService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeSessionStateService,
   AiStreamManager,
