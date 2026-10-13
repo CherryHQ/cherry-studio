@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 
 import { getProviderIconAssetMetrics } from '@cherrystudio/ui/icons'
-import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
+import { getMiniAppLogoSource, getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import { getIconDisplayConfig, miniAppContainedIcon } from './iconDisplayConfig'
@@ -24,7 +24,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
 
   // A preset key resolves to a CompoundIcon; an uploaded logo arrives as a
   // ready `logoSrc` URL (or a pre-resolved url on `logo` for sidebar tabs).
-  const src = app.logoSrc ?? app.logo
+  const src = app.logoSrc ?? getMiniAppLogoSource(app.logo || undefined)
 
   // CompoundIcon: default usages keep the Avatar wrapper; Launchpad-style tiles render the logo itself.
   if (logoRef) {

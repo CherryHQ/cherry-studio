@@ -164,6 +164,23 @@ describe('useMiniApps', () => {
   // === Region Filtering ===
 
   describe('region filtering', () => {
+    it.each(['CN', 'Global'] as const)('shows the matching Coze entry for %s without hiding custom sites', (region) => {
+      const apps = [
+        createGlobalApp('coze'),
+        createCnOnlyApp('coze-cn'),
+        createMiniApp('custom-coze', { presetMiniAppId: null })
+      ]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', region)
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.miniApps.map(({ appId }) => appId)).toEqual([
+        region === 'CN' ? 'coze-cn' : 'coze',
+        'custom-coze'
+      ])
+    })
+
     it('forces the CN-only catalog in the CN edition without overwriting the shared preference', () => {
       vi.stubGlobal('__APP_EDITION__', 'cn')
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
