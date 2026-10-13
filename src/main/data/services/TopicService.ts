@@ -572,10 +572,11 @@ export class TopicService {
     if (deletedIds.length === 0) return []
 
     const messageService = getDataService('MessageService')
+    const deletedAt = Date.now()
     for (let i = 0; i < deletedIds.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = deletedIds.slice(i, i + SQLITE_INARRAY_CHUNK)
-      tx.update(topicTable).set({ deletedAt: Date.now() }).where(inArray(topicTable.id, chunk)).run()
-      fileEntryService.setConversationFilesTrashTx(tx, 'topic', chunk, Date.now())
+      tx.update(topicTable).set({ deletedAt }).where(inArray(topicTable.id, chunk)).run()
+      fileEntryService.setConversationFilesTrashTx(tx, 'topic', chunk, deletedAt)
       messageService.purgeByTopicIdsTx(tx, chunk)
       tagService.purgeForEntitiesTx(tx, 'topic', chunk)
       pinService.purgeForEntitiesTx(tx, 'topic', chunk)

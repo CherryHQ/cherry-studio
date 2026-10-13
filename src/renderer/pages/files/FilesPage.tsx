@@ -468,8 +468,9 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     await Promise.all([refreshActiveFiles(), refetchFileStats()])
   }, [refetchFileStats, refreshActiveFiles, resetActiveFiles])
 
-  useDataChange(['/files/entries', '/topics/:topicId/messages', '/agent-sessions/:sessionId/messages'], (effects) => {
-    if (!effects.some((effect) => effect.kind === 'membership')) return
+  useDataChange(['/files/entries', '/files/entries/ref-counts'], (effects) => {
+    if (!effects.some((effect) => effect.endpoint === '/files/entries/ref-counts' || effect.kind === 'membership'))
+      return
     setRefsById(new Map())
     setReferenceRevision((revision) => revision + 1)
     void refetchFiles()

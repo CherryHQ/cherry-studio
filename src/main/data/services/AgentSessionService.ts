@@ -1095,11 +1095,9 @@ export class AgentSessionService {
         and(inArray(sessionsTable.id, trashedIds), isNotNull(sessionsTable.taskScheduleId))!
       )
     }
-    tx.update(sessionsTable)
-      .set({ deletedAt: options.deletedAt ?? Date.now() })
-      .where(inArray(sessionsTable.id, trashedIds))
-      .run()
-    fileEntryService.setConversationFilesTrashTx(tx, 'session', trashedIds, options.deletedAt ?? Date.now())
+    const deletedAt = options.deletedAt ?? Date.now()
+    tx.update(sessionsTable).set({ deletedAt }).where(inArray(sessionsTable.id, trashedIds)).run()
+    fileEntryService.setConversationFilesTrashTx(tx, 'session', trashedIds, deletedAt)
     pinService.purgeForEntitiesTx(tx, 'session', trashedIds)
     return { trashedIds, taskScheduleIds, deliveryResults }
   }
@@ -1423,8 +1421,9 @@ export class AgentSessionService {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
-    tx.update(sessionsTable).set({ deletedAt: Date.now() }).where(inArray(sessionsTable.id, uniqueIds)).run()
-    fileEntryService.setConversationFilesTrashTx(tx, 'session', uniqueIds, Date.now())
+    const deletedAt = Date.now()
+    tx.update(sessionsTable).set({ deletedAt }).where(inArray(sessionsTable.id, uniqueIds)).run()
+    fileEntryService.setConversationFilesTrashTx(tx, 'session', uniqueIds, deletedAt)
     const rows = tx
       .delete(sessionsTable)
       .where(inArray(sessionsTable.id, uniqueIds))

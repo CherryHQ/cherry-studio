@@ -8,16 +8,20 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import * as dataChange from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { fileRefService } from '@data/services/FileRefService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import * as fileUtils from '@main/utils/file'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 
 import { AgentSessionForkOperations } from '../AgentSessionForkOperations'
 import { readForkResources, writeForkResources } from '../resources'
@@ -234,6 +238,62 @@ describe('Agent fork publication', () => {
         ).toEqual([messageId, ...tail.map((row) => row.id)])
         expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-parent')
         expect(await readForkResources()).toEqual([])
+      }
+    }
+  )
+
+  it.each([false, true])(
+    'invalidates references removed by editing only after commit (rollback: %s)',
+    async (rollback) => {
+      const fileId = '019606a0-0000-7000-8000-000000000001'
+      dbh.db.insert(fileEntryTable).values({ id: fileId, origin: 'internal', name: 'attachment', size: 1 }).run()
+      const message = agentSessionMessageService.saveMessage({
+        sessionId,
+        message: {
+          role: 'user',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'file',
+                mediaType: 'text/plain',
+                url: 'file:///attachment.txt',
+                providerMetadata: { cherry: { fileEntryId: fileId } }
+              }
+            ]
+          }
+        }
+      })
+      const target = {
+        messageId: message.id,
+        version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, message.id).version
+      }
+      const effects: DataApiDataChangeEffect[] = []
+      vi.spyOn(dataChange, 'notifyDataApiDataChange').mockImplementation((batch) => {
+        expect(dbh.sqlite.inTransaction).toBe(false)
+        effects.push(...batch)
+      })
+      const operation = new AgentSessionForkOperations().edit(
+        sessionId,
+        target,
+        async () => {},
+        () => {
+          if (rollback) throw new Error('abort replacement')
+        }
+      )
+      if (rollback) {
+        await expect(operation).rejects.toThrow('abort replacement')
+        expect(fileRefService.countByEntryIds([fileId]).get(fileId)).toBe(1)
+        expect(effects).toEqual([])
+      } else {
+        await operation
+        expect(fileRefService.countByEntryIds([fileId]).get(fileId)).toBeUndefined()
+        expect(effects).toEqual(
+          expect.arrayContaining([
+            { endpoint: '/files/entries', kind: 'membership', entityIds: [fileId] },
+            { endpoint: '/files/entries/ref-counts', kind: 'projection', entityIds: [fileId] }
+          ])
+        )
       }
     }
   )

@@ -18,6 +18,7 @@ import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -74,6 +75,7 @@ export type PersistedAgentDispatch = {
   traceId: string
   userMessage: AgentSessionMessageEntity
   savedMessages: AgentSessionMessageEntity[]
+  fileEffects: DataApiDataChangeEffect[]
 }
 
 export interface AgentSessionTurnAuthority {
@@ -176,6 +178,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     validated: ValidatedAgentDispatch,
     expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
   ): PersistedAgentDispatch {
+    const fileEffects: DataApiDataChangeEffect[] = []
     const assistantMessageId = uuidv7()
     const savedMessages = agentSessionMessageService.saveMessagesTx(
       tx,
@@ -198,19 +201,22 @@ export class AgentChatContextProvider implements ChatContextProvider {
           }
         ]
       },
-      expectedAgent
+      expectedAgent,
+      fileEffects
     )
     return {
       validated,
       assistantMessageId,
       traceId: agentSessionService.ensureTraceIdTx(tx, validated.sessionId),
       userMessage: savedMessages[0],
-      savedMessages
+      savedMessages,
+      fileEffects
     }
   }
 
   activateDispatch(persisted: PersistedAgentDispatch, subscriber: StreamListener): PreparedDispatch {
-    const { validated, assistantMessageId, traceId, userMessage, savedMessages } = persisted
+    const { validated, assistantMessageId, traceId, userMessage, savedMessages, fileEffects } = persisted
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     if (validated.shouldAutoNameInitialTurn) {
       topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(validated.sessionId, userMessage.data)
     }

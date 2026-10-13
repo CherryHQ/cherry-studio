@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -246,6 +247,74 @@ afterEach(() => {
 })
 
 describe('file reference protection', () => {
+  it.each([0, 1])(
+    'refreshes usage and deletion protection while mounted when %i references remain',
+    async (remaining) => {
+      MockDataApiUtils.resetMocks()
+      let refCount = 2
+      mockFiles([entry])
+      dataApiMocks.get.mockImplementation(async () => [{ entryId: entry.id, refCount, conversationRefCount: refCount }])
+      render(<FilesPage />)
+      await waitFor(() => expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeDisabled())
+      await waitFor(() => expect(screen.getAllByText('files.usage.conversation')).toHaveLength(2))
+      refCount = remaining
+      act(() =>
+        MockDataApiUtils.emitDataChange([
+          { endpoint: '/files/entries/ref-counts', kind: 'projection', entityIds: [entry.id] }
+        ])
+      )
+      await waitFor(() => {
+        const button = screen.getByRole('button', { name: 'files.delete.label' })
+        if (remaining === 0) expect(button).toBeEnabled()
+        else expect(button).toBeDisabled()
+        expect(
+          screen.getAllByText(remaining === 0 ? 'files.usage.unreferenced' : 'files.usage.conversation')
+        ).toHaveLength(2)
+      })
+    }
+  )
+
+  it.each(['conversation', 'unreferenced'] as const)(
+    'updates the %s filter when the last reference is removed without remounting',
+    async (usage) => {
+      MockDataApiUtils.resetMocks()
+      const user = userEvent.setup()
+      let referenced = true
+      mockFiles([entry])
+      const baseQuery = mockUseInfiniteQuery.getMockImplementation()!
+      const present = [{ items: [entry] }]
+      const absent = [{ items: [] }]
+      mockUseInfiniteQuery.mockImplementation((path, options) => {
+        const filter = (options?.query as { usage?: string } | undefined)?.usage
+        const matches = filter === 'conversation' ? referenced : filter === 'unreferenced' ? !referenced : true
+        return { ...baseQuery(path, options), pages: matches ? present : absent }
+      })
+      dataApiMocks.get.mockImplementation(async () => [
+        { entryId: entry.id, refCount: referenced ? 1 : 0, conversationRefCount: referenced ? 1 : 0 }
+      ])
+      render(<FilesPage />)
+      await user.click(screen.getAllByText(`files.usage.${usage}`)[0])
+      await waitFor(() => {
+        if (usage === 'conversation') expect(screen.getByText('report.md')).toBeInTheDocument()
+        else expect(screen.queryByText('report.md')).not.toBeInTheDocument()
+      })
+      referenced = false
+      act(() =>
+        MockDataApiUtils.emitDataChange([
+          { endpoint: '/files/entries', kind: 'membership', entityIds: [entry.id] },
+          { endpoint: '/files/entries/ref-counts', kind: 'projection', entityIds: [entry.id] }
+        ])
+      )
+      await waitFor(() => {
+        if (usage === 'conversation') expect(screen.queryByText('report.md')).not.toBeInTheDocument()
+        else {
+          expect(screen.getByText('report.md')).toBeInTheDocument()
+          expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeEnabled()
+        }
+      })
+    }
+  )
+
   it('labels referenced files and blocks row, batch, and keyboard deletion while allowing an unreferenced file', async () => {
     const user = userEvent.setup()
     mockFiles([entry, externalEntry])

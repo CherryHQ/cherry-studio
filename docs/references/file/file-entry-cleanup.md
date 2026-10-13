@@ -4,6 +4,8 @@ sources:
   - src/main/services/file/internal/entryCleanup.ts
   - src/main/data/services/FileEntryService.ts
   - src/main/data/services/FileRefService.ts
+  - src/main/data/services/MessageService.ts
+  - src/main/data/services/AgentSessionMessageService.ts
   - src/main/data/db/schemas/file.ts
   - src/main/data/db/schemas/fileRelations.ts
 ---
@@ -67,6 +69,12 @@ cache index; it never deletes the user's file.
 by conversation references, other references, or no references. References from archived
 conversations still protect files from deletion. Retention is assigned by the creation flow;
 there is no cleanup-policy toggle or drain action.
+
+Message owners publish file-list membership and reference-count projection effects after
+committing reference changes, including attachment edits, runtime saves, and deletions. Reference
+replacement compares persisted counts before and after the write, so text-only edits do not
+invalidate file views. Composite transactions carry these effects to their post-commit publisher;
+rollback never broadcasts. The Files page subscribes to file read models, not message events.
 
 ## 5. Cleanup Pass
 
