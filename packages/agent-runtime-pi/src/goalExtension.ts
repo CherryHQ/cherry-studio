@@ -17,6 +17,7 @@ import {
   createGoal,
   currentGoal,
   editGoal,
+  GOAL_COMPLETE_MESSAGE,
   GOAL_NOTICE_TYPE,
   GOAL_ROUND_TYPE,
   GOAL_STATE_TYPE,
@@ -231,7 +232,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     }
     /** Returns false when the goal already was paused. */
     const pause = (goal: GoalSnapshot): boolean => {
-      if (goal.phase === 'complete') throw new GoalError('invalid_action', 'the goal is complete; create a new one')
+      if (goal.phase === 'complete') throw new GoalError('invalid_action', GOAL_COMPLETE_MESSAGE)
       if (goal.phase === 'paused') return false
       stop('paused_by_user')
       return true
@@ -356,7 +357,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
         if (params.action !== 'blocked' && hasText(params.blocked_reason))
           throw new GoalError('invalid_action', 'blocked_reason is valid only with action blocked')
         if ((params.action === 'complete' || params.action === 'blocked') && goal.phase === 'complete')
-          throw new GoalError('invalid_action', 'The goal is already complete; new work needs a new goal.')
+          throw new GoalError('invalid_action', GOAL_COMPLETE_MESSAGE)
         switch (params.action) {
           case 'edit':
             requireHumanTurn(ctx, 'edit')
@@ -448,6 +449,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     const blockGoal = (goal: GoalSnapshot, reason: string | undefined, ctx: ExtensionContext) => {
       if (!hasText(reason))
         throw new GoalError('invalid_action', 'blocked needs blocked_reason: the concrete condition that persisted.')
+      // Spec §8.1: a goal that is already blocked stays as it is.
+      if (goal.phase === 'blocked') return ok()
       // Spec §7.5: in a human turn a person is there to resume; a goal round needs consecutive reports.
       if (!isHumanTurn(ctx.sessionManager.getBranch())) {
         const round = goal.roundsStarted
