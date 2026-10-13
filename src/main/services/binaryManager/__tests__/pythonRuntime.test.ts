@@ -23,7 +23,10 @@ vi.mock('node:util', async (importOriginal) => {
 })
 
 vi.mock('@main/services/RegionService', () => ({
-  regionService: { isInChina: vi.fn().mockResolvedValue(false) }
+  regionService: {
+    isInChina: vi.fn().mockResolvedValue(false),
+    detectIsInChina: vi.fn().mockResolvedValue(false)
+  }
 }))
 
 const { regionService } = await import('@main/services/RegionService')
@@ -47,6 +50,7 @@ describe('provideManagedPython', () => {
     mockFs.existsSync.mockReset().mockImplementation((candidate: string) => candidate === UV_BIN)
     mockFsp.mkdir.mockReset().mockResolvedValue(undefined)
     vi.mocked(regionService.isInChina).mockReset().mockResolvedValue(false)
+    vi.mocked(regionService.detectIsInChina).mockReset().mockResolvedValue(false)
   })
 
   it('reuses an interpreter uv already has, without downloading one', async () => {
@@ -82,14 +86,10 @@ describe('provideManagedPython', () => {
     let repaired = false
     mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
       if (bin === UV_BIN && args[1] === 'install') {
-        // uv keeps listing the version, so a plain install exits successfully
-        // without replacing the broken copy.
         if (!args.includes('--reinstall')) return { stdout: 'Python 3.12.13 is already installed\n', stderr: '' }
         repaired = true
         return { stdout: '', stderr: '' }
       }
-      // uv reports an interpreter it cannot inspect exactly as it reports an
-      // absent one, so a corrupt install is indistinguishable from no install.
       if (bin === UV_BIN && args[1] === 'find') {
         if (!repaired) throw new Error('Failed to inspect Python interpreter from managed installations')
         return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
@@ -100,10 +100,10 @@ describe('provideManagedPython', () => {
 
     await expect(provideManagedPython('3.12', {})).resolves.toBe(MANAGED_PYTHON)
     expect(uvCalls('install')).toHaveLength(1)
+    expect(uvCalls('install')[0]?.[1]).toContain('--reinstall')
   })
 
-  it('installs from the China mirror when in China', async () => {
-    vi.mocked(regionService.isInChina).mockResolvedValue(true)
+  it('reports the managed path and execution error when the installed interpreter cannot run', async () => {
     let installed = false
     mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
       if (bin === UV_BIN && args[1] === 'install') {
@@ -111,7 +111,105 @@ describe('provideManagedPython', () => {
         return { stdout: '', stderr: '' }
       }
       if (bin === UV_BIN && args[1] === 'find') {
-        if (!installed) throw new Error('no managed python')
+        if (!installed)
+          throw new Error('No interpreter found for Python 3.12.13 in managed installations or search path')
+        return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
+      }
+      if (bin === MANAGED_PYTHON) throw new Error('spawn EACCES https://user:password@runtime.test/python')
+      return { stdout: '', stderr: '' }
+    })
+
+    const result = provideManagedPython('3.12', {})
+    await expect(result).rejects.toThrow(`${MANAGED_PYTHON} is not runnable after install`)
+    await expect(result).rejects.toThrow('spawn EACCES https://***@runtime.test/python')
+    await expect(result).rejects.not.toThrow('password')
+  })
+
+  it('surfaces unexpected interpreter discovery errors without reinstalling', async () => {
+    mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
+      if (bin === UV_BIN && args[1] === 'find') throw new Error('spawn EACCES')
+      return { stdout: '', stderr: '' }
+    })
+
+    await expect(provideManagedPython('3.12', {})).rejects.toThrow(
+      'Failed to find managed Python 3.12.13: spawn EACCES'
+    )
+    expect(uvCalls('install')).toHaveLength(0)
+  })
+
+  it('surfaces region detection failures before choosing an install source', async () => {
+    vi.mocked(regionService.detectIsInChina).mockRejectedValueOnce(new Error('country lookup failed'))
+    mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
+      if (bin === UV_BIN && args[1] === 'find') {
+        throw new Error('No interpreter found for Python 3.12.13 in managed installations or search path')
+      }
+      return { stdout: '', stderr: '' }
+    })
+
+    await expect(provideManagedPython('3.12', {})).rejects.toThrow('country lookup failed')
+    expect(uvCalls('install')).toHaveLength(0)
+  })
+
+  it('preserves uv discovery details when the interpreter remains unavailable after install', async () => {
+    const discoveryError = 'No interpreter found for Python 3.12.13 in managed installations or search path'
+    mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
+      if (bin === UV_BIN && args[1] === 'find') throw new Error(discoveryError)
+      return { stdout: '', stderr: '' }
+    })
+
+    await expect(provideManagedPython('3.12', {})).rejects.toThrow(
+      `Managed Python in ${INSTALL_DIR} is not runnable after install: ${discoveryError}`
+    )
+  })
+
+  it('reinstalls a managed interpreter whose health check fails', async () => {
+    let repaired = false
+    mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
+      if (bin === UV_BIN && args[1] === 'install') {
+        repaired = true
+        return { stdout: '', stderr: '' }
+      }
+      if (bin === UV_BIN && args[1] === 'find') return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
+      if (bin === MANAGED_PYTHON && !repaired) throw new Error('spawn EACCES')
+      if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
+      return { stdout: '', stderr: '' }
+    })
+
+    await expect(provideManagedPython('3.12', {})).resolves.toBe(MANAGED_PYTHON)
+    expect(uvCalls('install')).toHaveLength(1)
+    expect(uvCalls('install')[0]?.[1]).toContain('--reinstall')
+  })
+
+  it('does not treat an empty health-check error as a healthy runtime', async () => {
+    let installed = false
+    mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
+      if (bin === UV_BIN && args[1] === 'install') {
+        installed = true
+        return { stdout: '', stderr: '' }
+      }
+      if (bin === UV_BIN && args[1] === 'find') {
+        if (!installed)
+          throw new Error('No interpreter found for Python 3.12.13 in managed installations or search path')
+        return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
+      }
+      if (bin === MANAGED_PYTHON) throw new Error('')
+      return { stdout: '', stderr: '' }
+    })
+
+    await expect(provideManagedPython('3.12', {})).rejects.toThrow(`${MANAGED_PYTHON} is not runnable after install`)
+  })
+
+  it('installs from the China mirror when in China', async () => {
+    vi.mocked(regionService.detectIsInChina).mockResolvedValue(true)
+    let installed = false
+    mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
+      if (bin === UV_BIN && args[1] === 'install') {
+        installed = true
+        return { stdout: '', stderr: '' }
+      }
+      if (bin === UV_BIN && args[1] === 'find') {
+        if (!installed)
+          throw new Error('No interpreter found for Python 3.12.13 in managed installations or search path')
         return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
       }
       if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
@@ -130,7 +228,8 @@ describe('provideManagedPython', () => {
         return { stdout: '', stderr: '' }
       }
       if (bin === UV_BIN && args[1] === 'find') {
-        if (!installed) throw new Error('no managed python')
+        if (!installed)
+          throw new Error('No interpreter found for Python 3.12.13 in managed installations or search path')
         return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
       }
       if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
@@ -144,7 +243,7 @@ describe('provideManagedPython', () => {
   })
 
   it('falls back to the official source only after the China mirror fails', async () => {
-    vi.mocked(regionService.isInChina).mockResolvedValue(true)
+    vi.mocked(regionService.detectIsInChina).mockResolvedValue(true)
     let installed = false
     mockExecFileAsync.mockImplementation(
       async (bin: string, args: string[], options: { env?: Record<string, string> }) => {
@@ -154,7 +253,8 @@ describe('provideManagedPython', () => {
           return { stdout: '', stderr: '' }
         }
         if (bin === UV_BIN && args[1] === 'find') {
-          if (!installed) throw new Error('no managed python')
+          if (!installed)
+            throw new Error('No interpreter found for Python 3.12.13 in managed installations or search path')
           return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
         }
         if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
@@ -171,7 +271,7 @@ describe('provideManagedPython', () => {
   })
 
   it('reports every source that failed, with credentials redacted', async () => {
-    vi.mocked(regionService.isInChina).mockResolvedValue(true)
+    vi.mocked(regionService.detectIsInChina).mockResolvedValue(true)
     mockExecFileAsync.mockImplementation(
       async (bin: string, args: string[], options: { env?: Record<string, string> }) => {
         if (bin === UV_BIN && args[1] === 'install') {
@@ -179,7 +279,7 @@ describe('provideManagedPython', () => {
             ? new Error('https://user:password@mirror.test/python failed')
             : new Error('github unreachable')
         }
-        throw new Error('no managed python')
+        throw new Error('No interpreter found for Python 3.12.13 in managed installations or search path')
       }
     )
 

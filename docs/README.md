@@ -43,6 +43,10 @@
 | [Params Pipeline](./references/ai/params-pipeline.md) | buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request |
 | [Provider Resolution](./references/ai/provider-resolution.md) | Endpoint resolution chain from provider.endpointConfigs and adapterFamily to the AI SDK provider id and variants |
 | [Provider State Ownership](./references/ai/provider-state-ownership.md) | Ownership rules for provider facts, endpoint dialects, user connection overrides, and per-request controls |
+| [Remote Agent API Design](./references/ai/remote-agent-access.md) | JSON-RPC 2.0 remote API with Agent contracts, incremental events, resumable subscriptions, command receipts, and portable package exports |
+| [Remote Protocol and Desktop Implementation Design](./references/ai/remote-agent-implementation.md) | Proposed remote-protocol files and Desktop function contracts for RPC dispatch, atomic admission, journals, checkpoints, and lifecycle ownership |
+| [Remote Agent Sequences and Modules](./references/ai/remote-agent-sequences.md) | Target remote Agent sequence diagrams, connection states, module ownership, and failure-recovery acceptance scenarios |
+| [Remote Agent Testing Specification](./references/ai/remote-agent-testing.md) | Local WebSocket client acceptance specification for remote protocol conformance, real Desktop execution, recovery, security, and weak-network budgets |
 | [AiStreamManager](./references/ai/stream-manager.md) | AiStreamManager active-stream registry — listener fan-out, reconnect replay, abort, steering, and persistence triggers |
 | [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
@@ -53,6 +57,8 @@
 | Document | Description |
 |----------|-------------|
 | [API Gateway Reference](./references/api-gateway/README.md) | Local HTTP gateway for OpenAI, Anthropic, Gemini, Cherry REST, and MCP-compatible clients |
+| [Remote Agent Access (Design)](./references/api-gateway/remote-agent-access.md) | JSON-RPC remote access architecture, device-level authorization, shared protocol package, and staged desktop/mobile implementation plan |
+| [Remote Connectivity Design](./references/api-gateway/remote-connectivity.md) | Identity-based remote connectivity design and first implementation boundaries for DNS-SD discovery, configured endpoints and serial reconnect |
 
 ### Architecture
 
@@ -140,6 +146,7 @@
 | [File Entry Cleanup](./references/file/file-entry-cleanup.md) | Scan-based cleanup of unreferenced file entries using the per-entry cleanup policy |
 | [FileManager Architecture](./references/file/file-manager-architecture.md) | Current FileManager storage, lifecycle, atomic-write, watcher, dangling-cache, and orphan-cleanup behavior |
 | [Fuzzy Search for Directory Listings](./references/file/fuzzy-search.md) | Current list and fuzzy-search behavior for the legacy directory-listing IPC methods |
+| [Upload Integrity](./references/file/upload-integrity.md) | Implementation plan for native mobile SHA-256, verified upload completion, and restart-safe integrity checks |
 
 ### i18n
 
@@ -177,12 +184,6 @@
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard and recovery semantics for Knowledge add, delete, reindex, and embedding-enable operations |
 | [Knowledge Workflow Architecture](./references/knowledge/workflow-architecture.md) | Knowledge workflow architecture: scheduling model, durable JobManager jobs, per-base mutation lock, crash semantics |
 | [Knowledge Storage and Retrieval Implementation](./references/knowledge/experiment/knowledge-technical-design.md) | Current Knowledge storage and retrieval implementation - raw files, per-base index schema, invariants, and migration validation |
-
-### LAN Transfer
-
-| Document | Description |
-|----------|-------------|
-| [Cherry Studio LAN Transfer Protocol Specification](./references/lan-transfer/README.md) | LAN transfer protocol spec for desktop-mobile sync covering mDNS discovery, TCP handshake, and file transfer |
 
 ### Lifecycle
 
@@ -240,7 +241,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [Testing Reference](./references/testing/README.md) | Frontend and SQLite testing references |
+| [Testing Reference](./references/testing/README.md) | Frontend, SQLite, and remote Agent protocol testing references |
 | [Database Testing Guide](./references/testing/database-testing.md) | How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations |
 | [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Normative test rules for renderer, packages/ui, and E2E code covering layer choice, mocking, and review gates |
 

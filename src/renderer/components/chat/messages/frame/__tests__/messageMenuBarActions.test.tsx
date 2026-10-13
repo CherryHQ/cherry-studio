@@ -270,26 +270,27 @@ describe('messageMenuBarActions', () => {
     )
   })
 
-  it('keeps user edit toolbar action for root messages', () => {
-    const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createActionContext({
-        message: {
-          id: 'message-1',
-          role: 'user',
-          topicId: 'topic-1',
-          parentId: null,
-          createdAt: '2026-01-01T00:00:00.000Z',
-          status: 'success'
-        },
-        actions: {
-          editMessage: vi.fn()
-        },
-        isAssistantMessage: false,
-        isUserMessage: true
-      })
+  it.each(['inline', 'resend', 'blocked'])('respects the root user message edit capability: %s', (mode) => {
+    const context = createActionContext({
+      message: {
+        id: 'message-1',
+        role: 'user',
+        topicId: 'topic-1',
+        parentId: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'success'
+      },
+      actions: {
+        editMessage: mode === 'resend' ? undefined : vi.fn(),
+        canEditMessage: mode === 'inline' ? undefined : () => mode === 'resend'
+      },
+      isAssistantMessage: false,
+      isUserMessage: true
+    })
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).toEqual(
+      mode === 'blocked' ? ['copy'] : ['copy', 'user-edit']
     )
-
-    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'edit')).toBe(mode !== 'blocked')
   })
 
   it('keeps user edit toolbar action for non-root messages', () => {
@@ -1078,6 +1079,28 @@ describe('messageMenuBarActions', () => {
     expect(acquireLease).toHaveBeenCalledWith(context.message.id)
     expect(releaseLease).toHaveBeenCalledTimes(1)
     expect(getMessageTitle).not.toHaveBeenCalled()
+  })
+
+  it('sanitizes the message-derived title before handing it to the save dialog', async () => {
+    const saveImage = vi.fn(async () => true)
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    vi.mocked(exportService.captureScrollableAsDataUrl).mockResolvedValue('data:image/png;base64,AAAA')
+    vi.mocked(getMessageTitle).mockResolvedValue('**bold** start: a/b?')
+
+    const context = createActionContext({
+      actions: { saveImage },
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await expect(executeMessageMenuBarAction('export.image', context)).resolves.toBe(true)
+
+    expect(saveImage).toHaveBeenCalledWith('__bold__ start_ a_b_', 'data:image/png;base64,AAAA')
+    expect(releaseLease).toHaveBeenCalledTimes(1)
   })
 
   it('copies user composer tokens through rich clipboard when available', async () => {

@@ -31,6 +31,7 @@ import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailMod
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -49,6 +50,11 @@ import {
   rejectPendingAgentSessionImageActions,
   settleAgentSessionImageActionRequest
 } from './agentSessionImageActionBus'
+
+const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
+  const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
+  return popup.show({ title, messages, processingMethod: '1' })
+}
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
@@ -103,6 +109,7 @@ interface AgentMessageListParams {
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
   openBrowserUrl?: MessageListActions['openBrowserUrl']
@@ -110,11 +117,14 @@ interface AgentMessageListParams {
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
   deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   imageActionConsumer?: 'capture'
   messageNavigation: string
   workspacePath?: string
   messageTail?: MessageListState['messageTail']
+  afterMessages?: MessageListState['afterMessages']
 }
 
 /**
@@ -163,6 +173,7 @@ export function useAgentMessageListProviderValue({
   loadOlder,
   selectAllPagination,
   openCitationsPanel,
+  isAgentToolFlowActive,
   openAgentToolFlow,
   openArtifactFile,
   openBrowserUrl,
@@ -170,11 +181,14 @@ export function useAgentMessageListProviderValue({
   openDiagnosticReport,
   diagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval,
   imageActionConsumer,
   messageNavigation,
   workspacePath,
-  messageTail
+  messageTail,
+  afterMessages
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
@@ -259,6 +273,7 @@ export function useAgentMessageListProviderValue({
     selectionController,
     updateRenderConfig
   } = useMessageListAdapterCapabilities({
+    exportToObsidian,
     topicId: topic.id,
     topicName: topic.name,
     messages: messageItems,
@@ -270,13 +285,15 @@ export function useAgentMessageListProviderValue({
     selectAllPagination
   })
 
+  // Raw path to main, which resolves workspace-relative input against the session's workspace: the
+  // renderer must never join paths, and nothing unresolved may reach `shell.openPath`.
   const openPath = useCallback(
-    (path: string) => {
-      return window.api.file.openPath(requireWorkspaceFilePath(workspacePath, path))
-    },
-    [workspacePath]
+    (path: string) => ipcApi.request('ai.agent.session.open_path', { sessionId, path }),
+    [sessionId]
   )
 
+  // Still renderer-side: the open-target menu needs an absolute path to describe, and it is not a
+  // file-opening call.
   const resolvePath = useMemo<MessageListActions['resolvePath']>(
     () => (workspacePath ? (path) => requireWorkspaceFilePath(workspacePath, path) : undefined),
     [workspacePath]
@@ -414,6 +431,7 @@ export function useAgentMessageListProviderValue({
       streamingLayers: displayStreamingLayers,
       activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
       messageTail: normalInteractionsEnabled ? messageTail : undefined,
+      afterMessages: normalInteractionsEnabled ? afterMessages : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -438,6 +456,7 @@ export function useAgentMessageListProviderValue({
       messageItems,
       messageActivityStore,
       messageTail,
+      afterMessages,
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
@@ -451,6 +470,14 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      editLabel: t('agent.edit_resend.label'),
+      canEditMessage: (message) =>
+        normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
+      startEditing: startEditing
+        ? (message) => {
+            void startEditing(message.id)
+          }
+        : undefined,
       openForkSourceSession: normalInteractionsEnabled ? openForkSourceSession : undefined,
       forkSession: normalInteractionsEnabled
         ? {
@@ -476,6 +503,7 @@ export function useAgentMessageListProviderValue({
       openArtifactFile,
       openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
       openCitationsPanel,
+      isAgentToolFlowActive,
       openAgentToolFlow,
       abortTool,
       bindMessageRuntime,
@@ -487,6 +515,8 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      startEditing,
+      editBusy,
       openForkSourceSession,
       t,
       abortTool,
@@ -509,6 +539,7 @@ export function useAgentMessageListProviderValue({
       openDiagnosticReport,
       openBrowserUrl,
       openExternalUrl,
+      isAgentToolFlowActive,
       openAgentToolFlow,
       openPath,
       respondToolApproval,

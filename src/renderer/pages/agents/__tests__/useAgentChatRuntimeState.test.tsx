@@ -1,12 +1,23 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, render, renderHook } from '@testing-library/react'
 import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  readAskUserQuestionDraftCache,
+  writeAskUserQuestionDraftCache
+} from '@renderer/components/composer/variants/askUserQuestionDraftCache'
+import type * as AgentSessionPartsModule from '@renderer/hooks/useAgentSessionParts'
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   seedReservedMessages: vi.fn(),
+  replaceMessageTail: vi.fn(),
   deleteSessionMessage: vi.fn(),
   useAgentSessionParts: vi.fn(),
   useChatWithHistory: vi.fn(),
@@ -15,6 +26,10 @@ const mocks = vi.hoisted(() => ({
   resetOverlay: vi.fn(),
   useTopicOverlayHandoffOnTerminal: vi.fn(),
   sendTurn: vi.fn(),
+  editTarget: vi.fn(),
+  editResend: vi.fn(),
+  controllerOptions: vi.fn(),
+  toastError: vi.fn(),
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
@@ -26,7 +41,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.tool.respond_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval'
+        ? mocks.respondToolApproval(input)
+        : route === 'ai.agent.session.edit_target'
+          ? mocks.editTarget(input)
+          : route === 'ai.agent.session.edit_resend'
+            ? mocks.editResend(input)
+            : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))
@@ -44,18 +65,15 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 }))
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
-  useConversationTurnController: () => ({
-    send: mocks.sendTurn
-  })
+  useConversationTurnController: (options: unknown) => {
+    mocks.controllerOptions(options)
+    return { send: mocks.sendTurn }
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ isPending: false }),
   useTopicOverlayHandoffOnTerminal: mocks.useTopicOverlayHandoffOnTerminal
-}))
-
-vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
-  useToolApprovalComposerOverrides: () => []
 }))
 
 vi.mock('@renderer/services/messageUiStateCache', () => ({
@@ -67,6 +85,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
+
+vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError, warning: mocks.toastWarning } }))
 
 // <Activity> harness: tab switches hide/show the session UI without unmounting
 // it, so hooks keep their state but effects are destroyed and re-created.
@@ -143,8 +163,176 @@ function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
 }
 
 describe('useAgentChatRuntimeState', () => {
+  it('replaces the edited tail before streaming even when history refresh still returns cached rows', async () => {
+    MockUseDataApiUtils.resetMocks()
+    const { useAgentSessionParts } = await vi.importActual<typeof AgentSessionPartsModule>(
+      '@renderer/hooks/useAgentSessionParts'
+    )
+    mocks.useAgentSessionParts.mockImplementation(useAgentSessionParts)
+    const draft = { messageId: 'edited-user', version: 'version-1', parts: [{ type: 'text', text: 'Original' }] }
+    const history = ['earlier-user', 'earlier-assistant', draft.messageId, 'old-answer', 'later-user', 'later-answer']
+    MockUseDataApiUtils.seedInfiniteQuery(
+      '/agent-sessions/:sessionId/messages',
+      [
+        {
+          items: history.toReversed().map(
+            (id): AgentSessionMessageEntity => ({
+              id,
+              sessionId: 'session-1',
+              role: id.endsWith('user') ? 'user' : 'assistant',
+              data: { parts: [{ type: 'text', text: id }] },
+              status: 'success',
+              modelId: null,
+              messageSnapshot: null,
+              stats: null,
+              searchableText: id,
+              runtimeResumeToken: null,
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z'
+            })
+          )
+        }
+      ],
+      { params: { sessionId: 'session-1' }, query: { deferToolOutputs: true }, limit: 50 }
+    )
+    const reserved: CherryUIMessage[] = [
+      {
+        id: 'replacement-user',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Replacement' }],
+        metadata: { createdAt: '2026-01-02T00:00:00.000Z' }
+      },
+      {
+        id: 'replacement-answer',
+        role: 'assistant',
+        parts: [],
+        metadata: { status: 'pending', createdAt: '2026-01-02T00:00:01.000Z' }
+      }
+    ]
+    mocks.editTarget.mockResolvedValue(draft)
+    mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: reserved })
+    mocks.sendTurn.mockImplementation(async (input) => {
+      const { openStream, buildStreamRequest, ensureConversation, historyAdapter } =
+        mocks.controllerOptions.mock.lastCall![0]
+      const ack = await openStream(buildStreamRequest(input, ensureConversation()), input)
+      await historyAdapter.seedReservedMessages(ack.reservedMessages)
+      return true
+    })
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    await act(() => result.current.startEditing(draft.messageId))
+    await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
+    expect(result.current.uiMessages.map((message) => message.id)).toEqual([
+      'earlier-user',
+      'earlier-assistant',
+      'replacement-user',
+      'replacement-answer'
+    ])
+    mocks.useExecutionOverlay.mockReturnValue({
+      ...mocks.useExecutionOverlay(),
+      overlay: { 'replacement-answer': [{ type: 'text', text: 'New response in progress' }] },
+      liveAssistants: [{ ...reserved[1], parts: [{ type: 'text', text: 'New response in progress' }] }]
+    })
+    rerender()
+    expect(result.current.uiMessages.map((message) => message.id)).toEqual([
+      'earlier-user',
+      'earlier-assistant',
+      'replacement-user',
+      'replacement-answer'
+    ])
+    expect(result.current.partsByMessageId['replacement-answer']).toEqual([
+      { type: 'text', text: 'New response in progress' }
+    ])
+  })
+
+  it('shows the edit reason when resending from an unsupported checkpoint fails', async () => {
+    const draft = {
+      messageId: 'user-1',
+      version: 'version-1',
+      parts: [{ type: 'text' as const, text: 'Original question' }]
+    }
+    mocks.editTarget.mockResolvedValue(draft)
+    mocks.editResend.mockRejectedValue(
+      new IpcError(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED, 'checkpoint_unsupported', {
+        reason: 'checkpoint_unsupported'
+      })
+    )
+    mocks.sendTurn.mockImplementation(async (input) => {
+      const { openStream, buildStreamRequest, ensureConversation } = mocks.controllerOptions.mock.lastCall![0]
+      await openStream(buildStreamRequest(input, ensureConversation()), input)
+      return true
+    })
+
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    await act(() => result.current.startEditing(draft.messageId))
+    await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
+
+    expect(mocks.toastError).toHaveBeenCalledExactlyOnceWith('agent.edit_resend.error.checkpoint_unsupported')
+    expect(mocks.toastError).not.toHaveBeenCalledWith('agent_session_fork.unsupported_checkpoint')
+  })
+
+  it('retains the edited draft after a failed resend and clears it only on acceptance or cancel', async () => {
+    const draft = {
+      messageId: 'edited-user',
+      version: 'version-1',
+      parts: [{ type: 'text' as const, text: 'Original question' }]
+    }
+    const history: CherryUIMessage[] = [
+      { id: 'earlier-user', role: 'user', parts: [{ type: 'text', text: 'Earlier question' }] },
+      { id: 'earlier-assistant', role: 'assistant', parts: [{ type: 'text', text: 'Earlier answer' }] },
+      { id: draft.messageId, role: 'user', parts: draft.parts },
+      { ...assistantMessage, parts: [{ type: 'text', text: 'Old answer' }] },
+      { id: 'later-user', role: 'user', parts: [{ type: 'text', text: 'Later question' }] },
+      { id: 'later-assistant', role: 'assistant', parts: [{ type: 'text', text: 'Later answer' }] }
+    ]
+    mocks.useAgentSessionParts.mockReturnValue({ ...mocks.useAgentSessionParts(), messages: history })
+    mocks.editTarget.mockResolvedValue(draft)
+    mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: [] })
+    mocks.sendTurn.mockImplementation(async (input) => {
+      const { openStream, buildStreamRequest, ensureConversation } = mocks.controllerOptions.mock.lastCall![0]
+      await openStream(buildStreamRequest(input, ensureConversation()), input)
+      return true
+    })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    await act(() => result.current.startEditing(draft.messageId))
+    expect(result.current.editing).toMatchObject(draft)
+    const sending = Promise.withResolvers<unknown>()
+    mocks.editResend.mockReturnValueOnce(sending.promise)
+    let resend: Promise<boolean>
+    act(() => {
+      resend = result.current.resendEditedMessage({ text: 'Replacement' })
+    })
+    expect(result.current.uiMessages.map((item) => item.id)).toEqual([
+      'earlier-user',
+      'earlier-assistant',
+      draft.messageId
+    ])
+    expect(result.current.partsByMessageId[draft.messageId]).toEqual([{ type: 'text', text: 'Replacement' }])
+    await act(async () => {
+      sending.reject(new Error('Rejected'))
+      await resend
+    })
+    expect(result.current.uiMessages).toEqual(history)
+    expect(result.current.editing).toMatchObject(draft)
+    expect(mocks.toastError).toHaveBeenCalledWith('Rejected')
+    await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
+    expect(mocks.editResend).toHaveBeenLastCalledWith(
+      expect.objectContaining({ target: { messageId: draft.messageId, version: draft.version } })
+    )
+    expect(result.current.editing).toBeUndefined()
+    await act(() => result.current.startEditing(draft.messageId))
+    act(() => result.current.cancelEditing())
+    expect(result.current.editing).toBeUndefined()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.seedReservedMessages.mockResolvedValue(undefined)
@@ -154,11 +342,13 @@ describe('useAgentChatRuntimeState', () => {
     mocks.sendTurn.mockResolvedValue(true)
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
+      persistedPartsByMessageId: {},
       isLoading: false,
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
       seedReservedMessages: mocks.seedReservedMessages,
+      replaceMessageTail: mocks.replaceMessageTail,
       deleteMessage: mocks.deleteSessionMessage
     })
     mocks.useChatWithHistory.mockReturnValue({
@@ -216,20 +406,6 @@ describe('useAgentChatRuntimeState', () => {
     expect(sent).toBe(false)
   })
 
-  it('does not wire per-overlay finish refresh for agent sessions', () => {
-    renderHook(() =>
-      useAgentChatRuntimeState({
-        sessionId: 'session-1',
-        sessionMessagesEnabled: true,
-        reservedMessages: []
-      })
-    )
-
-    expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
-    expect(mocks.refresh).not.toHaveBeenCalled()
-    expect(mocks.disposeOverlay).not.toHaveBeenCalled()
-  })
-
   it('invalidates disclosure state after deleting a session message', async () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
@@ -245,29 +421,6 @@ describe('useAgentChatRuntimeState', () => {
 
     expect(mocks.deleteSessionMessage).toHaveBeenCalledWith('assistant-1')
     expect(mocks.invalidateMessages).toHaveBeenCalledWith(['assistant-1'])
-  })
-
-  it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
-    renderHook(() =>
-      useAgentChatRuntimeState({
-        sessionId: 'session-1',
-        sessionMessagesEnabled: true,
-        reservedMessages: []
-      })
-    )
-
-    // The deterministic handoff (fires off the live→terminal status edge, where
-    // the overlay's onFinish is suppressed) must refresh the DB then drop the overlay.
-    const handoff = mocks.useTopicOverlayHandoffOnTerminal.mock.calls[0]?.[1] as (() => Promise<void>) | undefined
-    expect(handoff).toEqual(expect.any(Function))
-
-    await act(async () => {
-      await handoff?.()
-    })
-
-    expect(mocks.refresh).toHaveBeenCalled()
-    expect(mocks.resetOverlay).toHaveBeenCalled()
-    expect(mocks.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.resetOverlay.mock.invocationCallOrder[0])
   })
 
   it('merges live assistant metadata into displayed session messages', () => {
@@ -387,5 +540,128 @@ describe('useAgentChatRuntimeState', () => {
     // Actual session change: the stale input must be dropped.
     view.rerender(<ActivityHarness mode="visible" sessionId="session-2" />)
     expect(currentRuntime().optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('evicts the AskUserQuestion draft cache only when the persisted part settles the answers', async () => {
+    MockCacheUtils.resetMocks()
+    writeAskUserQuestionDraftCache('approval-ask', {
+      selectedAnswers: { 0: ['Winston'] },
+      customAnswers: {},
+      currentIndex: 0
+    })
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval(makeAskUserQuestionApproval())
+    })
+
+    // The dispatch ack lands before the assistant row is durably persisted, so
+    // the draft must still be readable for a remount in that window.
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({
+      'call-ask': askUserQuestionUpdatedInput
+    })
+    expect(readAskUserQuestionDraftCache('approval-ask').selectedAnswers[0]).toEqual(['Winston'])
+
+    const liveAnswer = makeAskUserQuestionPart({ state: 'output-available', input: askUserQuestionUpdatedInput })
+    mocks.useAgentSessionParts.mockReturnValue({
+      ...mocks.useAgentSessionParts(),
+      messages: [{ ...assistantMessage, parts: [liveAnswer] }],
+      persistedPartsByMessageId: { 'assistant-1': [makeAskUserQuestionPart()] }
+    })
+    mocks.useExecutionOverlay.mockReturnValue({
+      ...mocks.useExecutionOverlay(),
+      overlay: { 'assistant-1': [liveAnswer] }
+    })
+    rerender()
+    expect(readAskUserQuestionDraftCache('approval-ask').selectedAnswers[0]).toEqual(['Winston'])
+
+    // Only the database update allows the draft to be retired.
+    mocks.useAgentSessionParts.mockReturnValue({
+      messages: [
+        {
+          ...assistantMessage,
+          parts: [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+        }
+      ],
+      persistedPartsByMessageId: {
+        'assistant-1': [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+      },
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: mocks.refresh,
+      seedReservedMessages: mocks.seedReservedMessages,
+      deleteMessage: mocks.deleteSessionMessage
+    })
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: {},
+      liveAssistants: [],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    await act(async () => {
+      rerender()
+    })
+
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+    expect(readAskUserQuestionDraftCache('approval-ask')).toEqual({
+      selectedAnswers: {},
+      customAnswers: {},
+      currentIndex: 0
+    })
+  })
+
+  it('evicts the AskUserQuestion draft cache from persisted parts after a remount or session change', async () => {
+    // The settlement happened in a previous mount/session, so this mount never
+    // dispatched the approval and holds no optimistic ids to sweep from.
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: {},
+      liveAssistants: [],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    mocks.useAgentSessionParts.mockReturnValue({
+      messages: [
+        {
+          ...assistantMessage,
+          parts: [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+        }
+      ],
+      persistedPartsByMessageId: {
+        'assistant-1': [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+      },
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: mocks.refresh,
+      seedReservedMessages: mocks.seedReservedMessages,
+      deleteMessage: mocks.deleteSessionMessage
+    })
+    writeAskUserQuestionDraftCache('approval-ask', {
+      selectedAnswers: { 0: ['Winston'] },
+      customAnswers: {},
+      currentIndex: 0
+    })
+
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+    expect(readAskUserQuestionDraftCache('approval-ask')).toEqual({
+      selectedAnswers: {},
+      customAnswers: {},
+      currentIndex: 0
+    })
   })
 })

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
+import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
@@ -42,6 +43,7 @@ export const AppShell = () => {
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
   const canCycleTabs = tabs.length > 1 && !!activeTab
+  const canCloseTab = !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
   const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
   if (activeTab && !isSettingsTabActive) {
@@ -57,6 +59,7 @@ export const AppShell = () => {
     [activeTab, isSettingsTabActive, tabs]
   )
   const isFullscreen = useNativeFullscreen()
+  const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [, setSplitMiniAppId] = useCache('mini_app.split_id')
 
@@ -119,7 +122,19 @@ export const AppShell = () => {
     [tabs, activeTabId, setActiveTab]
   )
 
+  const handleCloseActiveTab = useCallback(() => {
+    if (!activeTabId) return
+    // Closing the last tab would strand the shell in the empty Launchpad state;
+    // browsers close the window for the final tab (Safari / Chrome convention).
+    if (tabs.length === 1) {
+      void ipcApi.request('window.close')
+      return
+    }
+    handleCloseTab(activeTabId)
+  }, [activeTabId, handleCloseTab, tabs])
+
   useCommandHandler('app.search', handleOpenGlobalSearch)
+  useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
   useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
   useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
 
@@ -230,7 +245,8 @@ export const AppShell = () => {
     </div>
   )
 
-  if (!isMac) {
+  // Leading Linux WCO controls take the top-left corner like macOS traffic lights do.
+  if (!isMac && !hasLeadingWindowControls) {
     return (
       <div
         className={cn(

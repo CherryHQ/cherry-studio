@@ -13,6 +13,7 @@ import { codeCliRequestSchemas } from './codeCli'
 import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
 import { doctorRequestSchemas } from './doctor'
+import { doctorAgentRequestSchemas } from './doctorAgent'
 import { exportRequestSchemas } from './export'
 import { externalAppRequestSchemas } from './externalApp'
 import { type FileEventSchemas, fileRequestSchemas } from './file'
@@ -27,6 +28,7 @@ import { type NotificationEventSchemas, notificationRequestSchemas } from './not
 import { oauthRequestSchemas } from './oauth'
 import { openclawRequestSchemas } from './openclaw'
 import { ovmsRequestSchemas } from './ovms'
+import { pdfjsRequestSchemas } from './pdfjs'
 import { printRequestSchemas } from './print'
 import { profileRequestSchemas } from './profile'
 import { providerRequestSchemas } from './provider'
@@ -64,6 +66,7 @@ export const ipcRequestSchemas = {
   ...deepSeekHarnessRequestSchemas,
   ...diagnosticsRequestSchemas,
   ...doctorRequestSchemas,
+  ...doctorAgentRequestSchemas,
   ...exportRequestSchemas,
   ...externalAppRequestSchemas,
   ...hermesDashboardRequestSchemas,
@@ -78,6 +81,7 @@ export const ipcRequestSchemas = {
   ...oauthRequestSchemas,
   ...openclawRequestSchemas,
   ...ovmsRequestSchemas,
+  ...pdfjsRequestSchemas,
   ...printRequestSchemas,
   ...profileRequestSchemas,
   ...providerRequestSchemas,

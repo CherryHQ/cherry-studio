@@ -423,4 +423,43 @@ describe('RuntimeExecutor - Model Resolution', () => {
       ).resolves.toBeDefined()
     })
   })
+
+  describe('Executor Reuse', () => {
+    it('keeps the plugin chain fixed across repeated calls on one executor', async () => {
+      const userPlugin = { name: 'user-plugin' }
+      const userPlugins = [userPlugin]
+      const reused = RuntimeExecutor.create('openai', mockProvider, mockProviderConfigs.openai, userPlugins)
+
+      for (let i = 0; i < 3; i++) {
+        await reused.generateText({ model: 'gpt-4', messages: [{ role: 'user', content: 'Hello' }] })
+      }
+      await reused.streamText({ model: mockLanguageModel, messages: [{ role: 'user', content: 'Hello' }] })
+      await reused.generateImage({ model: 'dall-e-3', prompt: 'A cat' })
+
+      expect(reused.pluginEngine.getPlugins()).toEqual([userPlugin])
+      expect(userPlugins).toEqual([userPlugin])
+    })
+
+    it('resolves an image id through imageModel after a text call on the same executor', async () => {
+      await executor.generateText({ model: 'gpt-4', messages: [{ role: 'user', content: 'Hello' }] })
+      mockProvider.languageModel.mockClear()
+
+      await executor.generateImage({ model: 'dall-e-3', prompt: 'A cat' })
+
+      expect(mockProvider.imageModel).toHaveBeenCalledWith('dall-e-3')
+      expect(mockProvider.languageModel).not.toHaveBeenCalled()
+      expect(generateImage).toHaveBeenCalledWith(expect.objectContaining({ model: mockImageModel }))
+    })
+
+    it('resolves a language id through languageModel after an image call on the same executor', async () => {
+      await executor.generateImage({ model: 'dall-e-3', prompt: 'A cat' })
+      mockProvider.imageModel.mockClear()
+
+      await executor.generateText({ model: 'gpt-4', messages: [{ role: 'user', content: 'Hello' }] })
+
+      expect(mockProvider.languageModel).toHaveBeenCalledWith('gpt-4')
+      expect(mockProvider.imageModel).not.toHaveBeenCalled()
+      expect(generateText).toHaveBeenCalledWith(expect.objectContaining({ model: mockLanguageModel }))
+    })
+  })
 })

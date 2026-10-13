@@ -259,6 +259,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'fetch',
   'jina',
   'firecrawl',
+  'crawl4ai',
   'parallel',
   'serply'
 ] as const
@@ -337,7 +338,8 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'qoder-cli',
   'github-copilot-cli',
   'pi',
-  'hermes'
+  'hermes',
+  'minimax-code'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]

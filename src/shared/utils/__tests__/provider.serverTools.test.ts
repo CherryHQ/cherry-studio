@@ -59,7 +59,7 @@ describe('server-tool model eligibility', () => {
         }
       ]
     } as Provider
-    const flash = model('deepseek-v4-flash', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    const flash = model('deepseek-flash', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
     const route = (endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) =>
       resolveWebToolRoutes(flash, deepseek, {
         webSearchEnabled: true,

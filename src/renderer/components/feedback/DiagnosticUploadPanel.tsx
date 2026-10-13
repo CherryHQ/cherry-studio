@@ -1,3 +1,4 @@
+import { ExternalLink } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +8,7 @@ import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import {
@@ -15,6 +17,8 @@ import {
   diagnosticDescriptionByteLength
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
+
+import { DIAGNOSTIC_STATUS_TRANSLATION_KEYS } from './diagnosticStatusLabels'
 
 const logger = loggerService.withContext('DiagnosticUploadPanel')
 type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'busy' }>
@@ -121,10 +125,20 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   const openManualForm = async () => {
     try {
-      await ipcApi.request('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
+      await openExternalWebsite(DIAGNOSTIC_FEEDBACK_FORM_URL)
     } catch (error) {
       logger.error('Failed to open the diagnostic feedback form', error as Error)
       toast.error(t('settings.about.diagnostics.upload.errors.open_form_failed'))
+    }
+  }
+
+  const openReport = async () => {
+    if (result?.status !== 'uploaded') return
+    try {
+      await openExternalWebsite(result.reportUrl)
+    } catch (error) {
+      logger.error('Failed to open diagnostic status page', error as Error)
+      toast.error(t('settings.about.diagnostics.report.open_failed'))
     }
   }
 
@@ -224,7 +238,12 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <Scrollbar className="min-h-0 px-6 py-2">
         {result ? (
-          <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
+          <UploadResultContent
+            result={result}
+            savedUpload={savedUpload}
+            onReveal={revealBundle}
+            onOpenReport={openReport}
+          />
         ) : (
           <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
             <section className="space-y-2">
@@ -316,11 +335,13 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 function UploadResultContent({
   result,
   savedUpload,
-  onReveal
+  onReveal,
+  onOpenReport
 }: {
   readonly result: UploadResult
   readonly savedUpload: SavedUploadResult | null
   readonly onReveal: () => Promise<void>
+  readonly onOpenReport: () => Promise<void>
 }) {
   const { t } = useTranslation()
   if (result.status === 'uploaded') {
@@ -333,6 +354,22 @@ function UploadResultContent({
             <code className="break-all">{result.reportId}</code>
             <CopyButton textToCopy={result.reportId} aria-label={t('settings.about.diagnostics.report.copy_id')} />
           </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{t('settings.about.diagnostics.report.status_url')}</span>
+            <code className="min-w-0 break-all">{result.reportUrl}</code>
+            <CopyButton textToCopy={result.reportUrl} aria-label={t('settings.about.diagnostics.report.copy_url')} />
+            <Button variant="link" size="sm" className="h-auto px-0" onClick={() => void onOpenReport()}>
+              <ExternalLink className="mr-1 size-3.5" aria-hidden />
+              {t('settings.about.feedback.history.open')}
+            </Button>
+          </div>
+          <div className="text-sm">
+            <span className="text-muted-foreground">{t('settings.about.diagnostics.report.processing_status')}: </span>
+            <strong>{t(DIAGNOSTIC_STATUS_TRANSLATION_KEYS[result.processingStatus ?? 'unavailable'])}</strong>
+          </div>
+          {!result.historySaved ? (
+            <p className="text-warning text-xs">{t('settings.about.diagnostics.report.history_save_failed')}</p>
+          ) : null}
         </div>
       </Alert>
     )

@@ -147,8 +147,8 @@ function SelectionPaneHarness({
   )
 }
 
-it('watches an allowed missing workspace without limiting discovery depth', () => {
-  expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ watchMissingRoot: true })
+it('watches an allowed missing workspace with a bounded discovery depth', () => {
+  expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ maxDepth: 1, watchMissingRoot: true })
 })
 
 const mocks = vi.hoisted(() => ({
@@ -1027,7 +1027,7 @@ describe('ArtifactPane', () => {
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
     await waitFor(() =>
-      expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace', expect.objectContaining({ maxDepth: 3 }))
+      expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace', expect.objectContaining({ maxDepth: 1 }))
     )
   })
 

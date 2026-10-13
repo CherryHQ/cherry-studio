@@ -56,6 +56,9 @@ export interface DynamicVirtualListRef {
 export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions {
   ref?: React.Ref<DynamicVirtualListRef>
 
+  /** Use an ancestor as the scroll viewport instead of creating a nested scroller. */
+  externalScrollElement?: HTMLDivElement | null
+
   /**
    * List data
    */
@@ -150,6 +153,7 @@ function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
 function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const {
     ref,
+    externalScrollElement,
     list,
     children,
     size,
@@ -179,6 +183,38 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     },
     [scrollElementRef]
   )
+
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [externalScrollMargin, setExternalScrollMargin] = useState(0)
+  const usesExternalScroll = externalScrollElement !== undefined
+  const horizontal = restOptions.horizontal
+  const scrollMargin = usesExternalScroll ? externalScrollMargin : (restOptions.scrollMargin ?? 0)
+
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    if (!externalScrollElement || !content) return undefined
+
+    const measureScrollMargin = () => {
+      const contentRect = content.getBoundingClientRect()
+      const scrollRect = externalScrollElement.getBoundingClientRect()
+      setExternalScrollMargin(
+        horizontal
+          ? contentRect.left - scrollRect.left + externalScrollElement.scrollLeft - externalScrollElement.clientLeft
+          : contentRect.top - scrollRect.top + externalScrollElement.scrollTop - externalScrollElement.clientTop
+      )
+    }
+    measureScrollMargin()
+    const observer = new ResizeObserver(measureScrollMargin)
+    // Preceding siblings can move the list without resizing a min-height ancestor.
+    for (let element: HTMLElement | null = content; element; element = element.parentElement) {
+      observer.observe(element)
+      if (element === externalScrollElement) break
+      for (let sibling = element.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+        observer.observe(sibling)
+      }
+    }
+    return () => observer.disconnect()
+  }, [externalScrollElement, horizontal])
 
   const activeStickyIndexesRef = useRef<number[]>([])
 
@@ -260,7 +296,8 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const virtualizer = useVirtualizer({
     ...restOptions,
     count: list.length,
-    getScrollElement: () => internalScrollerRef.current,
+    getScrollElement: () => (usesExternalScroll ? externalScrollElement : internalScrollerRef.current),
+    scrollMargin,
     estimateSize,
     rangeExtractor,
     onChange: (instance, sync) => {
@@ -304,7 +341,6 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
-  const { horizontal } = restOptions
   const hasFixedItemSize = horizontal
     ? itemContainerStyle?.width !== undefined
     : itemContainerStyle?.height !== undefined
@@ -325,14 +361,15 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       role={role}
       onScroll={onScroll}
       style={{
-        overflow: 'auto',
+        overflow: usesExternalScroll ? 'visible' : 'auto',
         scrollbarColor:
           autoHideScrollbar && !showScrollbar ? 'transparent transparent' : 'var(--scrollbar-thumb) transparent',
-        ...(horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
+        ...(usesExternalScroll ? {} : horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
         ...scrollerStyle
       }}>
       {header}
       <div
+        ref={contentRef}
         style={{
           position: 'relative',
           width: horizontal ? `${totalSize}px` : '100%',
@@ -387,11 +424,11 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
             }),
             ...(horizontal
               ? {
-                  transform: isItemActiveSticky ? undefined : `translateX(${virtualItem.start}px)`,
+                  transform: isItemActiveSticky ? undefined : `translateX(${virtualItem.start - scrollMargin}px)`,
                   height: '100%'
                 }
               : {
-                  transform: isItemActiveSticky ? undefined : `translateY(${virtualItem.start}px)`,
+                  transform: isItemActiveSticky ? undefined : `translateY(${virtualItem.start - scrollMargin}px)`,
                   width: '100%'
                 })
           }

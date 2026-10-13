@@ -977,7 +977,7 @@ must be reported as unsupported; no fabricated `newTabId`. Closing/resetting the
 an explicit host operation, never direct destruction by borrowed-session disposal.
 
 Mount the pane-backed MCP through `buildAgentMcpServers` and `resolveMountedMcpServers`, using the
-shared path consumed by Claude Code, Pi and Dsh. Runtime connection signatures include effective
+shared path consumed by Claude Code and Pi. Runtime connection signatures include effective
 browser enablement so cached sessions refresh their tool surface. The persistent browser grant
 auto-approves the declared browser tools only; unknown tool names never inherit approval. When this
 capability is mounted, exclude a duplicate bridge to the legacy `@cherry/browser` preset for that
@@ -1167,7 +1167,7 @@ Both runtimes exclude legacy in-memory browser bindings, including when browser 
 
 Browser settings owns one persistent grant, `app.browser.agent_control.enabled`, defaulting to on
 when unset. Existing saved choices are preserved.
-Once enabled, all declared browser tools run without per-action approval in Claude, Pi and DSH.
+Once enabled, all declared browser tools run without per-action approval in Claude and Pi.
 The grant stays enabled across sessions until the user turns it off; there is no per-tool permission
 dialog or configuration. Runtime gates and queued dispatch recheck revocation, including in Full Access.
 The Agent browser group opt-out remains independent. Disabling Agent control leaves manual browsing available.
@@ -1267,6 +1267,7 @@ native runtimes remain separate; both use the same session tool definitions,
 `SessionBrowserController`, CDP sessions, screenshot tiles and WebMCP implementation.
 Pure tool schemas and descriptions live in `src/main/ai/mcp/browserToolDefinitions.ts`;
 browser feature handlers consume that contract, without an AI-to-feature import.
+On the AI SDK chat path, the assistant browser tool surface is exposed through the deferred tool pool (`tool_search`, `tool_inspect`, and `tool_invoke`), so a Topic that never uses the browser pays only the meta-tool and `<deferred-tools>` overhead instead of full browser schemas at every context size; Agent runtimes retain their unchanged runtime-native browser MCP surface.
 
 `BrowserGuestRegistry` owns guest validation, leases and cursor identity. Agent and Topic
 registries resolve their owners through their respective data services. Their shared guest

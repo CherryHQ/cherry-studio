@@ -39,6 +39,8 @@ const mainKeybindings = REGISTERED_KEYBINDINGS.filter((rule) => rule.scope !== '
 const relevantKeybindings = mainKeybindings.filter(
   (rule) =>
     !(isMac && rule.command === 'app.settings.open') &&
+    // The native app menu owns the window-close accelerator on macOS.
+    rule.command !== 'app.window.close' &&
     (!rule.supportedPlatforms || rule.supportedPlatforms.includes(process.platform as SupportedPlatform))
 )
 
