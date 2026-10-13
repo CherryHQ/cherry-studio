@@ -220,28 +220,34 @@ handles.
   `port.defaults.autonomy()` returns `confirm-each-round`, every round ends paused. Every stop is
   the runtime's and sets `phase` and `lastStop`: round cap (the last allowed round is a wrap-up),
   token or USD budget, no progress (two rounds hint, three stop; the same tool call three times in
-  a round is blocked, five times ends the goal), a denied approval, an approval nobody can give or
-  a dismissed question in a goal round, background subagents the host reports as running, a round
-  another extension's settle handler overrides, and a failed request or an abort while the goal is
-  armed. `update_goal(complete)` passes the host's `GoalVerifier` (it gets the full current
-  context, after compaction, and the call's `signal`; the package sets no timeout) or, without
-  one, needs evidence and a round that changed something. An accepted completion also tells the
-  model to end its turn with a summary, and a complete goal is final: pause, resume and further
-  reports are refused, and new work needs a new goal. `update_goal(blocked)` is accepted at once in
-  a human turn and in goal rounds only after `blockedAfter` consecutive rounds report it; several
-  reports in one round count once, a human turn, `resume` or a user edit starts the count over, and
-  the reasons are not compared. A user message always goes first, and its turn does not count for
-  the goal. Tools are `get_goal` / `create_goal` / `update_goal` with DSH's output shape; the model
-  can create, edit, pause or resume a goal only in a human turn. The command
+  a row within a round is blocked, five times ends the goal), a denied approval, an approval nobody
+  can give or a dismissed question in a goal round, background subagents the host reports as
+  running, a round another extension's settle handler overrides, and a failed request or an abort
+  (`session.abort()` or the host's own request signal) while the goal is armed. A stop's snapshot
+  counts tokens, cost and progress up to the stop; requests later in the same round (the summary
+  after `complete`) are not in it. `update_goal(complete)` passes the host's `GoalVerifier` (it
+  gets the full current context, after compaction, and the call's `signal`; the package sets no
+  timeout) or, without one, needs evidence and a round that changed something. An accepted
+  completion also tells the model to end its turn with a summary, and a complete goal is final:
+  pause, resume and further reports are refused, and new work needs a new goal.
+  `update_goal(blocked)` is accepted at once in a human turn and in goal rounds only after
+  `blockedAfter` consecutive rounds report it; several reports in one round count once, a human
+  turn, `resume` or a user edit starts the count over, and the reasons are not compared. A queued
+  user message always goes first, and its turn does not count for the goal. Tools are `get_goal` /
+  `create_goal` / `update_goal` with DSH's output shape; the model can create, edit, pause or
+  resume a goal only in a human turn. The command
   `/goal [<objective> | edit <objective> | pause | resume | clear | rounds <n> | budget <tokens|$usd>]`
   makes no model request itself and reports through `cherry.goal-notice` entries; creating or
   resuming a goal on an idle session starts its first round, while during a run it only arms the
-  goal for that run's settle. A rebuilt session restores the goal disarmed; `/goal resume`
-  continues it. The budget also counts the `usage` a tool result carries, so a `subagent` call's
-  requests count toward it. When `port.modelSupportsTools()` is false, no tools or command are
-  registered and an active goal is blocked with `unsupported_model`. In a subagent's session the
-  goal tools fail with `in_subagent`, nothing continues and `port.onApproval` is not subscribed, so
-  a fork ignores the goal entries it inherits. Design:
+  goal for that run's settle. `/goal pause` and `/goal clear` abort the running turn only when the
+  goal drives it (active and armed). `session.prompt('/goal …')` returns once the command is
+  handled: a command that starts a round ends with `turn-complete` as usual, the others (the
+  status, a pause while idle, …) produce none. A rebuilt session restores the goal disarmed;
+  `/goal resume` continues it. The budget also counts the `usage` a tool result carries, so a
+  `subagent` call's requests count toward it. When `port.modelSupportsTools()` is false, no tools
+  or command are registered and an active goal is blocked with `unsupported_model`. In a
+  subagent's session the goal tools fail with `in_subagent`, nothing continues and
+  `port.onApproval` is not subscribed, so a fork ignores the goal entries it inherits. Design:
   `docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md`.
 
 The host's approval layer must not ask approval for `AskUserQuestion` (the question is itself the
@@ -283,6 +289,9 @@ approval extension, so each call the subagent makes is approved on its own.
   host reports running background subagents, which only L6 adds) and no fresh-context (Ralph)
   mode. The package does not know the permission mode; keeping goals from running rounds in plan
   mode is up to the host.
+- A goal continuation that another extension vetoes, or a run aborted during the settle, leaves
+  the committed round prompt at the branch tail, so the next request carries it ahead of the next
+  user message.
 
 ## Tests
 
