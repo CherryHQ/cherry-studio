@@ -329,7 +329,8 @@ describe('goal stops for people, errors and aborts', () => {
     const { port, tool } = approvals('denied', { defaults: { maxGoalRounds: 2 } })
     const { session: s, host } = await goalSession(
       [
-        () => [toolCall('c1', 'create_goal', { objective: 'g' }), toolCall('k1', 'risky', {}), finish('tool-calls')],
+        () => [toolCall('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
+        () => [toolCall('k1', 'risky', {}), finish('tool-calls')],
         working
       ],
       port,
@@ -385,6 +386,23 @@ describe('goal stops for people, errors and aborts', () => {
     await s.prompt('/goal')
 
     expect(calls).toHaveLength(1)
+    expect(snapshots(host.entries)).toEqual([])
+    expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
+  })
+
+  // Breaks when any aborted run pauses an active goal: one restored from the transcript is not armed,
+  // so aborting an unrelated human turn would mark it paused.
+  it('aborting a human turn leaves an unarmed goal alone', async () => {
+    const cwd = tempDir('cwd')
+    const transcript = await crashedTranscript('Keep working', goalPort(), cwd)
+    const { session: s, host, held } = await heldGoalSession(goalPort(), { cwd, transcript })
+    const run = s.prompt('hello')
+    await held.started(1)
+    await s.abort()
+    await run
+    await s.prompt('/goal')
+
+    expect(held.aborted(1)).toBe(true)
     expect(snapshots(host.entries)).toEqual([])
     expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
   })

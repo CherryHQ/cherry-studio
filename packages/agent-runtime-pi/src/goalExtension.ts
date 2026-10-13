@@ -7,7 +7,7 @@ import {
   type ExtensionFactory
 } from '@earendil-works/pi-coding-agent'
 
-import { ASK_USER_TOOL_NAME } from './askUserExtension'
+import { ASK_USER_TOOL_NAME, type AskUserQuestionDetails } from './askUserExtension'
 import {
   admitRound,
   assistantText,
@@ -535,7 +535,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
         // Stored sessions and thrown calls carry no `outcome`.
         if (
           result.toolName === ASK_USER_TOOL_NAME &&
-          (result.details as { outcome?: string } | undefined)?.outcome === 'declined'
+          (result.details as Partial<Pick<AskUserQuestionDetails, 'outcome'>> | undefined)?.outcome === 'declined'
         )
           runtime.stopRequest = { code: 'needs_user_input', message: 'the user dismissed the question' }
       }
@@ -554,9 +554,11 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       runtime.reservation = undefined
       runtime.inGoalRound = false
       if (runtime.goal?.phase !== 'active') return
-      // Pi skips agent_before_settle after session.abort(); the abort surfaces only here.
-      if (event.aborted) stop('aborted')
-      else if (rejected) stop('continuation_rejected')
+      // Pi skips agent_before_settle after session.abort(); the abort surfaces only here. An unarmed
+      // goal is not running, so aborting an unrelated turn leaves it alone.
+      if (event.aborted) {
+        if (runtime.armed) stop('aborted')
+      } else if (rejected) stop('continuation_rejected')
     })
 
     pi.registerCommand('goal', {
