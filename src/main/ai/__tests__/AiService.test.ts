@@ -13,6 +13,7 @@ import { isGatewayRoutableModel } from '@shared/utils/model'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
+import type * as BuildApiKeyFallbackModelsModule from '../runtime/aiSdk/retry/buildApiKeyFallbackModels'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
 import { makeProvider } from './fixtures/provider'
@@ -50,7 +51,10 @@ const mockBuildApiKeyFallbackModels = vi.fn((options?: unknown) => {
   void options
   return [] as unknown[]
 })
-const mockHasApiKeyFallbackCandidates = vi.fn(() => false)
+const mockHasApiKeyFallbackCandidates = vi.fn((options?: unknown) => {
+  void options
+  return false
+})
 const mockReadRetryPolicy = vi.fn(() => ({
   enabled: true,
   maxAttempts: 3,
@@ -232,7 +236,7 @@ vi.mock('../runtime/aiSdk/retry/buildFallbackModels', () => ({
 }))
 
 vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../runtime/aiSdk/retry/buildApiKeyFallbackModels')>()
+  const actual = await importOriginal<typeof BuildApiKeyFallbackModelsModule>()
   return {
     ...actual,
     buildApiKeyFallbackModels: (options: unknown) => mockBuildApiKeyFallbackModels(options),

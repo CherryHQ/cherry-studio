@@ -46,6 +46,7 @@ export function resolveOllamaNumCtx({
     return OLLAMA_MIN_NUM_CTX
   }
 
+  const remoteMemoryBypass = freeMemoryBytes === 0 && totalMemoryBytes === 0
   const memoryBudget = Math.max(
     0,
     Math.min(
@@ -53,10 +54,11 @@ export function resolveOllamaNumCtx({
       Number.isFinite(totalMemoryBytes) ? totalMemoryBytes * 0.35 : Number.POSITIVE_INFINITY
     )
   )
-  const memoryCap =
-    memoryBudget > 0
+  const memoryCap = remoteMemoryBypass
+    ? trainedContextWindow
+    : memoryBudget > 0
       ? roundDownOllamaNumCtx(Math.floor(memoryBudget / OLLAMA_KV_BYTES_PER_TOKEN_ESTIMATE))
-      : trainedContextWindow
+      : OLLAMA_MIN_NUM_CTX
 
   let effective = Math.min(trainedContextWindow, memoryCap)
   if (sessionCap != null && Number.isFinite(sessionCap) && sessionCap > 0) {

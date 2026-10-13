@@ -63,6 +63,7 @@ export function buildFallbackOllamaNumCtxSnapshots(
     try {
       const { providerId, modelId } = parseUniqueModelId(configuredId)
       const fallbackProvider = providerService.getByProviderId(providerId)
+      if (!fallbackProvider.isEnabled) continue
       const fallbackModel = modelService.getByKey(providerId, modelId)
       const fallbackEndpoint = resolveEffectiveEndpoint(fallbackProvider, fallbackModel)
       const fallbackRuntimeId = resolveAiSdkProviderId(fallbackProvider, fallbackEndpoint.endpointType)
@@ -109,6 +110,7 @@ export function resolveAttachmentBudgetContextWindow(input: {
     try {
       const { providerId, modelId } = parseUniqueModelId(configuredId)
       const fallbackProvider = providerService.getByProviderId(providerId)
+      if (!fallbackProvider.isEnabled) continue
       const fallbackModel = modelService.getByKey(providerId, modelId)
       const fallbackEndpoint = resolveEffectiveEndpoint(fallbackProvider, fallbackModel)
       const fallbackRuntimeId = resolveAiSdkProviderId(fallbackProvider, fallbackEndpoint.endpointType)

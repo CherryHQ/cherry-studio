@@ -234,4 +234,44 @@ describe('resolveAttachmentBudgetContextWindow', () => {
       })
     ).toBe(frozenCap)
   })
+
+  it('ignores disabled fallback providers when budgeting attachment context', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({
+      id: 'openai::gpt-4',
+      providerId: 'openai',
+      contextWindow: 131_072
+    })
+    const fallbackUniqueId = createUniqueModelId('ollama', 'tiny')
+    const disabledFallbackProvider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      isEnabled: false,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const tinyFallbackModel = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'ollama',
+      apiModelId: 'tiny',
+      contextWindow: 8_192
+    })
+
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'ollama') return disabledFallbackProvider
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'ollama' && modelId === 'tiny') return tinyFallbackModel
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId]
+      })
+    ).toBe(131_072)
+  })
 })

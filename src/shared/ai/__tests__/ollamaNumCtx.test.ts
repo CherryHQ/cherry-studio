@@ -57,6 +57,26 @@ describe('resolveOllamaNumCtx', () => {
     })
     expect(numCtx).toBe(32_768)
   })
+
+  it('uses the trained window when remote memory is unknown (0/0 sentinel)', () => {
+    expect(
+      resolveOllamaNumCtx({
+        trainedContextWindow: 131_072,
+        freeMemoryBytes: 0,
+        totalMemoryBytes: 0
+      })
+    ).toBe(131_072)
+  })
+
+  it('falls back to the minimum context when local free memory is exhausted', () => {
+    expect(
+      resolveOllamaNumCtx({
+        trainedContextWindow: 131_072,
+        freeMemoryBytes: 0,
+        totalMemoryBytes: 16 * 1024 ** 3
+      })
+    ).toBe(4_096)
+  })
 })
 
 describe('roundDownOllamaNumCtx', () => {
