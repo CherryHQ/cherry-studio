@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { Download, Mic, Play, Square } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -231,7 +231,7 @@ function VoiceSettings() {
   const [actionFailed, setActionFailed] = useState<boolean | VoiceErrorReason>(false)
   const [previewFailure, setPreviewFailure] = useState<{ snapshot: SpeechPlaybackSnapshot; reason: VoiceErrorReason }>()
   const autoReadRef = useRef<HTMLButtonElement>(null)
-  const previewGenerationRef = useRef(0)
+  const previewController = useRef<AbortController | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const speechStatusCheckRef = useRef<Promise<void>>(Promise.resolve())
   const loadedCatalogs = useRef(new Set<string>())
@@ -315,9 +315,12 @@ function VoiceSettings() {
   const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? defaultLanguage
   const selectedVoice = voices.find((voice) => voice.id === speechVoice)
   const effectiveSpeechLanguage = languageValue(speechLanguage) ?? selectedVoice?.language ?? defaultLanguage
-  useEffect(() => {
-    ++previewGenerationRef.current
+  useLayoutEffect(() => {
     setPreviewLoading(false)
+    return () => {
+      previewController.current?.abort()
+      previewController.current = null
+    }
   }, [effectiveSpeechLanguage, speechModel, speechVoice, speechSpeed])
 
   const speechLanguageOptions = useMemo<VoiceSelectOption[]>(() => {
@@ -576,7 +579,6 @@ function VoiceSettings() {
   useEffect(
     () => () => {
       microphoneAuthorization.current?.abort()
-      ++previewGenerationRef.current
     },
     []
   )
@@ -730,42 +732,43 @@ function VoiceSettings() {
     }
   }
 
-  const togglePreview = () => {
-    const generation = ++previewGenerationRef.current
+  const togglePreview = async () => {
     setActionFailed(false)
     setPreviewFailure(undefined)
-    const reportFailure = (error: unknown) => {
-      if (generation !== previewGenerationRef.current) return
-      const reason = error instanceof VoiceDomainError ? error.reason : 'operation_failed'
-      if (reason === 'aborted') return
-      setPreviewFailure({ snapshot: speechPlaybackService.getSnapshot(), reason })
-    }
+    previewController.current?.abort()
+    previewController.current = null
     if (previewLoading) {
       setPreviewLoading(false)
       return
     }
-    if (speechBusy) {
-      void speechPlaybackService.stop().catch(reportFailure)
-      return
-    }
-    setPreviewLoading(true)
-    const sampleLanguage = previewSampleCatalog(effectiveSpeechLanguage)
-    void i18n
-      .loadLanguages(sampleLanguage)
-      .then(() => {
-        if (generation !== previewGenerationRef.current) return
+    const controller = new AbortController()
+    previewController.current = controller
+    try {
+      if (speechBusy) {
+        await speechPlaybackService.stop()
+        return
+      }
+      setPreviewLoading(true)
+      const sampleLanguage = previewSampleCatalog(effectiveSpeechLanguage)
+      await i18n.loadLanguages(sampleLanguage)
+      controller.signal.throwIfAborted()
+      await speechPlaybackService.start({
+        text: i18n.getFixedT(sampleLanguage)('settings.voice.speech.sample'),
+        trigger: 'manual',
+        sourceLabel: 'preview',
+        sourceEntityId: 'voice-settings',
+        signal: controller.signal
+      })
+    } catch (error) {
+      if (controller.signal.aborted || previewController.current !== controller) return
+      const reason = error instanceof VoiceDomainError ? error.reason : 'operation_failed'
+      if (reason !== 'aborted') setPreviewFailure({ snapshot: speechPlaybackService.getSnapshot(), reason })
+    } finally {
+      if (previewController.current === controller) {
+        previewController.current = null
         setPreviewLoading(false)
-        return speechPlaybackService.start({
-          text: i18n.getFixedT(sampleLanguage)('settings.voice.speech.sample'),
-          trigger: 'manual',
-          sourceLabel: 'preview',
-          sourceEntityId: 'voice-settings'
-        })
-      })
-      .catch((error: unknown) => {
-        if (generation === previewGenerationRef.current) setPreviewLoading(false)
-        reportFailure(error)
-      })
+      }
+    }
   }
 
   const updateAutoRead = async (enabled: boolean) => {
