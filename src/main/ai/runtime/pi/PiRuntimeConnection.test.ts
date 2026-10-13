@@ -75,6 +75,7 @@ const mocks = vi.hoisted(() => ({
   loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn(),
   replacePromptVariables: vi.fn(),
+  promptUserName: vi.fn(() => 'Alice'),
   captureConnectionSnapshot: vi.fn(),
   ensureAgentDataDirectory: vi.fn(),
   buildAgentMcpServers: vi.fn(),
@@ -159,7 +160,13 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   loadBuiltinAgentDefinition: mocks.loadBuiltinAgentDefinition,
   provisionBuiltinAgent: mocks.provisionBuiltinAgent
 }))
-vi.mock('@main/utils/prompt', () => ({ replacePromptVariables: mocks.replacePromptVariables }))
+vi.mock('@main/utils/prompt', () => ({
+  replacePromptVariables: mocks.replacePromptVariables,
+  capturePromptVariableInputs: (modelName?: string | null) => ({
+    username: mocks.promptUserName(),
+    modelName: modelName ?? null
+  })
+}))
 vi.mock('@main/utils/commandResolver', () => ({
   autoDiscoverGitBash: mocks.autoDiscoverGitBash,
   validateGitBashPath: mocks.validateGitBashPath
@@ -1868,6 +1875,34 @@ describe('PiRuntimeConnection', () => {
     await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('rebuild')
   })
 
+  // Pinning the raw instructions preserves the TEMPLATE, but {{username}} is resolved from
+  // app.user.name at every materialization — so a replay has to carry the admitted values too.
+  it('keeps a replay on the variable values the turn was admitted with', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      modelName: 'Pi Model',
+      instructions: 'Address {{username}} on {{model_name}}.',
+      configuration: {}
+    })
+    mocks.replacePromptVariables.mockImplementation(
+      async (prompt: string, modelName?: string, pinned?: { username?: string | null }) =>
+        prompt.replace(/{{username}}/g, pinned?.username ?? 'Bob').replace(/{{model_name}}/g, modelName ?? '')
+    )
+
+    await new PiRuntimeConnection({
+      ...input,
+      promptPolicy: {
+        instructions: 'Address {{username}} on {{model_name}}.',
+        promptVariables: { username: 'Alice', modelName: 'Pi Model' }
+      }
+    }).start()
+
+    const prompt = appendedSystemPrompt()
+    expect(prompt).toContain('Address Alice on Pi Model.')
+    expect(prompt).not.toContain('Bob')
+  })
+
   // A replay bakes the turn's pinned exclusions into the SDK session's `excludeTools`, but the
   // startup signature it stores comes from the row the user just saved — so a re-enabled tool is
   // "not disabled" everywhere the signature looks, while its definition is still absent from the
@@ -2405,7 +2440,10 @@ describe('PiRuntimeConnection', () => {
 
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.replacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Pi Model')
+      expect(mocks.replacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Pi Model', {
+        username: 'Alice',
+        modelName: 'Pi Model'
+      })
       expect(appendedSystemPrompt()).toContain('<agent_instructions>\nUse Pi Model.\n</agent_instructions>')
     })
 

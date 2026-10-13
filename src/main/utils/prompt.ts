@@ -21,6 +21,29 @@ const logger = loggerService.withContext('utils:prompt')
 
 export const VOLATILE_PROMPT_VARIABLES = ['{{time}}', '{{datetime}}'] as const
 
+/**
+ * Inputs a connection resolved its variables from. Pinned on a turn's rebuild so the same host turn
+ * keeps the values it was admitted with — a later save applies on the next fresh turn.
+ */
+export interface PromptVariableInputs {
+  username?: string | null
+  modelName?: string | null
+}
+
+/** Read the variable inputs the way {@link replacePromptVariables} would, for a later pin. */
+export function capturePromptVariableInputs(modelName?: string | null): PromptVariableInputs {
+  return { username: readPromptUserName(), modelName: modelName ?? null }
+}
+
+function readPromptUserName(): string {
+  try {
+    return application.get('PreferenceService').get('app.user.name') || 'Unknown Username'
+  } catch (error) {
+    logger.error('Failed to resolve {{username}}', error as Error)
+    return 'Unknown Username'
+  }
+}
+
 const supportedVariables = [
   '{{username}}',
   '{{date}}',
@@ -34,7 +57,12 @@ const supportedVariables = [
 export const containsSupportedVariables = (userSystemPrompt: string): boolean =>
   supportedVariables.some((variable) => userSystemPrompt.includes(variable))
 
-export const replacePromptVariables = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
+export const replacePromptVariables = async (
+  userSystemPrompt: string,
+  modelName?: string,
+  /** Values the turn was admitted with; a rebuild inside that turn must not re-read them live. */
+  pinned?: PromptVariableInputs | null
+): Promise<string> => {
   if (typeof userSystemPrompt !== 'string') {
     logger.warn('User system prompt is not a string', { userSystemPrompt })
     return userSystemPrompt
@@ -70,13 +98,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
   }
 
   if (userSystemPrompt.includes('{{username}}')) {
-    try {
-      const userName = application.get('PreferenceService').get('app.user.name') || 'Unknown Username'
-      userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, userName)
-    } catch (error) {
-      logger.error('Failed to resolve {{username}}', error as Error)
-      userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
-    }
+    userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, pinned?.username ?? readPromptUserName())
   }
 
   if (userSystemPrompt.includes('{{system}}')) {
@@ -108,7 +130,10 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
   }
 
   if (userSystemPrompt.includes('{{model_name}}')) {
-    userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, modelName ?? 'Unknown Model')
+    userSystemPrompt = userSystemPrompt.replace(
+      /{{model_name}}/g,
+      pinned ? (pinned.modelName ?? 'Unknown Model') : (modelName ?? 'Unknown Model')
+    )
   }
 
   return userSystemPrompt

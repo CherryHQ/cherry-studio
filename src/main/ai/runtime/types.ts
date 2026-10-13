@@ -3,6 +3,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import type { PromptVariableInputs } from '@main/utils/prompt'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -83,6 +84,12 @@ export interface AgentRuntimePromptPolicy {
    * the agent row the way an absent `promptPolicy` does.
    */
   instructions: string | null
+  /**
+   * Variable values the turn resolved its instructions with. The pinned instructions are a
+   * template, so without this a replay re-reads `app.user.name` live and can change the turn's
+   * instruction content (agent-prompt-layers.md).
+   */
+  promptVariables?: PromptVariableInputs
 }
 
 export interface AgentRuntimeConnectInput {

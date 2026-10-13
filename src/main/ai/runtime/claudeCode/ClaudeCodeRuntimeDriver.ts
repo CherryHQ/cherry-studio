@@ -32,6 +32,7 @@ import {
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { probeReadable } from '@main/utils/file'
+import type { PromptVariableInputs } from '@main/utils/prompt'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
@@ -374,6 +375,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
    * only union onto it.
    */
   private turnAdmission?: FallbackReplayPins
+  /** Variable values this turn's instructions resolved to; a rebuild in the same turn reuses them. */
+  private turnPromptVariables?: PromptVariableInputs
   private _usageCapture?: AgentSessionUsageCapture
   private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
   private readonly streamInvocationIdsByLane = new Map<string, string>()
@@ -421,6 +424,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async installQuery(request: ClaudeCodeAgentSessionQueryRequest, modelId: UniqueModelId): Promise<void> {
     this.connectionConfig = request.connectionConfig
     this.capturedInstructions = request.capturedInstructions ?? null
+    this.turnPromptVariables = request.capturedPromptVariables
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
@@ -549,7 +553,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.turnAdmission = {
       permissionMode: (this.connectionConfig?.live.toolPolicy.permissionMode ?? null) as AgentPermissionMode | null,
       instructions: this.capturedInstructions,
-      disabledTools: [...(this.connectionConfig?.live.toolPolicy.disabledTools ?? [])]
+      disabledTools: [...(this.connectionConfig?.live.toolPolicy.disabledTools ?? [])],
+      promptVariables: this.turnPromptVariables
     }
     this.lastSdkUserMessageSupportsImages = supportsImages
   }

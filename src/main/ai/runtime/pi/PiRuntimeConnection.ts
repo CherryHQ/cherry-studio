@@ -40,6 +40,7 @@ import {
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
 import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/commandResolver'
+import { capturePromptVariableInputs, type PromptVariableInputs } from '@main/utils/prompt'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -172,6 +173,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private permissionMode: AgentPermissionMode = 'default'
   /** `agent.instructions` as this turn captured it; a fallback replay keeps materializing it. */
   private turnInstructions?: string | null
+  /** Variable values this turn resolved its instructions with; a replay reuses them, not live rows. */
+  private turnPromptVariables?: PromptVariableInputs
   private disabledTools = new Set<string>()
   /** Tools baked out of the spawned SDK session. Re-enabling one in the row cannot restore its
    *  definition mid-connection, so the next fresh turn needs a rebuilt session. */
@@ -259,6 +262,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.turnInstructions = this.input.promptPolicy
       ? this.input.promptPolicy.instructions
       : (initialSnapshot.agent.instructions ?? null)
+    this.turnPromptVariables =
+      this.input.promptPolicy?.promptVariables ?? capturePromptVariableInputs(initialSnapshot.agent.modelName ?? null)
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
@@ -336,7 +341,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         // applies on the next fresh turn (agent-prompt-layers.md).
         agent: { ...agent, instructions: this.turnInstructions ?? undefined },
         citationsGuidance,
-        effectiveLanguage: initialSnapshot.effectiveLanguage
+        effectiveLanguage: initialSnapshot.effectiveLanguage,
+        promptVariables: this.turnPromptVariables
       })
       const mountedServers = resolveMountedMcpServers(agent, {
         browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
@@ -581,7 +587,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   /** The prompt this turn was admitted with — what a fallback replay must keep materializing. */
   getPromptPolicy(): AgentRuntimePromptPolicy {
-    return { instructions: this.turnInstructions ?? null }
+    return { instructions: this.turnInstructions ?? null, promptVariables: this.turnPromptVariables }
   }
 
   /**
