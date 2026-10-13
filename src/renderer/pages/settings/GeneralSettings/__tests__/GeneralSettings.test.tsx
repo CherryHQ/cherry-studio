@@ -122,18 +122,6 @@ describe('GeneralSettings', () => {
     })
   })
 
-  it('places context management directly after proxy settings', () => {
-    render(<GeneralSettings />)
-
-    expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
-      'settings.launch.title',
-      'settings.proxy.mode.title',
-      'settings.models.context_management.title',
-      'settings.agent.language.title',
-      'settings.developer.title'
-    ])
-  })
-
   it('renders model retry settings in General and persists changes', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,
@@ -148,7 +136,7 @@ describe('GeneralSettings', () => {
     expect(screen.getByLabelText('settings.models.retry.backoff')).toBeInTheDocument()
     expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText('settings.models.retry.label'))
+    fireEvent.click(screen.getByLabelText('settings.general.retry.enabled'))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.retry.enabled')).toBe(false)

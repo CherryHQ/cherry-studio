@@ -16,6 +16,7 @@ import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
 import {
+  ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
@@ -48,7 +49,6 @@ import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
 import { DirectoryTreeManager, FileManager, FileIntakeService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
-import { LanTransferService } from '@main/services/lanTransfer'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -123,7 +123,6 @@ export const services = {
   CherryCloudService,
   DeepSeekHarnessService,
   HermesDashboardService,
-  LanTransferService,
   FileManager,
   AttachmentPresenceService,
   FileIntakeService,
@@ -161,6 +160,7 @@ export const services = {
   BinaryManager,
   OpenClawService,
   PdfTranslationService,
+  ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,

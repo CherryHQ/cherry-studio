@@ -4,7 +4,6 @@
  * derives the auto-compact window and per-request output cap from the model catalog.
  */
 
-import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { app } from 'electron'
@@ -20,7 +19,6 @@ import {
   stripInheritedCherryProxyMarkers
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -61,7 +59,6 @@ const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
  * agents on small windows start compacting too eagerly to make progress.
  */
 export const AUTO_COMPACT_TRIGGER_PCT = 80
-const require_ = createRequire(import.meta.url)
 
 // Providers bill `input + max_tokens` against the context limit, so history can only occupy
 // `contextWindow - requestedOutput`; the floor over-promises models whose real budget is smaller.
@@ -106,26 +103,7 @@ export function resolveRequestedOutputTokens(
 }
 
 export function resolveClaudeExecutablePath(): string {
-  const sdkRequire = createRequire(require_.resolve('@anthropic-ai/claude-agent-sdk'))
-  const extension = isWin ? '.exe' : ''
-  const nativePackages = isLinux
-    ? [
-        `@anthropic-ai/claude-agent-sdk-linux-${process.arch}-musl`,
-        `@anthropic-ai/claude-agent-sdk-linux-${process.arch}`
-      ]
-    : [`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`]
-
-  for (const packageName of nativePackages) {
-    try {
-      return toAsarUnpackedPath(sdkRequire.resolve(`${packageName}/claude${extension}`))
-    } catch {
-      // Optional native packages are platform-specific; try the next candidate.
-    }
-  }
-
-  throw new Error(
-    `Claude Code native binary not found for ${process.platform}-${process.arch}. Reinstall @anthropic-ai/claude-agent-sdk with optional dependencies.`
-  )
+  return application.get('ClaudeCodeBinaryService').requireExecutable()
 }
 
 export async function getClaudeCodeLoginShellEnvironment(
