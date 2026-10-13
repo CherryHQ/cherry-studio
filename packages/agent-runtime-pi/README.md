@@ -178,7 +178,7 @@ entry is part of the transcript the subagent starts from (after the forked prefi
 call, every call of that message answered by the same placeholder, so forks of one step send the same
 prefix and can share the prompt cache. A fork keeps the parent's tools, `subagent` included, and the
 host must return the parent's extensions for it; calls a subagent may not make (another `subagent`,
-`AskUserQuestion`) fail or end as `unavailable` instead of being removed.
+`AskUserQuestion`, the goal tools) fail or end as `unavailable` instead of being removed.
 
 A subagent that fails, is cut off by its output limit, is aborted with the parent's turn or would
 start a 201st model request returns an `isError` result with the reason, its last partial output,
@@ -189,7 +189,7 @@ refused before it goes out. A host whose `configure` throws fails that call only
 
 ## Extensions
 
-Factories the host passes in `extensionFactories`. Both tools are `model-only` (never callable from
+Factories the host passes in `extensionFactories`. Their tools are `model-only` (never callable from
 codemode scripts, so every call stays its own tool part) and use the names Cherry's renderer already
 handles.
 
@@ -213,10 +213,43 @@ handles.
   one model step run one at a time. When the turn aborts, the tool stops waiting at once and the
   request's `signal` aborts so the host can withdraw the question; a late answer is ignored. A
   question pending at a crash is not persisted: the rebuilt session closes the call as failed.
+- **`createGoalExtension(port)`** – a persisted objective the runtime keeps pushing while the
+  model is idle. State lives in `cherry.goal` entries (one snapshot per change, a tombstone on
+  clear); each round is a `cherry.goal-round` message the host maps to the "round N" header. Rounds
+  continue only at `agent_before_settle` and count once Pi sends them on; when
+  `port.defaults.autonomy()` returns `confirm-each-round`, every round ends paused. Every stop is
+  the runtime's and sets `phase` and `lastStop`: round cap (the last allowed round is a wrap-up),
+  token or USD budget, no progress (two rounds hint, three stop; the same tool call three times in
+  a round is blocked, five times ends the goal), a denied approval, an approval nobody can give or
+  a dismissed question in a goal round, background subagents the host reports as running, a round
+  another extension's settle handler overrides, and a failed request or an abort while the goal is
+  armed. `update_goal(complete)` passes the host's `GoalVerifier` (it gets the full current
+  context, after compaction, and the call's `signal`; the package sets no timeout) or, without
+  one, needs evidence and a round that changed something. An accepted completion also tells the
+  model to end its turn with a summary, and a complete goal is final: pause, resume and further
+  reports are refused, and new work needs a new goal. `update_goal(blocked)` is accepted at once in
+  a human turn and in goal rounds only after `blockedAfter` consecutive rounds report it; several
+  reports in one round count once, a human turn, `resume` or a user edit starts the count over, and
+  the reasons are not compared. A user message always goes first, and its turn does not count for
+  the goal. Tools are `get_goal` / `create_goal` / `update_goal` with DSH's output shape; the model
+  can create, edit, pause or resume a goal only in a human turn. The command
+  `/goal [<objective> | edit <objective> | pause | resume | clear | rounds <n> | budget <tokens|$usd>]`
+  makes no model request itself and reports through `cherry.goal-notice` entries; creating or
+  resuming a goal on an idle session starts its first round, while during a run it only arms the
+  goal for that run's settle. A rebuilt session restores the goal disarmed; `/goal resume`
+  continues it. The budget also counts the `usage` a tool result carries, so a `subagent` call's
+  requests count toward it. When `port.modelSupportsTools()` is false, no tools or command are
+  registered and an active goal is blocked with `unsupported_model`. In a subagent's session the
+  goal tools fail with `in_subagent`, nothing continues and `port.onApproval` is not subscribed, so
+  a fork ignores the goal entries it inherits. Design:
+  `docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md`.
 
 The host's approval layer must not ask approval for `AskUserQuestion` (the question is itself the
 interaction, or the user would be asked twice) and may auto-allow `todo_write` (it only changes the
 session's list). `ASK_USER_TOOL_NAME` and `TODO_TOOL_NAME` hold the names.
+
+The host sets `create_goal` to ask for approval, so a goal the model proposes is confirmed by the
+user through the existing approval card. `GOAL_TOOL_NAMES` holds the goal tools' names.
 
 The approval layer may auto-allow `subagent` as long as `SubagentPort.configure()` returns the
 approval extension, so each call the subagent makes is approved on its own.
@@ -246,6 +279,10 @@ approval extension, so each call the subagent makes is approved on its own.
   will is decided when the host is wired up.
 - A fork's requests carry the subagent's session id, so a host that routes prompt caches by session id
   (OpenAI's `prompt_cache_key`) does not reach the parent's cache partition.
+- Goals: no `waiting` state for background work (the goal blocks with `waiting_subagents` when the
+  host reports running background subagents, which only L6 adds) and no fresh-context (Ralph)
+  mode. The package does not know the permission mode; keeping goals from running rounds in plan
+  mode is up to the host.
 
 ## Tests
 
