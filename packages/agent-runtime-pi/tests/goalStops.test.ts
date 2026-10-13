@@ -130,7 +130,8 @@ const echoTool = defineTool({
 })
 
 describe('goal no-progress detection', () => {
-  // Breaks when a read counts as progress: the goal would run to its cap.
+  // Breaks when a read counts as progress (the goal would run to its cap), or when the repeat count
+  // carries across rounds: round 3's read would be blocked.
   it('hints after two rounds without progress and stops after the third when every round only reads', async () => {
     const {
       session: s,
@@ -158,6 +159,12 @@ describe('goal no-progress detection', () => {
       progressRounds: 1,
       lastStop: { code: 'no_progress' }
     })
+    // One read per round, none blocked.
+    expect(
+      toolResults(s)
+        .filter((result) => result.toolName === 'read')
+        .map((result) => result.isError)
+    ).toEqual([false, false, false, false])
   })
 
   // Breaks when a successful echo does not count, or a progressing round does not clear the count.
@@ -241,5 +248,24 @@ describe('goal no-progress detection', () => {
       roundsStarted: 1,
       lastStop: { code: 'no_progress', message: 'the same read call was repeated 5 times' }
     })
+  })
+
+  // Breaks when calls are counted per round instead of in a row: the last read would be the third of a.md.
+  it('a different call in between starts the repeat count over', async () => {
+    const { session: s } = await goalSession(
+      [
+        (_prompt, call) =>
+          call <= 4
+            ? [toolCall(`r${call}`, 'read', { path: call === 3 ? 'b.md' : 'a.md' }), finish('tool-calls')]
+            : say('done')
+      ],
+      goalPort({ defaults: { maxGoalRounds: 1 } }),
+      { tools: [readTool] }
+    )
+    await promptIdle(s, '/goal Keep working')
+
+    const reads = toolResults(s).filter((result) => result.toolName === 'read')
+    // Each read ran and returned its file; a blocked one would carry the block reason instead.
+    expect(reads.map(textOf)).toEqual(['contents of a.md', 'contents of a.md', 'contents of b.md', 'contents of a.md'])
   })
 })
