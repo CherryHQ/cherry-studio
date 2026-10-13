@@ -508,7 +508,7 @@ describe('onBeforeCompress flow', () => {
   it.each(['generate', 'stream'] as const)('uses the original prompt size after %s continuation', async (type) => {
     const middleware = createContextMiddleware({
       contextWindow: 1_000_000,
-      onBeforeCompress: () => [{ role: 'user', content: [{ type: 'text', text: 'compressed' }] }]
+      onBeforeCompress: () => [{ role: 'user', content: 'compressed' }]
     })
     const model = createMockModel({
       inputTokens: 2_000_000,
