@@ -318,6 +318,13 @@ function containerWhitespaceOpensCode(container: string): boolean {
 const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\[])+)\][ \t]*:([ \t]*)([\s\S]*)$/
 
 /**
+ * The longest link label the parser accepts: 999 characters, counted in the source the label was
+ * written in — an escape is two of them and the brackets are not part of the count at all. A longer
+ * run is no label, so the line is paragraph text the document renders once.
+ */
+const MAX_LABEL_SOURCE_CHARS = 999
+
+/**
  * A link destination: an angle-bracketed run or a whitespace-free one, behind any indentation. A
  * bare destination may not start with `<` — that form belongs to the angle brackets — and its
  * parentheses have to balance, which `balancedParens` checks where the destination is accepted.
@@ -976,8 +983,10 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   // line in indented code, where no definition opens.
   const definitionSource = start ? lines[index].slice(start[0].length) : lines[index].replace(/^ {1,3}(?=\[)/, '')
   const label = LINK_DEFINITION_LABEL.exec(definitionSource)
-  // A label the parser would refuse — one of whitespace alone — leaves the line a paragraph.
-  if (!label || !/[^\s]/.test(label[1])) return null
+  // A label the parser would refuse — one of whitespace alone, or one longer than the 999 characters
+  // it allows — leaves the line a paragraph. The count is over the label as written, escapes
+  // included, rather than over the text those escapes resolve to.
+  if (!label || !/[^\s]/.test(label[1]) || label[1].length > MAX_LABEL_SOURCE_CHARS) return null
   const body = [`[${label[1]}]:${label[2]}${label[3]}`]
   let tail = label[3]
   let span = 1
@@ -1251,6 +1260,13 @@ export function splitMarkdownChunks(
   // terminator above) runs to the next blank line, and everything it holds is HTML the parser reads
   // as text — no definition opens inside it and nothing else opens there either.
   let htmlBlankBlock = false
+  /**
+   * The container the open HTML block's lines have to carry on reproducing, or null at the top
+   * level. A block belongs to the quote or list item it was written in, so a line that drops those
+   * markers ends the block as surely as a blank line does — `> <div>` followed by an unquoted line
+   * leaves the quote, and the HTML block it held, behind it.
+   */
+  let htmlBlockContainer: string | null = null
   let inDefinition = false
   let footnoteDefinition = false
   let run: ListRun | null = null
@@ -1308,7 +1324,14 @@ export function splitMarkdownChunks(
       continue
     }
     if (htmlBlankBlock) {
-      if (!blank) continue
+      // A line that drops the container's markers ends the HTML block as a blank line would, so it
+      // is read again below rather than swallowed. One that reproduces them continues it whatever
+      // else it carries — the block's remaining lines are its text. A line that only falls short of
+      // an item's content column stays inside: the item's blocks reach their own content column,
+      // and a shallower line is the item's content rather than a block that leaves it.
+      const continues =
+        htmlBlockContainer === null || stripDefinitionContainer(line, containerParams(htmlBlockContainer)) !== null
+      if (continues && !blank) continue
       htmlBlankBlock = false
     }
     if (mathRun) {
@@ -1401,6 +1424,9 @@ export function splitMarkdownChunks(
       (opensHtmlBlock(uncontained) || (previousStatus === 'block' && COMPLETE_TAG_LINE.test(uncontained)))
     ) {
       htmlBlankBlock = true
+      // The block lives in the container it was opened behind, so its lines have to keep that
+      // container: the marker chain the opening line carried, and an item's content column.
+      htmlBlockContainer = container?.[0] ?? null
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
