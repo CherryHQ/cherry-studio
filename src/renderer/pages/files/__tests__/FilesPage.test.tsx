@@ -247,16 +247,23 @@ afterEach(() => {
 })
 
 describe('file reference protection', () => {
-  it.each([0, 1])(
-    'refreshes usage and deletion protection while mounted when %i references remain',
-    async (remaining) => {
+  it.each([
+    ['conversation', 0],
+    ['conversation', 1],
+    ['other', 0],
+    ['other', 1]
+  ] as const)(
+    'refreshes %s usage and deletion protection while mounted when %i references remain',
+    async (source, remaining) => {
       MockDataApiUtils.resetMocks()
       let refCount = 2
       mockFiles([entry])
-      dataApiMocks.get.mockImplementation(async () => [{ entryId: entry.id, refCount, conversationRefCount: refCount }])
+      dataApiMocks.get.mockImplementation(async () => [
+        { entryId: entry.id, refCount, conversationRefCount: source === 'conversation' ? refCount : 0 }
+      ])
       render(<FilesPage />)
       await waitFor(() => expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeDisabled())
-      await waitFor(() => expect(screen.getAllByText('files.usage.conversation')).toHaveLength(2))
+      await waitFor(() => expect(screen.getAllByText(`files.usage.${source}`)).toHaveLength(2))
       refCount = remaining
       act(() =>
         MockDataApiUtils.emitDataChange([
@@ -268,15 +275,20 @@ describe('file reference protection', () => {
         if (remaining === 0) expect(button).toBeEnabled()
         else expect(button).toBeDisabled()
         expect(
-          screen.getAllByText(remaining === 0 ? 'files.usage.unreferenced' : 'files.usage.conversation')
+          screen.getAllByText(remaining === 0 ? 'files.usage.unreferenced' : `files.usage.${source}`)
         ).toHaveLength(2)
       })
     }
   )
 
-  it.each(['conversation', 'unreferenced'] as const)(
-    'updates the %s filter when the last reference is removed without remounting',
-    async (usage) => {
+  it.each([
+    ['conversation', 'conversation'],
+    ['conversation', 'unreferenced'],
+    ['other', 'other'],
+    ['other', 'unreferenced']
+  ] as const)(
+    'updates %s references in the %s filter when the last reference is removed without remounting',
+    async (source, usage) => {
       MockDataApiUtils.resetMocks()
       const user = userEvent.setup()
       let referenced = true
@@ -286,16 +298,20 @@ describe('file reference protection', () => {
       const absent = [{ items: [] }]
       mockUseInfiniteQuery.mockImplementation((path, options) => {
         const filter = (options?.query as { usage?: string } | undefined)?.usage
-        const matches = filter === 'conversation' ? referenced : filter === 'unreferenced' ? !referenced : true
+        const matches = filter === source ? referenced : filter === 'unreferenced' ? !referenced : true
         return { ...baseQuery(path, options), pages: matches ? present : absent }
       })
       dataApiMocks.get.mockImplementation(async () => [
-        { entryId: entry.id, refCount: referenced ? 1 : 0, conversationRefCount: referenced ? 1 : 0 }
+        {
+          entryId: entry.id,
+          refCount: referenced ? 1 : 0,
+          conversationRefCount: source === 'conversation' && referenced ? 1 : 0
+        }
       ])
       render(<FilesPage />)
       await user.click(screen.getAllByText(`files.usage.${usage}`)[0])
       await waitFor(() => {
-        if (usage === 'conversation') expect(screen.getByText('report.md')).toBeInTheDocument()
+        if (usage === source) expect(screen.getByText('report.md')).toBeInTheDocument()
         else expect(screen.queryByText('report.md')).not.toBeInTheDocument()
       })
       referenced = false
@@ -306,7 +322,7 @@ describe('file reference protection', () => {
         ])
       )
       await waitFor(() => {
-        if (usage === 'conversation') expect(screen.queryByText('report.md')).not.toBeInTheDocument()
+        if (usage === source) expect(screen.queryByText('report.md')).not.toBeInTheDocument()
         else {
           expect(screen.getByText('report.md')).toBeInTheDocument()
           expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeEnabled()

@@ -6,9 +6,11 @@ import type { SQL } from 'drizzle-orm'
 import { and, eq, or, sql } from 'drizzle-orm'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type InsertTranslateHistoryFileRefRow, translateHistoryFileRefTable } from '@data/db/schemas/fileRelations'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import type { DbOrTx } from '@data/db/types'
+import { fileRefReadModelEffects, fileRefSourceReadModelEffects } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -239,24 +241,32 @@ export class TranslateHistoryService {
   }
 
   delete(id: string): void {
-    const db = application.get('DbService').getDb()
-
-    db.transaction((tx) => {
+    const fileEffects = application.get('DbService').withWriteTx((tx) => {
       const [row] = tx.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1).all()
 
       if (!row) {
         throw DataApiErrorFactory.notFound('TranslateHistory', id)
       }
 
+      const effects = fileRefSourceReadModelEffects(tx, 'translate_history', [id])
       tx.delete(translateHistoryTable).where(eq(translateHistoryTable.id, id)).run()
+      return effects
     })
-
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     logger.info('Deleted translate history', { id })
   }
 
   clearAll(): void {
-    const db = application.get('DbService').getDb()
-    db.delete(translateHistoryTable).run()
+    const fileEffects = application.get('DbService').withWriteTx((tx) => {
+      const refs = tx
+        .select({ id: translateHistoryFileRefTable.fileEntryId })
+        .from(translateHistoryFileRefTable)
+        .groupBy(translateHistoryFileRefTable.fileEntryId)
+        .all()
+      tx.delete(translateHistoryTable).run()
+      return fileRefReadModelEffects(refs.map((ref) => ref.id))
+    })
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     logger.info('Cleared all translate histories')
   }
 }

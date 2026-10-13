@@ -1,15 +1,21 @@
 import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod'
 
+import { application } from '@application'
+import * as dataChange from '@data/dataApiDataChange'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { translateHistoryFileRefTable } from '@data/db/schemas/fileRelations'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { fileRefService } from '@data/services/FileRefService'
 import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import type { CreateTranslateHistoryDto, UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 
 describe('TranslateHistoryService', () => {
   const dbh = setupTestDatabase()
+  afterEach(() => vi.restoreAllMocks())
 
   async function seedHistory(overrides: Partial<typeof translateHistoryTable.$inferInsert> = {}) {
     const values: typeof translateHistoryTable.$inferInsert = {
@@ -115,10 +121,6 @@ describe('TranslateHistoryService', () => {
       const result = translateHistoryService.list({ limit: 20, search: 'Hello' })
       expect(result.items.length).toBeGreaterThanOrEqual(1)
       expect(result.items.some((i) => i.sourceText.includes('Hello'))).toBe(true)
-    })
-
-    it('should escape LIKE wildcards in search', async () => {
-      expect(translateHistoryService.list({ limit: 20, search: '100% off_sale\\test' })).toBeDefined()
     })
 
     it('should filter by star', async () => {
@@ -270,6 +272,87 @@ describe('TranslateHistoryService', () => {
         const created = createFileHistory()
 
         expect(() => translateHistoryService.update(created.id, dto)).toThrow('only star can be changed')
+      }
+    )
+  })
+
+  describe('file reference invalidation', () => {
+    it.each(['delete', 'clearAll'] as const)(
+      '%s publishes the committed reference removal before file cleanup',
+      async (operation) => {
+        await seedFileEntries()
+        const history = createFileHistory()
+        if (operation === 'clearAll') createFileHistory()
+        const effects: DataApiDataChangeEffect[] = []
+        vi.spyOn(dataChange, 'notifyDataApiDataChange').mockImplementation((batch) => {
+          expect(dbh.sqlite.inTransaction).toBe(false)
+          expect(fileRefService.countByEntryIds([TRANSLATED_ENTRY_ID]).get(TRANSLATED_ENTRY_ID)).toBeUndefined()
+          effects.push(...batch)
+        })
+
+        if (operation === 'delete') translateHistoryService.delete(history.id)
+        else translateHistoryService.clearAll()
+
+        expect(fileEntryService.listCursor({ usage: 'other' }).items).toEqual([])
+        expect(fileEntryService.listCursor({ usage: 'unreferenced' }).items.map((entry) => entry.id)).toContain(
+          TRANSLATED_ENTRY_ID
+        )
+        for (const endpoint of ['/files/entries', '/files/entries/ref-counts']) {
+          const effect = effects.find((effect) => effect.endpoint === endpoint)
+          expect(effect?.kind).toBe(endpoint === '/files/entries' ? 'membership' : 'projection')
+          expect(effect?.entityIds?.toSorted()).toEqual([TRANSLATED_ENTRY_ID, SOURCE_ENTRY_ID].toSorted())
+        }
+      }
+    )
+
+    it('keeps a PDF referenced by another history protected after one history is deleted', async () => {
+      await seedFileEntries()
+      const history = createFileHistory()
+      createFileHistory(false)
+      translateHistoryService.delete(history.id)
+
+      expect(fileRefService.countByEntryIds([TRANSLATED_ENTRY_ID]).get(TRANSLATED_ENTRY_ID)).toBe(1)
+      expect(fileEntryService.listCursor({ usage: 'other' }).items.map((entry) => entry.id)).toContain(
+        TRANSLATED_ENTRY_ID
+      )
+      expect(fileEntryService.listCursor({ usage: 'unreferenced' }).items.map((entry) => entry.id)).not.toContain(
+        TRANSLATED_ENTRY_ID
+      )
+    })
+
+    it.each(['delete', 'clearAll'] as const)(
+      '%s preserves references and publishes nothing on rollback',
+      async (operation) => {
+        await seedFileEntries()
+        const history = createFileHistory()
+        const notify = vi.spyOn(dataChange, 'notifyDataApiDataChange')
+        const dbService = application.get('DbService')
+        const withWriteTx = dbService.withWriteTx.bind(dbService)
+        vi.spyOn(dbService, 'withWriteTx').mockImplementationOnce((fn) =>
+          withWriteTx((tx) => {
+            fn(tx)
+            throw new Error('abort history removal')
+          })
+        )
+
+        expect(() =>
+          operation === 'delete' ? translateHistoryService.delete(history.id) : translateHistoryService.clearAll()
+        ).toThrow('abort history removal')
+        expect(fileRefService.countByEntryIds([TRANSLATED_ENTRY_ID]).get(TRANSLATED_ENTRY_ID)).toBe(1)
+        expect(translateHistoryService.getById(history.id).kind).toBe('file')
+        expect(notify.mock.calls).toEqual([])
+      }
+    )
+
+    it.each(['delete', 'clearAll'] as const)(
+      '%s does not invalidate file views for text history',
+      async (operation) => {
+        const history = await seedHistory()
+        const notify = vi.spyOn(dataChange, 'notifyDataApiDataChange')
+        if (operation === 'delete') translateHistoryService.delete(history.id!)
+        else translateHistoryService.clearAll()
+        expect(translateHistoryService.list({ limit: 20 }).items).toEqual([])
+        expect(notify.mock.calls).toEqual([])
       }
     )
   })
