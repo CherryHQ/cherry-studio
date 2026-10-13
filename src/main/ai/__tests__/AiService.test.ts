@@ -168,9 +168,10 @@ vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: (...args: unknown[]) => mockCreateAgent(...args),
   definePlugin: (plugin: unknown) => plugin,
   embedMany: async (...args: unknown[]) => {
+    const params = args[2] as { onProviderCallStart?: () => (event: unknown) => void }
+    const handler = params.onProviderCallStart?.()
     const result = await mockEmbedMany(...args)
-    const params = args[2] as { onProviderCall?: (event: unknown) => void }
-    params.onProviderCall?.({
+    handler?.({
       modality: 'embedding',
       requestId: 'ai-core:embedding:test',
       providerId: args[0],
@@ -182,9 +183,10 @@ vi.mock('@cherrystudio/ai-core', () => ({
     return result
   },
   generateImage: async (...args: unknown[]) => {
+    const params = args[2] as { onProviderCallStart?: () => (event: unknown) => void }
+    const handler = params.onProviderCallStart?.()
     const result = await mockGenerateImage(...args)
-    const params = args[2] as { onProviderCall?: (event: unknown) => void }
-    params.onProviderCall?.({
+    handler?.({
       modality: 'image',
       requestId: 'ai-core:image:test',
       providerId: args[0],
@@ -196,9 +198,10 @@ vi.mock('@cherrystudio/ai-core', () => ({
     return result
   },
   rerank: async (...args: unknown[]) => {
+    const params = args[2] as { onProviderCallStart?: () => (event: unknown) => void }
+    const handler = params.onProviderCallStart?.()
     const result = await mockRerank(...args)
-    const params = args[2] as { onProviderCall?: (event: unknown) => void }
-    params.onProviderCall?.({
+    handler?.({
       modality: 'rerank',
       requestId: 'ai-core:rerank:test',
       providerId: args[0],

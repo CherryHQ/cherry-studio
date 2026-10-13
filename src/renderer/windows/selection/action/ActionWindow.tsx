@@ -275,9 +275,10 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
         </div>
       </div>
       <div className="flex h-full w-full min-w-0 justify-center overflow-auto">
+        {/* Keep app-region unset: inherited no-drag regions can scroll over the title bar in Electron. */}
         <div
           ref={contentElementRef}
-          className="flex min-w-0 max-w-[1280px] flex-1 flex-col overflow-auto p-4 text-sm select-text [-webkit-app-region:no-drag]">
+          className="flex min-w-0 max-w-[1280px] flex-1 flex-col overflow-auto p-4 text-sm select-text">
           {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
           {action.id != 'translate' && (
             <ActionGeneral key={sessionId} action={action} scrollToBottom={handleScrollToBottom} />
