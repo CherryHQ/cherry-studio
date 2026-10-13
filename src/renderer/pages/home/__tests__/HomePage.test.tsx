@@ -2,7 +2,7 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import { Activity, type ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -688,6 +688,7 @@ vi.mock('@renderer/services/EventService', () => ({
 }))
 
 import { useTabSelfVisuals } from '@renderer/hooks/tab'
+import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -766,6 +767,31 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
     ipcMocks.request.mockClear()
+  })
+
+  it('preserves the manually collapsed minimal sidebar when its home becomes visible again', () => {
+    const home = (visible: boolean) => (
+      <MinimalModeContext
+        value={{
+          enabled: true,
+          isHome: visible,
+          homeKind: 'assistant',
+          switchHome: () => {},
+          returnHome: () => {},
+          openFeature: () => {}
+        }}>
+        <Activity mode={visible ? 'visible' : 'hidden'}>
+          <HomePage />
+        </Activity>
+      </MinimalModeContext>
+    )
+    const { rerender } = render(home(true))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse pane' }))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+    rerender(home(false))
+    rerender(home(true))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
   })
 
   it('warms the visible assistant model from the assistant list', () => {

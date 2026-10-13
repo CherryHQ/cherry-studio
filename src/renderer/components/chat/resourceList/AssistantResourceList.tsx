@@ -21,6 +21,7 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import {
@@ -95,6 +96,7 @@ export function AssistantResourceList({
   onCreateTopic,
   onActiveAssistantDeleted
 }: AssistantResourceListProps) {
+  const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
@@ -551,6 +553,7 @@ export function AssistantResourceList({
         }),
         buildResolvedResourceEntityMenuAction({
           id: ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID,
+          availability: { visible: sidebarAvailable, enabled: sidebarAvailable },
           label: sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
           icon: <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
           order: 22
@@ -593,6 +596,7 @@ export function AssistantResourceList({
       deletingAssistantId,
       isAssistantPinActionDisabled,
       isGroupGrouping,
+      sidebarAvailable,
       sidebarAssistantFavoriteIdSet,
       t
     ]

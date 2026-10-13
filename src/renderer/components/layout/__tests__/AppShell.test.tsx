@@ -599,6 +599,30 @@ describe('AppShell', () => {
     expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: true })
   })
 
+  it('returns home without closing tabs in minimal mode and restores normal close behavior', () => {
+    const returnHome = vi.fn()
+    mocks.tabs.push({ id: 'files', type: 'route', url: '/app/files', title: 'Files', isDormant: false })
+    mocks.activeTabId = 'files'
+    const { rerender } = render(<AppShell minimalMode={{ isHome: false, returnHome }} />)
+
+    mocks.commandHandlers.get('tab.close')?.handler()
+    expect(returnHome).toHaveBeenCalledTimes(1)
+    expect(mocks.closeTab).not.toHaveBeenCalled()
+    expect(mocks.commandHandlers.get('tab.next')?.options?.enabled).toBe(false)
+    expect(mocks.commandHandlers.get('tab.prev')?.options?.enabled).toBe(false)
+
+    mocks.activeTabId = 'home'
+    rerender(<AppShell minimalMode={{ isHome: true, returnHome }} />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+    expect(returnHome).toHaveBeenCalledTimes(1)
+    expect(mocks.closeTab).not.toHaveBeenCalled()
+
+    rerender(<AppShell />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+    expect(mocks.closeTab).toHaveBeenCalledWith('home')
+    expect(mocks.commandHandlers.get('tab.next')?.options?.enabled).toBe(true)
+  })
+
   it('closes the active tab from the tab-close shortcut', () => {
     mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
     mocks.activeTabId = 'tab2'
@@ -607,6 +631,16 @@ describe('AppShell', () => {
     mocks.commandHandlers.get('tab.close')?.handler()
 
     expect(mocks.closeTab).toHaveBeenCalledWith('tab2')
+  })
+
+  it('protects the minimal home when it is the only remaining tab', () => {
+    const returnHome = vi.fn()
+    render(<AppShell minimalMode={{ isHome: true, returnHome }} />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+
+    expect(mocks.closeTab).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
+    expect(returnHome).not.toHaveBeenCalled()
   })
 
   it('closes the window from the tab-close shortcut when only the last tab remains', () => {

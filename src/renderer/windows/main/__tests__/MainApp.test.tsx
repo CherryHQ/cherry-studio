@@ -26,8 +26,8 @@ vi.mock('@renderer/components/layout/TabsProvider', () => ({
   }
 }))
 
-vi.mock('@renderer/components/layout/AppShell', () => ({
-  AppShell: () => <div data-testid="app-shell">app-shell</div>
+vi.mock('../MainWindowShell', () => ({
+  MainWindowShell: () => <div data-testid="main-window-shell">main-window-shell</div>
 }))
 
 vi.mock('@renderer/hooks/useWindowRuntime', () => ({ useWindowRuntime: () => {} }))
@@ -76,7 +76,7 @@ describe('MainWindowContent', () => {
       const view = render(<MainWindowContent />)
 
       expect(screen.getByTestId('tabs-provider')).toBeInTheDocument()
-      expect(screen.getByTestId('app-shell')).toBeInTheDocument()
+      expect(screen.getByTestId('main-window-shell')).toBeInTheDocument()
       expect(screen.queryByTestId('onboarding-page')).not.toBeInTheDocument()
       expect(screen.getByTestId('privacy-policy-gate')).toBeInTheDocument()
       expect(onboardingModule.evaluations).toBe(0)
@@ -92,7 +92,7 @@ describe('MainWindowContent', () => {
 
     expect(await screen.findByTestId('onboarding-page')).toBeInTheDocument()
     expect(onboardingModule.evaluations).toBe(1)
-    expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('main-window-shell')).not.toBeInTheDocument()
     expect(screen.queryByTestId('privacy-policy-gate')).not.toBeInTheDocument()
     expect(document.getElementById('spinner')).toBeNull()
   })

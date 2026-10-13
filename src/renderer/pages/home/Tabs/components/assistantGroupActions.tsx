@@ -25,7 +25,7 @@ export interface AssistantGroupActionContext {
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
   onToggleGrouping: () => void | Promise<void>
   onTogglePin: (assistantId: string) => void | Promise<void>
-  onToggleSidebar: (assistantId: string) => void
+  onToggleSidebar?: (assistantId: string) => void
   pinned: boolean
   sidebarPinned: boolean
   t: TFunction
@@ -50,7 +50,8 @@ assistantGroupActionRegistry.registerCommand({
 
 assistantGroupActionRegistry.registerCommand({
   id: 'assistant-group.toggle-sidebar',
-  run: ({ assistantId, onToggleSidebar }) => onToggleSidebar(assistantId)
+  availability: ({ onToggleSidebar }) => !!onToggleSidebar,
+  run: ({ assistantId, onToggleSidebar }) => onToggleSidebar?.(assistantId)
 })
 
 assistantGroupActionRegistry.registerCommand({

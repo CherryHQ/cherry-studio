@@ -2,7 +2,7 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import { Activity, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
@@ -704,6 +704,7 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
 }))
 
 import { useTabSelfVisuals } from '@renderer/hooks/tab'
+import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 
@@ -802,6 +803,31 @@ describe('AgentPage', () => {
 
     ipcMocks.request.mockReset()
     ipcMocks.request.mockResolvedValue(undefined)
+  })
+
+  it('preserves the manually collapsed minimal sidebar when its home becomes visible again', () => {
+    const home = (visible: boolean) => (
+      <MinimalModeContext
+        value={{
+          enabled: true,
+          isHome: visible,
+          homeKind: 'agent',
+          switchHome: () => {},
+          returnHome: () => {},
+          openFeature: () => {}
+        }}>
+        <Activity mode={visible ? 'visible' : 'hidden'}>
+          <AgentPage />
+        </Activity>
+      </MinimalModeContext>
+    )
+    const { rerender } = render(home(true))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse pane' }))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+    rerender(home(false))
+    rerender(home(true))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
   })
 
   it('uses a prepared feedback session as a transient launch and skips the normal resume path', async () => {

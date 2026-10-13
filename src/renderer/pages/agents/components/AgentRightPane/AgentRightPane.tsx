@@ -1225,7 +1225,7 @@ function AgentFlowPanelTitle({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="text-muted-foreground shrink-0 hover:bg-accent hover:text-foreground"
+          className="text-muted-foreground! shrink-0 hover:bg-accent hover:text-foreground! focus-visible:text-foreground!"
           aria-label={t('common.back')}
           onClick={() => {
             if (previousTab) {

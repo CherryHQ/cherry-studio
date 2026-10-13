@@ -227,12 +227,12 @@ export function ModelSpeedControl({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground"
+          className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground! text-xs hover:text-foreground! focus-visible:text-foreground! data-[state=open]:text-foreground!"
           aria-label={t('agent.speed.title')}>
           <Gauge size={14} className="shrink-0" />
           <span>{supportsReasoning ? effortLabel : supportsServiceTier ? serviceTierLabel : triggerLabel}</span>
           {supportsReasoning && fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
-          <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
+          <ChevronDown size={13} className="shrink-0 text-current" />
         </Button>
       </PopoverTrigger>
       <PopoverContent

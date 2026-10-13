@@ -21,7 +21,8 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { OpenTargetIcon } from './OpenTargetIcon'
 import { getOpenTargetBadge, getOpenTargetLabel } from './openTargetPresentation'
 
-const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
+const TOOLBAR_BUTTON_CLASS =
+  'text-muted-foreground! hover:bg-accent hover:text-foreground! focus-visible:text-foreground!'
 const SPLIT_BUTTON_GROUP_CLASS = 'h-8 overflow-hidden rounded-md border border-border-subtle'
 const SPLIT_BUTTON_CLASS = 'h-full rounded-none p-0'
 

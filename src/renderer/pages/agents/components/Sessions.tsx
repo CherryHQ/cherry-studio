@@ -45,6 +45,7 @@ import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
@@ -123,6 +124,7 @@ import {
 } from './workdirGroupActions'
 
 type SessionsBaseProps = {
+  className?: string
   agentSessionsSource: AgentSessionsSource
   agentIdFilter?: string | null
   dataEnabled?: boolean
@@ -191,6 +193,7 @@ function AgentGroupMoreMenu({
   onToggleSidebar: (agentId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const sidebarAvailable = useSidebarAvailable()
   const actionContext: AgentGroupActionContext = {
     agentId,
     assistantIconType,
@@ -200,7 +203,7 @@ function AgentGroupMoreMenu({
     onEdit,
     onSetAgentIconType,
     onTogglePin,
-    onToggleSidebar,
+    onToggleSidebar: sidebarAvailable ? onToggleSidebar : undefined,
     pinDisabled,
     pinned,
     sidebarPinned,
@@ -344,6 +347,7 @@ function createSessionSeedPreservesFileWorkspace(seed: CreateSessionSeed, active
 }
 
 const Sessions = ({
+  className,
   agentSessionsSource,
   activeSessionId,
   agentIdFilter,
@@ -363,6 +367,7 @@ const Sessions = ({
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
+  const sidebarAvailable = useSidebarAvailable()
   const closeConversationTabs = useCloseConversationTabs()
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
@@ -1869,6 +1874,7 @@ const Sessions = ({
       onShowMissingAgentSelection,
       requestCreateSessionFromSeed,
       setAssistantIconType,
+      sidebarAvailable,
       sidebarAgentFavoriteIdSet,
       t,
       workdirDisplay
@@ -1976,7 +1982,7 @@ const Sessions = ({
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,
           onTogglePin: handleToggleAgentPin,
-          onToggleSidebar: handleToggleAgentSidebar,
+          onToggleSidebar: sidebarAvailable ? handleToggleAgentSidebar : undefined,
           pinDisabled: isAgentPinActionDisabled,
           pinned: agentPinnedIdSet.has(agentId),
           sidebarPinned: sidebarAgentFavoriteIdSet.has(agentId),
@@ -2029,6 +2035,7 @@ const Sessions = ({
       isUpdatingWorkspace,
       openAgentEditor,
       setAssistantIconType,
+      sidebarAvailable,
       sidebarAgentFavoriteIdSet,
       t,
       workdirDisplay
@@ -2101,6 +2108,7 @@ const Sessions = ({
 
   return (
     <SessionResourceList<SessionListItem>
+      className={className}
       key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-left-panel'}
       presentation={presentation}
       items={visibleGroupedSessions}

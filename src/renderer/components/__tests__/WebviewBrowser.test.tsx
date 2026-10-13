@@ -141,7 +141,8 @@ describe('WebviewBrowser', () => {
 
     const addressInput = screen.getByRole('textbox', { name: 'webview.navigation.address' })
     expect(addressInput).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'webview.navigation.back' })).toHaveClass('text-muted-foreground')
+    expect(screen.getByRole('button', { name: 'webview.navigation.back' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'webview.navigation.reload' })).toBeDisabled()
     expect(screen.getByRole('status')).toHaveTextContent('webview.browser.loading')
 
     act(() => {
@@ -149,6 +150,7 @@ describe('WebviewBrowser', () => {
     })
 
     expect(screen.getByRole('textbox', { name: 'webview.navigation.address' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'webview.navigation.reload' })).toBeEnabled()
     expect(screen.queryByRole('status')).toBeNull()
     expect(screen.getByRole('button', { name: 'Pane controls' })).toBeInTheDocument()
 

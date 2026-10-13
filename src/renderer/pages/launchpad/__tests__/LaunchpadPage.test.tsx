@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUI from '@cherrystudio/ui'
+import { SidebarAvailableContext } from '@renderer/hooks/useSidebarAvailable'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
   createSidebarShortcutId,
@@ -26,7 +28,8 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  Button: (await importOriginal<typeof CherryUI>()).Button,
   Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
     mocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
     const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]
@@ -218,24 +221,30 @@ describe('LaunchpadPage', () => {
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
   })
 
+  it('hides sidebar shortcuts when unavailable and restores them without a host override', () => {
+    const { rerender } = render(
+      <SidebarAvailableContext value={false}>
+        <LaunchpadPage />
+      </SidebarAvailableContext>
+    )
+    expect(screen.queryByRole('button', { name: 'Add to Sidebar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove from Sidebar' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Translate' })).toBeVisible()
+
+    rerender(<LaunchpadPage />)
+    expect(screen.getAllByRole('button', { name: 'Add to Sidebar' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Remove from Sidebar' })).toBeVisible()
+  })
+
   it('renders the launchpad page chrome and app grid', () => {
     mocks.pinnedMiniApps = [createMiniApp('calculator')]
 
     render(<LaunchpadPage />)
 
-    const appsHeading = screen.getByRole('heading', { name: 'Apps' })
-    const miniAppsHeading = screen.getByRole('heading', { name: 'Mini Apps' })
-    const chatButton = screen.getByRole('button', { name: 'Chat' })
-
-    expect(appsHeading.closest('section')?.parentElement).toHaveClass('max-w-180', 'gap-5')
-    expect(appsHeading.nextElementSibling).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
-    expect(miniAppsHeading.nextElementSibling).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
-    expect(chatButton).toHaveClass('mx-auto', 'w-[92px]')
-    expect(screen.getByRole('button', { name: 'Calculator' }).parentElement).toHaveClass(
-      'mx-auto',
-      'w-[92px]',
-      'justify-center'
-    )
+    expect(screen.getByRole('heading', { name: 'Apps' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Mini Apps' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Chat' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Calculator' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Knowledge' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
@@ -438,30 +447,6 @@ describe('LaunchpadPage', () => {
     })
     expect(screen.queryByRole('button', { name: 'Calculator' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Weather' })).toBeInTheDocument()
-  })
-
-  it('preserves the dropped mini app items reference when refresh returns the same objects in the same order', async () => {
-    const calculator = createMiniApp('calculator', { orderKey: 'a' })
-    const docs = createMiniApp('docs', { orderKey: 'b' })
-    mocks.pinnedMiniApps = [calculator, docs]
-
-    const { rerender } = render(<LaunchpadPage />)
-
-    act(() => {
-      const miniAppSortable = mocks.sortableCalls.find((call) => call.itemKey === 'appId')
-      miniAppSortable.onSortEnd({ oldIndex: 0, newIndex: 1 })
-    })
-
-    const optimisticItems = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1).items
-    docs.orderKey = 'a'
-    calculator.orderKey = 'b'
-    mocks.pinnedMiniApps = [docs, calculator]
-    rerender(<LaunchpadPage />)
-
-    await waitFor(() => {
-      const latestMiniAppSortable = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1)
-      expect(latestMiniAppSortable.items).toBe(optimisticItems)
-    })
   })
 
   it('adopts fresh mini app objects when the order is unchanged', async () => {

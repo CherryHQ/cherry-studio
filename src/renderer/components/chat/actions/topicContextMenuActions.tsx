@@ -140,7 +140,10 @@ topicActionRegistry.registerCommand({
 
 topicActionRegistry.registerCommand({
   id: 'topic.toggle-sidebar',
-  availability: ({ onToggleSidebar }) => ({ visible: !!onToggleSidebar, enabled: !!onToggleSidebar }),
+  availability: ({ onToggleSidebar }) => ({
+    visible: !!onToggleSidebar,
+    enabled: !!onToggleSidebar
+  }),
   run: ({ onToggleSidebar, topic }) => onToggleSidebar?.(topic)
 })
 
