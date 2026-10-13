@@ -220,7 +220,8 @@ describe('DanglingCache during a real external rename', () => {
       fileRefService,
       danglingCache: cache,
       versionCache: createVersionCacheImpl(10),
-      contentWriteLock: new KeyedMutex()
+      contentWriteLock: new KeyedMutex(),
+      isEntryRetained: () => false
     }
     const originalPath = canonicalizeFilePath(path.join(root, 'original.txt'))
     await writeFile(originalPath, 'retained bytes')
