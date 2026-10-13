@@ -3,6 +3,7 @@ import {
   cloneElement,
   isValidElement,
   type ReactElement,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -33,6 +34,7 @@ type AppShellTabBarProps = {
   activeTabId: string
   isFullscreen?: boolean
   isFocusedTab?: boolean
+  actions?: ReactNode
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
   closeTabs: (ids: readonly string[], activateId?: string) => void
@@ -596,6 +598,7 @@ export const AppShellTabBar = ({
   activeTabId,
   isFullscreen = false,
   isFocusedTab = false,
+  actions,
   setActiveTab,
   closeTab,
   closeTabs,
@@ -1201,7 +1204,7 @@ export const AppShellTabBar = ({
             <WindowControls />
           </div>
         ) : (
-          <ShellTabBarActions />
+          (actions ?? <ShellTabBarActions />)
         )}
       </header>
     </>

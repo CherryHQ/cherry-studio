@@ -1,156 +1,116 @@
 import type { WebviewTag } from 'electron'
+import { isEqual } from 'es-toolkit/compat'
 
-import { loggerService } from '@logger'
+import type { MiniApp } from '@shared/data/types/miniApp'
 
-const logger = loggerService.withContext('MiniAppWebviewService')
+export interface MiniAppDemand {
+  appId: string
+  app?: MiniApp
+  awake: boolean
+  visible: boolean
+  protected: boolean
+  lastAccessTime: number
+}
 
-type WebviewStateListener = (loaded: boolean) => void
-type WebviewElementListener = () => void
+export interface MiniAppResource {
+  app: MiniApp
+  instance: number
+  element: WebviewTag | null
+  loaded: boolean
+  visible: boolean
+}
 
-class MiniAppWebviewService {
-  private readonly globalWebviewStates = new Map<string, boolean>()
-  private readonly globalWebviewElements = new Map<string, WebviewTag>()
+export class MiniAppWebviewService {
+  private resources: readonly MiniAppResource[] = []
+  private nextInstance = 0
+  private readonly listeners = new Set<() => void>()
 
-  private readonly appListeners = new Map<string, Set<WebviewStateListener>>()
-  private readonly elementListeners = new Map<string, Set<WebviewElementListener>>()
-
-  private readonly emitState = (appId: string, loaded: boolean) => {
-    const listeners = this.appListeners.get(appId)
-    if (listeners && listeners.size) {
-      listeners.forEach((cb) => {
-        try {
-          cb(loaded)
-        } catch (e) {
-          // Swallow listener errors to avoid breaking others
-          logger.debug(`Listener error for ${appId}: ${(e as Error).message}`)
-        }
-      })
-    }
-  }
-
-  private readonly emitElementChange = (appId: string) => {
-    const listeners = this.elementListeners.get(appId)
-    if (listeners && listeners.size) {
-      listeners.forEach((cb) => {
-        try {
-          cb()
-        } catch (e) {
-          logger.debug(`Element listener error for ${appId}: ${(e as Error).message}`)
-        }
-      })
-    }
-  }
-
-  readonly setWebviewElement = (appId: string, element: WebviewTag | null) => {
-    if (this.getWebviewElement(appId) === element) return
-    if (element) this.globalWebviewElements.set(appId, element)
-    else this.globalWebviewElements.delete(appId)
-    this.emitElementChange(appId)
-  }
-
-  readonly getWebviewElement = (appId: string): WebviewTag | null => {
-    return this.globalWebviewElements.get(appId) ?? null
-  }
-
-  readonly onWebviewElementChange = (appId: string, listener: WebviewElementListener): (() => void) => {
-    let listeners = this.elementListeners.get(appId)
-    if (!listeners) {
-      listeners = new Set<WebviewElementListener>()
-      this.elementListeners.set(appId, listeners)
-    }
-    listeners.add(listener)
+  readonly subscribe = (listener: () => void) => {
+    this.listeners.add(listener)
     return () => {
-      listeners.delete(listener)
-      if (listeners.size === 0) this.elementListeners.delete(appId)
+      this.listeners.delete(listener)
     }
   }
+  readonly getSnapshot = () => this.resources
+  readonly get = (appId: string) => this.resources.find((resource) => resource.app.appId === appId)
 
-  readonly setWebviewLoaded = (appId: string, loaded: boolean) => {
-    this.globalWebviewStates.set(appId, loaded)
-    logger.debug(`WebView state set for ${appId}: ${loaded}`)
-    this.emitState(appId, loaded)
-  }
-
-  readonly getWebviewLoaded = (appId: string): boolean => {
-    return this.globalWebviewStates.get(appId) || false
-  }
-
-  readonly clearWebviewState = (appId: string) => {
-    const wasLoaded = this.globalWebviewStates.delete(appId)
-    const hadElement = this.globalWebviewElements.delete(appId)
-    if (wasLoaded) {
-      logger.debug(`WebView state cleared for ${appId}`)
-    }
-    // Mounted subscribers must observe both eviction and replacement.
-    this.emitState(appId, false)
-    if (hadElement) this.emitElementChange(appId)
-  }
-
-  readonly clearAllWebviewStates = () => {
-    const count = this.globalWebviewStates.size
-    this.globalWebviewStates.clear()
-    this.globalWebviewElements.clear()
-    logger.debug(`Cleared all WebView states (${count} apps)`)
-    this.appListeners.clear()
-    this.elementListeners.clear()
-  }
-
-  readonly getLoadedAppIds = (): string[] => {
-    return Array.from(this.globalWebviewStates.entries())
-      .filter(([, loaded]) => loaded)
-      .map(([appId]) => appId)
-  }
-
-  readonly onWebviewStateChange = (appId: string, listener: WebviewStateListener): (() => void) => {
-    let listeners = this.appListeners.get(appId)
-    if (!listeners) {
-      listeners = new Set<WebviewStateListener>()
-      this.appListeners.set(appId, listeners)
-    }
-    listeners.add(listener)
-    return () => {
-      listeners.delete(listener)
-      if (listeners.size === 0) this.appListeners.delete(appId)
-    }
-  }
-
-  readonly waitForWebviewLoaded = (appId: string, timeout = 15000): Promise<boolean> => {
-    if (this.getWebviewLoaded(appId)) return Promise.resolve(true)
-    return new Promise((resolve) => {
-      let done = false
-      const unsubscribe = this.onWebviewStateChange(appId, (loaded) => {
-        if (!loaded) return
-        if (done) return
-        done = true
-        unsubscribe()
-        resolve(true)
-      })
-      if (timeout > 0) {
-        setTimeout(() => {
-          if (done) return
-          done = true
-          unsubscribe()
-          resolve(false)
-        }, timeout)
+  sync(demands: readonly MiniAppDemand[], capacity: number): void {
+    const previous = new Map(this.resources.map((resource) => [resource.app.appId, resource]))
+    const desired = new Map(demands.map((demand) => [demand.appId, demand]))
+    const next: MiniAppResource[] = []
+    for (const demand of demands) {
+      const existing = previous.get(demand.appId)
+      const app = demand.app ?? existing?.app
+      if (!app || !demand.awake || (!existing && !demand.visible)) continue
+      if (existing) {
+        next.push(
+          isEqual(existing.app, app) && existing.visible === demand.visible
+            ? existing
+            : {
+                ...existing,
+                app,
+                visible: demand.visible,
+                loaded: existing.loaded && existing.app.url === app.url
+              }
+        )
+      } else {
+        next.push({ app, instance: ++this.nextInstance, element: null, loaded: false, visible: demand.visible })
       }
+    }
+    const candidates = next
+      .filter((item) => {
+        const demand = desired.get(item.app.appId)!
+        return !demand.visible && !demand.protected
+      })
+      .sort((a, b) => desired.get(a.app.appId)!.lastAccessTime - desired.get(b.app.appId)!.lastAccessTime)
+    const evicted = new Set(candidates.slice(0, Math.max(0, next.length - capacity)))
+    // Preserve insertion order: moving a live Electron webview can recreate its guest.
+    const surviving = new Map(next.filter((item) => !evicted.has(item)).map((item) => [item.app.appId, item]))
+    const ordered = this.resources.flatMap((item) => {
+      const updated = surviving.get(item.app.appId)
+      if (!updated) return []
+      surviving.delete(item.app.appId)
+      return [updated]
     })
+    this.publish([...ordered, ...surviving.values()])
   }
 
-  readonly getWebviewElements = () => this.globalWebviewElements.entries()
+  bind(appId: string, instance: number, element: WebviewTag | null): void {
+    this.update(appId, instance, { element, loaded: false })
+  }
+
+  reportLoaded(appId: string, instance: number, loaded: boolean): void {
+    const resource = this.get(appId)
+    if (loaded && !resource?.element) return
+    this.update(appId, instance, { loaded })
+  }
+
+  private update(appId: string, instance: number, patch: Partial<Pick<MiniAppResource, 'element' | 'loaded'>>): void {
+    const current = this.get(appId)
+    if (
+      !current ||
+      current.instance !== instance ||
+      Object.entries(patch).every(([key, value]) => current[key as keyof MiniAppResource] === value)
+    )
+      return
+    this.publish(this.resources.map((item) => (item === current ? { ...item, ...patch } : item)))
+  }
+
+  dispose(): void {
+    this.publish([])
+  }
+
+  private publish(next: readonly MiniAppResource[]): void {
+    if (next.length === this.resources.length && next.every((item, i) => item === this.resources[i])) return
+    this.resources = next
+    for (const listener of this.listeners) listener()
+  }
 }
 
 export const miniAppWebviewService = new MiniAppWebviewService()
-
-export const {
-  setWebviewElement,
-  getWebviewElement,
-  onWebviewElementChange,
-  setWebviewLoaded,
-  getWebviewLoaded,
-  clearWebviewState,
-  clearAllWebviewStates,
-  getLoadedAppIds,
-  onWebviewStateChange,
-  waitForWebviewLoaded,
-  getWebviewElements
-} = miniAppWebviewService
+export const getWebviewElement = (appId: string) => miniAppWebviewService.get(appId)?.element ?? null
+export const getWebviewLoaded = (appId: string) => miniAppWebviewService.get(appId)?.loaded ?? false
+export const onWebviewElementChange = (_appId: string, listener: () => void) =>
+  miniAppWebviewService.subscribe(listener)
+export const onWebviewStateChange = (appId: string, listener: (loaded: boolean) => void) =>
+  miniAppWebviewService.subscribe(() => listener(getWebviewLoaded(appId)))

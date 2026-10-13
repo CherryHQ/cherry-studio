@@ -1209,7 +1209,7 @@ guest host and navigation state. Both products compose `WebviewHost`; MiniApp re
 |---|---|---|---|
 | Guest host | [WebviewContainer](../../../src/renderer/components/MiniApp/WebviewContainer.tsx) | [WebviewHost](../../../src/renderer/components/WebviewHost.tsx), composed by `WebviewBrowser` | Shared element creation, event cleanup, focus/keyboard forwarding and preference application |
 | Navigation toolbar | `MinimalToolbar` | `WebviewNavigation` | Separate product controls; shared `useWebviewNavigation` for guest-bound navigation and address drafts |
-| Page lifetime | `MiniAppTabsPool` owns keep-alive and split-pane placement | Browser tab or Agent pane owns the guest | Separate product ownership |
+| Page lifetime | `TabsProvider` owns pages and split selection; `MiniAppWebviewService` owns window-local guests; `MiniAppTabsPool` renders resources | Browser tab or Agent pane owns the guest | Separate product ownership |
 | Page search | `WebviewSearch` | `WebviewSearch` | Shared |
 | Annotation controls | Hidden | `WebviewAnnotationControls` in Agent panes only; hidden in standalone tabs | Requires a conversation receiver (`onAnnotationSaved`) |
 | Annotation accessibility capture | [annotationExport](../../../src/main/services/webview/annotationExport.ts) borrows a guest lease | `BrowserSessionService` / `GuestSession` | Shared debugger ownership and capture engine |
@@ -1236,8 +1236,21 @@ ordinary website popup handler.
 Host event subscriptions follow the concrete guest, while React Effect Events read current
 callbacks without replaying readiness on preference or callback changes. The MiniApp adapter waits
 for runtime preparation and remounts that preparation state when app identity changes. Its loaded
-callback timer is cancelled on a new full navigation or eviction. The pool still owns placement,
-keep-alive, visibility reporting and focused-pane context.
+callback timer is cancelled on a new full navigation or eviction. MiniApp resource callbacks carry
+an instance token so a retired guest cannot overwrite a reopened app's readiness or element.
+
+MiniApp pages, including split selections and transient apps, open through tabs. The secondary pane
+references a tab ID; collapsing it preserves that tab. A window shares one guest per app ID until
+its last tab closes, all owners become dormant, or capacity evicts an unprotected background guest.
+Both visible panes are exempt from eviction. Evicted background guests remain absent until shown
+again. Pool DOM order stays stable while recency changes; the pool lives outside page Activities.
+Catalog deletion and runtime eviction close all matching tabs; region/edition filtering does not.
+
+Main and detached windows use the same tab strip and resource projection. A transfer closes only
+the selected source tab after the destination acknowledges its committed tab. Timeout preserves the
+source, removes queued delivery and closes a failed detached destination; expired receipts reject
+newly materialized tabs. Other tabs in a detached window remain usable, and closing its last tab
+closes that window. Window-local tab closure does not invoke global app shutdown or clear storage.
 
 `useWebviewNavigation` binds navigation state to the concrete guest and revision. It shares back /
 forward state, main-frame URL tracking and address draft preservation across both toolbars. Guest

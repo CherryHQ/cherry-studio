@@ -6,7 +6,7 @@ vi.mock('@application', () => ({ application: { get: appGetMock } }))
 import { tabHandlers } from '../tab'
 
 const windowManager = { getWindow: vi.fn() }
-const subWindowService = { createWindow: vi.fn(), attachTab: vi.fn() }
+const subWindowService = { detachTab: vi.fn(), attachTab: vi.fn() }
 
 const tab = { id: 't1', title: 'T' } as Parameters<(typeof tabHandlers)['tab.attach']>[0]
 const detachPayload = { id: 't1', url: 'http://x' } as Parameters<(typeof tabHandlers)['tab.detach']>[0]
@@ -29,7 +29,7 @@ describe('tabHandlers', () => {
 
   it('detach spawns a fresh sub-window via SubWindowService', async () => {
     await tabHandlers['tab.detach'](detachPayload, ctx('w1'))
-    expect(subWindowService.createWindow).toHaveBeenCalledWith(detachPayload)
+    expect(subWindowService.detachTab).toHaveBeenCalledWith(detachPayload)
   })
 
   it('drag_end restores the caller window opacity when below 1', async () => {

@@ -4,14 +4,12 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { defineRoute } from '../define'
 
-/**
- * Tab (detached sub-window) IPC schemas. The legacy `tab:attach` string served both an
- * R→M invoke and an M→R broadcast; it is split into `tab.attach` (request; the caller only
- * fires it, so it is void) and `tab.attached` (event, the Tab to re-attach into the main
- * window). `tab.detach` / `tab.drag_end` were fire-and-forget `ipcOn`s → void requests.
- * Tab_MoveWindow stays on legacy native IPC (per-frame R→M escape hatch, see docs).
- */
+// Source tabs close only after the destination acknowledges its committed tab.
+export type TabTransfer = Tab & { transferId?: string }
+
 export const tabRequestSchemas = {
+  'tab.received': defineRoute({ input: z.object({ transferId: z.string(), tabId: z.string() }), output: z.boolean() }),
+  'tab.sync_owners': defineRoute({ input: z.array(z.string()), output: z.void() }),
   'tab.attach': defineRoute({ input: z.custom<Tab>(), output: z.void() }),
   'tab.detach': defineRoute({
     // Mirrors SubWindowService.createWindow's tab identity, URL, presentation, and optional
@@ -23,6 +21,7 @@ export const tabRequestSchemas = {
       icon: z.string().optional(),
       type: z.string().optional(),
       isPinned: z.boolean().optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
       x: z.number().optional(),
       y: z.number().optional()
     }),
@@ -32,5 +31,5 @@ export const tabRequestSchemas = {
 }
 
 export type TabEventSchemas = {
-  'tab.attached': Tab
+  'tab.attached': TabTransfer
 }

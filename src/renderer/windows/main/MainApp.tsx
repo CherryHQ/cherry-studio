@@ -25,6 +25,7 @@ import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRe
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
+import { canPresentMiniAppSplit } from '@renderer/utils/miniAppKeepAlive'
 import { getSidebarDefaultLandingUrl } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
@@ -113,7 +114,7 @@ export function MainWindowContent(): React.ReactElement {
   )
 
   return (
-    <TabsProvider initialDefaultTab={initialDefaultTab}>
+    <TabsProvider canPresentSecondary={canPresentMiniAppSplit} initialDefaultTab={initialDefaultTab}>
       <SidebarShortcutRegistryProvider registry={sidebarShortcutRegistry}>
         <MandatoryGateProvider open={privacyGateOpen}>
           {providerSetupStatus === 'pending' ? (

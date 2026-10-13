@@ -10,7 +10,7 @@ import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 const mocks = vi.hoisted(() => ({
   emojiIconProps: [] as Array<{ emoji: string; size?: number; fontSize?: number; className?: string }>,
   emitResourceListReveal: vi.fn(),
-  ipcRequest: vi.fn(() => Promise.resolve(undefined)),
+  ipcRequest: vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined),
   macTransparentState: { value: false },
   platformState: { isMac: false, isWin: false },
   showSearchPopup: vi.fn()
@@ -300,7 +300,7 @@ describe('AppShellTabBar', () => {
     expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
   })
 
-  it('detaches the focused tab when dragged outside the tab bar', () => {
+  it('detaches the focused tab after the destination acknowledges it', async () => {
     const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
     const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
       const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
@@ -321,6 +321,12 @@ describe('AppShellTabBar', () => {
       value: vi.fn()
     })
 
+    let accept!: () => void
+    mocks.ipcRequest.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        accept = resolve
+      })
+    )
     try {
       const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
       const closeTab = renderTabBar({
@@ -355,6 +361,8 @@ describe('AppShellTabBar', () => {
         'tab.detach',
         expect.objectContaining({ id: settingsTab.id, url: settingsTab.url })
       )
+      expect(closeTab).not.toHaveBeenCalled()
+      await act(async () => accept())
       expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
     } finally {
       if (originalSetPointerCapture) {
@@ -366,7 +374,7 @@ describe('AppShellTabBar', () => {
     }
   })
 
-  it('positions the detached window when a fast drag drops right after the detaching move', () => {
+  it('positions a fast-dropped window without closing its source before acknowledgement', async () => {
     const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
       const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
       return {
@@ -392,6 +400,12 @@ describe('AppShellTabBar', () => {
       value: { ipcRenderer: { send: moveWindowSend } }
     })
 
+    let accept!: () => void
+    mocks.ipcRequest.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        accept = resolve
+      })
+    )
     try {
       const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
       const closeTab = renderTabBar({
@@ -442,6 +456,8 @@ describe('AppShellTabBar', () => {
         document.dispatchEvent(pointerUp)
       })
 
+      expect(closeTab).not.toHaveBeenCalled()
+      await act(async () => accept())
       expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
       expect(moveWindowSend).toHaveBeenCalledWith(
         'tab:move-window',

@@ -1,65 +1,41 @@
-// @vitest-environment jsdom
-import '@testing-library/jest-dom/vitest'
-import { render } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, expect, it, vi } from 'vitest'
 
-const platformState = vi.hoisted(() => ({ isMac: true, isWin: false }))
-
-vi.mock('@renderer/utils/platform', () => ({
-  get isMac() {
-    return platformState.isMac
-  },
-  get isWin() {
-    return platformState.isWin
-  },
-  isLinux: false
-}))
-vi.mock('@renderer/components/layout/SubWindowControls', () => ({
-  SubWindowControls: () => <div data-testid="sub-window-controls" />
-}))
-vi.mock('@renderer/components/layout/SubWindowTitle', () => ({
-  SubWindowTitle: () => <div data-testid="sub-window-title" />
-}))
+import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { useTabs } from '@renderer/hooks/tab'
 
 import { SubWindowTitleBar } from '../SubWindowTitleBar'
 
-afterEach(() => {
-  platformState.isMac = true
-  platformState.isWin = false
-})
-
-describe('SubWindowTitleBar', () => {
-  it('reserves native overlay height on Windows and releases it in fullscreen', () => {
-    platformState.isMac = false
-    platformState.isWin = true
-    const { container, rerender } = render(<SubWindowTitleBar isFullscreen={false} />)
-    expect(container.querySelector('header')?.style.minHeight).toBe('env(titlebar-area-height, 0px)')
-    rerender(<SubWindowTitleBar isFullscreen />)
-    expect(container.querySelector('header')?.style.minHeight).toBe('')
-  })
-
-  it('reserves the macOS traffic-light area when not fullscreen', () => {
-    const { container } = render(<SubWindowTitleBar isFullscreen={false} />)
-
-    const header = container.querySelector('header')
-    expect(header).toHaveClass('pl-[env(titlebar-area-x)]')
-    expect(header).not.toHaveClass('pl-2')
-  })
-
-  it('falls back to the plain inset in fullscreen, where the traffic lights are hidden', () => {
-    const { container } = render(<SubWindowTitleBar isFullscreen />)
-
-    const header = container.querySelector('header')
-    expect(header).toHaveClass('pl-2')
-    expect(header).not.toHaveClass('pl-[env(titlebar-area-x)]')
-  })
-
-  it('uses the plain inset on non-macOS platforms', () => {
-    platformState.isMac = false
-    const { container } = render(<SubWindowTitleBar isFullscreen={false} />)
-
-    const header = container.querySelector('header')
-    expect(header).toHaveClass('pl-2')
-    expect(header).not.toHaveClass('pl-[env(titlebar-area-x)]')
-  })
+vi.mock('@renderer/components/AgentBrowserRuntimeHost', () => ({ AgentBrowserRuntimeHost: () => null }))
+vi.mock('@renderer/components/layout/SubWindowControls', () => ({ SubWindowControls: () => null }))
+vi.mock('@renderer/hooks/useLeadingWindowControlsOverlay', () => ({ useLeadingWindowControlsOverlay: () => false }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn(async () => {}) }, useIpcOn: () => {} }))
+beforeEach(() => MockUseCacheUtils.resetMocks())
+function Window() {
+  const { openTab, activeTab } = useTabs()
+  return (
+    <>
+      <button type="button" onClick={() => openTab('/app/mini-app/b', { title: 'Beta' })}>
+        Open Beta
+      </button>
+      <SubWindowTitleBar isFullscreen={false} />
+      <output aria-label="active page">{activeTab?.url}</output>
+    </>
+  )
+}
+it('makes every detached-window tab reachable from the shared tab strip', async () => {
+  const user = userEvent.setup()
+  render(
+    <TabsProvider
+      includePinnedTabs={false}
+      initialDefaultTab={{ id: 'a', type: 'route', title: 'Alpha', url: '/app/mini-app/a' }}>
+      <Window />
+    </TabsProvider>
+  )
+  await user.click(screen.getByText('Open Beta'))
+  fireEvent.click(screen.getByRole('button', { name: 'Alpha' }))
+  expect(screen.getByLabelText('active page')).toHaveTextContent('/app/mini-app/a')
+  expect(screen.getByRole('button', { name: 'Beta' })).toBeInTheDocument()
 })

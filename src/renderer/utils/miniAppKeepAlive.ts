@@ -1,4 +1,4 @@
-import type { MiniApp } from '@shared/data/types/miniApp'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 export const DEFAULT_MAX_KEEP_ALIVE_MINI_APPS = 10
 
@@ -10,23 +10,10 @@ export function miniAppIdFromTabUrl(url: string | undefined): string | null {
   return id || null
 }
 
-export function trimMiniAppKeepAlive(
-  list: MiniApp[],
-  targetSize: number,
-  protectedAppIds: ReadonlySet<string> | null
-): { keep: MiniApp[]; evicted: MiniApp[] } {
-  let toDrop = list.length - targetSize
-  if (toDrop <= 0 || protectedAppIds === null) return { keep: list, evicted: [] }
-
-  const keep: MiniApp[] = []
-  const evicted: MiniApp[] = []
-  for (const app of list) {
-    if (toDrop > 0 && !protectedAppIds.has(app.appId)) {
-      evicted.push(app)
-      toDrop--
-    } else {
-      keep.push(app)
-    }
-  }
-  return { keep, evicted }
+export function canPresentMiniAppSplit(primary: Tab, secondary?: Tab): boolean {
+  const primaryId = miniAppIdFromTabUrl(primary.url)
+  return (
+    primaryId !== null &&
+    (!secondary || (miniAppIdFromTabUrl(secondary.url) !== null && miniAppIdFromTabUrl(secondary.url) !== primaryId))
+  )
 }

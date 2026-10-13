@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { cacheService } from '@data/CacheService'
-import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { TabsContext, useTabs } from '@renderer/hooks/tab'
+import { useTabs } from '@renderer/hooks/tab'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
-import { clearWebviewState } from '@renderer/services/MiniAppWebviewService'
-import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -63,95 +59,6 @@ export const AppShell = () => {
   )
   const isFullscreen = useNativeFullscreen()
   const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
-  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
-  const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
-  const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
-  const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
-  const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
-
-  // Split state is window-wide and does not follow the last mini-app tab out, so
-  // the next mini app would open into a stale split with its app still pooled.
-  // Single source of truth for split lifetime vs. tab lifetime — used by
-  // single close, bulk close, and detach so policy cannot drift.
-  const takeClearingSplitId = useCallback(
-    (closedIds: readonly string[]): string | undefined => {
-      if (!splitOpen) return undefined
-      let closingMiniAppFound = false
-      for (const id of closedIds) {
-        const tab = tabs.find((t) => t.id === id)
-        if (miniAppIdFromTabUrl(tab?.url)) {
-          closingMiniAppFound = true
-          break
-        }
-      }
-      if (!closingMiniAppFound) return undefined
-      const hasSurvivingMiniAppTab = tabs.some((t) => !closedIds.includes(t.id) && miniAppIdFromTabUrl(t.url) !== null)
-      if (hasSurvivingMiniAppTab) return undefined
-      const id = splitMiniAppId || undefined
-      setSplitOpen(false)
-      setSplitMiniAppId('')
-      return id
-    },
-    [tabs, splitOpen, splitMiniAppId, setSplitOpen, setSplitMiniAppId]
-  )
-
-  const evictMiniAppsForClosedTabs = useCallback(
-    (closedIds: readonly string[], clearingSplitId?: string) => {
-      const closedIdSet = new Set(closedIds)
-      // Collect mini app ids whose tabs are being closed
-      const closingMiniAppIds = new Set<string>()
-      for (const id of closedIds) {
-        const tab = tabs.find((t) => t.id === id)
-        const appId = miniAppIdFromTabUrl(tab?.url)
-        if (appId) closingMiniAppIds.add(appId)
-      }
-      if (clearingSplitId) closingMiniAppIds.add(clearingSplitId)
-      if (closingMiniAppIds.size === 0) return
-      // Check which of those ids still have a surviving tab after the close,
-      // or are still shown in the currently open split pane.
-      const survivingMiniAppIds = new Set<string>()
-      for (const tab of tabs) {
-        if (closedIdSet.has(tab.id)) continue
-        const appId = miniAppIdFromTabUrl(tab.url)
-        if (appId) survivingMiniAppIds.add(appId)
-      }
-      if (splitOpen && splitMiniAppId && splitMiniAppId !== clearingSplitId) {
-        survivingMiniAppIds.add(splitMiniAppId)
-      }
-      const orphanedIds = [...closingMiniAppIds].filter((id) => !survivingMiniAppIds.has(id))
-      if (orphanedIds.length === 0) return
-      const orphanedSet = new Set(orphanedIds)
-      // Read the live pool so a host-initiated eviction that already removed an
-      // app (e.g. MiniAppTabsPool closing the tab after runtime eviction) does not
-      // emit a second webview cleanup for the same id in this render.
-      const keepAliveIds = new Set(
-        (cacheService.get('mini_app.opened_keep_alive') ?? openedKeepAliveMiniApps).map((app) => app.appId)
-      )
-      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => !orphanedSet.has(app.appId)))
-      for (const appId of orphanedIds) {
-        if (keepAliveIds.has(appId)) clearWebviewState(appId)
-      }
-      if (currentMiniAppId && orphanedSet.has(currentMiniAppId)) {
-        if (openedOneOffMiniApp?.appId === currentMiniAppId) {
-          setOpenedOneOffMiniApp(null)
-        }
-        setCurrentMiniAppId('')
-        cacheService.set('mini_app.show', false)
-      }
-    },
-    [
-      tabs,
-      splitOpen,
-      splitMiniAppId,
-      currentMiniAppId,
-      openedOneOffMiniApp,
-      openedKeepAliveMiniApps,
-      setOpenedKeepAliveMiniApps,
-      setCurrentMiniAppId,
-      setOpenedOneOffMiniApp
-    ]
-  )
-
   const handleCloseTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
@@ -159,35 +66,20 @@ export const AppShell = () => {
         closeTabs([id], previousWorkspaceTabIdRef.current)
         return
       }
-      const clearingSplitId = takeClearingSplitId([id])
-      evictMiniAppsForClosedTabs([id], clearingSplitId)
       closeTab(id)
     },
-    [closeTab, closeTabs, evictMiniAppsForClosedTabs, tabs, takeClearingSplitId]
-  )
-
-  const handleCloseTabs = useCallback(
-    (ids: readonly string[], activateId?: string) => {
-      // Capture the split id before the async cache write so eviction can
-      // include the split-only app (no tab) and not protect the stale id.
-      const clearingSplitId = takeClearingSplitId(ids)
-      evictMiniAppsForClosedTabs(ids, clearingSplitId)
-      closeTabs(ids, activateId)
-    },
-    [closeTabs, evictMiniAppsForClosedTabs, takeClearingSplitId]
+    [closeTab, closeTabs, tabs]
   )
 
   const handleDetachTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
-      const clearingSplitId = takeClearingSplitId([id])
-      evictMiniAppsForClosedTabs([id], clearingSplitId)
       detachTab(id)
       if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
         setActiveTab(previousWorkspaceTabIdRef.current)
       }
     },
-    [detachTab, evictMiniAppsForClosedTabs, setActiveTab, tabs, takeClearingSplitId]
+    [detachTab, setActiveTab, tabs]
   )
 
   const handleOpenGlobalSearch = useCallback(() => {
@@ -291,7 +183,7 @@ export const AppShell = () => {
       isFocusedTab={isSettingsTabActive}
       setActiveTab={setActiveTab}
       closeTab={handleCloseTab}
-      closeTabs={handleCloseTabs}
+      closeTabs={closeTabs}
       reorderTabs={reorderTabs}
       pinTab={pinTab}
       unpinTab={unpinTab}
@@ -300,22 +192,8 @@ export const AppShell = () => {
     />
   )
 
-  // Expose eviction-aware tab lifecycle through TabsContext so in-page
-  // surfaces (MiniAppPage toolbar) benefit from the same cleanup as the
-  // tab bar — detach is included so future context consumers do not bypass
-  // eviction.
-  const tabsContextValue = useMemo(
-    () => ({
-      ...tabsApi,
-      closeTab: handleCloseTab,
-      closeTabs: handleCloseTabs,
-      detachTab: handleDetachTab
-    }),
-    [tabsApi, handleCloseTab, handleCloseTabs, handleDetachTab]
-  )
-
   const contentArea = (
-    <TabsContext value={tabsContextValue}>
+    <>
       <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
         <main
           data-ui="app.content"
@@ -338,7 +216,7 @@ export const AppShell = () => {
           <MiniAppTabsPool />
         </main>
       </div>
-    </TabsContext>
+    </>
   )
 
   const contentColumn = (

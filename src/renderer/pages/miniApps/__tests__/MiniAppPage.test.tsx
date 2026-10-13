@@ -29,7 +29,6 @@ const mocks = vi.hoisted(() => ({
   appId: 'chatgpt',
   allApps: [] as MiniApp[],
   openedKeepAliveMiniApps: [] as MiniApp[],
-  openMiniAppKeepAlive: vi.fn(),
   openSplit: vi.fn(),
   closeSplit: vi.fn(),
   splitOpen: false,
@@ -111,7 +110,6 @@ vi.mock('@renderer/hooks/tab', () => ({
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({
-    openMiniAppKeepAlive: mocks.openMiniAppKeepAlive,
     openSplit: mocks.openSplit,
     closeSplit: mocks.closeSplit
   }),
@@ -199,7 +197,6 @@ describe('MiniAppPage', () => {
       icon: undefined
     }
     mocks.updateTab.mockClear()
-    mocks.openMiniAppKeepAlive.mockClear()
     globalThis.CSS = { escape: (value: string) => value } as typeof CSS
   })
 
@@ -218,110 +215,6 @@ describe('MiniAppPage', () => {
         icon: 'chat-logo'
       })
     )
-    expect(mocks.openMiniAppKeepAlive).toHaveBeenCalledWith(mocks.allApps[0])
-  })
-
-  it('does not drive the keep-alive pool from a background (non-active) tab', async () => {
-    // A backgrounded mini-app page (e.g. a pinned mini-app tab still mounted via
-    // keep-alive) must not touch the global currentMiniAppId / LRU order — that
-    // is what ping-pongs two mounted pages into an infinite render loop.
-    mocks.isActiveTab = false
-
-    render(<MiniAppPage />)
-
-    await waitFor(() =>
-      expect(mocks.updateTab).toHaveBeenCalledWith('launchpad-tab', {
-        title: 'ChatGPT',
-        icon: 'chat-logo'
-      })
-    )
-    expect(mocks.openMiniAppKeepAlive).not.toHaveBeenCalled()
-  })
-
-  // A transient mini app (OpenClaw's dashboard and friends) has no database row and its
-  // keep-alive entry is per-window and LRU-evictable. This is the state a window is in
-  // after a tab is detached into it — and the state the main window is in when that tab
-  // is attached back after eviction. The shared registry is what resolves it in both.
-  it('resolves a transient mini app from the cross-window registry', async () => {
-    mocks.appId = 'openclaw-dashboard'
-    mocks.currentTab = {
-      id: 'detached-tab',
-      type: 'route',
-      url: '/app/mini-app/openclaw-dashboard',
-      title: 'OpenClaw',
-      icon: undefined
-    }
-    MockUseCacheUtils.setSharedCacheValue('mini_app.transient_descriptor.openclaw-dashboard', {
-      appId: 'openclaw-dashboard',
-      name: 'OpenClaw',
-      url: 'http://127.0.0.1:18790#token=secret',
-      logo: 'openclaw'
-    })
-
-    render(<MiniAppPage />)
-
-    await waitFor(() =>
-      expect(mocks.openMiniAppKeepAlive).toHaveBeenCalledWith(
-        expect.objectContaining({
-          appId: 'openclaw-dashboard',
-          url: 'http://127.0.0.1:18790#token=secret',
-          // Pool bookkeeping is this window's own — reconstructed, never carried.
-          presetMiniAppId: null,
-          status: 'enabled',
-          orderKey: ''
-        })
-      )
-    )
-    expect(screen.queryByText('miniApp.error.not_found')).not.toBeInTheDocument()
-  })
-
-  it('prefers a republished transient descriptor over a stale local keep-alive snapshot', async () => {
-    mocks.appId = 'openclaw-dashboard'
-    mocks.currentTab = {
-      id: 'detached-tab',
-      type: 'route',
-      url: '/app/mini-app/openclaw-dashboard',
-      title: 'OpenClaw',
-      icon: undefined
-    }
-    mocks.openedKeepAliveMiniApps = [
-      stubApp({
-        appId: 'openclaw-dashboard',
-        name: 'OpenClaw',
-        url: 'http://127.0.0.1:18790#token=stale'
-      })
-    ]
-    MockUseCacheUtils.setSharedCacheValue('mini_app.transient_descriptor.openclaw-dashboard', {
-      appId: 'openclaw-dashboard',
-      name: 'OpenClaw',
-      url: 'http://127.0.0.1:18790#token=fresh',
-      logo: 'openclaw'
-    })
-
-    render(<MiniAppPage />)
-
-    await waitFor(() =>
-      expect(mocks.openMiniAppKeepAlive).toHaveBeenCalledWith(
-        expect.objectContaining({
-          appId: 'openclaw-dashboard',
-          url: 'http://127.0.0.1:18790#token=fresh'
-        })
-      )
-    )
-  })
-
-  it('falls back to a local keep-alive snapshot when no transient descriptor exists', async () => {
-    const cached = stubApp({
-      appId: 'openclaw-dashboard',
-      name: 'OpenClaw',
-      url: 'http://127.0.0.1:18790#token=cached'
-    })
-    mocks.appId = 'openclaw-dashboard'
-    mocks.openedKeepAliveMiniApps = [cached]
-
-    render(<MiniAppPage />)
-
-    await waitFor(() => expect(mocks.openMiniAppKeepAlive).toHaveBeenCalledWith(cached))
   })
 
   it('renders not-found when neither the database nor the registry knows the app', async () => {
@@ -330,7 +223,6 @@ describe('MiniAppPage', () => {
     render(<MiniAppPage />)
 
     await waitFor(() => expect(screen.getByText('miniApp.error.not_found')).toBeInTheDocument())
-    expect(mocks.openMiniAppKeepAlive).not.toHaveBeenCalled()
   })
 
   it('keeps loading instead of flashing not-found until the shared cache has hydrated', async () => {

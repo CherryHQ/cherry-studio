@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { BrowserWindow, ipcMain, type IpcMainEvent, nativeImage, nativeTheme } from 'electron'
 
 import { application } from '@application'
@@ -8,7 +10,7 @@ import { validateSender } from '@main/core/security/validateSender'
 import { syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
-import { openTabInMainWindow } from '@main/services/mainWindowNavigation'
+import { cancelPendingTabTransfer, openTabInMainWindow } from '@main/services/mainWindowNavigation'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -53,7 +55,7 @@ type SubWindowState = {
 export class SubWindowService extends BaseService {
   /** tabId → windowId map (windowId belongs to WindowManager's namespace, distinct from tabId) */
   private tabIdToWindowId: Map<string, string> = new Map()
-  private windowState: Map<string, SubWindowState> = new Map()
+  private windowState: Map<number, SubWindowState> = new Map()
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -110,7 +112,7 @@ export class SubWindowService extends BaseService {
       if (win && !win.isDestroyed()) {
         const x = Math.round(payload.x)
         const y = Math.round(payload.y)
-        this.moveWindow(win, payload.tabId, x, y)
+        this.moveWindow(win, x, y)
         if (!win.isVisible()) {
           win.show()
         }
@@ -132,9 +134,9 @@ export class SubWindowService extends BaseService {
    * On Win/Linux uses setContentBounds with cached size to avoid electron#27651 outer-bounds creep.
    * On macOS uses setPosition (no reported creep issue).
    */
-  private moveWindow(win: BrowserWindow, tabId: string, x: number, y: number) {
+  private moveWindow(win: BrowserWindow, x: number, y: number) {
     if (USE_CONTENT_BOUNDS_MOVE) {
-      const state = this.windowState.get(tabId)
+      const state = this.windowState.get(win.id)
       if (state) {
         state.lastMoveAt = Date.now()
       }
@@ -150,13 +152,13 @@ export class SubWindowService extends BaseService {
    * DPI-rounding debounce in moveWindow. Cleanup of windowState is handled centrally
    * by the `.once('closed')` listener in createWindow — do not attach one here too.
    */
-  private trackWindowSize(tabId: string, win: BrowserWindow) {
-    this.windowState.set(tabId, { width: SUB_WINDOW_DEFAULT_WIDTH, height: SUB_WINDOW_DEFAULT_HEIGHT, lastMoveAt: 0 })
+  private trackWindowSize(win: BrowserWindow) {
+    this.windowState.set(win.id, { width: SUB_WINDOW_DEFAULT_WIDTH, height: SUB_WINDOW_DEFAULT_HEIGHT, lastMoveAt: 0 })
 
     win.on('ready-to-show', () => {
       if (!win.isDestroyed()) {
         const { width, height } = win.getContentBounds()
-        const state = this.windowState.get(tabId)
+        const state = this.windowState.get(win.id)
         if (state) {
           state.width = width
           state.height = height
@@ -166,7 +168,7 @@ export class SubWindowService extends BaseService {
 
     win.on('resize', () => {
       if (win.isDestroyed()) return
-      const state = this.windowState.get(tabId)
+      const state = this.windowState.get(win.id)
       if (!state || Date.now() - state.lastMoveAt < MOVE_RESIZE_IGNORE_MS) return
       const { width, height } = win.getContentBounds()
       state.width = width
@@ -183,6 +185,8 @@ export class SubWindowService extends BaseService {
     isPinned?: boolean
     x?: number
     y?: number
+    metadata?: Tab['metadata']
+    transferId?: string
   }): string {
     const wm = application.get('WindowManager')
     const { id: tabId, url, title, icon, type, isPinned, x, y } = payload
@@ -197,7 +201,9 @@ export class SubWindowService extends BaseService {
       title,
       ...(icon && { icon }),
       type: type === 'route' || type === 'webview' ? type : 'route',
-      isPinned
+      isPinned,
+      metadata: payload.metadata,
+      transferId: payload.transferId
     }
 
     // Dynamic options injected per-call (registry carries platform-static defaults only).
@@ -243,15 +249,15 @@ export class SubWindowService extends BaseService {
     }
 
     if (USE_CONTENT_BOUNDS_MOVE) {
-      this.trackWindowSize(tabId, win)
+      this.trackWindowSize(win)
     }
 
     // Single cleanup entry point. Node's EventEmitter snapshots listeners at emit time,
     // so even if WindowManager's internal 'closed' handler later calls removeAllListeners,
     // this callback has already executed.
     win.once('closed', () => {
-      this.tabIdToWindowId.delete(tabId)
-      this.windowState.delete(tabId)
+      for (const [id, owner] of this.tabIdToWindowId) if (owner === windowId) this.tabIdToWindowId.delete(id)
+      this.windowState.delete(win.id)
     })
 
     logger.info(`Created sub window for tab ${tabId}`, { windowId, url, title, type, isPinned })
@@ -263,19 +269,84 @@ export class SubWindowService extends BaseService {
     return senderId != null && application.get('WindowManager').getWindowType(senderId) === WindowType.SubWindow
   }
 
-  /**
-   * Re-attaches a tab from a detached sub-window back into the main window. Delivery is
-   * delegated to openTabInMainWindow, which handles both the live path (directed
-   * `tab.attached` event + raise the window, covering close-to-tray) and the cold path
-   * (rebuild the main window around the tab via `tab-attach` init data). We then close the
-   * caller sub-window — but only when it truly is a SubWindow (never the main window).
-   * `senderId` is the calling window resolved by IpcContext.
-   */
-  public attachTab(tab: Tab, senderId: WindowId | null): void {
-    openTabInMainWindow(tab)
-    if (this.isSubWindowSender(senderId)) {
-      application.get('WindowManager').close(senderId)
+  private readonly transfers = new Map<
+    string,
+    {
+      tabId: string
+      windowId?: string
+      finish: (error?: Error) => void
     }
+  >()
+
+  private transfer(tabId: string, deliver: (transferId: string) => string): Promise<void> {
+    if ([...this.transfers.values()].some((pending) => pending.tabId === tabId)) {
+      return Promise.reject(new Error('Tab transfer is already pending'))
+    }
+    const transferId = randomUUID()
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => finish(new Error('Tab transfer timed out')), 10_000)
+      timer.unref()
+      const finish = (error?: Error) => {
+        clearTimeout(timer)
+        this.transfers.delete(transferId)
+        if (error) {
+          cancelPendingTabTransfer(transferId)
+          reject(error)
+        } else resolve()
+      }
+      const pending = { tabId, windowId: undefined as string | undefined, finish }
+      this.transfers.set(transferId, pending)
+      try {
+        pending.windowId = deliver(transferId)
+      } catch (error) {
+        finish(error as Error)
+      }
+    })
+  }
+
+  public detachTab(payload: Parameters<SubWindowService['createWindow']>[0]): Promise<void> {
+    let windowId: string | undefined
+    return this.transfer(payload.id, (transferId) => {
+      windowId = this.createWindow({ ...payload, transferId })
+      return windowId
+    })
+      .then(() => {
+        if (windowId) application.get('WindowManager').getWindow(windowId)?.show()
+      })
+      .catch((error) => {
+        if (windowId) application.get('WindowManager').close(windowId)
+        throw error
+      })
+  }
+
+  public attachTab(tab: Tab, senderId: WindowId | null): Promise<void> {
+    if (!this.isSubWindowSender(senderId)) return Promise.reject(new Error('Only a detached window can return a tab'))
+    return this.transfer(tab.id, (transferId) => {
+      openTabInMainWindow({ ...tab, transferId })
+      const wm = application.get('WindowManager')
+      const main = wm.getWindowsByType(WindowType.Main)[0]
+      const id = main && wm.getWindowId(main)
+      if (!id) throw new Error('Main window is unavailable')
+      return id
+    })
+  }
+
+  public receiveTab(payload: { transferId: string; tabId: string }, senderId: WindowId | null): boolean {
+    const pending = this.transfers.get(payload.transferId)
+    if (!pending || pending.windowId !== senderId || pending.tabId !== payload.tabId) return false
+    pending.finish()
+    return true
+  }
+
+  public syncTabOwners(ids: string[], senderId: WindowId | null): void {
+    if (!this.isSubWindowSender(senderId)) return
+    for (const [id, owner] of this.tabIdToWindowId)
+      if (owner === senderId && !ids.includes(id)) this.tabIdToWindowId.delete(id)
+    for (const id of ids) this.tabIdToWindowId.set(id, senderId)
+  }
+
+  protected async onStop(): Promise<void> {
+    for (const transfer of this.transfers.values()) transfer.finish(new Error('Tab service stopped'))
   }
 
   /**

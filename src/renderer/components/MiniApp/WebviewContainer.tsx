@@ -64,6 +64,7 @@ const MiniAppWebview = memo(
     onSetRefCallback,
     onLoadedCallback,
     onNavigateCallback,
+    onLoadingCallback,
     onFocusChange
   }: {
     appid: string
@@ -71,7 +72,8 @@ const MiniAppWebview = memo(
     kind: MiniAppKind
     onSetRefCallback: (appid: string, element: WebviewTag | null) => void
     onLoadedCallback: (appid: string) => void
-    onNavigateCallback: (appid: string, url: string) => void
+    onNavigateCallback?: (appid: string, url: string) => void
+    onLoadingCallback?: (appid: string) => void
     /** Reported to the pool, which owns the `webview.focused` context key for all panes. */
     onFocusChange?: (appid: string, focused: boolean) => void
   }) => {
@@ -116,13 +118,14 @@ const MiniAppWebview = memo(
         if (!event.isMainFrame || event.isInPlace) return
         clearLoadTimer()
         loadedRef.current = false
+        onLoadingCallback?.(appid)
       },
-      [clearLoadTimer]
+      [appid, clearLoadTimer, onLoadingCallback]
     )
     const handleNavigate = useCallback(
       (event: DidNavigateEvent | DidNavigateInPageEvent) => {
         if ('isMainFrame' in event && !event.isMainFrame) return
-        onNavigateCallback(appid, event.url)
+        onNavigateCallback?.(appid, event.url)
       },
       [appid, onNavigateCallback]
     )

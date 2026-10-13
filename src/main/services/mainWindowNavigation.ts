@@ -1,8 +1,8 @@
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
+import type { TabTransfer } from '@shared/ipc/schemas/tab'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 
 /**
@@ -52,7 +52,7 @@ function resolveLiveMainWindowId(): string | undefined {
  * does not buffer it — so tabs are queued here and flushed once the renderer
  * reports ready via `navigation.protocol_dispatch_ready`.
  */
-const pendingTabAttachQueue: Tab[] = []
+const pendingTabAttachQueue: TabTransfer[] = []
 let isMainRendererReadyForTabAttach = false
 
 /**
@@ -75,6 +75,11 @@ export function markMainRendererReadyForTabAttach(senderId: string): void {
  */
 export function resetMainRendererTabAttachDelivery(): void {
   isMainRendererReadyForTabAttach = false
+}
+
+export function cancelPendingTabTransfer(transferId: string): void {
+  const index = pendingTabAttachQueue.findIndex((tab) => tab.transferId === transferId)
+  if (index >= 0) pendingTabAttachQueue.splice(index, 1)
 }
 
 function flushPendingTabAttaches(): void {
@@ -172,7 +177,7 @@ export function openRouteInMainWindow(path: string): void {
  *   so the tab rides along as cold-start init data (`kind: 'tab-attach'`) that
  *   the renderer attaches on boot.
  */
-export function openTabInMainWindow(tab: Tab): void {
+export function openTabInMainWindow(tab: TabTransfer): void {
   const mainWindowService = application.get('MainWindowService')
 
   const mainWindowId = resolveLiveMainWindowId()

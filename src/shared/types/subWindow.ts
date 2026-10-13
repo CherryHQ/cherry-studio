@@ -1,4 +1,4 @@
-import type { TabType } from '../data/cache/cacheValueTypes'
+import type { Tab, TabType } from '../data/cache/cacheValueTypes'
 
 /**
  * Initialization payload for a detached SubWindow.
@@ -15,6 +15,8 @@ import type { TabType } from '../data/cache/cacheValueTypes'
  */
 export type SubWindowInitData = {
   tabId: string
+  transferId?: string
+  metadata?: Tab['metadata']
   url: string
   title?: string
   icon?: string

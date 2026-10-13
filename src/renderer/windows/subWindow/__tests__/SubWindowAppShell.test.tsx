@@ -15,6 +15,7 @@ type ShellTab = {
 
 const defaultTabs: ShellTab[] = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 const openTab = vi.fn()
+const closeTab = vi.fn()
 const commandHandlers = new Map<string, () => void>()
 const ipcListeners = new Map<string, (value: boolean) => void>()
 let ipcRequest: ReturnType<typeof vi.fn> = vi.fn()
@@ -59,12 +60,13 @@ async function renderSubWindowAppShell({
         tabs: defaultTabs,
         activeTabId: 'home',
         setActiveTab: vi.fn(),
-        closeTab: vi.fn(),
+        closeTab,
         closeTabs: vi.fn(),
         updateTab: vi.fn(),
         addTab: vi.fn(),
         reorderTabs: vi.fn(),
         openTab,
+        attachTab: openTab,
         pinTab: vi.fn(),
         unpinTab: vi.fn()
       })
@@ -141,13 +143,15 @@ describe('SubWindowAppShell', () => {
     })
 
     await waitFor(() => {
-      expect(openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-1', {
+      expect(openTab).toHaveBeenCalledWith({
+        url: '/app/chat?topicId=topic-1',
         id: 'detached-tab',
         title: 'Detached topic',
         icon: '🍒',
         type: 'route',
         isPinned: true,
-        forceNew: true
+        metadata: undefined,
+        transferId: undefined
       })
     })
     expect(openTab).toHaveBeenCalledOnce()
@@ -180,11 +184,11 @@ describe('SubWindowAppShell', () => {
     expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
   })
 
-  it('closes the window from the tab-close shortcut, since a sub-window draws no tab bar', async () => {
+  it('closes the active tab from the tab-close shortcut', async () => {
     await renderSubWindowAppShell()
 
     commandHandlers.get('tab.close')?.()
 
-    expect(ipcRequest).toHaveBeenCalledWith('window.close')
+    expect(closeTab).toHaveBeenCalledWith('home')
   })
 })

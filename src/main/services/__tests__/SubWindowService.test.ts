@@ -24,6 +24,7 @@ const {
     getWindowType: vi.fn<(id: string) => string | undefined>(() => undefined),
     getWindowsByType: vi.fn<(type: string) => unknown[]>(() => []),
     getWindowInfosByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),
+    getWindowId: vi.fn(() => 'main1'),
     getWindowIdByWebContents: vi.fn<(wc: unknown) => string | undefined>(() => undefined),
     broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>(),
     onWindowCreatedByType: vi.fn(() => vi.fn()),
@@ -74,7 +75,10 @@ vi.mock('@application', () => ({ application: applicationMock }))
 
 // attachTab delegates delivery to openTabInMainWindow (live event vs cold-start init data);
 // its own live/cold split is covered in mainWindowNavigation.test.ts.
-vi.mock('@main/services/mainWindowNavigation', () => ({ openTabInMainWindow: openTabInMainWindowMock }))
+vi.mock('@main/services/mainWindowNavigation', () => ({
+  openTabInMainWindow: openTabInMainWindowMock,
+  cancelPendingTabTransfer: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
@@ -432,22 +436,54 @@ describe('SubWindowService', () => {
   describe('attachTab', () => {
     const tab = { id: 'tab-1', title: 'T' } as Parameters<SubWindowService['attachTab']>[0]
 
-    it('delegates delivery to openTabInMainWindow and closes the caller sub-window', () => {
+    it('completes only after the intended destination acknowledges the tab', async () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
-
-      svc.attachTab(tab, 'sub1')
-
-      expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
-      expect(windowManagerMock.close).toHaveBeenCalledWith('sub1')
+      windowManagerMock.getWindowsByType.mockReturnValue([createMockWindow()])
+      let completed = false
+      const transfer = svc.attachTab(tab, 'sub1').then(() => {
+        completed = true
+      })
+      const { transferId } = openTabInMainWindowMock.mock.calls[0][0]
+      expect(svc.receiveTab({ transferId, tabId: tab.id }, 'wrong-window')).toBe(false)
+      expect(svc.receiveTab({ transferId, tabId: 'wrong-tab' }, 'main1')).toBe(false)
+      await Promise.resolve()
+      expect(completed).toBe(false)
+      expect(svc.receiveTab({ transferId, tabId: tab.id }, 'main1')).toBe(true)
+      await transfer
+      expect(completed).toBe(true)
+      expect(windowManagerMock.close).not.toHaveBeenCalled()
+      expect(svc.receiveTab({ transferId, tabId: tab.id }, 'main1')).toBe(false)
     })
 
-    it('does not close the caller when it is not a SubWindow (never closes the main window)', () => {
+    it('rejects an invalid source without delivering a tab', async () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+      await expect(svc.attachTab(tab, 'main1')).rejects.toThrow('Only a detached window')
+      expect(openTabInMainWindowMock).not.toHaveBeenCalled()
+    })
 
-      svc.attachTab(tab, 'main1')
-
-      expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
+    it('rejects duplicate transfers and discards late receipts after a timeout', async () => {
+      vi.useFakeTimers()
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      windowManagerMock.getWindowsByType.mockReturnValue([createMockWindow()])
+      const transfer = svc.attachTab(tab, 'sub1')
+      const rejected = expect(transfer).rejects.toThrow('timed out')
+      const { transferId } = openTabInMainWindowMock.mock.calls[0][0]
+      await expect(svc.attachTab(tab, 'sub1')).rejects.toThrow('already pending')
+      await vi.advanceTimersByTimeAsync(10_000)
+      await rejected
+      expect(svc.receiveTab({ transferId, tabId: tab.id }, 'main1')).toBe(false)
       expect(windowManagerMock.close).not.toHaveBeenCalled()
+      vi.useRealTimers()
+    })
+
+    it('closes a failed detached destination without closing the source', async () => {
+      vi.useFakeTimers()
+      const transfer = svc.detachTab({ id: 'tab-1', url: '/app/mini-app/a' })
+      const rejected = expect(transfer).rejects.toThrow('timed out')
+      await vi.advanceTimersByTimeAsync(10_000)
+      await rejected
+      expect(windowManagerMock.close.mock.calls).toEqual([['mock-window-id']])
+      vi.useRealTimers()
     })
   })
 

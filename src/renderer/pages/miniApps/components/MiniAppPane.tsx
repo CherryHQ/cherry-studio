@@ -11,8 +11,7 @@ import {
   getWebviewElement,
   getWebviewLoaded,
   onWebviewElementChange,
-  onWebviewStateChange,
-  setWebviewLoaded
+  onWebviewStateChange
 } from '@renderer/services/MiniAppWebviewService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
@@ -106,7 +105,6 @@ const MiniAppPane: FC<Props> = ({
     if (!isReady || !getWebviewLoaded(app.appId)) return
     if (!webview?.isConnected) return
 
-    setWebviewLoaded(app.appId, false)
     setIsReady(false)
     webview.reload()
   }, [app.appId, isReady, webview])

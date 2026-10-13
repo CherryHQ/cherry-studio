@@ -9,6 +9,6 @@ export type MainWindowInitData =
   | {
       /** Re-attach a detached tab when the main window is rebuilt around it (see openTabInMainWindow). */
       kind: 'tab-attach'
-      tab: Tab
+      tab: Tab & { transferId?: string }
       requestId: number
     }

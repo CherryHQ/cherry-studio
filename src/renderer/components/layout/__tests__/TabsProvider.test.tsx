@@ -581,7 +581,10 @@ describe('TabsProvider', () => {
     )
 
     await waitFor(() => expect(screen.getByTestId('transient-tab-ids')).toHaveTextContent('transient-mini-app'))
-    expect(setPinnedTabsMock.mock.calls.some(([arg]) => typeof arg === 'function')).toBe(false)
+    for (const [write] of setPinnedTabsMock.mock.calls) {
+      const pinned = typeof write === 'function' ? write(pinnedTabsValue) : write
+      expect(pinned.some((tab: Tab) => tab.id === 'transient-mini-app')).toBe(false)
+    }
   })
 
   it('removes a menu-closed pinned tab from the persistent pinned list', async () => {
@@ -716,9 +719,6 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Hibernate C' }))
-    await waitFor(() => expect(screen.getByTestId('dormant-ids')).toHaveTextContent('c'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
     await waitFor(() => expect(screen.getByTestId('dormant-ids')).toHaveTextContent(/^$/))
   })
 
@@ -782,9 +782,8 @@ describe('TabsProvider', () => {
 
     // The pinned store is mocked, so assert on the updater sent to it: the
     // dormant pinned survivor must come back woken.
-    const updater = setPinnedTabsMock.mock.calls.at(-1)?.[0] as (prev: Tab[]) => Tab[]
-    expect(typeof updater).toBe('function')
-    const next = updater([{ ...PINNED_FILES_TAB, isDormant: true }])
+    const write = setPinnedTabsMock.mock.calls.at(-1)?.[0]
+    const next: Tab[] = typeof write === 'function' ? write(pinnedTabsValue) : write
     expect(next.find((tab) => tab.id === 'files')?.isDormant).toBe(false)
   })
 

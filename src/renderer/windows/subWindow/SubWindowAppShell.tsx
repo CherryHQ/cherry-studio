@@ -1,20 +1,15 @@
-import { Activity, type CSSProperties, useCallback, useEffect, useMemo, useRef } from 'react'
+import { Activity, type CSSProperties, useCallback, useEffect, useRef } from 'react'
 
-import { cacheService } from '@data/CacheService'
-import { useCache } from '@data/hooks/useCache'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import { WINDOW_CONTROLS_OVERLAY_WIDTH } from '@renderer/components/WindowControls'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { TabsContext, useTabs } from '@renderer/hooks/tab'
+import { useTabs } from '@renderer/hooks/tab'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
-import { ipcApi } from '@renderer/ipc'
-import { clearWebviewState } from '@renderer/services/MiniAppWebviewService'
-import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { isLinux, isWin } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import type { SubWindowInitData } from '@shared/types/subWindow'
@@ -35,119 +30,14 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 
 export const SubWindowAppShell = () => {
   const tabsApi = useTabs()
-  const { tabs, activeTabId, updateTab, openTab, closeTab, closeTabs } = tabsApi
+  const { tabs, activeTabId, updateTab, attachTab, closeTab } = tabsApi
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
   const isFullscreen = useNativeFullscreen()
-  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
-  const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
-  const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
-  const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
-  const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
-
-  const takeClearingSplitId = useCallback(
-    (closedIds: readonly string[]): string | undefined => {
-      if (!splitOpen) return undefined
-      let closingMiniAppFound = false
-      for (const id of closedIds) {
-        const tab = tabs.find((t) => t.id === id)
-        if (miniAppIdFromTabUrl(tab?.url)) {
-          closingMiniAppFound = true
-          break
-        }
-      }
-      if (!closingMiniAppFound) return undefined
-      const hasSurvivingMiniAppTab = tabs.some((t) => !closedIds.includes(t.id) && miniAppIdFromTabUrl(t.url) !== null)
-      if (hasSurvivingMiniAppTab) return undefined
-      const id = splitMiniAppId || undefined
-      setSplitOpen(false)
-      setSplitMiniAppId('')
-      return id
-    },
-    [tabs, splitOpen, splitMiniAppId, setSplitOpen, setSplitMiniAppId]
-  )
-
-  const evictMiniAppsForClosedTabs = useCallback(
-    (closedIds: readonly string[], clearingSplitId?: string) => {
-      const closedIdSet = new Set(closedIds)
-      const closingMiniAppIds = new Set<string>()
-      for (const id of closedIds) {
-        const tab = tabs.find((t) => t.id === id)
-        const appId = miniAppIdFromTabUrl(tab?.url)
-        if (appId) closingMiniAppIds.add(appId)
-      }
-      if (clearingSplitId) closingMiniAppIds.add(clearingSplitId)
-      if (closingMiniAppIds.size === 0) return
-      const survivingMiniAppIds = new Set<string>()
-      for (const tab of tabs) {
-        if (closedIdSet.has(tab.id)) continue
-        const appId = miniAppIdFromTabUrl(tab.url)
-        if (appId) survivingMiniAppIds.add(appId)
-      }
-      if (splitOpen && splitMiniAppId && splitMiniAppId !== clearingSplitId) {
-        survivingMiniAppIds.add(splitMiniAppId)
-      }
-      const orphanedIds = [...closingMiniAppIds].filter((id) => !survivingMiniAppIds.has(id))
-      if (orphanedIds.length === 0) return
-      const orphanedSet = new Set(orphanedIds)
-      const keepAliveIds = new Set(
-        (cacheService.get('mini_app.opened_keep_alive') ?? openedKeepAliveMiniApps).map((app) => app.appId)
-      )
-      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => !orphanedSet.has(app.appId)))
-      for (const appId of orphanedIds) {
-        if (keepAliveIds.has(appId)) clearWebviewState(appId)
-      }
-      if (currentMiniAppId && orphanedSet.has(currentMiniAppId)) {
-        if (openedOneOffMiniApp?.appId === currentMiniAppId) {
-          setOpenedOneOffMiniApp(null)
-        }
-        setCurrentMiniAppId('')
-        cacheService.set('mini_app.show', false)
-      }
-    },
-    [
-      tabs,
-      splitOpen,
-      splitMiniAppId,
-      currentMiniAppId,
-      openedOneOffMiniApp,
-      openedKeepAliveMiniApps,
-      setOpenedKeepAliveMiniApps,
-      setCurrentMiniAppId,
-      setOpenedOneOffMiniApp
-    ]
-  )
-
-  const handleCloseTab = useCallback(
-    (id: string) => {
-      const clearingSplitId = takeClearingSplitId([id])
-      evictMiniAppsForClosedTabs([id], clearingSplitId)
-      closeTab(id)
-    },
-    [closeTab, evictMiniAppsForClosedTabs, takeClearingSplitId]
-  )
-
-  const handleCloseTabs = useCallback(
-    (ids: readonly string[], activateId?: string) => {
-      const clearingSplitId = takeClearingSplitId(ids)
-      evictMiniAppsForClosedTabs(ids, clearingSplitId)
-      closeTabs(ids, activateId)
-    },
-    [closeTabs, evictMiniAppsForClosedTabs, takeClearingSplitId]
-  )
-
-  const tabsContextValue = useMemo(
-    () => ({ ...tabsApi, closeTab: handleCloseTab, closeTabs: handleCloseTabs }),
-    [tabsApi, handleCloseTab, handleCloseTabs]
-  )
-
-  // A sub-window hosts a single detached tab and draws no tab bar, so the tab-close
-  // shortcut keeps the meaning it had before the tab bar claimed Command+W: close this window.
-  const handleCloseWindow = useCallback(() => {
-    void ipcApi.request('window.close')
-  }, [])
-
-  useCommandHandler('tab.close', handleCloseWindow)
+  const handleCloseTab = useCallback(() => {
+    if (activeTabId) closeTab(activeTabId)
+  }, [activeTabId, closeTab])
+  useCommandHandler('tab.close', handleCloseTab)
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
   // First render returns `init === null`; the effect re-runs after one IPC round-trip
@@ -156,15 +46,17 @@ export const SubWindowAppShell = () => {
     if (!init || initialized.current) return
     initialized.current = true
 
-    openTab(init.url, {
+    attachTab({
       id: init.tabId,
-      title: init.title,
+      url: init.url,
+      title: init.title ?? '',
       icon: init.icon,
-      type: init.type || 'route',
+      type: init.type ?? 'route',
       isPinned: init.isPinned,
-      forceNew: true
+      metadata: init.metadata,
+      transferId: init.transferId
     })
-  }, [init, openTab])
+  }, [init, attachTab])
 
   // Sync internal navigation back to tab state. Mirror the main AppShell:
   // clear the per-entity icon override so a mini-app logo doesn't stick onto
@@ -188,12 +80,13 @@ export const SubWindowAppShell = () => {
     // The window frame keeps detached-page behavior scoped to this window. The standalone
     // title bar stays outside every route so hosted pages can keep their normal page chrome.
     <WindowFrameProvider value={WINDOW_FRAME}>
-      <TabsContext value={tabsContextValue}>
+      <>
         <div
           data-ui="app.detached-window"
           className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
           style={
             {
+              '--sidebar-width': '0px',
               '--window-controls-width': !isFullscreen && (isWin || isLinux) ? WINDOW_CONTROLS_OVERLAY_WIDTH : '0px'
             } as CSSProperties
           }>
@@ -228,7 +121,7 @@ export const SubWindowAppShell = () => {
             <MiniAppTabsPool />
           </main>
         </div>
-      </TabsContext>
+      </>
     </WindowFrameProvider>
   )
 }
