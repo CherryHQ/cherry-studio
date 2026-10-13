@@ -9,8 +9,7 @@ const setPreferencesMock = vi.hoisted(() => vi.fn())
 const setOverridesMock = vi.hoisted(() => vi.fn())
 const preferencesMock = vi.hoisted(() => ({
   defaultDocumentProcessor: null as string | null,
-  defaultImageProcessor: null as string | null,
-  defaultVideoVisionModel: null as string | null
+  defaultImageProcessor: null as string | null
 }))
 const overridesMock = vi.hoisted(() => ({ value: {} as FileProcessorOverrides }))
 
@@ -23,7 +22,6 @@ describe('useFileProcessingPreferences', () => {
   beforeEach(() => {
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
-    preferencesMock.defaultVideoVisionModel = null
     overridesMock.value = {}
     setPreferencesMock.mockReset()
     setPreferencesMock.mockResolvedValue(undefined)
@@ -109,20 +107,6 @@ describe('useFileProcessingPreferences', () => {
           langs: ['eng', 'chi_sim']
         }
       }
-    })
-  })
-
-  it('persists and clears the video vision model independently', async () => {
-    const { result } = renderHook(() => useFileProcessingPreferences())
-
-    await result.current.setVideoVisionModel('openai::gpt-4o')
-    expect(setPreferencesMock).toHaveBeenLastCalledWith({
-      defaultVideoVisionModel: 'openai::gpt-4o'
-    })
-
-    await result.current.setVideoVisionModel(null)
-    expect(setPreferencesMock).toHaveBeenLastCalledWith({
-      defaultVideoVisionModel: null
     })
   })
 })

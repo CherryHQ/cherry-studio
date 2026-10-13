@@ -7,12 +7,10 @@ import type {
   FileProcessorOverride
 } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
-import type { UniqueModelId } from '@shared/data/types/model'
 
 const FILE_PROCESSING_KEYS = {
   defaultDocumentProcessor: 'feature.file_processing.default_document_to_markdown',
-  defaultImageProcessor: 'feature.file_processing.default_image_to_text',
-  defaultVideoVisionModel: 'feature.file_processing.default_video_vision_model'
+  defaultImageProcessor: 'feature.file_processing.default_image_to_text'
 } as const
 
 const DEFAULT_KEY_BY_FEATURE = {
@@ -94,23 +92,14 @@ export function useFileProcessingPreferences() {
     [overrides, updateProcessor]
   )
 
-  const setVideoVisionModel = useCallback(
-    async (modelId: UniqueModelId | null) => {
-      await setPreferences({ defaultVideoVisionModel: modelId })
-    },
-    [setPreferences]
-  )
-
   return {
     defaultDocumentProcessor: preferences.defaultDocumentProcessor,
     defaultImageProcessor: preferences.defaultImageProcessor,
-    defaultVideoVisionModel: preferences.defaultVideoVisionModel,
     overrides,
     processors,
     setApiKeys,
     setCapabilityField,
     setDefaultProcessor,
-    setLanguageOptions,
-    setVideoVisionModel
+    setLanguageOptions
   }
 }
