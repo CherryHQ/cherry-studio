@@ -18,6 +18,8 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import * as fileUtils from '@main/utils/file'
+import { withCherryMeta } from '@shared/data/types/uiParts'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 import { AgentSessionForkOperations } from '../AgentSessionForkOperations'
 import { readForkResources, writeForkResources } from '../resources'
@@ -150,6 +152,47 @@ describe('Agent fork publication', () => {
     await new AgentSessionForkOperations().recover()
     expect(await readForkResources()).toEqual([])
     await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('remaps user quotes and reply snapshots to the fork while retaining outside previews', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 1000)
+    const quotes = [
+      { id: 'copied-source', sourceMessageId: messageId, text: 'Original quoted passage' },
+      { id: 'outside-source', sourceMessageId: randomUUID(), text: 'Outside the copied prefix' }
+    ]
+    const user = agentSessionMessageService.saveMessage({
+      sessionId,
+      message: {
+        role: 'user',
+        status: 'success',
+        data: { parts: [withCherryMeta({ type: 'text', text: 'Follow up' }, { quotes })] }
+      }
+    })
+    clock.mockReturnValue(Date.now() + 1)
+    const reply = agentSessionMessageService.saveMessage({
+      sessionId,
+      runtimeResumeToken: 'native-parent',
+      runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native-parent', leafId: 'reply-leaf' } },
+      message: {
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Quoted answer' }], quotes }
+      }
+    })
+    const childId = await new AgentSessionForkOperations().fork(sessionId, reply.id)
+    const copied = agentSessionMessageService.listSessionMessages(childId).items
+    const copiedSource = copied.find((row) =>
+      row.data.parts?.some((part) => part.type === 'text' && part.text === 'Preserved answer')
+    )!
+    const copiedUser = copied.find((row) => row.role === 'user')!
+    const copiedReply = copied.find((row) => row.data.quotes)!
+    const expectedQuotes = [{ ...quotes[0], sourceMessageId: copiedSource.id }, quotes[1]]
+    expect(copiedSource.id).not.toBe(messageId)
+    expect(getMessageQuotes(copiedUser.data.parts ?? [])).toEqual(expectedQuotes)
+    expect(copiedReply.data.quotes).toEqual(expectedQuotes)
+    const originals = agentSessionMessageService.listSessionMessages(sessionId).items
+    expect(getMessageQuotes(originals.find((row) => row.id === user.id)!.data.parts ?? [])).toEqual(quotes)
+    expect(originals.find((row) => row.id === reply.id)!.data.quotes).toEqual(quotes)
   })
 
   // Editing must never append the replacement to the old native prompt or partially delete a turn.

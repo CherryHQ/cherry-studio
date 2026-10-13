@@ -19,6 +19,7 @@ import { type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
+import { remapMessageQuoteSources } from '@main/utils/messageQuotes'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -38,7 +39,6 @@ import {
   coerceSearchRole,
   type Message,
   type MessageData,
-  type MessageQuote,
   type MessageRuntimeStatsInput,
   type MessageStats,
   type SiblingsGroup,
@@ -48,7 +48,7 @@ import {
   type TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { hasClearContextPart, isBlankUserTurn, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
+import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -2357,24 +2357,10 @@ export class MessageService {
       copiedActiveNodeId = copiedMessage.id
     }
 
-    const remapQuotes = (quotes: readonly MessageQuote[]) =>
-      quotes.map((quote) => ({
-        ...quote,
-        sourceMessageId: copiedMessageIds.get(quote.sourceMessageId) ?? quote.sourceMessageId
-      }))
     // Wait for the complete ID map: edited messages may quote a later node in the copied path.
     for (const sourceMessage of rows) {
-      const data = sourceMessage.data
-      if (!data.quotes?.length && !getMessageQuotes(data.parts ?? [])) continue
-      const copiedData: MessageData = {
-        ...data,
-        ...(data.quotes ? { quotes: remapQuotes(data.quotes) } : {}),
-        parts: data.parts?.map((part) => {
-          if (part.type !== 'text') return part
-          const quotes = readCherryMeta(part)?.quotes
-          return quotes?.length ? withCherryMeta(part, { quotes: remapQuotes(quotes) }) : part
-        })
-      }
+      const copiedData = remapMessageQuoteSources(sourceMessage.data, copiedMessageIds)
+      if (copiedData === sourceMessage.data) continue
       tx.update(messageTable)
         .set({ data: copiedData })
         .where(eq(messageTable.id, copiedMessageIds.get(sourceMessage.id)!))

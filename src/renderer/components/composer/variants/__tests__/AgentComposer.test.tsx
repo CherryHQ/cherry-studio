@@ -4386,6 +4386,13 @@ describe('AgentComposer', () => {
   })
 
   it('batches workspace attachment metadata while preserving attachment order', async () => {
+    const preparation = createDeferred<{ id: string; ext: string }>()
+    mocks.createInternalEntry.mockReturnValueOnce(preparation.promise)
+    const quote = {
+      id: 'during-send',
+      sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001',
+      text: 'Next question context'
+    }
     const workspaceFileA = {
       id: 'workspace-file-1',
       fileTokenSourceId: 'source-workspace-file-1',
@@ -4429,7 +4436,16 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
+    await waitFor(() => expect(mocks.createInternalEntry).toHaveBeenCalled())
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editable).toBe(false)
+    await act(() => EventEmitter.emit(EVENT_NAMES.INSERT_MESSAGE_QUOTE, { topicId: 'agent-session:session-1', quote }))
+    expect(mocks.surfaceProps?.quotes ?? []).toEqual([])
+    await act(async () => preparation.resolve({ id: 'fe-1', ext: 'png' }))
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    await waitFor(() => expect(mocks.surfaceProps?.editable).toBe(true))
+    await act(() => EventEmitter.emit(EVENT_NAMES.INSERT_MESSAGE_QUOTE, { topicId: 'agent-session:session-1', quote }))
+    expect(mocks.surfaceProps?.quotes).toEqual([quote])
     expect(mocks.ipcApiRequest.mock.calls.filter(([route]) => route === 'file.batch_get_metadata')).toHaveLength(1)
     expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
       items: [

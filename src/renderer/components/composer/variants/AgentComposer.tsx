@@ -859,7 +859,11 @@ const AgentComposerInner = ({
     buildAgentSessionTopicId(sessionId),
     initialDraft.quotes,
     actionsRef,
-    (text) => handleTextChange(text)
+    (text) => {
+      if (directSendInFlightRef.current) return false
+      handleTextChange(text)
+      return true
+    }
   )
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const [isDirectSending, setIsDirectSending] = useState(false)

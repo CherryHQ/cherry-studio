@@ -2391,6 +2391,12 @@ describe('ChatComposer', () => {
       textOffset: 0
     } as ComposerSerializedToken
     const draft = { text: 'draft message', tokens: [fileToken, quoteToken] }
+    const quote = {
+      id: 'during-send',
+      sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001',
+      text: 'Next question context'
+    }
+    mocks.getDraft.mockReturnValue(draft)
     const pendingSend = createDeferred<boolean>()
     const onSend = vi.fn().mockReturnValue(pendingSend.promise)
     mocks.files = [file]
@@ -2417,6 +2423,8 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('draft message')
     expect(mocks.surfaceProps?.editable).toBe(false)
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    act(() => mocks.eventListeners.get('INSERT_MESSAGE_QUOTE')!({ topicId: topic.id, quote }))
+    expect(mocks.surfaceProps?.quotes ?? []).toEqual([])
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft(draft)
@@ -2440,6 +2448,8 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.editable).toBe(true)
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
     expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    act(() => mocks.eventListeners.get('INSERT_MESSAGE_QUOTE')!({ topicId: topic.id, quote }))
+    expect(mocks.surfaceProps?.quotes).toEqual([quote])
   })
 
   it('wires ArrowUp input history navigation and applies the latest history text to the composer', async () => {

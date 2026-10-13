@@ -566,7 +566,11 @@ const ChatComposerInner = ({
     topicId,
     initialDraft.quotes,
     actionsRef,
-    (text) => handleTextChange(text)
+    (text) => {
+      if (directSendInFlightRef.current) return false
+      handleTextChange(text)
+      return true
+    }
   )
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined

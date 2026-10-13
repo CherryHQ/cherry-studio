@@ -12,7 +12,7 @@ export function useComposerMessageQuotes(
   topicId: string | undefined,
   initialQuotes: MessageQuote[] | undefined,
   actionsRef: RefObject<Pick<ComposerSurfaceActions, 'getDraft' | 'focus'>>,
-  onInsert: (text: string) => void
+  onInsert: (text: string) => boolean
 ) {
   const [quotes, setQuotes] = useState<MessageQuote[]>(() => initialQuotes ?? [])
   const active = useComposerLayerActive()
@@ -20,7 +20,7 @@ export function useComposerMessageQuotes(
     const draft = actionsRef.current.getDraft()
     const next = [...quotes, quote]
     if (!validateComposerDraftLength({ text: draft.text, quotes: next })) return
-    onInsert(draft.text)
+    if (onInsert(draft.text) === false) return
     setQuotes((current) => [...current, quote])
     actionsRef.current.focus('end')
   })
