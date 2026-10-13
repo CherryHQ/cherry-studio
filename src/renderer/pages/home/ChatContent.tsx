@@ -1,7 +1,9 @@
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
@@ -17,7 +19,9 @@ import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useQuotedMessageLocateRequest } from '@renderer/hooks/useQuotedMessageLocateRequest'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -27,6 +31,8 @@ import ChatMain from './ChatMain'
 import { useTopicBranchActions } from './hooks/useTopicBranchActions'
 import type { AddNewTopicPayload } from './types'
 import { useChatRuntimeState } from './useChatRuntimeState'
+
+const logger = loggerService.withContext('ChatContent')
 
 interface Props {
   topic: Topic
@@ -183,12 +189,27 @@ const ChatContentInner: FC<InnerProps> = ({
 
   const { quotedMessageId, finish: finishQuoteLocate } = useQuotedMessageLocateRequest(topic.id)
   const locateTargetId = quotedMessageId ?? locateMessageId
+  const [quoteBranchLocate, setQuoteBranchLocate] = useState<{ key: string; pending: boolean }>()
+  const quoteLocateKeyRef = useRef<string | undefined>(undefined)
+  const setActiveBranch = runtime.chatWriteActions.setActiveBranch
+
+  useEffect(
+    () => () => {
+      quoteLocateKeyRef.current = undefined
+    },
+    []
+  )
 
   useEffect(() => {
+    const requestKey = `${topic.id}:${locateTargetId}`
+    quoteLocateKeyRef.current = requestKey
     if (!locateTargetId) {
       locateLoadRequestRef.current = undefined
+      setQuoteBranchLocate(undefined)
       return
     }
+
+    if (quoteBranchLocate?.key === requestKey && quoteBranchLocate.pending) return
 
     if (uiMessages.some((message) => message.id === locateTargetId)) {
       locateLoadRequestRef.current = undefined
@@ -197,6 +218,40 @@ const ChatContentInner: FC<InnerProps> = ({
       })
       if (quotedMessageId) finishQuoteLocate(true)
       else onLocateMessageHandled?.()
+      return
+    }
+
+    if (
+      quotedMessageId &&
+      !isHistoryLoading &&
+      (siblingsMap[locateTargetId] || !hasOlder) &&
+      quoteBranchLocate?.key !== requestKey
+    ) {
+      locateLoadRequestRef.current = undefined
+      setQuoteBranchLocate({ key: requestKey, pending: true })
+      void (async () => {
+        try {
+          const source = await dataApiService.get(`/messages/${locateTargetId}`)
+          if (quoteLocateKeyRef.current !== requestKey) return
+          if (source.topicId !== topic.id) {
+            finishQuoteLocate(false)
+            return
+          }
+          await setActiveBranch(locateTargetId)
+          if (quoteLocateKeyRef.current === requestKey) await refresh()
+        } catch (error) {
+          if (quoteLocateKeyRef.current !== requestKey) return
+          if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND) {
+            finishQuoteLocate(false)
+          } else {
+            logger.error('Failed to locate quoted message branch', error as Error)
+            toast.error(t('common.error'))
+            finishQuoteLocate(true)
+          }
+        } finally {
+          if (quoteLocateKeyRef.current === requestKey) setQuoteBranchLocate({ key: requestKey, pending: false })
+        }
+      })()
       return
     }
 
@@ -223,6 +278,12 @@ const ChatContentInner: FC<InnerProps> = ({
     locateTargetId,
     locateRuntimeMessage,
     onLocateMessageHandled,
+    quoteBranchLocate,
+    refresh,
+    setActiveBranch,
+    siblingsMap,
+    t,
+    topic.id,
     uiMessages
   ])
 

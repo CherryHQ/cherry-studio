@@ -534,7 +534,7 @@ describe('MessageGroup', () => {
     expect(grid.style.gridTemplateColumns).toBe('repeat(2, minmax(0, 1fr))')
   })
 
-  it('makes every grid popover scroll owner keyboard-focusable', () => {
+  it('keeps grid popovers focusable and identifiable as the source of quoted selections', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'grid',
       gridColumns: 2,
@@ -550,7 +550,15 @@ describe('MessageGroup', () => {
 
     const popoverScrollOwners = container.querySelectorAll('.in-popover')
     expect(popoverScrollOwners).toHaveLength(2)
-    popoverScrollOwners.forEach((scrollOwner) => expect(scrollOwner).toHaveAttribute('tabindex', '0'))
+    popoverScrollOwners.forEach((scrollOwner, index) => {
+      expect(scrollOwner).toHaveAttribute('tabindex', '0')
+      const range = document.createRange()
+      range.selectNodeContents(scrollOwner)
+      expect((range.startContainer as Element).closest('[data-message-id]')).toHaveAttribute(
+        'data-message-id',
+        messages[index].id
+      )
+    })
   })
 
   it('keeps model identity in the existing selector for fold layout', () => {

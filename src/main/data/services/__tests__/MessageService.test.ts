@@ -549,6 +549,9 @@ describe('MessageService', () => {
   describe('resetAssistantForRetry', () => {
     it('preserves sibling order, descendants, and active branch while resetting only attempt state', async () => {
       await seedMultiModelTree()
+      const quotes = [
+        { id: 'quote-retry', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'Original quoted point' }
+      ]
       await dbh.db.insert(messageTable).values([
         {
           id: 'm-a1-child-user',
@@ -578,7 +581,7 @@ describe('MessageService', () => {
       dbh.db
         .update(messageTable)
         .set({
-          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }], modelSelection: 'explicit' },
+          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }], modelSelection: 'explicit', quotes },
           status: 'error',
           stats: {
             totalTokens: 42,
@@ -613,7 +616,7 @@ describe('MessageService', () => {
         siblingsGroupId: before.siblingsGroupId,
         modelId: before.modelId,
         status: 'pending',
-        data: { parts: [], modelSelection: 'explicit' }
+        data: { parts: [], modelSelection: 'explicit', quotes }
       })
       expect(reset.stats).toMatchObject({ totalTokens: 42, requestCount: 1 })
       expect(reset.stats).not.toHaveProperty('runtimeTiming')
@@ -631,6 +634,11 @@ describe('MessageService', () => {
       expect(invalidatedRows.find((row) => row.id === 'm-a1')?.updatedAt).toBe(Date.parse(before.updatedAt))
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.updatedAt).toBe(400)
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.updatedAt).toBe(500)
+      messageService.finalizeAssistantMessage('m-a1', {
+        data: mainText('Retried answer. [Reference 1](#cherry-quote-1)'),
+        status: 'success'
+      })
+      expect(messageService.getById('m-a1').data.quotes).toEqual(quotes)
     })
   })
 

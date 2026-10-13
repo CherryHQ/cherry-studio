@@ -3,10 +3,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { ComposerChatTarget } from '@shared/ai/transport'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import ChatContent from '../ChatContent'
@@ -1640,4 +1643,71 @@ describe('ChatContent', () => {
       })
     }
   )
+  it.each([true, false])('locates an inactive quoted branch (known sibling: %s)', async (knownSibling) => {
+    const target = createUiMessage('quoted-branch', 'assistant')
+    const setActiveNode = vi.fn().mockResolvedValue(undefined)
+    const sourceLookup = vi
+      .mocked(dataApiService.get)
+      .mockResolvedValueOnce({ id: target.id, topicId: topic.id })
+      .mockResolvedValueOnce([{ id: 'branch-leaf' }] as never)
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/topics/:id/active-node' ? setActiveNode : vi.fn().mockResolvedValue(undefined),
+      isLoading: false,
+      error: undefined
+    }))
+    let completeRefresh!: () => void
+    const refresh = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          completeRefresh = resolve
+        })
+    )
+    const history = {
+      uiMessages: [createUiMessage('current-branch', 'assistant')],
+      siblingsMap: knownSibling ? { [target.id]: [{ id: target.id }] } : {},
+      isLoading: false,
+      refresh,
+      activeNodeId: 'current-branch',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }
+    mockUseTopicMessages.mockReturnValue(history)
+    const view = render(<ChatContent topic={topic} />)
+    await act(() => EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, { topicId: topic.id, messageId: target.id }))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(sourceLookup).toHaveBeenCalledWith(`/messages/${target.id}`)
+    expect(setActiveNode).toHaveBeenCalledExactlyOnceWith({ params: { id: topic.id }, body: { nodeId: 'branch-leaf' } })
+    expect(toast.info).not.toHaveBeenCalled()
+    mockUseTopicMessages.mockReturnValue({ ...history, uiMessages: [target], activeNodeId: 'branch-leaf' })
+    view.rerender(<ChatContent topic={topic} />)
+    await act(async () => completeRefresh())
+    await waitFor(() => expect(EventEmitter.emit).toHaveBeenCalledWith(`LOCATE_MESSAGE:${target.id}`, true))
+    expect(toast.info).not.toHaveBeenCalled()
+  })
+
+  it('reports a deleted quoted source without switching branches', async () => {
+    vi.mocked(dataApiService.get).mockRejectedValueOnce(DataApiErrorFactory.notFound('Message', 'deleted-source'))
+    render(<ChatContent topic={topic} />)
+    await act(() =>
+      EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, { topicId: topic.id, messageId: 'deleted-source' })
+    )
+    await waitFor(() => expect(toast.info).toHaveBeenCalledTimes(1))
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith('LOCATE_MESSAGE:deleted-source', true)
+  })
+  it('does not activate a quoted branch after the conversation unmounts', async () => {
+    let resolveSource!: (message: { id: string; topicId: string }) => void
+    vi.mocked(dataApiService.get).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSource = resolve
+      })
+    )
+    const view = render(<ChatContent topic={topic} />)
+    await act(() =>
+      EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, { topicId: topic.id, messageId: 'old-source' })
+    )
+    view.unmount()
+    await act(async () => resolveSource({ id: 'old-source', topicId: topic.id }))
+    expect(dataApiService.get).not.toHaveBeenCalledWith(`/topics/${topic.id}/path`, expect.anything())
+  })
 })
