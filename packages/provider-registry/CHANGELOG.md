@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.1.3
+
+### Patch Changes
+
+- [#21633](https://github.com/CherryHQ/cherry-studio/pull/21633) [`fda831e`](https://github.com/CherryHQ/cherry-studio/commit/fda831efece6a963c5cdb706cc84767dc1af66dc) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Gemini Embedding 2 Preview, Nano Banana 2.1 and Pro alias metadata, and classify Gemini Omni 1.1 Flash as a video generation model.
+
 ## 0.1.2
 
 ### Patch Changes
