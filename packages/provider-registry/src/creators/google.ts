@@ -7,6 +7,7 @@ export default defineCreator({
   fetchModels: googleModels(),
   modelsDevProviders: ['google', 'google-vertex'],
   reasoningFamilies: [
+    { pattern: '^gemini-4-argon$', effort: ['low', 'medium', 'high'], wireDialect: 'effort' },
     // Native-protocol dialect (google-generate-content). Gemini 2.x takes
     // `thinkingConfig.thinkingBudget` and hard-rejects the Gemini 3
     // `thinkingLevel` field, so the split is declared here rather than inferred
@@ -66,8 +67,46 @@ export default defineCreator({
   ],
   // Pre-3 Gemini rejects requests mixing its native tools with function
   // declarations; Gemini 3 combines them (ai.google.dev function-calling).
-  serverToolFunctionMixing: ['gemini-3', 'gemini-flash-latest', 'gemini-pro-latest'],
+  serverToolFunctionMixing: ['gemini-4-argon', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest'],
   models: [
+    {
+      id: 'gemini-4-argon',
+      name: 'Gemini 4 Argon',
+      family: 'gemini',
+      capabilities: [
+        'reasoning',
+        'function-call',
+        'image-recognition',
+        'video-recognition',
+        'audio-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1_048_576,
+      // GenerateContent streaming supports 64K per hop; long decode requires continuation handling.
+      maxOutputTokens: 65_536,
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }]
+      },
+      // Introductory pricing through November 30, 2026: https://ai.google.dev/gemini-api/docs/latest-model
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        output: { currency: 'USD', perMillionTokens: 10 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.1 }
+      }
+    },
     {
       id: 'gemini-2-5-flash-image',
       name: 'gemini-2.5-flash-image',

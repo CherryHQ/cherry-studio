@@ -1,6 +1,13 @@
 import { defineProvider } from './types'
 
-const webToolModels = ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest']
+const webToolModels = [
+  'gemini-4-argon',
+  'gemini-2',
+  'gemini-3',
+  'gemini-flash-latest',
+  'gemini-pro-latest',
+  'gemini-flash-lite-latest'
+]
 const webSearchImageModels = ['gemini-3-pro-image', 'gemini-3-pro-image-preview']
 
 export default defineProvider({
@@ -14,6 +21,7 @@ export default defineProvider({
       baseUrl: 'https://generativelanguage.googleapis.com'
     }
   },
+  overrides: [{ modelId: 'gemini-4-argon', apiModelId: 'gemini-4-argon', endpointTypes: ['google-generate-content'] }],
   serverTools: [
     {
       id: 'web-search',

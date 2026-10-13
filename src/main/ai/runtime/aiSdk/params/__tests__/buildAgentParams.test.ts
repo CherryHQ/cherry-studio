@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
@@ -2497,4 +2499,80 @@ describe('assistant browser tool selection', () => {
     )
     expect(getDeferredToolsSystemPrompt(enabled.deferredEntries)).toMatch(/<namespace name="browser" count="\d+"\/>/)
   })
+})
+
+describe('Gemini 4 Argon request contract', () => {
+  it.each(['default', 'low', 'medium', 'high'] as const)(
+    'serializes %s thinking through the Google SDK without sampling parameters',
+    async (effort) => {
+      const catalog = JSON.parse(
+        readFileSync(path.join(process.cwd(), 'packages/provider-registry/data/models.json'), 'utf8')
+      ).models.find((entry: { id: string }) => entry.id === 'gemini-4-argon')
+      expect(catalog).toBeDefined()
+      const model = makeModel({
+        ...catalog,
+        id: 'gemini::gemini-4-argon',
+        providerId: 'gemini',
+        apiModelId: 'gemini-4-argon',
+        presetModelId: 'gemini-4-argon',
+        reasoning: { ...catalog.reasoning, selectableEfforts: ['low', 'medium', 'high'] }
+      })
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'google', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const { options } = await buildAgentParams({
+        request: {
+          conversation: CONVERSATION,
+          callOverrides: {
+            temperature: 0.7,
+            topP: 0.9,
+            topK: 40,
+            maxOutputTokens: 32_768,
+            providerOptions: { google: { temperature: 0.4, top_p: 0.8, top_k: 20 } }
+          }
+        },
+        signal: undefined,
+        provider: makeProvider({
+          id: 'gemini',
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+          endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+        }),
+        model,
+        assistant: makeAssistant({ settings: { reasoning_effort: effort } })
+      })
+      for (const key of ['temperature', 'topP', 'topK']) expect(options).not.toHaveProperty(key)
+      for (const key of ['temperature', 'top_p', 'top_k']) {
+        expect(options.providerOptions?.google).not.toHaveProperty(key)
+      }
+      let capturedUrl: string | undefined
+      let capturedBody: Record<string, unknown> | undefined
+      const sdk = createGoogleGenerativeAI({
+        apiKey: 'test-key',
+        fetch: async (input, init) => {
+          capturedUrl = String(input)
+          capturedBody = JSON.parse(String(init?.body))
+          throw new Error('request captured')
+        }
+      })('gemini-4-argon')
+      await expect(
+        sdk.doGenerate({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+          maxOutputTokens: options.maxOutputTokens,
+          providerOptions: options.providerOptions
+        })
+      ).rejects.toThrow('request captured')
+      expect(capturedUrl).toContain('/models/gemini-4-argon:generateContent')
+      expect(capturedBody).toMatchObject({
+        generationConfig: {
+          maxOutputTokens: 32_768,
+          ...(effort !== 'default' ? { thinkingConfig: { thinkingLevel: effort } } : {})
+        }
+      })
+      const generation = capturedBody?.generationConfig
+      for (const key of ['temperature', 'topP', 'topK']) expect(generation).not.toHaveProperty(key)
+      expect(generation).not.toHaveProperty('thinkingConfig.thinkingBudget')
+      if (effort === 'default') expect(generation).not.toHaveProperty('thinkingConfig')
+    }
+  )
 })

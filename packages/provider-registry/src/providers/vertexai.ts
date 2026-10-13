@@ -9,6 +9,7 @@ const claudeWebSearchModels = [
   'claude-3-7-sonnet'
 ]
 const geminiWebToolModels = [
+  'gemini-4-argon',
   'gemini-2',
   'gemini-3',
   'gemini-flash-latest',

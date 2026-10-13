@@ -26,6 +26,33 @@ function makeSampling(settings: Partial<AssistantSettings> = {}): SamplingSettin
 }
 
 describe('stripRejectedSamplingParams', () => {
+  it('enforces topK support independently across all request parameter sources', () => {
+    const model = makeModel({
+      parameterSupport: {
+        topK: { supported: false, min: 1, max: 40 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    const values = { topK: 40, top_k: 20, temperature: 0.7, user: 'kept' }
+    expect(
+      stripRejectedSamplingParams(
+        {
+          standardParams: values,
+          providerOptions: { google: values },
+          bodyParams: values
+        },
+        model
+      )
+    ).toEqual({
+      standardParams: { temperature: 0.7, user: 'kept' },
+      providerOptions: { google: { temperature: 0.7, user: 'kept' } },
+      bodyParams: { temperature: 0.7, user: 'kept' }
+    })
+    expect(filterStandardParams({ topK: 40, maxOutputTokens: 100 }, model)).toEqual({ maxOutputTokens: 100 })
+  })
+
   it.each([
     { temperature: false, topP: false, standard: {}, wire: {} },
     { temperature: false, topP: true, standard: { topP: 0.8 }, wire: { topP: 0.8, top_p: 0.8 } },

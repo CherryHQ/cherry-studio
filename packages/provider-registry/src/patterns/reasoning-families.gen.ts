@@ -161,6 +161,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?(?:-[\\w]+)*(?=$|[:/])' },
   { pattern: 'deepseek-v3\\.2-speciale' },
   // google
+  { pattern: '^gemini-4-argon$', effort: ['low', 'medium', 'high'], wireDialect: 'effort' },
   { pattern: '^gemini-2', wireDialect: 'budget', template: true },
   { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
   { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },

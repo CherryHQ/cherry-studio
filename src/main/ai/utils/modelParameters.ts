@@ -45,7 +45,8 @@ type SamplingParams = {
 export function stripRejectedSamplingParams(params: SamplingParams, model: Model): SamplingParams {
   const acceptsTemperature = modelAcceptsSamplingParam(model, 'temperature')
   const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
-  if (acceptsTemperature && acceptsTopP) return params
+  const acceptsTopK = model.parameterSupport?.topK?.supported !== false
+  if (acceptsTemperature && acceptsTopP && acceptsTopK) return params
 
   function strip<T>(values: Record<string, T>): Record<string, T> {
     const cleaned = { ...values }
@@ -53,6 +54,10 @@ export function stripRejectedSamplingParams(params: SamplingParams, model: Model
     if (!acceptsTopP) {
       delete cleaned.topP
       delete cleaned.top_p
+    }
+    if (!acceptsTopK) {
+      delete cleaned.topK
+      delete cleaned.top_k
     }
     return cleaned
   }
@@ -153,9 +158,9 @@ export function filterStandardParams(
   standardParams: Partial<Record<AiSdkParam, any>>,
   model: Model
 ): Partial<Record<AiSdkParam, any>> {
-  if (isGemini3Model(model) && 'topK' in standardParams) {
+  if ((isGemini3Model(model) || model.parameterSupport?.topK?.supported === false) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
-    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
+    logger.info(`Model ${model.id} omits topK=${topK} from custom params`)
     return rest
   }
 
