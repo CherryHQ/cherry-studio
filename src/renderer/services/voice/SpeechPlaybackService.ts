@@ -539,16 +539,16 @@ export class SpeechPlaybackService {
     if (run.playAttempt || run.materializing || !run.pendingEnded) return
     const audio = run.pendingEnded
     run.pendingEnded = undefined
-    void this.handleEnded(run, audio, true)
+    void this.handleEnded(run, audio)
   }
 
-  private async handleEnded(run: PlaybackRun, audio: HTMLAudioElement, pending = false): Promise<void> {
+  private async handleEnded(run: PlaybackRun, audio: HTMLAudioElement): Promise<void> {
     if (run.stopped || run.audio !== audio || run.releasing || !run.outputId) return
     if (run.playAttempt || run.materializing) {
       run.pendingEnded = audio
       return
     }
-    if (run.failedAttempt === run.audioAttemptId || (this.isPaused(run) && !pending)) return
+    if (run.failedAttempt === run.audioAttemptId) return
     run.releasing = true
     const outputId = run.outputId
     this.disposeAudio(run)
