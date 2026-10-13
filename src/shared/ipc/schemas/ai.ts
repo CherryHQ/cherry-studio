@@ -3,6 +3,7 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import { AgentSessionForkWorkspaceSchema } from '@shared/ai/agentSessionFork'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -25,7 +26,16 @@ import {
   type ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
-import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
+import {
+  CreateWorkspaceCopySchema,
+  WorkspaceCopyEntitySchema,
+  type WorkspaceCopyStatistics
+} from '@shared/data/api/schemas/agentWorkspaceCopies'
+import {
+  AgentSessionWorkspaceSourceSchema,
+  AgentWorkspaceEntitySchema,
+  CreateAgentWorkspaceSchema
+} from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -365,7 +375,8 @@ export const aiRequestSchemas = {
   'ai.agent.session.fork': defineRoute({
     input: z.strictObject({
       sourceSessionId: z.uuid(),
-      messageId: z.uuid()
+      messageId: z.uuid(),
+      workspace: AgentSessionForkWorkspaceSchema.optional()
     }),
     output: z.strictObject({ sessionId: z.uuid() })
   }),
@@ -414,6 +425,20 @@ export const aiRequestSchemas = {
   'ai.agent.workspace.delete': defineRoute({
     input: z.strictObject({ workspaceId: z.string().min(1) }),
     output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
+  'ai.agent.workspace.register': defineRoute({ input: CreateAgentWorkspaceSchema, output: AgentWorkspaceEntitySchema }),
+  'ai.agent.workspace.copy.start': defineRoute({ input: CreateWorkspaceCopySchema, output: WorkspaceCopyEntitySchema }),
+  'ai.agent.workspace.copy.cancel': defineRoute({
+    input: z.strictObject({ copyId: z.uuid() }),
+    output: WorkspaceCopyEntitySchema
+  }),
+  'ai.agent.workspace.copy.remove': defineRoute({
+    input: z.strictObject({ copyId: z.uuid(), expectedRevision: z.number().int().nonnegative() }),
+    output: WorkspaceCopyEntitySchema
+  }),
+  'ai.agent.workspace.copy.retry_cleanup': defineRoute({
+    input: z.strictObject({ copyId: z.uuid(), expectedRevision: z.number().int().nonnegative() }),
+    output: WorkspaceCopyEntitySchema
   }),
 
   // ── Agent session runtime queries & commands ──
@@ -488,6 +513,10 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.agent.workspace.copy.progress': {
+    copyId: string
+    statistics: WorkspaceCopyStatistics
+  }
   'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload

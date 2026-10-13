@@ -57,6 +57,7 @@ const session: AgentSessionEntity = {
     name: 'Workspace A',
     path: '/workspace-a',
     type: 'user',
+    storage: { type: 'external' as const },
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'

@@ -1,3 +1,11 @@
+import * as z from 'zod'
+
+export const AgentSessionForkWorkspaceSchema = z.discriminatedUnion('mode', [
+  z.strictObject({ mode: z.literal('shared') }),
+  z.strictObject({ mode: z.literal('copy'), requestId: z.uuid() })
+])
+export type AgentSessionForkWorkspace = z.infer<typeof AgentSessionForkWorkspaceSchema>
+
 export const AGENT_SESSION_FORK_FAILURE_REASONS = [
   'legacy_history',
   'not_turn_boundary',

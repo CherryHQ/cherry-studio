@@ -28,6 +28,11 @@ export const AgentWorkspaceEntitySchema = z.strictObject({
   name: AgentWorkspaceNameSchema,
   path: AgentWorkspacePathSchema,
   type: AgentWorkspaceTypeSchema,
+  storage: z.discriminatedUnion('type', [
+    z.strictObject({ type: z.literal('external') }),
+    z.strictObject({ type: z.literal('system') }),
+    z.strictObject({ type: z.literal('managed-copy'), copyId: z.uuid() })
+  ]),
   orderKey: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -63,11 +68,6 @@ export type AgentWorkspaceSchemas = {
   '/agent-workspaces': {
     GET: {
       response: AgentWorkspaceEntity[]
-    }
-    // find-or-create by path: idempotent on the `agent_workspace.path` unique index.
-    POST: {
-      body: CreateAgentWorkspaceDto
-      response: AgentWorkspaceEntity
     }
   }
 

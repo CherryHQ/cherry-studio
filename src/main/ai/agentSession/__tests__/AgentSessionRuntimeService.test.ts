@@ -321,6 +321,7 @@ describe('AgentSessionForkOperations recovery', () => {
         name: 'Registered workspace',
         path: workspace,
         type: 'user' as const,
+        storage: { type: 'external' as const },
         orderKey: 'a0',
         createdAt: '2026-09-15T00:00:00.000Z',
         updatedAt: '2026-09-15T00:00:00.000Z'

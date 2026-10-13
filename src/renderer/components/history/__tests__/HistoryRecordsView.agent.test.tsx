@@ -354,6 +354,7 @@ function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace'
     name: path,
     path,
     type: 'user',
+    storage: { type: 'external' as const },
     orderKey: 'a',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z'

@@ -9,6 +9,7 @@ const workspace = (path: string) => ({
   name: path,
   path,
   type: 'user' as const,
+  storage: { type: 'external' as const },
   orderKey: path,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z'

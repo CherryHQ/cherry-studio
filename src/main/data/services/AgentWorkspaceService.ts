@@ -1,17 +1,18 @@
 import path from 'path'
 
-import { and, asc, count, desc, eq, exists, ne, notExists, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, exists, isNull, ne, notExists, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentWorkspaceCopyTable } from '@data/db/schemas/agentWorkspaceCopy'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
-import { getDataService } from '@data/services/dataServiceRegistry'
+import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -34,12 +35,13 @@ function buildReferenceList(items: AgentWorkspaceReferenceItem[], total = items.
   return { items: items.slice(0, AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT), total }
 }
 
-export function rowToAgentWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
+export function rowToAgentWorkspace(row: AgentWorkspaceRow, copyId?: string | null): AgentWorkspaceEntity {
   return {
     id: row.id,
     name: row.name,
     path: row.path,
     type: AgentWorkspaceTypeSchema.parse(row.type),
+    storage: copyId ? { type: 'managed-copy', copyId } : { type: row.type === 'system' ? 'system' : 'external' },
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -88,13 +90,15 @@ export class AgentWorkspaceService {
   list(options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity[] {
     const db = application.get('DbService').getDb()
     const rows = db
-      .select()
+      .select({ workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
       .from(agentWorkspaceTable)
+      .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
       .where(
         options.includeSystem
           ? undefined
           : and(
               eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER),
+              or(isNull(agentWorkspaceCopyTable.id), eq(agentWorkspaceCopyTable.state, 'ready')),
               or(
                 notExists(
                   db
@@ -140,18 +144,22 @@ export class AgentWorkspaceService {
       )
       .orderBy(asc(agentWorkspaceTable.orderKey), asc(agentWorkspaceTable.id))
       .all()
-    return rows.map(rowToAgentWorkspace)
+    return rows.map((row) => rowToAgentWorkspace(row.workspace, row.copyId))
   }
 
   getById(id: string, options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity {
     const db = application.get('DbService').getDb()
-    const row = this.getRowByIdTx(db, id, options)
-    return rowToAgentWorkspace(row)
+    return this.getByIdTx(db, id, options)
   }
 
   getByIdTx(tx: DbOrTx, id: string, options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity {
     const row = this.getRowByIdTx(tx, id, options)
-    return rowToAgentWorkspace(row)
+    const copy = tx
+      .select({ id: agentWorkspaceCopyTable.id })
+      .from(agentWorkspaceCopyTable)
+      .where(eq(agentWorkspaceCopyTable.targetWorkspaceId, id))
+      .get()
+    return rowToAgentWorkspace(row, copy?.id)
   }
 
   getRowByIdTx(tx: DbOrTx, id: string, options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceRow {
@@ -165,6 +173,10 @@ export class AgentWorkspaceService {
 
   getReferences(id: string): AgentWorkspaceReferences {
     const db = application.get('DbService').getDb()
+    return this.getReferencesTx(db, id)
+  }
+
+  getReferencesTx(db: DbOrTx, id: string): AgentWorkspaceReferences {
     this.getRowByIdTx(db, id)
 
     const [{ total: sessionTotal }] = db
@@ -222,6 +234,7 @@ export class AgentWorkspaceService {
     workspacePath: string,
     options: { name?: string } = {}
   ): { row: AgentWorkspaceRow; created: boolean } {
+    this.assertExternalPathTx(tx, workspacePath)
     const [existing] = tx
       .select()
       .from(agentWorkspaceTable)
@@ -278,6 +291,47 @@ export class AgentWorkspaceService {
     return rowToAgentWorkspace(row)
   }
 
+  createManagedCopyTx(tx: DbOrTx, input: { id: string; name: string; path: string }): void {
+    insertWithOrderKey(
+      tx,
+      agentWorkspaceTable,
+      { ...input, type: AGENT_WORKSPACE_TYPE.USER },
+      { pkColumn: agentWorkspaceTable.id, position: 'first' }
+    )
+  }
+
+  assertExternalPathTx(tx: DbOrTx, workspacePath: string): void {
+    for (const copy of tx
+      .select()
+      .from(agentWorkspaceCopyTable)
+      .where(ne(agentWorkspaceCopyTable.state, 'removed'))
+      .all()) {
+      const inside = (root: string, candidate: string) => {
+        const relative = path.relative(root, candidate)
+        return !relative || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+      }
+      if (inside(copy.location.root, workspacePath) || inside(workspacePath, copy.location.root)) {
+        throw DataApiErrorFactory.conflict('managed_workspace_path', 'Workspace')
+      }
+    }
+  }
+
+  assertUsableTx(tx: DbOrTx, id: string): AgentWorkspaceRow {
+    const workspace = this.getRowByIdTx(tx, id, { includeSystem: true })
+    const copy = tx
+      .select()
+      .from(agentWorkspaceCopyTable)
+      .where(eq(agentWorkspaceCopyTable.targetWorkspaceId, id))
+      .get()
+    if (copy) {
+      if (copy.state !== 'ready' || workspace.path !== copy.location.project)
+        throw DataApiErrorFactory.conflict('workspace_unavailable', 'Workspace')
+    } else {
+      this.assertExternalPathTx(tx, workspace.path)
+    }
+    return workspace
+  }
+
   update(id: string, dto: UpdateAgentWorkspaceDto): AgentWorkspaceEntity {
     const row = withSqliteErrors(
       () =>
@@ -294,7 +348,7 @@ export class AgentWorkspaceService {
       defaultHandlersFor('Workspace', id)
     )
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
-    return rowToAgentWorkspace(row)
+    return this.getById(id)
   }
 
   deleteByIdTx(tx: DbOrTx, id: string): void {
@@ -388,3 +442,4 @@ export class AgentWorkspaceService {
 }
 
 export const agentWorkspaceService = new AgentWorkspaceService()
+registerDataService('AgentWorkspaceService', agentWorkspaceService)

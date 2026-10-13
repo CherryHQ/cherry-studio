@@ -29,6 +29,8 @@ export function isAgentSessionWorkspaceError(error: unknown): error is AgentSess
 
 export async function prepareAgentSessionWorkspaceDirectory(session: AgentSessionEntity): Promise<void> {
   const workspace = session.workspace
+  if (workspace.storage?.type === 'managed-copy')
+    await application.get('AgentWorkspaceCopyService').assertWorkspaceAvailable(workspace.id)
   switch (workspace.type) {
     case AGENT_WORKSPACE_TYPE.SYSTEM:
       // System workspaces are app-owned session directories; user workspaces

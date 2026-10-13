@@ -127,6 +127,8 @@ patchedDependencies:
   "@aiden0z/pptx-renderer@1.2.2": patches/@aiden0z__pptx-renderer@1.2.2.patch
 
 allowBuilds:
+  # Built explicitly for the target Electron ABI by rebuild:electron and before-pack.
+  "@vscode/fs-copyfile": false
   "@deepseek-ai/dsh-subprocess-local": true
   "@google/genai": false
   "@j178/prek": true

@@ -18,6 +18,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentWorkspaceCopyTable } from '@data/db/schemas/agentWorkspaceCopy'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
@@ -208,6 +209,42 @@ describe('AgentJobsService', () => {
   })
 
   // ---------------------------------------------------------------- create
+
+  it('rejects task creation and rebinding after workspace-copy deletion has started', () => {
+    const workspace = agentWorkspaceService.findOrCreateByPath('/tmp/deleting-workspace-copy/project')
+    const task = service.createTask(AGENT_ID, form)
+    dbh.db
+      .insert(agentWorkspaceCopyTable)
+      .values({
+        id: 'deleting-copy',
+        requestId: 'copy-request',
+        requestDigest: 'digest',
+        consumer: 'standalone',
+        sourcePath: '/tmp/source',
+        sourceIdentity: 'source',
+        reservedWorkspaceId: workspace.id,
+        targetWorkspaceId: workspace.id,
+        name: 'Copy',
+        location: {
+          version: 1,
+          storageRoot: '/tmp',
+          sourceWorkspaceId: 'source',
+          root: '/tmp/deleting-workspace-copy',
+          project: workspace.path
+        },
+        ownershipToken: 'token',
+        state: 'deleting',
+        cleanup: 'pending'
+      })
+      .run()
+    const binding = { type: 'user' as const, workspaceId: workspace.id }
+    expect(() => service.createTask(AGENT_ID, { ...form, name: 'late-task', workspace: binding })).toThrow(
+      'workspace_unavailable'
+    )
+    expect(() => service.updateTask(AGENT_ID, task.id, { workspace: binding })).toThrow('workspace_unavailable')
+    expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(1)
+    expect(agentTaskService.getTask(AGENT_ID, task.id)?.workspace).toEqual({ type: 'system' })
+  })
 
   it('refreshes workspace visibility after task creation, workspace changes and deletion', async () => {
     const workspace = agentWorkspaceService.findOrCreateByPath('/tmp/heartbeat-task-visibility')
@@ -663,15 +700,16 @@ describe('AgentJobsService', () => {
     it('clears the bound session when the workspace changes, keeping reuse on', () => {
       const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
       bindSession(task.id)
+      const workspace = agentWorkspaceService.findOrCreateByPath('/tmp/task-reuse-target')
 
       const updated = service.updateTask(AGENT_ID, task.id, {
-        workspace: { type: 'user', workspaceId: 'ws-9' }
+        workspace: { type: 'user', workspaceId: workspace.id }
       })
 
       expect(updated?.reuseSession).toBe(true)
       expect(updated?.reuseSessionId).toBeNull()
       expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({
-        workspace: { type: 'user', workspaceId: 'ws-9' }
+        workspace: { type: 'user', workspaceId: workspace.id }
       })
     })
 
@@ -702,15 +740,16 @@ describe('AgentJobsService', () => {
 
     it('bumps the reuse revision only for reuse or effective workspace changes', () => {
       const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      const workspace = agentWorkspaceService.findOrCreateByPath('/tmp/task-reuse-revision')
 
       service.updateTask(AGENT_ID, task.id, { name: 'renamed' })
       expect(readReuse(task.id)).toMatchObject({ revision: 0 })
 
-      service.updateTask(AGENT_ID, task.id, { workspace: { type: 'user', workspaceId: 'ws-9' } })
+      service.updateTask(AGENT_ID, task.id, { workspace: { type: 'user', workspaceId: workspace.id } })
       expect(readReuse(task.id)).toMatchObject({ enabled: true, revision: 1 })
       expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 1 })
 
-      service.updateTask(AGENT_ID, task.id, { workspace: { type: 'user', workspaceId: 'ws-9' } })
+      service.updateTask(AGENT_ID, task.id, { workspace: { type: 'user', workspaceId: workspace.id } })
       expect(readReuse(task.id)).toMatchObject({ revision: 1 })
 
       service.updateTask(AGENT_ID, task.id, { reuseSession: false })

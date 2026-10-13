@@ -11,6 +11,7 @@ import { IpcError } from './IpcError'
  * branches. Not aggregated through `errors/index.ts` (see ipc-overview.md).
  */
 export const aiErrorCodes = {
+  AI_WORKSPACE_COPY_FAILED: 'AI_WORKSPACE_COPY_FAILED',
   AI_AGENT_SESSION_EDIT_FAILED: 'AI_AGENT_SESSION_EDIT_FAILED',
   AI_AGENT_SESSION_FORK_FAILED: 'AI_AGENT_SESSION_FORK_FAILED',
   /**
@@ -54,6 +55,12 @@ export function agentSessionForkFailureReason(e: unknown) {
   if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED) return undefined
   const reason = e.data && typeof e.data === 'object' && 'reason' in e.data ? e.data.reason : undefined
   return isAgentSessionForkFailureReason(reason) ? reason : undefined
+}
+
+export function workspaceCopyErrorCode(e: unknown): string | undefined {
+  if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_WORKSPACE_COPY_FAILED) return undefined
+  const code = e.data && typeof e.data === 'object' && 'code' in e.data ? e.data.code : undefined
+  return typeof code === 'string' ? code : 'copy_failed'
 }
 
 /**

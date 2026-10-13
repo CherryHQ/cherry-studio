@@ -1175,9 +1175,6 @@ const Sessions = ({
     [handleSessionImageAction]
   )
 
-  const { trigger: findOrCreateWorkspace } = useMutation('POST', '/agent-workspaces', {
-    refresh: ['/agent-workspaces']
-  })
   const { trigger: updateWorkspace, isLoading: isUpdatingWorkspace } = useMutation(
     'PATCH',
     '/agent-workspaces/:workspaceId',
@@ -1200,7 +1197,7 @@ const Sessions = ({
           (seed?.workspacePath
             ? ({
                 type: AGENT_WORKSPACE_TYPE.USER,
-                workspaceId: (await findOrCreateWorkspace({ body: { path: seed.workspacePath } })).id
+                workspaceId: (await ipcApi.request('ai.agent.workspace.register', { path: seed.workspacePath })).id
               } satisfies AgentSessionWorkspaceSource)
             : ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } satisfies AgentSessionWorkspaceSource))
         const requestedAgentId = seed?.agentId
@@ -1228,15 +1225,7 @@ const Sessions = ({
         setCreatingSession(false)
       }
     },
-    [
-      agentById,
-      agentsForDisplay,
-      creatingSession,
-      findOrCreateWorkspace,
-      onShowMissingAgentSelection,
-      onCreateSession,
-      t
-    ]
+    [agentById, agentsForDisplay, creatingSession, onShowMissingAgentSelection, onCreateSession, t]
   )
 
   const requestCreateSessionFromSeed = useCallback(

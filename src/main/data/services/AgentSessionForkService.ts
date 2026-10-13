@@ -9,6 +9,7 @@ import type { DbOrTx } from '@data/db/types'
 
 import { agentSessionMessageService } from './AgentSessionMessageService'
 import { agentSessionService } from './AgentSessionService'
+import { agentWorkspaceCopyRecordService, type PreparedWorkspaceCopy } from './AgentWorkspaceCopyRecordService'
 
 export class AgentSessionForkSourceError extends Error {
   constructor(readonly reason: 'source_missing' | 'source_changed') {
@@ -61,6 +62,7 @@ export class AgentSessionForkService {
       excludedIds: readonly string[]
       messageId: string
       messages: AgentSessionMessageRow[]
+      preparedCopy?: PreparedWorkspaceCopy
     }
   ): void {
     const { source } = input
@@ -95,6 +97,9 @@ export class AgentSessionForkService {
         if (next > number) number = next
       }
     }
+    const copiedWorkspaceId = input.preparedCopy
+      ? agentWorkspaceCopyRecordService.publishTx(tx, input.preparedCopy)
+      : undefined
     agentSessionService.createTx(
       tx,
       input.targetSessionId,
@@ -102,8 +107,11 @@ export class AgentSessionForkService {
         agentId: source.agent.id,
         name: `${baseName}${separator}(${number})`,
         description: source.session.description,
-        workspace:
-          source.workspace.type === 'system' ? { type: 'system' } : { type: 'user', workspaceId: source.workspace.id }
+        workspace: copiedWorkspaceId
+          ? { type: 'user', workspaceId: copiedWorkspaceId }
+          : source.workspace.type === 'system'
+            ? { type: 'system' }
+            : { type: 'user', workspaceId: source.workspace.id }
       },
       'conversation',
       input.createdAt

@@ -19,6 +19,7 @@ function createSessions(count: number, renamedId?: string): AgentSessionEntity[]
         name: 'Benchmark Workspace',
         path: '/tmp/cherry-studio-session-list-benchmark',
         type: 'user',
+        storage: { type: 'external' as const },
         orderKey: 'a',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'

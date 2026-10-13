@@ -36,9 +36,11 @@ import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import type { AgentSessionForkWorkspace } from '@shared/ai/agentSessionFork'
+import { workspaceCopyFailureReason } from '@shared/ai/workspaceCopy'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
+import { agentSessionForkFailureReason, workspaceCopyErrorCode } from '@shared/ipc/errors/ai'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
@@ -403,22 +405,40 @@ export function useAgentMessageListProviderValue({
     },
     [navigate, notifyError, sessionId, t]
   )
+  const forkPending = useRef(false)
   const forkSession = useCallback(
     async (messageId: string) => {
-      if (!sessionId) return
+      if (!sessionId || forkPending.current) return
+      forkPending.current = true
       try {
+        const session = await dataApiService.get(`/agent-sessions/${sessionId}`)
+        let workspace: AgentSessionForkWorkspace | undefined
+        if (session.workspace.type === 'user') {
+          const { forkWorkspacePopup } = await import('./ForkWorkspacePopup')
+          const choice = await forkWorkspacePopup.show()
+          if (!choice) return
+          workspace = choice === 'copy' ? { mode: 'copy', requestId: crypto.randomUUID() } : { mode: 'shared' }
+        }
         const result = await ipcApi.request('ai.agent.session.fork', {
           sourceSessionId: sessionId,
-          messageId
+          messageId,
+          workspace
         })
         openRoute('/app/agents', { sessionId: result.sessionId })
       } catch (error) {
         const reason = agentSessionForkFailureReason(error)
+        const copyCode = workspaceCopyErrorCode(error)
+        if (copyCode) {
+          notifyError(t(`workspace_copy.error.${workspaceCopyFailureReason(copyCode)}`))
+          return
+        }
         if (reason) {
           notifyError(agentSessionForkReasonLabel(t, reason))
           return
         }
         throw error
+      } finally {
+        forkPending.current = false
       }
     },
     [sessionId, t, notifyError]

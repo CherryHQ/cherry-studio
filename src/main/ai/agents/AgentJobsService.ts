@@ -11,6 +11,7 @@ import {
   readTaskSessionReuse,
   writeTaskSessionReuse
 } from '@data/services/AgentTaskService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
@@ -246,6 +247,7 @@ export class AgentJobsService extends BaseService {
 
     const jobManager = application.get('JobManager')
     const { id } = application.get('DbService').withWriteTx((tx) => {
+      if (form.workspace.type === 'user') agentWorkspaceService.assertUsableTx(tx, form.workspace.workspaceId)
       const created = jobManager.registerJobScheduleTx(tx, {
         type: AGENT_TASK_TYPE,
         name: form.name,
@@ -316,6 +318,8 @@ export class AgentJobsService extends BaseService {
     let bindingCleared = false
     application.get('DbService').withWriteTx((tx) => {
       const snapshot = jobScheduleService.getByIdTx(tx, taskId)
+      const workspace = patch.workspace ?? existing.workspace
+      if (workspace.type === 'user') agentWorkspaceService.assertUsableTx(tx, workspace.workspaceId)
       const currentReuse = readTaskSessionReuse(snapshot?.metadata)
       const reuseRevision = currentReuse.revision + (reuseConfigChanged ? 1 : 0)
       if (reuseConfigChanged) {

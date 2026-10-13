@@ -10,7 +10,8 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 const logger = loggerService.withContext('AgentSessionForkResources')
 
 export const AgentSessionForkResourcesSchema = z.object({
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
+  workspaceCopyId: z.uuid().optional(),
   operationId: z.uuid(),
   targetSessionId: z.uuid(),
   resumeToken: z.string().optional(),

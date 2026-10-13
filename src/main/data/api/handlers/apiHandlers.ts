@@ -17,6 +17,7 @@ import { agentChannelHandlers } from './agentChannels'
 import { agentHandlers } from './agents'
 import { agentSessionMessageHandlers } from './agentSessionMessages'
 import { agentSessionHandlers } from './agentSessions'
+import { agentWorkspaceCopyHandlers } from './agentWorkspaceCopies'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { aiUsageRecordHandlers } from './aiUsageRecords'
 import { apiGatewayPairedDeviceHandlers } from './apiGatewayPairedDevices'
@@ -79,6 +80,7 @@ export const apiHandlers: ApiImplementation = {
   ...pinHandlers,
   ...promptHandlers,
   ...agentWorkspaceHandlers,
+  ...agentWorkspaceCopyHandlers,
   ...jobHandlers,
   ...searchHandlers,
   ...aiUsageRecordHandlers

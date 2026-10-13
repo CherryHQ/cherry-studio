@@ -322,6 +322,9 @@ importers:
       '@vectorstores/readers':
         specifier: ^0.1.8
         version: 0.1.8(@vectorstores/core@0.1.8)(@vectorstores/env@0.1.0)(encoding@0.1.13)(supports-color@8.1.1)
+      '@vscode/fs-copyfile':
+        specifier: 3.0.0
+        version: 3.0.0
       better-sqlite3:
         specifier: 12.11.1
         version: 12.11.1
@@ -9847,6 +9850,10 @@ packages:
 
   '@viz-js/viz@3.24.0':
     resolution: {integrity: sha512-sTRz2cFN6PwICVC7GVlF2aYNAZ/LwF7Y1mp3B+8LXQ7otyHrzQYSzNBwJ4lctL/aS3x97ppw59z6zIW+wPs6bQ==}
+
+  '@vscode/fs-copyfile@3.0.0':
+    resolution: {integrity: sha512-WLgS4eKoo13j3idjDuRIrKBflp4hIye5qNx5QlIrPFF/mo4HA4tK7U5fT/XAhPd99d7HyMaJ2My/zMXiAca/+w==}
+    engines: {node: '>=22.6.0'}
 
   '@vue/compiler-core@3.5.26':
     resolution: {integrity: sha512-vXyI5GMfuoBCnv5ucIT7jhHKl55Y477yxP6fc4eUswjP8FG3FFVFd41eNDArR+Uk3QKn2Z85NavjaxLxOC19/w==}
@@ -25318,6 +25325,10 @@ snapshots:
       '@lezer/xml': 1.0.6
 
   '@viz-js/viz@3.24.0': {}
+
+  '@vscode/fs-copyfile@3.0.0':
+    dependencies:
+      node-addon-api: 7.1.1
 
   '@vue/compiler-core@3.5.26':
     dependencies:

@@ -47,6 +47,7 @@ function makeWorkspace(path: string, overrides: Partial<AgentWorkspaceEntity> = 
     name: path,
     path,
     type: 'user',
+    storage: { type: 'external' as const },
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

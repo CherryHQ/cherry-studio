@@ -143,7 +143,7 @@ async function prepareNativeModulesForElectron(
     electronVersion,
     platform,
     arch,
-    onlyModules: ['better-sqlite3'],
+    onlyModules: ['better-sqlite3', '@vscode/fs-copyfile'],
     force: true,
     buildFromSource: true
   })

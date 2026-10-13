@@ -44,6 +44,7 @@ import {
 } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
+import type { AgentSessionForkWorkspace } from '@shared/ai/agentSessionFork'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
@@ -341,7 +342,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // The dependency is runtime, not lexical: this service's connections spawn CLI children through
 // ClaudeCodeProcessManager. Declaring it keeps that owner stopping LAST, so its sweep runs after
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
-@DependsOn(['ClaudeCodeProcessManager'])
+@DependsOn(['ClaudeCodeProcessManager', 'AgentWorkspaceCopyService'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
   private readonly failedClosures = new Map<string, AgentRuntimeConnection>()
@@ -421,11 +422,11 @@ export class AgentSessionRuntimeService extends BaseService {
     )
   }
 
-  forkSession(sourceSessionId: string, messageId: string): Promise<string> {
+  forkSession(sourceSessionId: string, messageId: string, workspace?: AgentSessionForkWorkspace): Promise<string> {
     if (this.failedClosures.has(sourceSessionId)) throw new AgentSessionEditError('close_failed')
     this.assertSessionWritable(sourceSessionId)
     if (this.isShuttingDown || this.isWriteQuiesced) return Promise.reject(new Error('Session writes are paused'))
-    return this.forks.fork(sourceSessionId, messageId)
+    return this.forks.fork(sourceSessionId, messageId, workspace)
   }
 
   cancelSessionForks(sourceSessionId: string): Promise<void> {

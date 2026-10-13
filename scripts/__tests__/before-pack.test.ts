@@ -55,7 +55,7 @@ describe('prepareNativeModulesForElectron', () => {
       electronVersion: '41.8.0',
       platform,
       arch: archName,
-      onlyModules: ['better-sqlite3'],
+      onlyModules: ['better-sqlite3', '@vscode/fs-copyfile'],
       force: true,
       buildFromSource: true
     })

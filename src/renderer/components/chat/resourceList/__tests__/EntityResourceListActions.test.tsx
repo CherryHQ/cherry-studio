@@ -375,6 +375,7 @@ function createAgentSession(overrides: Partial<AgentSessionEntity> = {}): AgentS
       name: 'Workspace 1',
       path: '/tmp/workspace-1',
       type: 'system',
+      storage: { type: 'system' as const },
       orderKey: 'a',
       createdAt: timestamp,
       updatedAt: timestamp

@@ -1,4 +1,4 @@
-import { CircleSlash, Folder, FolderPlus, Trash2 } from 'lucide-react'
+import { CircleSlash, Copy, Folder, FolderPlus, Trash2 } from 'lucide-react'
 import { lazy, type ReactElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,7 +12,8 @@ import {
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
-import { useDataChange, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -23,6 +24,11 @@ const loadWorkspaceDeleteConfirmDialog = () =>
     default: module.WorkspaceDeleteConfirmDialog
   }))
 const WorkspaceDeleteConfirmDialog = lazy(() => loadWorkspaceDeleteConfirmDialog())
+const WorkspaceCopiesDialog = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/workspace').then((module) => ({
+    default: module.WorkspaceCopiesDialog
+  }))
+)
 const preloadWorkspaceDeleteConfirmDialog = () => void loadWorkspaceDeleteConfirmDialog()
 
 type SharedProps = {
@@ -67,15 +73,14 @@ export function WorkspaceSelector({
   const [internalOpen, setInternalOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const [deletingWorkspace, setDeletingWorkspace] = useState<AgentWorkspaceEntity | null>(null)
+  const [copySource, setCopySource] = useState<AgentWorkspaceEntity | null | undefined>(undefined)
   const open = openProp ?? internalOpen
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
 
   const { data: workspaces, isLoading, refetch } = useQuery('/agent-workspaces')
   useDataChange('/agent-workspaces', () => void refetch())
-  const { trigger: createWorkspace, isLoading: isCreatingWorkspace } = useMutation('POST', '/agent-workspaces', {
-    refresh: ['/agent-workspaces']
-  })
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -139,14 +144,18 @@ export function WorkspaceSelector({
 
     if (!folderPath) return
 
+    setIsCreatingWorkspace(true)
     try {
-      const workspace = await createWorkspace({ body: { path: folderPath } })
+      const workspace = await ipcApi.request('ai.agent.workspace.register', { path: folderPath })
+      await refetch()
       await onChange(workspace.id)
     } catch (error) {
       logger.error('Failed to create workspace from folder', error as Error, { folderPath })
       toast.error(t('agent.session.workspace_selector.create_failed'))
+    } finally {
+      setIsCreatingWorkspace(false)
     }
-  }, [createWorkspace, handleOpenChange, onChange, t])
+  }, [refetch, handleOpenChange, onChange, t])
 
   const handleRequestDeleteWorkspace = useCallback(
     (workspace: AgentWorkspaceEntity) => {
@@ -175,15 +184,26 @@ export function WorkspaceSelector({
           showSelectedIndicator={selected}
           leading={<Folder className="size-4 text-muted-foreground" />}
           actions={
-            <ModelSelectorRowActionButton
-              disabled={disabled}
-              aria-label={t('agent.session.workdir.delete.trigger')}
-              className="focus-visible:opacity-100"
-              onMouseEnter={preloadWorkspaceDeleteConfirmDialog}
-              onFocus={preloadWorkspaceDeleteConfirmDialog}
-              onClick={() => handleRequestDeleteWorkspace(workspace)}>
-              <Trash2 className="size-3.5" />
-            </ModelSelectorRowActionButton>
+            <>
+              <ModelSelectorRowActionButton
+                disabled={disabled}
+                aria-label={t('workspace_copy.create')}
+                onClick={() => {
+                  handleOpenChange(false)
+                  setCopySource(workspace)
+                }}>
+                <Copy className="size-3.5" />
+              </ModelSelectorRowActionButton>
+              <ModelSelectorRowActionButton
+                disabled={disabled}
+                aria-label={t('agent.session.workdir.delete.trigger')}
+                className="focus-visible:opacity-100"
+                onMouseEnter={preloadWorkspaceDeleteConfirmDialog}
+                onFocus={preloadWorkspaceDeleteConfirmDialog}
+                onClick={() => handleRequestDeleteWorkspace(workspace)}>
+                <Trash2 className="size-3.5" />
+              </ModelSelectorRowActionButton>
+            </>
           }
           onSelect={() => void handleSelectWorkspace(workspace.id)}
           rootProps={{ 'data-option-row': workspace.id, className: 'pr-1' }}
@@ -229,6 +249,14 @@ export function WorkspaceSelector({
         }}
         bottomAction={[
           {
+            icon: <Copy size={14} />,
+            label: t('workspace_copy.manage'),
+            onClick: () => {
+              handleOpenChange(false)
+              setCopySource(null)
+            }
+          },
+          {
             icon: <FolderPlus size={14} className="shrink-0" />,
             label: t('agent.session.workspace_selector.create_new'),
             disabled: disabled || isCreatingWorkspace,
@@ -266,6 +294,11 @@ export function WorkspaceSelector({
             onDeleted={handleWorkspaceDeleted}
             onClose={() => setDeletingWorkspace(null)}
           />
+        </Suspense>
+      ) : null}
+      {copySource !== undefined ? (
+        <Suspense fallback={null}>
+          <WorkspaceCopiesDialog source={copySource ?? undefined} onClose={() => setCopySource(undefined)} />
         </Suspense>
       ) : null}
     </>

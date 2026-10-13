@@ -94,7 +94,12 @@ export const defaultServiceInstances = {
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
-  JobManager: mockJobManager
+  JobManager: mockJobManager,
+  AgentWorkspaceCopyService: {
+    pauseAdmission: vi.fn(() => () => {}),
+    drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),
+    assertWorkspaceAvailable: vi.fn(async () => undefined)
+  }
 } as const
 
 /** Type for per-service overrides */

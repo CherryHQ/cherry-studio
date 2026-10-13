@@ -24,6 +24,7 @@ describe('endpoint classification', () => {
       | '/agent-sessions/:sessionId/messages'
       | '/agent-tasks'
       | '/agent-workspaces'
+      | '/agent-workspace-copies'
       | '/agents'
       | '/agents/:agentId/tasks'
       | '/agents/:agentId/tasks/:taskId/logs'

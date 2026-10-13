@@ -215,6 +215,7 @@ export function buildPathRegistry() {
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
+    'feature.agents.workspace_copies': path.join(appUserDataData, 'Agents', 'workspace-copies'),
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
     'feature.agents.assistant.manifest.file': path.join(
       appRootResources,
@@ -403,6 +404,7 @@ const NO_ENSURE = [
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces',
+  'feature.agents.workspace_copies',
   // Claude Code owns materialization of its transcript store.
   'feature.agents.claude.projects'
 ] as const satisfies readonly NoEnsureEntry[]

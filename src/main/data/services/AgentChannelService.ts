@@ -10,6 +10,7 @@ import {
   type InsertAgentChannelRow as InsertChannelRow
 } from '@data/db/schemas/agentChannel'
 import type { DbOrTx } from '@data/db/types'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
@@ -96,6 +97,8 @@ export class AgentChannelService {
     }
 
     const result = application.get('DbService').withWriteTx((tx) => {
+      if (data.workspace.type === 'user')
+        getDataService('AgentWorkspaceService').assertUsableTx(tx, data.workspace.workspaceId)
       this.validateStreamBot(tx, data.type, insertData.config, isActive)
       return tx.insert(channelsTable).values(insertData).returning().all()
     })
@@ -241,6 +244,9 @@ export class AgentChannelService {
     const result = application.get('DbService').withWriteTx((tx) => {
       const existing = tx.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1).all()[0]
       if (!existing) return null
+
+      if (updates.workspace?.type === 'user')
+        getDataService('AgentWorkspaceService').assertUsableTx(tx, updates.workspace.workspaceId)
 
       const isActive = updates.isActive ?? existing.isActive
       const config = validateChannelConfig(

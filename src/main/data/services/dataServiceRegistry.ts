@@ -28,6 +28,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { agentGlobalSkillService } from './AgentGlobalSkillService'
 import type { agentSessionMessageService } from './AgentSessionMessageService'
 import type { agentTaskService } from './AgentTaskService'
+import type { agentWorkspaceService } from './AgentWorkspaceService'
 import type { messageService } from './MessageService'
 import type { providerRegistryService } from './ProviderRegistryService'
 import type { providerService } from './ProviderService'
@@ -37,6 +38,7 @@ interface DataServiceMap {
   AgentSessionMessageService: typeof agentSessionMessageService
   AgentGlobalSkillService: typeof agentGlobalSkillService
   AgentTaskService: typeof agentTaskService
+  AgentWorkspaceService: typeof agentWorkspaceService
   MessageService: typeof messageService
   TopicService: typeof topicService
   ProviderService: typeof providerService

@@ -13,6 +13,7 @@ import {
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentWorkspaceCopyTable } from '@data/db/schemas/agentWorkspaceCopy'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -81,6 +82,7 @@ function publishTaskReadModelChanges(taskIds: readonly string[]): void {
 type JoinedSessionRow = {
   session: SessionRow
   workspace: AgentWorkspaceRow
+  copyId: string | null
 }
 
 export type AgentSessionDeletionOutcome = {
@@ -107,7 +109,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     isNameManuallyEdited: clean.isNameManuallyEdited,
     description: clean.description,
     workspaceId: clean.workspaceId,
-    workspace: rowToAgentWorkspace(row.workspace),
+    workspace: rowToAgentWorkspace(row.workspace, row.copyId),
     traceId: clean.traceId,
     orderKey: clean.orderKey,
     lastActivityAt: timestampToISO(row.session.lastActivityAt),
@@ -294,7 +296,7 @@ export class AgentSessionService {
     let workspaceId: string
     switch (dto.workspace.type) {
       case AGENT_WORKSPACE_TYPE.USER: {
-        const workspace = agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId, { includeSystem: true })
+        const workspace = agentWorkspaceService.assertUsableTx(tx, dto.workspace.workspaceId)
         if (workspace.type !== AGENT_WORKSPACE_TYPE.USER) {
           throw DataApiErrorFactory.invalidOperation(
             'create session',
@@ -369,9 +371,10 @@ export class AgentSessionService {
   private readById(id: string, scope?: SQL): AgentSessionEntity {
     const db = application.get('DbService').getDb()
     const [row] = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
       .where(and(eq(sessionsTable.id, id), scope, isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
@@ -386,9 +389,10 @@ export class AgentSessionService {
 
   getByTaskScheduleIdTx(tx: DbOrTx, taskScheduleId: string): AgentSessionEntity | null {
     const [row] = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
       .innerJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(and(eq(sessionsTable.taskScheduleId, taskScheduleId), isNull(sessionsTable.deletedAt)))
       .limit(1)
@@ -539,9 +543,10 @@ export class AgentSessionService {
           ? eq(agentsTable.id, query.agentId)
           : undefined
     const [row] = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(and(conversationFilter, isNull(sessionsTable.deletedAt), ownerFilter))
       .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
@@ -563,7 +568,7 @@ export class AgentSessionService {
               return eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM)
             }
 
-            const workspace = agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId, { includeSystem: true })
+            const workspace = agentWorkspaceService.assertUsableTx(tx, dto.workspace.workspaceId)
             if (workspace.type !== AGENT_WORKSPACE_TYPE.USER) {
               throw DataApiErrorFactory.invalidOperation(
                 'reuse or create session',
@@ -577,9 +582,10 @@ export class AgentSessionService {
           })()
 
           const reusableRows = tx
-            .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+            .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
             .from(sessionsTable)
             .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+            .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
             .where(
               and(
                 conversationFilter,
@@ -604,9 +610,10 @@ export class AgentSessionService {
             const now = Date.now()
             this.advanceLastActivityAtTx(tx, reusable.session.id, now)
             const updatedSession = tx
-              .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+              .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
               .from(sessionsTable)
               .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+              .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
               .where(eq(sessionsTable.id, reusable.session.id))
               .limit(1)
               .all()
@@ -630,9 +637,10 @@ export class AgentSessionService {
             workspace: dto.workspace
           })
           const [created] = tx
-            .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+            .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
             .from(sessionsTable)
             .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+            .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
             .where(eq(sessionsTable.id, reservedId))
             .limit(1)
             .all()
@@ -716,9 +724,15 @@ export class AgentSessionService {
           )
         : undefined
       const pinRows = db
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable, pinOrderKey: pinTable.orderKey })
+        .select({
+          session: sessionsTable,
+          workspace: agentWorkspaceTable,
+          copyId: agentWorkspaceCopyTable.id,
+          pinOrderKey: pinTable.orderKey
+        })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
         .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
         .where(
@@ -775,9 +789,10 @@ export class AgentSessionService {
     }
 
     const sessionRows = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(
         and(
@@ -887,7 +902,9 @@ export class AgentSessionService {
     this.assertSessionHasNoMessagesTx(tx, id)
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
-      const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
+      const workspace = agentWorkspaceService.assertUsableTx(tx, source.workspaceId)
+      if (workspace.type !== AGENT_WORKSPACE_TYPE.USER)
+        throw DataApiErrorFactory.invalidOperation('set workspace', 'workspace source must reference a user workspace')
       if (workspace.id === current.session.workspaceId) return
       // Repoint first, then drop the old system workspace so the session FK never dangles.
       tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
@@ -908,9 +925,10 @@ export class AgentSessionService {
 
   private getJoinedSessionRowTx(tx: DbOrTx, id: string): JoinedSessionRow {
     const [row] = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
@@ -975,9 +993,10 @@ export class AgentSessionService {
 
     const result = application.get('DbService').withWriteTx((tx) => {
       const [row] = tx
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+        .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
         .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
         .limit(1)
         .all()
@@ -993,9 +1012,10 @@ export class AgentSessionService {
 
   deleteTx(tx: DbOrTx, id: string): string[] {
     const [row] = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
       .where(eq(sessionsTable.id, id))
       .limit(1)
       .all()
@@ -1025,9 +1045,10 @@ export class AgentSessionService {
       }
 
       const rows = tx
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+        .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
         .where(
           and(
             inArray(sessionsTable.id, uniqueIds),
@@ -1117,6 +1138,13 @@ export class AgentSessionService {
    * a different one and stay in the Recycle Bin.
    */
   restoreTrashedWithAgentTx(tx: DbOrTx, agentId: string, trashedAt: number): string[] {
+    const workspaces = tx
+      .select({ id: sessionsTable.workspaceId })
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.agentId, agentId), eq(sessionsTable.deletedAt, trashedAt)))
+      .groupBy(sessionsTable.workspaceId)
+      .all()
+    for (const workspace of workspaces) agentWorkspaceService.assertUsableTx(tx, workspace.id)
     return tx
       .update(sessionsTable)
       .set({ deletedAt: null })
@@ -1127,15 +1155,22 @@ export class AgentSessionService {
   }
 
   restore(id: string): AgentSessionEntity {
-    const db = application.get('DbService').getDb()
-
-    const [row] = db
-      .update(sessionsTable)
-      .set({ deletedAt: null })
-      .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
-      .returning({ id: sessionsTable.id })
-      .all()
-    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    application.get('DbService').withWriteTx((tx) => {
+      const session = tx
+        .select({ workspaceId: sessionsTable.workspaceId })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.id, id))
+        .get()
+      if (!session) throw DataApiErrorFactory.notFound('Session', id)
+      agentWorkspaceService.assertUsableTx(tx, session.workspaceId)
+      const [row] = tx
+        .update(sessionsTable)
+        .set({ deletedAt: null })
+        .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
+        .returning({ id: sessionsTable.id })
+        .all()
+      if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    })
 
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored session', { id })
@@ -1174,9 +1209,10 @@ export class AgentSessionService {
     if (uniqueIds.length === 0) return []
 
     const rows = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
       .where(
         and(
           inArray(sessionsTable.id, uniqueIds),
@@ -1295,9 +1331,10 @@ export class AgentSessionService {
     }
 
     const rows = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable, copyId: agentWorkspaceCopyTable.id })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentWorkspaceCopyTable, eq(agentWorkspaceCopyTable.targetWorkspaceId, agentWorkspaceTable.id))
       .where(eq(sessionsTable.agentId, agentId))
       .all()
 

@@ -33,6 +33,7 @@ export class AgentSessionArchiveBusyError extends Error {
   'AgentJobsService',
   'AgentSessionDeliveryService',
   'AgentSessionRuntimeService',
+  'AgentWorkspaceCopyService',
   'AiStreamManager',
   'ChannelManager'
 ])
@@ -167,10 +168,12 @@ export class AgentLifecycleService extends BaseService {
     const token = Symbol(reason)
     this.ingressHolds.add(token)
     const channelHold = application.get('ChannelManager').pause(reason)
+    const releaseCopies = application.get('AgentWorkspaceCopyService').pauseAdmission()
     return {
       dispose: () => {
         if (!this.ingressHolds.delete(token)) return
         channelHold.dispose()
+        releaseCopies()
       }
     }
   }
@@ -189,6 +192,7 @@ export class AgentLifecycleService extends BaseService {
   async drainIngress(options: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
     const verdicts = await Promise.all([
       application.get('ChannelManager').drainInFlight(options),
+      application.get('AgentWorkspaceCopyService').drainInFlight(options),
       this.drainOperations(options)
     ])
     return { stragglerIds: verdicts.flatMap((verdict) => verdict.stragglerIds) }

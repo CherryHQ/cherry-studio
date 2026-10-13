@@ -1,7 +1,11 @@
 ---
-description: Proposed CoW project copies using vscode fs-copyfile, covering service boundaries, ownership, paths, publication, cancellation, recovery, and validation
+description: CoW project copies using vscode fs-copyfile, covering implementation, service boundaries, ownership, paths, publication, cancellation, recovery, and validation
 sources:
   - src/main/ai/agentSession/fork
+  - src/main/ai/workspaceCopy
+  - src/main/data/services/AgentWorkspaceCopyRecordService.ts
+  - src/main/data/db/schemas/agentWorkspaceCopy.ts
+  - src/renderer/components/resourceCatalog/dialogs/workspace/WorkspaceCopiesDialog.tsx
   - src/main/ai/agents/AgentLifecycleService.ts
   - src/main/ai/runtime/agentSessionWorkspace.ts
   - src/main/data/services/AgentWorkspaceService.ts
@@ -16,9 +20,13 @@ sources:
 
 # Agent Workspace Copy Design
 
-状态：待实现的技术设计。本文采用 `@vscode/fs-copyfile@3.0.0`，为 Cherry Studio 增加可直接作为 Agent cwd 的独立项目目录。优先使用文件系统 CoW，不支持时按明确策略退回普通复制。本文不改变当前代码行为。
+状态：首版实现随本 PR 提供，跨平台原生构建和实际 CoW 验证仍需各平台环境完成。本文采用 `@vscode/fs-copyfile@3.0.0`，为 Cherry Studio 增加可直接作为 Agent cwd 的独立项目目录。优先使用文件系统 CoW，不支持时按明确策略退回普通复制。
 
 核心决策：**工作区负责引用，副本记录负责目录所有权，复制服务负责文件生命周期，现有 fork 协调器负责会话和运行时历史。** 副本成功发布后独立存在，删除源项目、源会话或最后一个引用均不自动删除副本文件。
+
+首版实现入口：工作区选择器的复制按钮和“工作区副本”管理窗口；用户工作区的会话 fork 会提供共用目录和创建副本两个选项。`agent.workspace_copy.storage_parent` Preference 只影响后续创建，已创建记录的 location 不随设置改变。管理窗口展示最终位置、文件统计、存储降级、失败与清理状态，可取消创建、显式删除无引用副本和重试清理。原生库加载失败仍可使用普通复制，并记录 `native_unavailable`；这不能视为原生构建验证通过。
+
+当前实现边界：Windows 无法仅凭 Node 文件 API 可靠区分所有 reparse tag，首版拒绝链接和 junction，不做 dereference 降级；Unix 支持经过内部目标校验的符号链接。控制目录额外保存有身份记录的 `copy-index.jsonl`，逐行完成元数据清点和复核，避免把整棵文件树保存在内存。删除控制文件后、`rmdir` 前发生崩溃或出现未知文件时，可能保留 blocked 的空容器或残留控制目录，由人工核验，绝不扩大递归删除范围。
 
 ## 1 交付范围与行为
 
@@ -239,6 +247,8 @@ interface CopyStatistics {
 | `registerWorkspacePath(input)` | 路径注册命令的业务入口；规范化、身份校验和临时租约在此协调，再调用工作区数据事务；不在 DataApi 内执行文件 I/O |
 | `remove(copyId, expectedRevision)` | 条件进入 deleting，检查完整引用，脱离 cwd 后删除；幂等；busy 时返回引用信息 |
 | `recoverPending()` | 处理本表记录的未完成创建、删除及 failed/cancelled 的 pending 清理；可重复执行；身份或存储状态不明则保留并标记 blocked |
+| `assertPreparedCopy()` | 消费者在最后一次异步工作结束后核对项目身份，随后同步执行发布事务；standalone 和 fork 共用 |
+| `retryCleanup()` | 对 failed/cancelled/deleting 的清理待办重新核验后重试，不改变原始创建结果 |
 | `pauseAdmission()` / `drain()` | 为关闭和备份提供持有式门禁与有界等待；不得只检查一次 Map 长度 |
 | `copyWorkspaceTree(input, context)` | 输入已验证路径、策略、signal、全局限流器和进度回调；返回统计及校验清单；失败前等待已派发 I/O 全部 settle |
 | `copyWorkspaceFile(src, dst)` | 固定优先克隆并按白名单降级；返回 `cloned` 或 `copied` 及原因，不提供业务策略开关 |
@@ -267,7 +277,7 @@ standalone 创建由副本服务调用工作区数据服务和记录数据服务
 | `/agent-workspace-copies` 与 `/:id` GET | SQLite 持久读模型，重新打开窗口后可重建状态；不提供绕过文件生命周期的 POST/DELETE |
 | `ai.agent.session.fork` 扩展 | 用户工作区选项 `workspace: {mode: 'shared'} \| {mode: 'copy', requestId}`；未提供时保持 shared |
 
-现有 fork 返回 `{sessionId}` 的契约保留；renderer 用已知 requestId 关联副本状态，GET 支持 requestId 精确查询。fork 的单次请求丢失响应后重试，由副本记录中的 intendedSessionId 返回已发布会话，不再次创建 SDK 历史。相同 requestId 配不同输入、源消息边界或 consumer，报 `request_conflict`。同进程的并发重复请求加入首次协调器的 Promise，只允许一个协调器调用 driver；首次预留的 forkOperationId 和 targetSessionId 不能被重试替换。对失败请求返回原终态；主动重试应使用新 requestId。
+现有 fork 返回 `{sessionId}` 的契约保留；renderer 用已知 requestId 从 GET 列表关联副本状态。fork 的单次请求丢失响应后重试，由副本记录中的 intendedSessionId 返回已发布会话，不再次创建 SDK 历史。相同 requestId 配不同输入、源消息边界或 consumer，报 `request_conflict`。同进程的并发重复请求加入首次协调器的 Promise，只允许一个协调器调用 driver；首次预留的 forkOperationId 和 targetSessionId 不能被重试替换。对失败请求返回原终态；主动重试应使用新 requestId。
 
 必须同步修改 `AgentSessionForkOperations.pending` 的去重入口：shared 使用带模式前缀的源会话/消息键，copy 使用带模式前缀的 requestId 键；加入已有 Promise 前校验规范化请求摘要。摘要覆盖源会话、消息边界、显式工作区选项及其他业务输入，不依赖重试时源记录仍存在。shared 与 copy、两个不同 requestId 的 copy 均不合并；`sourceSessionId` 另存用于取消与 drain。副本表的唯一约束不能代替协调器入口的请求区分。
 
@@ -346,7 +356,7 @@ metadata 可能漏掉某些时间戳未反映的修改；即使增加内容哈�
 
 契约保证常规文件内容、目录结构、内部链接语义及支持平台上的 executable 等必要 mode 位；不承诺完整备份 ACL、xattr、Windows ADS、稀疏布局、压缩和所有文件系统特有属性。所有权使用当前用户；必要 mode 设置失败应失败，时间戳保留失败可以作为明确警告，不能掩盖内容失败。
 
-初始预算为同时运行最多 2 个目录复制、全服务最多 8 个文件 I/O 作业；这些是待基准验证的内部默认值，不承诺性能指标。遍历使用背压和可迭代目录读取，不能 `Promise.all` 整棵树；大型临时校验清单可落在本次资源根下，避免无限占用内存，并在发布前清理。事件最多约 5 次每秒，并在阶段变化和终态立即发送。
+初始预算为同时运行最多 2 个目录复制，每份目录逐文件处理，全服务最多 2 个文件复制作业；这些是待基准验证的内部默认值，不承诺性能指标。遍历使用背压和可迭代目录读取，不能 `Promise.all` 整棵树；大型临时校验清单可落在本次资源根下，避免无限占用内存，清单保留为受管控制文件，删除副本时按已记录身份清理。事件最多约 5 次每秒，并在阶段变化和终态立即发送。
 
 不通过全局缓存的“文件系统支持”跳过所有克隆请求。不同挂载点、文件属性和跨卷关系可能不同；首版以实际调用结果为准，避免维护一张文件系统白名单。
 
@@ -371,7 +381,7 @@ metadata 可能漏掉某些时间戳未反映的修改；即使增加内容哈�
 
 副本自己的 targetWorkspaceId 行是被管理的资源登记，不算阻止删除的额外引用；其他别名工作区仍然阻止删除。完成文件删除后，在同一个最终事务中通过工作区数据服务移除该目标行并标记副本 removed。deleting 期间保留记录用于 UI 和恢复，且禁止所有新使用者进入。
 
-上游必须把 `AgentSessionService.createTx`、计划任务与渠道的工作区绑定、路径注册和恢复入口都接入工作区数据域的同一份 `assertUsableTx` 规则：只有 ready 的副本可引用，其他状态均拒绝。其他数据服务同步复用该规则，DataApi 不调用 AI 生命周期服务。纯配置引用按 workspaceId 检查；按路径注册由业务命令先识别规范路径、受管根和祖先后代重叠。
+上游把 `AgentSessionService.createTx`、复用/切换工作区、恢复入口、`AgentChannelService` 的绑定和 `AgentJobsService` 的任务创建/更新事务接入工作区数据域的同一份 `assertUsableTx` 规则：只有 ready 的副本可引用，其他状态均拒绝。检查与写入位于同一同步事务。通用 `JobScheduleService` 不解析 Agent 工作区；目前所有用户可达的任务绑定由 `AgentJobsService` 负责，心跳配置只创建系统任务。DataApi 不调用 AI 生命周期服务。纯配置引用按 workspaceId 检查；按路径注册由业务命令先识别规范路径、受管根和祖先后代重叠。
 
 现有 `POST /agent-workspaces` 直接调用 `findOrCreateByPathResult`，实现时将路径注册消费者迁移到 `ai.agent.workspace.register`，移除该 POST 及其 schema；GET、元数据 PATCH 和引用查询仍留在 DataApi。命令由 `AgentWorkspaceCopyService.registerWorkspacePath` 协调 canonicalize、受管路径分类、临时租约和身份校验，最后调用纯 SQLite 的工作区数据方法。`findOrCreateByPathTx` 只接受命令层验证后的主进程输入，不能继续作为接收客户端任意路径的入口；数据库事务内不 await 或执行文件 I/O。
 
@@ -451,6 +461,8 @@ prepared 阶段仍可能被 driver 写入，copy.cancel 只通过 operation.requ
 ## 14 依赖、构建与发布前置条件
 
 锁定运行时依赖 `@vscode/fs-copyfile@3.0.0` 并更新 lockfile。该发布包包含源代码和 node-gyp 构建脚本，不自带所有目标的预编译 `.node`。按实际平台配置 `pnpm-workspace.yaml` 的构建许可，明确接入原生依赖构建和打包，不只在开发机器上装一次。
+
+`pnpm rebuild:electron` 和 `before-pack.js` 在 Windows/macOS 显式构建该包，Linux 使用其 Node 实现；`.node` 文件列入 `asarUnpack`。Windows 的上游 `binding.gyp` 要求与目标架构及 MSVC toolset 匹配的 Spectre-mitigated libraries。缺少它们会报 MSB8040，应安装对应 Visual Studio 组件，不在项目中关闭 SpectreMitigation。当前开发机的原生构建因该缺项失败，实际 NTFS/ReFS、APFS 和 Linux reflink 行为仍须平台验证；普通复制路径和故障注入测试不能替代这些验证。
 
 | 项目 | 必须完成的工作 |
 | --- | --- |

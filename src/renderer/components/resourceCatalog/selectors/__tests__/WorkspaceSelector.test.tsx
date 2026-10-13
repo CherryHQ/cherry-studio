@@ -8,7 +8,6 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 
 const {
   closeConversationTabsMock,
-  createWorkspaceMock,
   deleteWorkspaceMock,
   invalidateCacheMock,
   ipcRequestMock,
@@ -21,7 +20,6 @@ const {
   useQueryMock
 } = vi.hoisted(() => ({
   closeConversationTabsMock: vi.fn(),
-  createWorkspaceMock: vi.fn(),
   deleteWorkspaceMock: vi.fn(),
   invalidateCacheMock: vi.fn(),
   ipcRequestMock: vi.fn(),
@@ -244,15 +242,16 @@ beforeEach(() => {
     }
 
     return {
-      trigger: createWorkspaceMock,
+      trigger: vi.fn(),
       isLoading: false,
       error: undefined
     }
   })
-  createWorkspaceMock.mockResolvedValue(CREATED_WORKSPACE)
   deleteWorkspaceMock.mockResolvedValue({ deletedIds: ['session-alpha-recent', 'session-alpha-older'] })
-  ipcRequestMock.mockImplementation((_route, input) =>
-    deleteWorkspaceMock({ params: { workspaceId: input.workspaceId } })
+  ipcRequestMock.mockImplementation((route, input) =>
+    route === 'ai.agent.workspace.register'
+      ? Promise.resolve(CREATED_WORKSPACE)
+      : deleteWorkspaceMock({ params: { workspaceId: input.workspaceId } })
   )
   invalidateCacheMock.mockResolvedValue(undefined)
   refetchReferencesMock.mockResolvedValue(undefined)
@@ -372,26 +371,20 @@ describe('WorkspaceSelector', () => {
     await waitFor(() =>
       expect(selectFolderMock).toHaveBeenCalledWith({ properties: ['openDirectory', 'createDirectory'] })
     )
-    expect(createWorkspaceMock).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.agent.workspace.register', expect.anything())
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('creates and selects a workspace without an extra list refetch', async () => {
+  it('registers the selected folder through the filesystem-aware command and selects its workspace', async () => {
     selectFolderMock.mockResolvedValue('/Users/jd/new-project')
     const { onChange } = renderSelector()
     openPopover()
 
-    await waitFor(() => expect(refetchWorkspacesMock).toHaveBeenCalledOnce())
-    refetchWorkspacesMock.mockClear()
-
     fireEvent.click(screen.getByRole('button', { name: 'Add new work directory' }))
 
     await waitFor(() =>
-      expect(createWorkspaceMock).toHaveBeenCalledWith({
-        body: { path: '/Users/jd/new-project' }
-      })
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.workspace.register', { path: '/Users/jd/new-project' })
     )
-    expect(refetchWorkspacesMock).not.toHaveBeenCalled()
     expect(onChange).toHaveBeenCalledWith('workspace-created')
   })
 

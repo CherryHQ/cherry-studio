@@ -11,12 +11,18 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError, agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import {
+  agentWorkspaceCopyRecordService,
+  type PreparedWorkspaceCopy
+} from '@data/services/AgentWorkspaceCopyRecordService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { type RuntimeForkCheckpoint, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
+import { WorkspaceCopyError } from '@main/ai/workspaceCopy/WorkspaceCopyError'
 import { t } from '@main/i18n'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import type { AgentSessionForkWorkspace } from '@shared/ai/agentSessionFork'
 
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './files'
@@ -40,20 +46,46 @@ export class AgentSessionForkOperations {
   readonly edits = new Map<string, { operationId: string; controller: AbortController; promise: Promise<unknown> }>()
   readonly pending = new Map<
     string,
-    { sourceSessionId: string; operationId: string; promise: Promise<string>; controller: AbortController }
+    {
+      sourceSessionId: string
+      operationId: string
+      digest: string
+      promise: Promise<string>
+      controller: AbortController
+    }
   >()
 
-  fork(sourceSessionId: string, messageId: string): Promise<string> {
-    const key = JSON.stringify([sourceSessionId, messageId])
+  fork(sourceSessionId: string, messageId: string, workspace?: AgentSessionForkWorkspace): Promise<string> {
+    const key =
+      workspace?.mode === 'copy'
+        ? JSON.stringify(['copy', workspace.requestId])
+        : JSON.stringify(['shared', sourceSessionId, messageId])
+    const digest = JSON.stringify([workspace?.mode ?? 'shared', sourceSessionId, messageId])
     const current = this.pending.get(key)
-    if (current) return current.promise
+    if (current) {
+      if (current.digest !== digest) return Promise.reject(new WorkspaceCopyError('request_conflict', 'admission'))
+      return current.promise
+    }
+    if (workspace?.mode === 'copy') {
+      const existing = agentWorkspaceCopyRecordService.findRequest(workspace.requestId)
+      if (existing) {
+        application
+          .get('AgentWorkspaceCopyService')
+          .findRequest(
+            { requestId: workspace.requestId, sourceWorkspaceId: existing.location.sourceWorkspaceId },
+            { consumer: 'session-fork', sourceSessionId, messageId }
+          )
+        if (existing.state === 'ready' && existing.intendedSessionId) return Promise.resolve(existing.intendedSessionId)
+        return Promise.reject(new WorkspaceCopyError(existing.errorCode ?? 'state_conflict', 'admission'))
+      }
+    }
     const controller = new AbortController()
     const operationId = randomUUID()
     // Register before any asynchronous work can escape the host's backup/shutdown drain.
     const promise = Promise.resolve()
-      .then(() => this.run(sourceSessionId, messageId, operationId, controller.signal))
+      .then(() => this.run(sourceSessionId, messageId, operationId, controller, workspace))
       .finally(() => this.pending.delete(key))
-    this.pending.set(key, { sourceSessionId, operationId, promise, controller })
+    this.pending.set(key, { sourceSessionId, operationId, digest, promise, controller })
     return promise
   }
 
@@ -189,8 +221,10 @@ export class AgentSessionForkOperations {
     sourceSessionId: string,
     messageId: string,
     operationId: string,
-    signal: AbortSignal
+    controller: AbortController,
+    workspace?: AgentSessionForkWorkspace
   ): Promise<string> {
+    const signal = controller.signal
     signal.throwIfAborted()
     const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
     const selected = preliminary.messages.at(-1)!
@@ -215,11 +249,14 @@ export class AgentSessionForkOperations {
       ])
     ]
     const source = agentSessionForkService.read(sourceSessionId, messageId, excludedIds)
+    if (workspace?.mode === 'copy' && source.workspace.type !== 'user')
+      throw new WorkspaceCopyError('unsupported_workspace_copy', 'admission')
     const checkpoint = anchor.data.checkpoint
     const agent = agentService.getAgent(source.agent.id)
     if (!agent) throw new AgentSessionForkSourceError('source_missing')
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (agent.type !== checkpoint.runtime || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
+    const fork = driver.fork.bind(driver)
     const checkpoints: RuntimeForkCheckpoint[] = []
     for (const row of source.messages) {
       const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
@@ -250,34 +287,65 @@ export class AgentSessionForkOperations {
           await writeForkResources(resources)
         })
       }
-      signal.throwIfAborted()
-      const result = await driver.fork({
-        sourceSessionId,
-        checkpoint,
-        checkpoints,
-        targetSessionId: resources.targetSessionId,
-        targetCwd,
-        artifactDirectory: resources.artifactDirectory,
-        signal
-      })
-      if (!result.resumeToken.trim() || result.checkpoints.length !== checkpoints.length)
-        throw new AgentSessionForkError('history_corrupt')
-      signal.throwIfAborted()
-      const messages = cloneMessages(source.messages, resources.targetSessionId, result.resumeToken, result.checkpoints)
-      await this.publish(resources, result.publish, signal)
-      signal.throwIfAborted()
-      application.get('DbService').withWriteTx((tx) => {
-        agentSessionForkService.commitTx(tx, {
+      const finish = async (preparedCopy?: PreparedWorkspaceCopy): Promise<string> => {
+        if (preparedCopy) {
+          targetCwd = preparedCopy.cwd
+          resources.version = 2
+          resources.workspaceCopyId = preparedCopy.copyId
+          await writeForkResources(resources)
+        }
+        signal.throwIfAborted()
+        const result = await fork({
+          sourceSessionId,
+          checkpoint,
+          checkpoints,
           targetSessionId: resources.targetSessionId,
-          createdAt: resources.createdAt,
-          source,
-          excludedIds,
-          messages,
-          messageId
+          targetCwd,
+          artifactDirectory: resources.artifactDirectory,
+          signal
         })
-      })
-      agentSessionService.notifyReadModelChange([resources.targetSessionId], 'membership')
-      return resources.targetSessionId
+        if (!result.resumeToken.trim() || result.checkpoints.length !== checkpoints.length)
+          throw new AgentSessionForkError('history_corrupt')
+        signal.throwIfAborted()
+        const messages = cloneMessages(
+          source.messages,
+          resources.targetSessionId,
+          result.resumeToken,
+          result.checkpoints
+        )
+        await this.publish(resources, result.publish, signal)
+        if (preparedCopy) await application.get('AgentWorkspaceCopyService').assertPreparedCopy(preparedCopy)
+        signal.throwIfAborted()
+        application.get('DbService').withWriteTx((tx) => {
+          agentSessionForkService.commitTx(tx, {
+            targetSessionId: resources.targetSessionId,
+            createdAt: resources.createdAt,
+            source,
+            excludedIds,
+            messages,
+            messageId,
+            preparedCopy
+          })
+        })
+        agentSessionService.notifyReadModelChange([resources.targetSessionId], 'membership')
+        return resources.targetSessionId
+      }
+      if (workspace?.mode === 'copy') {
+        return await application.get('AgentWorkspaceCopyService').withPreparedCopy(
+          { requestId: workspace.requestId, sourceWorkspaceId: source.workspace.id },
+          {
+            consumer: 'session-fork',
+            signal,
+            forkOperationId: operationId,
+            intendedSessionId: resources.targetSessionId,
+            sourceSessionId,
+            messageId,
+            requestCancel: () => controller.abort(new AgentSessionForkError('cancelled'))
+          },
+          finish
+        )
+      }
+      return await finish()
     } catch (error) {
       if (!agentSessionForkService.hasPublishedSession(resources.targetSessionId)) {
         try {

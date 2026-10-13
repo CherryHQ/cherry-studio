@@ -15,8 +15,11 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceCopyRecordService } from '@data/services/AgentWorkspaceCopyRecordService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { AgentWorkspaceCopyService } from '@main/ai/workspaceCopy/AgentWorkspaceCopyService'
+import { BaseService } from '@main/core/lifecycle/BaseService'
 import * as fileUtils from '@main/utils/file'
 
 import { AgentSessionForkOperations } from '../AgentSessionForkOperations'
@@ -33,6 +36,7 @@ describe('Agent fork publication', () => {
   let beforeForkResult: (input: RuntimeForkInput) => Promise<void>
   let invalidCheckpoint: boolean
   let previous: ReturnType<typeof runtimeDriverRegistry.getAgentSessionDriver>
+  let copyService: AgentWorkspaceCopyService | undefined
 
   beforeEach(async () => {
     directory = await mkdtemp(path.join(tmpdir(), 'fork-publication-'))
@@ -96,11 +100,68 @@ describe('Agent fork publication', () => {
   })
 
   afterEach(async () => {
+    await copyService?._doStop()
+    copyService = undefined
+    BaseService.resetInstances()
     dbh.sqlite.exec('DROP TRIGGER IF EXISTS reject_fork_messages')
     runtimeDriverRegistry.clearForTest()
     if (previous) runtimeDriverRegistry.register(previous)
     vi.restoreAllMocks()
     await rm(directory, { recursive: true, force: true })
+  })
+
+  async function enableCopies() {
+    const source = path.join(directory, 'source')
+    await mkdir(source)
+    await writeFile(path.join(source, 'user.txt'), 'original')
+    dbh.db.update(agentWorkspaceTable).set({ path: source }).run()
+    copyService = new AgentWorkspaceCopyService()
+    const container = application.getContainer()
+    const get = container.get.bind(container)
+    vi.spyOn(container, 'get').mockImplementation(((name: string) =>
+      name === 'AgentWorkspaceCopyService' ? copyService : get(name as never)) as typeof container.get)
+    return source
+  }
+
+  it('commits copied files and native history together and reuses the request after source deletion', async () => {
+    const source = await enableCopies()
+    const requestId = randomUUID()
+    beforeForkResult = async (input) => {
+      expect(input.targetCwd).not.toBe(source)
+      expect(await readFile(path.join(input.targetCwd, 'user.txt'), 'utf8')).toBe('original')
+      await writeFile(path.join(input.targetCwd, 'user.txt'), 'child changed')
+    }
+    const fork = new AgentSessionForkOperations()
+    const childId = await fork.fork(sessionId, messageId, { mode: 'copy', requestId })
+    const child = agentSessionService.getById(childId)
+    expect(child.workspace.storage.type).toBe('managed-copy')
+    expect(agentWorkspaceCopyRecordService.findRequest(requestId)).toMatchObject({
+      state: 'ready',
+      intendedSessionId: childId,
+      targetWorkspaceId: child.workspaceId
+    })
+    expect(await readFile(path.join(source, 'user.txt'), 'utf8')).toBe('original')
+    dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, sessionId)).run()
+    expect(await new AgentSessionForkOperations().fork(sessionId, messageId, { mode: 'copy', requestId })).toBe(childId)
+    expect(await readFile(path.join(child.workspace.path, 'user.txt'), 'utf8')).toBe('child changed')
+    expect(() => fork.fork(sessionId, randomUUID(), { mode: 'copy', requestId })).toThrow('request_conflict')
+  })
+
+  it('rolls back the workspace row and copied files when the fork transaction fails', async () => {
+    const source = await enableCopies()
+    dbh.sqlite.exec(`CREATE TRIGGER reject_fork_messages BEFORE INSERT ON agent_session_message
+      WHEN NEW.session_id != '${sessionId}' BEGIN SELECT RAISE(ABORT, 'fork denied'); END`)
+    const requestId = randomUUID()
+    await expect(
+      new AgentSessionForkOperations().fork(sessionId, messageId, { mode: 'copy', requestId })
+    ).rejects.toThrow()
+    const copy = agentWorkspaceCopyRecordService.findRequest(requestId)!
+    expect(copy).toMatchObject({ state: 'failed', cleanup: 'none', targetWorkspaceId: null })
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
+    await expect(readdir(copy.location.root)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await readFile(path.join(source, 'user.txt'), 'utf8')).toBe('original')
   })
 
   it('publishes an independent child without app_state and keeps its files after source deletion', async () => {

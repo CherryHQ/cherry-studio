@@ -13,9 +13,11 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest, WebContentsListener } from '@main/ai/streamManager'
+import { WorkspaceCopyError, fileErrorCode } from '@main/ai/workspaceCopy/WorkspaceCopyError'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
+import { workspaceCopyFailureReason } from '@shared/ai/workspaceCopy'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -28,6 +30,26 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { exposeAiError } from './exposeAiError'
 
 const logger = loggerService.withContext('ipc/ai')
+
+function workspaceCopyIpcError(error: unknown): IpcError {
+  const code =
+    error instanceof WorkspaceCopyError
+      ? error.code
+      : isDataApiError(error)
+        ? error.message
+        : (fileErrorCode(error) ?? 'copy_failed')
+  const reason = workspaceCopyFailureReason(code)
+  return new IpcError(aiErrorCodes.AI_WORKSPACE_COPY_FAILED, reason, { code, reason })
+}
+
+async function exposeWorkspaceCopyError<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    logger.warn('Workspace copy command failed', { error })
+    throw workspaceCopyIpcError(error)
+  }
+}
 
 async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
@@ -215,13 +237,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       application.get('AgentLifecycleService').deleteActiveSessionsPermanently(sessionIds)
     ),
   'ai.agent.session.reuse_or_create': (input) => application.get('AgentLifecycleService').reuseOrCreateSession(input),
-  'ai.agent.session.fork': async ({ sourceSessionId, messageId }) => {
+  'ai.agent.session.fork': async ({ sourceSessionId, messageId, workspace }) => {
     try {
       return {
-        sessionId: await application.get('AgentSessionRuntimeService').forkSession(sourceSessionId, messageId)
+        sessionId: await application
+          .get('AgentSessionRuntimeService')
+          .forkSession(sourceSessionId, messageId, workspace)
       }
     } catch (error) {
       logger.warn('Agent session fork failed', { sourceSessionId, messageId, error })
+      if (error instanceof WorkspaceCopyError) throw workspaceCopyIpcError(error)
       const failure =
         error instanceof AgentSessionForkError || error instanceof AgentSessionForkSourceError
           ? error.reason
@@ -232,6 +257,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
+  'ai.agent.workspace.register': (input) =>
+    exposeWorkspaceCopyError(() => application.get('AgentWorkspaceCopyService').registerWorkspacePath(input)),
+  'ai.agent.workspace.copy.start': (input) =>
+    exposeWorkspaceCopyError(() => application.get('AgentWorkspaceCopyService').startCreate(input)),
+  'ai.agent.workspace.copy.cancel': ({ copyId }) =>
+    exposeWorkspaceCopyError(() => application.get('AgentWorkspaceCopyService').cancel(copyId)),
+  'ai.agent.workspace.copy.remove': ({ copyId, expectedRevision }) =>
+    exposeWorkspaceCopyError(() => application.get('AgentWorkspaceCopyService').remove(copyId, expectedRevision)),
+  'ai.agent.workspace.copy.retry_cleanup': ({ copyId, expectedRevision }) =>
+    exposeWorkspaceCopyError(() => application.get('AgentWorkspaceCopyService').retryCleanup(copyId, expectedRevision)),
 
   'ai.agent.session.edit_target': ({ sessionId, messageId }) =>
     exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId)),

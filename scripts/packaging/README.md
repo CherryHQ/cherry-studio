@@ -11,3 +11,10 @@
 Native source compilation belongs alongside its platform code in `native/<platform>/`.
 Shared binary download and Linux compatibility tooling remain in `scripts/download-binaries.js`
 and `scripts/linux-native/`, since development and standalone validation also use them.
+
+Workspace copies use `@vscode/fs-copyfile`. Development rebuilds and `before-pack.js`
+compile it for Electron on Windows and macOS; Linux uses its Node implementation.
+The native binding must remain unpacked from ASAR. Windows builds require the
+Visual Studio Spectre-mitigated C++ libraries matching the target architecture
+and selected MSVC toolset (MSB8040 indicates that this component is missing).
+Do not disable the dependency's SpectreMitigation setting to bypass that check.
