@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -1209,6 +1209,76 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         )
       ).rejects.toThrow('Media processing timed out')
       expect(spawnControl.calls).toBe(1)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an oversized normalized WAV when the probe duration is unusable', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-zero-duration-'))
+    const sourcePath = join(outputDir, 'source.bin')
+    const maxChunkBytes = 5_000
+    const wavBytes = maxChunkBytes + 1
+    let normalizedWav = ''
+    writeFileSync(sourcePath, 'source-audio')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = (...spawnArgs: unknown[]) => {
+      const call = spawnControl.calls
+      const commandArgs = spawnArgs[1]
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1 && Array.isArray(commandArgs)) {
+          const outputPath = commandArgs.at(-1)
+          if (typeof outputPath === 'string') {
+            normalizedWav = outputPath
+            writeFileSync(outputPath, Buffer.alloc(wavBytes))
+          }
+          child.emit('close', 0)
+          return
+        }
+        if (call === 2) {
+          child.stdout.emit(
+            'data',
+            '{"format":{"duration":"N/A","format_name":"wav"},"streams":[{"codec_type":"audio","duration":"N/A"}]}'
+          )
+          child.emit('close', 0)
+          return
+        }
+        child.emit('close', 1)
+      })
+      return child
+    }
+
+    try {
+      let settled: { rejected: boolean; chunks: { byteLength: number }[] | undefined; error: string | undefined }
+      try {
+        const value = await mediaFfmpegHandlers.extractAudio(
+          { filePath: sourcePath, outputDir, maxChunkBytes },
+          context()
+        )
+        settled = { rejected: false, chunks: value.chunks, error: undefined }
+      } catch (error: unknown) {
+        settled = {
+          rejected: true,
+          chunks: undefined,
+          error: error instanceof Error ? error.message : String(error)
+        }
+      }
+
+      expect({
+        rejected: settled.rejected,
+        chunks: settled.chunks ?? null,
+        wavPreserved: normalizedWav.length > 0 && existsSync(normalizedWav),
+        commands: spawnControl.calls
+      }).toEqual({
+        rejected: true,
+        chunks: null,
+        wavPreserved: true,
+        commands: 2
+      })
+      expect(settled.error).toBe(`Audio duration unavailable for oversized WAV (${wavBytes} > ${maxChunkBytes})`)
+      expect(statSync(normalizedWav).size).toBe(wavBytes)
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
     }
