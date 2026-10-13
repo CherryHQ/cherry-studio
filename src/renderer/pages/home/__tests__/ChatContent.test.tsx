@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -35,7 +36,6 @@ const mockUseChatWithHistory = vi.fn()
 const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 const mockChatWriteValue = vi.hoisted(() => ({ current: null as any }))
-const mockEventEmit = vi.hoisted(() => vi.fn())
 const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
 const mockUseExecutionOverlay = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => unknown>(() => mockExecutionOverlay.current)
@@ -66,15 +66,6 @@ vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
 
 vi.mock('@renderer/hooks/useTopicMessages', () => ({
   useTopicMessages: (...args: unknown[]) => mockUseTopicMessages(...args)
-}))
-
-vi.mock('@renderer/services/EventService', () => ({
-  EVENT_NAMES: {
-    LOCATE_MESSAGE: 'LOCATE_MESSAGE'
-  },
-  EventEmitter: {
-    emit: mockEventEmit
-  }
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
@@ -277,6 +268,7 @@ describe('ChatContent', () => {
   let streamOpen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 
   beforeEach(() => {
+    vi.spyOn(EventEmitter, 'emit')
     streamOpen = vi.fn().mockResolvedValue({ mode: 'started' })
     // Route ai.stream.open through the spy; other stream routes/events are inert here
     // (useChatWithHistory is mocked, so the real transport never runs).
@@ -338,7 +330,7 @@ describe('ChatContent', () => {
     capturedOnSend = undefined
     mockMessageListValue.current = null
     mockChatWriteValue.current = null
-    mockEventEmit.mockReset()
+    vi.mocked(EventEmitter.emit).mockRestore()
     mockUseExecutionOverlay.mockReset()
   })
 
@@ -1585,47 +1577,67 @@ describe('ChatContent', () => {
 
     expect(loadOlder).not.toHaveBeenCalled()
     expect(onLocateMessageHandled).not.toHaveBeenCalled()
-    expect(mockEventEmit).not.toHaveBeenCalled()
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
   })
 
-  it('loads older history for pending locate and clears it only after the target appears', async () => {
-    const loadOlder = vi.fn()
-    const onLocateMessageHandled = vi.fn()
-    mockUseTopicMessages.mockReturnValue({
-      uiMessages: [createUiMessage('history-user', 'user')],
-      siblingsMap: {},
-      isLoading: false,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: 'branch-a',
-      loadOlder,
-      hasOlder: true,
-      mutate: vi.fn().mockResolvedValue(undefined)
-    })
+  it.each(['route', 'quote'] as const)(
+    'loads older history for %s navigation and resolves it after the target appears',
+    async (source) => {
+      const locateMessageId = source === 'route' ? 'target-message' : undefined
+      const loadOlder = vi.fn()
+      const onLocateMessageHandled = vi.fn()
+      mockUseTopicMessages.mockReturnValue({
+        uiMessages: [createUiMessage('history-user', 'user')],
+        siblingsMap: {},
+        isLoading: false,
+        refresh: vi.fn().mockResolvedValue([]),
+        activeNodeId: 'branch-a',
+        loadOlder,
+        hasOlder: true,
+        mutate: vi.fn().mockResolvedValue(undefined)
+      })
 
-    const { rerender } = render(
-      <ChatContent topic={topic} locateMessageId="target-message" onLocateMessageHandled={onLocateMessageHandled} />
-    )
+      const { rerender } = render(
+        <ChatContent topic={topic} locateMessageId={locateMessageId} onLocateMessageHandled={onLocateMessageHandled} />
+      )
 
-    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
-    expect(onLocateMessageHandled).not.toHaveBeenCalled()
+      if (source === 'quote') {
+        await act(() =>
+          EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, {
+            topicId: 'other-topic',
+            messageId: 'target-message'
+          })
+        )
+        expect(loadOlder).not.toHaveBeenCalled()
+        await act(() =>
+          EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, {
+            topicId: topic.id,
+            messageId: 'target-message'
+          })
+        )
+      }
 
-    mockUseTopicMessages.mockReturnValue({
-      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('target-message', 'assistant')],
-      siblingsMap: {},
-      isLoading: false,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: 'target-message',
-      loadOlder,
-      hasOlder: false,
-      mutate: vi.fn().mockResolvedValue(undefined)
-    })
-    rerender(
-      <ChatContent topic={topic} locateMessageId="target-message" onLocateMessageHandled={onLocateMessageHandled} />
-    )
+      await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+      expect(onLocateMessageHandled).not.toHaveBeenCalled()
 
-    await waitFor(() => {
-      expect(mockEventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
-      expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
-    })
-  })
+      mockUseTopicMessages.mockReturnValue({
+        uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('target-message', 'assistant')],
+        siblingsMap: {},
+        isLoading: false,
+        refresh: vi.fn().mockResolvedValue([]),
+        activeNodeId: 'target-message',
+        loadOlder,
+        hasOlder: false,
+        mutate: vi.fn().mockResolvedValue(undefined)
+      })
+      rerender(
+        <ChatContent topic={topic} locateMessageId={locateMessageId} onLocateMessageHandled={onLocateMessageHandled} />
+      )
+
+      await waitFor(() => {
+        expect(EventEmitter.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
+        expect(onLocateMessageHandled).toHaveBeenCalledTimes(source === 'route' ? 1 : 0)
+      })
+    }
+  )
 })
