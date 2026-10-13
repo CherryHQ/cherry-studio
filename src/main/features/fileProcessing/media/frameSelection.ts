@@ -72,7 +72,7 @@ export function planAnalysisFrameTimestamps(input: {
   const duplicateGapMs = Math.round(1_000 / SCENE_SAMPLE_FPS)
   const lastMs = Math.max(0, input.durationMs - SEEK_TAIL_MS)
   const placed = selectDistributedScenes(sceneChanges, backbone, input.durationMs, sceneReserve, duplicateGapMs, lastMs)
-  if (placed.scenes.length === 0 && !placed.replaced) return uniform
+  if (placed.scenes.length === 0 && !placed.replaced && !placed.covered) return uniform
 
   const chosen = [...placed.backbone, ...placed.scenes]
   for (const timestamp of uniform) {
@@ -137,10 +137,11 @@ function selectDistributedScenes(
   sceneReserve: number,
   minGapMs: number,
   lastMs: number
-): { backbone: number[]; scenes: number[]; replaced: boolean } {
+): { backbone: number[]; scenes: number[]; replaced: boolean; covered: boolean } {
   const anchors = [...backbone]
   const scenes: number[] = []
   let replaced = false
+  let covered = false
   const ranked = sceneChanges
     .map((change) => ({
       timestampMs: Math.min(lastMs, Math.max(0, Math.round(change.timestampMs))),
@@ -164,7 +165,10 @@ function selectDistributedScenes(
     }
     if (nearestIndex >= 0) {
       const anchor = anchors[nearestIndex]
-      if (anchor >= timestampMs) return false
+      if (anchor >= timestampMs) {
+        covered = true
+        return false
+      }
       anchors[nearestIndex] = timestampMs
       replaced = true
       return true
@@ -198,5 +202,5 @@ function selectDistributedScenes(
   }
 
   scenes.sort((left, right) => left - right)
-  return { backbone: anchors, scenes, replaced }
+  return { backbone: anchors, scenes, replaced, covered }
 }

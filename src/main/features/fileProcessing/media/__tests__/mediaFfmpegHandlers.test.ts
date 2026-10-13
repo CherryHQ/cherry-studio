@@ -664,6 +664,158 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     }
   )
 
+  it('detects cuts on the first video stream when a larger static stream is default', async () => {
+    const cutPath = join(root, 'multi-stream-cuts.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:s=160x120:r=25:d=1',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=white:s=160x120:r=25:d=1',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=blue:s=160x120:r=25:d=2',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=gray:s=640x480:r=25:d=4',
+        '-filter_complex',
+        '[0:v][1:v][2:v]concat=n=3:v=1:a=0[cuts]',
+        '-map',
+        '[cuts]',
+        '-map',
+        '3:v',
+        '-disposition:v:0',
+        '0',
+        '-disposition:v:1',
+        'default',
+        '-c:v',
+        'mpeg4',
+        '-q:v',
+        '5',
+        cutPath
+      ])
+    ).toBe(0)
+    const streams = JSON.parse(
+      spawnSync(
+        ffprobePath,
+        [
+          '-v',
+          'error',
+          '-show_entries',
+          'stream=index,width,height:stream_disposition=default',
+          '-of',
+          'json',
+          cutPath
+        ],
+        { encoding: 'utf8' }
+      ).stdout
+    ).streams
+    expect(streams[0]).toMatchObject({ width: 160, height: 120, disposition: { default: 0 } })
+    expect(streams[1]).toMatchObject({ width: 640, height: 480, disposition: { default: 1 } })
+
+    const probe = await mediaFfmpegHandlers.probe({ filePath: cutPath, fallbackExt: 'mp4' }, context())
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(
+      {
+        filePath: cutPath,
+        durationMs: probe.durationMs,
+        sampleFps: SCENE_SAMPLE_FPS,
+        scoreThreshold: SCENE_SCORE_THRESHOLD,
+        scanEdgePx: SCENE_SCAN_EDGE_PX,
+        maxCandidates: 32
+      },
+      context()
+    )
+    const whiteCut = detected.changes.find((change) => change.timestampMs >= 800 && change.timestampMs <= 1_500)
+    expect(whiteCut).toBeDefined()
+    const extracted = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: cutPath,
+        outputDir: join(root, 'multi-stream-frames'),
+        timestampsMs: [whiteCut!.timestampMs],
+        maxEdgePx: 160,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(extracted.frames).toHaveLength(1)
+    const signature = await readFrameSignature(extracted.frames[0].path)
+    expect(signature).toBeInstanceOf(Uint8Array)
+    if (signature instanceof Uint8Array) expect(isBrightNeutral(signature)).toBe(true)
+  })
+
+  it('keeps a full-frame cut when the scene threshold is 0.999', async () => {
+    const cutPath = join(root, 'threshold-high.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:s=160x120:r=25:d=1',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=white:s=160x120:r=25:d=1',
+        '-filter_complex',
+        '[0:v][1:v]concat=n=2:v=1:a=0',
+        '-c:v',
+        'mpeg4',
+        '-q:v',
+        '5',
+        cutPath
+      ])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: cutPath, fallbackExt: 'mp4' }, context())
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(
+      {
+        filePath: cutPath,
+        durationMs: probe.durationMs,
+        sampleFps: SCENE_SAMPLE_FPS,
+        scoreThreshold: 0.999,
+        scanEdgePx: SCENE_SCAN_EDGE_PX,
+        maxCandidates: 8
+      },
+      context()
+    )
+    expect(detected.changes.some((change) => change.timestampMs >= 700 && change.timestampMs <= 1_500)).toBe(true)
+  })
+
+  it('does not admit a one-level color change below threshold 0.004', async () => {
+    const cutPath = join(root, 'threshold-low.avi')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        "nullsrc=s=160x120:r=8:d=2,format=rgb24,geq=r='128+gte(T,1)':g='128':b='128'",
+        '-pix_fmt',
+        'rgb24',
+        '-c:v',
+        'rawvideo',
+        '-f',
+        'avi',
+        cutPath
+      ])
+    ).toBe(0)
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(
+      {
+        filePath: cutPath,
+        durationMs: 2_000,
+        sampleFps: SCENE_SAMPLE_FPS,
+        scoreThreshold: 0.004,
+        scanEdgePx: SCENE_SCAN_EDGE_PX,
+        maxCandidates: 8
+      },
+      context()
+    )
+    expect(detected.changes).toEqual([])
+  })
+
   it('collapses static frames and leaves an explicit timestamp extract unchanged', async () => {
     const staticPath = join(root, 'static-gray.mp4')
     expect(

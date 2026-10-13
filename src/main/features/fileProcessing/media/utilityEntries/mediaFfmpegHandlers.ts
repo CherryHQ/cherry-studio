@@ -503,22 +503,28 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     const buckets = createSceneCandidateBuckets(durationMs, candidateLimit)
     let timestampMs: number | undefined
     // rgb24: the built-in scene score otherwise ignores same-luma color cuts.
-    const filter = `format=rgb24,fps=${fps},scale=${edge}:-2,select='gt(scene,${scoreThreshold.toFixed(2)})',metadata=print`
-    await runCommand(ffmpegPath, ['-y', '-i', filePath, '-an', '-vf', filter, '-f', 'null', '-'], signal, logger, {
-      ffmpeg: true,
-      pidRegistryPath,
-      onStderrLine: (line) => {
-        const time = /pts_time:\s*([0-9]*\.?[0-9]+)/.exec(line)
-        if (time?.[1]) {
-          timestampMs = Math.round(Number(time[1]) * 1000)
-          return
+    const filter = `format=rgb24,fps=${fps},scale=${edge}:-2,select='gt(scene,${scoreThreshold.toString()})',metadata=print`
+    await runCommand(
+      ffmpegPath,
+      ['-y', '-i', filePath, '-map', '0:V:0', '-an', '-vf', filter, '-f', 'null', '-'],
+      signal,
+      logger,
+      {
+        ffmpeg: true,
+        pidRegistryPath,
+        onStderrLine: (line) => {
+          const time = /pts_time:\s*([0-9]*\.?[0-9]+)/.exec(line)
+          if (time?.[1]) {
+            timestampMs = Math.round(Number(time[1]) * 1000)
+            return
+          }
+          const score = /lavfi\.scene_score=\s*([0-9]*\.?[0-9]+)/.exec(line)
+          if (!score?.[1] || timestampMs == null) return
+          buckets.add({ timestampMs, score: Number(score[1]) })
+          timestampMs = undefined
         }
-        const score = /lavfi\.scene_score=\s*([0-9]*\.?[0-9]+)/.exec(line)
-        if (!score?.[1] || timestampMs == null) return
-        buckets.add({ timestampMs, score: Number(score[1]) })
-        timestampMs = undefined
       }
-    })
+    )
     return { changes: buckets.list() }
   }
 }
