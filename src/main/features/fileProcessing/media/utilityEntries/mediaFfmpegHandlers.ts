@@ -387,6 +387,10 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
       }
     }
 
+    if (totalMs <= 0) {
+      throw new Error(`Audio duration unavailable for oversized WAV (${wavSize} > ${maxChunkBytes})`)
+    }
+
     const bytesPerMs = (16000 * 2) / 1000
     const chunkMs = Math.max(1, Math.floor((maxChunkBytes - WAV_HEADER_BUDGET_BYTES) / bytesPerMs))
     const chunks: MediaExtractedAudioChunk[] = []
