@@ -17,7 +17,15 @@ import {
   type RoundDetails,
   type TranscriptEntry
 } from '../src'
-import { createTestSession, finish, hostStore, plain, streamTextPort, type TestSessionOptions } from './support'
+import {
+  createTestSession,
+  finish,
+  hostStore,
+  plain,
+  streamTextPort,
+  type TestSessionOptions,
+  textParts
+} from './support'
 
 export function goalPort(
   overrides: Partial<Omit<GoalPort, 'defaults'>> & { defaults?: Partial<GoalPort['defaults']> } = {}
@@ -43,18 +51,12 @@ export function readGoal(prompt: LanguageModelV3Prompt): { goal: GoalSnapshot | 
     for (const part of message.content) {
       if (part.type !== 'tool-result' || !['get_goal', 'create_goal', 'update_goal'].includes(part.toolName)) continue
       const output = part.output as { type: string; value: unknown }
-      if (output.type === 'text') return JSON.parse(output.value as string)
+      // The view is the first line; an accepted completion adds its closing instruction after it.
+      if (output.type === 'text') return JSON.parse((output.value as string).split('\n', 1)[0])
     }
   }
   return { goal: null }
 }
-
-export const toolCall = (id: string, toolName: string, input: object): LanguageModelV3StreamPart => ({
-  type: 'tool-call',
-  toolCallId: id,
-  toolName,
-  input: JSON.stringify(input)
-})
 
 /**
  * A model whose Nth call runs the Nth script with the prompt; scripts may read the goal the model
@@ -72,12 +74,7 @@ export function goalModel(scripts: ((prompt: LanguageModelV3Prompt, call: number
   return { model, calls }
 }
 
-export const say = (text: string): LanguageModelV3StreamPart[] => [
-  { type: 'text-start', id: 't' },
-  { type: 'text-delta', id: 't', delta: text },
-  { type: 'text-end', id: 't' },
-  finish('stop')
-]
+export const say = (text: string): LanguageModelV3StreamPart[] => [...textParts('t', text), finish('stop')]
 
 /** A script whose replies differ per call, so every round counts as progress. */
 export const working = (_prompt: LanguageModelV3Prompt, call: number) => say(`working on step ${call}`)
@@ -123,6 +120,8 @@ export function heldModel(scripts: Parameters<typeof goalModel>[0] = [() => say(
 type GoalSessionOptions = Omit<TestSessionOptions<undefined>, 'port' | 'onEvent'> & {
   /** Loaded after the goal extension, so their settle handlers run after its decision. */
   laterExtensions?: ExtensionFactory[]
+  /** The host's own signal, joined to every request's as a host's port may (bridge.test.ts). */
+  hostSignal?: AbortSignal
 }
 
 /**
@@ -132,12 +131,21 @@ type GoalSessionOptions = Omit<TestSessionOptions<undefined>, 'port' | 'onEvent'
 export async function openGoalSession(
   model: LanguageModel,
   port: GoalPort = goalPort(),
-  { laterExtensions = [], ...extra }: GoalSessionOptions = {}
+  { laterExtensions = [], hostSignal, ...extra }: GoalSessionOptions = {}
 ) {
   const host = hostStore()
+  const modelPort = streamTextPort(model).port
   const runtime = await createTestSession({
     ...extra,
-    port: streamTextPort(model).port,
+    port: hostSignal
+      ? {
+          streamText: (request) =>
+            modelPort.streamText({
+              ...request,
+              abortSignal: AbortSignal.any(request.abortSignal ? [request.abortSignal, hostSignal] : [hostSignal])
+            })
+        }
+      : modelPort,
     extensionFactories: [...(extra.extensionFactories ?? []), createGoalExtension(port), ...laterExtensions],
     onEvent: host.onEvent
   })
