@@ -1,4 +1,5 @@
 import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,6 +7,7 @@ import { TabIdContext } from '@renderer/hooks/tab'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
 import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
@@ -616,6 +618,39 @@ describe('MessageGroup', () => {
 
     expect(container.querySelector('#message-msg-1 .message-content-container')).not.toHaveAttribute('tabindex')
   })
+
+  it.each(['bubble', 'plain'])(
+    'shows even a single sent quote collapsed only on the user message (%s)',
+    async (messageStyle) => {
+      const user = userEvent.setup()
+      mocks.settings.mockReturnValue({ ...mocks.settings(), messageStyle })
+      const locateQuotedMessage = vi.fn()
+      mocks.messageListActions.mockReturnValue({ ...mocks.messageListActions(), locateQuotedMessage })
+      const quote = {
+        id: 'quote-1',
+        sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001',
+        text: 'Quoted source text'
+      }
+      const message = { ...createMessage('quoted-user', 0, 'vertical'), role: 'user' as const }
+      const view = render(
+        <MessageGroup
+          messages={[message]}
+          partsByMessageId={{
+            [message.id]: [withCherryMeta({ type: 'text', text: 'My follow-up question' }, { quotes: [quote] })]
+          }}
+        />
+      )
+
+      expect(screen.queryByText(quote.text)).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { expanded: false }))
+      await user.click(screen.getByText(quote.text))
+      expect(locateQuotedMessage).toHaveBeenCalledExactlyOnceWith(quote.sourceMessageId)
+
+      view.rerender(<MessageGroup messages={[{ ...createMessage('quoted-reply', 0, 'vertical'), quotes: [quote] }]} />)
+      expect(screen.queryByRole('button', { expanded: false })).not.toBeInTheDocument()
+      expect(screen.queryByText(quote.text)).not.toBeInTheDocument()
+    }
+  )
 
   it('renders sent attachments outside the user bubble', () => {
     mocks.settings.mockReturnValue({

@@ -292,7 +292,11 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
         aria-disabled={isEditing ? true : undefined}
         ref={messageContainerRef}
         onClickCapture={handleMessageSelectClick}>
-        {quotes?.length ? <MessageQuoteList quotes={quotes} onLocate={actions.locateQuotedMessage} /> : null}
+        {message.role === 'user' && quotes?.length ? (
+          <div className={cn('flex justify-end', isUserBubbleMessage && 'mr-10')}>
+            <MessageQuoteList quotes={quotes} variant="message" onLocate={actions.locateQuotedMessage} />
+          </div>
+        ) : null}
         {isUserBubbleMessage ? (
           <UserBubbleMessage
             message={message}

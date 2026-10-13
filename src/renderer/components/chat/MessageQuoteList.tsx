@@ -11,22 +11,29 @@ const Markdown = lazy(() =>
 
 interface Props {
   quotes: readonly MessageQuote[]
+  variant?: 'composer' | 'message'
   onRemove?: (id: string) => void
   onClear?: () => void
   onLocate?: (messageId: string) => void
 }
 
-export function MessageQuoteList({ quotes, onRemove, onClear, onLocate }: Props) {
+export function MessageQuoteList({ quotes, variant = 'composer', onRemove, onClear, onLocate }: Props) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
   const [expandedList, setExpandedList] = useState<string | null>(null)
   const listKey = JSON.stringify(quotes.map((quote) => quote.id))
-  const isListExpanded = quotes.length === 1 || expandedList === listKey
+  const collapsible = variant === 'message' || quotes.length > 1
+  const isListExpanded = !collapsible || expandedList === listKey
   if (!quotes.length) return null
 
   return (
-    <div className={`${isListExpanded ? 'my-2' : 'mt-1 mb-3'} ml-3 ${onRemove || onClear ? 'mr-10' : 'mr-3'}`}>
-      {quotes.length > 1 ? (
+    <div
+      className={
+        variant === 'message'
+          ? 'my-1 flex max-w-full flex-col items-end'
+          : `${isListExpanded ? 'my-2' : 'mt-1 mb-3'} ml-3 ${onRemove || onClear ? 'mr-10' : 'mr-3'}`
+      }>
+      {collapsible ? (
         <div className="group/quotes flex w-fit items-center rounded-md pr-1 hover:bg-accent has-[:focus-visible]:bg-accent">
           <Button
             variant="ghost"
