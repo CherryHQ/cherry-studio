@@ -12,7 +12,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 
 import { WORKSPACE_ARCHIVE_SUFFIXES } from './agentWorkspaceArchive'
-import { reserveWorkspaceStorage, withSystemWorkspaceStorage } from './agentWorkspaceStorage'
+import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
 
 const logger = loggerService.withContext('AgentOrphanSweep')
 
@@ -104,10 +104,16 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       if (claimedWorkspaces.has(sessionDir)) continue
       const suffix = WORKSPACE_ARCHIVE_SUFFIXES.find((suffix) => sessionDir.endsWith(suffix))
       const workspace = suffix ? sessionDir.slice(0, -suffix.length) : sessionDir
-      if (await withSystemWorkspaceStorage(workspace, () => reclaim(sessionDir, removed, options), true))
+      if (
+        await agentWorkspaceStorageService.withSystemWorkspaceStorage(
+          workspace,
+          () => reclaim(sessionDir, removed, options),
+          true
+        )
+      )
         workspaceDirs++
     }
-    const release = reserveWorkspaceStorage([dateDir])
+    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([dateDir])
     if (release) {
       try {
         await removeIfEmpty(dateDir, removed)

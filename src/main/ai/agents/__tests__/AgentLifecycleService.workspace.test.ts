@@ -8,17 +8,18 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { agentWorkspaceHandlers } from '@data/api/handlers/agentWorkspaces'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { aiHandlers } from '@main/ipc/handlers/ai'
+import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 
 import { AgentLifecycleService } from '../AgentLifecycleService'
 import { sweepAgentOrphans } from '../agentOrphanSweep'
 import * as workspaceArchive from '../agentWorkspaceArchive'
-import { reserveWorkspaceStorage } from '../agentWorkspaceStorage'
+import { agentWorkspaceStorageService } from '../AgentWorkspaceStorageService'
 
 const mocks = vi.hoisted(() => ({
   closeSession: vi.fn().mockResolvedValue(undefined),
@@ -99,9 +100,27 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
 
   const workspacePath = (root: string, id: string) => path.join(root, '2026-10-12', id)
   const registerWorkspace = async (workspacePath: string) => {
-    const result = await agentWorkspaceHandlers['/agent-workspaces'].POST({ body: { path: workspacePath } })
-    return (result as { data: { id: string; path: string } }).data
+    return aiHandlers['ai.agent.workspace.register'](
+      aiRequestSchemas['ai.agent.workspace.register'].input.parse({ path: workspacePath }),
+      { senderId: 'test-window' }
+    )
   }
+
+  it('registers through IPC idempotently without renaming an existing workspace', async () => {
+    const registeredPath = path.join(root, 'registered-project')
+    const register = (name: string) =>
+      aiHandlers['ai.agent.workspace.register'](
+        aiRequestSchemas['ai.agent.workspace.register'].input.parse({ path: registeredPath, name }),
+        { senderId: 'test-window' }
+      )
+    const first = await register('Project')
+    const second = await register('Ignored rename')
+    expect(second.id).toBe(first.id)
+    expect(second.name).toBe('Project')
+    expect(
+      dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, registeredPath)).all()
+    ).toHaveLength(1)
+  })
 
   it.each(['archive', 'purge', 'retention'] as const)(
     'preserves a registered descendant user workspace through %s and sweeps',
@@ -166,10 +185,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     try {
       await expect(registerWorkspace(nested)).rejects.toThrow()
       await expect(registerWorkspace(`${parent}.restoring`)).rejects.toThrow()
-      await expect(agentWorkspaceHandlers['/agent-workspaces'].POST({ body: { path: nested } })).rejects.toThrow()
-      await expect(
-        agentWorkspaceHandlers['/agent-workspaces'].POST({ body: { path: ` ${nested} ` } })
-      ).rejects.toThrow()
+      await expect(registerWorkspace(` ${nested} `)).rejects.toThrow()
       expect((await registerWorkspace(path.join(root, 'unrelated'))).path).toBe(path.join(root, 'unrelated'))
     } finally {
       resume.resolve()
@@ -274,7 +290,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id)).get()?.path).toBe(
       claimed
     )
-    expect(reserveWorkspaceStorage([old])).toBeUndefined()
+    expect(agentWorkspaceStorageService.reserveWorkspaceStorage([old])).toBeUndefined()
     expect(await readFile(old, 'utf8')).toBe('replaced directory')
     await lifecycle.archiveSessions(['system'])
     await lifecycle.purgeSessions(['system'])
@@ -287,7 +303,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     const caseAlias = existsSync(path.join(root, 'caf\u00e9.RESTORING'))
     const unicodeAlias = existsSync(path.join(root, 'cafe\u0301.restoring'))
     await rm(target, { recursive: true })
-    const release = reserveWorkspaceStorage([target])!
+    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([target])!
     try {
       const registration = registerWorkspace(path.join(root, 'caf\u00e9.RESTORING', 'project'))
       if (caseAlias) await expect(registration).rejects.toThrow()
@@ -304,7 +320,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   it('rejects restore while storage is reserved and permits it after release', async () => {
     const parent = workspacePath(root, 'system')
     await lifecycle.archiveSessions(['system'])
-    const release = reserveWorkspaceStorage([parent], parent)!
+    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([parent], parent)!
     try {
       await expect(lifecycle.restoreSession('system')).rejects.toThrow('cannot safely restore')
       expect(existsSync(parent)).toBe(false)

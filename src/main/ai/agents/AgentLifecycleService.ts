@@ -25,7 +25,7 @@ import {
   purgeSystemWorkspace,
   restoreSystemWorkspace
 } from './agentWorkspaceArchive'
-import { reserveWorkspaceStorage, withSystemWorkspaceStorage, workspaceStoragePaths } from './agentWorkspaceStorage'
+import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
 import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentLifecycleService')
@@ -197,7 +197,7 @@ export class AgentLifecycleService extends BaseService {
             if (workspace.deletedAt !== null) await this.finishDeletion([id], [])
             else if (hasWorkspaceRestore(workspace.path)) {
               try {
-                await withSystemWorkspaceStorage(workspace.path, () =>
+                await agentWorkspaceStorageService.withSystemWorkspaceStorage(workspace.path, () =>
                   finalizeSystemWorkspaceRestore(
                     application.getPath('feature.agents.system_workspaces'),
                     workspace.path
@@ -461,7 +461,10 @@ export class AgentLifecycleService extends BaseService {
     paths = [...new Set(paths)].sort()
     const root = application.getPath('feature.agents.system_workspaces')
     if (!existsSync(root)) return activate()
-    const release = reserveWorkspaceStorage(paths.flatMap(workspaceStoragePaths), paths)
+    const release = agentWorkspaceStorageService.reserveWorkspaceStorage(
+      paths.flatMap((workspace) => agentWorkspaceStorageService.workspaceStoragePaths(workspace)),
+      paths
+    )
     if (!release) {
       throw DataApiErrorFactory.conflict('Workspace storage is in use; cannot safely restore this session', 'Workspace')
     }
@@ -490,7 +493,9 @@ export class AgentLifecycleService extends BaseService {
     const root = application.getPath('feature.agents.system_workspaces')
     for (const workspacePath of paths) {
       try {
-        await withSystemWorkspaceStorage(workspacePath, () => purgeSystemWorkspace(root, workspacePath))
+        await agentWorkspaceStorageService.withSystemWorkspaceStorage(workspacePath, () =>
+          purgeSystemWorkspace(root, workspacePath)
+        )
       } catch (error) {
         logger.warn('Failed to remove purged Agent Session workspace', { workspacePath, error })
       }
@@ -502,7 +507,7 @@ export class AgentLifecycleService extends BaseService {
     for (const workspace of agentSessionService.listSystemWorkspaceSessions(ids)) {
       if (workspace.deletedAt === null) continue
       try {
-        await withSystemWorkspaceStorage(workspace.path, async () => {
+        await agentWorkspaceStorageService.withSystemWorkspaceStorage(workspace.path, async () => {
           await application.get('AgentSessionRuntimeService').closeSessionForArchive(workspace.id)
           await archiveSystemWorkspace(root, workspace.path)
         })

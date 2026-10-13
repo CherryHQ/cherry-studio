@@ -8,9 +8,8 @@ sources:
   - src/main/ai/agents/AgentJobsService.ts
   - src/main/ai/agents/agentOrphanSweep.ts
   - src/main/ai/agents/agentWorkspaceArchive.ts
-  - src/main/ai/agents/agentWorkspaceStorage.ts
+  - src/main/ai/agents/AgentWorkspaceStorageService.ts
   - src/main/data/services/AgentWorkspaceService.ts
-  - src/main/core/concurrency/PathReservationService.ts
   - src/main/utils/file/pathIdentity.ts
   - src/main/services/LegacyBackupManager.ts
 ---
@@ -158,12 +157,15 @@ archive; the original contents are removed only after the archive is validated
 and published. Failures retain the files for a later lifecycle sweep to retry.
 Linked or special files prevent compression rather than being silently omitted.
 
-Workspace registration and storage reclamation share the process-local
-`PathReservationService` in `core/concurrency`. The DataApi handler checks active
-reservations before its synchronous database write. The AI coordinator resolves
-filesystem identities and combines persisted claims with those reservations;
-AgentWorkspaceService only reads and writes database records. Registered overlapping workspaces protect the
-whole system tree, including user directories nested below it; logical Session
+Workspace registration and storage reclamation share `AgentWorkspaceStorageService`
+in the AI domain. Registration enters through `ai.agent.workspace.register` IPC;
+DataApi retains workspace queries, metadata updates, and ordering. The domain service
+owns the process-local reservations, resolves filesystem identities, and combines
+persisted claims with those reservations before its synchronous database write;
+AgentWorkspaceService only reads and writes database records and publishes workspace
+membership changes after registration commits. Existing DataApi queries refresh
+across windows without performing file work. Registered overlapping workspaces protect
+the whole system tree, including user directories nested below it; logical Session
 archival still succeeds. Archive, restore, purge, and orphan sweep hold the reservation
 through their filesystem work, so new overlapping registrations fail with a
 retryable conflict until it completes. Checks resolve existing path aliases, probe
