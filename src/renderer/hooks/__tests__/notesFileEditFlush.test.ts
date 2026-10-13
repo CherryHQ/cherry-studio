@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   areNotesEditsLockedForRelocation,
   flushAllNotesEdits,
+  getNotesRelocationBarrierEpoch,
   hasPendingNotesImagePastes,
   lockNotesEditsForRelocation,
   registerNotesEditFlush,
@@ -108,6 +109,14 @@ describe('notesFileEditFlush structural writes', () => {
 
     await flushAllNotesEdits()
     expect(order).toEqual(['pre', 'flush'])
+  })
+
+  it('bumps the barrier epoch when relocation edits unlock', () => {
+    unlockNotesEditsForRelocation()
+    lockNotesEditsForRelocation()
+    const before = getNotesRelocationBarrierEpoch()
+    unlockNotesEditsForRelocation()
+    expect(getNotesRelocationBarrierEpoch()).toBe(before + 1)
   })
 
   it('releases only the flush-acquired lock without clearing an active relocation barrier', () => {

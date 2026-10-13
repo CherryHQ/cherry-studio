@@ -160,6 +160,16 @@ export function useFileEditSession(
 
   const modelRef = useRef<FileEditModel | null>(null)
 
+  const cacheSnapshotIfActive = useCallback(
+    (model: FileEditModel, snapshot: FileEditSnapshot) => {
+      if (modelRef.current !== model) {
+        return
+      }
+      void mutate(model.key, snapshot, { revalidate: false })
+    },
+    [mutate]
+  )
+
   // Mirror a model into React state — only while it is still the active model.
   const syncFromModel = useCallback((model: FileEditModel) => {
     if (modelRef.current !== model) return
@@ -194,7 +204,7 @@ export function useFileEditSession(
           model.lastWriteError = null
           syncFromModel(model)
           // Keep the SWR cache in step so a later reopen sees the saved bytes.
-          void mutate(model.key, model.snapshot, { revalidate: false })
+          cacheSnapshotIfActive(model, model.snapshot)
         } catch (writeError) {
           if (writeError instanceof IpcError && writeError.code === fileErrorCodes.COMMITTED_METADATA_PENDING) {
             logger.warn('Autosave bytes committed; metadata recovery is pending', {
@@ -206,7 +216,7 @@ export function useFileEditSession(
               model.snapshot = disk
               model.lastWriteError = writeError
               syncFromModel(model)
-              void mutate(model.key, disk, { revalidate: false })
+              cacheSnapshotIfActive(model, disk)
               // The bytes did land. Stop this write loop so the same payload
               // is never retried merely because metadata finalization failed.
               // A later user edit may start a new save against the refreshed
@@ -234,14 +244,14 @@ export function useFileEditSession(
               // Disk already holds exactly what we tried to write.
               model.snapshot = disk
               syncFromModel(model)
-              void mutate(model.key, disk, { revalidate: false })
+              cacheSnapshotIfActive(model, disk)
               continue
             }
             if (disk.content === baseline.content && ++rebases <= MAX_STALE_REBASES) {
               // Metadata-only touch (mtime advanced, content identical) —
               // rebase onto the new version and retry the write.
               model.snapshot = disk
-              void mutate(model.key, disk, { revalidate: false })
+              cacheSnapshotIfActive(model, disk)
               continue
             }
             model.conflict = true
@@ -315,15 +325,16 @@ export function useFileEditSession(
       debouncedWrite.cancel()
       const model = modelRef.current
       if (model && !model.conflict && model.draft !== model.snapshot.content) {
-        requestWrite(model, { force: true })
+        const persistDepartingEdits = model.writeTask.run(async () => {
+          await (runWritesRef.current?.(model) ?? Promise.resolve())
+          if (!model.conflict && model.draft !== model.snapshot.content) {
+            throw model.lastWriteError ?? new Error('Pending edit could not be saved')
+          }
+        })
         if (trackDepartingWritesForRelocation) {
-          trackDepartingNotesFileWrite(
-            model.chain.then(() => {
-              if (model.draft !== model.snapshot.content) {
-                throw model.lastWriteError ?? new Error('Pending edit could not be saved')
-              }
-            })
-          )
+          trackDepartingNotesFileWrite(persistDepartingEdits)
+        } else {
+          void persistDepartingEdits
         }
       }
       modelRef.current = null
@@ -445,11 +456,11 @@ export function useFileEditSession(
       model.snapshot = disk
       model.draft = disk.content
       syncFromModel(model)
-      void mutate(model.key, disk, { revalidate: false })
+      cacheSnapshotIfActive(model, disk)
     } catch (reloadError) {
       logger.error('Idle disk refresh failed', reloadError as Error)
     }
-  }, [mutate, syncFromModel])
+  }, [cacheSnapshotIfActive, syncFromModel])
 
   const notifyExternalChange = useCallback(
     (eventMtimeMs?: number) => {

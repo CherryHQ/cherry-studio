@@ -3,6 +3,7 @@ import { useEffect, type FC } from 'react'
 import { loggerService } from '@logger'
 import {
   flushAllNotesEdits,
+  getNotesRelocationBarrierEpoch,
   lockNotesEditsForRelocation,
   releaseOneNotesRelocationEditLock,
   unlockNotesEditsForRelocation,
@@ -35,11 +36,15 @@ export const NotesRelocationFlushListener: FC = () => {
   useIpcOn('app.notes_relocation.flush_edits', async ({ requestId }) => {
     let ok = true
     let lockedForThisFlush = false
+    let barrierEpochAtFlushLock = 0
     const releaseFlushLock = () => {
       if (!lockedForThisFlush) {
         return
       }
       lockedForThisFlush = false
+      if (barrierEpochAtFlushLock !== getNotesRelocationBarrierEpoch()) {
+        return
+      }
       releaseOneNotesRelocationEditLock()
     }
 
@@ -51,6 +56,7 @@ export const NotesRelocationFlushListener: FC = () => {
       }
       lockNotesEditsForRelocation()
       lockedForThisFlush = true
+      barrierEpochAtFlushLock = getNotesRelocationBarrierEpoch()
       await flushAllNotesEdits()
     } catch (error) {
       ok = false

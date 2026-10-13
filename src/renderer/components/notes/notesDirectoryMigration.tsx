@@ -105,7 +105,7 @@ export async function migrateNotesDirectoryWithUi(options: {
     }
 
     let merge = false
-    if (inspection.targetHasFiles || inspection.target.folderCount > 0) {
+    if (inspection.target.fileCount > 0) {
       const mergeConfirmed = await confirmMerge(t, inspection.target.markdownFileCount)
       if (!mergeConfirmed) {
         return

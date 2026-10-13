@@ -9,6 +9,7 @@ const pendingImagePasteOperations = new Set<Promise<void>>()
 const autosaveCancelCallbacks = new Set<() => void>()
 const relocationEditLockListeners = new Set<() => void>()
 let relocationEditLockDepth = 0
+let relocationBarrierEpoch = 0
 let inFlightStructuralWrites = 0
 const structuralWriteIdleWaiters: Array<() => void> = []
 
@@ -60,11 +61,16 @@ export function releaseOneNotesRelocationEditLock(): void {
   notifyRelocationEditLockChanged()
 }
 
+export function getNotesRelocationBarrierEpoch(): number {
+  return relocationBarrierEpoch
+}
+
 export function unlockNotesEditsForRelocation(): void {
   if (relocationEditLockDepth === 0) {
     return
   }
   relocationEditLockDepth = 0
+  relocationBarrierEpoch += 1
   notifyRelocationEditLockChanged()
 }
 
