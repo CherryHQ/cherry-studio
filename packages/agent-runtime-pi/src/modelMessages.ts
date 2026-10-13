@@ -30,7 +30,7 @@ function toToolResultOutput(message: ToolResultMessage): ToolResultOutput {
       )
     }
   }
-  const text = message.content.map((part) => (part.type === 'text' ? part.text : '')).join('')
+  const text = message.content.map((part) => (part.type === 'text' ? part.text : '')).join('\n')
   return message.isError ? { type: 'error-text', value: text } : { type: 'text', value: text }
 }
 
