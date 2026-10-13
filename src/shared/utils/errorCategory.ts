@@ -101,11 +101,19 @@ export interface ErrorCategoryInput {
   text?: string
   status?: number
   finishReason?: string
-  /** CLI-originated text may need stricter message-only server matching. */
-  source?: 'claude-code'
+  /**
+   * Skip generic upstream phrases only. Structured HTTP 5xx still returns server,
+   * and later categories such as parse, knowledge, and deprecated still match.
+   */
+  ignoreMessageOnlyServer?: boolean
 }
 
-export function classifyErrorCategory({ text, status, finishReason, source }: ErrorCategoryInput): ErrorCategory {
+export function classifyErrorCategory({
+  text,
+  status,
+  finishReason,
+  ignoreMessageOnlyServer
+}: ErrorCategoryInput): ErrorCategory {
   switch (finishReason?.toLowerCase()) {
     case 'content-filter':
     case 'content_filter':
@@ -314,16 +322,9 @@ export function classifyErrorCategory({ text, status, finishReason, source }: Er
   }
 
   // Message-only upstream wording. Explicit transport, TLS, and proxy matches above win.
-  const isClaudeCodeSpawnFailure =
-    msg.includes('failed to spawn claude code process') ||
-    msg.includes('claude code process exited') ||
-    msg.includes('claude code process terminated')
-  const hasUpstreamUnavailableContext = /\b(?:api|gateway|http|provider|response|upstream)\b/.test(msg)
-  const canClassifyMessageOnlyServerError =
-    !isClaudeCodeSpawnFailure && (source !== 'claude-code' || hasUpstreamUnavailableContext)
   const isExplicitTemporaryUnavailable = /\b(?:service|server|upstream)(?:\s+is)?\s+temporarily unavailable\b/.test(msg)
   if (
-    canClassifyMessageOnlyServerError &&
+    !ignoreMessageOnlyServer &&
     (msg.includes('overloaded') ||
       msg.includes('overload') ||
       msg.includes('service unavailable') ||

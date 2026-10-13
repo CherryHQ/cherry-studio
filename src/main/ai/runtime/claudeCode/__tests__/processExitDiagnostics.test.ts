@@ -80,6 +80,30 @@ describe('Claude Code process exit diagnostics', () => {
     expect(diagnostics.category).not.toBe('server')
   })
 
+  it('keeps an upstream-context CLI unavailable message as a server failure', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('upstream-unavailable-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'API Error: Service temporarily unavailable')
+
+    expect(diagnostics.category).toBe('server')
+  })
+
+  it('keeps a later specific category when generic server wording is local', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('local-parse-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'invalid json')
+
+    expect(diagnostics.category).toBe('parse')
+  })
+
+  it('keeps a structured 503 ahead of an auth-looking CLI message', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('structured-503-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'HTTP 503 unauthorized')
+
+    expect(diagnostics.category).toBe('server')
+  })
+
   it.each(['Overloaded', 'Internal server error'])('keeps local Claude Code %s stderr out of server', (stderr) => {
     const diagnostics = createClaudeCodeProcessDiagnostics(`cli-${stderr.toLowerCase().replaceAll(' ', '-')}-ref`)
 
