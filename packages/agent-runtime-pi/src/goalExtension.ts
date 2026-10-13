@@ -1,11 +1,21 @@
 import { StringEnum, Type } from '@earendil-works/pi-ai'
-import { type AgentToolResult, type ExtensionContext, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import {
+  type AgentBeforeSettleEvent,
+  type AgentBeforeSettleEventResult,
+  type AgentToolResult,
+  type ExtensionContext,
+  type ExtensionFactory
+} from '@earendil-works/pi-coding-agent'
 
 import {
+  admitRound,
+  assistantText,
+  budgetExceeded,
   createGoal,
   currentGoal,
   editGoal,
   GOAL_NOTICE_TYPE,
+  GOAL_ROUND_TYPE,
   GOAL_STATE_TYPE,
   type GoalBudget,
   GoalError,
@@ -14,10 +24,13 @@ import {
   type GoalStopCode,
   goalView,
   isHumanTurn,
+  isProgressResult,
   recordUsage,
+  renderRoundPrompt,
   resumeGoal,
   type RoundDetails,
-  stopGoal
+  stopGoal,
+  tailRound
 } from './goalState'
 import type { ConversationModelMessage } from './modelMessages'
 
@@ -59,6 +72,9 @@ export const GOAL_TOOL_NAMES = ['get_goal', 'create_goal', 'update_goal'] as con
 const ACTIONS = ['edit', 'pause', 'resume', 'complete', 'blocked'] as const
 const CONTROL_WORDS = new Set(['pause', 'resume', 'clear'])
 const NUMBER = /^-?\d+(?:\.\d+)?$/
+/** Rounds without progress before a hint round, and before the goal stops (spec §7.2). */
+const HINT_AFTER_ROUNDS = 2
+const STOP_AFTER_ROUNDS = 3
 
 const text = (value: string) => ({ type: 'text' as const, text: value })
 const hasText = (value: string | undefined): value is string => typeof value === 'string' && value.trim().length > 0
@@ -110,14 +126,18 @@ interface Runtime {
   inGoalRound: boolean
   reservation: RoundDetails | undefined
   noProgressRounds: number
+  /** The previous round's last text-bearing reply, normalized (spec §6.1). */
   previousText: string | undefined
+  /** The current round so far: whether a call moved the objective, and its last text-bearing reply. */
+  round: { toolProgress: boolean; text: string | undefined }
   repeat: { key: string | undefined; count: number }
   stopRequest: { code: GoalStopCode; message?: string } | undefined
-  blockedRounds: { revision: number; rounds: Set<number> }
+  /** `count` consecutive goal rounds, the last one `round`, reported `blocked` (spec §7.5). */
+  blocked: { round: number; count: number }
   /** Usage since the last snapshot write; folded into the next one. */
   pendingUsage: { tokens: number; usd: number }
-  /** Whether any turn of the current round progressed; undefined until its first turn ends. */
-  lastRoundProgressed: boolean | undefined
+  /** A goal round was admitted since the goal was last armed (spec §6.2 step 6). */
+  roundAdmitted: boolean
 }
 
 /**
@@ -135,11 +155,12 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       reservation: undefined,
       noProgressRounds: 0,
       previousText: undefined,
+      round: { toolProgress: false, text: undefined },
       repeat: { key: undefined, count: 0 },
       stopRequest: undefined,
-      blockedRounds: { revision: 0, rounds: new Set() },
+      blocked: { round: 0, count: 0 },
       pendingUsage: { tokens: 0, usd: 0 },
-      lastRoundProgressed: undefined
+      roundAdmitted: false
     }
     const limits = () => ({
       maxGoalRounds: port.defaults.maxGoalRounds,
@@ -154,10 +175,11 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       runtime.reservation = undefined
       runtime.noProgressRounds = 0
       runtime.previousText = undefined
+      runtime.round = { toolProgress: false, text: undefined }
       runtime.repeat = { key: undefined, count: 0 }
       runtime.stopRequest = undefined
-      runtime.blockedRounds = { revision: 0, rounds: new Set() }
-      runtime.lastRoundProgressed = undefined
+      runtime.blocked = { round: 0, count: 0 }
+      runtime.roundAdmitted = false
     }
     /** Every persisted change goes through here; pending usage rides along when it is the same goal's. */
     const commit = (next: GoalSnapshot) => {
@@ -197,10 +219,11 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       stop('paused_by_user')
       return true
     }
-    /** Returns false when the goal already was active and armed; a complete goal throws in `resumeGoal`. */
+    /** False when the goal already was active and armed; `resumeGoal` throws when it is complete or has no capacity. */
     const resume = (goal: GoalSnapshot): boolean => {
-      if (goal.phase === 'active' && runtime.armed) return false
-      if (goal.phase !== 'active') commit(resumeGoal(goal, now()))
+      const next = resumeGoal(goal, now())
+      if (next === goal && runtime.armed) return false
+      if (next !== goal) commit(next)
       resetGoalRuntime()
       runtime.armed = true
       return true
@@ -349,6 +372,139 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       throw new GoalError('invalid_action', 'blocked is not available yet')
     }
 
+    const roundMessage = (goal: GoalSnapshot, details: RoundDetails) => ({
+      customType: GOAL_ROUND_TYPE,
+      content: renderRoundPrompt(goal, details, port.defaults.blockedAfter, runtime.noProgressRounds),
+      display: false,
+      details
+    })
+    /** Spec §6.2 step 10: the last allowed round, or the first after the budget is crossed, is a wrap-up. */
+    const reserve = (goal: GoalSnapshot): RoundDetails => {
+      const kind =
+        goal.roundsStarted + 1 >= goal.maxGoalRounds || budgetExceeded(goal)
+          ? 'wrap-up'
+          : runtime.noProgressRounds === HINT_AFTER_ROUNDS
+            ? 'hint'
+            : 'work'
+      runtime.reservation = { goalId: goal.id, revision: goal.revision, round: goal.roundsStarted + 1, kind }
+      return runtime.reservation
+    }
+    /** Spec §6.0: a command that arms the goal on an idle session starts the first round itself. */
+    const startRound = (ctx: ExtensionContext) => {
+      if (!runtime.goal || !runtime.armed || !ctx.isIdle()) return
+      pi.sendMessage(roundMessage(runtime.goal, reserve(runtime.goal)), { triggerTurn: true })
+    }
+    /** Spec §6.3: a reserved round counts once Pi sends its message on. */
+    const admit = (details: RoundDetails | undefined) => {
+      const reserved = runtime.reservation
+      if (!runtime.goal || !reserved || !details) return
+      if (
+        details.goalId !== reserved.goalId ||
+        details.revision !== reserved.revision ||
+        details.round !== reserved.round
+      )
+        return
+      runtime.reservation = undefined
+      runtime.inGoalRound = true
+      runtime.roundAdmitted = true
+      runtime.round = { toolProgress: false, text: undefined }
+      runtime.repeat = { key: undefined, count: 0 }
+      commit(admitRound(runtime.goal, reserved.kind, now()))
+    }
+    const roundProgressed = () =>
+      runtime.round.toolProgress || (runtime.round.text !== undefined && runtime.round.text !== runtime.previousText)
+    /** Spec §6.1, §7.2: a round ends at the settle or when a person speaks; any progressing turn counts for it. */
+    const closeRound = () => {
+      if (!runtime.inGoalRound || !runtime.goal) return
+      runtime.inGoalRound = false
+      const progressed = roundProgressed()
+      if (runtime.round.text !== undefined) runtime.previousText = runtime.round.text
+      runtime.noProgressRounds = progressed ? 0 : runtime.noProgressRounds + 1
+      if (progressed) runtime.goal = recordUsage(runtime.goal, { tokens: 0, usd: 0 }, true)
+    }
+    /** Spec §6.1: a person's message ends the goal round and starts the streaks over. */
+    const startHumanTurn = () => {
+      closeRound()
+      runtime.noProgressRounds = 0
+      runtime.blocked = { round: 0, count: 0 }
+    }
+    const lastErrorMessage = (ctx: ExtensionContext) => {
+      const last = ctx.sessionManager.getBranch().at(-1)
+      return last?.type === 'message' && last.message.role === 'assistant' ? last.message.errorMessage : undefined
+    }
+
+    /** Spec §6.2, in order; `undefined` lets the run settle. */
+    const decide = (event: AgentBeforeSettleEvent, ctx: ExtensionContext): AgentBeforeSettleEventResult | undefined => {
+      const goal = runtime.goal
+      if (event.outcome === 'error') {
+        if (goal?.phase === 'active') stop('provider_error', lastErrorMessage(ctx))
+        return undefined
+      }
+      if (!goal || goal.phase !== 'active') return undefined
+      if (runtime.stopRequest) {
+        const { code, message } = runtime.stopRequest
+        runtime.stopRequest = undefined
+        stop(code, message)
+        return undefined
+      }
+      if (!runtime.armed) return undefined
+      if (runtime.roundAdmitted && port.defaults.autonomy() === 'confirm-each-round') {
+        stop('paused_each_round')
+        return undefined
+      }
+      if (event.context.pendingMessages.length > 0) return undefined
+      if (runtime.noProgressRounds >= STOP_AFTER_ROUNDS) {
+        stop('no_progress')
+        return undefined
+      }
+      if (goal.wrapUpDone) {
+        stop(goal.roundsStarted >= goal.maxGoalRounds ? 'round_limit' : 'budget_exhausted')
+        return undefined
+      }
+      // The budget check sees this round's usage; the next snapshot write folds it in.
+      const projected = recordUsage(goal, runtime.pendingUsage, false)
+      return { entries: [{ type: 'custom_message', ...roundMessage(projected, reserve(projected)) }], continue: true }
+    }
+
+    // A round the settle committed is on the branch when its run starts; Pi emits no message_end for it.
+    pi.on('turn_start', (_event, ctx) => admit(tailRound(ctx.sessionManager.getBranch())))
+    pi.on('message_end', (event) => {
+      const { message } = event
+      if (message.role === 'user') startHumanTurn()
+      // A round a command sent: its message_end comes after turn_start, before Pi persists it.
+      else if (message.role === 'custom' && message.customType === GOAL_ROUND_TYPE)
+        admit(message.details as RoundDetails)
+    })
+
+    pi.on('turn_end', (event) => {
+      if (!runtime.goal || !runtime.inGoalRound || event.message.role !== 'assistant') return
+      const { usage } = event.message
+      runtime.pendingUsage.tokens += usage.input + usage.output + usage.cacheRead + usage.cacheWrite
+      runtime.pendingUsage.usd += usage.cost.total
+      for (const result of event.toolResults) {
+        // A tool's own usage (a subagent's requests) counts too: the host billed it, the budget has not seen it.
+        if (result.usage) {
+          runtime.pendingUsage.tokens += result.usage.totalTokens
+          runtime.pendingUsage.usd += result.usage.cost.total
+        }
+        if (isProgressResult(result)) runtime.round.toolProgress = true
+      }
+      const reply = assistantText(event.message)
+      if (reply) runtime.round.text = reply
+    })
+
+    pi.on('agent_before_settle', (event, ctx) => {
+      closeRound()
+      return decide(event, ctx)
+    })
+
+    pi.on('agent_settled', () => {
+      const rejected = runtime.reservation !== undefined
+      runtime.reservation = undefined
+      runtime.inGoalRound = false
+      if (rejected && runtime.goal?.phase === 'active') stop('continuation_rejected')
+    })
+
     pi.registerCommand('goal', {
       description:
         'Set or manage the session goal: [<objective> | edit <objective> | pause | resume | clear | rounds <n> | budget <tokens|$usd>]',
@@ -383,12 +539,13 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
               notice('Goal cleared.')
             } else {
               notice(resume(goal) ? 'Goal resumed.' : 'Goal is already active.')
-              // Task 5 starts the first round from here when the agent is idle.
+              startRound(ctx)
             }
             return
           }
-          if (keyword === 'edit') {
-            commit(editGoal(requireGoal(), { objective: value }, port.defaults.maxGoalRoundsCeiling, now()))
+          // With no goal to edit, a leading "edit" is part of a new objective.
+          if (keyword === 'edit' && runtime.goal) {
+            commit(editGoal(runtime.goal, { objective: value }, port.defaults.maxGoalRoundsCeiling, now()))
             notice('Goal objective updated.')
             return
           }
@@ -410,7 +567,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
             )
           create(createGoal(input, limits(), {}, now()))
           notice('Goal created.')
-          // Task 5 starts the first round from here when the agent is idle.
+          startRound(ctx)
         } catch (error) {
           notice(error instanceof Error ? error.message : String(error), 'error')
         }
