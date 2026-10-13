@@ -173,7 +173,13 @@ export default defineConfig({
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')
     ],
-    resolve: { alias: mainResolveAlias },
+    resolve: {
+      alias: [
+        ...Object.entries(mainResolveAlias).map(([find, replacement]) => ({ find, replacement })),
+        // file-stream-rotator requires Moment's callable CommonJS export, not its ESM namespace.
+        { find: /^moment$/, replacement: 'moment/moment.js' }
+      ]
+    },
     build: {
       externalizeDeps: {
         include: mainExternalModules

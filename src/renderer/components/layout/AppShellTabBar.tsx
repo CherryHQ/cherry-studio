@@ -18,7 +18,7 @@ import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
-import { isMac } from '@renderer/utils/platform'
+import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 import { WindowControls } from '../WindowControls'
@@ -917,8 +917,9 @@ export const AppShellTabBar = ({
       <header
         ref={tabBarRef}
         data-ui="app.tab-bar"
+        style={isWin ? { minHeight: 'env(titlebar-area-height, 0px)' } : undefined}
         className={cn(
-          'relative flex h-11 w-full select-none items-center gap-2 [-webkit-app-region:drag]',
+          'relative flex h-11 w-full shrink-0 select-none items-center gap-2 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           'pl-0'
         )}>

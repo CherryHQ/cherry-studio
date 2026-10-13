@@ -35,6 +35,7 @@ import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/sett
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
+import { isWin } from '@renderer/utils/platform'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
@@ -398,7 +399,9 @@ export default function OnboardingPage({
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-sidebar text-foreground">
-      <div className="drag flex h-[var(--app-top-chrome-height)] shrink-0 items-stretch justify-end">
+      <div
+        className="drag flex h-[var(--app-top-chrome-height)] shrink-0 items-stretch justify-end"
+        style={isWin ? { minHeight: 'env(titlebar-area-height, 0px)' } : undefined}>
         <div className="nodrag mr-2 flex items-center gap-1">
           <div data-onboarding-language-select="" className="nodrag">
             <Select value={displayLanguage} onValueChange={handleLanguageChange}>

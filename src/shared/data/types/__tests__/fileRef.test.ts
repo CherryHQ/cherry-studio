@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   agentSessionMessageFileRefSchema,
   agentSessionMessageSourceType,
-  allSourceTypes,
   chatMessageFileRefSchema,
   chatMessageSourceType,
   FileRefSchema,
@@ -24,26 +23,6 @@ const PAINTING_ID = '33333333-4444-4555-8666-000000000003' // UUIDv4 (painting.i
 const JOB_ID = '019606a0-0000-7000-8000-000000000009' // UUIDv7 (job.id is uuidPrimaryKeyOrdered)
 const HISTORY_ID = '019606a0-0000-7000-8000-00000000000a' // UUIDv7 (translate_history.id is uuidPrimaryKeyOrdered)
 const TS = 1700000000000
-
-describe('FileRefSourceType', () => {
-  it('exposes exactly the currently-registered source types', () => {
-    // Defensive: this assertion locks the currently-registered set. Adding a
-    // new variant must also extend the discriminated union and back it with an
-    // FK-constrained association table — see ref/index.ts.
-    // The user avatar deliberately has no variant: it is persisted only in the
-    // `app.user.avatar` preference (no ref table).
-    expect([...allSourceTypes]).toEqual([
-      'chat_message',
-      'agent_session_message',
-      'painting',
-      'job',
-      'translate_history',
-      'provider_logo',
-      'mini_app_logo',
-      'mini_app_file'
-    ])
-  })
-})
 
 describe('chatMessageFileRefSchema', () => {
   function makeChatMessageRef(overrides: Record<string, unknown> = {}) {

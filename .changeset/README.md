@@ -47,6 +47,7 @@ See `config.json` for the changeset configuration:
 
 | Package | Description |
 | --- | --- |
+| `@cherrystudio/provider-registry` | Cross-platform provider/model catalogs, schemas, and lookup |
 | `@cherrystudio/ai-core` | Unified AI Provider Interface |
 | `@cherrystudio/ai-sdk-provider` | AI SDK provider bundle with CherryIN routing |
 | `@cherrystudio/extension-table-plus` | Table extension for Tiptap |
