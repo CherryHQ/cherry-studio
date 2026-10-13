@@ -31,6 +31,7 @@ import StreamZip from 'node-stream-zip'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { application } from '@application'
+import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskService'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { readAppliedChain } from '@main/data/db/restore/appliedChain'
@@ -359,6 +360,9 @@ class BackupManager {
           writerHolds.push(agentLifecycle.pauseExecution(quiesceReason))
           writerHolds.push(agentJobs.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
+          // A detached task finishing mid-capture would move the fingerprint the snapshot is
+          // checked against; its index write waits with the rest.
+          writerHolds.push(agentBackgroundTaskService.pauseWrites(quiesceReason))
 
           const writerVerdicts = await Promise.all([
             agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
@@ -937,6 +941,9 @@ class BackupManager {
         const aiStreamManager = application.get('AiStreamManager')
         writerHolds.push(aiStreamManager.pause('backup restore'))
         writerHolds.push(agentLifecycle.pauseExecution('backup restore'))
+        // A completion landing while the promotion journal is staged would move the fingerprint the
+        // restore is checked against; its index write waits with the rest.
+        writerHolds.push(agentBackgroundTaskService.pauseWrites('backup restore'))
         this.assertWritersDrained(
           await Promise.all([
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
