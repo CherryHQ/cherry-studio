@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ShellEnvModule from '@main/utils/shellEnv'
+
 const shellEnvMock = vi.hoisted(() => ({
   getRawShellEnv: vi.fn<() => Promise<Record<string, string>>>()
 }))
@@ -12,7 +14,7 @@ const launchMock = vi.hoisted(() => ({
 }))
 
 vi.mock('@main/utils/shellEnv', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@main/utils/shellEnv')>()
+  const actual = await importOriginal<typeof ShellEnvModule>()
   return { ...actual, getRawShellEnv: shellEnvMock.getRawShellEnv }
 })
 vi.mock('../mcpLaunch', () => launchMock)
