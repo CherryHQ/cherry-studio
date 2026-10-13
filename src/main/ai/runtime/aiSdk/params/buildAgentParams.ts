@@ -422,7 +422,7 @@ export async function resolveTools(
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 
-  const paintingModel = resolveConfiguredPaintingModel()
+  const paintingModel = assistant?.settings?.enableGenerateImage ? await resolveConfiguredPaintingModel() : null
   const selected = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,

@@ -33,6 +33,7 @@ type ImageResponseBody = {
 
 export class SiliconImageModel implements ImageModelV4 {
   readonly specificationVersion = 'v4'
+  readonly supportsMaskInputs = false
   // Kolors caps batch at 4; Qwen-family is single-image. We leave the
   // AI SDK to fan out (callCount = ceil(n / 1)) past 1 — the body's
   // `batch_size` only honors the value it understands.

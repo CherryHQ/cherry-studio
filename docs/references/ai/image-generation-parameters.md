@@ -5,6 +5,8 @@ sources:
   - src/renderer/pages/paintings
   - src/main/ai/provider/custom/wire/wireProfile.ts
   - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
+  - src/main/ai/provider/imageInputCapabilities.ts
+  - src/shared/ai/imageGeneration.ts
 ---
 
 # Image-Generation Parameterized Architecture
@@ -21,6 +23,38 @@ Vendor wire-format quirks live in exactly one declarative place each.
 
 ---
 
+## Effective image input capabilities
+
+`AiService.getImageGenerationSupport` combines registry operations and parameter limits with the
+actual image adapter's independent `supportsFileInputs` and `supportsMaskInputs` declarations.
+The painting page reads this result through `ai.image.support.get`; the AI SDK image tool and Claude
+MCP bridge use the same resolver. Registry metadata remains available through the existing DataApi
+read, but it is not the effective execution capability.
+
+- An explicit SDK `false` rejects that input even when the registry advertises it. File rejection
+  removes input-only modes from the effective form/tool metadata without mutating the registry.
+- SDK `true` confirms the standardized input. File support never implies mask support.
+- Unknown SDK file support preserves declared registry input modes, `maxInputImages`, or the resolved
+  model's image-input modality. A generate-only parameter block does not veto reference-image input.
+  Without any of these declarations, support remains unknown and input images are rejected.
+- Registry operations remain distinct: a `generate` mode that accepts reference images stays
+  `generate`. Models without a registry block use generic generation metadata; file support does
+  not invent an edit operation.
+- Custom job transports retain registry file support. Their mask declaration follows implemented
+  serialization: DashScope `wanx2.1-imageedit` carries masks; other job routes do not.
+  Unknown mask support is not accepted.
+
+Capability reads use an explicit empty API-key override so they do not advance key rotation. The
+renderer deduplicates queries with SWR and refreshes them on model/provider/registry changes; pending
+model resolution does not discard draft inputs. `generateImage` resolves again with the actual serving
+configuration and validates before downloading input images, creating a job, or sending a provider
+request. A mask without a reference image is rejected, including an empty input array.
+
+The SDK does not enforce these declarations itself. See
+[SDK image editing support](https://ai-sdk.dev/docs/ai-sdk-core/image-generation#checking-image-editing-support).
+Local protocol tests exercise installed adapters with controlled responses; they do not establish
+real-account or packaged-platform acceptance.
+
 ## The data chain at a glance
 
 One canonical param set (`paramValues`) is the trunk. It forks into two delivery
@@ -30,7 +64,7 @@ for SDK delivery vs. a bespoke envelope the transport builds).
 
 ```
 ┌─ RENDERER ────────────────────────────────────────────────────────────────────┐
-│ registry per-model `supports`  ──useImageGenerationSupport──▶ form              │
+│ effective model `supports`     ──useImageGenerationSupport──▶ form              │
 │    imageGenerationToFields: SupportSpec.type → control (one map)                │
 │        user edits → painting.params  (canonical camelCase bag)                  │
 │    canonicalGenerate: buildParamsSchema(support,mode) validate / coerce         │

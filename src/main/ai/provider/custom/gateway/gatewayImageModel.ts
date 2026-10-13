@@ -45,6 +45,7 @@ export function isGatewayGeminiImageModel(modelId: string): boolean {
 export function createGatewayGeminiImageModel(languageModel: LanguageModelV4, modelId: string): ImageModelV4 {
   return {
     specificationVersion: 'v4',
+    supportsMaskInputs: false,
     provider: GATEWAY_GOOGLE_IMAGE_PROVIDER,
     modelId,
     // Gemini returns a single image per generateContent call.

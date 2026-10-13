@@ -273,6 +273,10 @@ export class RuntimeExecutor<
     return this.pluginEngine.resolveModel(modelId, [this.resolveModelPlugin])
   }
 
+  public imageModel(modelId: string) {
+    return this.registry.imageModel(`${this.config.providerId}:${modelId}` as `${string}:${string}`)
+  }
+
   /**
    * 解析模型：将字符串 modelId 解析为 model 对象
    *
@@ -296,7 +300,7 @@ export class RuntimeExecutor<
   ): Promise<Exclude<generateImageParams['model'], string>> {
     try {
       if (typeof modelOrId === 'string') {
-        return this.registry.imageModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
+        return this.imageModel(modelOrId)
       } else {
         return modelOrId
       }

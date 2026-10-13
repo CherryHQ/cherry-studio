@@ -21,6 +21,7 @@ type AiServicePrivate = {
   trackUsage: (...args: never[]) => void
 }
 
+const mockImageCapabilities = { supportsFileInputs: true, supportsMaskInputs: true }
 const mockGenerateImage = vi.fn()
 const mockAgentGenerate = vi.fn()
 const mockCreateAgent = vi.fn()
@@ -178,20 +179,24 @@ vi.mock('@cherrystudio/ai-core', () => ({
     })
     return result
   },
-  generateImage: async (...args: unknown[]) => {
-    const result = await mockGenerateImage(...args)
-    const params = args[2] as { onProviderCall?: (event: unknown) => void }
-    params.onProviderCall?.({
-      modality: 'image',
-      requestId: 'ai-core:image:test',
-      providerId: args[0],
-      modelId: 'test-model',
-      imageCount: result.images?.length ?? 0,
-      metrics: { timeCompletionMs: 10 },
-      completedAt: 100
-    })
-    return result
-  },
+  createExecutor: async (providerId: string, settings: unknown) => ({
+    imageModel: (modelId: string) => ({ modelId, ...mockImageCapabilities }),
+    generateImage: async (input: { model: { modelId: string }; [key: string]: unknown }) => {
+      const args = [providerId, settings, { ...input, model: input.model.modelId }]
+      const result = await mockGenerateImage(...args)
+      const params = args[2] as { onProviderCall?: (event: unknown) => void }
+      params.onProviderCall?.({
+        modality: 'image',
+        requestId: 'ai-core:image:test',
+        providerId: args[0],
+        modelId: 'test-model',
+        imageCount: result.images?.length ?? 0,
+        metrics: { timeCompletionMs: 10 },
+        completedAt: 100
+      })
+      return result
+    }
+  }),
   rerank: async (...args: unknown[]) => {
     const result = await mockRerank(...args)
     const params = args[2] as { onProviderCall?: (event: unknown) => void }
@@ -249,6 +254,8 @@ function createService(): InstanceType<typeof AiService> {
 
 describe('AiService', () => {
   beforeEach(() => {
+    mockImageCapabilities.supportsFileInputs = true
+    mockImageCapabilities.supportsMaskInputs = true
     vi.clearAllMocks()
     mockCreateAgent.mockReset()
     mockAssistantGetById.mockReturnValue(undefined)
@@ -505,6 +512,33 @@ describe('AiService', () => {
       source: 'agent'
     })
   })
+
+  it.each(['files', 'mask', 'orphan-mask'])(
+    'rejects unsupported %s before downloading inputs or generating',
+    async (kind) => {
+      const service = createService()
+      vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' }
+      })
+      mockImageCapabilities.supportsFileInputs = kind !== 'files'
+      mockImageCapabilities.supportsMaskInputs = kind !== 'mask'
+      mockApplicationGet.mockImplementation(
+        (name: string) => defaultServiceInstances[name as keyof typeof defaultServiceInstances]
+      )
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'Edit',
+          paramValues: {},
+          cleanupPolicy: 'manual',
+          inputImages: kind === 'orphan-mask' ? [] : ['https://example.invalid/reference.png'],
+          ...(kind !== 'files' && { mask: 'data:image/png;base64,AAAA' })
+        })
+      ).rejects.toThrow(/reference image|masks/)
+      expect(mockGenerateImage).not.toHaveBeenCalled()
+      expect(mockDownloadImageAsBase64).not.toHaveBeenCalled()
+    }
+  )
 
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()
@@ -2292,7 +2326,8 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     mockModelGetByKey.mockReturnValue({
       id: 'ppio::qwen-image',
       providerId: 'ppio',
-      apiModelId: 'qwen-image'
+      apiModelId: 'qwen-image',
+      inputModalities: ['image']
     })
     mockAssistantGetById.mockReturnValue({
       id: 'assistant-1',
@@ -2360,7 +2395,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     // this, a restart-resume (or an edit-mode job) would hit the wrong endpoint.
     const service = createService()
     stubResolution(service)
-    mockGetImageGenerationSupport.mockReturnValueOnce({
+    mockGetImageGenerationSupport.mockReturnValue({
       modes: {
         edit: { vendorTransport: { endpoint: '/v1/models/qianfan/qwen-image-edit/predictions', isSync: false } }
       }
@@ -2473,6 +2508,13 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
   it('enqueues the job, returns its output files, and classifies the temp input copy for GC reclaim', async () => {
     const service = createService()
     stubResolution(service)
+    mockProviderGetByProviderId.mockReturnValue({ id: 'dashscope' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'dashscope::wanx2.1-imageedit',
+      providerId: 'dashscope',
+      apiModelId: 'wanx2.1-imageedit',
+      inputModalities: ['image']
+    })
 
     // Distinct ids per create so the input and mask rows are told apart below.
     const createInternalEntry = vi.fn().mockResolvedValueOnce({ id: 'in-1' }).mockResolvedValueOnce({ id: 'mask-1' })
@@ -2491,7 +2533,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     })
 
     const result = await service.generateImage({
-      uniqueModelId: 'ppio::qwen-image',
+      uniqueModelId: 'dashscope::wanx2.1-imageedit',
       // Carries the assistant so the payload's `source` snapshot resolves — the
       // job path must still attribute usage to its caller.
       assistantId: 'assistant-1',
@@ -2506,7 +2548,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     expect(enqueue).toHaveBeenCalledWith(
       'image-generation.generate',
       expect.objectContaining({
-        uniqueModelId: 'ppio::qwen-image',
+        uniqueModelId: 'dashscope::wanx2.1-imageedit',
         prompt: 'a cat',
         inputFileIds: ['in-1'],
         maskFileId: 'mask-1',
@@ -2537,6 +2579,13 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     // one copy per generation forever.
     const service = createService()
     stubResolution(service)
+    mockProviderGetByProviderId.mockReturnValue({ id: 'dashscope' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'dashscope::wanx2.1-imageedit',
+      providerId: 'dashscope',
+      apiModelId: 'wanx2.1-imageedit',
+      inputModalities: ['image']
+    })
 
     const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
     const enqueue = vi.fn().mockReturnValue({
@@ -2553,7 +2602,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     })
 
     await service.generateImage({
-      uniqueModelId: 'ppio::qwen-image',
+      uniqueModelId: 'dashscope::wanx2.1-imageedit',
       prompt: 'edit',
       paramValues: {},
       inputImages: ['data:image/png;base64,AAAA'],

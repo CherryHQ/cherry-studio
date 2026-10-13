@@ -1,10 +1,10 @@
-import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { controlValue, optionalParamNumber } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
+import { fetchImageGenerationSupport } from '../model/imageGenerationSupport'
 
 const logger = loggerService.withContext('paintings/modelFieldReset')
 
@@ -48,9 +48,7 @@ export async function computeModelFieldReset(input: {
 
   const fetchSupport = async (modelId: string): Promise<ImageGenerationSupport | undefined> => {
     try {
-      const result = await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
-        params: { providerId, modelId }
-      })
+      const result = await fetchImageGenerationSupport(providerId, modelId)
       return result ?? undefined
     } catch (error) {
       logger.warn('Failed to prefetch image-generation-support', { providerId, modelId, error })

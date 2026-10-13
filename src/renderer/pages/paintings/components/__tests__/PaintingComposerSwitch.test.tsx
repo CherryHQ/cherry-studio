@@ -38,9 +38,11 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
-vi.mock('@shared/utils/model', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  isEditImageModel: (entry?: { apiModelId?: string }) => entry?.apiModelId === 'edit-model'
+vi.mock('../../hooks/useImageGenerationSupport', () => ({
+  useImageGenerationSupport: (_providerId: string, modelId: string) => ({
+    modes: { generate: { supports: {} } },
+    inputCapabilities: { files: modelId !== 'generate-model' }
+  })
 }))
 
 const { default: PaintingComposer } = await import('../PaintingComposer')

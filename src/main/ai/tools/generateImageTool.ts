@@ -7,6 +7,14 @@ import {
   type ImageGenerationSupport,
   type SupportSpec
 } from '@cherrystudio/provider-registry'
+import type { ResolvedImageGenerationSupport } from '@shared/ai/imageGeneration'
+
+export type PaintingModelSupport = ImageGenerationSupport &
+  Partial<Pick<ResolvedImageGenerationSupport, 'inputCapabilities'>>
+
+export function supportsImageInputs(support: PaintingModelSupport | null | undefined): boolean {
+  return support?.inputCapabilities?.files ?? !!(support?.modes.edit || support?.modes.generate?.maxInputImages)
+}
 
 /** Fallback cap on edit reference images when the model declares no per-edit limit. */
 const MAX_INPUT_IMAGES = 1
@@ -17,7 +25,7 @@ const MAX_INPUT_IMAGES = 1
  * the agent/chat tool and the page share one rule.
  */
 export function editInputImageLimit(support: ImageGenerationSupport | null | undefined): number {
-  return support?.modes.edit?.maxInputImages ?? MAX_INPUT_IMAGES
+  return support?.modes.edit?.maxInputImages ?? support?.modes.generate?.maxInputImages ?? MAX_INPUT_IMAGES
 }
 
 const GENERATE_IMAGE_PROMPT_FIELD = z
@@ -122,7 +130,7 @@ function resolveToolModes(support: ImageGenerationSupport | null | undefined): T
 
 /** Build the runtime tool contract from one model capability block. */
 export function buildGenerateImageToolSchema(
-  support: ImageGenerationSupport | null | undefined
+  support: PaintingModelSupport | null | undefined
 ): z.ZodObject<Record<string, z.ZodType>> {
   const modes = resolveToolModes(support)
   const params = new Map<CanonicalParamKey, Array<{ mode: ToolMode; spec: SupportSpec }>>()
@@ -153,7 +161,7 @@ export function buildGenerateImageToolSchema(
     inputShape[key] = schema.optional()
   }
 
-  if (modes.includes('edit')) {
+  if (supportsImageInputs(support)) {
     const imageIds = z
       .array(z.string().trim().min(1))
       .min(1)

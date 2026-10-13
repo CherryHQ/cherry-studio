@@ -19,7 +19,6 @@ vi.mock('react-i18next', () => ({
 const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
 const mockMaterializeInputs = vi.hoisted(() => vi.fn())
-const mockIsEditImageModel = vi.hoisted(() => vi.fn(() => false))
 // The composer's live draft attachments. Mutable because the image-required gate
 // reads them, and its whole contract is that it tracks the draft rather than the
 // last-generated `painting.inputFiles`.
@@ -108,8 +107,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
-vi.mock('@shared/utils/model', () => ({ isEditImageModel: mockIsEditImageModel }))
-
 vi.mock('../PaintingImageGallery', () => ({
   PaintingImageGallery: () => <div data-testid="painting-image-gallery" />,
   PaintingImageAddButton: () => <button type="button" data-testid="painting-image-add" />
@@ -178,22 +175,26 @@ const imageAttachment = (id: string): ComposerAttachment => ({
 })
 
 /** Edit-only: an `edit` mode and no `generate` mode ⇒ an image is mandatory. */
-const editOnlySupport = { modes: { edit: { supports: {} } } }
+const editOnlySupport = { inputCapabilities: { files: true }, modes: { edit: { supports: {} } } }
 
 describe('PaintingComposer', () => {
   beforeEach(() => {
     captured.surfaceProps = undefined
     composerState.files = []
     mockUseImageGenerationSupport.mockReset()
-    mockUseImageGenerationSupport.mockReturnValue(imageGenerationSupportWithFields)
+    mockUseImageGenerationSupport.mockReturnValue({
+      ...imageGenerationSupportWithFields,
+      inputCapabilities: { files: false }
+    })
     mockMaterializeInputs.mockReset()
     mockMaterializeInputs.mockResolvedValue({ entries: [], complete: true })
-    mockIsEditImageModel.mockReset()
-    mockIsEditImageModel.mockReturnValue(false)
   })
 
   it('renders the top image strip + add button and drops file pills for edit-image models', () => {
-    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({
+      ...imageGenerationSupportWithFields,
+      inputCapabilities: { files: true }
+    })
     renderComposer()
     expect(captured.surfaceProps?.topContent).toBeTruthy()
     expect(captured.surfaceProps?.leadingContent).toBeTruthy()
@@ -209,7 +210,10 @@ describe('PaintingComposer', () => {
   })
 
   it('gates send and shows a reason for edit-only models missing an image', () => {
-    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({
+      ...imageGenerationSupportWithFields,
+      inputCapabilities: { files: true }
+    })
     mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
     renderComposer({ painting: makePainting({ prompt: 'make the sky purple' }) })
     // Blocked even with prompt text, because no image is attached (files mock is empty).
@@ -223,7 +227,10 @@ describe('PaintingComposer', () => {
     // materialized onto the painting at generate time, so on a fresh edit-only
     // painting `inputFiles` stays empty no matter how many images are attached —
     // gating on it left send permanently disabled and materialization unreachable.
-    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({
+      ...imageGenerationSupportWithFields,
+      inputCapabilities: { files: true }
+    })
     mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
     composerState.files = [imageAttachment('a')]
     renderComposer({ painting: makePainting({ prompt: 'make the sky purple', inputFiles: [] }) })
@@ -235,7 +242,10 @@ describe('PaintingComposer', () => {
     // The mirror failure: a painting that already generated carries entries in
     // `inputFiles`, so a gate reading them stays open after the user clears the
     // tray — and the send would reach the model with no image at all.
-    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({
+      ...imageGenerationSupportWithFields,
+      inputCapabilities: { files: true }
+    })
     mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
     composerState.files = []
     renderComposer({
@@ -249,7 +259,10 @@ describe('PaintingComposer', () => {
   })
 
   it('ignores non-image draft attachments when gating an edit-only model', () => {
-    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({
+      ...imageGenerationSupportWithFields,
+      inputCapabilities: { files: true }
+    })
     mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
     composerState.files = [{ ...imageAttachment('doc'), ext: '.pdf', type: FILE_TYPE.DOCUMENT }]
     renderComposer({ painting: makePainting({ prompt: 'make the sky purple' }) })
@@ -258,8 +271,12 @@ describe('PaintingComposer', () => {
   })
 
   it('does not gate on image for edit models that can also generate from text', () => {
-    mockIsEditImageModel.mockReturnValue(true)
     mockUseImageGenerationSupport.mockReturnValue({
+      ...imageGenerationSupportWithFields,
+      inputCapabilities: { files: true }
+    })
+    mockUseImageGenerationSupport.mockReturnValue({
+      inputCapabilities: { files: true },
       modes: { generate: { supports: {} }, edit: { supports: {} } }
     })
     renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
@@ -334,6 +351,7 @@ describe('PaintingComposer', () => {
 
   it('renders the image params button when imageGeneration support produces fields', () => {
     mockUseImageGenerationSupport.mockReturnValue({
+      inputCapabilities: { files: false },
       modes: {
         generate: {
           supports: {

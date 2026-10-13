@@ -27,7 +27,6 @@ import { useModels } from '@renderer/hooks/useModel'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Model } from '@shared/data/types/model'
 import { imageExts } from '@shared/utils/file'
-import { isEditImageModel } from '@shared/utils/model'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { controlValue, finiteParamNumberOr, optionalFiniteNumber } from '../form/fieldValue'
@@ -219,10 +218,6 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
 
-  // `couldAddImageFile` is modality-based (isEditImageModel → inputModalities includes
-  // image): whether the model takes an image at all. Whether an image is *required* —
-  // the model can only edit, not generate from text — is the one thing modality can't
-  // answer, so it reads the registry's modes (no `generate` mode ⇒ image mandatory).
   const support = useImageGenerationSupport(painting.providerId, painting.model)
   const imageRequired =
     couldAddImageFile && !!support?.modes && !support.modes.generate && Object.keys(support.modes).length > 0
@@ -245,7 +240,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   // `unknown` while the model is still resolving from the async catalog; `accept`
   // once it resolves to an edit-capable model, `reject` otherwise. Drives the
   // draft-clear on a model switch (see usePaintingComposerInputFiles CLEAR).
-  const inputCapability: InputCapability = !model ? 'unknown' : couldAddImageFile ? 'accept' : 'reject'
+  const inputCapability: InputCapability = !model || !support ? 'unknown' : couldAddImageFile ? 'accept' : 'reject'
 
   const { materializeInputs } = usePaintingComposerInputFiles({
     paintingId: painting.id,
@@ -345,7 +340,8 @@ const PaintingComposer: FC<PaintingComposerProps> = (props) => {
         : undefined,
     [models, painting.providerId, painting.model]
   )
-  const couldAddImageFile = model ? isEditImageModel(model) : false
+  const support = useImageGenerationSupport(painting.providerId, painting.model)
+  const couldAddImageFile = support?.inputCapabilities.files === true
 
   return (
     // Key the provider (which owns `files`) by painting id only: a different painting

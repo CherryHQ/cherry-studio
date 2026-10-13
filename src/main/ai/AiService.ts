@@ -12,8 +12,8 @@ import {
 import { application } from '@application'
 import {
   type AiPlugin,
+  createExecutor,
   embedMany as aiCoreEmbedMany,
-  generateImage as aiCoreGenerateImage,
   rerank as aiCoreRerank,
   type RuntimeProviderCallEvent,
   type RuntimeProviderCallHandler
@@ -64,12 +64,17 @@ import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
-import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
+import {
+  hasImageTransport,
+  imageTransportInputCapabilities,
+  resolveImageTransport
+} from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
+import { resolveImageInputCapabilities, validateImageInputs } from './provider/imageInputCapabilities'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import { resolveSdkConfig } from './provider/sdkConfig'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
@@ -886,6 +891,29 @@ export class AiService extends BaseService {
 
   // ── Image generation ──
 
+  async getImageGenerationSupport(uniqueModelId: UniqueModelId) {
+    const { provider, model } = this.getProviderAndModel({ uniqueModelId })
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    const support = providerRegistryService.getImageGenerationSupport(providerId, modelId)
+    const transportProviderId = provider.presetProviderId ?? provider.id
+    const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+    if (hasImageTransport(transportProviderId, wireModelId)) {
+      return resolveImageInputCapabilities(
+        support,
+        model.inputModalities?.includes('image') ?? false,
+        imageTransportInputCapabilities(transportProviderId, wireModelId)
+      )
+    }
+    // Capability reads must not advance API-key rotation.
+    const { sdkConfig } = await resolveSdkConfig(provider, model, resolveEffectiveEndpoint(provider, model), '')
+    const executor = await createExecutor<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings)
+    return resolveImageInputCapabilities(
+      support,
+      model.inputModalities?.includes('image') ?? false,
+      executor.imageModel(sdkConfig.modelId)
+    )
+  }
+
   /**
    * Run an image request under an abort registry entry keyed by the renderer-supplied
    * `requestId`, so `ai.image.abort` can cancel it. The `ai.image.generate` handler
@@ -912,7 +940,7 @@ export class AiService extends BaseService {
     // WireProfile engine forwards.
     const params = request.paramValues
     const { structured, vendorBag } = splitParamValues(params)
-    const inputImages = request.inputImages ? await normalizeImageEditInputs(request.inputImages, signal) : undefined
+    const registrySupport = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
 
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
@@ -925,10 +953,31 @@ export class AiService extends BaseService {
     // through to the direct image model, which never passes `modelDescriptor`.
     const transportProviderId = provider.presetProviderId ?? provider.id
     if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+      const support = await resolveImageInputCapabilities(
+        registrySupport,
+        model.inputModalities?.includes('image') ?? false,
+        imageTransportInputCapabilities(transportProviderId, model.apiModelId ?? model.id)
+      )
+      validateImageInputs(request, support)
+      const inputImages = request.inputImages?.length
+        ? await normalizeImageEditInputs(request.inputImages, signal)
+        : undefined
       return await this.generateImageViaJob({ ...request, inputImages }, structured, vendorBag, signal, source)
     }
 
     const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
+    const executor = await createExecutor<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings)
+    const imageModel = executor.imageModel(sdkConfig.modelId)
+    const support = await resolveImageInputCapabilities(
+      registrySupport,
+      model.inputModalities?.includes('image') ?? false,
+      imageModel
+    )
+    validateImageInputs(request, support)
+    signal?.throwIfAborted()
+    const inputImages = request.inputImages?.length
+      ? await normalizeImageEditInputs(request.inputImages, signal)
+      : undefined
     const promptParam = inputImages
       ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -950,7 +999,7 @@ export class AiService extends BaseService {
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
     const imageParams = {
-      model: sdkConfig.modelId,
+      model: imageModel,
       prompt: promptParam,
       n: structured.n ?? 1,
       maxRetries: request.requestOptions?.maxRetries ?? 0,
@@ -983,7 +1032,7 @@ export class AiService extends BaseService {
       source,
       messageRef: null
     })
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+    const result = await executor.generateImage({
       ...imageParams,
       onProviderCall: createProviderCallHandler(imageUsageContext)
     })
