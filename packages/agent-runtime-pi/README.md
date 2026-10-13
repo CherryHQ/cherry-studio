@@ -162,12 +162,17 @@ reach the parent's side channel, told apart by the request `sessionId`; the pare
 is the call's result, `details` is `{ sessionId, fork, outcome }`, and the result's `usage` is the
 sum of the subagent's replies (for budgets; the host already accounted each request). Its transcript
 events go only to the `onEvent` the host returned; `onSessionCreated` receives its session before
-its first request. Its session id is `<parent session id>.<call id>`, characters Pi rejects in the
-call id replaced by `-`. Subagent calls of one step run at the same time, and a fresh subagent has
-no `subagent` tool of its own.
+its first request. Its session id is `<parent session id>.<random UUID>`, unique per subagent even
+when provider call ids repeat; treat it as opaque. Subagent calls of one step run at the same time,
+and a fresh subagent has no `subagent` tool of its own.
 
 A subagent's session holds a `cherry.subagent-origin` state entry (`{ parentToolCallId, fork }`),
 never sent to the model; `AskUserQuestion` ends there as `unavailable` without asking the port.
+To find a subagent again: once it ends, the parent's tool result carries its id in
+`details.sessionId`; while it runs, or when its call never returns, `configure` has already handed
+the host its `parentToolCallId` and its `sessionId`, which starts with the parent's id. The origin
+entry is part of the transcript the subagent starts from (after the forked prefix for a fork), so
+`onEvent` never emits it; only the live session that `onSessionCreated` receives holds it.
 
 `fork: true` starts the subagent from the parent's transcript up to the assistant message holding the
 call, every call of that message answered by the same placeholder, so forks of one step send the same
@@ -178,8 +183,7 @@ host must return the parent's extensions for it; calls a subagent may not make (
 A subagent that fails, is cut off by its output limit, is aborted with the parent's turn or would
 start a 201st model request returns an `isError` result with the reason, its last partial output,
 `details` and `usage`; `outcome` is `failed`, `truncated`, `aborted` or `limit_reached`. A host
-whose `configure` throws fails that call only. When a provider reuses a call id across turns, the
-later subagents' session ids end in `-2`, `-3` and so on.
+whose `configure` throws fails that call only.
 
 ## Extensions
 
