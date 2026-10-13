@@ -43,14 +43,12 @@ describe('createComposerInputAdapter', () => {
     ])
   })
 
-  it('rejects overflow without changing the document and includes the separator in capacity', () => {
+  it('appends text beyond the former input limit without truncating the draft', () => {
     const currentEditor = createEditor()
-    currentEditor.commands.setContent('a'.repeat(39995))
-    const before = currentEditor.getJSON()
-    expect(appendComposerText(currentEditor, 'Explain this')).toBe(false)
-    expect(currentEditor.getJSON()).toEqual(before)
-    expect(appendComposerText(currentEditor, '1234')).toBe(true)
-    expect(serializeComposerDocument(currentEditor).text).toHaveLength(40000)
+    const existingText = 'a'.repeat(40000)
+    currentEditor.commands.setContent(existingText)
+    expect(appendComposerText(currentEditor, 'Explain this')).toBe(true)
+    expect(serializeComposerDocument(currentEditor).text).toBe(`${existingText}\nExplain this`)
   })
 
   it('updates an existing annotation in place without duplicating or resurrecting a removed token', () => {
