@@ -2,7 +2,7 @@
  * Runtime-neutral approval policy for Cherry-owned MCP tools.
  *
  * This is a registry of tool entries, not parallel allow/approval name lists. Each tool declares
- * its canonical MCP identity and approval behavior once; Claude, Pi, and DSH only translate that
+ * its canonical MCP identity and approval behavior once; Claude and Pi only translate that
  * identity into their runtime-specific wire names. Arrays or sets produced by consumers are
  * derived boundary formats for the SDK/bridge and are never policy sources.
  *

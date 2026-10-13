@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".changeset/**"
+      - "packages/provider-registry/**"
       - "packages/aiCore/**"
       - "packages/ai-sdk-provider/**"
       - "packages/extension-table-plus/**"
@@ -60,6 +61,9 @@ jobs:
       - name: Build Packages
         run: pnpm packages:build
 
+      - name: Check Provider Registry Package
+        run: pnpm --filter @cherrystudio/provider-registry test:package
+
       - name: Check Remote Packages
         run: |
           pnpm --filter '@cherrystudio/remote-*' typecheck
@@ -70,6 +74,8 @@ jobs:
         uses: changesets/action@v2
         with:
           create-github-releases: false
+          # Keep CLI tag events for publish outputs, but reserve remote tags for desktop releases.
+          push-git-tags: false
           publish-script: pnpm changeset:publish
           version-script: pnpm changeset:version
           commit-message: "chore: version packages"

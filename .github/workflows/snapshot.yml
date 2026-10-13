@@ -51,6 +51,9 @@ jobs:
       - name: Build Packages
         run: pnpm packages:build
 
+      - name: Check Provider Registry Package
+        run: pnpm --filter @cherrystudio/provider-registry test:package
+
       - name: Check Remote Packages
         run: |
           pnpm --filter '@cherrystudio/remote-*' typecheck
@@ -73,6 +76,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Install with:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo 'pnpm add @cherrystudio/provider-registry@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/ai-core@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/ai-sdk-provider@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/extension-table-plus@snapshot' >> $GITHUB_STEP_SUMMARY
