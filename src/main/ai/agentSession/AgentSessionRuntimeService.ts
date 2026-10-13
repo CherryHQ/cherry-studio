@@ -346,7 +346,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 @DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
-  private readonly failedClosures = new Map<string, AgentRuntimeConnection>()
+  private readonly failedClosures = new Map<string, { connection: AgentRuntimeConnection; resumeToken?: string }>()
   private readonly pendingEditInputs = new Map<
     Electron.WebContents,
     { counts: Map<string, number>; dispose: () => void }
@@ -1253,6 +1253,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return false
   }
 
+  /** Connections without confirmed teardown still own their runtime transcripts. */
   listClaimedResumeTokens(): ReadonlySet<string> {
     const claimedResumeTokens = new Set<string>()
     for (const entry of this.entries.values()) {
@@ -1260,6 +1261,9 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     for (const closing of this.closingSessions.values()) {
       if (closing.resumeToken) claimedResumeTokens.add(closing.resumeToken)
+    }
+    for (const failedClosure of this.failedClosures.values()) {
+      if (failedClosure.resumeToken) claimedResumeTokens.add(failedClosure.resumeToken)
     }
     return claimedResumeTokens
   }
@@ -3430,21 +3434,22 @@ export class AgentSessionRuntimeService extends BaseService {
     strict = false
   ): Promise<void> {
     if (!connection) return
+    const resumeToken = this.entries.get(sessionId)?.lastResumeToken ?? this.closingSessions.get(sessionId)?.resumeToken
     const settled = Promise.withResolvers<void>()
-    void this.trackSessionClosing(sessionId, settled.promise, this.entries.get(sessionId)?.lastResumeToken)
+    void this.trackSessionClosing(sessionId, settled.promise, resumeToken)
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
       await Promise.race([
         Promise.resolve(closing).then(() => {
-          if (this.failedClosures.get(sessionId) === connection) this.failedClosures.delete(sessionId)
+          if (this.failedClosures.get(sessionId)?.connection === connection) this.failedClosures.delete(sessionId)
         }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new AgentSessionEditError('close_failed')), 20_000)
         })
       ])
     } catch (error) {
-      this.failedClosures.set(sessionId, connection)
+      this.failedClosures.set(sessionId, { connection, resumeToken })
       logger.warn('Agent runtime connection close failed', { sessionId, error })
       if (strict) throw new AgentSessionEditError('close_failed')
     } finally {
