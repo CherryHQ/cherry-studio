@@ -484,6 +484,29 @@ describe('materialize – assembling the bundle from the shared cache', () => {
     }
   })
 
+  it('keeps an existing FFmpeg bundle when the cached version holds only resumable staging', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    const ffmpeg = TOOLS.find((tool) => tool.name === 'ffmpeg')!
+    const platformKey = 'linux-x64'
+    const versionDir = cachedVersionDir(cache, platformKey, ffmpeg)
+    const partial = path.join(versionDir, '.staging-resume', 'ffmpeg', 'ffmpeg-lgpl-v8.1.2-linux-x64.tar.gz')
+    fs.mkdirSync(path.dirname(partial), { recursive: true })
+    fs.writeFileSync(partial, 'partial transfer')
+    fs.mkdirSync(path.join(bundle, 'ffmpeg', 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(bundle, 'ffmpeg', 'bin', 'ffmpeg'), 'usable ffmpeg')
+    fs.writeFileSync(path.join(bundle, 'ffmpeg', 'bin', 'ffprobe'), 'usable ffprobe')
+    fs.writeFileSync(path.join(bundle, '.ffmpeg-version'), 'previous-usable')
+
+    materialize([ffmpeg], platformKey, cache, bundle)
+
+    expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'bin', 'ffmpeg'), 'utf8')).toBe('usable ffmpeg')
+    expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'bin', 'ffprobe'), 'utf8')).toBe('usable ffprobe')
+    expect(fs.readFileSync(path.join(bundle, '.ffmpeg-version'), 'utf8')).toBe('previous-usable')
+    expect(fs.existsSync(path.join(versionDir, 'ffmpeg'))).toBe(false)
+    expect(fs.readFileSync(partial, 'utf8')).toBe('partial transfer')
+  })
+
   it('mirrors a whole tree and drops files a shrinking release removed', () => {
     const cache = makeTmpDir('dl-cache-')
     const bundle = makeTmpDir('dl-bundle-')
