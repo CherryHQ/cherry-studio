@@ -77,7 +77,11 @@ export {
   Offloader,
   PERSISTED_OUTPUT_TAG,
   resolveCompressionOutputTokens,
-  summarizeModelMessages
+  MODEL_SCRATCHPAD_TAG_NAMES,
+  stripKnownModelScratchpadBlocks,
+  stripModelScratchpadBlocks,
+  summarizeModelMessages,
+  textStartsWithModelScratchpadTag
 } from './core/context'
 
 // ==================== 错误处理 ====================
