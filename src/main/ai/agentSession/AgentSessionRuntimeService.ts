@@ -990,6 +990,9 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private async closeRetainedConnection(entry: AgentSessionRuntimeEntry): Promise<void> {
     const interruption = this.interruptAutonomousReply(entry)
+    // Captured before any await: the interrupted turn may still be mid-launch, and the
+    // acknowledgement below must wait for that exact launch, not for the topic at large.
+    const interruptedLaunch = interruption ? this.inFlightTurnStarts.get(entry.sessionId) : undefined
     try {
       this.closeConnectionAsync(entry)
       if (!interruption) return
@@ -998,6 +1001,11 @@ export class AgentSessionRuntimeService extends BaseService {
       // synchronously here would hand B's deferred input back first, and B's `startRuntimeTurn`
       // would then evict A's stream — `onExecutionPaused` early-returns on a missing stream, so A's
       // row stays `pending` and its partial output is lost. Wait for the real handoff instead.
+      // A launch still yielding inside `refreshTurnTraceContext` has not registered its stream, so
+      // the pause above missed it: await the launch, then pause again so the stream it registered
+      // (its turn stays live while unopened) settles durably before B's input is handed back.
+      await interruptedLaunch
+      application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-connection-invalid')
       await application.get('AiStreamManager').awaitAbortedExecutions(entry.topicId)
       if (!this.isCurrentEntry(entry)) return
       this.markTurnTerminal(entry.sessionId, 'paused', interruption.turnId)
