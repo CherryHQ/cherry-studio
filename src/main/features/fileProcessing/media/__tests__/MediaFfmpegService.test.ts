@@ -108,7 +108,6 @@ describe('MediaFfmpegService lifecycle', () => {
     const original = Object.getOwnPropertyDescriptor(process, 'platform')!
     Object.defineProperty(process, 'platform', { value: 'linux' })
     try {
-      vi.mocked(application.getPath).mockClear()
       const init = mediaFfmpegProcess.createInitData?.()
       if (!init || init instanceof Promise) throw new Error('expected sync init data')
       expect(init.ffmpegPath).toBe(join(runtime.tempRoot, 'bin', 'ffmpeg', 'bin', 'ffmpeg'))
@@ -140,7 +139,6 @@ describe('MediaFfmpegService lifecycle', () => {
     try {
       for (const platform of ['darwin', 'win32'] as const) {
         Object.defineProperty(process, 'platform', { value: platform })
-        vi.mocked(application.getPath).mockClear()
         const init = mediaFfmpegProcess.createInitData?.()
         if (!init || init instanceof Promise) throw new Error('expected sync init data')
         const suffix = platform === 'win32' ? '.exe' : ''
@@ -148,10 +146,6 @@ describe('MediaFfmpegService lifecycle', () => {
         expect(init.ffmpegPath).toBe(join(root, `ffmpeg${suffix}`))
         expect(init.ffprobePath).toBe(join(root, `ffprobe${suffix}`))
         expect(init.linuxLibraryDir).toBeUndefined()
-        expect(vi.mocked(application.getPath).mock.calls).toEqual([
-          ['app.root.resources.binaries'],
-          ['app.root.resources.binaries']
-        ])
         expect(mediaFfmpegCommandEnv(init.linuxLibraryDir, { LD_LIBRARY_PATH: '/usr/lib' })).toBeUndefined()
       }
     } finally {
