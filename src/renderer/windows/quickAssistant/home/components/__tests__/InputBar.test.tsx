@@ -1,10 +1,16 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { RefObject } from 'react'
+import { type RefObject, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
+
+vi.unmock('@cherrystudio/ui')
 
 const voice = vi.hoisted(() => ({
   markCurrent: vi.fn(() => true),
+  targets: undefined as VoiceTargetManager | undefined,
   startScoped: vi.fn(() => ({ result: Promise.resolve(), cancel: vi.fn() })),
   stop: vi.fn(),
   cancel: vi.fn(),
@@ -41,7 +47,9 @@ vi.mock('@renderer/services/voice', () => ({
     discard: voice.discard,
     transcribeRecording: voice.transcribeRecording
   },
-  voiceTargetManager: { markCurrent: voice.markCurrent }
+  get voiceTargetManager() {
+    return voice.targets ?? { markCurrent: voice.markCurrent }
+  }
 }))
 
 vi.mock('@renderer/services/mainWindowNavigation', () => navigation)
@@ -65,6 +73,7 @@ vi.mock('react-i18next', () => ({
         'settings.voice.dictation.phase.recovery': 'Transcript ready to recover',
         'settings.voice.dictation.phase.failed': 'Dictation failed',
         'settings.voice.status.unconfigured': 'Voice is not configured',
+        'settings.voice.status.operation_failed': 'The voice operation failed. Try again.',
         'settings.voice.action.open_settings': 'Open Voice Settings'
       })[key] ?? key
   })
@@ -76,6 +85,8 @@ describe('InputBar', () => {
   afterEach(() => vi.useRealTimers())
   beforeEach(() => {
     vi.clearAllMocks()
+    voice.targets = undefined
+    voice.insertRecovery.mockReset().mockReturnValue('inserted')
     voice.snapshot = { phase: 'idle', elapsedMs: 0, recoveryAvailable: false }
   })
 
@@ -196,26 +207,70 @@ describe('InputBar', () => {
     expect(voice.startScoped).toHaveBeenCalledOnce()
   })
 
-  it('marks the input as the current recovery target on focus or pointer interaction without starting dictation', () => {
+  it('inserts recovery into its own target when binding arrives after focus', async () => {
+    const user = userEvent.setup()
+    const targets = new VoiceTargetManager()
+    voice.targets = targets
+    voice.snapshot = { phase: 'recovery', elapsedMs: 0, recoveryAvailable: true }
+    voice.insertRecovery.mockImplementation(() => targets.insertIntoCurrent('recovered words', 'user_recovery'))
+    let bind!: () => () => void
+    function InputHarness() {
+      const [text, setText] = useState('draft: ')
+      const inputRef = useRef<HTMLInputElement>(null)
+      bind = () =>
+        targets.bind({
+          targetId: 'new-topic-input',
+          sourceEntityId: 'new-topic',
+          owner: window,
+          captureReplaceRange: () => ({ from: inputRef.current!.selectionStart!, to: inputRef.current!.selectionEnd! }),
+          replaceRange: ({ from, to }, inserted) => {
+            setText((current) => current.slice(0, from) + inserted + current.slice(to))
+            return true
+          }
+        })
+      return (
+        <InputBar
+          text={text}
+          inputRef={inputRef}
+          placeholder="Ask"
+          loading={false}
+          dictationTargetId="new-topic-input"
+          handleKeyDown={vi.fn()}
+          handleChange={(event) => setText(event.target.value)}
+        />
+      )
+    }
+    render(<InputHarness />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    await user.click(input)
+    input.setSelectionRange(7, 7)
+    const unbind = bind()
+    try {
+      expect(targets.captureCurrent()).toBeNull()
+      await user.click(screen.getByRole('button', { name: 'Insert transcript' }))
+      expect(input).toHaveValue('draft: recovered words')
+    } finally {
+      unbind()
+    }
+  })
+
+  it('keeps recovery actions available and reports an unavailable insertion target', async () => {
+    voice.snapshot = { phase: 'recovery', elapsedMs: 0, recoveryAvailable: true }
+    voice.insertRecovery.mockReturnValue('unavailable')
     render(
       <InputBar
-        text=""
-        placeholder="Ask a model"
+        text="draft"
+        placeholder="Ask"
         loading={false}
-        dictationTargetId="quick-assistant-input:temp-topic"
+        dictationTargetId="input"
         handleKeyDown={vi.fn()}
         handleChange={vi.fn()}
       />
     )
-
-    const input = screen.getByPlaceholderText('Ask a model')
-    voice.markCurrent.mockClear()
-    fireEvent.focus(input)
-    fireEvent.pointerDown(input)
-
-    expect(voice.markCurrent).toHaveBeenNthCalledWith(1, 'quick-assistant-input:temp-topic')
-    expect(voice.markCurrent).toHaveBeenNthCalledWith(2, 'quick-assistant-input:temp-topic')
-    expect(voice.startScoped).not.toHaveBeenCalled()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Insert transcript' }))
+    expect(toast.error).toHaveBeenCalledWith('The voice operation failed. Try again.')
+    expect(screen.getByRole('textbox')).toHaveValue('draft')
+    expect(screen.getByRole('button', { name: 'Copy transcript' })).toBeEnabled()
   })
 
   it('offers stop and cancel while recording, then exposes explicit recovery actions', async () => {
