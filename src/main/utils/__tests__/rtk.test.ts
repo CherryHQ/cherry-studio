@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ProcessRunnerModule from '@main/utils/processRunner'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 
 const snapshotRef = vi.hoisted(() => ({
@@ -16,7 +17,7 @@ const loggerMock = vi.hoisted(() => ({
 
 // Keep the real module (CommandFailedError) and override only executeCommand
 vi.mock('@main/utils/processRunner', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/utils/processRunner')>()),
+  ...(await importOriginal<typeof ProcessRunnerModule>()),
   executeCommand: executeCommandMock
 }))
 
