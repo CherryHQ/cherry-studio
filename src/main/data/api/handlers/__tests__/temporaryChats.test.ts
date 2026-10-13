@@ -86,6 +86,23 @@ describe('temporaryChatHandlers', () => {
       expect(createTopicMock).toHaveBeenCalledWith({ name: 'draft', assistantId: 'asst_1' })
       expect(result).toBe(topic)
     })
+
+    it('passes a valid positive maxMessages through to createTopic', async () => {
+      const topic = fakeTopic({ name: 'draft' })
+      createTopicMock.mockReturnValue(topic)
+      await temporaryChatHandlers['/temporary/topics'].POST(reqEnvelope({ body: { name: 'draft', maxMessages: 5 } }))
+      expect(createTopicMock).toHaveBeenCalledWith({ name: 'draft', maxMessages: 5 })
+    })
+
+    it('rejects a non-positive maxMessages before it reaches the store', async () => {
+      // maxMessages: 0 would override a valid general cap, and normalizeMaxMessages then serves
+      // unlimited history — the schema (int, min 1) has to be parsed at the handler boundary,
+      // matching the messages endpoint's boundary parse below.
+      await expect(
+        temporaryChatHandlers['/temporary/topics'].POST(reqEnvelope({ body: { name: 'draft', maxMessages: 0 } }))
+      ).rejects.toThrow()
+      expect(createTopicMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('DELETE /temporary/topics/:id', () => {

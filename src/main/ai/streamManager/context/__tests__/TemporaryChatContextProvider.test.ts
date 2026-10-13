@@ -9,13 +9,15 @@ const getTopicMock = vi.fn()
 const hasTopicMock = vi.fn()
 const appendMessageMock = vi.fn()
 const listMessagesMock = vi.fn()
+const getTopicMaxMessagesOverrideMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
     getTopic: getTopicMock,
     hasTopic: hasTopicMock,
     appendMessage: appendMessageMock,
-    listMessages: listMessagesMock
+    listMessages: listMessagesMock,
+    getTopicMaxMessagesOverride: getTopicMaxMessagesOverrideMock
   }
 }))
 
@@ -43,6 +45,15 @@ function makeSubscriber() {
     onError: vi.fn(),
     isAlive: () => true
   }
+}
+
+/** N same-shape user messages so `applyMaxMessagesWindow` keeps exactly the last N. */
+function userHistory(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `msg-u${i}`,
+    role: 'user' as const,
+    data: { parts: [{ type: 'text', text: `turn ${i}` }] }
+  }))
 }
 
 function openReq(overrides: Partial<AiStreamOpenRequest> = {}): AiStreamOpenRequest {
@@ -235,5 +246,48 @@ describe('TemporaryChatContextProvider', () => {
     )
 
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-1', 'kb-2'])
+  })
+
+  describe('topic-level maxMessages override (Quick Assistant independent context count)', () => {
+    beforeEach(() => {
+      getTopicMaxMessagesOverrideMock.mockReset()
+      getTopicMaxMessagesOverrideMock.mockReturnValue(undefined)
+    })
+
+    it('caps the served history with the leasing surface cap even when the global allows more', async () => {
+      getTopicMock.mockReturnValue({ id: '1', assistantId: undefined })
+      getTopicMaxMessagesOverrideMock.mockReturnValue(3)
+      listMessagesMock.mockReturnValue(userHistory(5))
+
+      const prepared = await provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })
+
+      expect(prepared.models[0].request.messages).toHaveLength(3)
+    })
+
+    it('beats the assistant-level contextSettings override — the surface cap is the most specific layer', async () => {
+      getTopicMock.mockReturnValue({ id: '1', assistantId: 'asst_1' })
+      getAssistantByIdMock.mockReturnValue({
+        id: 'asst_1',
+        modelId: 'openai::gpt-4o',
+        settings: { contextSettings: { maxMessages: 10 } }
+      })
+      getTopicMaxMessagesOverrideMock.mockReturnValue(2)
+      listMessagesMock.mockReturnValue(userHistory(5))
+
+      const prepared = await provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })
+
+      expect(prepared.models[0].request.messages).toHaveLength(2)
+    })
+
+    it('leaves the global chain in charge when the topic pins no cap', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('chat.context_settings.max_messages', 2)
+      getTopicMock.mockReturnValue({ id: '1', assistantId: undefined })
+      getTopicMaxMessagesOverrideMock.mockReturnValue(undefined)
+      listMessagesMock.mockReturnValue(userHistory(5))
+
+      const prepared = await provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })
+
+      expect(prepared.models[0].request.messages).toHaveLength(2)
+    })
   })
 })

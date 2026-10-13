@@ -14,6 +14,7 @@ import {
   CommandItem,
   CommandList,
   InfoTooltip,
+  InputNumber,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -52,6 +53,7 @@ const QuickAssistantSettings: FC = () => {
   )
   const [, setTray] = usePreference('app.tray.enabled')
   const [quickAssistantId, setQuickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
+  const [contextMaxMessages, setContextMaxMessages] = usePreference('feature.quick_assistant.context_max_messages')
 
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -240,6 +242,28 @@ const QuickAssistantSettings: FC = () => {
                 onNavigate={() => void navigate({ to: '/settings/model', search: { focus: 'default' } })}
               />
             )}
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>{t('settings.quickAssistant.context_max_messages')}</span>
+              <InfoTooltip
+                content={t('settings.quickAssistant.context_max_messages_description')}
+                placement="right"
+                iconProps={{ className: 'cursor-pointer' }}
+              />
+            </SettingRowTitle>
+            <div className="w-55 shrink-0">
+              <InputNumber
+                min={1}
+                step={1}
+                aria-label={t('settings.quickAssistant.context_max_messages')}
+                placeholder={t('settings.quickAssistant.context_max_messages_follow_global')}
+                className="h-8 rounded-lg px-2.5"
+                value={contextMaxMessages}
+                onBlur={(value) => void setContextMaxMessages(value === null ? null : Math.floor(value))}
+              />
+            </div>
           </SettingRow>
         </SettingGroup>
       )}
