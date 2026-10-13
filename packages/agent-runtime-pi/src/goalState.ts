@@ -91,6 +91,9 @@ export class GoalError extends Error {
   }
 }
 
+/** Completion is terminal: pause, resume, complete and blocked refuse a complete goal (spec §8.1). */
+export const GOAL_COMPLETE_MESSAGE = 'The goal is already complete; new work needs a new goal.'
+
 const PAUSED_CODES = new Set<GoalStopCode>(['aborted', 'paused_by_user', 'paused_each_round'])
 
 export function phaseForStop(code: GoalStopCode): GoalPhase {
@@ -204,7 +207,7 @@ export function stopGoal(
 }
 
 export function resumeGoal(goal: GoalSnapshot, now: number): GoalSnapshot {
-  if (goal.phase === 'complete') throw new GoalError('invalid_action', 'the goal is complete; create a new one')
+  if (goal.phase === 'complete') throw new GoalError('invalid_action', GOAL_COMPLETE_MESSAGE)
   if (!hasCapacity(goal)) throw new GoalError('no_capacity', 'raise max_goal_rounds or the budget before resuming')
   return goal.phase === 'active' ? goal : reactivate(bump(goal, now, {}))
 }
