@@ -170,7 +170,10 @@ export function hasCapacity(goal: GoalSnapshot): boolean {
   return goal.roundsStarted < goal.maxGoalRounds && !budgetExceeded(goal)
 }
 
-/** Raising a limit re-opens a goal the limit closed; the caller still has to resume (arm) it. */
+/**
+ * Raising a limit re-opens a goal a limit closed, but only once it has capacity again (rounds and
+ * budget both have room); the caller still has to resume (arm) it.
+ */
 export function editGoal(
   goal: GoalSnapshot,
   patch: { objective?: string; maxGoalRounds?: number; budget?: GoalBudget },
@@ -185,11 +188,11 @@ export function editGoal(
   const raised =
     edited.maxGoalRounds > goal.maxGoalRounds ||
     (goal.budget !== undefined && !budgetExceeded(edited) && budgetExceeded(goal))
-  if (!raised) return edited
+  if (!raised || !hasCapacity(edited)) return edited
   const closedByLimit =
     goal.phase === 'blocked' && (goal.lastStop?.code === 'round_limit' || goal.lastStop?.code === 'budget_exhausted')
   const reopened = { ...edited, wrapUpDone: false }
-  return closedByLimit && hasCapacity(reopened) ? reactivate(reopened) : reopened
+  return closedByLimit ? reactivate(reopened) : reopened
 }
 
 export function stopGoal(
