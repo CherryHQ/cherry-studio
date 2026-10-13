@@ -7,6 +7,7 @@ import {
   type ExtensionFactory
 } from '@earendil-works/pi-coding-agent'
 
+import { ASK_USER_TOOL_NAME } from './askUserExtension'
 import {
   admitRound,
   assistantText,
@@ -261,10 +262,26 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       details: undefined
     })
 
+    let unsubscribeApproval: (() => void) | undefined
     pi.on('session_start', (_event, ctx) => {
       runtime.goal = currentGoal(ctx.sessionManager.getBranch())
       runtime.armed = false
       runtime.inGoalRound = false
+      unsubscribeApproval?.()
+      unsubscribeApproval = port.onApproval?.((event) => {
+        if (!runtime.goal || !runtime.inGoalRound) return
+        if (event.kind === 'denied')
+          runtime.stopRequest = { code: 'approval_denied', message: `tool call ${event.toolCallId} was denied` }
+        if (event.kind === 'unavailable')
+          runtime.stopRequest = {
+            code: 'awaiting_approval',
+            message: `tool call ${event.toolCallId} needs approval and nobody can give it`
+          }
+      })
+    })
+    pi.on('session_shutdown', () => {
+      unsubscribeApproval?.()
+      unsubscribeApproval = undefined
     })
 
     pi.registerTool({
@@ -441,7 +458,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     const decide = (event: AgentBeforeSettleEvent, ctx: ExtensionContext): AgentBeforeSettleEventResult | undefined => {
       const goal = runtime.goal
       if (event.outcome === 'error') {
-        if (goal?.phase === 'active') stop('provider_error', lastErrorMessage(ctx))
+        if (goal?.phase === 'active' && runtime.armed) stop('provider_error', lastErrorMessage(ctx))
         return undefined
       }
       if (!goal || goal.phase !== 'active') return undefined
@@ -457,6 +474,10 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
         return undefined
       }
       if (event.context.pendingMessages.length > 0) return undefined
+      if (port.hasRunningSubagents?.() === true) {
+        stop('waiting_subagents')
+        return undefined
+      }
       if (runtime.noProgressRounds >= STOP_AFTER_ROUNDS) {
         stop('no_progress')
         return undefined
@@ -511,6 +532,12 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
           runtime.pendingUsage.usd += result.usage.cost.total
         }
         if (isProgressResult(result)) runtime.round.toolProgress = true
+        // Stored sessions and thrown calls carry no `outcome`.
+        if (
+          result.toolName === ASK_USER_TOOL_NAME &&
+          (result.details as { outcome?: string } | undefined)?.outcome === 'declined'
+        )
+          runtime.stopRequest = { code: 'needs_user_input', message: 'the user dismissed the question' }
       }
       const reply = assistantText(event.message)
       // A reply cut off by the output limit shows nothing about progress (spec §7.2).
@@ -522,11 +549,14 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       return decide(event, ctx)
     })
 
-    pi.on('agent_settled', () => {
+    pi.on('agent_settled', (event) => {
       const rejected = runtime.reservation !== undefined
       runtime.reservation = undefined
       runtime.inGoalRound = false
-      if (rejected && runtime.goal?.phase === 'active') stop('continuation_rejected')
+      if (runtime.goal?.phase !== 'active') return
+      // Pi skips agent_before_settle after session.abort(); the abort surfaces only here.
+      if (event.aborted) stop('aborted')
+      else if (rejected) stop('continuation_rejected')
     })
 
     pi.registerCommand('goal', {
@@ -561,15 +591,15 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
               clear()
               stopTurn()
               notice('Goal cleared.')
-            } else {
-              notice(resume(goal) ? 'Goal resumed.' : 'Goal is already active.')
+            } else if (resume(goal)) {
+              notice('Goal resumed.')
               startRound(ctx)
-            }
+            } else notice('Goal is already active.')
             return
           }
-          // With no goal to edit, a leading "edit" is part of a new objective.
-          if (keyword === 'edit' && runtime.goal) {
-            commit(editGoal(runtime.goal, { objective: value }, port.defaults.maxGoalRoundsCeiling, now()))
+          // With no goal to edit, a leading "edit" followed by text is part of a new objective.
+          if (keyword === 'edit' && (runtime.goal || value === '')) {
+            commit(editGoal(requireGoal(), { objective: value }, port.defaults.maxGoalRoundsCeiling, now()))
             notice('Goal objective updated.')
             return
           }
