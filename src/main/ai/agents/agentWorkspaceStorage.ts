@@ -15,7 +15,7 @@ function canonicalWorkspacePath(value: string): string {
       current = path.join(realpathSync.native(current), ...missing)
       break
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
       const parent = path.dirname(current)
       if (parent === current) break
       missing.unshift(path.basename(current))
@@ -26,6 +26,9 @@ function canonicalWorkspacePath(value: string): string {
 }
 
 function workspacePathsOverlap(left: string, right: string): boolean {
+  // Missing components cannot be canonicalized by realpath; conservatively protect filesystem aliases.
+  left = left.normalize('NFC').toLowerCase()
+  right = right.normalize('NFC').toLowerCase()
   const contains = (parent: string, child: string) => {
     const relative = path.relative(parent, child)
     return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))

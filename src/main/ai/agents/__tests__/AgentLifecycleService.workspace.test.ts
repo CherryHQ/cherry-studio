@@ -51,7 +51,7 @@ vi.mock('@application', async () => {
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
-describe('Agent lifecycle workspace persistence', () => {
+describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   const dbh = setupTestDatabase()
   let root: string
   let lifecycle: AgentLifecycleService
@@ -230,6 +230,7 @@ describe('Agent lifecycle workspace persistence', () => {
     await entered.promise
     try {
       expect(() => registerWorkspace(path.join(`${parent}.restoring`, 'project'))).toThrow()
+      expect(() => registerWorkspace(path.join(`${parent}.RESTORING`, 'project'))).toThrow()
       expect(() => registerWorkspace(path.join(parent, 'project'))).toThrow()
       expect(
         dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
@@ -241,6 +242,49 @@ describe('Agent lifecycle workspace persistence', () => {
     expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
     expect(registerWorkspace(path.join(parent, 'project')).path).toBe(path.join(parent, 'project'))
   })
+  it.each(['session', 'agent'] as const)('restores %s despite an unrelated claim beneath a file', async (mode) => {
+    const old = path.join(root, 'old')
+    const claimed = path.join(old, 'task')
+    await mkdir(claimed, { recursive: true })
+    const workspace = registerWorkspace(claimed)
+    await rm(old, { recursive: true })
+    await writeFile(old, 'replaced directory')
+
+    if (mode === 'agent') {
+      await lifecycle.archiveAgent('agent', { archiveSessions: true })
+      expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(true)
+      await lifecycle.restoreAgent('agent')
+      expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent')).get()?.deletedAt).toBeNull()
+    } else {
+      await lifecycle.archiveSessions(['system'])
+      expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(true)
+      await lifecycle.restoreSession('system')
+    }
+    expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+    ).toBeNull()
+    expect(dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id)).get()?.path).toBe(
+      claimed
+    )
+    expect(reserveWorkspaceStorage([old])).toBeUndefined()
+    expect(await readFile(old, 'utf8')).toBe('replaced directory')
+    await lifecycle.archiveSessions(['system'])
+    await lifecycle.purgeSessions(['system'])
+    expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
+  })
+
+  it('protects Unicode aliases of missing storage paths', () => {
+    const target = path.join(root, 'caf\u00e9.restoring')
+    const release = reserveWorkspaceStorage([target])!
+    try {
+      expect(() => registerWorkspace(path.join(root, 'cafe\u0301.RESTORING', 'project'))).toThrow()
+      expect(registerWorkspace(path.join(root, 'unrelated')).path).toBe(path.join(root, 'unrelated'))
+    } finally {
+      release()
+    }
+  })
+
   it('rejects restore while storage is reserved and permits it after release', async () => {
     const parent = workspacePath(root, 'system')
     await lifecycle.archiveSessions(['system'])
