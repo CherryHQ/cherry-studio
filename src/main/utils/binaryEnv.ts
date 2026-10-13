@@ -25,13 +25,26 @@ import { isWin } from '@main/core/platform'
  * here and `shellEnv.appendCherryToolDirsToPath` run it back-to-back on the
  * same PATH during shell capture, so they must agree byte-for-byte.
  */
+/** PATH segment identity for dedup/exclusion — trailing separators do not distinguish entries. */
+export function normalizePathSegmentForComparison(value: string): string {
+  let normalized = path.normalize(value.trim())
+  if (isWin) {
+    normalized = normalized.replace(/[\\/]+$/, '')
+    return normalized.toLowerCase()
+  }
+  while (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1)
+  }
+  return normalized
+}
+
 export function dedupePathSegments(segments: string[]): string[] {
   const seen = new Set<string>()
   const unique: string[] = []
   for (const segment of segments) {
     const trimmed = segment.trim()
     if (!trimmed) continue
-    const canonical = isWin ? path.normalize(trimmed).toLowerCase() : path.normalize(trimmed)
+    const canonical = normalizePathSegmentForComparison(trimmed)
     if (seen.has(canonical)) continue
     seen.add(canonical)
     unique.push(trimmed)
@@ -140,13 +153,15 @@ function mergePathEntries(
   // Windows env keys are case-insensitive, so the input can carry several PATH
   // casings (`Path`, `PATH`). Gather segments from every one of them and collapse
   // the output to a single key — otherwise a stale casing left untouched can
-  // shadow the merged value when the child process spawns.
-  const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  // shadow the merged value when the child process spawns. POSIX keys are
+  // case-sensitive, so only the exact `PATH` feeds the merge: a lowercase
+  // `path` entry is an unrelated variable and must neither leak into the
+  // child PATH nor be clobbered by it.
+  const pathLikeKeys = isWin
+    ? Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+    : Object.keys(env).filter((key) => key === 'PATH')
   const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
-  const normalize = (value: string) => {
-    const normalized = path.normalize(value)
-    return isWin ? normalized.toLowerCase() : normalized
-  }
+  const normalize = normalizePathSegmentForComparison
   const excluded = new Set(excludedEntries.map(normalize))
   // Prefixes, retained caller PATH, then suffixes — deduped with first occurrence
   // winning. Explicit exclusions are removed from the caller PATH as well as from
@@ -161,7 +176,6 @@ function mergePathEntries(
   const merged = { ...env }
   for (const key of pathLikeKeys) delete merged[key]
   merged[pathKey] = pathValue
-  if (!isWin) merged.PATH = pathValue
   return merged
 }
 
