@@ -221,6 +221,23 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   return { text, tokens }
 }
 
+export function hasComposerDraftUserText(draft: ComposerSerializedDraft): boolean {
+  return excludeComposerDraftTokens(draft, () => true).text.trim() !== ''
+}
+
+/** Keeps token prompt spans in the serialized text so restore still finds the chips. */
+export function withComposerDraftUserText(draft: ComposerSerializedDraft, userText: string): ComposerSerializedDraft {
+  if (!userText) return draft
+  const separator = draft.text.length > 0 && !/\s$/.test(draft.text) ? ' ' : ''
+  const availableLength = COMPOSER_INPUT_MAX_LENGTH - draft.text.length - separator.length
+  if (availableLength <= 0) return draft
+
+  return {
+    text: draft.text + separator + userText.slice(0, availableLength),
+    tokens: draft.tokens
+  }
+}
+
 /**
  * The text `serializeComposerDocument` attributes to a leaf node. For any length measured
  * against the serialized draft — a replacement budget over a selection — a token atom must

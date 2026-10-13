@@ -548,6 +548,27 @@ describe('useInputHistory', () => {
     })
   })
 
+  describe('peekDraftBeforeHistory', () => {
+    it('returns the pre-history draft without clearing active navigation', () => {
+      seedHistory([sampleHistoryEntry(0)])
+      const originalDraft = draftWithText('live draft')
+
+      const { result } = renderHook(() =>
+        useInputHistory({
+          applyDraft: vi.fn()
+        })
+      )
+
+      act(() => {
+        result.current.navigateHistory('up', originalDraft)
+      })
+
+      expect(result.current.peekDraftBeforeHistory()).toEqual(originalDraft)
+      expect(result.current.peekDraftBeforeHistory()).toEqual(originalDraft)
+      expect(result.current.isInputHistoryActive).toBe(true)
+    })
+  })
+
   describe('takeDraftBeforeHistory', () => {
     it('returns the pre-history draft once and clears active navigation', () => {
       seedHistory([sampleHistoryEntry(0)])
