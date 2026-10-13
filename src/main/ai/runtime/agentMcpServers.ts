@@ -18,6 +18,7 @@ import { createMcpManagerServer } from '@main/ai/mcp/servers/mcpManager'
 import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { sanitizeAgentServerKey } from '@shared/ai/tools/mcpToolName'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -55,18 +56,6 @@ export interface AgentNotificationContext {
 }
 
 /**
- * Runtime record keys host SDK-derived tool ids (`mcp__<key>__<tool>`), so a key containing the
- * delimiter (`docs__search`) lets one pair's identity flatten onto another's (`docs` +
- * `search__all` → `mcp__docs__search__all`): the CLI keeps one tool callable under the contested
- * string while metadata and denial matching cannot say which. Collapsing `__` runs makes the
- * key set delimiter-free, which makes the flattened identity injective — the first `__` after
- * `mcp__` marks the key boundary for every mounted pair, regardless of tool names.
- */
-function sanitizeServerKey(name: string): string {
-  return name.replace(/_{2,}/g, '_')
-}
-
-/**
  * Resolve the agent's mounted servers once: parse each `agent.mcps` entry (id or name), skip the
  * browser builtin, and allocate the runtime record key. The SDK derives tool names
  * (`mcp__<key>__<tool>`, 64-char cap) and routes tool calls from the record key, so a 36-char UUID
@@ -87,7 +76,7 @@ export function resolveMountedAgentMcpServers(
   // Mounted ids are reserved in their sanitized form before any name allocation so an id
   // fallback can never collide with another mounted server's configured name (and vice versa):
   // each server keeps its own key even when names and ids cross-import each other.
-  for (const mcpId of agent.mcps ?? []) takenServerNames.add(sanitizeServerKey(mcpId))
+  for (const mcpId of agent.mcps ?? []) takenServerNames.add(sanitizeAgentServerKey(mcpId))
 
   const resolved: Array<{ mcpId: string; legacyServer: McpServerEntity; key: string }> = []
   for (const mcpId of agent.mcps ?? []) {
@@ -105,8 +94,10 @@ export function resolveMountedAgentMcpServers(
       }
       if (!legacyServer) throw new Error(`MCP server not found: ${mcpId}`)
       const serverName =
-        legacyServer.name && !takenServerNames.has(sanitizeServerKey(legacyServer.name)) ? legacyServer.name : mcpId
-      const key = sanitizeServerKey(serverName)
+        legacyServer.name && !takenServerNames.has(sanitizeAgentServerKey(legacyServer.name))
+          ? legacyServer.name
+          : mcpId
+      const key = sanitizeAgentServerKey(serverName) || sanitizeAgentServerKey(mcpId)
       takenServerNames.add(key)
       resolved.push({ mcpId, legacyServer, key })
     } catch (error) {

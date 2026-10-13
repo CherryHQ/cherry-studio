@@ -277,3 +277,48 @@ export function parseFunctionCallToolName(toolName: string | undefined): McpFunc
     toolPart: rest.slice(delimiterIndex + 2)
   }
 }
+
+/**
+ * Sanitize a mounted MCP server's configured name into its runtime record key. Runtime record
+ * keys host SDK-derived tool ids (`mcp__<key>__<tool>`), so the key must never contain the `__`
+ * delimiter (`docs__search` lets `docs` + `search__all` flatten onto the same identity) and must
+ * never end in `_` (a trailing `_` blurs the delimiter into a tool name starting with `_`:
+ * `docs` + `_run` and `docs_` + `run` both flatten to `mcp__docs___run`). Together both rules
+ * make the first `__` after the prefix an unambiguous key boundary for every mounted pair.
+ */
+export function sanitizeAgentServerKey(name: string): string {
+  return name.replace(/_{2,}/g, '_').replace(/_+$/, '')
+}
+
+/**
+ * Rewrite saved DSH denial rules (`mcp__<key>__<tool>`) after their server was renamed: the
+ * saved string encodes the key of the moment, and a rename reallocates the key (`docs` →
+ * `github` orphans `mcp__docs__run`), letting the previously disabled tool execute under
+ * `bypassPermissions`. Entries are matched on the sanitized old key and rewritten onto the
+ * sanitized new key; anything else (other servers' entries, id-keyed rules, non-`mcp__` forms)
+ * passes through untouched. Returns the migrated array, or undefined when nothing changed.
+ *
+ * Plain DSH runtime names (`<key>_<hash>`) are not migrated: their hash binds the tool pair,
+ * which is unknowable without the server's live tool list at rename time.
+ */
+export function migrateDisabledToolsForServerRename(
+  disabledTools: readonly string[],
+  oldName: string,
+  newName: string
+): string[] | undefined {
+  const fromKey = sanitizeAgentServerKey(oldName)
+  const toKey = sanitizeAgentServerKey(newName)
+  if (!fromKey || fromKey === toKey) return undefined
+
+  let changed = false
+  const migrated = disabledTools.map((entry) => {
+    if (!entry.startsWith('mcp__')) return entry
+    const rest = entry.slice('mcp__'.length)
+    const delimiterIndex = rest.indexOf('__')
+    if (delimiterIndex <= 0) return entry
+    if (rest.slice(0, delimiterIndex) !== fromKey) return entry
+    changed = true
+    return `mcp__${toKey}__${rest.slice(delimiterIndex + 2)}`
+  })
+  return changed ? migrated : undefined
+}

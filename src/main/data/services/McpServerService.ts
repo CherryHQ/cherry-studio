@@ -9,9 +9,11 @@
 import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { migrateDisabledToolsForServerRename } from '@shared/ai/tools/mcpToolName'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -168,6 +170,33 @@ export class McpServerService {
       const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
         typeof mcpServerTable.$inferInsert
       >
+
+      // A rename reallocates the server's runtime record key, orphaning saved
+      // `mcp__<old-key>__<tool>` denial rules: the exact-match policy would let the previously
+      // disabled tool execute under the new identity. Migrate the server's own rules and every
+      // agent's in the same transaction.
+      if (dto.name !== undefined && dto.name !== existing.name) {
+        const migratedServerRules = migrateDisabledToolsForServerRename(
+          existing.disabledTools ?? [],
+          existing.name,
+          name
+        )
+        if (migratedServerRules) updates.disabledTools = migratedServerRules
+
+        const agents = tx.select().from(agentTable).all()
+        for (const agent of agents) {
+          const migrated = migrateDisabledToolsForServerRename(agent.disabledTools ?? [], existing.name, name)
+          if (migrated) {
+            tx.update(agentTable).set({ disabledTools: migrated }).where(eq(agentTable.id, agent.id)).run()
+            logger.info('Migrated disabled tool rules for renamed MCP server', {
+              agentId: agent.id,
+              from: existing.name,
+              to: name
+            })
+          }
+        }
+      }
+
       const [row] = tx.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning().all()
       return rowToMcpServer(row)
     })

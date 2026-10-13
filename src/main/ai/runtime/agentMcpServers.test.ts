@@ -65,12 +65,13 @@ describe('buildAgentMcpServers key allocation', () => {
     const id = '11111111-1111-4111-8111-111111111111'
     const servers = build([[id, { id, name: '__proto__', isActive: true }]])
 
-    // `__` runs collapse in the key, so the hazardous name never reaches the record at all.
-    expect(servers['_proto_']).toMatchObject({ id, name: '_proto_' })
+    // `__` runs collapse and trailing `_`s strip in the key, so the hazardous name never
+    // reaches the record at all (`_proto_` would end in `_` and blur the `__` delimiter).
+    expect(servers['_proto']).toMatchObject({ id, name: '_proto' })
     // Claude/DSH enumerate via Object.entries and Pi via Object.values — the entry must be own
     // and enumerable or the server silently disappears from every runtime.
-    expect(Object.keys(servers)).toContain('_proto_')
-    expect(Object.entries(servers).map(([key]) => key)).toContain('_proto_')
+    expect(Object.keys(servers)).toContain('_proto')
+    expect(Object.entries(servers).map(([key]) => key)).toContain('_proto')
     expect(Object.prototype.hasOwnProperty.call(servers, '__proto__')).toBe(false)
   })
 
@@ -88,6 +89,23 @@ describe('buildAgentMcpServers key allocation', () => {
     expect(servers['docs']).toMatchObject({ id: idA })
     expect(servers['docs_search']).toMatchObject({ id: idB })
     expect(servers['docs__search']).toBeUndefined()
+  })
+
+  it('strips trailing underscores from keys so the delimiter boundary stays unique', () => {
+    const idA = '22222222-2222-4222-8222-222222222222'
+    const idB = '33333333-3333-4333-8333-333333333333'
+    // A key ending in `_` blurs the `__` delimiter: `docs` exposing `_run` and `docs_`
+    // exposing `run` both flatten to `mcp__docs___run`, and first-wins metadata drops the
+    // second owner. Keys must never end in `_`; `docs_` sanitizes onto the taken `docs`,
+    // so allocation falls back to that server's id.
+    const servers = build([
+      [idA, { id: idA, name: 'docs', isActive: true }],
+      [idB, { id: idB, name: 'docs_', isActive: true }]
+    ])
+
+    expect(servers['docs']).toMatchObject({ id: idA })
+    expect(servers['docs_']).toBeUndefined()
+    expect(servers[idB]).toMatchObject({ id: idB })
   })
 
   it("does not let a sanitized key take another server's literal name", () => {

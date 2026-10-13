@@ -4,6 +4,7 @@ import {
   buildFunctionCallToolName,
   buildMcpToolName,
   generateMcpToolFunctionName,
+  migrateDisabledToolsForServerRename,
   parseFunctionCallToolName,
   toCamelCase,
   translateLegacyMcpToolRules,
@@ -437,5 +438,37 @@ describe('translateMcpToolRulesToRuntimeNames', () => {
       'mcp__github__x__y',
       savedDenial
     ])
+  })
+})
+
+describe('migrateDisabledToolsForServerRename', () => {
+  it('rewrites saved denial rules from the old key onto the renamed key', () => {
+    // `docs` renamed to `github`: the saved `mcp__docs__run` encodes the key of the moment and
+    // would otherwise match nothing, letting the disabled tool execute under bypassPermissions.
+    expect(migrateDisabledToolsForServerRename(['mcp__docs__run'], 'docs', 'github')).toEqual(['mcp__github__run'])
+  })
+
+  it('keeps the tool segment verbatim even when it contains `__`', () => {
+    expect(migrateDisabledToolsForServerRename(['mcp__docs__x__y'], 'docs', 'github')).toEqual(['mcp__github__x__y'])
+  })
+
+  it('sanitizes both sides before matching and rewriting', () => {
+    expect(migrateDisabledToolsForServerRename(['mcp__docs_search__run'], 'docs__search', 'my__server')).toEqual([
+      'mcp__my_server__run'
+    ])
+  })
+
+  it('leaves other servers, id-keyed rules and non-mcp forms untouched', () => {
+    expect(
+      migrateDisabledToolsForServerRename(
+        ['mcp__other__run', 'mcp__11111111-1111-4111-8111-111111111111__run', 'github_run', 'mcp____orphan'],
+        'docs',
+        'github'
+      )
+    ).toBeUndefined()
+  })
+
+  it('returns undefined for non-renames', () => {
+    expect(migrateDisabledToolsForServerRename(['mcp__docs__run'], 'docs', 'docs')).toBeUndefined()
   })
 })
