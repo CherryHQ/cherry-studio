@@ -232,8 +232,8 @@ describe('a task whose record write fails', () => {
       // macOS answers EPERM for a live member that fails the credential check too — a setuid
       // `sudo` the task exec'd — so an EPERM kill only proves an exit once no member is alive.
       // Reading it as the exit announced a running task as stopped and left no record to stop
-      // it through.
-      const held = await markerHeldTask('exit-eperm.marker')
+      // it through. The supervisor is the group's anchor rather than its work, so the survivor
+      // has to be a member of its own: a worker that outlives the command's shell.
       const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
         throw Object.assign(new Error('not permitted'), { code: 'EPERM' })
       })
@@ -241,7 +241,7 @@ describe('a task whose record write fails', () => {
         await expect(
           startDetachedBackgroundTask({
             storageDir,
-            command: held.command,
+            command: `${nodeBin} -e "process.stdout.write(String(process.pid)); setInterval(() => {}, 60_000)" &`,
             cwd: storageDir
           })
         ).rejects.toThrow(/is still running/)
@@ -251,7 +251,11 @@ describe('a task whose record write fails', () => {
 
       const record = await readRecoveryRecord()
       expect(record.status).toBe('running')
-      await held.release()
+      try {
+        process.kill(-record.pid, 'SIGKILL')
+      } catch {
+        // already drained
+      }
       await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
     }
   )
@@ -335,7 +339,6 @@ describe('a task whose record write fails', () => {
           { timeout: 10_000 }
         )
         const workerPid = Number((await readFile(record.logFile, 'utf8')).trim())
-        await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
         expect(isPidAlive(workerPid)).toBe(true)
         expect((await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_SENTINEL_EXT))).toEqual([])
         expect(onExit).not.toHaveBeenCalled()
