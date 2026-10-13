@@ -5804,7 +5804,6 @@
   "settings.voice.recognition.language": "Tanıma dili",
   "settings.voice.recognition.model": "Tanıma modeli",
   "settings.voice.recognition.title": "Konuşma tanıma",
-  "settings.voice.recommended": "Önerilen · {{name}}",
   "settings.voice.resources.open_settings": "Sistem ses ayarlarını aç",
   "settings.voice.resources.remove_description": "Bu modelle konuşma tanıma, modeli tekrar indirene kadar kullanılamaz. Model seçiminiz korunur.",
   "settings.voice.resources.remove_title": "Konuşma tanıma modeli kaldırılsın mı?",

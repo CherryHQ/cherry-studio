@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Button as ToolbarButton } from '@cherrystudio/ui/components/primitives/button'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { voiceTargetManager } from '@renderer/services/voice'
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -22,8 +23,9 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 
 import { ComposerContextProvider, ComposerLayerActiveProvider } from '../ComposerContext'
-import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
+import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from '../composerDraft'
 import type * as ComposerPreset from '../composerPreset'
+import DeferredComposerSurface from '../ComposerSurface'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
 import type * as PasteHandling from '../paste/pasteHandling'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
@@ -569,6 +571,32 @@ describe('ComposerSurface', () => {
 
     expect(mocks.editorOptions?.immediatelyRender).toBe(true)
     expect(mocks.focus).toHaveBeenCalledWith('end')
+  })
+
+  it('keeps fallback dictation literal when the rich composer mounts', async () => {
+    function DeferredHarness() {
+      const [text, setText] = useState('')
+      return (
+        <DeferredComposerSurface
+          {...baseProps}
+          text={text}
+          onTextChange={setText}
+          voiceTarget={{ targetId: 'deferred-dictation', sourceEntityId: 'topic' }}
+        />
+      )
+    }
+    const view = render(<DeferredHarness />)
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
+    voiceTargetManager.markCurrent('deferred-dictation')
+    act(() => {
+      expect(voiceTargetManager.insertIntoCurrent('echo ${HOME}\nnext line', 'user_recovery')).toBe('inserted')
+    })
+    await screen.findByTestId('composer-editor')
+    expect(serializeComposerDocument(mocks.editorOptions.content)).toEqual({
+      text: 'echo ${HOME}\nnext line',
+      tokens: []
+    })
+    view.unmount()
   })
 
   it('makes the keyboard-focused rich composer toolbar the current voice target', async () => {

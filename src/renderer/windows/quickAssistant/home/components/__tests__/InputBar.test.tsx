@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { RefObject } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const voice = vi.hoisted(() => ({
   markCurrent: vi.fn(() => true),
@@ -72,11 +72,8 @@ vi.mock('react-i18next', () => ({
 
 import InputBar from '../InputBar'
 
-vi.mock('@renderer/hooks/useTimer', () => ({
-  useTimer: () => ({ setTimeoutTimer: vi.fn() })
-}))
-
 describe('InputBar', () => {
+  afterEach(() => vi.useRealTimers())
   beforeEach(() => {
     vi.clearAllMocks()
     voice.snapshot = { phase: 'idle', elapsedMs: 0, recoveryAvailable: false }
@@ -107,6 +104,75 @@ describe('InputBar', () => {
     expect(inputRef.current).toBe(input)
     expect(inputRef.current?.selectionStart).toBe(1)
     expect(inputRef.current?.selectionEnd).toBe(4)
+  })
+
+  it.each(['Stop recording', 'Cancel dictation'])(
+    'keeps keyboard focus on %s across recording updates',
+    async (control) => {
+      const user = userEvent.setup()
+      const submit = vi.fn()
+      voice.snapshot = { phase: 'recording', elapsedMs: 0, recoveryAvailable: false }
+      render(
+        <InputBar
+          text="existing draft"
+          placeholder="Ask"
+          loading={false}
+          handleKeyDown={(event) => {
+            if (event.key === 'Enter') submit()
+          }}
+          handleChange={vi.fn()}
+        />
+      )
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      await user.tab()
+      if (control === 'Cancel dictation') await user.tab()
+      expect(screen.getByRole('button', { name: control })).toHaveFocus()
+
+      await act(async () => {
+        emitSnapshot({ phase: 'recording', elapsedMs: 1_000, recoveryAvailable: false })
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(screen.getByRole('button', { name: control })).toHaveFocus()
+      await user.keyboard('{Enter}')
+      expect(submit).not.toHaveBeenCalled()
+      expect(control === 'Stop recording' ? voice.stop : voice.cancel).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('restores input focus when generation finishes and cancels pending focus on loading', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const props = { text: 'draft', placeholder: 'Ask', handleKeyDown: vi.fn(), handleChange: vi.fn() }
+    const view = render(
+      <>
+        <button type="button">Elsewhere</button>
+        <InputBar {...props} loading={false} />
+      </>
+    )
+    screen.getByRole('button', { name: 'Elsewhere' }).focus()
+    view.rerender(
+      <>
+        <button type="button">Elsewhere</button>
+        <InputBar {...props} loading />
+      </>
+    )
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+    expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus()
+    view.rerender(
+      <>
+        <button type="button">Elsewhere</button>
+        <InputBar {...props} loading={false} />
+      </>
+    )
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+    expect(screen.getByRole('textbox')).toHaveFocus()
   })
 
   it('starts dictation only after the user activates the microphone', async () => {
