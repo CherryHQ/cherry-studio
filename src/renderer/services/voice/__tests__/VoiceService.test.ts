@@ -96,6 +96,31 @@ describe('VoiceService state ownership', () => {
     })
   })
 
+  it('resolves a captured recognition selection without reading preferences again', async () => {
+    const readTranscriptionPreferences = vi.fn(async () => ({ modelId: FUNASR_MODEL_ID, language: 'en-US' }))
+    request.mockResolvedValue({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' },
+      status: { status: 'ready' }
+    })
+    const service = new VoiceService({ ipc: { request, on }, ownerWindow, readTranscriptionPreferences })
+    const captured = {
+      modelId: FUNASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'fr-FR' as const }
+    }
+
+    await expect(service.resolveTranscriptionPreferences(captured)).resolves.toEqual({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' }
+    })
+
+    expect(readTranscriptionPreferences).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledWith('ai.voice.transcription.resolve', {
+      modelId: FUNASR_MODEL_ID,
+      language: captured.language
+    })
+  })
+
   it('preserves an explicit voice without imposing the interface language', async () => {
     request.mockResolvedValue({
       modelId: WINDOWS_TTS_MODEL_ID,

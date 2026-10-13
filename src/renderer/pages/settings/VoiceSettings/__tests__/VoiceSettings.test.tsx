@@ -251,6 +251,38 @@ describe('VoiceSettings', () => {
     expect(i18n.language).toBe('en-US')
   })
 
+  it.each([
+    ['fr-CA', 'Bonjour, voici un aperçu de la voix utilisée pour lire vos réponses.'],
+    ['pt-BR', 'Olá, esta é uma amostra da voz utilizada para ler as suas respostas.']
+  ])(
+    'previews %s from the available same-language catalog without changing the selected voice',
+    async (language, sample) => {
+      MockUsePreferenceUtils.setMultiplePreferenceValues({
+        'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
+        'feature.voice.speech.voice_id': 'voice.regional',
+        'feature.voice.speech.language': language
+      })
+      voice.resolveSpeech.mockResolvedValue({
+        modelId: APPLE_TTS_MODEL_ID,
+        voice: 'voice.regional',
+        language,
+        speed: 1,
+        status: { status: 'ready' }
+      })
+      voice.listVoices.mockResolvedValue([{ id: 'voice.regional', name: 'Regional Voice', language }])
+      render(<VoiceSettings />)
+      const play = screen.getByRole('button', { name: 'Preview voice' })
+      await waitFor(() => expect(play).toBeEnabled())
+      await userEvent.setup().click(play)
+      await waitFor(() =>
+        expect(voice.speechStart).toHaveBeenCalledWith(expect.objectContaining({ text: sample, trigger: 'manual' }))
+      )
+      expect(i18n.language).toBe('en-US')
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe(language)
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.regional')
+    }
+  )
+
   it.each(['stop', 'unmount', 'preference'])('discards a pending preview catalog after %s', async (action) => {
     const loading = deferred<any>()
     const load = vi.spyOn(i18n, 'loadLanguages').mockReturnValueOnce(loading.promise)
@@ -416,6 +448,87 @@ describe('VoiceSettings', () => {
     } finally {
       if (originalPreferences) vi.mocked(useMultiplePreferences).mockImplementation(originalPreferences)
     }
+  })
+
+  it('downloads an Apple recognition locale only after pending speech resolution and voice listing finish', async () => {
+    const user = userEvent.setup()
+    const speechGate = deferred<void>()
+    const voicesGate = deferred<void>()
+    const installation = deferred<void>()
+    let releaseInspections = false
+    let inspectionsSettled = false
+    const readySpeech = {
+      modelId: APPLE_TTS_MODEL_ID,
+      voice: 'voice.exact',
+      language: 'en-US',
+      speed: 1,
+      status: { status: 'ready' as const }
+    }
+    voice.resolveSpeech.mockImplementation(() =>
+      releaseInspections ? Promise.resolve(readySpeech) : speechGate.promise.then(() => readySpeech)
+    )
+    voice.listVoices.mockImplementation(() =>
+      releaseInspections
+        ? Promise.resolve([{ id: 'voice.exact', name: 'Exact Voice', language: 'en-US' }])
+        : voicesGate.promise.then(() => [{ id: 'voice.exact', name: 'Exact Voice', language: 'en-US' }])
+    )
+    voice.install.mockImplementation(() => ({
+      result: inspectionsSettled ? installation.promise : Promise.reject(new VoiceDomainError('busy'))
+    }))
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
+      'feature.voice.speech.voice_id': 'voice.exact',
+      'feature.voice.speech.language': 'en-US',
+      'feature.voice.speech.speed': 1
+    })
+
+    const { rerender } = render(<VoiceSettings />)
+    const language = screen.getByRole('combobox', { name: 'Recognition language' })
+    await waitFor(() => expect(language).toBeEnabled())
+    await waitFor(() => expect(voice.resolveSpeech).toHaveBeenCalled())
+    await waitFor(() => expect(voice.listVoices).toHaveBeenCalled())
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.speed', 1.5)
+    rerender(<VoiceSettings />)
+
+    await user.click(language)
+    await user.click(screen.getByRole('option', { name: /Chinese.*Download/ }))
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await act(async () => {
+        await Promise.resolve()
+      })
+    }
+    expect(voice.install).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
+
+    releaseInspections = true
+    inspectionsSettled = true
+    await act(async () => {
+      speechGate.resolve()
+      voicesGate.resolve()
+    })
+    await waitFor(() =>
+      expect(voice.install).toHaveBeenCalledWith({
+        modelId: APPLE_ASR_MODEL_ID,
+        language: 'zh-CN',
+        source: 'settings'
+      })
+    )
+    voice.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US', 'zh-CN', 'ja-JP'], installed: ['zh-CN'] })
+    await act(async () => {
+      installation.resolve()
+    })
+    const recognitionStatus = within(document.getElementById('setting-voice-recognition-status')!).getByRole('status')
+    await waitFor(() => expect(recognitionStatus).toHaveTextContent('Ready'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(within(document.getElementById('setting-voice-speech-status')!).getByRole('status')).toHaveTextContent(
+      'Ready'
+    )
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('en-US')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.exact')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.speed')).toBe(1.5)
+    expect(voice.install).toHaveBeenCalledTimes(1)
   })
 
   it('restores the saved locale status after installation fails', async () => {

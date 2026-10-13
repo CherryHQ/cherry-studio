@@ -101,6 +101,13 @@ export interface ResolvedSpeechPreferences {
   readonly speed: number
 }
 
+export interface SpeechPreferenceInput {
+  readonly modelId?: LocalSpeechModelId
+  readonly voice?: string
+  readonly language?: string
+  readonly speed: number
+}
+
 const reasonByCode = new Map<string, VoiceErrorReason>(
   Object.entries(voiceErrorCodes).map(([reason, code]) => [code, reason as VoiceErrorReason])
 )
@@ -161,7 +168,19 @@ export class VoiceService {
         }))
   }
 
-  async resolveTranscriptionPreferences(): Promise<ResolvedTranscriptionPreferences> {
+  async resolveTranscriptionPreferences(
+    captured?: ResolvedTranscriptionPreferences
+  ): Promise<ResolvedTranscriptionPreferences> {
+    const input = captured ?? (await this.readTranscriptionPreferenceInput())
+    const resolved = await this.resolveTranscriptionConfiguration({
+      ...(input.modelId && { modelId: input.modelId }),
+      language: input.language
+    })
+    if (resolved.status.status !== 'ready') throw new VoiceDomainError(resolved.status.reason ?? 'model_required')
+    return { modelId: resolved.modelId, language: resolved.language }
+  }
+
+  async readTranscriptionPreferenceInput(): Promise<ResolvedTranscriptionPreferences> {
     const preferences = await this.readTranscriptionPreferences()
     const storedModelId = preferences.modelId.trim()
     let modelId: LocalTranscriptionModelId | undefined
@@ -170,18 +189,16 @@ export class VoiceService {
       modelId = storedModelId
     }
     const locale = this.optionalLanguage(preferences.language)
-    const language: NonNullable<InputFor<'ai.transcription.generate'>['language']> = locale
+    const language: ResolvedTranscriptionPreferences['language'] = locale
       ? { source: TranscriptionLanguageSource.Explicit, locale }
       : {
           source: TranscriptionLanguageSource.Interface,
           locale: getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
         }
-    const resolved = await this.resolveTranscriptionConfiguration({ ...(modelId && { modelId }), language })
-    if (resolved.status.status !== 'ready') throw new VoiceDomainError(resolved.status.reason ?? 'model_required')
-    return { modelId: resolved.modelId, language: resolved.language }
+    return { modelId, language }
   }
 
-  async resolveSpeechPreferences(): Promise<ResolvedSpeechPreferences> {
+  async readSpeechPreferenceInput(): Promise<SpeechPreferenceInput> {
     const preferences = await this.readSpeechPreferences()
     const modelId = preferences.modelId.trim()
     if (modelId && !isSpeechModelId(modelId)) throw new VoiceDomainError('unsupported')
@@ -192,14 +209,25 @@ export class VoiceService {
     ) {
       throw new VoiceDomainError('invalid_request')
     }
+    const voice = preferences.voice.trim()
     const language =
       this.optionalLanguage(preferences.language) ??
-      (preferences.voice.trim() ? undefined : getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language))
-    const resolved = await this.resolveSpeechConfiguration({
+      (voice ? undefined : getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language))
+    return {
       ...(modelId && { modelId: modelId as LocalSpeechModelId }),
-      ...(preferences.voice.trim() && { voice: preferences.voice.trim() }),
+      ...(voice && { voice }),
       language,
       speed: preferences.speed
+    }
+  }
+
+  async resolveSpeechPreferences(): Promise<ResolvedSpeechPreferences> {
+    const input = await this.readSpeechPreferenceInput()
+    const resolved = await this.resolveSpeechConfiguration({
+      ...(input.modelId && { modelId: input.modelId }),
+      ...(input.voice && { voice: input.voice }),
+      language: input.language,
+      speed: input.speed
     })
     if (!resolved.modelId || !resolved.voice || resolved.status.status !== 'ready')
       throw new VoiceDomainError(resolved.status.reason ?? 'voice_unavailable')
