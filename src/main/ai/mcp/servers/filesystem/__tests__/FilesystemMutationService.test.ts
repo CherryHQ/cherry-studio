@@ -214,4 +214,28 @@ describe('filesystem mutations with mac case folding', () => {
 
     expect(await fs.readFile(primaryPath, 'utf-8')).toBe('edited')
   })
+
+  it('queues unicode-equivalent spellings of the same missing path in call order', async () => {
+    const workspaceRoot = await createTempDir('mutation-unicode-lock-')
+    const order: string[] = []
+    let releaseFirst!: () => void
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+
+    const first = filesystemMutationService.runExclusive('café.txt', workspaceRoot, async () => {
+      order.push('first-start')
+      await firstGate
+      order.push('first-end')
+    })
+    const second = filesystemMutationService.runExclusive('cafe\u0301.txt', workspaceRoot, async () => {
+      order.push('second')
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    releaseFirst()
+    await Promise.all([first, second])
+
+    expect(order).toEqual(['first-start', 'first-end', 'second'])
+  })
 })
