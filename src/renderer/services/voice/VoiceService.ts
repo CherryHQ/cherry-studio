@@ -139,6 +139,7 @@ export class VoiceService {
   private readonly pendingMaterializations = new Map<string, symbol>()
   private readonly pendingAdmissions = new Map<string, PendingAdmission>()
   private readonly speechSequences = new Map<string, SpeechSequence>()
+  private readonly commandRevisions = new Map<string, number>()
   private snapshot: VoiceSessionState = { phase: 'idle', revision: 0 }
   private initialization?: { generation: number; promise: Promise<void> }
   private unsubscribeEvent?: () => void
@@ -553,8 +554,8 @@ export class VoiceService {
     )
   }
 
-  updatePlayback(input: InputFor<'ai.voice.playback.update'>): Promise<OutputFor<'ai.voice.playback.update'>> {
-    return this.invoke(() => this.ipc.request('ai.voice.playback.update', input)).then((state) => {
+  reportPlayback(input: InputFor<'ai.voice.playback.report'>): Promise<OutputFor<'ai.voice.playback.report'>> {
+    return this.invoke(() => this.ipc.request('ai.voice.playback.report', input)).then((state) => {
       this.applyState(state)
       return state
     })
@@ -592,6 +593,15 @@ export class VoiceService {
       this.interruptionListeners.forEach((listener) => listener())
       return
     }
+    if (event.playback) {
+      if (this.reservations.get(event.sessionId)?.kind !== 'speech') return
+      const previous = this.commandRevisions.get(event.sessionId) ?? -1
+      // Lease revocation is terminal even when it reuses the latest playback command revision.
+      if (event.command !== 'stop' && event.playback.commandRevision <= previous) return
+      this.commandRevisions.set(event.sessionId, event.playback.commandRevision)
+      this.commandListeners.forEach((listener) => listener(event))
+      return
+    }
     if (event.revision < this.snapshot.revision || event.sessionId !== this.currentOwnedSessionId) return
     if (this.snapshot.phase === 'idle' || this.snapshot.sessionId !== event.sessionId) return
     this.commandListeners.forEach((listener) => listener(event))
@@ -617,6 +627,7 @@ export class VoiceService {
         sessionId: state.sessionId,
         ...(state.source && { source: state.source }),
         ...(state.trigger && { trigger: state.trigger }),
+        ...(state.playback && { playback: state.playback }),
         ...(state.reason && { reason: state.reason })
       }
     }
@@ -675,6 +686,7 @@ export class VoiceService {
   private releaseReservation(sessionId: string, token: symbol): void {
     if (this.reservations.get(sessionId)?.token !== token) return
     this.reservations.delete(sessionId)
+    this.commandRevisions.delete(sessionId)
     if (this.speechSequences.get(sessionId)?.reservationToken === token) this.speechSequences.delete(sessionId)
   }
 
@@ -729,6 +741,7 @@ export class VoiceService {
     this.pendingAdmissions.clear()
     this.reservations.clear()
     this.speechSequences.clear()
+    this.commandRevisions.clear()
     this.currentOwnedSessionId = undefined
     return [...this.tombstones.entries()]
   }
