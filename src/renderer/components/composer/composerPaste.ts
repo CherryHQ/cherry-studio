@@ -4,7 +4,6 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 
-import { COMPOSER_INPUT_MAX_LENGTH } from './composerDraft'
 import {
   type ComposerTokenMarkerRule,
   createComposerPlainTextContent,
@@ -78,17 +77,6 @@ function createKnowledgeBaseMarkerRule(
 
 export function createComposerPlainTextPasteContent(text: string): JSONContent[] {
   return createComposerPlainTextContent(text)
-}
-
-/**
- * The part of `nextText` that still fits the composer. An insert that replaces a selection has to be
- * measured against the draft without it, or text the insert removes is charged against the budget
- * twice and an insertion that would fit is refused.
- */
-export function getComposerInputTextWithinLimit(currentText: string, nextText: string, replacedText = ''): string {
-  const remainingLength = COMPOSER_INPUT_MAX_LENGTH - (currentText.length - replacedText.length)
-  if (remainingLength <= 0) return ''
-  return nextText.slice(0, remainingLength)
 }
 
 function getPrivateTokenMarker(token: ComposerClipboardToken, prefix: string) {
