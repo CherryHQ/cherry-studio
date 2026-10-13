@@ -203,6 +203,32 @@ describe('AgentSessionMessageBackend', () => {
     expect(afterPersist).toHaveBeenCalledWith(expect.objectContaining({ id: assistantMessageId }))
   })
 
+  it('keeps a Pi builtin-only completion successful because the renderer cards it', () => {
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
+    // Production Pi parts are dynamic, provider-executed, and stamped
+    // `cherry.transport='pi-agent'` + `cherry.tool.type='builtin'` (piStreamAdapter). The renderer
+    // recognizes Pi's builtin names before that metadata, so `vcc_recall` renders a timeline card:
+    // the turn has visible content and must not be downgraded to an error.
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'toolu_01-recall',
+        toolName: 'vcc_recall',
+        state: 'output-available',
+        input: { query: 'earlier plan' },
+        output: 'Earlier conversation turns',
+        providerExecuted: true,
+        callProviderMetadata: {
+          cherry: { transport: 'pi-agent', tool: { type: 'builtin', name: 'vcc_recall' } },
+          pi: { toolName: 'vcc_recall' }
+        }
+      }
+    ] as never
+    expect(backend.persistAssistant({ finalMessage: { parts } as never, status: 'success' })).not.toHaveProperty(
+      'downgradedToError'
+    )
+  })
+
   it('persists an unknown runtime checkpoint intact without exposing it in public messages', async () => {
     const anchor = {
       checkpoint: { runtime: 'future-runtime', native: { cursor: [7, 'entry'], version: 2 }, token: 'opaque-token' }

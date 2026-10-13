@@ -16,7 +16,6 @@ import {
   WEB_SEARCH_TOOL_NAME,
   reportArtifactsInputSchema
 } from './builtinTools'
-import { DSH_BUILTIN_TOOLS } from './dshBuiltinTools'
 import { GENERATE_IMAGE_TOOL_NAME } from './generateImageTool'
 import { META_TOOL_NAMES } from './metaToolNames'
 import { PI_BUILTIN_TOOLS } from './piBuiltinTools'
@@ -46,9 +45,7 @@ export const AGENT_SESSION_HIDDEN_PART_TYPES: ReadonlySet<string> = new Set([
 const RENDERED_TOOL_NAMES: ReadonlySet<string> = new Set([
   ...Object.values(RENDERED_AGENT_TOOL_NAMES),
   ...PI_BUILTIN_TOOLS.map((tool) => tool.name),
-  ...DSH_BUILTIN_TOOLS.map((tool) => tool.name),
   ...META_TOOL_NAMES,
-  ...AGENT_RUNTIME_CAPABILITIES.dsh.builtinTools().map((tool) => tool.id),
   'web_fetch',
   'memory',
   KB_SEARCH_TOOL_NAME,
@@ -101,6 +98,14 @@ function isReportArtifactsToolName(toolName: string): boolean {
 const RUNTIME_BUILTIN_TOOL_IDS: ReadonlySet<string> = new Set(
   Object.values(AGENT_RUNTIME_CAPABILITIES).flatMap((caps) => caps.builtinTools().map((tool) => tool.id))
 )
+
+/**
+ * Pi's builtin tool names — the renderer's `resolveToolType` recognizes these BEFORE it reads
+ * `cherry.tool.type`. Pi stamps its provider-executed calls `type: 'builtin'` (see piStreamAdapter's
+ * `toolProviderMetadata`), so honoring the metadata first would call a `vcc_recall` completion
+ * cardless here while `chooseTool` renders a timeline card for it.
+ */
+const PI_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set(PI_BUILTIN_TOOLS.map((tool) => tool.name))
 
 function getToolPartInput(part: CherryMessagePart): unknown {
   return (part as { input?: unknown }).input
@@ -166,7 +171,10 @@ function isRenderedDynamicToolPart(part: CherryMessagePart, toolName: string | u
   }
   const canonicalName = toRenderedAgentToolName(toolName, shape.callProviderMetadata)
   if (NAME_RENDERED_TOOL_NAMES.has(canonicalName) || canonicalName.startsWith('mcp__')) return true
-  // Dynamic builtin tools (unmapped dsh natives) and unrecognized provider names get no card.
+  // Same precedence as the renderer: Pi's builtin NAMES outrank `cherry.tool.type`, so a
+  // `vcc_recall` completion keeps its timeline card even though Pi stamps it `builtin`.
+  if (PI_BUILTIN_TOOL_NAMES.has(canonicalName)) return true
+  // Dynamic builtin tools (unmapped runtime natives) and unrecognized provider names get no card.
   if (cherryToolType === 'builtin') return false
   const providerClassified =
     cherryToolType === 'provider' ||

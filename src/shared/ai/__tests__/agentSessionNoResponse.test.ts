@@ -34,7 +34,7 @@ describe('isVisibleAgentSessionPart', () => {
   })
 
   it('keeps tool parts the renderer gives a card, and drops cardless tool-only turns', () => {
-    // Runtime builtin tool (pi/dsh `bash`) renders through the agent timeline card.
+    // Runtime builtin tool (pi `bash`) renders through the agent timeline card.
     expect(
       isVisibleAgentSessionPart({ type: 'tool-bash', state: 'output-available', toolCallId: 't1', input: {} } as never)
     ).toBe(true)
@@ -133,8 +133,33 @@ describe('isVisibleAgentSessionPart', () => {
     ).toBe(true)
   })
 
+  it('counts a Pi builtin call as visible before consulting its stamped tool type', () => {
+    // Production Pi parts are dynamic, provider-executed, and carry
+    // `cherry.transport='pi-agent'` with `cherry.tool.type='builtin'` (see piStreamAdapter's
+    // `toolProviderMetadata`). The renderer's `resolveToolType` recognizes Pi's builtin NAMES
+    // before the metadata, so it classifies this as a provider tool and `chooseTool` renders a
+    // timeline card — the turn has visible content even though nothing else came back.
+    const piRecallOnly = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'toolu_01-recall',
+        toolName: 'vcc_recall',
+        state: 'output-available',
+        input: { query: 'earlier plan' },
+        output: 'Earlier conversation turns',
+        providerExecuted: true,
+        callProviderMetadata: {
+          cherry: { transport: 'pi-agent', tool: { type: 'builtin', name: 'vcc_recall' } },
+          pi: { toolName: 'vcc_recall' }
+        }
+      } as never
+    ] as CherryMessagePart[]
+    expect(hasVisibleAgentSessionPart(piRecallOnly)).toBe(true)
+    expect(isVisibleAgentSessionPart(piRecallOnly[0])).toBe(true)
+  })
+
   it('maps dynamic runtime tool names onto their card names before judging them', () => {
-    // pi/dsh natives carry lower-case runtime names; chooseTool only knows the shared
+    // pi natives carry lower-case runtime names; chooseTool only knows the shared
     // agent-tool name they normalize onto (renderer getCanonicalToolName).
     const runtimeNative = (toolName: string, transport: string) =>
       ({
@@ -147,10 +172,11 @@ describe('isVisibleAgentSessionPart', () => {
         callProviderMetadata: { cherry: { transport, tool: { type: 'builtin', name: toolName } } }
       }) as never
     expect(isVisibleAgentSessionPart(runtimeNative('read', 'pi-agent'))).toBe(true)
-    expect(isVisibleAgentSessionPart(runtimeNative('todo_write', 'dsh-agent'))).toBe(true)
+    expect(isVisibleAgentSessionPart(runtimeNative('todo_write', 'pi-agent'))).toBe(true)
+    expect(isVisibleAgentSessionPart(runtimeNative('vcc_recall', 'pi-agent'))).toBe(true)
     expect(isVisibleAgentSessionPart(runtimeNative('codemode', 'pi-agent'))).toBe(true)
-    // A dsh native without a card mapping (chooseTool returns null for it) renders nothing.
-    expect(isVisibleAgentSessionPart(runtimeNative('get_goal', 'dsh-agent'))).toBe(false)
+    // A runtime native without a card mapping (chooseTool returns null for it) renders nothing.
+    expect(isVisibleAgentSessionPart(runtimeNative('get_goal', 'pi-agent'))).toBe(false)
   })
 
   it('drops file parts the renderer cannot render, keeps resolvable ones', () => {
