@@ -101,6 +101,9 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.claude_code.binary.status': async () => application.get('ClaudeCodeBinaryService').getStatus(),
+  'ai.claude_code.binary.ensure': async () => application.get('ClaudeCodeBinaryService').ensure(),
+  'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),
   // ── One-shot model calls — AiService owns the provider clients. ──
   // A renderer one-shot call has no topic; it is its own conversation.
   'ai.text.generate': ({ requestId, ...request }) => {
