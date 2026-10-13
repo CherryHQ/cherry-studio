@@ -56,6 +56,39 @@ describe('finalizeLiveMessages', () => {
     lease.topicId = 'temp-topic'
   })
 
+  it('refuses to send while a save is in flight, and sends again once that save fails', async () => {
+    // A turn accepted mid-save would dispatch against the promoted topic with no branch
+    // anchor, then be stopped when the save ends the conversation.
+    let failPersist: (error: Error) => void = () => {}
+    conversation.persistTopic.mockImplementation(
+      () =>
+        new Promise<void>((_, reject) => {
+          failPersist = reject
+        })
+    )
+    conversation.sendMessage.mockClear()
+    const { result } = renderHook(() => useQuickConversation({}))
+
+    let saving: Promise<unknown> = Promise.resolve()
+    act(() => {
+      saving = result.current.save().catch(() => undefined)
+    })
+    act(() => {
+      expect(result.current.send('follow-up during save')).toBe(false)
+    })
+    expect(result.current.isSaving).toBe(true)
+    expect(conversation.sendMessage).not.toHaveBeenCalled()
+
+    await act(async () => {
+      failPersist(new Error('disk full'))
+      await saving
+    })
+    expect(result.current.isSaving).toBe(false)
+    act(() => {
+      expect(result.current.send('retry after failed save')).toBe(true)
+    })
+  })
+
   it('reports a save as done only for the conversation still on screen', async () => {
     // The caller clears the conversation after a save; if the lease turned over mid-request,
     // clearing would wipe a conversation the user started since.

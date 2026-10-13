@@ -99,7 +99,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const conversation = useQuickConversation({ assistantId: activeAssistantId ?? undefined })
-  const { topic, topicId, isLoading, error, send, stop, reset, save } = conversation
+  const { topic, topicId, isLoading, isSaving, error, send, stop, reset, save } = conversation
 
   // Wraps setState with an eager IPC call so main's pin flag is updated
   // synchronously inside the click handler — a useEffect-based sync would
@@ -352,7 +352,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               resolvedContext={composerContext}
               resolvedProviders={providers}
               externalContextControls
-              sendDisabled={!topicId}
+              sendDisabled={!topicId || isSaving}
               steerWhileBusy={false}
               onConversationControlsChange={setConversationControlsSnapshot}
               onSend={handleSend}
@@ -370,7 +370,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               // plate sized for a page behind it, which in a transparent frameless window
               // reads as a second window edge around the composer card.
               externalContextControls
-              sendDisabled={!topicId}
+              sendDisabled={!topicId || isSaving}
               steerWhileBusy={false}
               onConversationControlsChange={setConversationControlsSnapshot}
               onSend={handleSend}

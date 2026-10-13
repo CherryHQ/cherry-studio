@@ -81,6 +81,9 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
 
   const [isPreparing, setIsPreparing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  // Read synchronously by send(): state would lag a follow-up submitted right after Save.
+  const savingRef = useRef(false)
 
   const {
     messages: chatMessages,
@@ -230,7 +233,9 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     (text: string, options?: QuickSendOptions): boolean => {
       // Main refuses a temporary-chat submit while a turn is in flight; say so up front, since
       // the stream itself is fire-and-forget and would report success either way.
-      if (!ready || !topicId || isPreparing || isPending) return false
+      // While saving, a turn could dispatch against the promoted topic with no branch anchor,
+      // only to be stopped when the save ends the conversation.
+      if (!ready || !topicId || isPreparing || isPending || savingRef.current) return false
       const parts = options?.userMessageParts ?? [{ type: 'text' as const, text }]
       if (parts.length === 0) return false
 
@@ -270,10 +275,17 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
   /** Resolves whether the conversation on screen is the one that was saved. */
   const save = useCallback(async () => {
     const savingTopicId = topicIdRef.current
-    await persist()
-    // Esc, collapse, or an assistant switch can drop the lease mid-request; the caller must
-    // not then end the conversation the user has started since.
-    return topicIdRef.current === savingTopicId
+    savingRef.current = true
+    setIsSaving(true)
+    try {
+      await persist()
+      // Esc, collapse, or an assistant switch can drop the lease mid-request; the caller must
+      // not then end the conversation the user has started since.
+      return topicIdRef.current === savingTopicId
+    } finally {
+      savingRef.current = false
+      setIsSaving(false)
+    }
   }, [persist])
 
   return {
@@ -283,6 +295,7 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     messages,
     partsByMessageId,
     isLoading: isPreparing || isPending,
+    isSaving,
     error,
     send,
     stop: stopChat,
