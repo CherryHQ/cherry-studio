@@ -94,13 +94,15 @@ function findHtmlDocumentEnd(
 // Lexical scan for `<details` / `</details` boundaries: comments, raw-text element bodies
 // (script/style/textarea/title) and ordinary tags are consumed whole, so a literal `</details>`
 // inside them — script source, a comment, a quoted attribute — can never close a disclosure.
-// A generic tag is consumed up to its first `>`; a quoted `>` before the tag ends is not valid
-// HTML to begin with, and the quoted content is swallowed either way.
+// A generic tag consumes quoted attribute values verbatim (`title="> </details>"` is legal HTML
+// whose `>` must not end the tag); the raw-text openers do the same for their attribute lists.
 const CONTAINER_LEXICAL_TOKEN_REGEX =
-  /<!--[\s\S]*?-->|<(script|style|textarea|title)\b[^>]*>[\s\S]*?<\/\1\s*>|<\/?details(?=[\s>/])|<[a-z][^>]*?>/gi
+  /<!--[\s\S]*?-->|<(script|style|textarea|title)\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\s\S]*?<\/\1\s*>|<\/?details(?=[\s>/])|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>/gi
 
 interface ContainerScanResult {
   closed: boolean
+  /** Offset of the closing boundary's `<` when `closed`. */
+  closeStart?: number
   /** Offset just past the closing boundary's `>` when `closed`. */
   closeEnd?: number
 }
@@ -119,7 +121,11 @@ function scanContainerBoundaries(value: string, depth: { count: number }): Conta
       depth.count -= 1
       if (depth.count === 0) {
         const tagEnd = value.indexOf('>', match.index)
-        return { closed: true, closeEnd: tagEnd === -1 ? match.index + match[0].length : tagEnd + 1 }
+        return {
+          closed: true,
+          closeStart: match.index,
+          closeEnd: tagEnd === -1 ? match.index + match[0].length : tagEnd + 1
+        }
       }
     } else {
       // A self-closing `<details … />` opens and closes itself.
@@ -134,6 +140,7 @@ interface PairedContainerClose {
   index: number
   /** The html node hosting the matched close, narrowed at the scan site. */
   closeNode: Html
+  closeStart: number
   closeEnd: number
 }
 
@@ -154,7 +161,14 @@ function findPairedContainerClose(
     const child = children[index]
     if (child?.type !== 'html') continue
     const scan = scanContainerBoundaries(child.value, depth)
-    if (scan.closed) return { index, closeNode: child, closeEnd: scan.closeEnd ?? child.value.length }
+    if (scan.closed) {
+      return {
+        index,
+        closeNode: child,
+        closeStart: scan.closeStart ?? 0,
+        closeEnd: scan.closeEnd ?? child.value.length
+      }
+    }
   }
   return undefined
 }
@@ -304,19 +318,23 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         const closeNode = paired.closeNode
         if (openBoundary) children.push(openBoundary)
         processRange(items, index + 1, paired.index)
-        // The close can share its node with the NEXT disclosure's opening (`</details>` and
-        // `<details>` merge into one html block when no blank line separates them): exempt only
-        // the close itself and re-process the remainder as a fresh open, so the second
-        // disclosure's own close never falls back to the artifact preview.
-        if (paired.closeEnd < closeNode.value.length) {
-          children.push(sliceHtmlNode(closeNode, 0, paired.closeEnd))
+        // The close can share its html node with other content: a complete document BEFORE the
+        // boundary must keep the artifact path, and the NEXT disclosure's opening after it
+        // (`</details>` and `<details>` merge into one html block when no blank line separates
+        // them) must re-enter pairing as a fresh open — only the boundary itself is exempt.
+        const needsHeadSplit = paired.closeStart > 0
+        const needsTailSplit = paired.closeEnd < closeNode.value.length
+        if (needsHeadSplit) {
+          processRange([sliceHtmlNode(closeNode, 0, paired.closeStart)], 0, 1)
+        }
+        children.push(sliceHtmlNode(closeNode, paired.closeStart, paired.closeEnd))
+        if (needsTailSplit) {
           // Leading whitespace on the remainder is insignificant inside the html block.
           const rest = closeNode.value.slice(paired.closeEnd)
           const remainderStart = paired.closeEnd + (rest.length - rest.trimStart().length)
           items.splice(paired.index, 1, sliceHtmlNode(closeNode, remainderStart, closeNode.value.length))
           index = paired.index - 1 // the loop increment lands on the remainder
         } else {
-          children.push(closeNode)
           index = paired.index
         }
         continue

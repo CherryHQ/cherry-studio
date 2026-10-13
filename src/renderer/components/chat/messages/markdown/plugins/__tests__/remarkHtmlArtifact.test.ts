@@ -227,6 +227,45 @@ After`
     ])
   })
 
+  it('never pairs on </details> inside quoted attribute values', () => {
+    const source = `Before
+
+<details>
+<summary>Spec</summary>
+
+<div title="> </details>">Doc</div>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // A `>` inside a quoted attribute value is legal HTML: the decoy must be consumed as part
+    // of the tag, and only the real boundary closes the disclosure.
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
+    expect(htmlValues).toEqual(['<details>\n<summary>Spec</summary>', '</details>'])
+    const codeValues = tree.children.filter((child) => child.type === 'code').map((child) => child.value)
+    expect(codeValues.some((value) => value.includes('title="> </details>"'))).toBe(true)
+  })
+
+  it('routes document content sharing the close node through the artifact path', () => {
+    const source = `Before
+
+<details>
+<summary>Spec</summary>
+
+<html><body><style>p { color: red; }</style><p>Doc</p></body></html></details>
+
+After`
+    const tree = parse(source)
+
+    // The complete document before the close takes the artifact path on its own; only the
+    // boundary itself is exempted as raw HTML.
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'html', 'code', 'html', 'paragraph'])
+    expect((tree.children[2] as { value: string }).value).toContain('<html>')
+    expect((tree.children[3] as { value: string }).value).toBe('</details>')
+  })
+
   it('still processes Markdown inside paired containers', () => {
     const source = `<details>
 <summary>Math</summary>
