@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,7 +22,9 @@ const mocks = vi.hoisted(() => ({
   openTarget: vi.fn(),
   loggerWarn: vi.fn(),
   loggerError: vi.fn(),
-  clipboardWrite: vi.fn()
+  clipboardWrite: vi.fn(),
+  readText: vi.fn(),
+  readExternal: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -65,11 +68,11 @@ vi.mock('@renderer/components/FileTree', () => ({
   FileTree: () => <div data-testid="file-tree" />
 }))
 
-vi.mock('@renderer/components/chat/panes/useIsTextFile', () => ({
+vi.mock('@renderer/hooks/useIsTextFile', () => ({
   useIsTextFile: () => 'text'
 }))
 
-vi.mock('@renderer/components/chat/panes/useFileSize', () => ({
+vi.mock('@renderer/hooks/useFileSize', () => ({
   useFileSize: () => ({ status: 'ok', size: 100 })
 }))
 
@@ -182,6 +185,7 @@ function renderHarness(props: {
   onPreviewClose?: () => void
   onSelectedFileChange?: (file: string | null) => void
   onEditModeChange?: (mode: 'preview' | 'edit') => void
+  fileSession?: React.ComponentProps<typeof ArtifactPaneView>['fileSession']
   model?: ArtifactFileTreeModel
   editMode?: 'preview' | 'edit'
 }) {
@@ -198,6 +202,7 @@ function renderHarness(props: {
           model={model}
           searchKeyword=""
           onSearchKeywordChange={vi.fn()}
+          fileSession={props.fileSession}
           editMode={props.editMode ?? 'preview'}
           onEditModeChange={props.onEditModeChange}
         />
@@ -222,6 +227,8 @@ describe('ArtifactPane Context Menu Integration', () => {
       value: { writeText: mocks.clipboardWrite }
     })
     window.api = {
+      fs: { readText: mocks.readText },
+      file: { readExternal: mocks.readExternal },
       command: {
         showNativePopupMenu: mocks.showNativePopupMenu
       }
@@ -271,6 +278,42 @@ describe('ArtifactPane Context Menu Integration', () => {
     await waitFor(() => {
       expect(onPreviewClose).toHaveBeenCalled()
     })
+  })
+
+  it.each(['md', 'docx'])('copies the selected %s contents using its absolute storage path', async (extension) => {
+    const user = userEvent.setup()
+    const clipboardWrite = vi.spyOn(navigator.clipboard, 'writeText')
+    const path = `/managed/message-files/entry-1.${extension}`
+    mocks.readText.mockImplementation(async (target) => (target === path ? 'Selected file contents' : 'Wrong file'))
+    mocks.readExternal.mockImplementation(async (target) => (target === path ? 'Selected file contents' : 'Wrong file'))
+    renderHarness({
+      previewFileSelection: {
+        workspacePath: '/managed/message-files',
+        filePath: `entry-1.${extension}`,
+        displayPath: `/original/report.${extension}` as AbsoluteFilePath,
+        previewType: 'file',
+        readOnly: true
+      }
+    })
+    fireEvent.contextMenu(screen.getByText(`entry-1.${extension}`))
+    await user.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_content' }))
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith('Selected file contents'))
+  })
+
+  it('withholds all edit actions for a read-only attachment even when an idle edit session exists', async () => {
+    renderHarness({
+      previewFileSelection: {
+        workspacePath: '/managed',
+        filePath: 'report.md',
+        previewType: 'file',
+        readOnly: true
+      },
+      fileSession: { status: 'idle', isDirty: false } as React.ComponentProps<typeof ArtifactPaneView>['fileSession']
+    })
+    fireEvent.contextMenu(screen.getByText('report.md'))
+    expect(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_content' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'common.edit' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'common.edit' })).toBeNull()
   })
 
   it('copies an input preview display path instead of its managed file path', async () => {

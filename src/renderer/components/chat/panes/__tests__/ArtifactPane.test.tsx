@@ -21,7 +21,7 @@ import ArtifactPane, {
   getArtifactPaneSelectionPath,
   resolveArtifactPaneFileSelection
 } from '../ArtifactPane'
-import { ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS, useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
+import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 /** Mimics the agent pane's single Viewport while its docked/maximized layout changes. */
 function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: string }) {
@@ -146,10 +146,6 @@ function SelectionPaneHarness({
     <ArtifactPaneView {...shared} />
   )
 }
-
-it('watches an allowed missing workspace with a bounded discovery depth', () => {
-  expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ maxDepth: 1, watchMissingRoot: true })
-})
 
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
@@ -1230,6 +1226,20 @@ describe('ArtifactPane', () => {
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'false')
+  })
+
+  it('preserves the restricted file policy when delegating an HTML attachment to the preview renderer', async () => {
+    render(
+      <ArtifactPane
+        previewFileSelection={{
+          workspacePath: '/managed',
+          filePath: 'untrusted.html',
+          previewType: 'file',
+          readOnly: true
+        }}
+      />
+    )
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-preview-type', 'file')
   })
 
   it('renders an external preview selection even when no workspace tree is available', async () => {

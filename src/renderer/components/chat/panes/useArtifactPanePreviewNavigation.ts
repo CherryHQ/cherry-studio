@@ -20,7 +20,7 @@ interface UseArtifactPanePreviewNavigationOptions {
   enabled?: boolean
   paneId: string
   previewFileSelection: ArtifactPaneFileSelection | null
-  requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
+  requestFileSelection: (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => void
   scopeKey?: string
   workspacePath?: string
 }
@@ -72,31 +72,33 @@ export function useArtifactPanePreviewNavigation({
         selection: previewFileSelection
       }
     }
-    panelActions.requestOpen(paneId, { userInitiated: true })
     return requestId
-  }, [paneId, panelActions, panelState.activePanelId, panelState.presentationOpen, previewFileSelection])
+  }, [paneId, panelState.activePanelId, panelState.presentationOpen, previewFileSelection])
 
   const isCurrentRequest = useCallback((requestId: number) => requestRef.current === requestId, [])
 
   const validateSelection = useCallback(
     async (selection: ArtifactPaneFileSelection, requestId: number) => {
+      let nextSelection: ArtifactPaneFileSelection | null = selection
       try {
         const metadata = await ipcApi.request(
           'file.get_metadata',
           createFilePathHandle(getArtifactPaneSelectionPath(selection))
         )
-        if (!isCurrentRequest(requestId)) return
-        requestFileSelection(metadata?.kind === 'directory' ? null : selection)
+        if (metadata?.kind === 'directory') nextSelection = null
       } catch {
-        if (!isCurrentRequest(requestId)) return
-        requestFileSelection(selection)
+        // Keep inaccessible files selected so the preview can report the error.
       }
+      if (!isCurrentRequest(requestId)) return
+      requestFileSelection(nextSelection, () => {
+        if (isCurrentRequest(requestId)) panelActions.requestOpen(paneId, { userInitiated: true })
+      })
     },
-    [isCurrentRequest, requestFileSelection]
+    [isCurrentRequest, paneId, panelActions, requestFileSelection]
   )
 
   const captureInputPreviewReturnTarget = useCallback(() => {
-    if (previewFileSelection?.previewType !== 'file') return
+    if (!previewFileSelection || (previewFileSelection.previewType !== 'file' && !returnRef.current)) return
     returnRef.current = {
       closePane: false,
       panelId: paneId,

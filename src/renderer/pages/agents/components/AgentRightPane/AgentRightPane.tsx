@@ -188,7 +188,12 @@ function isSameFileSelection(
   next: ArtifactPaneFileSelection | null
 ): boolean {
   if (!current || !next) return current === next
-  return current.workspacePath === next.workspacePath && current.filePath === next.filePath
+  return (
+    current.workspacePath === next.workspacePath &&
+    current.filePath === next.filePath &&
+    (current.previewType ?? 'artifact') === (next.previewType ?? 'artifact') &&
+    Boolean(current.readOnly) === Boolean(next.readOnly)
+  )
 }
 
 interface AgentFlowTab {
@@ -347,7 +352,7 @@ interface AgentRightPaneActionsProviderProps {
   replaceFlowTab: (input: AgentToolFlowOpenInput, nested?: boolean) => void
   openBrowserUrl: (url: string) => void
   previewFileSelection: ArtifactPaneFileSelection | null
-  requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
+  requestFileSelection: (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => void
   selectFile: (file: string | null) => void
   setFileEditMode: (mode: AgentFileEditorMode) => void
   setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
@@ -772,13 +777,17 @@ function AgentRightPaneStateProvider({
   // Every selection entry point (tree, artifact link, close, watcher cleanup)
   // lands here, so leaving a dirty edit path always requires confirmation.
   const requestFileSelection = useCallback(
-    (selection: ArtifactPaneFileSelection | null) => {
-      if (isSameFileSelection(previewFileSelection, selection)) return
+    (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => {
+      if (isSameFileSelection(previewFileSelection, selection)) {
+        onAccepted?.()
+        return
+      }
       artifactOpenRequestRef.current += 1
       requestFileTransition(() => {
         setEditMode('preview')
         setPreviewFileSelection(selection)
         setSelectedFile(selection && selection.workspacePath === fileWorkspace.path ? selection.filePath : null)
+        onAccepted?.()
       })
     },
     [fileWorkspace.path, previewFileSelection, requestFileTransition]

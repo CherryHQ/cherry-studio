@@ -61,7 +61,8 @@ describe('useArtifactPanePreviewNavigation', () => {
     await waitFor(() => {
       expect(getPhysicalPath).toHaveBeenCalledWith({ id: 'entry-report' })
       expect(requestFileSelection).toHaveBeenLastCalledWith(
-        expect.objectContaining({ workspacePath: '/managed/current', filePath: 'report.md' })
+        expect.objectContaining({ workspacePath: '/managed/current', filePath: 'report.md' }),
+        expect.any(Function)
       )
       expect(requestFileSelection).toHaveBeenCalledTimes(1)
     })
@@ -97,5 +98,68 @@ describe('useArtifactPanePreviewNavigation', () => {
 
     act(() => result.current.closeFilePreview())
     expect(requestFileSelection).toHaveBeenLastCalledWith(first)
+  })
+
+  it('returns to every linked artifact while an input preview return chain is active', () => {
+    const requestFileSelection = vi.fn()
+    const first = fileSelection('/workspace', 'first.md')
+    const second: ArtifactPaneFileSelection = { workspacePath: '/workspace', filePath: 'second.md' }
+    const third: ArtifactPaneFileSelection = { workspacePath: '/workspace', filePath: 'third.md' }
+    const { result, rerender } = renderHook(
+      ({ selection }: { selection: ArtifactPaneFileSelection }) =>
+        useArtifactPanePreviewNavigation({
+          paneId: 'files',
+          previewFileSelection: selection,
+          requestFileSelection,
+          workspacePath: '/workspace'
+        }),
+      { initialProps: { selection: first } }
+    )
+
+    act(() => result.current.captureInputPreviewReturnTarget())
+    rerender({ selection: second })
+    act(() => result.current.captureInputPreviewReturnTarget())
+    rerender({ selection: third })
+    act(() => result.current.closeFilePreview())
+    expect(requestFileSelection).toHaveBeenLastCalledWith(second)
+    rerender({ selection: second })
+    act(() => result.current.closeFilePreview())
+    expect(requestFileSelection).toHaveBeenLastCalledWith(first)
+  })
+
+  it('does not activate Files before a guarded selection is accepted or after its scope expires', async () => {
+    const requestFileSelection = vi.fn()
+    vi.mocked(ipcApi.request).mockResolvedValue({ kind: 'file' })
+    const { result, rerender } = renderHook(
+      ({ scopeKey }) =>
+        useArtifactPanePreviewNavigation({
+          paneId: 'files',
+          previewFileSelection: null,
+          requestFileSelection,
+          scopeKey
+        }),
+      { initialProps: { scopeKey: 'session-a' } }
+    )
+    act(() =>
+      result.current.previewInputFile({
+        displayName: 'report.md',
+        previewPath: '/managed/report.md' as AbsoluteFilePath
+      })
+    )
+    await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
+    expect(panelActions.requestOpen).not.toHaveBeenCalled()
+    const accept = requestFileSelection.mock.calls[0][1] as () => void
+    act(accept)
+    expect(panelActions.requestOpen).toHaveBeenCalledWith('files', { userInitiated: true })
+
+    panelActions.requestOpen.mockClear()
+    act(() =>
+      result.current.previewInputFile({ displayName: 'next.md', previewPath: '/managed/next.md' as AbsoluteFilePath })
+    )
+    await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(2))
+    const acceptExpired = requestFileSelection.mock.calls[1][1] as () => void
+    rerender({ scopeKey: 'session-b' })
+    act(acceptExpired)
+    expect(panelActions.requestOpen).not.toHaveBeenCalled()
   })
 })

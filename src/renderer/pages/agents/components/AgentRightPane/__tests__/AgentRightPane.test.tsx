@@ -559,6 +559,22 @@ function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
   )
 }
 
+function PreviewInputButton({ path = '/workspace/README.md' }: { path?: string }) {
+  const { previewInputFileInRightPane } = useAgentRightPaneActions()
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        previewInputFileInRightPane({
+          displayName: 'README.md',
+          previewPath: path as AbsoluteFilePath
+        })
+      }>
+      Preview attachment
+    </button>
+  )
+}
+
 function OpenWebsiteButton({ url, inBrowser = false }: { url: string; inBrowser?: boolean }) {
   const { openExternalUrl, openBrowserUrl } = useAgentRightPaneActions()
   return (
@@ -682,6 +698,58 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
+  })
+
+  it('activates the first attachment preview after metadata resolves in an empty system workspace', async () => {
+    const user = userEvent.setup()
+    const metadata = Promise.withResolvers<PhysicalFileMetadata>()
+    ipcRequestMock.mockReturnValueOnce(metadata.promise)
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/system-workspace"
+        workspaceType="system"
+        messages={[]}
+        partsByMessageId={{}}
+        resourcePane={{ node: <div>Resources</div>, label: 'Resources' }}>
+        <PreviewInputButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    await act(async () => metadata.resolve({ kind: 'file', type: 'text', size: 1 } as PhysicalFileMetadata))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+  })
+
+  it('requires confirmation to replace a dirty same-path artifact with a read-only attachment', async () => {
+    const user = userEvent.setup()
+    const pane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(pane())
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(pane())
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'edit')
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    await user.click(await screen.findByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
   })
 
   it('explicitly opens the session browser pane even when normal links prefer an external browser', async () => {

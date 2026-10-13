@@ -272,7 +272,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const canCopyPreviewContent = canCopyFileContent(previewFilePath ?? null, isText, fileSize)
   const hasActiveEditSession = editMode === 'edit' && fileSession?.status === 'ready'
   const canEditSelection =
-    Boolean(fileSession && overlaySelection) &&
+    Boolean(fileSession && overlaySelection && !overlaySelection.readOnly) &&
     isText === 'text' &&
     (hasActiveEditSession || (fileSize.status === 'ok' && fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES))
   const isEditDirty = fileSession?.isDirty ?? false
@@ -457,10 +457,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     const { filePath, workspacePath } = overlayPathsRef.current
     if (!filePath || !workspacePath || !canCopyPreviewContentRef.current) return
     try {
-      const extension = getFileExtension(filePath)
+      const absolutePath = getArtifactPaneSelectionPath({ workspacePath, filePath })
+      const extension = getFileExtension(absolutePath)
       const content = COPYABLE_DOCUMENT_EXTENSIONS.has(extension)
-        ? await window.api.file.readExternal(filePath, true)
-        : await window.api.fs.readText(filePath)
+        ? await window.api.file.readExternal(absolutePath, true)
+        : await window.api.fs.readText(absolutePath)
       await navigator.clipboard.writeText(content)
       toast.success(t('message.copy.success'))
     } catch (error) {
@@ -864,7 +865,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     <FilePreview
       filePath={getArtifactPaneSelectionPath(overlaySelection)}
       refreshKey={contentRefreshToken}
-      type="artifact"
+      type={overlaySelection.previewType ?? 'artifact'}
       onSelectionReference={onInsertSelectionReference && pickerActive ? setSelectionReference : undefined}
     />
   ) : null
