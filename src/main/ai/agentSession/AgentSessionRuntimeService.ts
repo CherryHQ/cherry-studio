@@ -596,6 +596,13 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     switch (effect.type) {
       case 'schedule-launch':
+        // A graceful stop still awaiting the predecessor's runtime result owns the connection. Terminal
+        // persistence runs outside the topic dispatch lock, so this effect — not the lock — is what
+        // keeps a queued successor from starting under a stop that would otherwise mis-track it.
+        if (this.userStopSessions.has(entry.sessionId)) {
+          this.applyRuntimeStateEvent(entry, { type: 'launch-suppressed', target: effect.target })
+          break
+        }
         this.scheduleRuntimeLaunch(entry, effect.target)
         break
       case 'deliver-buffer':
@@ -1139,9 +1146,18 @@ export class AgentSessionRuntimeService extends BaseService {
     if (inFlight) return inFlight
     const stopping = this.stopForUser(sessionId, expectedTurnId).finally(() => {
       if (this.userStopSessions.get(sessionId) === stopping) this.userStopSessions.delete(sessionId)
+      this.resumeSuppressedLaunch(sessionId)
     })
     this.userStopSessions.set(sessionId, stopping)
     return stopping
+  }
+
+  /** Re-kick a queued turn the stop held back. Idempotent: the state machine ignores a resume when
+   *  the launch is no longer suppressed. */
+  private resumeSuppressedLaunch(sessionId: string): void {
+    const entry = this.entries.get(sessionId)
+    if (!entry || entry.runtimeState.launch.kind !== 'suppressed') return
+    this.applyRuntimeStateEvent(entry, { type: 'launch-resumed' })
   }
 
   private async stopForUser(sessionId: string, expectedTurnId?: string): Promise<void> {

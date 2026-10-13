@@ -5599,6 +5599,58 @@ describe('AgentSessionRuntimeService', () => {
     await stream.cancel().catch(() => undefined)
   })
 
+  it('does not start a queued turn while the graceful stop that preceded it is still settling', async () => {
+    const events = createAsyncQueue<any>()
+    const abortTurnSettled = createDeferred<boolean>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      abortTurn: vi.fn(() => abortTurnSettled.promise)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const controller = new AbortController()
+    const stream = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: controller.signal })
+      .getReader()
+
+    await expect(stream.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+    // A queued follow-up (a file part is not steer-injectable, so it can only wait for the next turn).
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+    // The Stop lands and its graceful interrupt is still in flight: the prompt is not sent yet.
+    controller.abort('user-requested')
+    await vi.waitFor(() => expect(connection.abortTurn).toHaveBeenCalledOnce())
+    mocks.startRuntimeTurn.mockClear()
+    mocks.saveMessage.mockClear()
+
+    // The stopped turn settles: terminal handling drains the queue. The successor must not start
+    // while the stop that is still awaiting the predecessor's runtime result owns the connection.
+    void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    expect(connection.send).toHaveBeenCalledOnce()
+    expect(getEntry(service).runtimeState.queue.map((turn: any) => turn.message.id)).toEqual(['user-2'])
+
+    // The stop settles: the queued follow-up launches on the preserved connection.
+    abortTurnSettled.resolve(true)
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+    expect(connection.send).toHaveBeenCalledOnce()
+    expect(getEntry(service).runtimeState.queue).toEqual([])
+    await stream.cancel().catch(() => undefined)
+  })
+
   it('waits for a late aborted connection to close before connecting an immediate retry', async () => {
     const firstConnectionClose = createDeferred<void>()
     const firstConnection = {
