@@ -12777,6 +12777,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "google/gemini-nano-banana-2.1",
+      "modelId": "gemini-nano-banana-2-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "google/gemini-omni-flash-preview",
       "modelId": "gemini-omni-flash-preview",
       "pricing": {
@@ -26050,6 +26069,117 @@
             ],
             "defaultEffort": "medium",
             "supportedEfforts": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "google/gemini-nano-banana-2.1",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 14,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
+      "modelId": "gemini-nano-banana-2-1",
+      "outputModalities": ["image", "text"],
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "minimal",
+                "kind": "effort",
+                "values": ["high", "minimal"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "minimal",
+            "supportedEfforts": ["high", "minimal", "none"]
           }
         }
       }
@@ -40690,6 +40820,25 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "gemini-nano-banana-2.1",
+      "modelId": "gemini-nano-banana-2-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "zai-org/glm-4.7-maas",
       "modelId": "glm-4-7-maas",
       "pricing": {
@@ -41162,5 +41311,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c6967aa97b477b01"
+  "version": "24243e9504b54823"
 }

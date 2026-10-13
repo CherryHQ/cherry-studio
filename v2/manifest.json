@@ -1,11 +1,11 @@
 {
   "minAppVersion": "2.0.13",
   "sourceAppVersion": "2.1.6",
-  "revision": 76,
+  "revision": 77,
   "schemaVersion": 2,
   "files": {
-    "models.json": "d3224fba2d04d51e",
+    "models.json": "bb6e15beb6217721",
     "providers.json": "932c0006165e4fcb",
-    "provider-models.json": "c6967aa97b477b01"
+    "provider-models.json": "24243e9504b54823"
   }
 }
