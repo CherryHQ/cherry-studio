@@ -1,5 +1,11 @@
 # @cherrystudio/file-preview
 
+## 0.1.1
+
+### Patch Changes
+
+- [#21534](https://github.com/CherryHQ/cherry-studio/pull/21534) [`3d389c5`](https://github.com/CherryHQ/cherry-studio/commit/3d389c5dfaa2fe68773cb6aed9f925f2263dce33) Thanks [@SiinXu](https://github.com/SiinXu)! - Keep SVG file previews sharp when zooming without changing their initial size.
+
 ## 0.1.0
 
 ### Minor Changes

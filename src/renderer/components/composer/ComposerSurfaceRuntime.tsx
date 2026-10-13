@@ -35,13 +35,18 @@ import {
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
 import { useComposerLayerActive } from './ComposerContext'
-import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import {
+  COMPOSER_INPUT_MAX_LENGTH,
+  createComposerDraftContent,
+  getComposerSerializedLeafText,
+  serializeComposerDocument
+} from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
+  getComposerInputTextWithinLimit,
   getComposerPlainTextPasteOverride,
-  hasSupportedClipboardImage,
   PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
@@ -49,7 +54,7 @@ import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './Composer
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
-import pasteHandling from './paste/pasteHandling'
+import pasteHandling, { shouldHandleClipboardFiles } from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
 import {
@@ -357,15 +362,11 @@ function exceedsComposerInputMaxLength(currentText: string, nextText: string, re
   return currentText.length - replacedText.length + nextText.length > COMPOSER_INPUT_MAX_LENGTH
 }
 
-function getComposerInputTextWithinLimit(currentText: string, nextText: string, replacedText = '') {
-  const remainingLength = COMPOSER_INPUT_MAX_LENGTH - (currentText.length - replacedText.length)
-  if (remainingLength <= 0) return ''
-  return nextText.slice(0, remainingLength)
-}
-
 function getComposerReplacementText(view: EditorView | null, from: number, to: number) {
   if (!view || from >= to) return ''
-  return view.state.doc.textBetween(from, to, '\n', getComposerInputLeafText)
+  // Measured against the serialized draft, so a selected token counts by the prompt text
+  // serialization gives it — the plain leaf callback would count the atom as empty.
+  return view.state.doc.textBetween(from, to, '\n', getComposerSerializedLeafText)
 }
 
 function getComposerSelectedText(editor: Editor) {
@@ -1565,15 +1566,26 @@ export default function ComposerSurfaceRuntime({
           return true
         }
 
-        if (
-          event.key === 'Backspace' &&
-          textRef.current.trim().length === 0 &&
-          filesCountRef.current > 0 &&
-          (!editorRef.current || !hasComposerTokenBeforeSelection(editorRef.current))
-        ) {
-          setFilesRef.current((prev) => prev.slice(0, -1))
-          event.preventDefault()
-          return true
+        if (event.key === 'Backspace' && filesCountRef.current > 0) {
+          const detach = () => {
+            setFilesRef.current((prev) => prev.slice(0, -1))
+            event.preventDefault()
+            return true
+          }
+          const editor = editorRef.current
+          if (!editor) {
+            // Mount-frame window: the view answers keys before the passive effect assigns the
+            // ref, and the merge base gated this branch on the prose term too — text present
+            // means the keystroke was not aimed at the attachment.
+            return textRef.current.trim().length === 0 ? detach() : false
+          }
+          // Emptiness needs both terms: a chip is an atom whose text lives in attributes, so a file
+          // chip contributes `''` while still being content — and prose with no chip at all is
+          // content too, which the painting composer produces by attaching files it never chips.
+          const draft = serializeComposerDocument(editor)
+          if (!draft.text.trim() && !draft.tokens.length && !hasComposerTokenBeforeSelection(editor)) {
+            return detach()
+          }
         }
 
         return false
@@ -1685,8 +1697,9 @@ export default function ComposerSurfaceRuntime({
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
       const editor = (view.dom as TiptapEditorHTMLElement).editor
+      const shouldDelegateToFileHandler = shouldHandleClipboardFiles(event.clipboardData, supportedExts)
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
-      if (editor && selectedPromptVariable && pastedText) {
+      if (editor && selectedPromptVariable && pastedText && !shouldDelegateToFileHandler) {
         event.preventDefault()
         const limitedPastedText = getComposerInputTextWithinLimit(
           textRef.current,
@@ -1711,15 +1724,11 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      const hasTextualClipboardRepresentation = Boolean(pastedText && pastedHtml)
-      const shouldPreferClipboardImage =
-        !hasTextualClipboardRepresentation &&
-        hasSupportedClipboardImage(Array.from(event.clipboardData?.files ?? []), supportedExts)
       let textToInsert = pastedText
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)
         textToInsert = getComposerInputTextWithinLimit(textRef.current, pastedText, selectedText)
-        if (!textToInsert && !shouldPreferClipboardImage) {
+        if (!textToInsert && !shouldDelegateToFileHandler) {
           event.preventDefault()
           return true
         }
@@ -1748,7 +1757,7 @@ export default function ComposerSurfaceRuntime({
         }
       }
 
-      if (shouldPreferClipboardImage) {
+      if (shouldDelegateToFileHandler) {
         event.preventDefault()
         void handlePaste(event)
         return true

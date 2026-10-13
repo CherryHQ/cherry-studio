@@ -40,6 +40,14 @@ describe('Agent attachments', () => {
       }).success
     ).toBe(false)
   })
+  it('accepts additive checksum contracts and rejects malformed completion digests', () => {
+    const input = { uploadId: 'u', writerEpoch: '1' }
+    const schema = agentMethods['agent.uploads.complete'].params
+    expect(schema.safeParse(input).success).toBe(true)
+    expect(schema.parse({ ...input, expectedSha256: 'a'.repeat(64) }).expectedSha256).toBe('a'.repeat(64))
+    for (const expectedSha256 of ['', 'a'.repeat(63), 'A'.repeat(64), 'z'.repeat(64)])
+      expect(schema.safeParse({ ...input, expectedSha256 }).success).toBe(false)
+  })
   it('bounds staging metadata without requiring client digests', () => {
     const metadata = {
       uploadId: 'u',

@@ -1,4 +1,5 @@
 import type { Editor, JSONContent } from '@tiptap/core'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
 import { isComposerInputTokenKind, isComposerMessageTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -12,6 +13,7 @@ import { FileTypeSchema } from '@shared/types/file'
 
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableContent } from './promptVariables'
+import { getComposerInputLeafText } from './quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
@@ -42,6 +44,10 @@ function getRestoredTextSuffix(payload: unknown): string {
   const restoredTextSuffix = (payload as Record<string, unknown>).restoredTextSuffix
   return typeof restoredTextSuffix === 'string' ? restoredTextSuffix : ''
 }
+
+/** The serialized text a composer token contributes: its prompt text plus any restored suffix. */
+const composerTokenText = (token: ComposerDraftToken): string =>
+  (token.promptText ?? '') + getRestoredTextSuffix(token.payload)
 
 function readPayloadObject(payload: unknown): Record<string, unknown> | undefined {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
@@ -188,14 +194,12 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
 
     if (node.type === COMPOSER_TOKEN_NODE_NAME) {
       const token = normalizeComposerTokenAttrs(node.attrs ?? {})
-      const restoredTextSuffix = getRestoredTextSuffix(token.payload)
       tokens.push({
         ...token,
         index: tokens.length,
         textOffset: text.length
       })
-      text += token.promptText ?? ''
-      text += restoredTextSuffix
+      text += composerTokenText(token)
       return
     }
 
@@ -215,6 +219,19 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   visitNode(json)
 
   return { text, tokens }
+}
+
+/**
+ * The text `serializeComposerDocument` attributes to a leaf node. For any length measured
+ * against the serialized draft — a replacement budget over a selection — a token atom must
+ * count by its prompt text; the plain leaf callback counts it as empty and undercharges the
+ * text the replacement removes.
+ */
+export function getComposerSerializedLeafText(node: ProseMirrorNode): string {
+  if (node.type.name === COMPOSER_TOKEN_NODE_NAME) {
+    return composerTokenText(normalizeComposerTokenAttrs(node.attrs ?? {}))
+  }
+  return getComposerInputLeafText(node)
 }
 
 /**
