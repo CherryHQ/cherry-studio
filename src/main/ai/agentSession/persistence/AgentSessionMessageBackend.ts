@@ -18,7 +18,7 @@ import {
   hasVisibleAgentSessionPart,
   type NoResponseErrorPartOptions
 } from '@shared/ai/agentSessionNoResponse'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageData } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from '../../streamManager'
@@ -80,11 +80,13 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     }
     const runtimeResumeToken = this.getRuntimeResumeToken()
     const persistedStatus = isEmptySuccessTerminal ? 'error' : status
-    const persistedParts = isEmptySuccessTerminal
-      ? appendNoResponseErrorPart({ parts }, EMPTY_SUCCESS_NO_RESPONSE_ERROR)
-      : isEmptyPausedTerminal
-        ? { parts: [...parts, { type: 'data-agent-paused', data: {} }] }
-        : { parts }
+    const persistedParts = (
+      isEmptySuccessTerminal
+        ? appendNoResponseErrorPart({ parts }, EMPTY_SUCCESS_NO_RESPONSE_ERROR)
+        : isEmptyPausedTerminal
+          ? { parts: [...parts, { type: 'data-agent-paused', data: {} }] }
+          : { parts }
+    ) satisfies MessageData
     let forkAnchor: RuntimeForkAnchor | undefined
     if (status === 'success') {
       try {

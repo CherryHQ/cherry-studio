@@ -328,13 +328,25 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   }
 
   onPaused(result: StreamPausedResult): void {
-    if (result.isTopicDone === false) return
+    if (this.skipsTurnRelease(result)) return
     this.service.markTurnTerminal(this.sessionId, 'paused', this.turnId)
   }
 
   onError(result: StreamErrorResult): void {
-    if (result.isTopicDone === false) return
+    if (this.skipsTurnRelease(result)) return
     this.service.markTurnTerminal(this.sessionId, 'error', this.turnId)
+  }
+
+  /**
+   * `isTopicDone=false` normally means the stream manager is chaining this topic's next turn itself,
+   * so releasing ours here would settle a turn that is still being continued. A persistence
+   * downgrade inverts that: the stream manager chose chaining on the SDK's clean finish, and only
+   * then learned storage classifies the turn as an error. That terminal still ends OUR turn — the
+   * row is written, the queued follow-up has nothing left to answer for it — so the turn must be
+   * released exactly as a non-chained error would be, otherwise the queue is stranded.
+   */
+  private skipsTurnRelease(result: StreamPausedResult | StreamErrorResult): boolean {
+    return result.isTopicDone === false && !result.downgradedTo
   }
 
   isAlive(): boolean {
