@@ -713,13 +713,11 @@ function VoiceSettings() {
       if (generation === localeSelectionGeneration.current)
         setActionFailed(error instanceof VoiceDomainError ? error.reason : true)
     } finally {
-      if (generation === localeSelectionGeneration.current) {
-        const refreshStatus = install && Boolean(modelId)
-        installingRecognitionLocaleRef.current = false
-        localeSelectionPending.current = false
-        setInstallingLocale(false)
-        if (refreshStatus) setQueryRevision((revision) => revision + 1)
-      }
+      // Activity suspends effects without discarding the operation's pending state.
+      installingRecognitionLocaleRef.current = false
+      localeSelectionPending.current = false
+      setInstallingLocale(false)
+      if (install && modelId) setQueryRevision((revision) => revision + 1)
     }
   }
 

@@ -459,27 +459,42 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(voice.getSnapshot()).toMatchObject({ phase: 'playing', playback: { pendingCommand: null } })
   })
 
-  it('continues with the next chunk when pause and resume both occur during output release', async () => {
-    const { service, voice, audios } = createHarness({ chunks: ['first', 'second'] })
-    let finishRelease!: () => void
-    voice.releaseOutput.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          finishRelease = resolve
-        })
-    )
-    await service.start(baseInput)
-    audios[0].dispatchEvent(new Event('ended'))
-    await vi.waitFor(() => expect(finishRelease).toBeTypeOf('function'))
+  it.each(['before', 'after'] as const)(
+    'continues with the next chunk when resuming %s output release completes',
+    async (resumeAt) => {
+      const { service, voice, audios } = createHarness({ chunks: ['first', 'second'] })
+      let finishRelease!: () => void
+      voice.releaseOutput.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishRelease = resolve
+          })
+      )
+      await service.start(baseInput)
+      audios[0].dispatchEvent(new Event('ended'))
+      await vi.waitFor(() => expect(finishRelease).toBeTypeOf('function'))
 
-    voice.emitCommand('pause')
-    voice.emitCommand('resume')
-    expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
-    finishRelease()
+      voice.emitCommand('pause')
+      if (resumeAt === 'before') voice.emitCommand('resume')
+      expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
+      expect(audios).toHaveLength(1)
+      finishRelease()
 
-    await vi.waitFor(() => expect(voice.generateSpeech).toHaveBeenCalledTimes(2))
-    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
-  })
+      if (resumeAt === 'after') {
+        await vi.waitFor(() => expect(service.getSnapshot().progress.completed).toBe(1))
+        expect(voice.getSnapshot()).toMatchObject({ phase: 'paused', playback: { pendingCommand: null } })
+        expect(audios[0].src).toBe('')
+        voice.emitCommand('resume')
+      }
+
+      await vi.waitFor(() => expect(voice.generateSpeech).toHaveBeenCalledTimes(2))
+      await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
+      expect(audios).toHaveLength(2)
+      expect(audios[1].paused).toBe(false)
+      audios[1].dispatchEvent(new Event('ended'))
+      await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
+    }
+  )
 
   it('aborts in-flight generation and discards the session on stop without requesting another chunk', async () => {
     const { service, voice } = createHarness({ chunks: ['first', 'second'] })

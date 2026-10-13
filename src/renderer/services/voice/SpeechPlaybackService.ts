@@ -430,6 +430,7 @@ export class SpeechPlaybackService {
       await this.terminate(run, true)
       return
     }
+    if (run.releasing) return
     if (run.outputUrl && run.audioAttemptId !== target.attemptId) {
       this.disposeAudio(run)
       run.playAttempt = undefined
@@ -447,7 +448,7 @@ export class SpeechPlaybackService {
       await this.report(run, 'paused')
     } else if (run.audio) {
       await this.playAudio(run)
-    } else if (!run.materializing && !run.releasing) {
+    } else if (!run.materializing) {
       await this.generateNext(run)
     }
   }
@@ -545,10 +546,8 @@ export class SpeechPlaybackService {
       run.releasing = false
       if (run.index >= run.chunks.length) {
         await this.completeReleasedRun(run)
-      } else if (!this.isPaused(run)) {
-        await this.generateNext(run)
       } else {
-        this.publish(run)
+        await this.executeTarget(run)
       }
     } catch (error) {
       if (!run.stopped) await this.handleFailure(run, errorReason(error))

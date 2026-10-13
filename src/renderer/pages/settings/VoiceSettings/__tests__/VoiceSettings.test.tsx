@@ -2,6 +2,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
+import { Activity } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMultiplePreferences } from '@data/hooks/usePreference'
@@ -422,6 +423,59 @@ describe('VoiceSettings', () => {
     await user.click(language)
     expect(screen.getByRole('option', { name: /Follow interface/ })).not.toHaveTextContent('Download')
   })
+
+  it.each(['hidden', 'visible'] as const)(
+    'clears installation state when Settings is %s after switching tabs',
+    async (completionVisibility) => {
+      const user = userEvent.setup()
+      const installation = deferred<void>()
+      voice.install.mockReturnValueOnce({ result: installation.promise })
+      const view = render(
+        <Activity mode="visible">
+          <VoiceSettings />
+        </Activity>
+      )
+      const language = await screen.findByRole('combobox', { name: 'Recognition language' })
+      await waitFor(() => expect(language).toBeEnabled())
+      await user.click(language)
+      await user.click(screen.getByRole('option', { name: /Chinese.*Download/ }))
+      await waitFor(() =>
+        expect(voice.install).toHaveBeenCalledWith({
+          modelId: APPLE_ASR_MODEL_ID,
+          language: 'zh-CN',
+          source: 'settings'
+        })
+      )
+
+      view.rerender(
+        <Activity mode="hidden">
+          <VoiceSettings />
+        </Activity>
+      )
+      if (completionVisibility === 'visible') {
+        view.rerender(
+          <Activity mode="visible">
+            <VoiceSettings />
+          </Activity>
+        )
+        expect(screen.getByRole('combobox', { name: 'Recognition language' })).toBeDisabled()
+      }
+      voice.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US', 'zh-CN'], installed: ['en-US', 'zh-CN'] })
+      await act(async () => installation.resolve())
+      view.rerender(
+        <Activity mode="visible">
+          <VoiceSettings />
+        </Activity>
+      )
+
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Recognition language' })).toBeEnabled())
+      expect(screen.getByRole('combobox', { name: 'Recognition model' })).toBeEnabled()
+      await user.click(screen.getByRole('combobox', { name: 'Recognition language' }))
+      expect(screen.getByRole('option', { name: /Chinese/ })).not.toHaveTextContent('Download')
+      await user.click(screen.getByRole('option', { name: 'English (United States)' }))
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('en-US')
+    }
+  )
 
   it('waits for an in-flight recognition inspection before installing a newly selected locale', async () => {
     const user = userEvent.setup()
