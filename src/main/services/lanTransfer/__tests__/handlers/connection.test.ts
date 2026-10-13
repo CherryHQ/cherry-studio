@@ -7,7 +7,6 @@ import {
   buildHandshakeMessage,
   createDataHandler,
   getAbortError,
-  HANDSHAKE_PROTOCOL_VERSION,
   pickHost,
   waitForSocketDrain
 } from '../../handlers/connection'
@@ -27,13 +26,9 @@ describe('connection handlers', () => {
 
       expect(message.type).toBe('handshake')
       expect(message.deviceName).toBe('Cherry Studio')
-      expect(message.version).toBe(HANDSHAKE_PROTOCOL_VERSION)
+      expect(message.version).toBe('1')
       expect(message.appVersion).toBe('1.0.0')
       expect(typeof message.platform).toBe('string')
-    })
-
-    it('should use protocol version 1', () => {
-      expect(HANDSHAKE_PROTOCOL_VERSION).toBe('1')
     })
   })
 
@@ -85,6 +80,31 @@ describe('connection handlers', () => {
   })
 
   describe('createDataHandler', () => {
+    it('should preserve Chinese paths when UTF-8 bytes arrive in separate chunks', () => {
+      const lines: string[] = []
+      const handler = createDataHandler((line) => lines.push(line))
+      const message = Buffer.from('{"type":"file_complete","filePath":"/下载/备份.zip"}\n')
+      const split = Buffer.byteLength('{"type":"file_complete","filePath":"/') + 1
+
+      handler.handleData(message.subarray(0, split))
+      expect(lines).toEqual([])
+      handler.handleData(message.subarray(split))
+
+      expect(lines).toEqual(['{"type":"file_complete","filePath":"/下载/备份.zip"}'])
+    })
+
+    it('should preserve three- and four-byte characters when every byte arrives separately', () => {
+      const lines: string[] = []
+      const handler = createDataHandler((line) => lines.push(line))
+      const message = Buffer.from('{"message":"下载😀"}\n')
+
+      for (const byte of message) {
+        handler.handleData(Buffer.from([byte]))
+      }
+
+      expect(lines).toEqual(['{"message":"下载😀"}'])
+    })
+
     it('should parse complete lines from buffer', () => {
       const lines: string[] = []
       const handler = createDataHandler((line) => lines.push(line))
@@ -124,6 +144,17 @@ describe('connection handlers', () => {
       expect(lines).toEqual(['{"complete":true}'])
     })
 
+    it('should discard incomplete UTF-8 bytes when the connection buffer is reset', () => {
+      const lines: string[] = []
+      const handler = createDataHandler((line) => lines.push(line))
+
+      handler.handleData(Buffer.from('下').subarray(0, 1))
+      handler.resetBuffer()
+      handler.handleData(Buffer.from('{"complete":true}\n'))
+
+      expect(lines).toEqual(['{"complete":true}'])
+    })
+
     it('should trim whitespace from lines', () => {
       const lines: string[] = []
       const handler = createDataHandler((line) => lines.push(line))
@@ -151,21 +182,16 @@ describe('connection handlers', () => {
       expect(() => handler.handleData(Buffer.from(largeData))).toThrow('Control message too large')
     })
 
-    it('should reset buffer after exceeding MAX_LINE_BUFFER_SIZE', () => {
+    it('should discard the oversized message and its incomplete UTF-8 bytes before receiving a new message', () => {
       const lines: string[] = []
       const handler = createDataHandler((line) => lines.push(line))
 
-      // Create a buffer larger than 1MB
-      const largeData = 'x'.repeat(1024 * 1024 + 1)
+      const largeData = Buffer.concat([Buffer.alloc(1024 * 1024 + 1, 'x'), Buffer.from('下').subarray(0, 1)])
 
-      try {
-        handler.handleData(Buffer.from(largeData))
-      } catch {
-        // Expected error
-      }
+      expect(() => handler.handleData(largeData)).toThrow('Control message too large')
+      handler.handleData(Buffer.from('{"complete":true}\n'))
 
-      // Buffer should be reset, so lineBuffer should be empty
-      expect(handler.lineBuffer).toBe('')
+      expect(lines).toEqual(['{"complete":true}'])
     })
   })
 

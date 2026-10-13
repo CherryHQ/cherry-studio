@@ -1,5 +1,6 @@
 import { isIP, type Socket } from 'node:net'
 import { platform } from 'node:os'
+import { StringDecoder } from 'node:string_decoder'
 
 import { app } from 'electron'
 
@@ -71,17 +72,19 @@ export function createDataHandler(onControlLine: (line: string) => void): {
   resetBuffer: () => void
 } {
   let lineBuffer = ''
+  const decoder = new StringDecoder('utf8')
 
   return {
     get lineBuffer() {
       return lineBuffer
     },
     handleData(chunk: Buffer) {
-      lineBuffer += chunk.toString('utf8')
+      lineBuffer += decoder.write(chunk)
 
       // Prevent memory exhaustion from malicious peers sending data without newlines
       if (lineBuffer.length > MAX_LINE_BUFFER_SIZE) {
         logger.error('Line buffer exceeded maximum size, resetting')
+        decoder.end()
         lineBuffer = ''
         throw new Error('Control message too large')
       }
@@ -97,6 +100,7 @@ export function createDataHandler(onControlLine: (line: string) => void): {
       }
     },
     resetBuffer() {
+      decoder.end()
       lineBuffer = ''
     }
   }
