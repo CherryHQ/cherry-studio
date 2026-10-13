@@ -12,6 +12,7 @@ import { MediaKind } from '@main/services/mediaProtocol'
 import type { LocalTranscriptionModelId, LocalSpeechModelId } from '@shared/ai/localVoice'
 import { type LocalVoiceModelId, type VoiceSessionSource, type VoiceSessionTrigger } from '@shared/ai/localVoice'
 import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
+import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { VoiceSessionCommand, VoiceSessionPhase, VoiceSessionState } from '@shared/ipc/schemas/voice'
 import type { InputFor } from '@shared/ipc/types'
 
@@ -32,10 +33,22 @@ import {
   listLocalVoices,
   voiceAudioProcess
 } from './localAdapters'
+import {
+  applyPlaybackCommand,
+  applyPlaybackReport,
+  beginPlaybackSynthesis,
+  completePlaybackSynthesis,
+  createPlaybackSnapshot,
+  createPlaybackState,
+  failPlayback,
+  playbackPhase,
+  type PlaybackState
+} from './playbackState'
 import { getMicrophoneStatus, openMicrophoneSettings, openSystemVoiceSettings } from './voicePlatform'
 import { VoiceRuntimeError } from './VoiceRuntimeError'
 
 const logger = loggerService.withContext('VoiceSessionService')
+const PLAYBACK_CONFIRMATION_TIMEOUT_MS = 15_000
 
 type VoiceWebContents = Pick<WebContents, 'id' | 'isDestroyed' | 'on' | 'once' | 'removeListener'>
 
@@ -74,6 +87,8 @@ type Session = {
   currentChunkIndex?: number
   nextChunkIndex?: number
   generatedUnchunked?: boolean
+  playback?: PlaybackState
+  playbackTimeout?: ReturnType<typeof setTimeout>
 }
 type ActiveOperation = { session: Session; requestId: string; controller: AbortController }
 
@@ -323,11 +338,14 @@ export class VoiceSessionService extends BaseService {
         session.currentChunkIndex = input.chunkIndex
         if (input.chunkIndex === undefined) session.generatedUnchunked = true
         signal.throwIfAborted()
-        if (session.phase !== 'paused') this.transition(session, 'ready')
+        session.playback = completePlaybackSynthesis(session.playback!)
+        this.publishPlayback(session)
+        this.armPlaybackTimeout(session)
         return {
           sessionId: session.id,
           requestId: input.requestId,
-          output: { id: outputId, url: media.getUrl(MediaKind.Audio, outputId), mimeType: 'audio/wav' as const }
+          output: { id: outputId, url: media.getUrl(MediaKind.Audio, outputId), mimeType: 'audio/wav' as const },
+          playback: createPlaybackSnapshot(session.playback, true)
         }
       },
       {
@@ -360,47 +378,64 @@ export class VoiceSessionService extends BaseService {
     session.outputId = undefined
   }
 
-  async updatePlayback(owner: VoiceOwner, input: InputFor<'ai.voice.playback.update'>): Promise<VoiceSessionState> {
+  async reportPlayback(owner: VoiceOwner, input: InputFor<'ai.voice.playback.report'>): Promise<VoiceSessionState> {
     const session = this.requireLeaseSession(owner, input.sessionId)
-    if (session.kind !== 'playback') throw new VoiceRuntimeError('invalid_request')
-    switch (input.phase) {
-      case 'playing':
-        if (this.active?.session === session) throw new VoiceRuntimeError('busy')
-        if (!['ready', 'paused'].includes(session.phase ?? '') && !(session.phase === 'failed' && session.outputId))
-          throw new VoiceRuntimeError('invalid_request')
-        return this.transition(session, 'playing')
-      case 'paused':
-        if (!['ready', 'playing'].includes(session.phase ?? '')) throw new VoiceRuntimeError('invalid_request')
-        return this.transition(session, 'paused')
-      case 'failed':
-        return this.transition(session, 'failed', input.reason ?? 'operation_failed')
-      case 'completed':
-        await this.closeSession(session)
-        return { ...this.voiceState }
+    if (!session.playback) throw new VoiceRuntimeError('invalid_request')
+    const next = applyPlaybackReport(session.playback, input)
+    if (next === session.playback) return { ...this.voiceState }
+    if (input.phase === 'completed' && session.outputId) throw new VoiceRuntimeError('invalid_request')
+    session.playback = next
+    if (!next.pendingCommand) this.clearPlaybackTimeout(session)
+    if (input.phase === 'completed' || input.phase === 'stopped') {
+      await this.closeSession(session, input.phase === 'stopped')
+      return { ...this.voiceState }
     }
+    return this.publishPlayback(session)
   }
 
   async controlPlayback(owner: VoiceOwner, input: InputFor<'ai.voice.playback.control'>): Promise<VoiceSessionState> {
     this.requireControlOwner(owner)
     const session = this.lease
-    if (!session || session.id !== input.sessionId || session.kind !== 'playback') {
+    if (!session || session.id !== input.sessionId || session.closed || !session.playback) {
       throw new VoiceRuntimeError('invalid_request')
     }
-    switch (input.command) {
-      case 'pause':
-        if (!['ready', 'playing'].includes(session.phase ?? '')) throw new VoiceRuntimeError('invalid_request')
-        this.sendCommand(session, 'pause')
-        return this.transition(session, 'paused')
-      case 'resume':
-        if (session.phase !== 'paused') throw new VoiceRuntimeError('invalid_request')
-        if (this.active?.session === session) throw new VoiceRuntimeError('busy')
-        this.sendCommand(session, 'resume')
-        return this.transition(session, 'playing')
-      case 'stop':
-        this.sendCommand(session, 'stop')
-        await this.closeSession(session, true)
-        return { ...this.voiceState }
+    const next = applyPlaybackCommand(session.playback, input.command, Boolean(session.outputId))
+    if (next === session.playback) return { ...this.voiceState }
+    session.playback = next
+    this.publishPlayback(session)
+    this.armPlaybackTimeout(session)
+    try {
+      this.sendCommand(session, input.command)
+    } catch {
+      session.playback = failPlayback(next, 'control', 'operation_failed')
+      this.clearPlaybackTimeout(session)
+      this.publishPlayback(session)
+      throw new VoiceRuntimeError('operation_failed')
     }
+    return { ...this.voiceState }
+  }
+
+  private publishPlayback(session: Session): VoiceSessionState {
+    return this.transition(session, playbackPhase(session.playback!), session.playback?.failure?.reason)
+  }
+
+  private clearPlaybackTimeout(session: Session): void {
+    clearTimeout(session.playbackTimeout)
+    session.playbackTimeout = undefined
+  }
+
+  private armPlaybackTimeout(session: Session): void {
+    this.clearPlaybackTimeout(session)
+    const playback = session.playback!
+    if (!playback.pendingCommand) return
+    if (playback.synthesis === 'generating' && playback.desired !== 'stopped') return
+    session.playbackTimeout = setTimeout(() => {
+      session.playbackTimeout = undefined
+      if (session.closed || session.playback?.commandRevision !== playback.commandRevision) return
+      session.playback = failPlayback(session.playback, 'control', 'operation_failed')
+      this.publishPlayback(session)
+    }, PLAYBACK_CONFIRMATION_TIMEOUT_MS)
+    session.playbackTimeout.unref()
   }
 
   getMicrophoneStatus(owner: VoiceOwner): 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown' {
@@ -593,6 +628,7 @@ export class VoiceSessionService extends BaseService {
       closed: false,
       files: new Map(),
       pending: new Set(),
+      ...(kind === 'playback' && { playback: createPlaybackState() }),
       attach: () => {
         owner.webContents.removeListener('destroyed', terminate)
         owner.webContents.removeListener('render-process-gone', terminate)
@@ -639,11 +675,7 @@ export class VoiceSessionService extends BaseService {
     if (this.voiceState.phase !== 'idle') this.publishState({ phase: 'idle', revision: ++this.revision }, owner)
   }
 
-  private transition(
-    session: Session,
-    phase: ActivePhase,
-    reason?: InputFor<'ai.voice.playback.update'>['reason']
-  ): VoiceSessionState {
+  private transition(session: Session, phase: ActivePhase, reason?: VoiceErrorReason): VoiceSessionState {
     session.phase = phase
     this.syncSleepHold()
     const state: VoiceSessionState = {
@@ -652,6 +684,7 @@ export class VoiceSessionService extends BaseService {
       sessionId: session.id,
       ...(session.source && { source: session.source }),
       ...(session.trigger && { trigger: session.trigger }),
+      ...(session.playback && { playback: createPlaybackSnapshot(session.playback, Boolean(session.outputId)) }),
       ...(reason && { reason })
     }
     this.publishState(state)
@@ -684,7 +717,8 @@ export class VoiceSessionService extends BaseService {
       type: 'command',
       sessionId: session.id,
       revision: this.revision,
-      command
+      command,
+      ...(session.playback && { playback: createPlaybackSnapshot(session.playback, Boolean(session.outputId)) })
     })
   }
 
@@ -717,7 +751,10 @@ export class VoiceSessionService extends BaseService {
     session.selectedModel = modelId
     session.resolvedAdapter = adapterId
     session.operation = operation
-    if (options.startPhase && session.phase !== 'paused') this.transition(session, options.startPhase)
+    if (session.playback) {
+      session.playback = beginPlaybackSynthesis(session.playback)
+      this.publishPlayback(session)
+    } else if (options.startPhase && session.phase !== 'paused') this.transition(session, options.startPhase)
     const startedAt = Date.now()
     logger.debug('Voice operation started', {
       sessionId: session.id,
@@ -748,7 +785,12 @@ export class VoiceSessionService extends BaseService {
           : error instanceof VoiceRuntimeError
             ? error
             : new VoiceRuntimeError('operation_failed')
-        if (!session.closed && options.failurePhase) this.transition(session, options.failurePhase, normalized.reason)
+        if (!session.closed && session.playback) {
+          session.playback = failPlayback(session.playback, 'synthesis', normalized.reason)
+          this.clearPlaybackTimeout(session)
+          this.publishPlayback(session)
+        } else if (!session.closed && options.failurePhase)
+          this.transition(session, options.failurePhase, normalized.reason)
         throw normalized
       } finally {
         if (this.active === active) this.active = undefined
@@ -829,6 +871,7 @@ export class VoiceSessionService extends BaseService {
       return terminal ? session.cleanup.catch(() => this.closeSession(session, true)) : session.cleanup
     }
     session.closed = true
+    this.clearPlaybackTimeout(session)
     this.removeOutput(session)
     this.syncSleepHold()
     session.detach()
@@ -1003,8 +1046,7 @@ export class VoiceSessionService extends BaseService {
       return
     }
     if (session.kind === 'playback' && session.phase !== 'failed') {
-      this.sendCommand(session, 'pause')
-      this.transition(session, 'paused')
+      void this.controlPlayback(session.owner, { sessionId: session.id, command: 'pause' }).catch(() => undefined)
     }
   }
 }

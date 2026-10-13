@@ -251,6 +251,22 @@ describe('VoiceSessionService file and admission contract', () => {
     }
     return { input: request, result: await service.speech(ownerValue, request) }
   }
+  async function report(
+    ownerValue: VoiceOwner,
+    input: {
+      sessionId: string
+      phase: Parameters<VoiceSessionService['reportPlayback']>[1]['phase']
+      reason?: 'operation_failed'
+    }
+  ) {
+    const state = service.getState(ownerValue)
+    if (state.phase === 'idle' || !state.playback) throw new Error('Expected a playback session')
+    return service.reportPlayback(ownerValue, {
+      ...input,
+      attemptId: state.playback.attemptId,
+      commandRevision: state.playback.commandRevision
+    })
+  }
   function outputResponse(id: string): Response {
     return (media as unknown as { handleRequest(request: Request): Response }).handleRequest(
       new Request(media.getUrl(MediaKind.Audio, id))
@@ -801,15 +817,18 @@ describe('VoiceSessionService file and admission contract', () => {
   it('accepts owner playback updates and lets another managed main window control it', async () => {
     const playback = await speech(a)
     const controller = owner()
-    await service.updatePlayback(a, { sessionId: playback.input.sessionId, phase: 'playing' })
+    await report(a, { sessionId: playback.input.sessionId, phase: 'playing' })
     const paused = await service.controlPlayback(controller, { sessionId: playback.input.sessionId, command: 'pause' })
-    expect(paused).toMatchObject({ phase: 'paused', sessionId: playback.input.sessionId })
+    expect(paused).toMatchObject({ phase: 'playing', playback: { desired: 'paused', pendingCommand: 'pause' } })
+    await report(a, { sessionId: playback.input.sessionId, phase: 'paused' })
+    expect(service.getState(a).phase).toBe('paused')
     expect(runtime.send).toHaveBeenLastCalledWith(
       a.windowId,
       'ai.voice.session_event',
       expect.objectContaining({ type: 'command', command: 'pause' })
     )
     await service.controlPlayback(controller, { sessionId: playback.input.sessionId, command: 'stop' })
+    await report(a, { sessionId: playback.input.sessionId, phase: 'stopped' })
     expect(service.getState(controller).phase).toBe('idle')
     expect(outputResponse(playback.result.output.id).status).toBe(404)
 
@@ -832,10 +851,12 @@ describe('VoiceSessionService file and admission contract', () => {
       ])
       await expect(
         service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'pause' })
-      ).resolves.toMatchObject({ phase: 'paused' })
+      ).resolves.toMatchObject({ playback: { desired: 'paused' } })
+      await report(a, { sessionId: playback.input.sessionId, phase: 'paused' })
       await expect(
         service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'resume' })
-      ).resolves.toMatchObject({ phase: 'playing' })
+      ).resolves.toMatchObject({ playback: { desired: 'playing' } })
+      await report(a, { sessionId: playback.input.sessionId, phase: 'playing' })
 
       const foreignOwner = owner()
       managedWindows.get(foreignOwner.windowId)!.type = type
@@ -844,6 +865,7 @@ describe('VoiceSessionService file and admission contract', () => {
       ).rejects.toMatchObject({ reason: 'forbidden_owner' })
       expect(outputResponse(playback.result.output.id).status).toBe(200)
       await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'stop' })
+      await report(a, { sessionId: playback.input.sessionId, phase: 'stopped' })
       expect(runtime.send.mock.calls).toContainEqual([
         a.windowId,
         'ai.voice.session_event',
@@ -856,17 +878,76 @@ describe('VoiceSessionService file and admission contract', () => {
   it('retries failed playback from the same retained output without regenerating it', async () => {
     const playback = await speech(a)
     const generationCount = native.speech.mock.calls.length
-    await service.updatePlayback(a, {
+    await report(a, {
       sessionId: playback.input.sessionId,
       phase: 'failed',
       reason: 'operation_failed'
     })
 
-    await expect(
-      service.updatePlayback(a, { sessionId: playback.input.sessionId, phase: 'playing' })
-    ).resolves.toMatchObject({ phase: 'playing', sessionId: playback.input.sessionId })
+    await service.controlPlayback(owner(), { sessionId: playback.input.sessionId, command: 'retry' })
+    await expect(report(a, { sessionId: playback.input.sessionId, phase: 'playing' })).resolves.toMatchObject({
+      phase: 'playing',
+      sessionId: playback.input.sessionId
+    })
     expect(outputResponse(playback.result.output.id).status).toBe(200)
     expect(native.speech).toHaveBeenCalledTimes(generationCount)
+  })
+
+  it('lets another window retry a paused failure while rejecting old attempts and foreign reports', async () => {
+    const playback = await speech(a)
+    const sessionId = playback.input.sessionId
+    const old = playback.result.playback
+    await service.controlPlayback(a, { sessionId, command: 'pause' })
+    await service.reportPlayback(a, {
+      sessionId,
+      attemptId: old.attemptId,
+      commandRevision: old.commandRevision,
+      phase: 'failed'
+    })
+    const controller = owner()
+    const retrying = await service.controlPlayback(controller, { sessionId, command: 'retry' })
+    expect(retrying).toMatchObject({ phase: 'ready', playback: { desired: 'playing', pendingCommand: 'retry' } })
+    await service.reportPlayback(a, {
+      sessionId,
+      attemptId: old.attemptId,
+      commandRevision: old.commandRevision,
+      phase: 'failed'
+    })
+    expect(service.getState(controller)).toEqual(retrying)
+    await expect(report(controller, { sessionId, phase: 'playing' })).rejects.toMatchObject({
+      reason: 'forbidden_owner'
+    })
+    await report(a, { sessionId, phase: 'playing' })
+    expect(service.getState(controller)).toMatchObject({
+      phase: 'playing',
+      playback: { availableCommands: ['pause', 'stop'] }
+    })
+    expect(outputResponse(playback.result.output.id).status).toBe(200)
+  })
+
+  it('reports missing control confirmation without releasing still-owned audio', async () => {
+    const playback = await speech(a)
+    await report(a, { sessionId: playback.input.sessionId, phase: 'playing' })
+    vi.useFakeTimers()
+    try {
+      await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'stop' })
+      await vi.advanceTimersByTimeAsync(15_001)
+      expect(service.getState(a)).toMatchObject({
+        phase: 'failed',
+        playback: {
+          pendingCommand: null,
+          availableCommands: ['stop'],
+          failure: { stage: 'control' }
+        }
+      })
+      expect(outputResponse(playback.result.output.id).status).toBe(200)
+      await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'stop' })
+      await report(a, { sessionId: playback.input.sessionId, phase: 'stopped' })
+      expect(service.getState(a).phase).toBe('idle')
+      expect(outputResponse(playback.result.output.id).status).toBe(404)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('cleans on crash/full navigation but ignores same-document and sub-frame navigation', async () => {
@@ -920,31 +1001,28 @@ describe('VoiceSessionService file and admission contract', () => {
     }
   })
 
-  it('pauses playing and ready output on lock/suspend and never auto-resumes', async () => {
+  it('pauses playing and ready output on lock/suspend after owner confirmation and never auto-resumes', async () => {
     const playing = await speech(a)
-    await service.updatePlayback(a, { sessionId: playing.input.sessionId, phase: 'playing' })
+    await report(a, { sessionId: playing.input.sessionId, phase: 'playing' })
     powerEvents.emit('lock')
-    await vi.waitFor(() => expect(service.getState(a).phase).toBe('paused'))
-    expect(runtime.send).toHaveBeenLastCalledWith(
-      a.windowId,
-      'ai.voice.session_event',
-      expect.objectContaining({ type: 'command', command: 'pause' })
-    )
+    expect(service.getState(a)).toMatchObject({ playback: { desired: 'paused', pendingCommand: 'pause' } })
+    await report(a, { sessionId: playing.input.sessionId, phase: 'paused' })
     powerEvents.emit('unlock')
     powerEvents.emit('resume')
     expect(service.getState(a).phase).toBe('paused')
     await service.controlPlayback(a, { sessionId: playing.input.sessionId, command: 'stop' })
+    await report(a, { sessionId: playing.input.sessionId, phase: 'stopped' })
 
     const ready = await speech(a)
     powerEvents.emit('suspend')
-    await vi.waitFor(() => expect(service.getState(a).phase).toBe('paused'))
+    await report(a, { sessionId: ready.input.sessionId, phase: 'paused' })
     expect(outputResponse(ready.result.output.id).status).toBe(200)
     expect(await outputBytes(ready.result.output.id)).toEqual(new Uint8Array(wav()))
     powerEvents.emit('resume')
     expect(service.getState(a).phase).toBe('paused')
   })
 
-  it('keeps generation paused when it finishes after a power interruption', async () => {
+  it('preserves pause intent across synthesis and waits for confirmed playback on resume', async () => {
     let finish!: () => void
     native.speech.mockImplementationOnce(
       () =>
@@ -957,27 +1035,21 @@ describe('VoiceSessionService file and admission contract', () => {
     const state = service.getState(a)
     if (state.phase === 'idle') throw new Error('Speech admission must precede synthesis')
     powerEvents.emit('lock')
-    const interruptedPhase = service.getState(a).phase
-    const resume = service.controlPlayback(a, { sessionId: state.sessionId, command: 'resume' }).then(
-      () => 'resumed',
-      (error: VoiceRuntimeError) => error.reason
-    )
+    await report(a, { sessionId: state.sessionId, phase: 'paused' })
     finish()
-    const result = await pending.then(
-      (value) => value.result,
-      (error: VoiceRuntimeError) => error.reason
-    )
-
-    expect(interruptedPhase).toBe('paused')
-    expect(await resume).toBe('busy')
-    expect(result).not.toBeTypeOf('string')
-    expect(service.getState(a)).toMatchObject({ phase: 'paused', sessionId: state.sessionId })
+    const { result } = await pending
+    expect(result.playback.desired).toBe('paused')
+    await report(a, { sessionId: state.sessionId, phase: 'paused' })
     powerEvents.emit('unlock')
     powerEvents.emit('resume')
     expect(service.getState(a).phase).toBe('paused')
-    await expect(service.controlPlayback(a, { sessionId: state.sessionId, command: 'resume' })).resolves.toMatchObject({
-      phase: 'playing'
+    await service.controlPlayback(a, { sessionId: state.sessionId, command: 'resume' })
+    expect(service.getState(a)).toMatchObject({
+      phase: 'paused',
+      playback: { desired: 'playing', pendingCommand: 'resume' }
     })
+    await report(a, { sessionId: state.sessionId, phase: 'playing' })
+    expect(service.getState(a).phase).toBe('playing')
   })
 
   it('notifies Voice consumer windows about power interruption before a session is admitted', () => {
@@ -1099,17 +1171,22 @@ describe('VoiceSessionService file and admission contract', () => {
   it('releases sleep prevention for ready and paused output and reacquires it on explicit resume', async () => {
     const playback = await speech()
     expect(runtime.sleepHolds.size).toBe(0)
-    await service.updatePlayback(a, { sessionId: playback.input.sessionId, phase: 'playing' })
+    await report(a, { sessionId: playback.input.sessionId, phase: 'playing' })
     expect(runtime.sleepHolds.size).toBe(1)
     powerEvents.emit('lock')
+    const current = service.getState(a)
+    if (current.phase !== 'idle') await report(a, { sessionId: current.sessionId, phase: 'paused' })
     expect(runtime.sleepHolds.size).toBe(0)
     expect(service.getState(a)).toMatchObject({ phase: 'paused', sessionId: playback.input.sessionId })
     expect(outputResponse(playback.result.output.id).status).toBe(200)
     await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'resume' })
+    await report(a, { sessionId: playback.input.sessionId, phase: 'playing' })
     expect(runtime.sleepHolds.size).toBe(1)
     await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'pause' })
+    await report(a, { sessionId: playback.input.sessionId, phase: 'paused' })
     expect(runtime.sleepHolds.size).toBe(0)
     await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'stop' })
+    await report(a, { sessionId: playback.input.sessionId, phase: 'stopped' })
     expect(runtime.sleepHolds.size).toBe(0)
   })
 
@@ -1124,10 +1201,13 @@ describe('VoiceSessionService file and admission contract', () => {
     const generation = speech()
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
     powerEvents.emit('lock')
+    const current = service.getState(a)
+    if (current.phase !== 'idle') await report(a, { sessionId: current.sessionId, phase: 'paused' })
     expect(service.getState(a).phase).toBe('paused')
     expect(runtime.sleepHolds.size).toBe(1)
     finish()
     const playback = await generation
+    await report(a, { sessionId: playback.input.sessionId, phase: 'paused' })
     expect(service.getState(a).phase).toBe('paused')
     expect(runtime.sleepHolds.size).toBe(0)
     expect(outputResponse(playback.result.output.id).status).toBe(200)
