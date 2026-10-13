@@ -133,6 +133,16 @@ describe('diffAgentSaveIntent', () => {
 })
 
 describe('diffAgentUpdate', () => {
+  it('round-trips an edited heartbeat timeout without changing the interval or toggle', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { heartbeat_enabled: true } }))
+    expect(baseline.heartbeatTimeoutMinutes).toBe(2)
+    const next = applyAgentFormPatch(baseline, { heartbeatTimeoutMinutes: 10 })
+    const update = diffAgentUpdate(baseline, next)
+    expect(update?.dto).toEqual({ configuration: { heartbeat_timeout_minutes: 10 } })
+    const saved = buildInitialAgentFormState(createAgent({ configuration: update?.dto.configuration }))
+    expect(saved.heartbeatTimeoutMinutes).toBe(10)
+  })
+
   it('returns null when nothing changed', () => {
     const agent = createAgent()
     const baseline = buildInitialAgentFormState(agent)
