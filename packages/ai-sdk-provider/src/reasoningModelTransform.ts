@@ -10,9 +10,13 @@
 /**
  * Detect OpenAI reasoning models that require `max_completion_tokens` instead of
  * `max_tokens`. Matches the pattern used internally by `@ai-sdk/openai`.
+ *
+ * OpenAI-compatible relays commonly namespace the upstream id
+ * (`external/gpt-5.6-luna`, `openai/gpt-6-astra`), so the match runs on the last
+ * path segment; a namespaced reasoning model must still be converted.
  */
 export function isOpenAIReasoningModelId(modelId: string): boolean {
-  const id = modelId.toLowerCase()
+  const id = modelId.toLowerCase().split('/').pop() ?? ''
   return (
     id.startsWith('o1') ||
     id.startsWith('o3') ||
