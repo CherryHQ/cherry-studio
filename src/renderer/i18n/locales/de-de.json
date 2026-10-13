@@ -5782,7 +5782,6 @@
   "settings.voice.recognition.language": "Erkennungssprache",
   "settings.voice.recognition.model": "Erkennungsmodell",
   "settings.voice.recognition.title": "Spracherkennung",
-  "settings.voice.recommended": "Empfohlen · {{name}}",
   "settings.voice.resources.open_settings": "Systemspracheinstellungen öffnen",
   "settings.voice.resources.remove_description": "Die Spracherkennung mit diesem Modell ist bis zum erneuten Download nicht verfügbar. Ihre Modellauswahl bleibt erhalten.",
   "settings.voice.resources.remove_title": "Spracherkennungsmodell entfernen?",
