@@ -89,11 +89,10 @@ export const mediaFfmpegProcess = defineUtilityProcess<MediaFfmpegContract, Medi
   // The packaged tree is immutable. cherry.bin is filled later by Background extraction.
   createInitData: () => {
     if (process.platform === 'linux') {
-      const tree = packagedLinuxFfmpegTree()
       return {
-        ffmpegPath: path.join(tree, 'bin', 'ffmpeg'),
-        ffprobePath: path.join(tree, 'bin', 'ffprobe'),
-        linuxLibraryDir: path.join(tree, 'lib')
+        ffmpegPath: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.bin', 'ffmpeg')),
+        ffprobePath: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.bin', 'ffprobe')),
+        linuxLibraryDir: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.lib'))
       }
     }
     return {
@@ -109,9 +108,4 @@ function packagedPlatformDir(): string {
 
 function packagedMediaBinary(name: string): string {
   return toAsarUnpackedPath(path.join(packagedPlatformDir(), getBinaryName(name)))
-}
-
-/** Linux `DT_RPATH` is `$ORIGIN/../lib`, so the LGPL tree stays under `ffmpeg/`. */
-function packagedLinuxFfmpegTree(): string {
-  return toAsarUnpackedPath(path.join(packagedPlatformDir(), 'ffmpeg'))
 }
