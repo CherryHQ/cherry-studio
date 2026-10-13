@@ -548,8 +548,18 @@ export class SkillService {
       !existing && sourceUrl && provenance.allowFolderMigration
         ? (agentGlobalSkillService
             .listAll()
-            .find((skill) => skill.source === source && (skill.sourceUrl ?? null) === sourceUrl) ?? null)
+            .find(
+              (skill) => skill.source === source && this.marketplaceSourceUrlsMatch(skill.sourceUrl ?? null, sourceUrl)
+            ) ?? null)
         : null
+
+    if (renamed) {
+      await this.installer.settleMigrationMarkersBeforeRename(
+        skillsRoot,
+        renamed.folderName,
+        (name) => this.findCatalogSkillCaseInsensitive(name) !== null
+      )
+    }
 
     const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
     if (!existing && storageEntry) {
@@ -577,7 +587,6 @@ export class SkillService {
     let prevFolderName: string | null = null
     if (renamed) {
       prevFolderName = renamed.folderName
-      await this.installer.settleMigrationMarkersBeforeRename(skillsRoot, prevFolderName)
       migrationBackup = await this.installer.backupReplacedFolderForMigration(
         this.getSkillStoragePath(prevFolderName),
         folderName
@@ -1439,6 +1448,14 @@ export class SkillService {
       skill.sourceTags.length !== tags.length ||
       skill.sourceTags.some((tag, index) => tag !== tags[index])
     )
+  }
+
+  private marketplaceSourceUrlsMatch(existingUrl: string | null, incomingUrl: string | null): boolean {
+    if ((existingUrl ?? null) === (incomingUrl ?? null)) return true
+    if (!existingUrl || !incomingUrl) return false
+    const existing = parseSkillSourceUrl(existingUrl)
+    const incoming = parseSkillSourceUrl(incomingUrl)
+    return existing !== null && incoming !== null && existing.installSource === incoming.installSource
   }
 
   private isLegacySkillsShReinstall(existing: InstalledSkill, sourceUrl: string | null, folderName: string): boolean {

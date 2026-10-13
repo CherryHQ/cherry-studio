@@ -237,11 +237,55 @@ export class SkillInstaller {
    * Always created before publishing: an empty marker records an already-gone old folder.
    */
   /**
-   * Remove committed rollback markers naming a folder before it migrates again. A failed retire
-   * from an earlier migration must not let recovery resurrect obsolete content on the next rename.
+   * Prepare a folder for another migration: recover any pending backup that still owns the only
+   * copy of the old files, then drop committed markers left behind by a finished migration.
    */
-  async settleMigrationMarkersBeforeRename(storageRoot: string, folderName: string): Promise<void> {
-    await this.removeMigrationMarkerDirectories(storageRoot, folderName, true)
+  async settleMigrationMarkersBeforeRename(
+    storageRoot: string,
+    folderName: string,
+    isFolderTracked?: (folderName: string) => boolean
+  ): Promise<void> {
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+
+    const key = folderName.toLowerCase()
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const markerPath = path.join(storageRoot, entry.name)
+      const lower = entry.name.toLowerCase()
+
+      const migration = entry.name.match(/^\.([^.]+)\.migrating-to\.([^.]+)\.bak$/)
+      if (migration?.[1] && migration?.[2]) {
+        const oldName = migration[1]
+        const newName = migration[2]
+        if (oldName.toLowerCase() === key) {
+          if (isFolderTracked?.(newName)) {
+            await this.removeDirectoryStrict(markerPath, 'committed skill migration backup')
+          } else {
+            await this.recoverInterruptedMigration(storageRoot, oldName, newName, isFolderTracked, () => false)
+          }
+          continue
+        }
+        if (newName.toLowerCase() === key && isFolderTracked?.(folderName)) {
+          await this.removeDirectoryStrict(markerPath, 'stale skill migration backup')
+        }
+        continue
+      }
+
+      if (lower === `.${key}.bak`) {
+        await this.recoverInterruptedInstall(path.join(storageRoot, folderName))
+        continue
+      }
+
+      if (lower === `.${key}.cleanup`) {
+        await this.removeDirectoryStrict(markerPath, 'committed skill migration backup')
+      }
+    }
   }
 
   async backupReplacedFolderForMigration(dirPath: string, newFolderName: string): Promise<string> {

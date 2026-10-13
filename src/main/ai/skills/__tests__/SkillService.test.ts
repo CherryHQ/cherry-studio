@@ -1625,6 +1625,114 @@ describe('SkillService', () => {
       }
     })
 
+    it('migrates a root skill when the reinstall URL matches canonically but not literally', async () => {
+      const root = await createTempDir('github-canonical-migrate-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Foo',
+        folderName: 'foo',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'foo'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'foo', 'SKILL.md'), '# old')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'bar',
+        name: 'bar',
+        description: 'Renamed skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['SKILL.md'],
+        realInstall: true
+      })
+
+      try {
+        const installed = await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+        })
+
+        expect(installed).toMatchObject({ id: SKILL_ID_1, folderName: 'bar' })
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('recovers a pending migration backup before retrying a root-skill folder migration', async () => {
+      const root = await createTempDir('github-migrate-retry-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      const marker = path.join(dataSkillsRoot, '.foo.migrating-to.my-skill.bak')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Foo',
+        folderName: 'foo',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      await fs.promises.mkdir(marker, { recursive: true })
+      await fs.promises.writeFile(path.join(marker, 'SKILL.md'), '# preserved')
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'my-skill'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'my-skill', 'SKILL.md'), '# partial')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'my-skill',
+        name: 'my-skill',
+        description: 'Migrated skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['SKILL.md'],
+        realInstall: true
+      })
+
+      try {
+        const installed = await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+        })
+
+        expect(installed).toMatchObject({ id: SKILL_ID_1, folderName: 'my-skill' })
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        await expect(fs.promises.access(marker)).rejects.toMatchObject({ code: 'ENOENT' })
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('settles a stale inbound marker before a second folder migration', async () => {
       const root = await createTempDir('github-remigrate-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')

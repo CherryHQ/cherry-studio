@@ -257,6 +257,29 @@ describe('SkillInstaller', () => {
     expect(mockFsRename).not.toHaveBeenCalled()
   })
 
+  it('recovers a pending outbound migration marker instead of deleting it on settle', async () => {
+    mockFsReaddir.mockImplementation(async (dirPath: string) => {
+      if (dirPath === '/global-skills') {
+        return [{ name: '.foo.migrating-to.bar.bak', isDirectory: () => true }]
+      }
+      if (dirPath === '/global-skills/.foo.migrating-to.bar.bak') {
+        return ['SKILL.md']
+      }
+      return []
+    })
+    let barExists = true
+    mockPathExists.mockImplementation(async (target: string) => target === '/global-skills/bar' && barExists)
+    mockDeleteDirectoryRecursive.mockImplementation(async (target: string) => {
+      if (target === '/global-skills/bar') barExists = false
+    })
+    mockFsRename.mockResolvedValue(undefined)
+
+    await installer.settleMigrationMarkersBeforeRename('/global-skills', 'foo', () => false)
+
+    expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/bar')
+    expect(mockFsRename).toHaveBeenCalledWith('/global-skills/.foo.migrating-to.bar.bak', '/global-skills/foo')
+  })
+
   it('drops a superseded migration marker instead of restoring obsolete content', async () => {
     mockFsReaddir.mockResolvedValue([
       { name: '.foo.migrating-to.bar.bak', isDirectory: () => true },
