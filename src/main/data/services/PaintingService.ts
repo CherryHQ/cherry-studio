@@ -24,6 +24,7 @@ import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertPaintingRow, type PaintingRow, paintingTable } from '@data/db/schemas/painting'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx, DbType } from '@data/db/types'
+import { fileRefSourceReadModelEffects } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -357,17 +358,22 @@ class PaintingService {
     const db = application.get('DbService').getDb()
 
     if (options.permanent === true) {
-      const result = withSqliteErrors(
+      const fileEffects = withSqliteErrors(
         () =>
-          db
-            .delete(paintingTable)
-            .where(and(eq(paintingTable.id, id), isNotNull(paintingTable.deletedAt)))
-            .run(),
+          application.get('DbService').withWriteTx((tx) => {
+            const effects = fileRefSourceReadModelEffects(tx, 'painting', [id])
+            const result = tx
+              .delete(paintingTable)
+              .where(and(eq(paintingTable.id, id), isNotNull(paintingTable.deletedAt)))
+              .run()
+            if (result.changes === 0) {
+              throw DataApiErrorFactory.notFound('Painting', id)
+            }
+            return effects
+          }),
         defaultHandlersFor('Painting', id)
       )
-      if (result.changes === 0) {
-        throw DataApiErrorFactory.notFound('Painting', id)
-      }
+      if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
       this.notifyReadModelChange([id], 'membership')
       logger.info('Permanently deleted painting', { id })
       return

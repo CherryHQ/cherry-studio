@@ -10,6 +10,7 @@ import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
@@ -18,6 +19,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
+import { changedFileRefEffects } from '@data/services/FileRefService'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata, ReasoningProviderContext } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -561,7 +563,7 @@ class ProviderService {
     // read the same old providerSettings and have the later write clobber the
     // other's keys (lost update); withWriteTx serializes them so each merges on
     // the latest row value.
-    const row = application.get('DbService').withWriteTx((tx) => {
+    const { row, fileEffects } = application.get('DbService').withWriteTx((tx) => {
       // Read the raw row's providerSettings, not the merged entity. PATCH
       // semantics require merging with the stored partial, not with runtime
       // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
@@ -583,6 +585,13 @@ class ProviderService {
       const updates: Partial<InsertUserProviderRow> = {}
 
       if (dto.name !== undefined) updates.name = dto.name
+      const previousLogoRefs = dto.logo
+        ? tx
+            .select({ fileEntryId: providerLogoFileRefTable.fileEntryId })
+            .from(providerLogoFileRefTable)
+            .where(eq(providerLogoFileRefTable.sourceId, providerId))
+            .all()
+        : []
       // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
       const logoCols = reconcileLogoSlotTx(tx, providerLogoFileRefTable, providerId, dto.logo)
       if (logoCols) {
@@ -630,9 +639,16 @@ class ProviderService {
       if (!updated) {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
-      return updated
+      return {
+        row: updated,
+        fileEffects: changedFileRefEffects(
+          previousLogoRefs.map((ref) => ref.fileEntryId),
+          dto.logo?.kind === 'file' ? [dto.logo.fileId] : []
+        )
+      }
     })
 
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     logger.info('Updated provider', { providerId, changes: Object.keys(dto) })
 
     return rowToRuntimeProvider(row)

@@ -4,13 +4,16 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { asc, eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { createUniqueModelId } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -391,10 +394,66 @@ describe('PaintingService', () => {
       ])
 
       paintingService.delete(painting.id)
+      const effects: DataApiDataChangeEffect[] = []
+      notifyDataApiDataChangeMock.mockImplementationOnce((batch) => {
+        expect(dbh.sqlite.inTransaction).toBe(false)
+        expect(fileRefService.countByEntryIds([fileEntryId]).get(fileEntryId)).toBeUndefined()
+        effects.push(...batch)
+      })
       paintingService.delete(painting.id, { permanent: true })
 
       expect(await paintingExists(painting.id)).toBe(false)
       expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: painting.id })).toEqual([])
+      expect(fileEntryService.listCursor({ usage: 'other' }).items).toEqual([])
+      expect(fileEntryService.listCursor({ usage: 'unreferenced' }).items.map((entry) => entry.id)).toContain(
+        fileEntryId
+      )
+      for (const endpoint of ['/files/entries', '/files/entries/ref-counts']) {
+        expect(effects).toContainEqual({
+          endpoint,
+          kind: endpoint === '/files/entries' ? 'membership' : 'projection',
+          entityIds: [fileEntryId]
+        })
+      }
+    })
+
+    it('preserves the painting and references without notifications if permanent deletion rolls back', async () => {
+      const fileEntryId = '019606a0-0000-7000-8000-00000000d103'
+      await seedFileEntry(fileEntryId)
+      const painting = paintingService.create(
+        p({ providerId: 'aihubmix', prompt: 'rollback', files: { output: [fileEntryId], input: [] } })
+      )
+      paintingService.delete(painting.id)
+      notifyDataApiDataChangeMock.mockClear()
+      const dbService = application.get('DbService')
+      const withWriteTx = dbService.withWriteTx.bind(dbService)
+      vi.spyOn(dbService, 'withWriteTx').mockImplementationOnce((fn) =>
+        withWriteTx((tx) => {
+          fn(tx)
+          throw new Error('abort painting deletion')
+        })
+      )
+
+      expect(() => paintingService.delete(painting.id, { permanent: true })).toThrow('abort painting deletion')
+      expect(await paintingExists(painting.id)).toBe(true)
+      expect(fileRefService.countByEntryIds([fileEntryId]).get(fileEntryId)).toBe(1)
+      expect(notifyDataApiDataChangeMock.mock.calls).toEqual([])
+    })
+
+    it('keeps shared files referenced after permanently deleting one painting', async () => {
+      const fileEntryId = '019606a0-0000-7000-8000-00000000d104'
+      await seedFileEntry(fileEntryId)
+      const input = p({ providerId: 'aihubmix', prompt: 'shared', files: { output: [fileEntryId], input: [] } })
+      const removed = paintingService.create(input)
+      const kept = paintingService.create(input)
+      paintingService.delete(removed.id)
+
+      paintingService.delete(removed.id, { permanent: true })
+
+      expect(fileRefService.countByEntryIds([fileEntryId]).get(fileEntryId)).toBe(1)
+      expect(paintingService.getById(kept.id).files.output).toEqual([fileEntryId])
+      expect(fileEntryService.listCursor({ usage: 'other' }).items.map((entry) => entry.id)).toContain(fileEntryId)
+      expect(fileEntryService.listCursor({ usage: 'unreferenced' }).items).toEqual([])
     })
 
     it('permanent=true succeeds when the painting has no file refs (today’s real path)', async () => {
