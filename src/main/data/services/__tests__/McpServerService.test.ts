@@ -263,6 +263,40 @@ describe('McpServerService', () => {
       expect(agent.disabledTools).toEqual(['mcp__oldServer__run_4f7413c24ae4', 'mcp__newServer__run_4f7413c24ae4'])
     })
 
+    it('keeps an explicitly submitted disabledTools list on a combined rename update', async () => {
+      // A PATCH carrying both name and disabledTools owns the list: migrating the stored rules
+      // over it would silently discard the requested denial.
+      await seedServer({ id: 'srv-1', name: 'docs', disabledTools: ['mcp__docs__run'] })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-1' })
+
+      mcpServerService.update('srv-1', { name: 'github', disabledTools: ['delete'] })
+
+      const [server] = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, 'srv-1'))
+      expect(server.disabledTools).toEqual(['delete'])
+      // Agent-mounted rules still follow the rename — the submitted list only owns the server's
+      // own field.
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      expect(agent.disabledTools).toEqual(['mcp__github__run'])
+    })
+
+    it('lets an explicit empty disabledTools list clear the server rules on a combined rename update', async () => {
+      await seedServer({ id: 'srv-1', name: 'docs', disabledTools: ['mcp__docs__run'] })
+
+      mcpServerService.update('srv-1', { name: 'github', disabledTools: [] })
+
+      const [server] = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, 'srv-1'))
+      expect(server.disabledTools).toEqual([])
+    })
+
     it('should throw NOT_FOUND when updating non-existent server', () => {
       let err: unknown
       try {

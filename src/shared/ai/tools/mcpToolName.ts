@@ -368,42 +368,59 @@ export interface AgentServerRenameMigrationInput {
 /**
  * Migrate one agent's saved denial rules after a mounted server was renamed. Unlike
  * {@link migrateDisabledToolsForServerRename} (server-level rules keyed by the configured name),
- * agent rules follow the runtime allocation: only the renamed server's own rules move, and onto
- * the key the allocator will actually hand out after the rename — the id when the new name is
- * reserved or taken by a sibling. An agent that does not mount the renamed server keeps its
- * rules untouched: duplicate names are accepted, so a bare name match would steal a denial
- * owned by a different server and let the originally disabled tool execute.
+ * agent rules follow the runtime allocation: every mounted server whose allocated key changes —
+ * the renamed server and any sibling displaced onto its id by the renamed server's new claim —
+ * has its rules moved onto the key the allocator will actually hand out after the rename. Each
+ * old key is unique across the mounted set, so an entry's server segment names at most one of
+ * them. An agent that does not mount the renamed server keeps its rules untouched: duplicate
+ * names are accepted, so a bare name match would steal a denial owned by a different server and
+ * let the originally disabled tool execute.
  *
- * Lossy-hashed entries (`mcp__<camelized old name>__<tool>_<hash>`) cannot be rewritten onto
- * the pair — the hash binds the old name. They are copied onto the new lossy base with the
- * hash tail intact: the runtime's stripped-base lookup indexes
- * `buildDshCherryToolName(<new key>, tool).slice(0, 50)` for every live tool, which is exactly
- * what the tail-stripped copy lands on. Copying (not replacing) keeps the original string's
- * registered candidates: it can simultaneously be another mounted server's exact denial.
- * Entries whose saved form was truncated before the tool part can be isolated (truncation cut
- * into the server segment, or the retained prefix is shorter than the renamed base) are
- * unrecoverable and pass through unchanged.
+ * Entries carrying a trailing `_12hex` hash were saved as lossy or collision runtime names whose
+ * hash binds the old pair. Carrying that fragment past a longer prefix matches neither the new
+ * runtime name nor its 50-char stripped base, so the copy is rewritten onto the stripped base
+ * exactly (`mcp__<camelized new key>__<fragment>` truncated to 50, tail re-attached): the
+ * runtime's stripped-base lookup resolves it once the tail is stripped again. The original is
+ * kept — it can simultaneously be another mounted server's exact denial. Plain entries move
+ * verbatim onto the new key.
  */
 export function migrateAgentDisabledToolsForServerRename(
   disabledTools: readonly string[],
   input: AgentServerRenameMigrationInput
 ): string[] | undefined {
-  const fromKey = allocateMountedServerKeys(input.mountedServers, input.reservedKeys).get(input.renamedServerId)
+  const oldKeys = allocateMountedServerKeys(input.mountedServers, input.reservedKeys)
   // Not mounted here: nothing of this server's is owned by the agent.
+  const fromKey = oldKeys.get(input.renamedServerId)
   if (fromKey === undefined) return undefined
-  const toKey = allocateMountedServerKeys(
+  const newKeys = allocateMountedServerKeys(
     input.mountedServers.map((server) =>
       server.mcpId === input.renamedServerId ? { ...server, name: input.toName } : server
     ),
     input.reservedKeys
-  ).get(input.renamedServerId)
+  )
+  const toKey = newKeys.get(input.renamedServerId)
   if (toKey === undefined || toKey === fromKey) return undefined
 
-  const fromLossy = toCamelCase(fromKey)
-  // The lossy form only carries separate information when normalization changed the name
-  // (`Old server` → `oldServer`); otherwise every entry already sits on the plain key.
-  const lossyApplies = fromLossy !== fromKey
-  const toLossy = toCamelCase(toKey)
+  // The rename can displace more than the renamed server: a sibling whose claimed key is taken
+  // by the renamed server's new name falls back to its id, orphaning its own denials. Compare
+  // the complete allocations and migrate every mounted server whose record key changed.
+  const rewrites: Array<{ fromKey: string; toKey: string }> = []
+  for (const [mcpId, oldKey] of oldKeys) {
+    const newKey = newKeys.get(mcpId)
+    if (newKey !== undefined && newKey !== oldKey) rewrites.push({ fromKey: oldKey, toKey: newKey })
+  }
+
+  // A hashed tail marks a lossy/collision runtime name: the hash binds the old pair, so only the
+  // stripped base survives the rename. The copy lands on `mcp__<target>__<fragment>` truncated
+  // to 50 with the tail re-attached, so the tail-stripped copy sits exactly on a base the
+  // runtime indexes for the live pair. The target is the raw new key when it can head a
+  // registered runtime name (plain wire-safe registrations index their name-form verbatim) and
+  // the camelized key otherwise (lossy registrations are built from the camelized form).
+  const rewriteHashed = (toolPart: string, targetKey: string): string => {
+    const target = /^[A-Za-z_][A-Za-z0-9_-]*$/.test(targetKey) ? targetKey : toCamelCase(targetKey)
+    const fragment = toolPart.slice(0, toolPart.length - 13)
+    return `mcp__${target}__${fragment}`.slice(0, 50) + toolPart.slice(toolPart.length - 13)
+  }
 
   let changed = false
   const seen = new Set(disabledTools)
@@ -417,11 +434,17 @@ export function migrateAgentDisabledToolsForServerRename(
       if (delimiterIndex > 0) {
         const serverPart = rest.slice(0, delimiterIndex)
         const toolPart = rest.slice(delimiterIndex + 2)
-        if (serverPart === fromKey) {
-          replacement = `mcp__${toKey}__${toolPart}`
-        } else if (lossyApplies && serverPart === fromLossy && /_[0-9a-f]{12}$/.test(toolPart)) {
-          const tailIndex = toolPart.length - 13
-          replacement = `mcp__${toLossy}__${toolPart.slice(0, tailIndex)}`.slice(0, 50) + toolPart.slice(tailIndex)
+        const matched = rewrites.find(({ fromKey: key }) => serverPart === key)
+        const lossyMatched = matched
+          ? undefined
+          : rewrites.find(({ fromKey: key }) => serverPart === toCamelCase(key) && toCamelCase(key) !== key)
+        if (matched && /_[0-9a-f]{12}$/.test(toolPart)) {
+          replacement = rewriteHashed(toolPart, matched.toKey)
+          keepOriginal = true
+        } else if (matched) {
+          replacement = `mcp__${matched.toKey}__${toolPart}`
+        } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
+          replacement = rewriteHashed(toolPart, lossyMatched.toKey)
           keepOriginal = true
         }
       }

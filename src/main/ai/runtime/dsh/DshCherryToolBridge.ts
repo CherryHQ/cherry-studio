@@ -28,7 +28,9 @@ export interface DshCherryToolBridge {
    * the allocated runtime names themselves (a denial saved at runtime is the registered name,
    * which another pair's name-form rule can flatten onto), each identity's historical
    * collision-allocated name (a deterministic pair hash) and its allocator collision base (the
-   * plain name truncated to 50 — any counter depth strips to it after a reconnect), and
+   * plain name truncated to 50 — any counter depth strips to it after a reconnect), the
+   * camelized base (`mcp__<camelized name>__<camelized tool>` truncated to 50 — the only form a
+   * rename-migrated lossy denial strips to), and
    * pre-name runtime aliases rebuilt from mounted-server ids (wire-safe and hashed forms) so
    * denials saved under uuid-keyed names follow the server to its current identity.
    */
@@ -211,6 +213,14 @@ function buildDshCherryRuleNameLookup(
     // chars truncates the base below any parseable form. Indexing the allocator's exact base
     // lets every stripped historical name resolve to the identity regardless of depth.
     addRule(buildDshCherryToolName(serverKey, rawTool).slice(0, 50), runtimeName)
+    // A denial copied by rename migration carries a camelized tool fragment (`getTime`), which
+    // is unrecoverable into the raw name (`get_time`). Index the camelized base too, so the
+    // stripped copy resolves even when the surviving pair registers a plain wire-safe name
+    // (whose raw-tool keys the camelized fragment can never match). Pairs whose camelized bases
+    // flatten together merge candidates — fail-closed, like the name-form keys above.
+    const lossyPrefix = `mcp__${toCamelCase(serverKey)}__${toCamelCase(rawTool)}`.replace(/[^A-Za-z0-9_-]/g, '')
+    const lossyBase = (/^[A-Za-z_]/.test(lossyPrefix) ? lossyPrefix : `mcp_${lossyPrefix}`).slice(0, 50)
+    addRule(lossyBase, runtimeName)
     const siblings = rawToolsByKey.get(serverKey)
     if (siblings) siblings.push({ rawTool, runtimeName })
     else rawToolsByKey.set(serverKey, [{ rawTool, runtimeName }])

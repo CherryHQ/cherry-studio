@@ -158,6 +158,9 @@ export class McpServerService {
    * Update an existing MCP server
    */
   update(id: string, dto: UpdateMcpServerDto): McpServer {
+    // Agents whose mounted-server rules moved with the rename, for the post-commit
+    // onAgentUpdated refresh consumed by warm agent sessions.
+    const policyAffectedAgentIds: string[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       const [existingRow] = tx.select().from(mcpServerTable).where(eq(mcpServerTable.id, id)).limit(1).all()
       if (!existingRow) {
@@ -179,14 +182,18 @@ export class McpServerService {
       // A rename reallocates the server's runtime record key, orphaning saved
       // `mcp__<old-key>__<tool>` denial rules: the exact-match policy would let the previously
       // disabled tool execute under the new identity. Migrate the server's own rules and every
-      // mounting agent's in the same transaction.
+      // mounting agent's in the same transaction. A PATCH that submits `disabledTools` alongside
+      // the rename owns the list — the submitted value (including an explicit empty list) must
+      // win over migrating the stored rules.
       if (dto.name !== undefined && dto.name !== existing.name) {
-        const migratedServerRules = migrateDisabledToolsForServerRename(
-          existing.disabledTools ?? [],
-          existing.name,
-          name
-        )
-        if (migratedServerRules) updates.disabledTools = migratedServerRules
+        if (dto.disabledTools === undefined) {
+          const migratedServerRules = migrateDisabledToolsForServerRename(
+            existing.disabledTools ?? [],
+            existing.name,
+            name
+          )
+          if (migratedServerRules) updates.disabledTools = migratedServerRules
+        }
 
         // Only agents that mount the renamed server carry its denial rules. Duplicate names are
         // accepted, so a blanket name match would steal a rule owned by a different server —
@@ -227,7 +234,8 @@ export class McpServerService {
             ]
           })
           if (migrated) {
-            tx.update(agentTable).set({ disabledTools: migrated }).where(eq(agentTable.id, agent.id)).run()
+            agentService.updateDisabledToolsTx(tx, agent.id, migrated)
+            policyAffectedAgentIds.push(agent.id)
             logger.info('Migrated disabled tool rules for renamed MCP server', {
               agentId: agent.id,
               from: existing.name,
@@ -240,6 +248,20 @@ export class McpServerService {
       const [row] = tx.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning().all()
       return rowToMcpServer(row)
     })
+
+    // Agent-level policy writes go through the owning service (`updateDisabledToolsTx`); the
+    // live-policy refresh fires after commit (best-effort, like delete()), so warm sessions
+    // re-read the migrated rules instead of reconciling against a stale agent row. A failure
+    // must not reject the committed update.
+    try {
+      agentService.emitAgentUpdatedForIds(policyAffectedAgentIds, 'mcps')
+    } catch (error) {
+      logger.error('MCP server renamed but agent refresh failed; affected agents may retain stale tool policy', {
+        mcpServerId: id,
+        affectedAgentIds: policyAffectedAgentIds,
+        error
+      })
+    }
 
     logger.info('Updated MCP server', { id, changes: Object.keys(dto) })
 

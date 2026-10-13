@@ -1154,6 +1154,16 @@ export class AgentService {
     return affectedIds
   }
 
+  /**
+   * Transactional write of one agent's `disabledTools` for use within an outer tx (e.g.
+   * McpServerService.update() migrating saved denial rules on a rename). Denial rules are
+   * agent-owned policy data: other services must mutate them through this method rather than
+   * writing the agent table directly, so the write stays inside the caller's transaction.
+   */
+  updateDisabledToolsTx(tx: DbOrTx, agentId: string, disabledTools: string[]): void {
+    tx.update(agentsTable).set({ disabledTools }).where(eq(agentsTable.id, agentId)).run()
+  }
+
   /** Remove one knowledge base binding from every agent and return the affected agent IDs. */
   removeKnowledgeBaseFromAllAgentsTx(tx: DbOrTx, knowledgeBaseId: string): string[] {
     const referenced = tx

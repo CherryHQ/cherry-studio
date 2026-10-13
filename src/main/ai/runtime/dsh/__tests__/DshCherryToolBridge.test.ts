@@ -172,6 +172,24 @@ describe('DshCherryToolBridge', () => {
     await bridge.close()
   })
 
+  it('resolves a rename-migrated camelized denial onto the raw-tool pair after a lossy-to-safe rename', async () => {
+    // `Old server`/`get_time` registers the lossy `mcp__oldServer__getTime_<hash>`; renaming the
+    // server to `docs` copies the entry onto `mcp__docs__getTime_<hash>`. The new pair is
+    // provider-safe and registers the plain `mcp__docs__get_time` — the camelized fragment
+    // cannot be reconstructed into the raw name, so the lookup must index the camelized base
+    // for the live pair and let the stripped copy resolve.
+    const server = createServer([tool('get_time')], async () => ({ content: [{ type: 'text', text: 'ok' }] }))
+    const bridge = await buildDshCherryToolBridge({ only: { name: 'docs', connect: server.connect } }, bridgeOptions())
+
+    expect(bridge.tools.map(({ name }) => name)).toEqual(['mcp__docs__get_time'])
+    const { translateMcpToolRulesToRuntimeNames } = await import('@shared/ai/tools/mcpToolName')
+    const migrated = 'mcp__docs__getTime_4f7413c24ae4'
+    expect(translateMcpToolRulesToRuntimeNames([migrated], new Map(), bridge.ruleNames)).toEqual([
+      'mcp__docs__get_time'
+    ])
+    await bridge.close()
+  })
+
   it('keeps colliding name-form rule keys resolvable per pair and by pre-name aliases', async () => {
     // `docs` exposing `search__all` and `docs__search` exposing `all` flatten to the same
     // rule string; every registered identity must stay reachable — per (server, raw tool)

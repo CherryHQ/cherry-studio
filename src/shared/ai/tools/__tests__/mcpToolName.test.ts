@@ -576,4 +576,68 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
       })
     ).toBeUndefined()
   })
+
+  it('follows a sibling whose allocated key the rename displaces', () => {
+    // A (`docs`) mounts before B (`github`); disabling B saved `mcp__github__run`. Renaming A
+    // to `github` moves the key to A and bumps B onto its id — B's denial must follow B, or
+    // B's tool executes under the identity A now owns.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__github__run', 'mcp__other__run'], {
+        mountedServers: [
+          { mcpId: 'srv-a', name: 'docs' },
+          { mcpId: 'srv-b', name: 'github' }
+        ],
+        renamedServerId: 'srv-a',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__srv-b__run', 'mcp__other__run'])
+  })
+
+  it('migrates the renamed server and a displaced sibling in one pass', () => {
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__docs__x', 'mcp__github__run'], {
+        mountedServers: [
+          { mcpId: 'srv-a', name: 'docs' },
+          { mcpId: 'srv-b', name: 'github' }
+        ],
+        renamedServerId: 'srv-a',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__github__x', 'mcp__srv-b__run'])
+  })
+
+  it('rewrites a hashed plain-key entry onto the 50-char stripped base of the new allocation', () => {
+    // A 53-char lowercase tool truncates before the hash (`mcp__docs__` + 39 chars + `_hash`).
+    // Carrying the fragment into the longer `github` prefix matches neither the new runtime
+    // name nor its stripped base; the copy must land on the truncated 50-char base the runtime
+    // indexes for the renamed pair.
+    const entry = `mcp__docs__${'a'.repeat(39)}_4f7413c24ae4`
+    expect(
+      migrateAgentDisabledToolsForServerRename([entry], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
+        renamedServerId: 'srv-1',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toEqual([entry, `mcp__github__${'a'.repeat(37)}_4f7413c24ae4`])
+  })
+
+  it('rewrites a displaced sibling hashed entry onto the sibling stripped base', () => {
+    // B's denial was saved under a hashed runtime name keyed `github`; when A takes the key,
+    // the copy must follow B's id key, not stay on A's new name.
+    const entry = 'mcp__github__run_4f7413c24ae4'
+    expect(
+      migrateAgentDisabledToolsForServerRename([entry], {
+        mountedServers: [
+          { mcpId: 'srv-a', name: 'docs' },
+          { mcpId: 'srv-b', name: 'github' }
+        ],
+        renamedServerId: 'srv-a',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toEqual([entry, 'mcp__srv-b__run_4f7413c24ae4'])
+  })
 })
