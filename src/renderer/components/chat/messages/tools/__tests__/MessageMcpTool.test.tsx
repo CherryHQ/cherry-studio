@@ -251,6 +251,25 @@ describe('MessageMcpTool', () => {
     expect(await screen.findByRole('img')).toHaveAttribute('src', 'data:image/png;base64,aW1hZ2U=')
     expect(screen.queryByText('"https://example.com/result.webp"')).not.toBeInTheDocument()
   })
+  it('previews a large URL array inside an MCP text block without exceeding the argument limit', async () => {
+    const user = userEvent.setup()
+    const urls = Array.from({ length: 200000 }, (_, index) => `https://example.com/large-mcp/${index}`)
+    render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'done',
+          response: { content: [{ type: 'text', text: JSON.stringify(urls) }] }
+        })}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: /CherryBrowser : execute/ }))
+    expect(await screen.findByText('Omitted: 199980')).toBeInTheDocument()
+    expect(screen.getAllByRole('link')).toHaveLength(20)
+    expect(screen.getByRole('link', { name: urls[0] })).toHaveAttribute('href', urls[0])
+    expect(screen.getByRole('link', { name: urls[19] })).toHaveAttribute('href', urls[19])
+    expect(screen.queryByRole('link', { name: urls[20] })).not.toBeInTheDocument()
+  })
+
   it('caps previews across MCP blocks and reports the omitted count', async () => {
     const user = userEvent.setup()
     render(

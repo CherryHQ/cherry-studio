@@ -41,8 +41,9 @@ function extractMcpContent(
   for (const item of result.data.content) {
     if (item.type === 'text' && item.text) {
       const textLinks = getToolResultLinks(item)
-      if (textLinks) links.push(...textLinks)
-      else textParts.push(item.text)
+      if (textLinks) {
+        for (const link of textLinks) links.push(link)
+      } else textParts.push(item.text)
     } else if (item.type === 'image' && item.data) {
       images.push({ data: item.data, mimeType: item.mimeType ?? 'image/png' })
     } else if (item.type === 'resource_link') {

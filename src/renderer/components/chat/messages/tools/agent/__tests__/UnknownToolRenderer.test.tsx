@@ -82,6 +82,18 @@ describe('UnknownToolRenderer', () => {
     )
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
+  it('previews a large URL array inside an MCP text block without exceeding the argument limit', () => {
+    const urls = Array.from({ length: 200000 }, (_, index) => `https://example.com/large-agent/${index}`)
+    render(
+      <Harness toolName="mcp__images__generate" output={{ content: [{ type: 'text', text: JSON.stringify(urls) }] }} />
+    )
+    expect(screen.getByText('Omitted: 199980')).toBeInTheDocument()
+    expect(screen.getAllByRole('link')).toHaveLength(20)
+    expect(screen.getByRole('link', { name: urls[0] })).toHaveAttribute('href', urls[0])
+    expect(screen.getByRole('link', { name: urls[19] })).toHaveAttribute('href', urls[19])
+    expect(screen.queryByRole('link', { name: urls[20] })).not.toBeInTheDocument()
+  })
+
   it('bounds a large URL array before creating preview requests', () => {
     const output = Array.from({ length: 20000 }, (_, index) => `https://example.com/budget/${index}`)
     render(<Harness toolName="lookup" output={output} />)

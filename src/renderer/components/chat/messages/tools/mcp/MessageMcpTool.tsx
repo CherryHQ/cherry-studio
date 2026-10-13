@@ -208,7 +208,7 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
           if (content.text) {
             const textLinks = getToolResultLinks(content)
             if (textLinks) {
-              links.push(...textLinks)
+              for (const link of textLinks) links.push(link)
               break
             }
             try {
