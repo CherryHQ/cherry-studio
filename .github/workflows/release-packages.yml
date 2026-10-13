@@ -74,6 +74,8 @@ jobs:
         uses: changesets/action@v2
         with:
           create-github-releases: false
+          # Keep CLI tag events for publish outputs, but reserve remote tags for desktop releases.
+          push-git-tags: false
           publish-script: pnpm changeset:publish
           version-script: pnpm changeset:version
           commit-message: "chore: version packages"

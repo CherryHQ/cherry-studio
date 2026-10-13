@@ -82,7 +82,7 @@ function collectRestoreTargets(): Promise<{ targets: CleanupTarget[]; issues: Ca
 
 export async function inspectOrphanedData(): Promise<CacheCleanupSizeSnapshot> {
   const [fileReport, knowledgePlan, restorePlan, failedRestorePlan] = await Promise.all([
-    application.get('FileManager').inspectOrphanFiles(),
+    application.get('FileManager').inspectOrphanFiles({ bypassSafetyThreshold: true }),
     collectOrphanKnowledgeTargets(),
     collectRestoreTargets(),
     collectFailedRestoreTargets()
@@ -140,7 +140,7 @@ async function removeOrphanKnowledgeTarget(target: OrphanKnowledgeTarget): Promi
 
 export async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
   const [fileReport, knowledgePlan, restorePlan, failedRestorePlan] = await Promise.all([
-    application.get('FileManager').cleanupOrphanFiles(),
+    application.get('FileManager').cleanupOrphanFiles({ bypassSafetyThreshold: true }),
     collectOrphanKnowledgeTargets(),
     collectRestoreTargets(),
     collectFailedRestoreTargets()
