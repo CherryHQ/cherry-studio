@@ -80,6 +80,7 @@ export type GoalErrorCode =
   | 'not_human_turn'
   | 'no_capacity'
   | 'invalid_action'
+  | 'in_subagent'
 
 export class GoalError extends Error {
   constructor(
