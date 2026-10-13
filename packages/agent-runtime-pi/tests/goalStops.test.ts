@@ -1,7 +1,21 @@
+import { Type } from '@earendil-works/pi-ai'
+import { defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { goalPort, goalSession, lastSnapshot, notices, promptIdle, rounds, toolCall, working } from './goalSupport'
-import { finish, MODEL } from './support'
+import {
+  askAtTurnEnd,
+  goalPort,
+  goalSession,
+  lastSnapshot,
+  notices,
+  promptIdle,
+  rounds,
+  roundStart,
+  say,
+  toolCall,
+  working
+} from './goalSupport'
+import { finish, MODEL, textParts } from './support'
 import { textOf, toolResults } from './toolResults'
 
 describe('goal caps and budgets', () => {
@@ -92,6 +106,140 @@ describe('goal caps and budgets', () => {
       maxGoalRounds: 2,
       roundsStarted: 2,
       lastStop: { code: 'round_limit' }
+    })
+  })
+})
+
+const readTool = defineTool({
+  name: 'read',
+  label: 'Read',
+  description: 'Reads a file',
+  parameters: Type.Object({ path: Type.String() }),
+  async execute(_id, params) {
+    return { content: [{ type: 'text', text: `contents of ${params.path}` }], details: undefined }
+  }
+})
+const echoTool = defineTool({
+  name: 'echo',
+  label: 'Echo',
+  description: 'Returns its input',
+  parameters: Type.Object({ value: Type.String() }),
+  async execute(_id, params) {
+    return { content: [{ type: 'text', text: params.value }], details: undefined }
+  }
+})
+
+describe('goal no-progress detection', () => {
+  // Breaks when a read counts as progress: the goal would run to its cap.
+  it('hints after two rounds without progress and stops after the third when every round only reads', async () => {
+    const {
+      session: s,
+      host,
+      calls
+    } = await goalSession(
+      [
+        (prompt, call) =>
+          roundStart(prompt) === undefined
+            ? say('I read the file.')
+            : [toolCall(`r${call}`, 'read', { path: 'a.md' }), finish('tool-calls')]
+      ],
+      goalPort({ defaults: { maxGoalRounds: 10 } }),
+      { tools: [readTool] }
+    )
+    await promptIdle(s, '/goal Keep working')
+
+    // Round 1's reply is new; rounds 2-4 repeat it.
+    expect(rounds(host.entries).map((round) => round.kind)).toEqual(['work', 'work', 'work', 'hint'])
+    const hint = calls.find((call) => roundStart(call.prompt) === 4)!
+    expect(JSON.stringify(hint.prompt.at(-1))).toContain('The previous 2 rounds made no observable progress')
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'blocked',
+      roundsStarted: 4,
+      progressRounds: 1,
+      lastStop: { code: 'no_progress' }
+    })
+  })
+
+  // Breaks when a successful echo does not count, or a progressing round does not clear the count.
+  it('a round with a successful non-read call clears the count', async () => {
+    const { session: s, host } = await goalSession(
+      [
+        (prompt, call) =>
+          (roundStart(prompt) ?? 1) % 3 === 0
+            ? [toolCall(`e${call}`, 'echo', { value: 'x' }), finish('tool-calls')]
+            : say('nothing new')
+      ],
+      goalPort({ defaults: { maxGoalRounds: 7 } }),
+      { tools: [echoTool] }
+    )
+    await promptIdle(s, '/goal Keep working')
+
+    // Rounds 3 and 6 echo; rounds 4 and 5 make none, so round 6 is a hint.
+    expect(rounds(host.entries).map((round) => round.kind)).toEqual([
+      'work',
+      'work',
+      'work',
+      'work',
+      'work',
+      'hint',
+      'wrap-up'
+    ])
+    expect(lastSnapshot(host.entries)).toMatchObject({ progressRounds: 3, lastStop: { code: 'round_limit' } })
+  })
+
+  // Breaks when a human turn does not start the count over (spec §6.1): round 4 would be a hint and
+  // the goal would stop with no_progress after it.
+  it('a user message taken in between rounds starts the count over', async () => {
+    const {
+      session: s,
+      host,
+      calls
+    } = await goalSession([() => say('nothing new')], goalPort({ defaults: { maxGoalRounds: 5 } }))
+    askAtTurnEnd(s, 3)
+    await promptIdle(s, '/goal Keep working')
+
+    // Rounds 2 and 3 repeat round 1's reply; the question comes after round 3, rounds 4 and 5 repeat it again.
+    expect(calls.map((call) => roundStart(call.prompt))).toEqual([1, 2, 3, undefined, 4, 5])
+    expect(rounds(host.entries).map((round) => round.kind)).toEqual(['work', 'work', 'work', 'work', 'wrap-up'])
+    expect(lastSnapshot(host.entries)).toMatchObject({ progressRounds: 1, lastStop: { code: 'round_limit' } })
+  })
+
+  // Breaks when a reply cut off by the output limit counts as progress (spec §7.2): its text changes every round.
+  it('a reply cut off by the output limit is not progress', async () => {
+    const { session: s, host } = await goalSession(
+      [(_prompt, call) => [...textParts('t', `part ${call}`), finish('length')]],
+      goalPort({ defaults: { maxGoalRounds: 10 } })
+    )
+    await promptIdle(s, '/goal Keep working')
+
+    expect(rounds(host.entries).map((round) => round.kind)).toEqual(['work', 'work', 'hint'])
+    expect(lastSnapshot(host.entries)).toMatchObject({ progressRounds: 0, lastStop: { code: 'no_progress' } })
+  })
+
+  // Breaks when the repeat count restarts every turn instead of every round: no call is ever blocked.
+  it('blocks the third identical call in a round with a hint and ends the goal after the fifth', async () => {
+    const {
+      session: s,
+      host,
+      calls
+    } = await goalSession(
+      // The reply after call 8 keeps a broken implementation from reading forever.
+      [
+        (_prompt, call) =>
+          call <= 8 ? [toolCall(`r${call}`, 'read', { path: 'same.md' }), finish('tool-calls')] : say('giving up')
+      ],
+      goalPort({ defaults: { maxGoalRounds: 10 } }),
+      { tools: [readTool] }
+    )
+    await promptIdle(s, '/goal Keep working')
+
+    const reads = toolResults(s).filter((result) => result.toolName === 'read')
+    expect(reads.map((result) => result.isError)).toEqual([false, false, true, true, true])
+    expect(textOf(reads[2])).toMatch(/already been executed in this round/)
+    expect(calls).toHaveLength(5)
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      roundsStarted: 1,
+      lastStop: { code: 'no_progress', message: 'the same read call was repeated 5 times' }
     })
   })
 })

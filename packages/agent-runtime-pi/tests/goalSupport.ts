@@ -160,6 +160,15 @@ export async function promptIdle(session: AgentSession, text: string) {
   await session.waitForIdle()
 }
 
+/** Queues a user message at the `turn`th turn end (from 1); Pi takes it in within the same run. */
+export function askAtTurnEnd(session: AgentSession, turn: number) {
+  let turns = 0
+  session.subscribe((event) => {
+    if (event.type !== 'turn_end' || ++turns !== turn) return
+    void session.prompt('a question from the user', { streamingBehavior: 'followUp' })
+  })
+}
+
 /**
  * The transcript of a session cut off while round 1 of `/goal <objective>` waits for the model, as an
  * app crash leaves it: the goal is active and that round admitted.

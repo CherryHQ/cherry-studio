@@ -30,7 +30,8 @@ import {
   resumeGoal,
   type RoundDetails,
   stopGoal,
-  tailRound
+  tailRound,
+  toolCallKey
 } from './goalState'
 import type { ConversationModelMessage } from './modelMessages'
 
@@ -75,6 +76,9 @@ const NUMBER = /^-?\d+(?:\.\d+)?$/
 /** Rounds without progress before a hint round, and before the goal stops (spec §7.2). */
 const HINT_AFTER_ROUNDS = 2
 const STOP_AFTER_ROUNDS = 3
+/** Identical calls in one round before they are blocked, and before the goal stops (spec §7.2). */
+const BLOCK_REPEAT_AT = 3
+const STOP_REPEAT_AT = 5
 
 const text = (value: string) => ({ type: 'text' as const, text: value })
 const hasText = (value: string | undefined): value is string => typeof value === 'string' && value.trim().length > 0
@@ -476,6 +480,25 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
         admit(message.details as RoundDetails)
     })
 
+    pi.on('tool_call', (event) => {
+      if (!runtime.goal || !runtime.inGoalRound || event.parentToolCallId !== undefined) return undefined
+      const key = toolCallKey(event.toolName, event.input)
+      const count = runtime.repeat.key === key ? runtime.repeat.count + 1 : 1
+      runtime.repeat = { key, count }
+      if (count < BLOCK_REPEAT_AT) return undefined
+      if (count >= STOP_REPEAT_AT)
+        runtime.stopRequest = {
+          code: 'no_progress',
+          message: `the same ${event.toolName} call was repeated ${count} times`
+        }
+      return {
+        block: true,
+        reason:
+          'The same call has already been executed in this round and its result will not change; change approach or report the concrete blocker.',
+        terminate: count >= STOP_REPEAT_AT
+      }
+    })
+
     pi.on('turn_end', (event) => {
       if (!runtime.goal || !runtime.inGoalRound || event.message.role !== 'assistant') return
       const { usage } = event.message
@@ -490,7 +513,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
         if (isProgressResult(result)) runtime.round.toolProgress = true
       }
       const reply = assistantText(event.message)
-      if (reply) runtime.round.text = reply
+      // A reply cut off by the output limit shows nothing about progress (spec §7.2).
+      if (reply && event.message.stopReason !== 'length') runtime.round.text = reply
     })
 
     pi.on('agent_before_settle', (event, ctx) => {
