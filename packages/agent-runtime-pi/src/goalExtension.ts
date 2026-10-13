@@ -38,6 +38,7 @@ import {
   toolCallKey
 } from './goalState'
 import { type ConversationModelMessage, toModelMessages } from './modelMessages'
+import { isSubagentSession } from './subagent'
 
 export interface GoalApprovalEvent {
   kind: 'pending' | 'granted' | 'denied' | 'unavailable'
@@ -149,6 +150,8 @@ interface Runtime {
   pendingUsage: { tokens: number; usd: number }
   /** A goal round was admitted since the goal was last armed (spec §6.2 step 6). */
   roundAdmitted: boolean
+  /** This is a subagent's session: the goal belongs to the main agent (spec §8.4). */
+  inSubagent: boolean
 }
 
 /**
@@ -157,7 +160,18 @@ interface Runtime {
  */
 export function createGoalExtension(port: GoalPort): ExtensionFactory {
   return (pi) => {
-    if (!port.modelSupportsTools()) return
+    if (!port.modelSupportsTools()) {
+      // Spec §8.3: no tools and no command; an active goal on the branch records why nothing continues.
+      pi.on('session_start', (_event, ctx) => {
+        const goal = currentGoal(ctx.sessionManager.getBranch())
+        if (goal?.phase === 'active')
+          pi.appendEntry(
+            GOAL_STATE_TYPE,
+            stopGoal(goal, { code: 'unsupported_model', message: 'the current model has no tool calling' }, Date.now())
+          )
+      })
+      return
+    }
 
     const runtime: Runtime = {
       goal: undefined,
@@ -171,7 +185,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       stopRequest: undefined,
       blocked: { round: 0, count: 0 },
       pendingUsage: { tokens: 0, usd: 0 },
-      roundAdmitted: false
+      roundAdmitted: false,
+      inSubagent: false
     }
     const limits = () => ({
       maxGoalRounds: port.defaults.maxGoalRounds,
@@ -247,6 +262,13 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       return true
     }
 
+    const requireMainAgent = () => {
+      if (runtime.inSubagent)
+        throw new GoalError(
+          'in_subagent',
+          'Goals belong to the main agent; a subagent cannot read or change them. Finish the task you were given and report back.'
+        )
+    }
     const requireGoal = (): GoalSnapshot => {
       if (!runtime.goal) throw new GoalError('no_goal', 'No goal is set.')
       return runtime.goal
@@ -277,7 +299,11 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
 
     let unsubscribeApproval: (() => void) | undefined
     pi.on('session_start', (_event, ctx) => {
-      runtime.goal = currentGoal(ctx.sessionManager.getBranch())
+      const entries = ctx.sessionManager.getBranch()
+      runtime.inSubagent = isSubagentSession(entries)
+      // A fork inherits the parent's goal entries; the goal stays the parent's, so this session has none.
+      if (runtime.inSubagent) return
+      runtime.goal = currentGoal(entries)
       runtime.armed = false
       runtime.inGoalRound = false
       unsubscribeApproval?.()
@@ -306,7 +332,10 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       exposure: 'model-only',
       executionMode: 'sequential',
       annotations: { readOnlyHint: true, openWorldHint: false },
-      execute: async () => ok()
+      execute: async () => {
+        requireMainAgent()
+        return ok()
+      }
     })
 
     pi.registerTool({
@@ -319,6 +348,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       executionMode: 'sequential',
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
       execute: async (_id, params, _signal, _onUpdate, ctx) => {
+        requireMainAgent()
         requireHumanTurn(ctx, 'create_goal')
         if (runtime.goal && runtime.goal.phase !== 'complete')
           throw new GoalError('goal_exists', 'A goal is already set; edit, pause or clear it first.')
@@ -346,6 +376,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       executionMode: 'sequential',
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
       execute: async (_id, params, signal, _onUpdate, ctx) => {
+        requireMainAgent()
         const goal = requireRevision(params.goal_id, params.revision)
         const extras =
           hasText(params.objective) ||
@@ -620,6 +651,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     })
 
     pi.on('agent_before_settle', (event, ctx) => {
+      if (runtime.inSubagent) return undefined
       closeRound()
       return decide(event, ctx)
     })
