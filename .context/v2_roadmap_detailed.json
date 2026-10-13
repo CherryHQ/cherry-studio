@@ -1,91 +1,180 @@
 {
-  "generated_at": "2026-10-12T18:00:00Z",
+  "generated_at": "2026-10-13T00:00:00Z",
+  "date": "2026-10-13",
   "v2_branch_status": {
-    "open_prs": 0,
-    "merged_prs_30d": 0,
-    "note": "No PRs currently targeting the v2 base branch. Active development is on main."
+    "open_prs_targeting_v2": 0,
+    "merged_prs_last_30d": "not fetched (GraphQL unavailable)",
+    "note": "No open PRs found targeting the v2 base branch. Feature development is currently on main and named feature branches."
   },
-  "v2_labeled_open_issues": [
+  "active_feature_branches": [
+    "codex/voice-renderer-foundation (3 PRs)",
+    "SiinXu/media-ffmpeg-linux-runtime (2 PRs)",
+    "codex/voice-runtime-foundation (2 PRs)",
+    "orca/media-analysis-integration (2 PRs)",
+    "orca/chat-media-fallback-integration (1 PR)",
+    "codex/voice-funasr-runtime (1 PR)",
+    "codex/voice-primary-consumers (1 PR)",
+    "feature/agent-runtime-subagent (1 PR)",
+    "feature/agent-runtime-todo-ask-user (1 PR)",
+    "feature/agent-runtime-ai-sdk-bridge (1 PR)",
+    "feature/agent-runtime-transcript-context (1 PR)",
+    "DeJeune/native-tool-search-code-mode (1 PR)"
+  ],
+  "v2_tagged_p1_bugs": [
     {
-      "number": 19753,
-      "title": "DeepSeek Harness runtime repeatedly crashes during Agent sessions",
-      "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
-      "created_at": "2026-08-30",
-      "comments": 15,
-      "priority": "P1 -- Critical stability"
-    },
-    {
-      "number": 20937,
-      "title": "DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
-      "labels": ["bug", "p1", "windows", "v2", "agent"],
-      "created_at": "2026-09-22",
-      "comments": 2,
-      "priority": "P1 -- Critical stability"
-    },
-    {
-      "number": 20941,
-      "title": "Work and Agent conversations terminate with an empty no-response error",
-      "labels": ["bug", "p1", "v2", "agent", "chat"],
-      "created_at": "2026-09-22",
-      "comments": 4,
-      "priority": "P1 -- Critical UX"
-    },
-    {
-      "number": 20940,
-      "title": "Responses API stream events fail client TypeValidation and abort the turn",
-      "labels": ["bug", "p1", "models", "v2", "chat"],
-      "created_at": "2026-09-22",
-      "comments": 2,
-      "priority": "P1 -- Critical"
+      "number": 21418,
+      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename \"Local Storage\"); b",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "data",
+        "v2"
+      ],
+      "assignees": [
+        "DeJeune"
+      ],
+      "updated_at": "2026-10-13T11:31:36Z"
     },
     {
       "number": 21085,
-      "title": "File/KB scopes inline large tool schemas, can overflow context",
-      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
-      "created_at": "2026-09-26",
-      "comments": 6,
-      "priority": "P1 -- Performance/reliability"
+      "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
+      "labels": [
+        "bug",
+        "p1",
+        "rag",
+        "assistant",
+        "performance",
+        "v2",
+        "chat"
+      ],
+      "assignees": [
+        "404-Page-Found"
+      ],
+      "updated_at": "2026-09-27T21:15:39Z"
     },
     {
-      "number": 21051,
-      "title": "Windows restore fails with EPERM renaming Local Storage after restart",
-      "labels": ["bug", "p2", "windows", "data", "v2"],
-      "created_at": "2026-09-25",
-      "comments": 6,
-      "priority": "P2 -- Data safety"
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "labels": [
+        "bug",
+        "p1",
+        "v2",
+        "agent",
+        "chat"
+      ],
+      "assignees": [],
+      "updated_at": "2026-09-22T17:31:00Z"
     },
     {
-      "number": 20028,
-      "title": "Managed update feed remains on 2.0.9 after newer production releases",
-      "labels": ["bug", "p2", "v2"],
-      "created_at": "2026-09-05",
-      "comments": 12,
-      "priority": "P2 -- Distribution"
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "v2",
+        "chat"
+      ],
+      "assignees": [],
+      "updated_at": "2026-09-22T16:32:21Z"
+    },
+    {
+      "number": 20937,
+      "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "v2",
+        "agent"
+      ],
+      "assignees": [],
+      "updated_at": "2026-09-22T16:32:14Z"
+    },
+    {
+      "number": 20374,
+      "title": "Unable to read Word and PDF documents",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-repro",
+        "data",
+        "v2"
+      ],
+      "assignees": [
+        "zhangjiadi225"
+      ],
+      "updated_at": "2026-09-11T08:00:58Z"
+    },
+    {
+      "number": 20027,
+      "title": "Explain and recover when all generated images are filtered as invalid",
+      "labels": [
+        "bug",
+        "p1",
+        "ui-ux",
+        "models",
+        "v2"
+      ],
+      "assignees": [
+        "SiinXu"
+      ],
+      "updated_at": "2026-09-05T09:56:26Z"
+    },
+    {
+      "number": 20021,
+      "title": "Local OCR and embedding fail when onnxruntime_binding.node cannot initialize on Windows",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "rag",
+        "v2",
+        "ocr"
+      ],
+      "assignees": [],
+      "updated_at": "2026-09-14T11:02:08Z"
+    },
+    {
+      "number": 19929,
+      "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "v2",
+        "agent"
+      ],
+      "assignees": [
+        "404-Page-Found"
+      ],
+      "updated_at": "2026-09-20T07:39:25Z"
+    },
+    {
+      "number": 19753,
+      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "needs-repro",
+        "v2",
+        "agent"
+      ],
+      "assignees": [],
+      "updated_at": "2026-09-29T02:10:41Z"
     }
   ],
-  "voice_feature_branches": [
-    "codex/voice-runtime-foundation",
-    "codex/voice-renderer-foundation",
-    "codex/voice-funasr-runtime",
-    "codex/voice-primary-consumers"
+  "v2_theme_inferred": [
+    "Voice/Media pipeline: FFmpeg runtime packaging, audio preprocessing, FunASR, voice renderer",
+    "Agent Runtime: subagent, transcript context, AI SDK bridge, tool-call ask-user",
+    "Chat media fallback: orca integration",
+    "P1 v2 bugs: Restore/data corruption, Knowledge Base context overflow, empty responses, DSH bridge failures, Responses API stream failures"
   ],
-  "active_feature_branches": [
-    "feature/agent-runtime-ai-sdk-bridge",
-    "feature/agent-runtime-transcript-context",
-    "feat/qwencloud-intl",
-    "DeJeune/native-tool-search-code-mode"
-  ],
-  "upcoming_features_tracked": [
-    {"number": 15244, "title": "Cherry CLI -- Terminal Tool with Full GUI Feature Parity", "priority": "Long-term"},
-    {"number": 15340, "title": "Marketplace Connectors -- Third-Party Integrations via OAuth or MCP", "priority": "Long-term"},
-    {"number": 19772, "title": "Remember or configure default MCP selection for new Assistants", "priority": "P2"},
-    {"number": 19441, "title": "Video generation feature", "priority": "P1"},
-    {"number": 21060, "title": "Per-call settle step when tool answers HTTP 402 Payment Required", "priority": "Medium"}
-  ],
-  "v2_blockers": [
-    "P1: DeepSeek harness crash on Windows Agent sessions (#19753)",
-    "P2: Windows restore EPERM on Local Storage rename (#21051)",
-    "P2: Update feed stuck at 2.0.9 (#20028)"
-  ],
-  "summary": "V2 foundation merged into main. Voice feature development active across 4 branches. 7 open issues labeled v2 including 4 P1 bugs (Agent stream failures, DSH EPERM, context overflow). 86 open PRs on main covering agent, voice, provider, and UI work. No PRs targeting v2 base branch."
+  "notes": [
+    "v2 branch itself has no open PRs — all v2 work is in named feature branches merging to main",
+    "10 open P1 bugs are tagged v2, indicating v2-specific regressions not yet resolved",
+    "Voice and media pipeline appears to be the primary active feature area (7 PRs across 4 branches)"
+  ]
 }

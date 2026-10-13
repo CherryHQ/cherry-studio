@@ -1,111 +1,184 @@
 {
-  "generated_at": "2026-10-12T18:00:00Z",
-  "summary": {
-    "total_open": 1145,
-    "total_closed_30d": 263,
-    "resolution_velocity_per_day": 8.8,
-    "backlog_burn_rate_days": 130
+  "generated_at": "2026-10-13T00:00:00Z",
+  "date": "2026-10-13",
+  "scope": "P1 issues only (full corpus scan not available — scripts not yet initialized)",
+  "total_open_issues": 1152,
+  "p1_health_distribution": {
+    "Active": 4,
+    "Aging": 25,
+    "Stale": 21,
+    "Zombie": 0,
+    "Unknown": 0
   },
-  "health_categories": {
-    "note": "Health classified by days since last update; estimated from 1145 open issues",
-    "Active": {"threshold": "< 7 days", "estimated_count": 120, "pct": 10.5},
-    "Aging": {"threshold": "7-30 days", "estimated_count": 500, "pct": 43.7},
-    "Stale": {"threshold": "30-90 days", "estimated_count": 380, "pct": 33.2},
-    "Zombie": {"threshold": "> 90 days", "estimated_count": 145, "pct": 12.7}
+  "health_definition": {
+    "Active": "Updated within last 7 days",
+    "Aging": "Updated 7-30 days ago",
+    "Stale": "Updated 30-90 days ago",
+    "Zombie": "Updated 90+ days ago, still open"
   },
-  "label_health": {
-    "unlabeled_pct": 38,
-    "needs_triage_count": 8,
-    "p1_open": 50,
-    "p2_open": 16,
-    "inactive_labeled": 5
-  },
-  "top_areas_by_open_bugs": [
-    {"area": "agent", "bug_count": 18, "p1_count": 8},
-    {"area": "windows", "bug_count": 14, "p1_count": 6},
-    {"area": "models", "bug_count": 12, "p1_count": 5},
-    {"area": "mcp", "bug_count": 8, "p1_count": 2},
-    {"area": "chat", "bug_count": 8, "p1_count": 3},
-    {"area": "ui-ux", "bug_count": 7, "p1_count": 1}
-  ],
-  "p1_bugs_requiring_action": [
+  "top_p1_active": [
+    {
+      "number": 21418,
+      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename",
+      "updated_at": "2026-10-13T11:31:36Z",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "data",
+        "v2"
+      ]
+    },
     {
       "number": 20692,
-      "title": "Agent compaction summary leaks into chat transcript",
-      "age_days": 25,
-      "comments": 17,
-      "labels": ["bug", "p1", "agent"],
-      "status": "Active - high engagement"
+      "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a norm",
+      "updated_at": "2026-10-08T18:05:27Z",
+      "labels": [
+        "bug",
+        "p1",
+        "agent"
+      ]
     },
     {
-      "number": 21085,
-      "title": "File/KB scopes inline large tool schemas, can overflow context",
-      "age_days": 16,
-      "comments": 6,
-      "labels": ["bug", "p1", "rag", "performance", "v2", "chat"],
-      "status": "Active"
+      "number": 20343,
+      "title": "Configured OCR fallback fails for image input on non-vision models",
+      "updated_at": "2026-10-13T11:18:41Z",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "models",
+        "chat"
+      ]
     },
     {
-      "number": 19753,
-      "title": "DeepSeek Harness crashes during Agent sessions",
-      "age_days": 43,
-      "comments": 15,
-      "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
-      "status": "Aging - needs repro"
-    },
-    {
-      "number": 20315,
-      "title": "DSH bridge fails loading cordis:include",
-      "age_days": 32,
-      "comments": 6,
-      "labels": ["bug", "p1", "windows", "mcp", "agent"],
-      "status": "Aging"
-    },
-    {
-      "number": 18373,
-      "title": "Data directory relocation leaves stale absolute paths in DB",
-      "age_days": 62,
-      "comments": 8,
-      "labels": ["bug", "p1", "windows", "data"],
-      "status": "Stale"
-    },
-    {
-      "number": 18765,
-      "title": "Agent sends wrong max_tokens to OpenAI-compatible gateways",
-      "age_days": 56,
-      "comments": 5,
-      "labels": ["bug", "p1", "models", "agent"],
-      "status": "Stale"
-    },
-    {
-      "number": 19578,
-      "title": "Linux arm64 window continuously flickers",
-      "age_days": 46,
-      "comments": 1,
-      "labels": ["bug", "p1", "needs-more-info", "linux", "ui-ux"],
-      "status": "Stale - needs more info"
+      "number": 19797,
+      "title": "[Feature]:  voice models",
+      "updated_at": "2026-10-12T03:57:33Z",
+      "labels": [
+        "p1"
+      ]
     }
   ],
-  "recurring_themes": [
-    "Backup/restore failures on Windows (EPERM, Local Storage rename) — #21051, #21418, #21199",
-    "Agent session stability (crashes, compaction leaks, corrupt sessions)",
-    "MCP tool integration issues (auth, UUID naming, bridge failures)",
-    "Model compatibility issues (max_tokens, tool-call support, API routing)",
-    "FTS/SQLite cleanup not happening on delete operations",
-    "PDF translation/processing failures (NO_PROXY hardcoding, timeout on image PDFs)"
+  "top_p1_zombie": [
+    {
+      "number": 20476,
+      "title": "DeepSeek chat content can be serialized with an incomplete hex escape",
+      "updated_at": "2026-09-12T18:36:43Z",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "models",
+        "chat"
+      ]
+    },
+    {
+      "number": 20460,
+      "title": "[Bug]: Volcano responses with reasoning_content break tool_calls parsing",
+      "updated_at": "2026-09-12T12:40:31Z",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ]
+    },
+    {
+      "number": 20374,
+      "title": "Unable to read Word and PDF documents",
+      "updated_at": "2026-09-11T08:00:58Z",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-repro",
+        "data",
+        "v2"
+      ]
+    },
+    {
+      "number": 20361,
+      "title": "[Bug]: All conversation tools report No tools are available on one Windows PC",
+      "updated_at": "2026-09-10T15:26:46Z",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent"
+      ]
+    },
+    {
+      "number": 20338,
+      "title": "[Bug]: Mac OS系统下，编程搭档启动失败",
+      "updated_at": "2026-09-10T16:40:08Z",
+      "labels": [
+        "bug",
+        "p1",
+        "macos",
+        "code-mate"
+      ]
+    },
+    {
+      "number": 20265,
+      "title": "[Bug] Agent session white screen crash: TypeError: text.includes is not a functi",
+      "updated_at": "2026-09-09T16:34:55Z",
+      "labels": [
+        "bug",
+        "p1",
+        "linux",
+        "data",
+        "ui-ux",
+        "agent"
+      ]
+    },
+    {
+      "number": 20231,
+      "title": "[Feature]: Pin managed tool versions to Cherry Studio releases and support rollb",
+      "updated_at": "2026-09-10T16:38:38Z",
+      "labels": [
+        "p1",
+        "feature",
+        "needs-triage",
+        "agent",
+        "code-mate"
+      ]
+    },
+    {
+      "number": 20217,
+      "title": "[Bug]: Selection Assistant reports insufficient balance while using a built-in f",
+      "updated_at": "2026-09-08T09:02:45Z",
+      "labels": [
+        "bug",
+        "p1",
+        "assistant",
+        "selection-assistant"
+      ]
+    },
+    {
+      "number": 20216,
+      "title": "[Bug]: Nano Banana image generation builds an invalid /v1beta1/images/generation",
+      "updated_at": "2026-09-08T09:01:26Z",
+      "labels": [
+        "bug",
+        "p1",
+        "models"
+      ]
+    },
+    {
+      "number": 20097,
+      "title": "[Bug]: Windows cannot stop the managed DeepSeek Harness process tree cleanly",
+      "updated_at": "2026-09-11T08:27:02Z",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent"
+      ]
+    }
   ],
-  "triage_candidates": [
-    {"number": 21541, "title": "PDF translation always fails — NodeProxyController hardcodes [::1] into NO_PROXY", "suggested": "p2", "reason": "Affects all PDF translation on Windows"},
-    {"number": 21512, "title": "Concurrent external file renames can overwrite content before rollback", "suggested": "p1", "reason": "Data loss risk"},
-    {"number": 21473, "title": "Restore rollback cleanup deletes unrecovered original resources", "suggested": "p1", "reason": "Data loss risk"},
-    {"number": 21428, "title": "Deleting chats never reclaims FTS index", "suggested": "p2", "reason": "DB grows unboundedly"}
-  ],
-  "recommendations": [
-    "URGENT: 50 open P1 issues — triage the ~30 unassigned ones for ownership",
-    "New today: #21541 (PDF translation NO_PROXY hardcoding) needs p2 label and immediate investigation",
-    "Address: Windows restore/backup failures appearing repeatedly (#21051, #21418, #21199 — #21199 closed today)",
-    "Investigate: FTS dead-data accumulation (#21428) assigned to DeJeune — confirm status",
-    "Labeling sweep needed: 38% of top-200 issues still have no labels",
-    "38 PRs older than 14 days need review — oldest is 101 days (#16688)"
+  "notes": [
+    "Full corpus health analysis requires complete issue fetch (1152 issues, 12 pages)",
+    "P1 health computed from 50 P1 issues fetched via search API",
+    "Unlabeled issues tracked separately — unclassified estimate pending full scan"
   ]
 }
