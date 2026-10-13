@@ -169,6 +169,17 @@ describe('planAnalysisFrameTimestamps', () => {
     ).toEqual([0, 2_950])
   })
 
+  it('retains the start, a cut one scan sample later, and the end of a six-second clip', () => {
+    expect(
+      planAnalysisFrameTimestamps({
+        durationMs: 6_000,
+        maxFrames: 24,
+        targetIntervalMs: 4_000,
+        sceneChanges: [{ timestampMs: 125, score: 1 }]
+      })
+    ).toEqual([0, 125, 5_950])
+  })
+
   it('moves an earlier uniform anchor onto a cut in the same scan sample', () => {
     const timestamps = planAnalysisFrameTimestamps({
       durationMs: 16_000,
