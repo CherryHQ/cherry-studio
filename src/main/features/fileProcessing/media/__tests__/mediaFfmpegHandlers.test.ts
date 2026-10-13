@@ -989,6 +989,114 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     expect(existsSync(pidRegistryPath)).toBe(false)
   })
 
+  it('keeps a fractional-PTS white frame through detect, plan, extract, and dedup', async () => {
+    const cutPath = join(root, 'fractional-pts-white.mov')
+    // Frames 57–59 would be the first 8 Hz bucket-5 samples and would hide the white frame.
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=black:s=64x64:r=90:d=4',
+        '-vf',
+        "format=rgb24,geq=r='255':g='if(eq(N,60),255,0)':b='if(eq(N,60),255,0)',select='not(between(n,57,59))',settb=1/90000",
+        '-fps_mode',
+        'vfr',
+        '-c:v',
+        'ffv1',
+        '-pix_fmt',
+        'bgr0',
+        '-video_track_timescale',
+        '90000',
+        cutPath
+      ])
+    ).toBe(0)
+    const probed = JSON.parse(
+      spawnSync(
+        ffprobePath,
+        [
+          '-v',
+          'error',
+          '-select_streams',
+          'v:0',
+          '-show_entries',
+          'stream=time_base:packet=pts,pts_time',
+          '-of',
+          'json',
+          cutPath
+        ],
+        { encoding: 'utf8' }
+      ).stdout
+    ) as { streams: Array<{ time_base?: string }>; packets: Array<{ pts: string; pts_time: string }> }
+    const whitePacket = probed.packets.find((packet) => String(packet.pts) === '60000')
+    const nextPacket = probed.packets.find((packet) => String(packet.pts) === '61000')
+    expect(probed.streams[0]?.time_base).toBe('1/90000')
+    expect(whitePacket?.pts_time).toBe('0.666667')
+    expect(Number(nextPacket?.pts_time)).toBeGreaterThan(0.667)
+
+    const probe = await mediaFfmpegHandlers.probe({ filePath: cutPath, fallbackExt: 'mov' }, context())
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(
+      {
+        filePath: cutPath,
+        durationMs: probe.durationMs,
+        sampleFps: SCENE_SAMPLE_FPS,
+        scoreThreshold: SCENE_SCORE_THRESHOLD,
+        scanEdgePx: SCENE_SCAN_EDGE_PX,
+        maxCandidates: 32
+      },
+      context()
+    )
+    const planned = planAnalysisFrameTimestamps({
+      durationMs: probe.durationMs,
+      maxFrames: 24,
+      targetIntervalMs: 4_000,
+      sceneChanges: detected.changes
+    })
+    const scene = detected.changes.find((change) => change.score > 0)
+    const extracted = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: cutPath,
+        outputDir: join(root, 'fractional-pts-frames'),
+        timestampsMs: planned,
+        maxEdgePx: 160,
+        jpegQuality: 70
+      },
+      context()
+    )
+    const sceneFrame = extracted.frames.find((frame) => frame.timestampMs === scene?.timestampMs)
+    const signatures = await Promise.all(extracted.frames.map((frame) => readFrameSignature(frame.path)))
+    const kept = selectDistinctFrameIndexes(signatures, FRAME_SIMILARITY_MAD_THRESHOLD)
+    const keptColors = kept.map((index) => averageColor(extracted.frames[index].path))
+    const opening = signatures[0]
+    const sceneIndex = sceneFrame == null ? -1 : extracted.frames.indexOf(sceneFrame)
+    const sceneSignature = sceneIndex < 0 ? undefined : signatures[sceneIndex]
+    const evidence = JSON.stringify({
+      timeBase: probed.streams[0]?.time_base,
+      whitePtsTime: whitePacket?.pts_time,
+      durationMs: probe.durationMs,
+      detected: detected.changes,
+      planned,
+      extracted: extracted.frames.map((frame) => ({
+        timestampMs: frame.timestampMs,
+        color: averageColor(frame.path)
+      })),
+      kept: kept.map((index) => extracted.frames[index]?.timestampMs),
+      keptColors
+    })
+
+    expect(scene, evidence).toBeDefined()
+    expect(planned, evidence).toContain(scene?.timestampMs)
+    expect(scene && scene.timestampMs <= 666, evidence).toBe(true)
+    expect(sceneFrame, evidence).toBeDefined()
+    expect(sceneFrame ? averageColor(sceneFrame.path) : 'missing', evidence).toBe('white')
+    expect(keptColors, evidence).toContain('white')
+    expect(opening, evidence).toBeInstanceOf(Uint8Array)
+    expect(sceneSignature, evidence).toBeInstanceOf(Uint8Array)
+    if (opening instanceof Uint8Array && sceneSignature instanceof Uint8Array) {
+      expect(meanAbsoluteDifference(sceneSignature, opening), evidence).toBeGreaterThan(40)
+    }
+  })
+
   function runFfmpeg(args: string[]): number | null {
     return spawnSync(ffmpegPath, ['-hide_banner', '-nostdin', '-y', ...args], { encoding: 'utf8' }).status
   }

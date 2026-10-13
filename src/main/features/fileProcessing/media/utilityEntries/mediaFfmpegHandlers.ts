@@ -520,7 +520,8 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
         onStderrLine: (line) => {
           const time = /pts_time:\s*([0-9]*\.?[0-9]+)/.exec(line)
           if (time?.[1]) {
-            timestampMs = Math.round(Number(time[1]) * 1000)
+            // Floor so a seek cannot start after the frame that produced this PTS.
+            timestampMs = Math.floor(Number(time[1]) * 1000)
             return
           }
           const score = /lavfi\.scene_score=\s*([0-9]*\.?[0-9]+)/.exec(line)
