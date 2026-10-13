@@ -267,12 +267,20 @@ describe('subagent', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const host = recordingSubagentPort()
+    const summarizedSessions: string[] = []
     const { session } = await createTestSession({
       port: streamTextPort(model).port,
       tools: [noteTool],
       subagents: host.port,
       // Threshold 32_000 - 16_384 tokens: the second reply crosses it and the compaction folds the first.
-      compaction: { reserveTokens: 16_384, keepRecentTokens: 1, summarize: async () => 'Summary of earlier work.' }
+      compaction: {
+        reserveTokens: 16_384,
+        keepRecentTokens: 1,
+        summarize: async ({ sessionId }) => {
+          summarizedSessions.push(sessionId)
+          return 'Summary of earlier work.'
+        }
+      }
     })
 
     await session.prompt(DELEGATE_A)
@@ -283,6 +291,8 @@ describe('subagent', () => {
     const result = toolResultOf(session, 'call_a')
     expect(result.content).toEqual([{ type: 'text', text: 'REPORT-A' }])
     expect(result.usage?.totalTokens).toBe(112 + 20_022 + 112)
+    expect(summarizedSessions).toEqual([host.subagents[0].sessionId])
+    expect(summarizedSessions[0]).not.toBe(session.sessionId)
   })
 
   it('answers AskUserQuestion inside a subagent as unavailable without asking the host', async () => {
