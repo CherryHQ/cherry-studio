@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -171,41 +171,88 @@ describe('QuickAssistantView', () => {
     )
   })
 
-  it('temporarily expands the transparent window while the quick panel is visible', async () => {
-    const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
-    const { container, rerender } = render(<QuickAssistantView draggable={false} />)
+  const lastSetView = () =>
+    runtime.ipcRequest.mock.calls.filter(([route]) => route === 'quick_assistant.set_view').at(-1)?.[1]
+  const passthroughCalls = () =>
+    runtime.ipcRequest.mock.calls
+      .filter(([route]) => route === 'quick_assistant.set_pointer_passthrough')
+      .map(([, input]) => input)
 
-    await waitFor(() =>
-      expect(runtime.ipcRequest).toHaveBeenLastCalledWith('quick_assistant.set_view', {
-        view: 'bar',
-        contentHeight: 135,
-        animate: true
-      })
-    )
+  it('grows an opaque bar for the quick panel in one step and shrinks it back the same way', async () => {
+    // Off macOS the frame is opaque, so the bar must be exactly its content; a tweened
+    // grow repaints the bottom-anchored composer a step behind every move.
+    platform.isMac = false
+    const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
+    const { rerender } = render(<QuickAssistantView draggable={false} />)
+    await waitFor(() => expect(lastSetView()).toEqual({ view: 'bar', contentHeight: 135, animate: true }))
 
     runtime.quickPanelVisible = true
     rerender(<QuickAssistantView draggable={false} />)
-
-    await waitFor(() =>
-      expect(runtime.ipcRequest).toHaveBeenLastCalledWith('quick_assistant.set_view', {
-        view: 'quick-panel',
-        contentHeight: 560,
-        animate: true
-      })
-    )
-    expect(container.querySelector('[data-ui="quick-assistant.view"]')).toHaveClass('justify-end')
+    await waitFor(() => expect(lastSetView()).toEqual({ view: 'quick-panel', contentHeight: 560, animate: false }))
 
     runtime.quickPanelVisible = false
     rerender(<QuickAssistantView draggable={false} />)
-
-    await waitFor(() =>
-      expect(runtime.ipcRequest).toHaveBeenLastCalledWith('quick_assistant.set_view', {
-        view: 'bar',
-        contentHeight: 135,
-        animate: true
-      })
-    )
+    await waitFor(() => expect(lastSetView()).toEqual({ view: 'bar', contentHeight: 135, animate: false }))
     offsetHeight.mockRestore()
+  })
+
+  it('keeps the macOS bar at overlay height so opening the quick panel never resizes it', async () => {
+    const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
+    const { rerender } = render(<QuickAssistantView draggable={false} />)
+    await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'bar', contentHeight: 560 }))
+
+    runtime.quickPanelVisible = true
+    rerender(<QuickAssistantView draggable={false} />)
+    await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'quick-panel', contentHeight: 560 }))
+    offsetHeight.mockRestore()
+  })
+
+  it('makes room for an open popover but not for a tooltip', async () => {
+    platform.isMac = false
+    const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
+    render(<QuickAssistantView draggable={false} />)
+    await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'bar', contentHeight: 135 }))
+
+    // The assistant/model pickers and the response-settings popover all portal here.
+    const tooltip = document.createElement('div')
+    tooltip.setAttribute('data-radix-popper-content-wrapper', '')
+    tooltip.innerHTML = '<span role="tooltip">hint</span>'
+    // act() flushes the observer's state update, so a wrong reaction would be visible here.
+    await act(async () => {
+      document.body.appendChild(tooltip)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+    expect(lastSetView()).toMatchObject({ view: 'bar' })
+
+    const popover = document.createElement('div')
+    popover.setAttribute('data-radix-popper-content-wrapper', '')
+    document.body.appendChild(popover)
+    await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'quick-panel', contentHeight: 560 }))
+
+    popover.remove()
+    tooltip.remove()
+    await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'bar', contentHeight: 135 }))
+    offsetHeight.mockRestore()
+  })
+
+  it('lets clicks through only over the transparent macOS headroom', () => {
+    const { container } = render(<QuickAssistantView draggable={false} />)
+    const root = container.querySelector('[data-ui="quick-assistant.view"]') as HTMLElement
+
+    fireEvent.mouseMove(root)
+    fireEvent.mouseMove(screen.getByRole('textbox', { name: 'message' }))
+    fireEvent.mouseMove(root)
+
+    expect(passthroughCalls()).toEqual([{ passThrough: true }, { passThrough: false }, { passThrough: true }])
+  })
+
+  it('never lets clicks through the opaque bar off macOS', () => {
+    platform.isMac = false
+    const { container } = render(<QuickAssistantView draggable={false} />)
+
+    fireEvent.mouseMove(container.querySelector('[data-ui="quick-assistant.view"]') as HTMLElement)
+
+    expect(passthroughCalls()).toEqual([])
   })
 
   it('summons as one row and expands the composer only after its editor is focused', async () => {

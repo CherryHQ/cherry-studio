@@ -19,5 +19,8 @@ export const quickAssistantHandlers: IpcHandlersFor<typeof quickAssistantRequest
   },
   'quick_assistant.set_view': async (input) => {
     application.get('QuickAssistantService').setView(input)
+  },
+  'quick_assistant.set_pointer_passthrough': async ({ passThrough }) => {
+    application.get('QuickAssistantService').setPointerPassthrough(passThrough)
   }
 }

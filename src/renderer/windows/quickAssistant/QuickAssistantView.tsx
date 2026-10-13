@@ -41,6 +41,25 @@ type QuickWindowView = QuickView | 'quick-panel'
 const prefersReducedMotion = () =>
   typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+/** Whether a popover (assistant/model picker, response settings…) is open in this window. */
+function useFloatingOverlayOpen(): boolean {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    // Radix portals every popover in a popper wrapper; tooltips share it but need no room.
+    const update = () =>
+      setOpen(
+        [...document.querySelectorAll('[data-radix-popper-content-wrapper]')].some(
+          (wrapper) => !wrapper.querySelector('[role="tooltip"]')
+        )
+      )
+    const observer = new MutationObserver(update)
+    observer.observe(document.body, { childList: true, subtree: true })
+    update()
+    return () => observer.disconnect()
+  }, [])
+  return open
+}
+
 const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const { t } = useTranslation()
   const [assistantId, setAssistantId] = usePreference('feature.quick_assistant.assistant_id')
@@ -52,6 +71,8 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
   const [conversationControlsSnapshot, setConversationControlsSnapshot] =
     useState<ChatConversationControlsSnapshot | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const floatingOverlayOpen = useFloatingOverlayOpen()
 
   // The bar carries its own assistant picker, so there is no model-only mode to fall back
   // to — an install that has never picked one starts on the first assistant, exactly like
@@ -81,15 +102,39 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
     setIsPinnedState(next)
   }, [])
 
-  const windowView: QuickWindowView = view === 'panel' ? 'panel' : quickPanel.isVisible ? 'quick-panel' : 'bar'
+  const windowView: QuickWindowView =
+    view === 'panel' ? 'panel' : quickPanel.isVisible || floatingOverlayOpen ? 'quick-panel' : 'bar'
+  const lastWindowViewRef = useRef(windowView)
 
   const applyViewHeight = useCallback((next: QuickWindowView, barHeight: number) => {
+    const previous = lastWindowViewRef.current
+    lastWindowViewRef.current = next
     void ipcApi.request('quick_assistant.set_view', {
       view: next,
-      contentHeight: next === 'bar' ? barHeight : PANEL_HEIGHT_PX,
-      animate: !prefersReducedMotion()
+      // macOS keeps the overlay headroom even as a bar (clicks there pass through), so
+      // opening a menu or popover never resizes the window under the composer.
+      contentHeight: next === 'bar' && !isMac ? barHeight : PANEL_HEIGHT_PX,
+      // A tweened grow repaints the bottom-anchored composer a step behind each move.
+      animate: !prefersReducedMotion() && next !== 'quick-panel' && previous !== 'quick-panel'
     })
   }, [])
+
+  // macOS only: the headroom is transparent, so only the root itself may let clicks through.
+  useEffect(() => {
+    if (!isMac || view === 'panel') return
+    let passThrough: boolean | null = null
+    const apply = (next: boolean) => {
+      if (next === passThrough) return
+      passThrough = next
+      void ipcApi.request('quick_assistant.set_pointer_passthrough', { passThrough: next })
+    }
+    const onMouseMove = (event: MouseEvent) => apply(event.target === rootRef.current)
+    document.addEventListener('mousemove', onMouseMove)
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      apply(false)
+    }
+  }, [view])
 
   // The bar grows with the draft, so its height is measured rather than assumed.
   useEffect(() => {
@@ -205,6 +250,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
   return (
     <MessageEditingProvider>
       <div
+        ref={rootRef}
         data-ui="quick-assistant.view"
         className={cn(
           'flex h-full w-full flex-col overflow-hidden',
@@ -304,7 +350,8 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
           {view === 'bar' && composerEngaged && (
             <div
               data-ui="quick-assistant.contextbar"
-              className="flex h-10 items-center gap-1.5 overflow-hidden px-3 [&_button]:h-7 [&_button]:px-1.5">
+              // The bar's only grip: the composer card is no-drag and the rest is headroom.
+              className="flex h-10 items-center gap-1.5 overflow-hidden px-3 [-webkit-app-region:drag] [&_button]:h-7 [&_button]:px-1.5 [&_button]:[-webkit-app-region:no-drag]">
               {renderConversationControls('top')}
             </div>
           )}

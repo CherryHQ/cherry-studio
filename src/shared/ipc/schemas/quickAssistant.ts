@@ -19,7 +19,7 @@ export const quickAssistantRequestSchemas = {
    * (the composer grows with the draft) and the reduced-motion decision; main owns
    * work-area clamping and the tween. `view` tells main which height to restore when
    * the user drags the window (only the conversation panel height is remembered).
-   * `quick-panel` is the transient transparent space needed by composer tool menus.
+   * `quick-panel` is the transient space a tool menu or popover needs above the bar.
    */
   'quick_assistant.set_view': defineRoute({
     input: z.object({
@@ -27,6 +27,14 @@ export const quickAssistantRequestSchemas = {
       contentHeight: z.number().int().positive(),
       animate: z.boolean()
     }),
+    output: z.void()
+  }),
+  /**
+   * macOS only: the bar window keeps transparent headroom above its card, and clicks there
+   * must reach whatever is behind it. The renderer hit-tests; main forwards hover meanwhile.
+   */
+  'quick_assistant.set_pointer_passthrough': defineRoute({
+    input: z.object({ passThrough: z.boolean() }),
     output: z.void()
   })
 }

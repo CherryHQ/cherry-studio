@@ -438,6 +438,12 @@ export class QuickAssistantService extends BaseService implements Activatable {
     this.startViewTween(window, from, to)
   }
 
+  /** Let clicks on the bar's transparent headroom fall through, while still receiving hover. */
+  public setPointerPassthrough(passThrough: boolean): void {
+    if (!isMac) return
+    this.getQuickAssistant()?.setIgnoreMouseEvents(passThrough, { forward: true })
+  }
+
   /** Clamp a requested content height into the window's current display work area. */
   private resolveBoundsForHeight(window: BrowserWindow, contentHeight: number): Rectangle {
     const bounds = window.getBounds()
