@@ -238,14 +238,16 @@ interface CopyStatistics {
 | `cancel(copyId)` | 停止派发，发 abort，等待原生任务结束后回收；ready 时返回 `already-published`，不删除成果 |
 | `registerWorkspacePath(input)` | 路径注册命令的业务入口；规范化、身份校验和临时租约在此协调，再调用工作区数据事务；不在 DataApi 内执行文件 I/O |
 | `remove(copyId, expectedRevision)` | 条件进入 deleting，检查完整引用，脱离 cwd 后删除；幂等；busy 时返回引用信息 |
-| `recoverPending()` | 只处理本表记录的未完成操作；可重复执行；身份或存储状态不明则保留并标记 blocked |
+| `recoverPending()` | 处理本表记录的未完成创建、删除及 failed/cancelled 的 pending 清理；可重复执行；身份或存储状态不明则保留并标记 blocked |
 | `pauseAdmission()` / `drain()` | 为关闭和备份提供持有式门禁与有界等待；不得只检查一次 Map 长度 |
 | `copyWorkspaceTree(input, context)` | 输入已验证路径、策略、signal、全局限流器和进度回调；返回统计及校验清单；失败前等待已派发 I/O 全部 settle |
 | `copyWorkspaceFile(src, dst)` | 固定优先克隆并按白名单降级；返回 `cloned` 或 `copied` 及原因，不提供业务策略开关 |
 
-数据服务公开 `reserveTx`、`recordOwnershipTx`、`markPreparedTx`、`publishTx`、`beginDeleteTx`、`finishDeleteTx`、`recordFailureTx`、`get`、`list`。所有 Tx 方法同步、接收 `DbOrTx`，返回条件更新结果；状态不符不能无条件覆盖。`recordOwnershipTx` 只在 creating 时首次填充目录身份，不覆盖已有值；`publishTx` 自己验证 prepared 状态、revision、身份字段完整和预留目标，外部不能直接 UPDATE 该表。
+数据服务公开 `reserveTx`、`recordOwnershipTx`、`markPreparedTx`、`publishTx`、`beginDeleteTx`、`finishDeleteTx`、`recordFailureTx`、`recordCleanupTx`、`get`、`list`。所有 Tx 方法同步、接收 `DbOrTx`，返回条件更新结果；状态不符不能无条件覆盖。`recordOwnershipTx` 只在 creating 时首次填充目录身份，不覆盖已有值；`publishTx` 自己验证 prepared 状态、revision、身份字段完整和预留目标，外部不能直接 UPDATE 该表。
 
 `startCreate` 的“同步准入”指进入后台任务前先完成数据库预留，方法仍可返回 Promise；调用方收到 copyId 时必须已经可以查询记录。状态只沿 creating → prepared → ready → deleting → removed 前进，creating/prepared 可进入 failed/cancelled。失败资源的清理通过 cleanup 状态追踪，不把失败操作改成一次成功创建。
+
+未发布操作失败或取消且有资源待回收时，`recordFailureTx` 必须在首次文件清理前原子写入 failed/cancelled 与 `cleanup=pending`；只有确认未创建资源时才可直接记录 `cleanup=none`。写入者全部结束后才能清理；清理成功通过 `recordCleanupTx` 条件更新为 none，可重试的清理失败保留 pending，身份或存储状态不明则 blocked。该方法只更新 cleanup、cleanupReason 及 revision，保留原来的 failed/cancelled 状态和首次业务错误。
 
 cancel 对 failed/cancelled 幂等返回原结果；对 ready 返回 already-published；对 deleting/removed 返回当前状态且不撤销删除。取消创建和中止删除是不同的产品操作，首版不提供后者。
 
@@ -407,9 +409,9 @@ metadata 可能漏掉某些时间戳未反映的修改；即使增加内容哈�
 
 现有“移除工作区”仍处理会话与数据库关系，不顺带删项目文件；如果涉及副本，文件记录保留为可查询成果。新增“删除副本文件”明确显示目标目录与不可恢复后果，只有用户显式请求才调用 copy.remove。它不增加默认自动删除或按天回收。
 
-删除协议：检查记录、manifest、父级、容器根与项目树身份 → 事务检查所有引用，并在同一同步准入步骤检查租约、条件进入 deleting → 改名前重新验证 project 身份，将其改名为 project.disposal → 确认 disposal 仍匹配 projectIdentity → 递归删除 disposal → 验证剩余仅为自己创建的控制文件 → 清理资源根 → 事务标记 removed。deleting 是持久删除授权，改名进度由实际路径和身份确认，不再双写清单阶段。ready → deleting 要求 expectedRevision 匹配；已 deleting 的重试加入同一清理，已 removed 返回原成功结果，不创建新的删除任务。
+删除协议：检查记录、manifest、父级、容器根与项目树身份 → 事务检查所有引用，并在同一同步准入步骤检查租约、条件进入 deleting → 改名前重新验证 project 身份，将其改名为 project.disposal → 确认 disposal 仍匹配 projectIdentity → 递归删除 disposal → 检查剩余内容并逐项核验、删除本次创建的控制文件 → 非递归 `rmdir` 资源根 → 事务标记 removed。deleting 是持久删除授权，改名进度由实际路径和身份确认，不再双写清单阶段。ready → deleting 要求 expectedRevision 匹配；已 deleting 的重试加入同一清理，已 removed 返回原成功结果，不创建新的删除任务。
 
-如果资源根出现不认识的额外用户文件，不递归删除整个资源根；保留并报告 blocked。删除部分完成可重试，仍保持 deleting 并禁止新引用。对只读属性和短暂 Windows sharing violation 只做有界、可取消重试；无法处理则持久化 pending，不阻塞应用退出。已有 source/user/system 根永不成为本服务的 rm 目标。
+资源根始终禁止递归删除，发布前失败回滚和启动恢复也遵守同一规则；递归删除仅限身份已核验、获准回收的项目树。如果发现未知对象，或检查后有新文件进入导致 `rmdir` 返回 `ENOTEMPTY`，保留资源根并标记 blocked，不能改用递归 rm 或扩大删除范围。删除部分完成可重试，仍保持 deleting 并禁止新引用。对只读属性和短暂 Windows sharing violation 只做有界、可取消重试；无法处理则持久化 pending，不阻塞应用退出。已有 source/user/system 根永不成为本服务的 rm 目标。
 
 路径字符串、token 和 `lstat` 组合能处理常规误移动、替换和恢复错误；不能阻止具有同等文件权限的恶意进程在检查后改名。父级为当前用户控制的目录，关键阶段重新验证身份，歧义时停止；需要抵抗恶意重解析竞态时，应先扩展原生层的句柄相对操作，本阶段不做该安全承诺。
 
@@ -417,18 +419,19 @@ metadata 可能漏掉某些时间戳未反映的修改；即使增加内容哈�
 
 | 持久状态与证据 | 恢复动作 |
 | --- | --- |
-| creating/prepared，目标业务未发布，目录身份可信 | 不恢复源复制；进入失败或取消终态并回收本次资源 |
+| creating/prepared，目标业务未发布，目录身份可信 | 不恢复源复制；原子记录 failed/cancelled 与 cleanup=pending，再回收本次资源 |
+| failed/cancelled，cleanup=pending | 确认写入者已结束并核验所有权后继续清理；成功只将 cleanup 改为 none，保留原终态与错误。资源根已不存在时，必须确认父级可访问、卷在线且路径确实不存在才能完成清理 |
 | fork 消费者且发布事务已提交 | ready 与会话原子存在，保留项目；fork 自己恢复 SDK 资源 |
 | ready，容器根、project 与所有权清单匹配 | 保留成果；清单无业务阶段，不需要发布后的修补 |
 | ready，目录丢失或磁盘离线 | 展示不可用；不自动新建、迁移或删除记录，等待存储恢复 |
 | deleting，project 仍在 | 核对删除授权、容器根、projectIdentity 和引用后继续脱离；异常则 blocked |
 | deleting，只有可信 disposal | 验证其匹配 projectIdentity 后继续清理；重新出现的 project 不被删除，并阻止资源根清理 |
-| deleting，容器根可信且 project/disposal 均已不存在 | 在父级可访问且卷在线时检查剩余控制文件，再完成资源根清理；未知对象使清理 blocked |
+| deleting，容器根可信且 project/disposal 均已不存在 | 在父级可访问且卷在线时逐项核验、删除剩余控制文件，再非递归 rmdir 资源根；未知对象或 ENOTEMPTY 使清理 blocked |
 | deleting，整个资源根不在 | 只有确认父级可访问、卷在线且路径确实不存在才完成 removed；离线不能当删除成功 |
 | DB 与 manifest/token/身份冲突 | 保留全部对象，标记 blocked，提供诊断和显式人工处理入口 |
 | 磁盘有目录但本 DB 没有对应记录 | 不扫盘自动导入或删除；这是未知资源 |
 
-恢复只访问记录中的确切资源根，不递归扫描整个用户项目或应用数据目录。多个恢复请求串行或合并，同一 copyId 与正常操作共用门禁。已有 ready 工作区可先使用，待恢复副本则在该副本门禁完成前拒绝访问；路径重叠检查读取完整记录，不能忽略正在恢复的行。
+恢复查询必须包含 creating/prepared、deleting，以及 failed/cancelled 且 cleanup=pending 的记录，不能仅按创建状态排除终态。cleanup=blocked 的记录保留诊断；只有阻塞原因解除并重新核验后才重试清理。恢复只访问记录中的确切资源根，不递归扫描整个用户项目或应用数据目录。多个恢复请求串行或合并，同一 copyId 与正常操作共用门禁。已有 ready 工作区可先使用，待恢复副本则在该副本门禁完成前拒绝访问；路径重叠检查读取完整记录，不能忽略正在恢复的行。
 
 备份与数据目录迁移需扩展现有 quiesce 协议：阻止新复制、fork 和删除，等待当前任务 settle，再快照数据库。放在项目旁的副本默认不在 userData 备份范围内；备份必须明确列为外部文件资源。还原到新机器时先标记位置待验证，旧路径不能自动授权删除新机器的同名目录。
 
@@ -480,7 +483,9 @@ Electron 原生模块必须针对运行环境正确构建与打包；Node 下的
 | 发布事务 | SDK 失败、源消息变化、DB 提交失败不会留下可选的半成品工作区；提交后通知失败仍能查询成功 |
 | 删除门禁 | 回收站会话、任务、渠道、别名工作区、源复制租约均阻止删除；异步路径注册与 deleting 只能一方成功；旧 DataApi POST 无法绕过命令层 |
 | 所有权 | 外层根与 manifest 不变而 project 被替换时阻止使用和删除；partial/project/disposal 改名身份连续；未知对象、清单损坏和离线卷不触发错误删除；资源根外哨兵文件始终不变 |
+| 资源根收尾 | 显式删除、失败回滚和恢复时，在目录检查后、rmdir 前插入未知文件；必须保留该文件和资源根并标记 blocked，不递归兜底 |
 | 崩溃恢复 | 在预留、mkdir、清单写、复制、rename、prepared、DB commit、detach、rm 后逐点中断；重启结果符合恢复矩阵 |
+| 终态清理恢复 | 原子写入 failed/cancelled 与 cleanup=pending 后、清理过程中及文件清理完成但尚未更新 cleanup 时中断；重启继续清理或核实已清理，原终态与首次业务错误不变；离线、身份不明或未知文件仍保留资源 |
 | 数据迁移 | 已有 user/system 工作区行为不变；新表只追加迁移；解除 FK 不丢所有权记录，不级联删目录 |
 | Runtime | 三种 runtime 从新 cwd 继续对话，原 cwd 不被错误沿用；旧 shared 和系统 fork 现有测试继续通过 |
 | 安装包 | macOS/Windows x64/arm64 及产品实际 Linux 目标内加载、FORCE/fallback、长路径和跨卷；不能只测开发 Node |
