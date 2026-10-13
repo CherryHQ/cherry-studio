@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SpeechPlaybackService, type SpeechPlaybackStartInput } from '../SpeechPlaybackService'
-import { VoiceDomainError } from '../VoiceService'
+import { VoiceDomainError, type VoiceService } from '../VoiceService'
 
 const sessionId = '00000000-0000-4000-8000-000000000001'
 const requestId = '00000000-0000-4000-8000-000000000002'
@@ -24,12 +24,14 @@ class FakeAudio extends EventTarget {
 class FakeVoiceService {
   readonly events: string[] = []
   readonly initialize = vi.fn(async (): Promise<void> => undefined)
-  readonly resolveSpeechPreferences = vi.fn(async () => ({
-    modelId: 'local-voice::apple-system-tts' as const,
-    voice: 'configured-voice',
-    language: 'zh-CN',
-    speed: 0.75
-  }))
+  readonly readSpeechPreferenceInput = vi.fn(
+    async (): ReturnType<VoiceService['readSpeechPreferenceInput']> => ({
+      modelId: 'local-voice::apple-system-tts' as const,
+      voice: 'configured-voice',
+      language: 'zh-CN',
+      speed: 0.75
+    })
+  )
   readonly generateSpeech = vi.fn((input: any) => {
     const index = this.generateSpeech.mock.calls.length
     const id = input.sessionId ?? sessionId
@@ -110,7 +112,7 @@ function createHarness(options: { chunks?: string[]; audio?: FakeAudio } = {}) {
 beforeEach(() => vi.restoreAllMocks())
 
 describe('SpeechPlaybackService planning and playback', () => {
-  it.each(['resolveSpeechPreferences', 'initialize'] as const)(
+  it.each(['readSpeechPreferenceInput', 'initialize'] as const)(
     'cancels pending auto-read during %s when the preference is turned off',
     async (boundary) => {
       const { service, voice } = createHarness()
@@ -132,7 +134,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     }
   )
 
-  it.each(['initialize', 'resolveSpeechPreferences'] as const)(
+  it.each(['initialize', 'readSpeechPreferenceInput'] as const)(
     'cancels a source while waiting for %s',
     async (stage) => {
       const { service, voice } = createHarness()
@@ -149,6 +151,40 @@ describe('SpeechPlaybackService planning and playback', () => {
       expect(service.getSnapshot().phase).toBe('idle')
     }
   )
+
+  it('keeps the resolved voice for all chunks and refreshes it for the next playback', async () => {
+    const { service, voice, audios } = createHarness({ chunks: ['first', 'second'] })
+    voice.readSpeechPreferenceInput.mockResolvedValue({
+      modelId: 'local-voice::apple-system-tts',
+      language: 'zh-CN',
+      speed: 1
+    })
+    let defaultVoice = 'tingting'
+    const synthesizedVoices: string[] = []
+    voice.generateSpeech.mockImplementation((input) => {
+      const selected = input.voice || defaultVoice
+      synthesizedVoices.push(selected)
+      return {
+        sessionId,
+        requestId,
+        result: Promise.resolve({
+          sessionId,
+          requestId,
+          resolved: { modelId: 'local-voice::apple-system-tts', voice: selected, language: 'zh-CN', speed: 1 },
+          output: { id: `file-${synthesizedVoices.length}`, url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+        })
+      }
+    })
+    await service.start(baseInput)
+    defaultVoice = 'eddy'
+    audios[0].dispatchEvent(new Event('ended'))
+    await vi.waitFor(() => expect(audios).toHaveLength(2))
+    expect(synthesizedVoices).toEqual(['tingting', 'tingting'])
+    await service.stop()
+    await service.start(baseInput)
+    expect(synthesizedVoices).toEqual(['tingting', 'tingting', 'eddy'])
+    await service.stop()
+  })
 
   it('releases audio that ends before Main acknowledges playback and completes each chunk once', async () => {
     const { service, voice, audios } = createHarness({ chunks: ['first', 'second'] })
@@ -187,10 +223,10 @@ describe('SpeechPlaybackService planning and playback', () => {
   it('invalidates a start waiting for preferences when Main reports a power interruption', async () => {
     const { service, voice } = createHarness()
     let resolve!: (value: any) => void
-    voice.resolveSpeechPreferences.mockReturnValueOnce(new Promise<any>((done) => (resolve = done)))
+    voice.readSpeechPreferenceInput.mockReturnValueOnce(new Promise<any>((done) => (resolve = done)))
     const starting = service.start(baseInput)
     const aborted = expect(starting).rejects.toMatchObject({ reason: 'aborted' })
-    await vi.waitFor(() => expect(voice.resolveSpeechPreferences).toHaveBeenCalled())
+    await vi.waitFor(() => expect(voice.readSpeechPreferenceInput).toHaveBeenCalled())
 
     voice.emitInterruption()
     resolve({ modelId: 'local-voice::apple-system-tts', voice: 'configured-voice', speed: 1 })
@@ -261,13 +297,14 @@ describe('SpeechPlaybackService planning and playback', () => {
 
     await service.start(baseInput)
 
-    expect(voice.resolveSpeechPreferences).toHaveBeenCalledOnce()
+    expect(voice.readSpeechPreferenceInput).toHaveBeenCalledOnce()
     expect(voice.generateSpeech).toHaveBeenCalledWith(
       expect.objectContaining({
         modelId: 'local-voice::apple-system-tts',
         voice: 'configured-voice',
         language: 'zh-CN',
         speed: 0.75,
+        preferenceResolution: true,
         sourceEntityId: 'message-1'
       })
     )
@@ -580,7 +617,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     await service.start(baseInput)
     const originalSnapshot = service.getSnapshot()
 
-    voice.resolveSpeechPreferences.mockRejectedValueOnce(new VoiceDomainError('voice_unavailable'))
+    voice.readSpeechPreferenceInput.mockRejectedValueOnce(new VoiceDomainError('voice_unavailable'))
     await expect(service.start({ ...baseInput, sourceLabel: 'preview' })).rejects.toMatchObject({
       reason: 'voice_unavailable'
     })
@@ -669,7 +706,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
 
   it('fails with the stable missing-voice error and never selects a fallback', async () => {
     const { service, voice } = createHarness()
-    voice.resolveSpeechPreferences.mockRejectedValueOnce(new VoiceDomainError('voice_unavailable'))
+    voice.readSpeechPreferenceInput.mockRejectedValueOnce(new VoiceDomainError('voice_unavailable'))
 
     await expect(service.start(baseInput)).rejects.toMatchObject({
       reason: 'voice_unavailable'

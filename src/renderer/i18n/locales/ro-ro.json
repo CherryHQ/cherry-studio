@@ -5810,6 +5810,7 @@
   "settings.voice.resources.remove_description": "Recunoașterea cu acest model nu va fi disponibilă până la o nouă descărcare. Selecția modelului va fi păstrată.",
   "settings.voice.resources.remove_title": "Elimini modelul de recunoaștere vocală?",
   "settings.voice.speech.language": "Limba vorbirii",
+  "settings.voice.speech.language_default": "Vocea implicită a limbii · {{name}}",
   "settings.voice.speech.model": "Model vocal",
   "settings.voice.speech.sample": "Bună, aceasta este o mostră a vocii folosite pentru a citi răspunsurile.",
   "settings.voice.speech.speed": "Viteza vorbirii",

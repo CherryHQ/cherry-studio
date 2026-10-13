@@ -5810,6 +5810,7 @@
   "settings.voice.resources.remove_description": "El reconocimiento con este modelo no estará disponible hasta que lo descargues de nuevo. Se conservará tu selección.",
   "settings.voice.resources.remove_title": "¿Eliminar el modelo de reconocimiento de voz?",
   "settings.voice.speech.language": "Idioma de voz",
+  "settings.voice.speech.language_default": "Predeterminada del idioma · {{name}}",
   "settings.voice.speech.model": "Modelo de voz",
   "settings.voice.speech.sample": "Hola, esta es una muestra de la voz que lee tus respuestas.",
   "settings.voice.speech.speed": "Velocidad de voz",

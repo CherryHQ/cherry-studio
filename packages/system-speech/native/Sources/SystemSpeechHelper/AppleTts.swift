@@ -4,15 +4,21 @@ import Foundation
 enum AppleTts {
     static func installedVoices() -> [InstalledVoice] {
         AVSpeechSynthesisVoice.speechVoices()
-            .map { voice in
-                InstalledVoice(
-                    id: voice.identifier,
-                    name: voice.name,
-                    locale: voice.language,
-                    quality: voice.quality.rawValue
-                )
-            }
+            .map(installedVoice)
             .sorted { $0.id < $1.id }
+    }
+
+    static func defaultVoice(locale: String?) -> InstalledVoice? {
+        guard let voice = AVSpeechSynthesisVoice(language: locale) else { return nil }
+        if let locale, voice.language.caseInsensitiveCompare(locale) != .orderedSame { return nil }
+        guard AVSpeechSynthesisVoice.speechVoices().contains(where: { $0.identifier == voice.identifier }) else {
+            return nil
+        }
+        return installedVoice(voice)
+    }
+
+    private static func installedVoice(_ voice: AVSpeechSynthesisVoice) -> InstalledVoice {
+        InstalledVoice(id: voice.identifier, name: voice.name, locale: voice.language, quality: voice.quality.rawValue)
     }
 
     static func rate(forMultiplier multiplier: Double) throws -> Float {

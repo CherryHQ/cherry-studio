@@ -5810,6 +5810,7 @@
   "settings.voice.resources.remove_description": "Die Spracherkennung mit diesem Modell ist bis zum erneuten Download nicht verfügbar. Ihre Modellauswahl bleibt erhalten.",
   "settings.voice.resources.remove_title": "Spracherkennungsmodell entfernen?",
   "settings.voice.speech.language": "Ausgabesprache",
+  "settings.voice.speech.language_default": "Sprachstandard · {{name}}",
   "settings.voice.speech.model": "Sprachmodell",
   "settings.voice.speech.sample": "Hallo, dies ist eine Vorschau der Stimme, die Ihre Antworten vorliest.",
   "settings.voice.speech.speed": "Sprechgeschwindigkeit",

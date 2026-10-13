@@ -27,6 +27,16 @@ function response(value: unknown): string {
 }
 
 describe.skipIf(process.platform === 'win32')('SystemSpeechNativeClient with POSIX executable fixtures', () => {
+  it.each([null, { id: 'native.default', name: 'Default', locale: 'zh-CN', quality: 1 }])(
+    'decodes a native default voice or explicit absence',
+    async (voice) => {
+      const setup = await helper(response({ ok: true, value: { operation: 'resolve_voice', result: { voice } } }))
+      await expect(
+        new SystemSpeechNativeClient(setup).request({ operation: 'resolve_voice', locale: 'zh-CN' })
+      ).resolves.toEqual({ operation: 'resolve_voice', result: { voice } })
+    }
+  )
+
   it('writes the exact speech speed only to the helper stdin protocol', async () => {
     const setup = await helper('')
     const capture = join(setup.directory, 'stdin.json')

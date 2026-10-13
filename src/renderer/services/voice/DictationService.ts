@@ -52,7 +52,10 @@ interface TranscriptionResult {
 
 interface DictationVoiceService {
   initialize(): Promise<void>
-  resolveTranscriptionPreferences(): Promise<ResolvedTranscriptionPreferences>
+  readTranscriptionPreferenceInput(): Promise<ResolvedTranscriptionPreferences>
+  resolveTranscriptionPreferences(
+    captured?: ResolvedTranscriptionPreferences
+  ): Promise<ResolvedTranscriptionPreferences>
   subscribeCommands(listener: (event: VoiceCommandEvent) => void): () => void
   subscribeInterruptions(listener: () => void): () => void
   startRecording(input: StartRecordingInput): VoiceOperation<unknown>
@@ -100,7 +103,7 @@ interface ActiveDictation {
   readonly runToken: symbol
   readonly sessionId: string
   readonly target: CapturedVoiceTarget | null
-  readonly preferences: ResolvedTranscriptionPreferences
+  preferences: ResolvedTranscriptionPreferences
   readonly chunks: Blob[]
   capture?: Promise<MediaStream>
   stream?: MediaStream
@@ -234,43 +237,47 @@ export class DictationService {
     }
     if (!this.isRunCurrent(runToken, generation)) return
 
-    let preferences: ResolvedTranscriptionPreferences
-    let deviceId: string | null
+    let deviceId: string | null = null
+    let active: ActiveDictation | undefined
     try {
-      preferences = await this.voice.resolveTranscriptionPreferences()
+      const preferences = await this.voice.readTranscriptionPreferenceInput()
       deviceId = await this.readMicrophoneDeviceId()
+      if (!this.isRunCurrent(runToken, generation)) return
+      const admission = this.voice.startRecording({
+        source: 'dictation',
+        ...(target?.sourceEntityId && { sourceEntityId: target.sourceEntityId })
+      })
+      active = {
+        generation,
+        runToken,
+        sessionId: admission.sessionId,
+        target,
+        preferences,
+        chunks: []
+      }
+      this.active = active
+      await admission.result
     } catch (error) {
-      if (this.isRunCurrent(runToken, generation)) {
+      if (active && this.active === active) await this.failUnready(active, error)
+      else if (this.isRunCurrent(runToken, generation)) {
         this.publish('failed', 0, false, errorCategory(error, 'operation_failed'))
       }
       return
     }
-    if (!this.isRunCurrent(runToken, generation)) return
-
-    const admission = this.voice.startRecording({
-      source: 'dictation',
-      ...(target?.sourceEntityId && { sourceEntityId: target.sourceEntityId })
-    })
-    const active: ActiveDictation = {
-      generation,
-      runToken,
-      sessionId: admission.sessionId,
-      target,
-      preferences,
-      chunks: []
-    }
-    this.active = active
-
-    try {
-      await admission.result
-    } catch (error) {
-      if (!this.isCurrent(active)) return
-      this.active = undefined
-      this.publish('failed', 0, false, errorCategory(error, 'operation_failed'))
+    if (!active) return
+    if (this.active !== active || !this.isCurrent(active)) {
+      if (this.active === active) await this.cleanupSession(active)
       return
     }
-    if (!this.isCurrent(active)) {
-      await this.discardSession(active)
+
+    try {
+      active.preferences = await this.voice.resolveTranscriptionPreferences(active.preferences)
+    } catch (error) {
+      await this.failUnready(active, error)
+      return
+    }
+    if (this.active !== active || !this.isCurrent(active)) {
+      if (this.active === active) await this.cleanupSession(active)
       return
     }
 
@@ -483,6 +490,13 @@ export class DictationService {
       this.currentRunToken = undefined
       this.publish('idle')
     }
+  }
+
+  private async failUnready(active: ActiveDictation, error: unknown): Promise<void> {
+    if (this.active !== active) return
+    const cleanupError = await this.cleanupSession(active)
+    if (cleanupError || !this.isRunCurrent(active.runToken, active.generation)) return
+    this.publish('failed', 0, false, errorCategory(error, 'operation_failed'))
   }
 
   private finishRecovery(recovery: DictationRecovery): void {
