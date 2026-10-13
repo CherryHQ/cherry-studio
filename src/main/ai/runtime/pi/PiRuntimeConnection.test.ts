@@ -1868,6 +1868,61 @@ describe('PiRuntimeConnection', () => {
     await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('rebuild')
   })
 
+  // A manual `/compact` settles its host turn without ever calling finishPromptRun(), so a replayed
+  // compaction used to leak `replayTurnPending`. Permission mode is excluded from the connection
+  // signature, so the host kept reusing that connection and the next ordinary turn kept the frozen
+  // mode instead of the saved one — skipping approvals it should have asked for.
+  describe.each([
+    // compaction_end settles the turn; the later compact() resolve is the no-op.
+    ['a successful compaction event', { emitsEvent: true, errorMessage: undefined, compactRejects: false }],
+    // pi resolves without emitting any compaction event; the promise settles the turn.
+    ['a no-op completion', { emitsEvent: false, errorMessage: undefined, compactRejects: false }],
+    // Defensive path: compaction_end never arrived, so the rejection settles the turn itself.
+    ['a rejection with no compaction event', { emitsEvent: false, errorMessage: undefined, compactRejects: true }]
+  ])('a replayed compaction ending with %s releases the replay freeze', (_label, options) => {
+    const emitCompactionEnd = () =>
+      mocks.subscribeCb!({
+        type: 'compaction_end',
+        reason: 'manual',
+        result: { summary: 's', firstKeptEntryId: 'e' },
+        aborted: false,
+        willRetry: false,
+        errorMessage: options.errorMessage
+      } as unknown as AgentSessionEvent)
+
+    it('lets the next turn adopt a permission mode saved after the replay ended', async () => {
+      const conn = await new PiRuntimeConnection({
+        ...input,
+        permissionPolicy: { permissionMode: 'bypassPermissions', disabledTools: [] }
+      }).start()
+
+      if (options.compactRejects) mocks.compact.mockRejectedValueOnce(new Error('compact rejected'))
+      conn.send(userInput('/compact focus on the API changes'))
+      if (options.emitsEvent) emitCompactionEnd()
+      const terminals = (await collectUntilTerminal(conn.events)).filter(
+        (event) => event.type === 'turn-complete' || event.type === 'error'
+      )
+      expect(terminals).toHaveLength(1)
+      expect(terminals[0].type).toBe(options.compactRejects ? 'error' : 'turn-complete')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      // Saved after the replay ended: default mode, so the next turn's bash call must prompt again.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        instructions: 'Be helpful.',
+        configuration: { permission_mode: 'default' }
+      })
+      await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('patched')
+
+      const handler = approvalGateHandler()
+      void handler({ type: 'tool_call', toolName: 'bash', toolCallId: 'tc-next-turn', input: { command: 'ls' } }, {})
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(toolApprovalRegistry.size()).toBe(1)
+      toolApprovalRegistry.abort(SESSION_ID, 'test-boundary')
+    })
+  })
+
   it('defers a permission-mode change while streaming and applies it once idle', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     mocks.isStreaming = true
