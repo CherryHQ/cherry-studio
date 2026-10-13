@@ -2068,7 +2068,7 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'background-work-state':
         if (event.active) this.getMcpInteractionHost(entry.sessionId)
-        this.handleBackgroundWorkState(entry, event.active, connection, event.awaitingReply)
+        this.handleBackgroundWorkState(entry, event.active, connection)
         break
       case 'background-task-event':
         this.publishBackgroundTaskEvent(entry, event.data, connection)

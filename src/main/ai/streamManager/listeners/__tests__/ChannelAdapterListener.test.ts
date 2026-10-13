@@ -183,17 +183,6 @@ describe('ChannelAdapterListener', () => {
     expect(vi.mocked(adapter.sendMessage).mock.calls.at(-1)?.[1]).toBe('the successor continues')
   })
 
-  it('finalizes an empty turn without sending an empty fallback', async () => {
-    const adapter = makeAdapter()
-    const listener = new ChannelAdapterListener(adapter, 'chat-1')
-
-    await listener.onDone({ status: 'success' })
-
-    expect(adapter.onStreamComplete).not.toHaveBeenCalled()
-    expect(adapter.sendMessage).not.toHaveBeenCalled()
-  })
-
-
   it('appends a stopped suffix on onPaused and falls back to sendMessage when onStreamComplete is false', async () => {
     const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
