@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { anyFileExt } from '@renderer/utils/file'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 import { FILE_TYPE } from '@shared/types/file'
 import {
@@ -38,6 +39,9 @@ describe('useComposerFileCapabilities', () => {
       expect(result.current.canAddTextFile).toBe(true)
       expect(containsAll(result.current.supportedExts, ALL_EXTS)).toBe(true)
       expect(result.current.supportedExts).toContain('.webm')
+      // "Every file type" is the wildcard, not the modality catalogs: a format none
+      // of them lists (`.onnx`, `.dwg`, `.h5`) must attach on the agent surface too.
+      expect(result.current.supportedExts).toContain(anyFileExt)
     })
 
     it('allows common archive formats', () => {
@@ -71,6 +75,7 @@ describe('useComposerFileCapabilities', () => {
 
       expect(containsAll(result.current.supportedExts, KNOWN_MEDIA_EXTS)).toBe(true)
       expect(archiveExts.some((ext) => result.current.supportedExts.includes(ext))).toBe(false)
+      expect(result.current.supportedExts).not.toContain(anyFileExt)
     })
 
     it('accepts known audio and video when mentioned models do not all support that input', () => {
