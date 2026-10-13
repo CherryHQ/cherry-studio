@@ -1,5 +1,6 @@
-import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
+
+import type OpenAI from '@cherrystudio/openai'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import type { FileMetadata } from './file'
@@ -86,4 +87,20 @@ export interface Citation {
   showFavicon?: boolean
   type?: string
   metadata?: Record<string, any>
+}
+
+/**
+ * Load-all pagination handle for the multi-select "select all" action.
+ * Topic/agent history is cursor-paginated server-side, so select-all must
+ * page to the end (parts resident) before it can apply and export.
+ */
+export interface MessageListSelectAllPagination {
+  /** Whether older pages remain unloaded on the server. */
+  hasOlder: boolean
+  /** True while a requested load-all is still fetching older pages. */
+  isLoading: boolean
+  /** Keep auto-paginating until every page is loaded (idempotent). */
+  start: () => void
+  /** Stop an in-progress load-all, abandoning the remaining pages. */
+  stop: () => void
 }

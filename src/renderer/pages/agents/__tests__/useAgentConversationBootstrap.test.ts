@@ -1,6 +1,7 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 const mocks = vi.hoisted(() => ({
   agent: undefined as any,

@@ -1,10 +1,11 @@
 import { EventEmitter } from 'node:events'
 import type * as NodeFs from 'node:fs'
 
-import { WindowType } from '@main/core/window/types'
-import type { DetectedWindow } from '@shared/types/screenshot'
 import type { Display } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WindowType } from '@main/core/window/types'
+import type { DetectedWindow } from '@shared/types/screenshot'
 
 import type { CaptureResult, RawWindowInfo } from '../types'
 
@@ -33,6 +34,9 @@ vi.mock('../windowEnumerator', () => enumerator)
 const localModel = vi.hoisted(() => ({ isCapabilityReady: vi.fn(() => true) }))
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
+const nativeOcr = vi.hoisted(() => ({ recognize: vi.fn(), OcrAccuracy: { Accurate: 1 } }))
+vi.mock('@napi-rs/system-ocr', () => nativeOcr)
+
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────
 
 // Tags the crop with the region's x so a test can tell which request reached the
@@ -49,7 +53,7 @@ const electron = vi.hoisted(() => ({
   primaryDisplay: undefined as unknown,
   app: { getName: vi.fn(() => 'Product'), focus: vi.fn(), hide: vi.fn() },
   browserWindows: [] as unknown[],
-  clipboard: { writeImage: vi.fn() },
+  clipboard: { write: vi.fn<(items: { data: Record<string, Blob> }[]) => Promise<void>>(async () => {}) },
   dialog: { showSaveDialog: vi.fn(), showMessageBox: vi.fn() },
   // isEmpty() is what distinguishes a decoded image from the empty one
   // createFromBuffer hands back for undecodable input.
@@ -61,6 +65,9 @@ vi.mock('electron', () => ({
   app: electron.app,
   BrowserWindow: { getAllWindows: () => electron.browserWindows },
   clipboard: electron.clipboard,
+  ClipboardItem: class {
+    constructor(readonly data: Record<string, Blob>) {}
+  },
   dialog: electron.dialog,
   nativeImage: electron.nativeImage,
   protocol: { handle: vi.fn(), unhandle: vi.fn(), registerSchemesAsPrivileged: vi.fn() },
@@ -337,6 +344,7 @@ describe('ScreenshotOverlayService', () => {
     container.reset()
     platform.isMac = true
     platform.isWin = false
+    platform.isLinux = false
     platform.isDev = false
     electron.displays = []
     electron.cursorDisplay = undefined
@@ -349,6 +357,7 @@ describe('ScreenshotOverlayService', () => {
     capture.listMonitors.mockReturnValue([])
     capture.captureAllMonitors.mockReturnValue(new Map())
     localModel.isCapabilityReady.mockReturnValue(true)
+    nativeOcr.recognize.mockReset().mockResolvedValue({ text: '', confidence: 1, lines: [] })
     container.ocrInferenceService.recognize.mockResolvedValue({ text: '', lines: [] })
     startService()
   })
@@ -614,6 +623,27 @@ describe('ScreenshotOverlayService', () => {
       await service.startCapture()
 
       expect(container.openCalls.map((c) => c.id)).toEqual(['overlay-0-0', 'overlay-1920-0'])
+    })
+
+    it('matches a mixed-DPI secondary display left of the Windows primary', async () => {
+      platform.isMac = false
+      platform.isWin = true
+      electron.displays = [makeDisplay(100, 0, 0, 1920, 1080, 1.5), makeDisplay(101, -1920, 0, 1920, 1080, 1.25)]
+      electron.cursorDisplay = electron.displays[0]
+      capture.captureAllMonitors.mockReturnValue(
+        new Map([
+          [10, makeCapture(2880, 1620)],
+          [11, makeCapture(2400, 1350)]
+        ])
+      )
+      capture.listMonitors.mockReturnValue([
+        { id: 10, name: 'M1', x: 0, y: 0, width: 2880, height: 1620, scaleFactor: 1.5, isPrimary: true },
+        { id: 11, name: 'M2', x: -2400, y: 0, width: 2400, height: 1350, scaleFactor: 1.25, isPrimary: false }
+      ])
+
+      await service.startCapture()
+
+      expect(container.openCalls.map((c) => c.id)).toEqual(['overlay-0-0', 'overlay--1920-0'])
     })
 
     it('takes the reference scale factor from the primary display, not from a display at the origin', async () => {
@@ -989,23 +1019,48 @@ describe('ScreenshotOverlayService', () => {
       singleDisplaySetup()
       await service.startCapture()
 
-      service.commit({ pngBytes: PNG_BYTES })
+      await service.commit({ pngBytes: PNG_BYTES })
 
       expect(electron.nativeImage.createFromBuffer).toHaveBeenCalledWith(Buffer.from(PNG_BYTES))
-      expect(electron.clipboard.writeImage).toHaveBeenCalled()
+      // The captured bytes must reach the clipboard verbatim, tagged as a PNG.
+      const [[items]] = electron.clipboard.write.mock.calls
+      expect(Object.keys(items[0].data)).toEqual(['image/png'])
+      expect(new Uint8Array(await items[0].data['image/png'].arrayBuffer())).toEqual(PNG_BYTES)
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
     })
 
     it('still dismisses the overlays when the clipboard write throws', async () => {
       singleDisplaySetup()
       await service.startCapture()
-      electron.clipboard.writeImage.mockImplementationOnce(() => {
-        throw new Error('clipboard busy')
-      })
+      electron.clipboard.write.mockRejectedValueOnce(new Error('clipboard busy'))
 
-      service.commit({ pngBytes: PNG_BYTES })
+      await service.commit({ pngBytes: PNG_BYTES })
 
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
+    })
+
+    it('leaves a newer session alone when a slow clipboard write lands late', async () => {
+      singleDisplaySetup()
+      await service.startCapture()
+
+      let finishWrite: () => void = () => {}
+      electron.clipboard.write.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finishWrite = resolve
+        })
+      )
+      const pending = service.commit({ pngBytes: PNG_BYTES })
+
+      // Esc ends the session while the write is still in flight, and the user starts
+      // another capture. The pool hands back the same overlay, so an unguarded
+      // dismiss() from the stale commit would tear down the live session's window.
+      service.dismiss()
+      await service.startCapture()
+
+      finishWrite()
+      await pending
+
+      expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
     })
 
     it('leaves the clipboard untouched when the result bytes cannot be decoded', async () => {
@@ -1013,11 +1068,11 @@ describe('ScreenshotOverlayService', () => {
       await service.startCapture()
       electron.nativeImage.createFromBuffer.mockReturnValueOnce({ isEmpty: () => true })
 
-      service.commit({ pngBytes: new Uint8Array([1, 2]) })
+      await service.commit({ pngBytes: new Uint8Array([1, 2]) })
 
       // createFromBuffer returns an EMPTY image instead of throwing, so writing it
       // replaces the clipboard with nothing while the user is told it was copied.
-      expect(electron.clipboard.writeImage).not.toHaveBeenCalled()
+      expect(electron.clipboard.write).not.toHaveBeenCalled()
       expect(mockMainLoggerService.info).not.toHaveBeenCalledWith(expect.stringContaining('clipboard'))
       expect(mockMainLoggerService.error).toHaveBeenCalled()
     })
@@ -1168,6 +1223,71 @@ describe('ScreenshotOverlayService', () => {
   })
 
   describe('region OCR', () => {
+    beforeEach(() => {
+      platform.isMac = false
+      platform.isLinux = true
+    })
+
+    it.each(['macOS', 'Windows'])(
+      'enables %s OCR without a downloaded model and scales to the clamped crop',
+      async (os) => {
+        platform.isMac = os === 'macOS'
+        platform.isWin = os === 'Windows'
+        platform.isLinux = false
+        localModel.isCapabilityReady.mockReturnValue(false)
+        nativeOcr.recognize.mockResolvedValue({
+          text: 'native',
+          confidence: 1,
+          lines: [{ text: 'native', confidence: 1, boundingBox: { x: 0.25, y: 0.5, width: 0.5, height: 0.25 } }]
+        })
+        singleDisplaySetup()
+        await service.startCapture()
+        const initData = initDataOf('overlay-0-0')
+
+        expect(initData.ocrAvailable).toBe(true)
+        const result = await service.recognizeText('overlay-0-0', initData.mediaId, {
+          x: 1900,
+          y: 1070,
+          width: 100,
+          height: 100
+        })
+        expect(result).toEqual({
+          status: 'ok',
+          lines: [{ text: 'native', box: { x: 5, y: 5, width: 10, height: 2.5 } }]
+        })
+        expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
+      }
+    )
+
+    it('drops native OCR results after a pooled overlay starts a new session', async () => {
+      platform.isMac = true
+      platform.isLinux = false
+      let resolveOld: (result: unknown) => void = () => {}
+      let announceStart: () => void = () => {}
+      const started = new Promise<void>((resolve) => {
+        announceStart = resolve
+      })
+      nativeOcr.recognize.mockImplementationOnce(() => {
+        announceStart()
+        return new Promise((resolve) => {
+          resolveOld = resolve
+        })
+      })
+      singleDisplaySetup()
+      await service.startCapture()
+      const pending = service.recognizeText('overlay-0-0', initDataOf('overlay-0-0').mediaId, ocrRegion(1))
+      await started
+      service.dismiss()
+      await service.startCapture()
+      resolveOld({ text: 'stale', confidence: 1, lines: [] })
+
+      expect(await pending).toEqual({ status: 'rejected' })
+      expect(await service.recognizeText('overlay-0-0', initDataOf('overlay-0-0').mediaId, ocrRegion(2))).toEqual({
+        status: 'ok',
+        lines: []
+      })
+    })
+
     /** Two 1920×1080 displays side by side, each with its own capture. */
     const twoDisplaySetup = () => {
       electron.displays = [makeDisplay(1, 0, 0), makeDisplay(2, 1920, 0)]

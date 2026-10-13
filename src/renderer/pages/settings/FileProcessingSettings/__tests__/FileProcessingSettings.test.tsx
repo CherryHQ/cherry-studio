@@ -1,3 +1,10 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -9,12 +16,6 @@ import {
   type LocalModelBundleId,
   type LocalModelStatusSnapshot
 } from '@shared/data/presets/localModel'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOcrDeploymentInfo'
 import DocumentProcessingSettings from '../DocumentProcessingSettings'

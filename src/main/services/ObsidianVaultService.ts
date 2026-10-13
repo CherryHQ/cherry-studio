@@ -1,8 +1,9 @@
+import fs from 'fs'
+import path from 'path'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
-import fs from 'fs'
-import path from 'path'
 
 const logger = loggerService.withContext('ObsidianVaultService')
 interface VaultInfo {

@@ -22,10 +22,10 @@ describe('provider reasoning contracts', () => {
   })
 
   it('uses the documented DeepSeek V4 peak prices as the static catalog ceiling', () => {
-    expect(override('deepseek', 'deepseek-v4-flash').pricing).toEqual({
-      cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
-      input: { currency: 'USD', perMillionTokens: 0.44 },
-      output: { currency: 'USD', perMillionTokens: 1.32 }
+    expect(override('deepseek', 'deepseek-flash').pricing).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.006 },
+      input: { currency: 'USD', perMillionTokens: 0.3 },
+      output: { currency: 'USD', perMillionTokens: 1.2 }
     })
     expect(override('deepseek', 'deepseek-v4-pro').pricing).toEqual({
       cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
@@ -78,37 +78,32 @@ describe('provider reasoning contracts', () => {
     expect(dashscopeSupport?.controls).toEqual([{ default: 'max', kind: 'effort', values: ['none', 'max'] }])
   })
 
-  // DeepSeek publishes one effort table for every V4 SKU (thinking_mode guide), so the Flash, Vision
-  // and Pro contracts must not drift apart — and none may send `xhigh` verbatim, which DeepSeek
-  // degrades to `high`.
-  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
-    'maps %s reasoning to the official effort vocabulary',
-    (modelId) => {
-      const contracts = override('deepseek', modelId).reasoningContracts
-      const responsesWire = contracts?.['openai-responses']?.wire
-      expect(responsesWire?.off?.operations).toEqual([
-        { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
-      ])
-      expect(responsesWire?.auto?.effortMap).toEqual({
-        auto: 'high',
-        minimal: 'low',
-        low: 'low',
-        medium: 'high',
-        xhigh: 'max'
-      })
-      expect(responsesWire?.effort).toMatchObject({
-        operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
-        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-      })
-      expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
-        operations: [
-          { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-          { target: 'reasoningEffort', value: { source: 'effort' } }
-        ],
-        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-      })
-    }
-  )
+  // Both current models must translate xhigh to DeepSeek's supported max effort.
+  it.each(['deepseek-flash', 'deepseek-v4-pro'])('maps %s reasoning to the official effort vocabulary', (modelId) => {
+    const contracts = override('deepseek', modelId).reasoningContracts
+    const responsesWire = contracts?.['openai-responses']?.wire
+    expect(responsesWire?.off?.operations).toEqual([
+      { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+    ])
+    expect(responsesWire?.auto?.effortMap).toEqual({
+      auto: 'high',
+      minimal: 'low',
+      low: 'low',
+      medium: 'high',
+      xhigh: 'max'
+    })
+    expect(responsesWire?.effort).toMatchObject({
+      operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+    })
+    expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
+      operations: [
+        { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+        { target: 'reasoningEffort', value: { source: 'effort' } }
+      ],
+      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+    })
+  })
 
   // The generic deepseek wire serves deepseek-chat / deepseek-reasoner (reasoningFamilies toggle
   // models with no per-model override). The @ai-sdk/deepseek schema only accepts thinking.type
@@ -273,17 +268,6 @@ describe('provider reasoning contracts', () => {
     expect(
       override('poe', 'claude-sonnet-4-6').reasoningContracts?.['openai-chat-completions']?.wire?.effort?.operations
     ).toEqual([{ target: 'extra_body.thinking_budget', value: { source: 'budget' } }])
-  })
-
-  it('encodes Jalapeno Cloud thinking as chat_template_kwargs.thinking', () => {
-    const wire = provider('jalapeno-cloud').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
-    expect(wire?.off?.operations).toEqual([
-      { target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: false } }
-    ])
-    expect(wire?.auto?.operations).toEqual([
-      { target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: true } }
-    ])
-    expect(wire?.effort).toBeUndefined()
   })
 
   it.each(['qwen3-coder', 'qwen3-coder-next'])('does not declare a DashScope reasoning contract for %s', (modelId) => {

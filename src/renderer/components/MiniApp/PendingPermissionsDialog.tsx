@@ -1,7 +1,8 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChecklist'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChecklist'
 
 /**
  * Leaves a Cherry release added under a namespace the app declared (decision A): the

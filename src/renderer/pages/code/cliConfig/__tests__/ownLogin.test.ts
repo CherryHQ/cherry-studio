@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readOwnLoginCliConfigDraft } from '../index'
 import {

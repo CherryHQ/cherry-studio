@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { describe, expect, it } from 'vitest'
 
 import { planKnowledgeItemSource } from '../sourcePlanning'
 

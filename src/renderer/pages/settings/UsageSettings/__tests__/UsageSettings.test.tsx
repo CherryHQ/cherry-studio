@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import UsageSettings from '../UsageSettings'
 

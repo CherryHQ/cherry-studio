@@ -10,7 +10,7 @@
  * - response.content_part.added
  * - response.output_text.delta
  * - response.output_text.done
- * - response.completed
+ * - response.completed (or response.incomplete when the output was truncated)
  *
  * Output items are indexed in emission order rather than at fixed positions: a `reasoning`
  * item has to precede the `message` it belongs to, so the message item's own index is only
@@ -19,9 +19,10 @@
  * @see https://platform.openai.com/docs/api-reference/responses-streaming
  */
 
+import type { FinishReason, UIMessageChunk } from 'ai'
+
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
-import type { FinishReason, UIMessageChunk } from 'ai'
 
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
@@ -34,8 +35,8 @@ const logger = loggerService.withContext('AiSdkToOpenAiResponsesSse')
 type Response = OpenAI.Responses.Response
 type ResponseStreamEvent = OpenAI.Responses.ResponseStreamEvent
 type ResponseUsage = OpenAI.Responses.ResponseUsage
+type ResponseStatus = OpenAI.Responses.ResponseStatus
 type ResponseOutputMessage = OpenAI.Responses.ResponseOutputMessage
-type ResponseOutputText = OpenAI.Responses.ResponseOutputText
 type ResponseFunctionToolCall = OpenAI.Responses.ResponseFunctionToolCall
 type ResponseOutputItem = OpenAI.Responses.ResponseOutputItem
 type ResponseReasoningItem = OpenAI.Responses.ResponseReasoningItem
@@ -44,7 +45,10 @@ type ResponseReasoningItem = OpenAI.Responses.ResponseReasoningItem
  * Minimal response fields required for streaming.
  * Uses Pick to select only necessary fields from the full Response type.
  */
-type StreamingResponseFields = Pick<Response, 'id' | 'object' | 'created_at' | 'status' | 'model' | 'output'>
+type StreamingResponseFields = Pick<
+  Response,
+  'id' | 'object' | 'created_at' | 'status' | 'model' | 'output' | 'incomplete_details'
+>
 
 /**
  * Partial response type for streaming that includes optional usage.
@@ -57,9 +61,10 @@ type PartialStreamingResponse = StreamingResponseFields & {
 /**
  * Minimal usage type for streaming responses.
  * The SDK's ResponseUsage requires input_tokens_details and output_tokens_details,
- * but during streaming we may only have the basic token counts.
+ * but the details are only present when the usage projection carries them.
  */
-type StreamingUsage = Pick<ResponseUsage, 'input_tokens' | 'output_tokens' | 'total_tokens'>
+type StreamingUsage = Pick<ResponseUsage, 'input_tokens' | 'output_tokens' | 'total_tokens'> &
+  Partial<Pick<ResponseUsage, 'input_tokens_details' | 'output_tokens_details'>>
 
 /**
  * OpenAI Responses finish reasons
@@ -130,7 +135,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    * Cast to Response for SDK compatibility - streaming events intentionally
    * omit fields that are not available until completion.
    */
-  private buildBaseResponse(status: 'in_progress' | 'completed' | 'failed' = 'in_progress'): PartialStreamingResponse {
+  private buildBaseResponse(status: ResponseStatus = 'in_progress'): PartialStreamingResponse {
     return {
       id: `resp_${this.state.messageId}`,
       object: 'response',
@@ -138,29 +143,44 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       status,
       model: this.state.model,
       output: [],
+      incomplete_details: this.buildIncompleteDetails(),
       usage: this.buildUsage()
     }
   }
 
   /**
-   * Build usage object for streaming responses.
-   * Uses StreamingUsage which only includes basic token counts,
-   * omitting the detailed breakdowns (input_tokens_details, output_tokens_details)
-   * that are not available during streaming.
+   * Build usage object for streaming and non-streaming responses.
+   * The detailed breakdowns are forwarded only when the usage projection carries
+   * them — an absent breakdown stays absent rather than serializing as an explicit 0.
    */
   private buildUsage(): StreamingUsage {
     return {
       input_tokens: this.state.inputTokens,
       output_tokens: this.state.outputTokens,
-      total_tokens: this.state.inputTokens + this.state.outputTokens
+      total_tokens: this.state.inputTokens + this.state.outputTokens,
+      ...(this.state.cacheReadTokens !== undefined
+        ? { input_tokens_details: { cached_tokens: this.state.cacheReadTokens } }
+        : {}),
+      ...(this.state.reasoningTokens !== undefined
+        ? { output_tokens_details: { reasoning_tokens: this.state.reasoningTokens } }
+        : {})
     }
+  }
+
+  private buildIncompleteDetails(): Response['incomplete_details'] {
+    const reason = this.finishReason
+    return reason === 'max_output_tokens' || reason === 'content_filter' ? { reason } : null
+  }
+
+  private terminalStatus(): 'completed' | 'incomplete' {
+    return this.buildIncompleteDetails() ? 'incomplete' : 'completed'
   }
 
   /**
    * Build base response and cast to Response for event emission.
    * This is safe because streaming consumers expect partial data.
    */
-  private buildResponseForEvent(status: 'in_progress' | 'completed' | 'failed' = 'in_progress'): Response {
+  private buildResponseForEvent(status: ResponseStatus = 'in_progress'): Response {
     return this.buildBaseResponse(status) as Response
   }
 
@@ -286,6 +306,12 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     if (!metadata) return
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
+      this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+    }
+    if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
+      this.state.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
+    }
   }
 
   /**
@@ -533,40 +559,40 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     }
     this.emit(contentPartDoneEvent)
 
-    const completedMessage: ResponseOutputMessage = {
+    const status = this.terminalStatus()
+    const finalMessage: ResponseOutputMessage = {
       type: 'message',
       id: this.outputItemId,
-      status: 'completed',
+      status,
       role: 'assistant',
       content: [
         {
           type: 'output_text',
           text: this.textContent,
           annotations: []
-        } as ResponseOutputText
+        }
       ]
     }
-    this.outputItems.set(outputIndex, completedMessage)
+    this.outputItems.set(outputIndex, finalMessage)
 
     // Emit output_item.done
     const outputItemDoneEvent: ResponseStreamEvent = {
       type: 'response.output_item.done',
       output_index: outputIndex,
-      item: completedMessage,
+      item: finalMessage,
       sequence_number: this.nextSequence()
     }
     this.emit(outputItemDoneEvent)
 
-    // Emit response.completed
-    const completedEvent: ResponseStreamEvent = {
-      type: 'response.completed',
+    const terminalEvent: ResponseStreamEvent = {
+      type: status === 'incomplete' ? 'response.incomplete' : 'response.completed',
       response: {
-        ...this.buildResponseForEvent('completed'),
+        ...this.buildResponseForEvent(status),
         output: this.buildOutputItems()
       },
       sequence_number: this.nextSequence()
     }
-    this.emit(completedEvent)
+    this.emit(terminalEvent)
   }
 
   /**
@@ -578,11 +604,12 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       id: `resp_${this.state.messageId}`,
       object: 'response',
       created_at: this.createdAt,
-      status: 'completed',
+      status: this.terminalStatus(),
       model: this.state.model,
       // `finalizeEvents()` runs before this on the non-streaming path, so every item
       // (reasoning, function calls, message) has already landed in `outputItems`.
       output: this.buildOutputItems(),
+      incomplete_details: this.buildIncompleteDetails(),
       usage: this.buildUsage()
     }
 

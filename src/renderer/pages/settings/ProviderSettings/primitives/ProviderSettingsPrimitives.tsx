@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
+
 import Scrollbar from '@renderer/components/Scrollbar'
 import { cn } from '@renderer/utils/style'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { ReactNode } from 'react'
 
 import { providerSettingsTypography } from './classNames'
 
@@ -40,7 +41,7 @@ export function ProviderSettingsContainer({
 export function ProviderSettingsSubtitle({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={cn('mt-4 select-none font-semibold text-foreground', providerSettingsTypography.subtitle, className)}>
+      className={cn('mt-4 font-semibold text-foreground select-none', providerSettingsTypography.subtitle, className)}>
       {children}
     </div>
   )

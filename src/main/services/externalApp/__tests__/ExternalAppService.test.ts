@@ -1,5 +1,6 @@
 import type * as NodeFs from 'node:fs'
 
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -39,7 +40,7 @@ vi.mock('../defaultApplication', () => ({
 
 describe('ExternalAppService', () => {
   beforeEach(() => {
-    vi.resetModules()
+    MockMainCacheServiceUtils.resetMocks()
     vi.clearAllMocks()
     mocks.statSync.mockReturnValue({ isDirectory: () => false })
     mocks.isSafeExternalUrl.mockReturnValue(true)
@@ -180,6 +181,17 @@ describe('ExternalAppService', () => {
     await service.openTarget('/tmp/README.md', 'known:vscode', 'file')
     expect(mocks.openExternal).toHaveBeenCalledWith('vscode://file//tmp/README.md?windowId=_blank')
     await expect(service.openTarget('/tmp/report.pdf', 'known:wt', 'file')).rejects.toThrow('is not available')
+  })
+
+  it('encodes spaces and non-ASCII directory names in editor URLs', async () => {
+    mocks.statSync.mockReturnValue({ isDirectory: () => true })
+    const { ExternalAppService } = await import('../ExternalAppService')
+
+    await new ExternalAppService().openTarget('/tmp/My Workspace/开发', 'known:vscode', 'directory')
+
+    expect(mocks.openExternal).toHaveBeenCalledWith(
+      'vscode://file//tmp/My%20Workspace/%E5%BC%80%E5%8F%91?windowId=_blank'
+    )
   })
 
   it('validates generated editor URLs before opening them externally', async () => {

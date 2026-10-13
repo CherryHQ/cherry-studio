@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
+
 import { NavbarHeader } from '@renderer/components/Navbar'
 import { cn } from '@renderer/utils/style'
 import type { AgentEntity } from '@shared/data/types/agent'
-import type { ReactNode } from 'react'
 
 import AgentContent from './AgentContent'
 

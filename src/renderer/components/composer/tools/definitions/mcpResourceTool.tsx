@@ -1,5 +1,8 @@
+import { Loader2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import { ComposerPanelSymbol, prepareComposerQuickPanelSearch } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
@@ -12,8 +15,6 @@ import { isSupportedToolUse } from '@renderer/utils/assistant'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
 import type { McpResource } from '@shared/types/mcp'
-import { Loader2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { mcpResourceToComposerToken } from '../../variants/shared/composerTokens'
 
@@ -40,6 +41,7 @@ export function isTextLikeMcpResource(mimeType?: string): boolean {
 export const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolContext }) => {
   const { actions, assistant, launcher, model, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
+  const rootPanelVisible = isVisible && symbol === ComposerPanelSymbol.Root
   const [dataRequested, setDataRequested] = useState(false)
   const [resources, setResources] = useState<McpResource[]>([])
   const [isLoadingResources, setIsLoadingResources] = useState(false)
@@ -47,11 +49,16 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
   // and neither the insert nor the toast may run against a dead runtime.
   const isMountedRef = useRef(true)
   const selectionGenerationRef = useRef(0)
+  const requestIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     isMountedRef.current = true
     return () => {
       isMountedRef.current = false
+      if (requestIdRef.current)
+        void ipcApi
+          .request('mcp.request.cancel', { requestId: requestIdRef.current })
+          .catch((error) => logger.debug('MCP resource cancellation failed', { error }))
     }
   }, [])
 
@@ -91,7 +98,7 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
       if (cancelled) return
       setResources(
         results.flatMap((result, index) => {
-          if (result.status === 'fulfilled') return (result.value as McpResource[] | undefined) ?? []
+          if (result.status === 'fulfilled') return result.value ?? []
           logger.warn('Failed to list MCP resources', { serverId: servers[index].id, error: result.reason })
           return []
         })
@@ -135,6 +142,12 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
   const handleSelect = useCallback(
     async (resource: McpResource, options?: QuickPanelCallBackOptions) => {
       const generation = ++selectionGenerationRef.current
+      if (requestIdRef.current)
+        void ipcApi
+          .request('mcp.request.cancel', { requestId: requestIdRef.current })
+          .catch((error) => logger.debug('MCP resource cancellation failed', { error }))
+      const requestId = crypto.randomUUID()
+      requestIdRef.current = requestId
       try {
         // A declared binary type cannot be inlined. Insert the deferred read immediately instead of
         // downloading the blob once for classification and again when the runtime reads it.
@@ -149,6 +162,8 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
         // Capped main-side: only the inline budget crosses IPC, plus the metadata needed to decide
         // between inlining and attaching a reference.
         const preview = await ipcApi.request('mcp.server.read_resource_preview', {
+          requestId,
+          topicId: session?.sessionId,
           serverId: resource.serverId,
           uri: resource.uri,
           maxChars: MCP_RESOURCE_INLINE_MAX_CHARS
@@ -174,9 +189,11 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
           uri: resource.uri
         })
         toast.error(formatErrorMessageWithPrefix(error, t('chat.input.mcp_resources.read_failed')))
+      } finally {
+        if (requestIdRef.current === requestId) requestIdRef.current = undefined
       }
     },
-    [insertReferenceToken, insertText, resourceReader, t]
+    [insertReferenceToken, insertText, resourceReader, t, session?.sessionId]
   )
 
   const items = useMemo<QuickPanelListItem[]>(() => {
@@ -225,15 +242,15 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
       label: t('chat.input.mcp_resources.title'),
       description: t('chat.input.mcp_resources.description'),
       icon: <McpLogo aria-hidden />,
-      action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      rootSearchItems: items,
+      action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
         setDataRequested(true)
         quickPanel.open({
           title: t('chat.input.mcp_resources.title'),
           list: items,
           symbol: ComposerPanelSymbol.McpResources,
           parentPanel,
-          queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo })
         })
       }
     }),
@@ -246,6 +263,10 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
     if (!isVisible || symbol !== ComposerPanelSymbol.McpResources) return
     updateList(items)
   }, [isVisible, items, symbol, updateList])
+
+  useEffect(() => {
+    if (rootPanelVisible) setDataRequested(true)
+  }, [rootPanelVisible])
 
   return null
 }

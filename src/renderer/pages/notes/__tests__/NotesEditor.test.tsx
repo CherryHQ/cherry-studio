@@ -88,6 +88,22 @@ describe('NotesEditor focus behavior', () => {
     expect(mocks.codeEditorEvaluations).toBe(1)
   })
 
+  it('marks the active note surface with its node id', async () => {
+    render(
+      <NotesEditor
+        activeNodeId="/notes/example.md"
+        currentContent="note"
+        tokenCount={4}
+        editorRef={{ current: null }}
+        codeEditorRef={{ current: null }}
+        onMarkdownChange={vi.fn()}
+      />
+    )
+
+    await screen.findByTestId('rich-editor')
+    expect(document.querySelector('[data-ui="notes.editor"]')).toHaveAttribute('data-note-id', '/notes/example.md')
+  })
+
   it.each([
     ['an existing note', 'first line\n\nlast line with /', false],
     ['a new empty note', '', true],

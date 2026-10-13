@@ -1,15 +1,18 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { ChevronsDownUp, ChevronsUpDown, FileText, Filter, Search, X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
+
+import { ProviderBillingButton } from '../BillingSettings/ProviderBillingButton'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
 import { ModelTypeFilterTabs } from './ModelTypeFilterTabs'
 
 export interface ModelListHeaderProps {
+  providerId: string
   hasNoModels: boolean
   searchText: string
   setSearchText: (text: string) => void
@@ -24,6 +27,7 @@ export interface ModelListHeaderProps {
 }
 
 const ModelListHeader: React.FC<ModelListHeaderProps> = ({
+  providerId,
   hasNoModels,
   searchText,
   setSearchText,
@@ -137,6 +141,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               <Filter className={modelListClasses.toolbarHeaderIcon} />
             </button>
           </Tooltip>
+          <ProviderBillingButton providerId={providerId} disabled={hasNoModels} />
         </div>
         <div className={modelListClasses.headerInlineActions}>
           <div className={modelListClasses.titleActions}>{actions}</div>

@@ -1,5 +1,6 @@
-import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { useEffect, useMemo, useState } from 'react'
+
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 import type { ModelGroups, ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
 import { applyModelFilters, getCapabilityModelCounts, groupModels } from './modelListDerivedState'

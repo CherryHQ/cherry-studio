@@ -1,3 +1,8 @@
+import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import type { FC, ReactNode, Ref } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -22,10 +27,6 @@ import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
-import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
-import type { FC, ReactNode, Ref } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const TopicNamingSettings = lazy(() =>
   import('./TopicNamingSettings').then((module) => ({ default: module.TopicNamingSettings }))

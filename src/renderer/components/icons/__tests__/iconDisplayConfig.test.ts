@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
+import { resolveProviderIconRef } from '@cherrystudio/ui/icons'
+
 import { getIconDisplayConfig } from '../iconDisplayConfig'
 
 describe('getIconDisplayConfig', () => {
   it.each(['cherryin', 'aihubmix', 'lmstudio', 'anthropic', 'yi', 'groq', 'aws-bedrock', 'tokendance'])(
     'contains the %s provider logo in the provider-list context',
     (providerId) => {
-      expect(getIconDisplayConfig('provider-list', providerId)).toEqual({ scale: 5 / 7, borderRadius: 5 })
+      const icon = resolveProviderIconRef(providerId)
+      expect(icon).toBeDefined()
+      expect(getIconDisplayConfig('provider-list', icon?.meta.id)).toEqual({ scale: 5 / 7, borderRadius: 5 })
     }
   )
 

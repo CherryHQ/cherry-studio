@@ -5,6 +5,8 @@
 //TODO Data Refactor
 // The code is messy, need to refactor all the backup related code
 
+import dayjs from 'dayjs'
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
@@ -14,7 +16,6 @@ import { toast } from '@renderer/services/toast'
 import { getBackupErrorTitleKey, getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { uuid } from '@renderer/utils/uuid'
 import type { AutoBackupType } from '@shared/types/backup'
-import dayjs from 'dayjs'
 
 import { notificationService } from './notification'
 
@@ -305,17 +306,6 @@ export async function restoreFromS3(fileName?: string) {
     })
     logger.info('[S3Backup] Backup restore staged, app will restart')
   }
-}
-
-// Data producer for the export-to-phone file flow, consumed by main's
-// LegacyBackupManager.createLanTransferBackup. The feature's UI is offline until
-// the mobile side ships; kept with the rest of the dormant lan-transfer plumbing.
-export async function getBackupData() {
-  return JSON.stringify({
-    time: new Date().getTime(),
-    version: 5,
-    localStorage
-  })
 }
 
 /**

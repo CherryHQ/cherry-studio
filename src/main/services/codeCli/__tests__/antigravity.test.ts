@@ -2,9 +2,9 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { CodeCli } from '@shared/types/codeCli'
 
 const mocks = vi.hoisted(() => ({
   root: '',
@@ -62,7 +62,7 @@ describe('prepareAntigravityLaunch', () => {
       endpointConfigs: {
         'google-generate-content': { baseUrl: 'https://gemini.example.test' }
       }
-    } as Provider)
+    })
     mocks.getRotatedApiKey.mockReturnValue('direct-secret')
 
     const result = await prepareAntigravityLaunch({
@@ -125,7 +125,7 @@ describe('prepareAntigravityLaunch', () => {
 
   it('rejects an unsafe model id without touching the isolated settings', async () => {
     const settingsPath = path.join(mocks.root, 'antigravity-cli', 'settings.json')
-    mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)
+    mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} })
     mocks.getRotatedApiKey.mockReturnValue('direct-secret')
 
     await expect(
@@ -145,7 +145,7 @@ describe('prepareAntigravityLaunch', () => {
     const settingsPath = path.join(settingsDir, 'settings.json')
     await mkdir(settingsDir, { recursive: true })
     await writeFile(settingsPath, '{ invalid json')
-    mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)
+    mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} })
     mocks.getRotatedApiKey.mockReturnValue('direct-secret')
 
     await expect(

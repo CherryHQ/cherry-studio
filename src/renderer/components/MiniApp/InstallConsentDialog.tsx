@@ -1,3 +1,8 @@
+import { Package } from 'lucide-react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Checkbox,
@@ -12,10 +17,6 @@ import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChec
 import { UpdateReviewCard } from '@renderer/components/MiniApp/UpdateReviewCard'
 import type { InstallDecision, InstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
-import { Package } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 /**
  * The consent card in its own dialog, on top of whatever asked for it. Three shapes of

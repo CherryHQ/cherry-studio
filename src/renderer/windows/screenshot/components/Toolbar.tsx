@@ -1,16 +1,17 @@
 /**
- * Floating toolbar, right-aligned to the selection and flipped above it when there
- * is no room below.
+ * Floating toolbar, right-aligned to the selection (clamped to the display's left edge)
+ * and flipped above it when there is no room below.
  *
  * Groups, left to right: annotation tools · undo/redo · OCR affordance · save/cancel/ok.
  */
 
-import { Button, NormalTooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Check, Download, MoveUpRight, Pencil, Redo2, Square, Type, Undo2, X } from 'lucide-react'
 import type { ComponentType, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { memo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, NormalTooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { PROPERTY_PANEL_HEIGHT, Z_INDEX } from '../constants'
 import type { AnnotationTool, SelectionRect } from '../types'
@@ -135,7 +136,8 @@ export const Toolbar = memo(function Toolbar({
         zIndex: Z_INDEX.TOOLBAR,
         top,
         left: right,
-        transform: 'translateX(-100%)'
+        // Right-aligned to the selection, but never shifted past the display's left edge.
+        transform: `translateX(max(-100%, ${-right}px))`
       }}
       // Without this, clicking any button also starts a new background selection on
       // the capture canvas underneath and wipes the selection being acted on.

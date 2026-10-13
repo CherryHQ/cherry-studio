@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-
-import { toast } from '@renderer/services/toast'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 vi.mock('@renderer/components/LocalBackupManager', () => ({ LocalBackupManager: () => null }))
 vi.mock('@renderer/components/LocalBackupModals', () => ({

@@ -3,13 +3,14 @@ import type { FileHandle } from 'node:fs/promises'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { Document, isMap, isSeq, parseDocument, type YAMLError } from 'yaml'
+
 import { atomicWriteFile } from '@main/utils/file'
 import { ENDPOINT_TYPE, type EndpointType, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { DeepSeekHarnessAgentPreset } from '@shared/types/codeCli'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { Document, isMap, isSeq, parseDocument, type YAMLError } from 'yaml'
 
 export type DeepSeekHarnessMode = 'direct' | 'gateway'
 export type DeepSeekHarnessProtocol = 'anthropic-messages' | 'openai-responses' | 'openai-completions'

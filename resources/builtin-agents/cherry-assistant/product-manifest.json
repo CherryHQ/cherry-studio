@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.12",
+    "version": "2.1.6",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -49,6 +49,7 @@
       "/app",
       "/settings",
       "/app/agents",
+      "/app/browser",
       "/app/chat",
       "/app/code",
       "/app/file-preview",
@@ -61,10 +62,13 @@
       "/settings/about",
       "/settings/api-gateway",
       "/settings/appearance",
+      "/settings/archive",
+      "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
       "/settings/data",
       "/settings/dependencies",
+      "/settings/device-connections",
       "/settings/file-processing",
       "/settings/general",
       "/settings/local-models",
@@ -93,6 +97,7 @@
       "/settings/mcp/npx-search",
       "/settings/mcp/servers",
       "/settings/scheduled-tasks/$taskId",
+      "/settings/skills/$skillId",
       "/app/mini-app",
       "/app/paintings",
       "/settings/mcp/settings/$serverId"
@@ -170,6 +175,23 @@
       "keybinding": {
         "defaultBinding": [],
         "global": true
+      }
+    },
+    {
+      "id": "app.window.close",
+      "titleKey": "settings.shortcuts.close_window",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "main",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "W"
+        ],
+        "editable": false,
+        "supportedPlatforms": [
+          "darwin"
+        ]
       }
     },
     {
@@ -423,6 +445,18 @@
       }
     },
     {
+      "id": "tab.close",
+      "titleKey": "settings.shortcuts.close_tab",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "W"
+        ]
+      }
+    },
+    {
       "id": "tab.next",
       "titleKey": "settings.shortcuts.next_tab",
       "categoryKey": "settings.shortcuts.general",
@@ -462,8 +496,8 @@
     }
   ],
   "providers": {
-    "version": "5b74ff4e1bc9c9e9",
-    "count": 63,
+    "version": "932c0006165e4fcb",
+    "count": 66,
     "entries": [
       {
         "id": "cherryin",
@@ -550,16 +584,16 @@
         "name": "TokenDance"
       },
       {
-        "id": "jalapeno-cloud",
-        "name": "Jalapeno Cloud"
-      },
-      {
         "id": "new-api",
         "name": "New API"
       },
       {
         "id": "lmstudio",
         "name": "LM Studio"
+      },
+      {
+        "id": "litellm",
+        "name": "LiteLLM"
       },
       {
         "id": "anthropic",
@@ -576,6 +610,10 @@
       {
         "id": "grok-cli",
         "name": "Grok CLI"
+      },
+      {
+        "id": "omlx",
+        "name": "oMLX"
       },
       {
         "id": "openai",
@@ -606,6 +644,10 @@
         "name": "Moonshot AI"
       },
       {
+        "id": "moonshot-global",
+        "name": "Moonshot"
+      },
+      {
         "id": "baichuan",
         "name": "BAICHUAN AI"
       },
@@ -619,7 +661,7 @@
       },
       {
         "id": "doubao",
-        "name": "doubao"
+        "name": "Doubao"
       },
       {
         "id": "minimax",
@@ -704,6 +746,10 @@
       {
         "id": "cerebras",
         "name": "Cerebras AI"
+      },
+      {
+        "id": "comfyui",
+        "name": "ComfyUI"
       },
       {
         "id": "mimo",
@@ -792,6 +838,8 @@
       "feishu",
       "qq",
       "wechat",
+      "wecom",
+      "dingtalk",
       "discord",
       "slack"
     ],
@@ -815,7 +863,8 @@
         "qoder-cli",
         "github-copilot-cli",
         "pi",
-        "hermes"
+        "hermes",
+        "minimax-code"
       ]
     }
   },

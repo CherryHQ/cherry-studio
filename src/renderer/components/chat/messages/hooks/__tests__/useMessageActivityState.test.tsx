@@ -1,3 +1,7 @@
+import { act, render, renderHook, screen } from '@testing-library/react'
+import { memo, type ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   MessageListProvider,
   useAnyMessageListItemProcessing,
@@ -8,9 +12,6 @@ import {
   type MessageListItem,
   type MessageListProviderValue
 } from '@renderer/components/chat/messages/types'
-import { act, render, renderHook, screen } from '@testing-library/react'
-import { memo, type ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KeyedMessageActivityStore, useMessageActivityState } from '../useMessageActivityState'
 

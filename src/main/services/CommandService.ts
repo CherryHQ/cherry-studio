@@ -1,3 +1,5 @@
+import type { BrowserWindow } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase, toDisposable } from '@main/core/lifecycle'
@@ -8,7 +10,6 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ContextReader } from '@shared/types/command'
 import { type CommandId, evaluateContextExpr, findCommandDefinition } from '@shared/utils/command'
-import type { BrowserWindow } from 'electron'
 
 const logger = loggerService.withContext('CommandService')
 

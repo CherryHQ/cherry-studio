@@ -1,5 +1,6 @@
-import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 
 import { insertSlashCommand } from '../definitions/slashCommandsTool'
 

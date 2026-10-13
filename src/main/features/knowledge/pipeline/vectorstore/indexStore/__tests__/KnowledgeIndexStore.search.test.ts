@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { needsLikeFallback } from '@main/utils/trigramFtsQuery'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { needsLikeFallback } from '@main/utils/trigramFtsQuery'
 
 import { type BetterSqlite3Driver, openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
 import { betterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'

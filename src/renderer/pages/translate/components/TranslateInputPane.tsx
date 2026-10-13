@@ -1,3 +1,8 @@
+import { Check, Copy, LoaderCircle, X } from 'lucide-react'
+import type { KeyboardEvent, Ref } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Scrollbar } from '@cherrystudio/ui'
 import uploadExcelIcon from '@renderer/assets/images/translate/upload-excel.svg'
 import uploadImageIcon from '@renderer/assets/images/translate/upload-image.svg'
@@ -6,10 +11,6 @@ import uploadPptIcon from '@renderer/assets/images/translate/upload-ppt.svg'
 import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import { useDrag } from '@renderer/hooks/useDrag'
-import { Check, Copy, LoaderCircle, X } from 'lucide-react'
-import type { KeyboardEvent, Ref } from 'react'
-import { useCallback, useLayoutEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import IconButton from './IconButton'
 

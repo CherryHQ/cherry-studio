@@ -1,8 +1,10 @@
+import { screen } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 // @application, electron, and @logger are globally mocked in tests/main.setup.ts.
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getApplicationIdMock } = vi.hoisted(() => ({
   getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio')
@@ -69,7 +71,9 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
   /** Fetch the `feature.selection.enabled` change handler that onInit() subscribed. */
   const getEnabledChangeHandler = () => {
     const subscribeChange = (
-      application.get('PreferenceService') as unknown as { subscribeChange: ReturnType<typeof vi.fn> }
+      application.get('PreferenceService') as unknown as {
+        subscribeChange: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      }
     ).subscribeChange
     const handler = subscribeChange.mock.calls.find((call) => call[0] === 'feature.selection.enabled')?.[1] as
       | ((enabled: boolean) => void)
@@ -127,8 +131,9 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     // so only the subscription's direct suspend stops the eager warmup.
     prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
     const activate = wireActivation()
-    const suspendPool = (application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn> })
-      .suspendPool
+    const suspendPool = (
+      application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
+    ).suspendPool
 
     await svc._doInit()
     expect(suspendPool).not.toHaveBeenCalled()
@@ -148,8 +153,8 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
     const activate = wireActivation()
     const wm = application.get('WindowManager') as unknown as {
-      suspendPool: ReturnType<typeof vi.fn>
-      resumePool: ReturnType<typeof vi.fn>
+      suspendPool: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      resumePool: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     }
 
     await svc._doInit()
@@ -174,14 +179,16 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
 describe('SelectionService.onInit — SelectionAction pool suspension', () => {
   let svc: TestableSelectionService
   let prefGet: ReturnType<typeof vi.spyOn>
-  let suspendPool: ReturnType<typeof vi.fn>
+  let suspendPool: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 
   beforeEach(() => {
     vi.clearAllMocks()
     BaseService.resetInstances()
     svc = new SelectionService() as TestableSelectionService
     prefGet = vi.spyOn(application.get('PreferenceService') as { get: (key: string) => unknown }, 'get')
-    suspendPool = (application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn> }).suspendPool
+    suspendPool = (
+      application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
+    ).suspendPool
   })
 
   afterEach(() => {
@@ -266,5 +273,67 @@ describe('SelectionService macOS toolbar', () => {
       skipTransformProcessType: true
     })
     expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
+  })
+})
+
+describe('SelectionService macOS action window', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    Object.assign(screen, {
+      getDisplayNearestPoint: vi.fn(() => ({
+        workArea: { x: 0, y: 0, width: 1440, height: 900 }
+      })),
+      getCursorScreenPoint: vi.fn(() => ({ x: 500, y: 400 }))
+    })
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it.each([false, true])('keeps the invoking Space when showing a recycled panel (fullscreen=%s)', (fullScreen) => {
+    vi.useFakeTimers()
+    try {
+      let activeSpace = 'invoking-space'
+      let panelSpace = 'previous-space'
+      let visible = false
+      const handle = Buffer.alloc(8)
+      const svc = new SelectionService() as unknown as {
+        nativePanel: { moveToActiveSpace(handle: Buffer): void }
+        showActionWindow(actionWindow: unknown, isFullScreen: boolean): void
+      }
+      svc.nativePanel = {
+        moveToActiveSpace: (actualHandle) => {
+          expect(actualHandle).toBe(handle)
+          panelSpace = activeSpace
+        }
+      }
+      const show = () => {
+        activeSpace = panelSpace
+        visible = true
+      }
+      const actionWindow = {
+        getNativeWindowHandle: () => handle,
+        setPosition: vi.fn(),
+        setBounds: vi.fn(),
+        setFocusable: vi.fn(),
+        setAlwaysOnTop: vi.fn(),
+        show,
+        showInactive: show,
+        isDestroyed: () => false,
+        focus: vi.fn()
+      }
+
+      svc.showActionWindow(actionWindow, fullScreen)
+      vi.runAllTimers()
+
+      expect(visible).toBe(true)
+      expect(activeSpace).toBe('invoking-space')
+      expect(panelSpace).toBe('invoking-space')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

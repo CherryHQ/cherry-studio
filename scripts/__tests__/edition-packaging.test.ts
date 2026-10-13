@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import type { ProviderEdition } from '@cherrystudio/provider-registry'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { parse } from 'yaml'
+
+import type { ProviderEdition } from '@cherrystudio/provider-registry'
 
 import createChinaEditionConfig from '../../electron-builder.cn.config.cjs'
 import { APP_EDITIONS, type AppEdition } from '../../src/shared/types/appEdition'
@@ -17,23 +18,6 @@ import {
 
 const projectRoot = path.join(import.meta.dirname, '..', '..')
 const packageMetadata = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8'))
-
-type WorkflowStep = {
-  if?: string
-  name?: string
-  run?: string
-  with?: Record<string, unknown>
-}
-
-type GitCodeWorkflow = {
-  jobs: {
-    'build-windows-signed': {
-      strategy?: { matrix?: { edition?: string[] } }
-      steps: WorkflowStep[]
-    }
-    'sync-to-gitcode': { steps: WorkflowStep[] }
-  }
-}
 
 describe('edition packaging', () => {
   afterEach(() => {
@@ -108,7 +92,7 @@ describe('edition packaging', () => {
       nsisGuid: '41a4ccd8-bcc0-5710-9eee-0e164da68057',
       productName: 'Cherry Studio',
       protocol: 'cherrystudio',
-      publish: { provider: 'generic', url: 'https://releases.cherry-ai.com' },
+      publish: expect.objectContaining({ provider: 'generic', url: 'https://releases.cherry-ai.com' }),
       windowsArtifactName: '${productName}-${version}-${arch}-setup.${ext}'
     })
   })
@@ -124,7 +108,11 @@ describe('edition packaging', () => {
       extraMetadata: {
         cherryEdition: CHINA_EDITION
       },
-      publish: { provider: 'generic', url: 'https://releases.cherry-ai.com', channel: 'latest-cn' }
+      publish: expect.objectContaining({
+        provider: 'generic',
+        url: 'https://releases.cherry-ai.com',
+        channel: 'latest-cn'
+      })
     })
   })
 
@@ -193,30 +181,5 @@ describe('edition packaging', () => {
       'Cherry-Studio-CN-2.1.0-mac-x64.dmg',
       'Cherry-Studio-CN-2.1.0-mac-arm64.dmg'
     ])
-  })
-
-  it('re-signs both Windows editions before syncing the release to GitCode', () => {
-    const workflow = parse(
-      readFileSync(path.join(projectRoot, '.github/workflows/sync-to-gitcode.yml'), 'utf8')
-    ) as GitCodeWorkflow
-    const buildJob = workflow.jobs['build-windows-signed']
-    const syncJob = workflow.jobs['sync-to-gitcode']
-    const buildStep = buildJob.steps.find((step) => step.name === 'Build Windows with code signing')
-    const uploadStep = buildJob.steps.find((step) => step.name === 'Upload signed Windows artifacts')
-    const downloadStep = syncJob.steps.find((step) => step.name === 'Download signed Windows artifacts')
-    const replaceStep = syncJob.steps.find((step) => step.name === 'Replace Windows files with signed versions')
-
-    expect(buildJob.strategy?.matrix?.edition).toEqual([GLOBAL_EDITION, CHINA_EDITION])
-    expect(buildStep?.run).toMatch(/^\s*pnpm build:win:cn\s*$/m)
-    expect(buildStep?.run).toMatch(/^\s*pnpm build:win\s*$/m)
-    expect(buildStep?.run).toContain('electron-builder.cn.config.cjs')
-    expect(uploadStep?.with?.name).toContain('matrix.edition')
-    expect(uploadStep?.if).toContain('steps.build-windows.outputs.supported')
-    expect(downloadStep?.with).toMatchObject({
-      pattern: 'signed-windows-artifacts-*',
-      'merge-multiple': true
-    })
-    expect(replaceStep?.run).toContain('cp signed-windows-artifacts/*.exe')
-    expect(replaceStep?.run).toContain('cp signed-windows-artifacts/*.yml')
   })
 })

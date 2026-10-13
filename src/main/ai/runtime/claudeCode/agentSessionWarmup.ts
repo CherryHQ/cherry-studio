@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -20,9 +21,13 @@ import {
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
-import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import {
+  createAgentProxyEnvironmentFingerprint,
+  isAgentProxyEnvironmentKey,
+  mergeAgentLoopbackProxyBypass
+} from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -41,14 +46,9 @@ import {
 } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { getExtraHeaders } from '../../utils/provider'
+import { getExtraHeaders, getProviderAppHeaders } from '../../utils/provider'
 import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
-import {
-  createAgentProxyEnvironmentFingerprint,
-  isAgentProxyEnvironmentKey,
-  mergeAgentLoopbackProxyBypass
-} from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
@@ -189,7 +189,7 @@ function buildUsageModels(
     {
       apiModelId: string
       modelName: string | null
-      pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
+      pricingSnapshot: ReturnType<typeof createAiUsageCaptureContext>['pricingSnapshot']
       aliases: Set<string>
     }
   >()
@@ -197,7 +197,13 @@ function buildUsageModels(
     const current = byModelId.get(ref.modelId) ?? {
       apiModelId: ref.apiModelId,
       modelName: ref.model?.name ?? ref.modelId,
-      pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
+      pricingSnapshot: createAiUsageCaptureContext({
+        providerId: ref.providerId,
+        modelId: ref.modelId,
+        pricing: ref.model?.pricing,
+        billing: ref.provider?.settings?.billing,
+        invocationStartedAt: null
+      }).pricingSnapshot,
       aliases: new Set<string>()
     }
     current.aliases.add(sdkModelId)
@@ -399,6 +405,7 @@ async function deriveConnectionConfigFromSnapshot(
     // connection snapshots instead of invalidating this signature every turn.
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
     promptModelName: agent.modelName || null,
+    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
@@ -433,7 +440,7 @@ async function deriveConnectionConfigFromSnapshot(
   }
 }
 
-/** DB-definition facts for each referenced MCP server (read-only rows; no client connections). */
+/** Server definitions and connected metadata; never starts client connections. */
 function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots?: McpServerSnapshotMap): unknown[] {
   return [...(mcpIds ?? [])].sort().map((mcpId) => {
     const server = snapshots ? snapshots.get(mcpId) : mcpServerService.findByIdOrName(mcpId)
@@ -442,6 +449,7 @@ function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots
       mcpId,
       id: server.id,
       name: server.name,
+      instructions: application.get('McpRuntimeService').getConnectedServerInstructions(server.id) ?? null,
       type: server.type,
       command: server.command ?? null,
       args: server.args ?? null,
@@ -733,7 +741,10 @@ function deriveRouteFacts(
   // that rotate onto different keys still sign identically. Include request headers because they
   // are also fixed at subprocess spawn; editing either input invalidates warm reuse.
   const enabledKeys = providerService.getApiKeys(primaryProvider.id, { enabled: true }).map((entry) => entry.key)
-  const customHeaders = mergeAnthropicCustomHeaders(defaultAppHeaders(), getExtraHeaders(primaryProvider))
+  const customHeaders = mergeAnthropicCustomHeaders(
+    getProviderAppHeaders(primaryProvider),
+    getExtraHeaders(primaryProvider)
+  )
   // Every slot resolves to the same `anthropicBaseUrl`, so one host check gates them all. Decide
   // first-party by resolved host, NOT preset origin: a provider copied from the Anthropic preset but
   // repointed at a custom 1M proxy is not first-party and must still get the `[1m]` suffix.
@@ -802,12 +813,23 @@ async function resolveClaudeCodeRuntimeRoute(
     }
     case 'direct': {
       const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
+      // Keyless local servers (registry authOptional) carry no credential; the
+      // SDK still needs a non-empty token. Ollama-endpoint custom providers
+      // keep their established stand-in.
       const runtimeApiKey =
-        resolvedApiKey.value || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+        resolvedApiKey.value ||
+        (primaryProvider.authOptional === true
+          ? (primaryProvider.presetProviderId ?? primaryProvider.id)
+          : isOllamaProvider(primaryProvider)
+            ? OLLAMA_PLACEHOLDER_AUTH_TOKEN
+            : '')
       return {
         ...facts,
         apiKey: runtimeApiKey,
-        customHeaders: mergeAnthropicCustomHeaders(defaultAppHeaders(), getExtraHeaders(primaryProvider)),
+        customHeaders: mergeAnthropicCustomHeaders(
+          getProviderAppHeaders(primaryProvider),
+          getExtraHeaders(primaryProvider)
+        ),
         usageCapture: {
           owner: 'agent-sdk',
           credentialReceipt: resolvedApiKey.apiKeySelection,

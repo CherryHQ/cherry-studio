@@ -1,7 +1,8 @@
-import { CURRENCY, type Model } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { CURRENCY, type Model } from '@shared/data/types/model'
 
 import EditModelDrawer from '../EditModelDrawer'
 

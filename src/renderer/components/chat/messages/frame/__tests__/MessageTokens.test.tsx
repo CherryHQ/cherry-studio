@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'

@@ -1,3 +1,7 @@
+import { Info } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   InputNumber,
   PageSidePanelItem,
@@ -25,9 +29,6 @@ import {
   type Provider
 } from '@shared/data/types/provider'
 import { isAnthropicSupportedProvider, resolveEndpointDialect } from '@shared/utils/provider'
-import { Info } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'

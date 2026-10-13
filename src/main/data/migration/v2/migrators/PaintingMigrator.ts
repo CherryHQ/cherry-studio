@@ -1,11 +1,12 @@
+import { inArray, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { inArray, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
@@ -289,7 +290,10 @@ export class PaintingMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const countResult = ctx.db.select({ count: sql<number>`count(*)` }).from(paintingTable).get()
+      const countResult = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(paintingTable)
+        .get()
       const targetCount = countResult?.count ?? 0
       const errors: Array<{ key: string; message: string }> = []
 

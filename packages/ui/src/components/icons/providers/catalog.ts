@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-09-07T13:21:05.291Z
- * Total icons: 161
+ * Generated at: 2026-10-11T15:18:33.533Z
+ * Total icons: 164
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -39,6 +39,7 @@ import { CherryinIcon } from './cherryin'
 import { ClaudeCodeIcon } from './claude-code'
 import { CloudflareIcon } from './cloudflare'
 import { CohereIcon } from './cohere'
+import { ComfyuiIcon } from './comfyui/comfyui'
 import { ComposioIcon } from './composio'
 import { CozeIcon } from './coze'
 import { DangbeiIcon } from './dangbei'
@@ -80,7 +81,6 @@ import { InfiniIcon } from './infini'
 import { InflectionIcon } from './inflection'
 import { IntelIcon } from './intel'
 import { InternlmIcon } from './internlm'
-import { JalapenoCloudIcon } from './jalapeno-cloud'
 import { JimengIcon } from './jimeng'
 import { JinaIcon } from './jina'
 import { KlingIcon } from './kling'
@@ -90,6 +90,7 @@ import { LanyunIcon } from './lanyun'
 import { LeptonIcon } from './lepton'
 import { LingxiIcon } from './lingxi'
 import { LiquidIcon } from './liquid'
+import { LitellmIcon } from './litellm/litellm'
 import { LmstudioIcon } from './lmstudio'
 import { LongcatIcon } from './longcat'
 import { MacosIcon } from './macos'
@@ -116,6 +117,7 @@ import { NousresearchIcon } from './nousresearch'
 import { NvidiaIcon } from './nvidia'
 import { OcoolaiIcon } from './ocoolai'
 import { OllamaIcon } from './ollama'
+import { OmlxIcon } from './omlx/omlx'
 import { OpenaiIcon } from './openai'
 import { OpenclawIcon } from './openclaw'
 import { OpenCodeGoIcon } from './opencode'
@@ -137,6 +139,7 @@ import { RiverflowIcon } from './riverflow'
 import { RunwayIcon } from './runway'
 import { SearxngIcon } from './searxng'
 import { SensetimeIcon } from './sensetime'
+import { SerplyIcon } from './serply'
 import { SiliconIcon } from './silicon'
 import { SkyworkIcon } from './skywork'
 import { SmitheryIcon } from './smithery'
@@ -203,6 +206,7 @@ export const PROVIDER_ICON_CATALOG = {
   'claude-code': ClaudeCodeIcon,
   cloudflare: CloudflareIcon,
   cohere: CohereIcon,
+  comfyui: ComfyuiIcon,
   composio: ComposioIcon,
   coze: CozeIcon,
   dangbei: DangbeiIcon,
@@ -244,7 +248,6 @@ export const PROVIDER_ICON_CATALOG = {
   inflection: InflectionIcon,
   intel: IntelIcon,
   internlm: InternlmIcon,
-  'jalapeno-cloud': JalapenoCloudIcon,
   jimeng: JimengIcon,
   jina: JinaIcon,
   kling: KlingIcon,
@@ -254,6 +257,7 @@ export const PROVIDER_ICON_CATALOG = {
   lepton: LeptonIcon,
   lingxi: LingxiIcon,
   liquid: LiquidIcon,
+  litellm: LitellmIcon,
   lmstudio: LmstudioIcon,
   longcat: LongcatIcon,
   macos: MacosIcon,
@@ -279,6 +283,7 @@ export const PROVIDER_ICON_CATALOG = {
   nvidia: NvidiaIcon,
   ocoolai: OcoolaiIcon,
   ollama: OllamaIcon,
+  omlx: OmlxIcon,
   openai: OpenaiIcon,
   openclaw: OpenclawIcon,
   opencode: OpenCodeGoIcon,
@@ -299,6 +304,7 @@ export const PROVIDER_ICON_CATALOG = {
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
+  serply: SerplyIcon,
   sensetime: SensetimeIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
