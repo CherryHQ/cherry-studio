@@ -2065,6 +2065,47 @@ describe('AgentComposer', () => {
     expect(saved).toContain('summarize')
   })
 
+  it('keeps a linked quote added during history preview when switching sessions', async () => {
+    seedInputHistory(['recalled prompt'])
+    const drafts = new Map<string, unknown>()
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
+    })
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: [],
+      quotes: mocks.surfaceProps?.quotes
+    }))
+    const quote = { id: 'history-quote', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'Quoted point' }
+    const composer = (sessionId: string) => (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId={sessionId}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const view = render(composer('session-1'))
+    act(() => mocks.surfaceProps?.onTextChange('original draft'))
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await act(() => EventEmitter.emit(EVENT_NAMES.INSERT_MESSAGE_QUOTE, { topicId: 'agent-session:session-1', quote }))
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(false)
+    })
+    expect(mocks.surfaceProps?.text).toBe('recalled prompt')
+    view.unmount()
+    const otherSession = render(composer('session-2'))
+    expect(mocks.surfaceProps?.quotes ?? []).toEqual([])
+    otherSession.unmount()
+    render(composer('session-1'))
+    expect(mocks.surfaceProps?.text).toBe('recalled prompt')
+    expect(mocks.surfaceProps?.quotes).toEqual([quote])
+  })
+
   it('resets input history navigation after a successful agent send, so a subsequent ArrowDown does not restore the recalled draft', async () => {
     // Regression: clearCurrentDraft must also drop useInputHistory's nav state.
     // Without that, recalling a history item, sending it, then pressing ArrowDown

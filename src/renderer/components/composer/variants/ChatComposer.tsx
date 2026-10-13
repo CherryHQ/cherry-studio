@@ -562,7 +562,12 @@ const ChatComposerInner = ({
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
-  const { quotes, setQuotes, locateQuote } = useComposerMessageQuotes(topicId, initialDraft.quotes, actionsRef)
+  const { quotes, setQuotes, locateQuote } = useComposerMessageQuotes(
+    topicId,
+    initialDraft.quotes,
+    actionsRef,
+    (text) => handleTextChange(text)
+  )
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )

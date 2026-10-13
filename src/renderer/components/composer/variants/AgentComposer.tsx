@@ -858,7 +858,8 @@ const AgentComposerInner = ({
   const { quotes, setQuotes, locateQuote } = useComposerMessageQuotes(
     buildAgentSessionTopicId(sessionId),
     initialDraft.quotes,
-    actionsRef
+    actionsRef,
+    (text) => handleTextChange(text)
   )
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const [isDirectSending, setIsDirectSending] = useState(false)

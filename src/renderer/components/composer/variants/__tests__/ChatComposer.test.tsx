@@ -208,6 +208,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
+    INSERT_MESSAGE_QUOTE: 'INSERT_MESSAGE_QUOTE',
     LOCATE_MESSAGE: 'LOCATE_MESSAGE',
     SEND_MESSAGE: 'SEND_MESSAGE'
   },
@@ -2573,6 +2574,39 @@ describe('ChatComposer', () => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('my original draft'))
+  })
+
+  it('keeps a linked quote added during history preview when switching topics', async () => {
+    seedInputHistory(['recalled prompt'])
+    const drafts = new Map<string, unknown>()
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
+    })
+    mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({
+      text: props?.text ?? '',
+      tokens: [],
+      quotes: props?.quotes
+    }))
+    const quote = { id: 'history-quote', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'Quoted point' }
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    act(() => mocks.surfaceProps?.onTextChange('original draft'))
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    act(() => {
+      const insertQuote = mocks.eventListeners.get('INSERT_MESSAGE_QUOTE')
+      expect(insertQuote).toBeDefined()
+      insertQuote!({ topicId: topic.id, quote })
+    })
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(false)
+    })
+    expect(mocks.surfaceProps?.text).toBe('recalled prompt')
+    view.rerender(<ChatComposer topic={{ ...topic, id: 'topic-2' }} onSend={vi.fn()} />)
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    expect(mocks.surfaceProps?.text).toBe('recalled prompt')
+    expect(mocks.surfaceProps?.quotes).toEqual([quote])
   })
 
   it('resets input history navigation after a successful send, so a subsequent ArrowDown does not restore the recalled draft', async () => {

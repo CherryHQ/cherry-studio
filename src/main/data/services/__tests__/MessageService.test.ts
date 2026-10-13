@@ -31,6 +31,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
 import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -2363,7 +2364,16 @@ describe('MessageService', () => {
   })
 
   describe('copyPathRowsTx', () => {
-    it('reparents the path head onto the destination topic virtual root', async () => {
+    it('reparents the copied path and remaps user quotes and reply snapshots without changing their text', async () => {
+      const sourceId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001'
+      const childId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002'
+      const outsideId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d003'
+      const userQuotes = [
+        { id: 'later-source', sourceMessageId: childId, text: 'Original child text' },
+        { id: 'outside-source', sourceMessageId: outsideId, text: 'Outside copied path' }
+      ]
+      const replyQuotes = [{ id: 'ancestor-source', sourceMessageId: sourceId, text: 'Original root text' }]
+      const sourceData = { parts: [withCherryMeta({ type: 'text', text: 'root' }, { quotes: userQuotes })] }
       await dbh.db.insert(topicTable).values([
         { id: 'source-topic', orderKey: 'a0' },
         { id: 'target-topic', orderKey: 'a1' }
@@ -2372,20 +2382,20 @@ describe('MessageService', () => {
       await dbh.db.insert(messageTable).values(
         withRoot('source-topic', [
           {
-            id: 'source-root',
+            id: sourceId,
             parentId: null,
             topicId: 'source-topic',
             role: 'user',
-            data: mainText('root'),
+            data: sourceData,
             status: 'success',
             siblingsGroupId: 0
           },
           {
-            id: 'source-child',
-            parentId: 'source-root',
+            id: childId,
+            parentId: sourceId,
             topicId: 'source-topic',
             role: 'assistant',
-            data: mainText('child'),
+            data: { ...mainText('child'), quotes: replyQuotes },
             status: 'success',
             siblingsGroupId: 0,
             stats: {
@@ -2404,8 +2414,8 @@ describe('MessageService', () => {
       const targetRootId = messageService.createRootMessageTx(dbh.db, 'target-topic')
 
       // getPathRowsToNodeTx excludes the virtual root, so the chain starts at the first-turn head.
-      const pathRows = messageService.getPathRowsToNodeTx(dbh.db, 'source-child', { topicId: 'source-topic' })
-      expect(pathRows.map((r) => r.id)).toEqual(['source-root', 'source-child'])
+      const pathRows = messageService.getPathRowsToNodeTx(dbh.db, childId, { topicId: 'source-topic' })
+      expect(pathRows.map((r) => r.id)).toEqual([sourceId, childId])
 
       const { copiedActiveNodeId } = dbh.db.transaction((tx) =>
         messageService.copyPathRowsTx(tx, pathRows, { topicId: 'target-topic' })
@@ -2418,12 +2428,19 @@ describe('MessageService', () => {
         .from(messageTable)
         .where(and(eq(messageTable.topicId, 'target-topic'), eq(messageTable.parentId, targetRootId)))
       expect(targetContent).toHaveLength(1)
-      expect(targetContent[0].data.parts?.[0]).toEqual({ type: 'text', text: 'root' })
+      expect(targetContent[0].data.parts?.[0]).toMatchObject({ type: 'text', text: 'root' })
+      expect(getMessageQuotes(targetContent[0].data.parts ?? [])).toEqual([
+        { ...userQuotes[0], sourceMessageId: copiedActiveNodeId },
+        userQuotes[1]
+      ])
 
       const copiedLeaf = await dbh.db.select().from(messageTable).where(eq(messageTable.id, copiedActiveNodeId))
       expect(copiedLeaf[0].parentId).toBe(targetContent[0].id)
       expect(copiedLeaf[0].data.parts?.[0]).toEqual({ type: 'text', text: 'child' })
       expect(copiedLeaf[0].stats).toEqual({ timeCompletionMs: 250 })
+      expect(copiedLeaf[0].data.quotes).toEqual([{ ...replyQuotes[0], sourceMessageId: targetContent[0].id }])
+      expect(messageService.getById(sourceId).data).toEqual(sourceData)
+      expect(messageService.getById(childId).data.quotes).toEqual(replyQuotes)
     })
   })
 

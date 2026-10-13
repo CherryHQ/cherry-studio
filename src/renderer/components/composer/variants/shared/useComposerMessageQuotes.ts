@@ -11,7 +11,8 @@ import { validateComposerDraftLength } from './composerQueuedPayload'
 export function useComposerMessageQuotes(
   topicId: string | undefined,
   initialQuotes: MessageQuote[] | undefined,
-  actionsRef: RefObject<Pick<ComposerSurfaceActions, 'getDraft' | 'focus'>>
+  actionsRef: RefObject<Pick<ComposerSurfaceActions, 'getDraft' | 'focus'>>,
+  onInsert: (text: string) => void
 ) {
   const [quotes, setQuotes] = useState<MessageQuote[]>(() => initialQuotes ?? [])
   const active = useComposerLayerActive()
@@ -19,6 +20,7 @@ export function useComposerMessageQuotes(
     const draft = actionsRef.current.getDraft()
     const next = [...quotes, quote]
     if (!validateComposerDraftLength({ text: draft.text, quotes: next })) return
+    onInsert(draft.text)
     setQuotes((current) => [...current, quote])
     actionsRef.current.focus('end')
   })
