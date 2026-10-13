@@ -27,6 +27,7 @@ export const metadataSchema = z.object({
         Buffer.byteLength(name) <= 255
     ),
   mediaType: z.string().max(128),
+  checksumAlgorithm: z.literal('sha256').optional(),
   byteLength: z.number().int().min(0).max(fileIntakeLimits.fileBytes)
 })
 export const recordSchema = metadataSchema
@@ -35,6 +36,11 @@ export const recordSchema = metadataSchema
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .optional(),
+    expectedSha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+    failureCode: z.enum(['CHECKSUM_MISMATCH', 'VERIFICATION_FAILED']).optional(),
     ownerId: z.string(),
     quotaKey: z.string(),
     offset: z.number().int().nonnegative(),
@@ -46,6 +52,13 @@ export const recordSchema = metadataSchema
     expiresAt: z.number()
   })
   .refine((record) => Boolean(record.sha256) || record.state !== 'ready', 'Missing upload digest')
+  .refine(
+    (record) =>
+      record.checksumAlgorithm !== 'sha256' ||
+      !['verifying', 'ready'].includes(record.state) ||
+      Boolean(record.expectedSha256),
+    'Missing source digest'
+  )
 export type Upload = z.infer<typeof recordSchema>
 
 export class IntakeStore {
