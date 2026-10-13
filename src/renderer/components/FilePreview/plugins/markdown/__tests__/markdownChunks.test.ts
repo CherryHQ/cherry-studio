@@ -2058,3 +2058,144 @@ describe('a heading whose source the parser cannot close', () => {
     expect(elapsed).toBeLessThan(1_000)
   })
 })
+
+/** The destination a source's first definition with `label` gives it — CommonMark's own order. */
+const referenceTarget = (source: string, label = 'label'): string | null => {
+  let found: string | null = null
+  const visit = (node: { type: string; identifier?: string; url?: string; children?: unknown[] }): void => {
+    if (found !== null) return
+    if (node.type === 'definition' && node.identifier === label) {
+      found = node.url ?? null
+      return
+    }
+    for (const child of node.children ?? []) visit(child as never)
+  }
+  visit(parsed(source))
+  return found
+}
+
+/** Whether a source's definitions sit inside a fenced code block, where the parser reads none. */
+const definitionInsideCode = (source: string, destination: string): boolean => {
+  let inside = false
+  const visit = (node: { type: string; value?: string; children?: unknown[] }): void => {
+    if (node.type === 'code' && String(node.value).includes(destination)) inside = true
+    for (const child of node.children ?? []) visit(child as never)
+  }
+  visit(parsed(source))
+  return inside
+}
+
+describe('a fenced code block a list and a quote both hold', () => {
+  // `- > ``` ` opens the fence inside a quote inside an item. The chain has to be read in the order
+  // it was written: the item's content column and the quote markers its continuation lines carry
+  // differ from `> - ``` `, where the quote comes first.
+  const chains: Array<[string, string]> = [
+    ['- > ```', '  > '],
+    ['> - ```', '    '],
+    ['- > > ```', '      '],
+    ['> - > ```', '    '],
+    ['> > ```', '    '],
+    ['- - ```', '    '],
+    ['- > - ```', '  >   ']
+  ]
+
+  for (const [opener, continuation] of chains) {
+    it(`keeps the definition inside the fence ${JSON.stringify(opener)} opens`, () => {
+      const content = [
+        opener,
+        `${continuation}# h`,
+        `${continuation}[label]: /wrong`,
+        `${continuation}\`\`\``,
+        '',
+        '[label]: /right',
+        '',
+        '[label]'
+      ].join('\n')
+
+      // The fence owns the definition line, so the document's own definition is the one below it.
+      expect(definitionInsideCode(content, '/wrong')).toBe(true)
+      expect(referenceTarget(content)).toBe('/right')
+
+      const transformed = chunksOf(content)
+        .map((chunk) => chunk.text)
+        .join('\n')
+
+      expect(referenceTarget(transformed)).toBe('/right')
+      // The carried prefix is what hoists the wrong definition to the front of every chunk; the
+      // fence itself stays in the chunk it was written in and still shows the line verbatim.
+      expect(chunksOf(content).some((chunk) => chunk.text.startsWith('[label]: /wrong'))).toBe(false)
+    })
+  }
+})
+
+describe('a heading whose label nests another link', () => {
+  it('reads the label the way the renderer does when a link sits inside it', () => {
+    // A link may not hold a link, so the inner one wins and the outer brackets stay literal text:
+    // the renderer's heading text is `[a b d](e)`, not `a b d`. Both headings key on the same base
+    // either way here, so the assertion is on the text the chunks hand to the renderer.
+    const content = ['# [a [b](c) d](e)', '', '# [a b d](e)'].join('\n')
+
+    expect(chunkedHeadingIds(content, 1)).toEqual(headingIds(content))
+    expect(headingIds(content)).toHaveLength(2)
+  })
+
+  it('does not exhaust the call stack on a deeply nested bracket run', () => {
+    // Each label used to be read by a recursive call, so a heading whose label nests another label
+    // thousands deep exhausted the stack. The line is far past the long-line budget, but the split
+    // runs before the fallback is decided, so the throw reached the user instead of the source view.
+    const content = `# ${'['.repeat(20_000)}x${']'.repeat(20_000)}\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks).toHaveLength(1)
+    expect(window.longLines).toBe(true)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+})
+
+describe('a heading whose text a character reference spells', () => {
+  it('bases a heading id on the text the renderer decodes the reference to', () => {
+    // The renderer decodes `&copy;` to `©`, so `# A&copy;B` and `# A©B` are the same heading text and
+    // the unsplit document numbers the second `-1`. The scanner kept a table of six entities and
+    // read the rest as literal text, so the two keyed on different bases and `#a-b-1` had no target
+    // in either chunk.
+    const filler = `${'filler\n\n'.repeat(3200)}`
+    const content = `# A&copy;B\n${filler}# A©B\n`
+    const chunks = chunksOf(content)
+
+    // The two headings have to land in different chunks: a chunk holding both carries both
+    // assignments and renders the right ids even while the scan keys the first on the wrong base.
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+    expect(headingIds(content)).toEqual(['doc--a-b', 'doc--a-b-1'])
+  })
+
+  it('leaves a reference the renderer refuses as the literal text it was written as', () => {
+    // The renderer reads `&bogus;` as text, so the heading's id keeps the name spelled out.
+    const content = ['# A&bogus;B', '', '# A&B'].join('\n')
+
+    expect(chunkedHeadingIds(content, 1)).toEqual(headingIds(content))
+  })
+})
+
+describe('a document written with bare CR line endings', () => {
+  it('counts a bare CR as a line terminator, as the parser does', () => {
+    // CommonMark ends a line at a bare CR. Splitting on `\n` alone left the whole document as one
+    // line, so its 5,999 characters read as a single long line and the preview dropped to source
+    // mode with the preview switch locked.
+    const content = Array(600).fill('# Heading').join('\r')
+    const window = splitMarkdownChunks(content)
+
+    expect(window.longLines).toBe(false)
+    expect(window.chunks).toHaveLength(1)
+  })
+
+  it('measures the same document the same way whichever terminator it uses', () => {
+    const body = Array(600).fill('# Heading').join('|')
+    for (const terminator of ['\n', '\r\n', '\r']) {
+      expect(splitMarkdownChunks(body.replace(/\|/g, terminator)).longLines).toBe(false)
+    }
+  })
+})

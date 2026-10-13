@@ -32,4 +32,18 @@ describe('hasPathologicalLongLines', () => {
     expect(hasPathologicalLongLines(`${'a'.repeat(5_000)}\r\n${'b'.repeat(5_000)}\r\n`)).toBe(false)
     expect(hasPathologicalLongLines(`${'a'.repeat(5_000)}\r\n${'b'.repeat(5_002)}\r\n`)).toBe(true)
   })
+
+  it('treats a bare CR terminator the same way it treats LF and CRLF', () => {
+    // CommonMark ends a line at a bare CR. Counting only `\n` read the whole document as one line,
+    // so a file of 600 short lines measured as a single long one and lost its rich preview.
+    const shortLines = Array(600).fill('# Heading').join('\r')
+
+    expect(hasPathologicalLongLines(shortLines)).toBe(false)
+
+    for (const terminator of ['\n', '\r\n', '\r']) {
+      expect(hasPathologicalLongLines(`${'a'.repeat(5_000)}${terminator}`)).toBe(false)
+      expect(hasPathologicalLongLines(`${'a'.repeat(5_001)}${terminator}`)).toBe(true)
+      expect(hasPathologicalLongLines(`${'a'.repeat(5_000)}${terminator}${'b'.repeat(5_002)}${terminator}`)).toBe(true)
+    }
+  })
 })
