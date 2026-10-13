@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { ChatConversationControls } from '@renderer/components/composer/variants/chat/ChatConversationControls'
 import {
   type ChatConversationControlsSnapshot,
@@ -13,6 +14,7 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
@@ -42,12 +44,17 @@ const prefersReducedMotion = () =>
   typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
- * Whether a popover (assistant/model picker, response settings…) is open in this window.
+ * Whether a popover or dialog (pickers, response settings, MCP prompt arguments…) is open.
  * Keyed on Radix's `data-state`: kept-mounted pickers stay in the DOM while closed, and
- * tooltips report `delayed-open`/`instant-open` instead.
+ * tooltips report `delayed-open`/`instant-open` instead. Dialogs portal without a popper.
  */
-const isFloatingOverlayOpen = () =>
-  document.querySelector('[data-radix-popper-content-wrapper] > [data-state="open"]') !== null
+const FLOATING_OVERLAY_SELECTOR = [
+  '[data-radix-popper-content-wrapper] > [data-state="open"]',
+  '[role="dialog"][data-state="open"]',
+  '[role="alertdialog"][data-state="open"]'
+].join(', ')
+
+const isFloatingOverlayOpen = () => document.querySelector(FLOATING_OVERLAY_SELECTOR) !== null
 
 function useFloatingOverlayOpen(): boolean {
   const [open, setOpen] = useState(false)
@@ -92,7 +99,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const conversation = useQuickConversation({ assistantId: activeAssistantId ?? undefined })
-  const { topic, topicId, isLoading, isSaved, error, send, stop, reset, save } = conversation
+  const { topic, topicId, isLoading, error, send, stop, reset, save } = conversation
 
   // Wraps setState with an eager IPC call so main's pin flag is updated
   // synchronously inside the click handler — a useEffect-based sync would
@@ -153,6 +160,14 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
     setView('bar')
     reset()
   }, [reset])
+
+  // A saved conversation belongs to the main window from here on; continuing it in this
+  // temporary surface would bypass its branch anchor and tool-approval flow.
+  const handlePersist = useCallback(async () => {
+    if (!(await save())) return
+    toast.success(t('quickAssistant.control_bar.saved'))
+    collapse()
+  }, [collapse, save, t])
 
   const handleCloseWindow = useCallback(() => ipcApi.request('quick_assistant.hide'), [])
 
@@ -284,12 +299,11 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
             <ControlBar
               loading={isLoading}
               isPinned={isPinned}
-              isSaved={isSaved}
               topicId={topicId}
               topicTitle={topic.name || t('settings.quickAssistant.title')}
               onEsc={handleEsc}
               onSetPinned={setIsPinned}
-              onPersist={save}
+              onPersist={handlePersist}
             />
             <div
               data-ui="quick-assistant.contextbar"
@@ -364,14 +378,19 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               compactWhenSingleLine={!composerEngaged}
             />
           )}
-          {view === 'bar' && composerEngaged && (
-            <div
-              data-ui="quick-assistant.contextbar"
-              // The bar's only grip: the composer card is no-drag and the rest is headroom.
-              className="flex h-10 items-center gap-1.5 overflow-hidden px-3 [-webkit-app-region:drag] [&_button]:h-7 [&_button]:px-1.5 [&_button]:[-webkit-app-region:no-drag]">
-              {renderConversationControls('top')}
-            </div>
-          )}
+          {view === 'bar' &&
+            composerEngaged && (
+              // The card's own layout box, so the row lines up with it at any window width; px-2
+              // matches the card toolbar's inset.
+              <NarrowLayout narrowMode withSidePadding>
+                <div
+                  data-ui="quick-assistant.contextbar"
+                  // The bar's only grip: the composer card is no-drag and the rest is headroom.
+                  className="flex h-10 items-center gap-1.5 overflow-hidden px-2 [-webkit-app-region:drag] [&_button]:h-7 [&_button]:px-1.5 [&_button]:[-webkit-app-region:no-drag]">
+                  {renderConversationControls('top')}
+                </div>
+              </NarrowLayout>
+            )}
         </div>
       </div>
     </MessageEditingProvider>

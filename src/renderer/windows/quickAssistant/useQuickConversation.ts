@@ -81,7 +81,6 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
 
   const [isPreparing, setIsPreparing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isSaved, setIsSaved] = useState(false)
 
   const {
     messages: chatMessages,
@@ -134,9 +133,8 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     topicIdRef.current = topicId
     // A re-leased topic is a different conversation. The preference this hook keys on is
     // shared across windows, so the lease can turn over without this window asking —
-    // leaving the previous transcript on screen and the new topic marked as saved.
+    // which would otherwise leave the previous transcript on screen.
     setCompletedRounds([])
-    setIsSaved(false)
     setError(null)
     messageTimestampsRef.current.clear()
     clearExecutionMessages()
@@ -266,17 +264,16 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     // Drop the current temporary topic and let useTemporaryTopic lease a fresh one; the
     // effect above clears the transcript once the new lease lands.
     resetTemporaryTopic()
-    setIsSaved(false)
     clear()
   }, [clear, resetTemporaryTopic])
 
+  /** Resolves whether the conversation on screen is the one that was saved. */
   const save = useCallback(async () => {
     const savingTopicId = topicIdRef.current
     await persist()
-    // Esc, collapse, or an assistant switch can drop the lease mid-request. Marking the
-    // fresh empty one as saved would claim a conversation was written that never was.
-    if (topicIdRef.current !== savingTopicId) return
-    setIsSaved(true)
+    // Esc, collapse, or an assistant switch can drop the lease mid-request; the caller must
+    // not then end the conversation the user has started since.
+    return topicIdRef.current === savingTopicId
   }, [persist])
 
   return {
@@ -286,7 +283,6 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     messages,
     partsByMessageId,
     isLoading: isPreparing || isPending,
-    isSaved,
     error,
     send,
     stop: stopChat,

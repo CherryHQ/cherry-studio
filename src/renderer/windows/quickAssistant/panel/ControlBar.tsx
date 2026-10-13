@@ -1,4 +1,4 @@
-import { Check, CircleArrowLeft, ExternalLink, Loader2, Pin, Save } from 'lucide-react'
+import { CircleArrowLeft, ExternalLink, Loader2, Pin, Save } from 'lucide-react'
 import type { ButtonHTMLAttributes, FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +14,6 @@ const logger = loggerService.withContext('QuickAssistantControlBar')
 interface Props {
   loading: boolean
   isPinned: boolean
-  isSaved: boolean
   topicId: string | null
   topicTitle: string
   onEsc: () => void
@@ -31,12 +30,12 @@ interface Props {
  * and its terminal append would fail against a topic persist has already removed from
  * the map — saving the conversation without the answer being written.
  */
-const ControlBar: FC<Props> = ({ loading, isPinned, isSaved, topicId, topicTitle, onEsc, onSetPinned, onPersist }) => {
+const ControlBar: FC<Props> = ({ loading, isPinned, topicId, topicTitle, onEsc, onSetPinned, onPersist }) => {
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
 
   const persist = useCallback(async () => {
-    if (isSaved || saving) return true
+    if (saving) return false
     setSaving(true)
     try {
       await onPersist()
@@ -48,7 +47,7 @@ const ControlBar: FC<Props> = ({ loading, isPinned, isSaved, topicId, topicTitle
     } finally {
       setSaving(false)
     }
-  }, [isSaved, onPersist, saving, t])
+  }, [onPersist, saving, t])
 
   const openInMain = useCallback(async () => {
     // Only a persisted topic exists outside this window, so saving is part of opening.
@@ -79,10 +78,10 @@ const ControlBar: FC<Props> = ({ loading, isPinned, isSaved, topicId, topicTitle
           )}
         </Action>
         <Action
-          label={isSaved ? t('quickAssistant.control_bar.saved') : t('quickAssistant.control_bar.save_topic')}
+          label={t('quickAssistant.control_bar.save_topic')}
           onClick={() => void persist()}
-          disabled={isSaved || saving || loading || !topicId}>
-          {isSaved ? <Check size={14} className="text-success" /> : <Save size={14} className="text-foreground" />}
+          disabled={saving || loading || !topicId}>
+          <Save size={14} className="text-foreground" />
         </Action>
         <Action
           label={t('quickAssistant.control_bar.open_in_main')}

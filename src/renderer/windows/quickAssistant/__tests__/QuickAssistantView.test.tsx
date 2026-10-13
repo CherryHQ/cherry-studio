@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18n from 'i18next'
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -143,7 +144,6 @@ vi.mock('../useQuickConversation', () => ({
     topic: { id: 'topic-1', name: '' },
     topicId: 'topic-1',
     isLoading: false,
-    isSaved: false,
     error: null,
     messages: [],
     partsByMessageId: new Map(),
@@ -245,6 +245,29 @@ describe('QuickAssistantView', () => {
 
     picker.wrapper.remove()
     tooltip.wrapper.remove()
+    offsetHeight.mockRestore()
+  })
+
+  it('keeps room and Escape for an open dialog, which portals without a popper wrapper', async () => {
+    // The MCP prompt argument form is a centered dialog: a bar-height window would clip it,
+    // and Escape must close the form rather than hide the window behind it.
+    platform.isMac = false
+    const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
+    render(<QuickAssistantView draggable={false} />)
+    await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'bar', contentHeight: 135 }))
+
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    dialog.setAttribute('data-state', 'open')
+    document.body.appendChild(dialog)
+    await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'quick-panel', contentHeight: 560 }))
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'message' }), { key: 'Escape' })
+    expect(hideCalls()).toBe(0)
+
+    dialog.setAttribute('data-state', 'closed')
+    await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'bar', contentHeight: 135 }))
+    dialog.remove()
     offsetHeight.mockRestore()
   })
 
@@ -360,6 +383,39 @@ describe('QuickAssistantView', () => {
     await user.click(screen.getByRole('button', { name: 'mock send' }))
 
     await waitFor(() => expect(screen.getByTestId('quick-messages')).toBeInTheDocument())
+  })
+
+  const openPanel = async () => {
+    quickConversation.send.mockReturnValue(true)
+    fireEvent.click(screen.getByRole('button', { name: 'mock send' }))
+    await screen.findByTestId('quick-messages')
+  }
+
+  it('ends the conversation once it is saved, since it now belongs to the main window', async () => {
+    // Continuing a saved topic here would run it through the temporary surface, which has
+    // neither its branch anchor nor a tool-approval UI.
+    quickConversation.save.mockResolvedValue(true)
+    render(<QuickAssistantView draggable={false} />)
+    await openPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('quickAssistant.control_bar.save_topic') }))
+
+    await waitFor(() => expect(screen.queryByTestId('quick-messages')).not.toBeInTheDocument())
+    expect(quickConversation.reset).toHaveBeenCalled()
+  })
+
+  it('leaves a conversation started during a save alone when that save lands late', async () => {
+    // save() resolves false when the lease turned over mid-request: the conversation on
+    // screen is not the one that was written, so it must not be cleared.
+    quickConversation.save.mockResolvedValue(false)
+    render(<QuickAssistantView draggable={false} />)
+    await openPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('quickAssistant.control_bar.save_topic') }))
+
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+    expect(screen.getByTestId('quick-messages')).toBeInTheDocument()
+    expect(quickConversation.reset).not.toHaveBeenCalled()
   })
 
   it('tells the composer when a send was not taken, so it keeps the draft or queued follow-up', () => {

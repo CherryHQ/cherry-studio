@@ -23,9 +23,11 @@ vi.mock('@ai-sdk/react', () => ({
   })
 }))
 
+const lease = vi.hoisted(() => ({ topicId: 'temp-topic' }))
+
 vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   useTemporaryTopic: () => ({
-    topicId: 'temp-topic',
+    topicId: lease.topicId,
     topic: undefined,
     ready: true,
     reset: conversation.resetTopic,
@@ -51,6 +53,45 @@ describe('finalizeLiveMessages', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     streamStatus.isPending = false
+    lease.topicId = 'temp-topic'
+  })
+
+  it('reports a save as done only for the conversation still on screen', async () => {
+    // The caller clears the conversation after a save; if the lease turned over mid-request,
+    // clearing would wipe a conversation the user started since.
+    let finishPersist: () => void = () => {}
+    conversation.persistTopic.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishPersist = resolve
+        })
+    )
+    const { result, rerender } = renderHook(() => useQuickConversation({}))
+
+    let saved: boolean | undefined
+    await act(async () => {
+      const saving = result.current.save().then((value) => {
+        saved = value
+      })
+      finishPersist()
+      await saving
+    })
+    expect(saved).toBe(true)
+
+    let saving: Promise<void> = Promise.resolve()
+    act(() => {
+      saving = result.current.save().then((value) => {
+        saved = value
+      })
+    })
+    // The lease turns over while the request is in flight.
+    lease.topicId = 'temp-topic-2'
+    act(() => rerender())
+    await act(async () => {
+      finishPersist()
+      await saving
+    })
+    expect(saved).toBe(false)
   })
 
   it('refuses a submit while a turn is in flight instead of reporting it as sent', () => {
