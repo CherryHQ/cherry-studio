@@ -20,7 +20,11 @@ import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@rende
 import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from './composerDraft'
 import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
-import { createPromptVariableInlineContent, getNextPromptVariableIndex } from './promptVariables'
+import {
+  createPromptVariableInlineContent,
+  getNextPromptVariableIndex,
+  PROMPT_VARIABLE_TOKENIZATION_META
+} from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
 
 export function updateComposerToken(editor: Editor, token: ComposerDraftToken) {
@@ -91,7 +95,9 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
           editor.schema.nodeFromJSON(node)
         )
       )
-      const transaction = editor.state.tr.replaceRange(range.from, range.to, new Slice(content, 0, 0))
+      const transaction = editor.state.tr
+        .replaceRange(range.from, range.to, new Slice(content, 0, 0))
+        .setMeta(PROMPT_VARIABLE_TOKENIZATION_META, false)
       if (serializeComposerDocument(transaction.doc.toJSON()).text.length > COMPOSER_INPUT_MAX_LENGTH) return false
       selectionToInsertionEnd(transaction, 0, -1)
       editor.view.dispatch(transaction)
@@ -102,6 +108,7 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
       editor
         .chain()
         .focus()
+        .setMeta(PROMPT_VARIABLE_TOKENIZATION_META, options?.tokenizeVariables !== false)
         .insertContent(buildInsertedInlineContent(editor, insertedText, options))
         .run()
     },

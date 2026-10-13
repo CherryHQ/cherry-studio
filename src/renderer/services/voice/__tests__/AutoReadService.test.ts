@@ -53,6 +53,24 @@ describe('AutoReadService', () => {
     })
   })
 
+  it.each(['```ts\nconst value = 1\n```', '<pre><code>const value = 1</code></pre>'])(
+    'silently skips replies with no readable prose: %s',
+    async (text) => {
+      const { coordinator, playback, reportError } = createHarness()
+      await expect(
+        coordinator.consume({
+          enabled: true,
+          message: message('no-prose', text),
+          attemptId: 1,
+          isAbort: false,
+          isError: false
+        })
+      ).resolves.toMatchObject({ status: 'skipped', reason: 'empty' })
+      expect(playback.start).not.toHaveBeenCalled()
+      expect(reportError).not.toHaveBeenCalled()
+    }
+  )
+
   it('claims each completion once while allowing a newer attempt', async () => {
     const { coordinator, playback } = createHarness()
     const completion = {

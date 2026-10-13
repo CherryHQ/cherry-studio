@@ -456,6 +456,40 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(service.getSnapshot().phase).toBe('idle')
   })
 
+  it.each(['play', 'acknowledgment'])('preserves audio failure during pending %s and allows retry', async (stage) => {
+    const audio = new FakeAudio()
+    const { service, voice } = createHarness({ audio })
+    let finish!: () => void
+    if (stage === 'play') {
+      audio.play.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve
+          })
+      )
+    } else {
+      voice.updatePlayback.mockImplementationOnce(
+        () =>
+          new Promise<any>((resolve) => {
+            finish = () => resolve({ phase: 'playing' })
+          })
+      )
+    }
+    const result = service.start(baseInput).catch((error: unknown) => error)
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    audio.dispatchEvent(new Event('error'))
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('failed'))
+    finish()
+    expect(await result).toMatchObject({ reason: 'operation_failed' })
+    expect(service.getSnapshot().phase).toBe('failed')
+    expect(service.canRetry(sessionId)).toBe(true)
+    await service.retry()
+    expect(service.getSnapshot().phase).toBe('playing')
+    expect(audio.paused).toBe(false)
+    expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
+    await service.stop()
+  })
+
   it('retains failed audio for explicit retry without generating again', async () => {
     const { service, voice, audios } = createHarness()
     await service.start(baseInput)

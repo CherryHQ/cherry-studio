@@ -9,6 +9,7 @@ import {
   writeAskUserQuestionDraftCache
 } from '@renderer/components/composer/variants/askUserQuestionDraftCache'
 import type * as AgentSessionPartsModule from '@renderer/hooks/useAgentSessionParts'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -497,6 +498,40 @@ describe('useAgentChatRuntimeState', () => {
       expect.objectContaining({ message: expect.objectContaining({ id: autonomous.id }), eligible: false })
     )
   })
+
+  it.each(['goal-round', 'background-work', 'manual'] as const)(
+    'uses live turn origin for %s before history loads',
+    (kind) => {
+      mocks.useAgentSessionParts.mockReturnValue({
+        ...mocks.useAgentSessionParts.getMockImplementation()!(),
+        messages: [],
+        isLoading: true
+      })
+      renderHook(() =>
+        useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+      )
+      MockCacheUtils.setInitialState({
+        shared: [
+          [
+            AGENT_SESSION_TURN_ORIGIN_CACHE_KEY('session-1', assistantMessage.id),
+            kind === 'manual' ? null : kind === 'goal-round' ? { kind, round: 2 } : { kind }
+          ],
+          [AGENT_SESSION_TURN_ORIGIN_CACHE_KEY('another-session', assistantMessage.id), { kind: 'background-work' }]
+        ]
+      })
+      const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onFinish
+      act(() => {
+        onFinish?.('provider::model', {
+          attemptId: 9,
+          message: { ...assistantMessage, metadata: undefined },
+          isAbort: false,
+          isError: false
+        })
+      })
+
+      expect(mocks.autoReadConsume).toHaveBeenCalledWith(expect.objectContaining({ eligible: kind === 'manual' }))
+    }
+  )
 
   it('invalidates disclosure state after deleting a session message', async () => {
     const { result } = renderHook(() =>

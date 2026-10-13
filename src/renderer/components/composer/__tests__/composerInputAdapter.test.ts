@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from '../composerDraft'
 import { createComposerInputAdapter, updateComposerToken } from '../composerInputAdapter'
 import { createComposerEditorPreset } from '../composerPreset'
+import { tokenizePromptVariablesInEditor } from '../promptVariables'
 
 describe('createComposerInputAdapter', () => {
   let editor: Editor | undefined
@@ -14,7 +15,13 @@ describe('createComposerInputAdapter', () => {
   })
 
   function createEditor() {
-    editor = new Editor({ extensions: createComposerEditorPreset({}), content: '' })
+    editor = new Editor({
+      extensions: createComposerEditorPreset({}),
+      content: '',
+      onUpdate: ({ editor, transaction }) => {
+        tokenizePromptVariablesInEditor(editor, transaction)
+      }
+    })
     return editor
   }
 
@@ -67,9 +74,10 @@ describe('createComposerInputAdapter', () => {
 
     adapter.insertText('echo ${HOME}', { tokenizeVariables: false })
 
+    editor!.commands.insertContent(' more text')
     const draft = serializeComposerDocument(editor!)
     expect(draft.tokens).toEqual([])
-    expect(draft.text).toBe('echo ${HOME}')
+    expect(draft.text).toBe('echo ${HOME} more text')
   })
 
   it('captures and replaces the live editor selection without tokenizing the transcript', () => {
@@ -81,6 +89,20 @@ describe('createComposerInputAdapter', () => {
     expect(adapter.captureReplaceRange?.()).toEqual({ from: 7, to: 12 })
     expect(adapter.replaceRange?.({ from: 7, to: 12 }, '${HOME}')).toBe(true)
     expect(serializeComposerDocument(editor)).toEqual({ text: 'hello ${HOME}', tokens: [] })
+    editor.commands.insertContent(' and ${name}')
+    const draft = serializeComposerDocument(editor)
+    expect(draft.text).toBe('hello ${HOME} and ${name}')
+    expect(draft.tokens.map((token) => token.label)).toEqual(['name'])
+  })
+
+  it('restores literal dictation through undo and redo without creating variable tokens', () => {
+    const editor = createEditor()
+    const adapter = createComposerInputAdapter(editor)
+    expect(adapter.replaceRange?.({ from: 1, to: 1 }, '${HOME}')).toBe(true)
+    editor.commands.undo()
+    expect(serializeComposerDocument(editor)).toEqual({ text: '', tokens: [] })
+    editor.commands.redo()
+    expect(serializeComposerDocument(editor)).toEqual({ text: '${HOME}', tokens: [] })
   })
 
   it('re-reads the selection at replacement time and preserves adjacent composer tokens', () => {

@@ -203,6 +203,7 @@ function VoiceSettings() {
   const [previewFailure, setPreviewFailure] = useState<{ snapshot: SpeechPlaybackSnapshot; reason: VoiceErrorReason }>()
   const autoReadRef = useRef<HTMLButtonElement>(null)
   const previewGenerationRef = useRef(0)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const speechStatusCheckRef = useRef<Promise<void>>(Promise.resolve())
   const loadedCatalogs = useRef(new Set<string>())
   const catalogAttempt = useRef(-1)
@@ -279,6 +280,11 @@ function VoiceSettings() {
   const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? defaultLanguage
   const selectedVoice = voices.find((voice) => voice.id === (speechVoice || recommendedVoice))
   const effectiveSpeechLanguage = languageValue(speechLanguage) ?? selectedVoice?.language ?? defaultLanguage
+  useEffect(() => {
+    ++previewGenerationRef.current
+    setPreviewLoading(false)
+  }, [effectiveSpeechLanguage, speechModel, speechVoice, speechSpeed])
+
   const speechLanguageOptions = useMemo<VoiceSelectOption[]>(() => {
     const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language', languageDisplay: 'standard' })
     const worldLabel = t('settings.voice.language.world')
@@ -581,7 +587,7 @@ function VoiceSettings() {
   const transcriptionModels = models.filter((model) => isTranscriptionModelId(model.id))
   const speechModels = models.filter((model) => isSpeechModelId(model.id))
   const canOpenMicrophoneSettings = needsMicrophoneRecovery
-  const speechBusy = ['generating', 'playing', 'paused'].includes(speech.phase)
+  const speechBusy = previewLoading || ['generating', 'playing', 'paused'].includes(speech.phase)
   const speechError = previewFailure?.snapshot === speech ? previewFailure.reason : speech.error
 
   useEffect(() => {
@@ -662,18 +668,31 @@ function VoiceSettings() {
       if (reason === 'aborted') return
       setPreviewFailure({ snapshot: speechPlaybackService.getSnapshot(), reason })
     }
+    if (previewLoading) {
+      setPreviewLoading(false)
+      return
+    }
     if (speechBusy) {
       void speechPlaybackService.stop().catch(reportFailure)
       return
     }
-    void speechPlaybackService
-      .start({
-        text: i18n.getFixedT(effectiveSpeechLanguage)('settings.voice.speech.sample'),
-        trigger: 'manual',
-        sourceLabel: 'preview',
-        sourceEntityId: 'voice-settings'
+    setPreviewLoading(true)
+    void i18n
+      .loadLanguages(effectiveSpeechLanguage)
+      .then(() => {
+        if (generation !== previewGenerationRef.current) return
+        setPreviewLoading(false)
+        return speechPlaybackService.start({
+          text: i18n.getFixedT(effectiveSpeechLanguage)('settings.voice.speech.sample'),
+          trigger: 'manual',
+          sourceLabel: 'preview',
+          sourceEntityId: 'voice-settings'
+        })
       })
-      .catch(reportFailure)
+      .catch((error: unknown) => {
+        if (generation === previewGenerationRef.current) setPreviewLoading(false)
+        reportFailure(error)
+      })
   }
 
   const updateAutoRead = async (enabled: boolean) => {
