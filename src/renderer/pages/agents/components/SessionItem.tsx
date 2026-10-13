@@ -18,6 +18,7 @@ import {
   useResourceListActions,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
+import { SessionHoverPreview } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -110,13 +111,13 @@ const SessionItem = ({
   const hoverCard = (
     <div className="flex max-w-72 flex-col gap-0.5 text-left">
       <span className="font-medium">{sessionName}</span>
-      <span className="font-normal">
+      <span className="text-muted-foreground">
         {t('agent.session.hover.last_activity', {
           time: dayjs(session.lastActivityAt).format('YYYY-MM-DD HH:mm')
         })}
       </span>
       {workspacePath && (
-        <span className="flex items-center gap-1">
+        <span className="text-muted-foreground flex items-center gap-1">
           <Folder aria-hidden="true" size={12} className="shrink-0" />
           <span className="truncate">{session.workspace.name || workspacePath}</span>
         </span>
@@ -295,13 +296,7 @@ const SessionItem = ({
       />
 
       {!rowState.renaming && (
-        <Tooltip
-          content={hoverCard}
-          placement="right"
-          sideOffset={4}
-          delay={500}
-          className="data-[state=closed]:invisible data-[state=instant-open]:animate-none"
-          asChild>
+        <SessionHoverPreview id={session.id} content={hoverCard}>
           <ResourceList.ItemTitle
             fade
             className={cn(
@@ -319,7 +314,7 @@ const SessionItem = ({
             }}>
             {sessionName}
           </ResourceList.ItemTitle>
-        </Tooltip>
+        </SessionHoverPreview>
       )}
 
       {!rowState.renaming && (

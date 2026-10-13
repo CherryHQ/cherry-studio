@@ -1246,60 +1246,6 @@ describe('Tooltip', () => {
       }
     })
 
-    it('shares the warm hover delay across tooltips, then resets after leaving', () => {
-      vi.useFakeTimers()
-      try {
-        render(
-          <TooltipProvider>
-            <Tooltip content="first details" delay={500} asChild>
-              <button type="button">First</button>
-            </Tooltip>
-            <Tooltip content="second details" delay={500} asChild>
-              <button type="button">Second</button>
-            </Tooltip>
-          </TooltipProvider>
-        )
-        const first = screen.getByText('First')
-        const second = screen.getByText('Second')
-        fireEvent.pointerMove(first)
-        act(() => {
-          vi.advanceTimersByTime(499)
-        })
-        expect(first).not.toHaveAttribute('aria-describedby')
-        act(() => {
-          vi.advanceTimersByTime(1)
-        })
-        expect(first).toHaveAttribute('aria-describedby')
-
-        fireEvent.keyDown(document, { key: 'Escape' })
-        fireEvent(first, new MouseEvent('pointerleave', { clientX: 0, clientY: 0 }))
-        fireEvent.pointerOut(first)
-        fireEvent(document, new MouseEvent('pointermove', { clientX: 100, clientY: 100 }))
-        act(() => {
-          vi.advanceTimersByTime(60)
-        })
-        fireEvent.pointerMove(second)
-        expect(second).toHaveAttribute('aria-describedby')
-        expect(first).not.toHaveAttribute('aria-describedby')
-
-        fireEvent.keyDown(document, { key: 'Escape' })
-        fireEvent(second, new MouseEvent('pointerleave', { clientX: 0, clientY: 0 }))
-        fireEvent.pointerOut(second)
-        fireEvent(document, new MouseEvent('pointermove', { clientX: 100, clientY: 100 }))
-        act(() => {
-          vi.advanceTimersByTime(301)
-        })
-        fireEvent.pointerMove(first)
-        expect(first).not.toHaveAttribute('aria-describedby')
-        act(() => {
-          vi.advanceTimersByTime(500)
-        })
-        expect(first).toHaveAttribute('aria-describedby')
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
     it('does not reopen from retained internal state after disable/enable', () => {
       vi.useFakeTimers()
       try {

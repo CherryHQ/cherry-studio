@@ -4,7 +4,7 @@ import type { RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip, TooltipProvider } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
@@ -38,6 +38,10 @@ import {
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
+import {
+  SessionHoverPreview,
+  SessionHoverPreviewGroup
+} from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import {
@@ -1610,8 +1614,7 @@ export function Topics({
         </ResourceList.Header>
 
         {refreshError && <ResourceRefreshErrorBanner onRetry={refetchTopics} retrying={isRefreshing} />}
-
-        <TooltipProvider>
+        <SessionHoverPreviewGroup enabled={dataEnabled}>
           <TopicListBody
             activeTopic={activeTopic}
             assistantMoveTargets={assistantMoveTargets}
@@ -1637,7 +1640,8 @@ export function Topics({
             topicsLength={topics.length}
             variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
           />
-        </TooltipProvider>
+        </SessionHoverPreviewGroup>
+
         {historyLoading && visibleFilteredTopics.length > 0 && (
           <div className="text-foreground-tertiary shrink-0 px-3 py-2 text-center text-[11px]">
             {t('common.loading')}
@@ -1877,7 +1881,7 @@ const TopicRow = memo(function TopicRow({
   const hoverCard = (
     <div className="flex max-w-72 flex-col gap-0.5 text-left">
       <span className="font-medium">{topicName}</span>
-      <span className="font-normal">
+      <span className="text-muted-foreground">
         {t('chat.topics.hover.last_activity', { time: dayjs(topic.lastActivityAt).format('YYYY-MM-DD HH:mm') })}
       </span>
     </div>
@@ -1960,13 +1964,7 @@ const TopicRow = memo(function TopicRow({
         onClick={(event) => event.stopPropagation()}
       />
       {!rowState.renaming && (
-        <Tooltip
-          content={hoverCard}
-          placement="right"
-          sideOffset={4}
-          delay={500}
-          className="data-[state=closed]:invisible data-[state=instant-open]:animate-none"
-          asChild>
+        <SessionHoverPreview id={topic.id} content={hoverCard}>
           <ResourceList.ItemTitle
             fade
             className={cn(
@@ -1983,7 +1981,7 @@ const TopicRow = memo(function TopicRow({
             }}>
             {topicName}
           </ResourceList.ItemTitle>
-        </Tooltip>
+        </SessionHoverPreview>
       )}
       {!rowState.renaming && (
         <TopicTrailingStatus

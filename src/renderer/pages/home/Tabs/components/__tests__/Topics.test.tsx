@@ -18,6 +18,17 @@ import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/dat
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
 
+// Metadata tests isolate the preview; its real hover lifecycle has dedicated coverage.
+vi.mock('@renderer/components/chat/resourceList/SessionHoverPreview', () => ({
+  SessionHoverPreviewGroup: ({ children }: { children: ReactNode }) => children,
+  SessionHoverPreview: ({ children, content }: { children: ReactNode; content: ReactNode }) => (
+    <>
+      {children}
+      <div data-slot="hover-card-content">{content}</div>
+    </>
+  )
+}))
+
 const conversationOwnerPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
 
 vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => ({
@@ -771,11 +782,11 @@ function renderTopicList({
 }
 
 /**
- * A row's hover card repeats its title, so the test Tooltip renders that title a second time.
+ * A row's hover card repeats its title, so the test HoverCard renders that title a second time.
  * Lookups here always want the row itself, never the card copy.
  */
 function outsideHoverCard(matches: HTMLElement[]) {
-  return matches.filter((node) => node.closest('[data-testid="tooltip-content"]') === null)
+  return matches.filter((node) => node.closest('[data-slot="hover-card-content"]') === null)
 }
 
 function theOnlyOutsideHoverCard(matches: HTMLElement[], name: string | RegExp) {
@@ -812,7 +823,7 @@ async function findByRowText(name: string) {
 }
 
 function getHoverCards() {
-  return screen.queryAllByTestId('tooltip-content')
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-slot="hover-card-content"]'))
 }
 
 function findHoverCard(title: string) {

@@ -268,19 +268,8 @@ export type TooltipContentProps = React.ComponentProps<typeof RadixContent> & {
   showArrow?: boolean
 }
 
-const TooltipProviderContext = React.createContext(false)
-
 function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) {
-  return (
-    <TooltipProviderContext value={true}>
-      <RadixProvider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />
-    </TooltipProviderContext>
-  )
-}
-
-function TooltipProviderFallback({ children, ...props }: TooltipProviderProps) {
-  const hasProvider = React.use(TooltipProviderContext)
-  return hasProvider ? children : <TooltipProvider {...props}>{children}</TooltipProvider>
+  return <RadixProvider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />
 }
 
 function TooltipRoot({ delayDuration = 0, open: openProp, defaultOpen, onOpenChange, ...props }: TooltipRootProps) {
@@ -296,7 +285,7 @@ function TooltipRoot({ delayDuration = 0, open: openProp, defaultOpen, onOpenCha
   const effectiveOpen = surfaceActive && controllerEffectiveOpen
   return (
     <TooltipOverlayContext value={contentVisible}>
-      <TooltipProviderFallback delayDuration={delayDuration}>
+      <TooltipProvider delayDuration={delayDuration}>
         <RadixRoot
           data-slot="tooltip"
           delayDuration={delayDuration}
@@ -304,7 +293,7 @@ function TooltipRoot({ delayDuration = 0, open: openProp, defaultOpen, onOpenCha
           onOpenChange={handleOpenChange}
           {...props}
         />
-      </TooltipProviderFallback>
+      </TooltipProvider>
     </TooltipOverlayContext>
   )
 }
@@ -465,7 +454,7 @@ export const Tooltip = ({
   const { side, align } = parsePlacement(placement)
 
   return (
-    <TooltipProviderFallback delayDuration={delay}>
+    <TooltipProvider delayDuration={delay}>
       <RadixRoot delayDuration={delay} open={effectiveOpen} onOpenChange={handleOpenChange}>
         <TooltipTrigger asChild>
           {asChild ? (
@@ -492,7 +481,7 @@ export const Tooltip = ({
           </RadixPortal>
         )}
       </RadixRoot>
-    </TooltipProviderFallback>
+    </TooltipProvider>
   )
 }
 

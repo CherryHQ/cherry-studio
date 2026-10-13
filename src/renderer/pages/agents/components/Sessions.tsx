@@ -2,7 +2,7 @@ import { Folder, FolderOpen, MoreHorizontal, Plus } from 'lucide-react'
 import { lazy, memo, type RefObject, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Tooltip, TooltipProvider } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
@@ -23,6 +23,7 @@ import {
   SessionListOptionsMenu
 } from '@renderer/components/chat/resourceList/base'
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
+import { SessionHoverPreviewGroup } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
@@ -2175,7 +2176,7 @@ const Sessions = ({
         )}
       </ResourceList.Header>
       {refreshError && <ResourceRefreshErrorBanner onRetry={handleRetry} retrying={listValidating} />}
-      <TooltipProvider>
+      <SessionHoverPreviewGroup enabled={dataEnabled}>
         <SessionListBody
           activeSessionId={activeSessionId}
           channelTypeMap={channelTypeMap}
@@ -2197,7 +2198,7 @@ const Sessions = ({
           sessionMenuActions={sessionMenuActions}
           setActiveSessionId={handleSelectSession}
         />
-      </TooltipProvider>
+      </SessionHoverPreviewGroup>
       {(historyLoading || isLoadingMore || hasMore) && visibleGroupedSessions.length > 0 && (
         <div className="text-foreground-tertiary shrink-0 px-3 py-2 text-center text-[11px]">{t('common.loading')}</div>
       )}
