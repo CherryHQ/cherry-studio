@@ -72,11 +72,12 @@ const bareUrlNode = {
 } as Element
 
 describe('Message quote preview', () => {
-  it('collapses multiple quotes, locates the source once and removes a quote independently', async () => {
+  it('collapses added quotes, locates the source and keeps remaining quotes expanded after removal', async () => {
     const user = userEvent.setup()
     const quotes = [
       { id: 'first', sourceMessageId: 'source-one', text: 'First quoted point' },
-      { id: 'second', sourceMessageId: 'source-two', text: 'Second quoted point' }
+      { id: 'second', sourceMessageId: 'source-two', text: 'Second quoted point' },
+      { id: 'third', sourceMessageId: 'source-three', text: 'Third quoted point' }
     ]
     const onLocate = vi.fn()
     const onRemove = vi.fn()
@@ -86,14 +87,21 @@ describe('Message quote preview', () => {
     view.rerender(<MessageQuoteList quotes={quotes} onLocate={onLocate} onRemove={onRemove} />)
     expect(screen.queryByRole('list')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { expanded: false }))
-    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
     await user.click(screen.getByText(quotes[1].text))
     expect(onLocate).toHaveBeenCalledExactlyOnceWith('source-two')
     // The last control in each item removes it; the original quote text remains untouched.
     await user.click(screen.getAllByRole('listitem')[0].querySelectorAll('button')[2])
     expect(onRemove).toHaveBeenCalledExactlyOnceWith('first')
     expect(quotes[0].text).toBe('First quoted point')
-    view.rerender(<MessageQuoteList quotes={[...quotes, { ...quotes[0], id: 'third' }]} onLocate={onLocate} />)
+    view.rerender(<MessageQuoteList quotes={quotes.slice(1)} onLocate={onLocate} onRemove={onRemove} />)
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getByText(quotes[1].text)).toBeVisible()
+    expect(screen.getByText(quotes[2].text)).toBeVisible()
+    expect(screen.queryByText(quotes[0].text)).not.toBeInTheDocument()
+    view.rerender(
+      <MessageQuoteList quotes={[...quotes.slice(1), { ...quotes[0], id: 'fourth' }]} onLocate={onLocate} />
+    )
     expect(screen.queryByRole('list')).not.toBeInTheDocument()
     view.rerender(<MessageQuoteList quotes={quotes} onClear={onClear} />)
     await user.click(screen.getAllByRole('button')[1])

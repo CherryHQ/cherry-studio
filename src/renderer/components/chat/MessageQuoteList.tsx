@@ -20,10 +20,9 @@ interface Props {
 export function MessageQuoteList({ quotes, variant = 'composer', onRemove, onClear, onLocate }: Props) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
-  const [expandedList, setExpandedList] = useState<string | null>(null)
-  const listKey = JSON.stringify(quotes.map((quote) => quote.id))
+  const [expandedList, setExpandedList] = useState<ReadonlySet<string> | null>(null)
   const collapsible = variant === 'message' || quotes.length > 1
-  const isListExpanded = !collapsible || expandedList === listKey
+  const isListExpanded = !collapsible || (expandedList !== null && quotes.every((quote) => expandedList.has(quote.id)))
   if (!quotes.length) return null
 
   return (
@@ -40,7 +39,7 @@ export function MessageQuoteList({ quotes, variant = 'composer', onRemove, onCle
             size="sm"
             className="justify-start pr-0 hover:bg-transparent focus-visible:bg-transparent"
             aria-expanded={isListExpanded}
-            onClick={() => setExpandedList(isListExpanded ? null : listKey)}>
+            onClick={() => setExpandedList(isListExpanded ? null : new Set(quotes.map((quote) => quote.id)))}>
             {t('chat.message.quotes.title')} ({quotes.length})
             {isListExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </Button>
