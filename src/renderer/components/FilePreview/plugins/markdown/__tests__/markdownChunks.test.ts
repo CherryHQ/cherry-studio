@@ -327,6 +327,36 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('carries a definition whose label is exactly as long as the parser allows', () => {
+    // 999 characters is the longest label CommonMark accepts, counted in the source the label was
+    // written in rather than in the text it resolves to.
+    const label = 'x'.repeat(999)
+    const content = [`[${label}]: https://example.com`, '', 'para one', '', `see [${label}]`].join('\n')
+
+    expect(parsed(`[${label}]: https://example.com`).children[0].type).toBe('definition')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain(`[${label}]: https://example.com`)
+    }
+  })
+
+  it('does not carry a label the parser is too long to read as a definition', () => {
+    // One character past the limit the bracket run is no label at all, so the line is a paragraph
+    // the document renders once — carrying it printed that copy in front of every chunk.
+    const label = 'x'.repeat(1000)
+    const content = [`[${label}]: /url`, '', 'para one', '', `see [${label}]`].join('\n')
+
+    expect(parsed(`[${label}]: /url`).children[0].type).toBe('paragraph')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.filter((chunk) => chunk.text.includes(']: /url'))).toHaveLength(1)
+  })
+
   it('does not carry the quoted text that follows a block-quoted definition', () => {
     // Only the definition travels; `visible tail` is a paragraph of the quote and would be repeated.
     const content = ['> [label]: https://example.com', '> "the title"', '> visible tail', '', 'see [label]'].join('\n')
@@ -1608,6 +1638,30 @@ describe('definitions inside blocks the parser reads as raw', () => {
 
     const chunks = chunksOf(content, 1)
 
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com/target')
+    }
+  })
+
+  it('collects a definition an unquoted line writes below a quoted HTML block', () => {
+    // `> <div>` opens the HTML block inside the quote, and the unquoted line below it closes the
+    // block: the parser takes the definition at the top level and resolves `see [label]` to it.
+    // Holding the block open to the blank line swallowed the definition and left the reference
+    // literal in every chunk but the one that holds it.
+    const content = [
+      '> <div>',
+      '[label]: https://example.com/target',
+      '',
+      ...Array.from({ length: 6 }, (_, index) => ['', `para ${index}`]).flat(),
+      '',
+      'see [label]'
+    ].join('\n')
+
+    expect(parsed('> <div>\n[label]: https://example.com/target').children[1].type).toBe('definition')
+
+    const chunks = chunksOf(content, 40)
+
+    expect(chunks.length).toBeGreaterThan(1)
     for (const chunk of chunks) {
       expect(chunk.text).toContain('[label]: https://example.com/target')
     }
