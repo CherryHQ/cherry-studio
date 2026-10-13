@@ -264,8 +264,9 @@ const AgentHistoryRecords = ({
   const matchesSearch = useCallback(
     (session: SessionListItem, keywords: string) => {
       const agent = session.agentId ? agentById.get(session.agentId) : undefined
-      return [session.name, session.description, agent?.name].some(
-        (value) => value && matchesSearchText(value, keywords)
+      return (
+        [session.name, agent?.name].some((value) => value && matchesSearchText(value, keywords)) ||
+        Boolean(session.description?.toLowerCase().includes(keywords))
       )
     },
     [agentById]
