@@ -123,6 +123,7 @@ export function buildAgentMcpServers(
         sessionId: session.id,
         workspaceSource,
         workspacePath: session.workspace.path,
+        additionalDirectories: session.workspace.additionalDirectories,
         trustedNotifyChannels: notificationContext.channels,
         allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
         getKnowledgeAccess: () => {

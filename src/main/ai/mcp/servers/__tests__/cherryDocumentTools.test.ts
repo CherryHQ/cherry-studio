@@ -36,9 +36,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@application', () => ({
-  application: { get: () => ({ getPhysicalPath: getPhysicalPathMock }) }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ FileManager: { getPhysicalPath: getPhysicalPathMock } })
+})
 
 vi.mock('@main/ai/messages/agentSessionAttachments', () => ({
   listAgentSessionAttachments: listAgentSessionAttachmentsMock
@@ -50,22 +51,23 @@ type Result = { isError?: boolean; content: Array<{ type: string; text?: string 
 const roots: string[] = []
 const clients: Client[] = []
 
-async function makeTools() {
+async function makeTools(additionalDirectoryNames: string[] = []) {
   const root = await mkdtemp(path.join(tmpdir(), 'cherry-to-markdown-'))
   roots.push(root)
   const workspacePath = path.join(root, 'workspace')
   const agentDataPath = path.join(root, 'agent-data')
-  await Promise.all([mkdir(workspacePath), mkdir(agentDataPath)])
+  const additionalDirectories = additionalDirectoryNames.map((name) => path.join(root, name))
+  await Promise.all([workspacePath, agentDataPath, ...additionalDirectories].map((directory) => mkdir(directory)))
   const client = await connectMcpTestClient(() => {
     const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
-    registerDocumentTools(server, { agentDataPath, sessionId: 'session-1', workspacePath })
+    registerDocumentTools(server, { agentDataPath, sessionId: 'session-1', workspacePath, additionalDirectories })
     return server
   })
   clients.push(client)
   const tools = {
     call: (args: { path: string }) => client.callTool({ name: 'to_markdown', arguments: args }) as Promise<Result>
   }
-  return { agentDataPath, tools, workspacePath }
+  return { agentDataPath, tools, workspacePath, additionalDirectories }
 }
 
 function textOf(result: Result): string {
@@ -105,7 +107,37 @@ describe('cherry-tools to_markdown', () => {
     expect(toMarkdownBytesMock).toHaveBeenCalledWith(Buffer.from([1, 2, 3]), 'docx')
   })
 
+  it('converts a document in an additional workspace directory without a managed attachment', async () => {
+    const { tools, additionalDirectories } = await makeTools(['secondary'])
+    const source = path.join(additionalDirectories[0], 'report.docx')
+    await writeFile(source, 'secondary document')
+    toMarkdownBytesMock.mockResolvedValue('# Secondary document')
+
+    const result = await tools.call({ path: source })
+
+    expect(result.isError).toBeFalsy()
+    await expect(readFile(JSON.parse(textOf(result)).path, 'utf-8')).resolves.toBe('# Secondary document')
+    expect(toMarkdownBytesMock).toHaveBeenCalledWith(Buffer.from('secondary document'), 'docx')
+  })
+
   // This tool is auto-approved, so an unauthorized path must fail before the converter runs.
+  it('rejects sibling-prefix paths and symlink escapes from an additional directory', async () => {
+    const { tools, additionalDirectories } = await makeTools(['secondary'])
+    const sibling = `${additionalDirectories[0]}-private`
+    await mkdir(sibling)
+    const secret = path.join(sibling, 'secret.docx')
+    await writeFile(secret, 'private document')
+    const escape = path.join(additionalDirectories[0], 'escape')
+    await symlink(sibling, escape, 'junction')
+
+    for (const source of [secret, path.join(escape, 'secret.docx')]) {
+      const result = await tools.call({ path: source })
+      expect(result.isError).toBe(true)
+      expect(textOf(result)).toContain('outside the workspace')
+    }
+    expect(toMarkdownBytesMock).not.toHaveBeenCalled()
+  })
+
   it('rejects an absolute path outside every trusted root', async () => {
     const { tools, workspacePath } = await makeTools()
     const outside = path.join(path.dirname(workspacePath), 'outside.pdf')
@@ -120,12 +152,14 @@ describe('cherry-tools to_markdown', () => {
 
   it('rejects relative traversal and symlinks that leave the workspace', async () => {
     const { tools, workspacePath } = await makeTools()
-    const outside = path.join(path.dirname(workspacePath), 'outside.docx')
+    const outsideDirectory = path.join(path.dirname(workspacePath), 'outside')
+    await mkdir(outsideDirectory)
+    const outside = path.join(outsideDirectory, 'report.docx')
     await writeFile(outside, 'document')
-    await symlink(outside, path.join(workspacePath, 'link.docx'))
+    await symlink(outsideDirectory, path.join(workspacePath, 'link'), 'junction')
 
-    const traversal = await tools.call({ path: '../outside.docx' })
-    const symlinkResult = await tools.call({ path: 'link.docx' })
+    const traversal = await tools.call({ path: '../outside/report.docx' })
+    const symlinkResult = await tools.call({ path: 'link/report.docx' })
 
     expect(traversal.isError).toBe(true)
     expect(symlinkResult.isError).toBe(true)
