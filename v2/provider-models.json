@@ -12758,6 +12758,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "google/gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "google/gemini-omni-flash-preview",
       "modelId": "gemini-omni-flash-preview",
       "pricing": {
@@ -25955,6 +25974,44 @@
         "openai-chat-completions": {
           "support": {
             "controls": []
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "google/gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.1875
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["high", "medium", "low"]
           }
         }
       }
@@ -40561,6 +40618,25 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "gemini-embedding-001",
       "modelId": "gemini-embedding-001",
       "pricing": {
@@ -41086,5 +41162,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "b5d75fe20ff361b6"
+  "version": "c6967aa97b477b01"
 }
