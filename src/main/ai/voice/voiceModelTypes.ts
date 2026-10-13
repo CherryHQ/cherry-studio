@@ -49,5 +49,9 @@ export type TranscriptionModelDefinition = VoiceModelDefinition &
 export interface SpeechModelDefinition extends VoiceModelDefinition {
   id: LocalSpeechModelId
   createModel(options: SpeechOptions): SpeechModelV3
+  getDefaultVoice(
+    language: string | undefined,
+    signal?: AbortSignal
+  ): Promise<{ id: string; name: string; locale: string } | null>
   voices(signal?: AbortSignal): Promise<Array<{ id: string; name: string; locale: string }>>
 }

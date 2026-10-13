@@ -53,6 +53,12 @@ export const nativeResponseSchema = z.discriminatedUnion('ok', [
       value: z.discriminatedUnion('operation', [
         z.object({ operation: z.literal('capabilities'), result: capabilitiesSchema }).strict(),
         z
+          .object({
+            operation: z.literal('resolve_voice'),
+            result: z.object({ voice: installedVoiceSchema.nullable() }).strict()
+          })
+          .strict(),
+        z
           .object({ operation: z.literal('probe_asr'), result: z.object({ locale: z.string().min(1) }).strict() })
           .strict(),
         z
@@ -101,6 +107,7 @@ export const nativeResponseSchema = z.discriminatedUnion('ok', [
 export type NativeSuccess = Extract<z.infer<typeof nativeResponseSchema>, { ok: true }>['value']
 
 export type NativeRequest =
+  | { operation: 'resolve_voice'; locale?: string }
   | { operation: 'probe_asr'; locale: string }
   | { operation: 'capabilities'; locale: string }
   | { operation: 'list_asr_locales' }

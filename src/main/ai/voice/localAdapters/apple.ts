@@ -80,6 +80,16 @@ export async function getAppleVoiceStatus(
   }
 }
 
+async function getDefaultAppleVoice(language: string | undefined, signal?: AbortSignal) {
+  checkAbort(signal)
+  if (!supportsApple()) return null
+  try {
+    return (await nativeClient().request({ operation: 'resolve_voice', locale: language }, { signal })).result.voice
+  } catch (error) {
+    throw normalizeAppleFailure(error, signal)
+  }
+}
+
 export async function listAppleVoices(signal?: AbortSignal) {
   checkAbort(signal)
   if (!supportsApple()) return []
@@ -231,5 +241,6 @@ export const appleSpeechDefinition: SpeechModelDefinition = {
   }),
   status: (options, signal) => getAppleVoiceStatus(APPLE_TTS_MODEL_ID, options, signal),
   voices: listAppleVoices,
+  getDefaultVoice: getDefaultAppleVoice,
   createModel: createAppleSpeechModel
 }

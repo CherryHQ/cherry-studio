@@ -86,6 +86,16 @@ export function createWindowsTranscriptionModel(options: TranscriptionOptions): 
   }
 }
 
+async function getDefaultWindowsVoice(language: string | undefined, signal?: AbortSignal) {
+  checkAbort(signal)
+  if (!supportsWindows()) return null
+  try {
+    return (await nativeClient().request({ operation: 'resolve_voice', locale: language }, { signal })).result.voice
+  } catch (error) {
+    throw normalizeFailure(error, signal)
+  }
+}
+
 export async function listWindowsVoices(signal?: AbortSignal) {
   checkAbort(signal)
   if (!supportsWindows()) return []
@@ -178,5 +188,6 @@ export const windowsSpeechDefinition: SpeechModelDefinition = {
   }),
   status: getWindowsVoiceStatus,
   voices: listWindowsVoices,
+  getDefaultVoice: getDefaultWindowsVoice,
   createModel: createWindowsSpeechModel
 }
