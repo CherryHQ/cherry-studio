@@ -50,7 +50,10 @@ export interface GoalVerifier {
   verify(input: {
     objective: string
     claim: { evidence?: string }
-    /** Recent conversation after the session model's replay rules, like the compaction summarizer's input. */
+    /**
+     * The session's whole context after compaction (not cut), after the session model's replay rules,
+     * shaped like the compaction summarizer's input.
+     */
     messages: ConversationModelMessage[]
     signal: AbortSignal
   }): Promise<{ verdict: 'met' | 'not_met' | 'impossible'; reason: string }>
@@ -81,7 +84,7 @@ const NUMBER = /^-?\d+(?:\.\d+)?$/
 /** Rounds without progress before a hint round, and before the goal stops (spec §7.2). */
 const HINT_AFTER_ROUNDS = 2
 const STOP_AFTER_ROUNDS = 3
-/** Identical calls in one round before they are blocked, and before the goal stops (spec §7.2). */
+/** Identical calls in a row within one round before they are blocked, and before the goal stops (spec §7.2). */
 const BLOCK_REPEAT_AT = 3
 const STOP_REPEAT_AT = 5
 /** Sent after the goal view when a completion is accepted (spec §7.5). */
@@ -101,7 +104,7 @@ function statusText(goal: GoalSnapshot, armed: boolean): string {
     `Goal: ${goal.objective}`,
     `Phase: ${goal.phase}${stop} · ${armed ? 'armed' : 'disarmed'}`,
     `Rounds: ${goal.roundsStarted}/${goal.maxGoalRounds} · Tokens: ${goal.tokensUsed}` +
-      (goal.costUsed > 0 ? ` · Cost: $${goal.costUsed}` : '')
+      (goal.costUsed > 0 ? ` · Cost: $${goal.costUsed.toFixed(4)}` : '')
   ].join('\n')
 }
 
@@ -306,7 +309,6 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       runtime.goal = currentGoal(entries)
       runtime.armed = false
       runtime.inGoalRound = false
-      unsubscribeApproval?.()
       unsubscribeApproval = port.onApproval?.((event) => {
         if (!runtime.goal || !runtime.inGoalRound) return
         if (event.kind === 'denied')
@@ -556,7 +558,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       runtime.blocked = { round: 0, count: 0 }
     }
     const lastErrorMessage = (ctx: ExtensionContext) => {
-      const last = ctx.sessionManager.getBranch().at(-1)
+      // Other extensions' entries may follow the failed reply.
+      const last = ctx.sessionManager.getBranch().findLast((entry) => entry.type === 'message')
       return last?.type === 'message' && last.message.role === 'assistant' ? last.message.errorMessage : undefined
     }
 
@@ -579,7 +582,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
         stop('paused_each_round')
         return undefined
       }
-      if (event.context.pendingMessages.length > 0) return undefined
+      // Pi continues for a queued user message, not for an extension message that starts no turn.
+      if (event.context.pendingMessages.some((message) => message.role === 'user')) return undefined
       if (port.hasRunningSubagents?.() === true) {
         stop('waiting_subagents')
         return undefined
@@ -594,7 +598,9 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       }
       // The budget check sees this round's usage; the next snapshot write folds it in.
       const projected = recordUsage(goal, runtime.pendingUsage, false)
-      return { entries: [{ type: 'custom_message', ...roundMessage(projected, reserve(projected)) }], continue: true }
+      const round = { type: 'custom_message' as const, ...roundMessage(projected, reserve(projected)) }
+      // Pi keeps only the last handler's entries, so carry what earlier extensions proposed.
+      return { entries: [...event.entries, round], continue: true }
     }
 
     // A round the settle committed is on the branch when its run starts; Pi emits no message_end for it.
@@ -652,6 +658,12 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
 
     pi.on('agent_before_settle', (event, ctx) => {
       if (runtime.inSubagent) return undefined
+      // A request the host aborted through its own signal settles here; agent_settled reports aborted: false.
+      if (event.outcome === 'aborted') {
+        runtime.inGoalRound = false
+        if (runtime.goal?.phase === 'active' && runtime.armed) stop('aborted')
+        return undefined
+      }
       closeRound()
       return decide(event, ctx)
     })
@@ -687,9 +699,10 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
           const value = input.slice(word.length).trim()
           if (CONTROL_WORDS.has(keyword) && value === '') {
             const goal = requireGoal()
-            // A goal that is not active drives no turn, so a running turn is the human's to keep.
+            // Only an active, armed goal drives the running turn; otherwise the turn is the human's to keep.
+            const drivesTurn = goal.phase === 'active' && runtime.armed
             const stopTurn = () => {
-              if (goal.phase === 'active' && !ctx.isIdle()) ctx.abort()
+              if (drivesTurn && !ctx.isIdle()) ctx.abort()
             }
             if (keyword === 'pause') {
               if (pause(goal)) {
