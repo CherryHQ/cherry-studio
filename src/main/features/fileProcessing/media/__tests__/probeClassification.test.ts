@@ -118,4 +118,19 @@ describe('video tail packet seek', () => {
     expect(relativeInputSeekMs(Number.NaN, 0)).toBeUndefined()
     expect(relativeInputSeekMs(0.1, 0.2)).toBeUndefined()
   })
+
+  it('pairs a missing video-stream duration with the format start, not the video start', () => {
+    expect(
+      videoTailProbePoint({
+        format: { duration: '4', start_time: '0.2' },
+        streams: [{ codec_type: 'video', start_time: '1.5' }]
+      })
+    ).toEqual({ endSeconds: 4.2, formatStartTimeSeconds: 0.2 })
+    expect(
+      videoTailProbePoint({
+        format: { duration: '4', start_time: '1' },
+        streams: [{ codec_type: 'video', start_time: '0' }]
+      })
+    ).toEqual({ endSeconds: 5, formatStartTimeSeconds: 1 })
+  })
 })
