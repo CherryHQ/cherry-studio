@@ -2422,6 +2422,7 @@
   "message.tools.labels.webSearch": "网页搜索",
   "message.tools.labels.workflow": "工作流",
   "message.tools.labels.write": "写入",
+  "message.tools.linksOmitted": "已省略其余 {{count}} 个链接",
   "message.tools.meta.invoke_missing_name": "未提供工具名称。",
   "message.tools.meta.no_tools_matched": "没有匹配的工具。",
   "message.tools.noData": "此工具暂无可用数据",

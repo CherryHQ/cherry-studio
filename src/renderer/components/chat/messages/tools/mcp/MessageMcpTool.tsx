@@ -21,7 +21,7 @@ import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSec
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { ToolResultLink } from '../shared/ToolResultLink'
+import { ToolResultLinkList } from '../shared/ToolResultLinkList'
 import { getToolResultLinks, type ToolResultLinkData } from '../shared/toolResultLinks'
 import { truncateOutput } from '../shared/truncateOutput'
 
@@ -449,9 +449,7 @@ const ExpandedToolResponseContent: FC<{
               <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
             )}
             {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
-            {responseLinks.map((link, index) => (
-              <ToolResultLink key={`${index}:${link.url}`} {...link} />
-            ))}
+            <ToolResultLinkList links={responseLinks} />
             {responseImages.map((img, idx) => (
               <img
                 key={idx}

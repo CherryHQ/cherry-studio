@@ -2422,6 +2422,7 @@
   "message.tools.labels.webSearch": "Web'de Ara",
   "message.tools.labels.workflow": "İş Akışı",
   "message.tools.labels.write": "Yaz",
+  "message.tools.linksOmitted": "Atlanan ek bağlantılar: {{count}}",
   "message.tools.meta.invoke_missing_name": "Araç adı belirtilmedi.",
   "message.tools.meta.no_tools_matched": "Eşleşen araç bulunamadı.",
   "message.tools.noData": "Bu araç için veri yok",

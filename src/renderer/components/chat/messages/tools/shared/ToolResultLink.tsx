@@ -2,39 +2,27 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
 
+import { Button } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
-import { MarkdownLinkRenderer } from '@renderer/components/markdown'
+import { ipcApi } from '@renderer/ipc'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { ToolResultLinkData } from './toolResultLinks'
 
-export function ToolResultLink({ url, isImage, mimeType, name }: ToolResultLinkData) {
+export function ToolResultLink({ url, isImage, name }: ToolResultLinkData) {
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
   const [failedSource, setFailedSource] = useState<string | null>(null)
-  const { data: detectedImage } = useSWRImmutable(
-    mimeType ? null : ['tool-result-image', url],
-    async ([, targetUrl]) => {
-      try {
-        const response = await fetch(targetUrl, {
-          method: 'HEAD',
-          credentials: 'omit',
-          signal: AbortSignal.timeout(5000)
-        })
-        const contentType = response.headers.get('Content-Type')?.trim().toLowerCase()
-        return response.ok && contentType ? contentType.startsWith('image/') : null
-      } catch {
-        return null
-      }
-    },
+  const { data: imageSource } = useSWRImmutable(
+    ['tool-result-image', url, isImage],
+    ([, targetUrl, imageHint]) => ipcApi.request('tool_result.preview_image', { url: targetUrl, imageHint }),
     { shouldRetryOnError: false }
   )
-  const showImage = mimeType || detectedImage === null ? isImage : detectedImage === true
 
-  if (showImage && failedSource !== url) {
+  if (imageSource && failedSource !== url) {
     return (
       <ImageViewer
-        src={url}
+        src={imageSource}
         alt={name ?? t('message.tools.sections.output')}
         className="my-2 max-h-80 max-w-full rounded object-contain"
         loading="lazy"
@@ -44,10 +32,23 @@ export function ToolResultLink({ url, isImage, mimeType, name }: ToolResultLinkD
   }
 
   return (
-    <div className="my-1 break-all">
-      <MarkdownLinkRenderer href={url} openExternalUrl={actions?.openExternalUrl}>
+    <Button
+      variant="link"
+      asChild
+      className="my-1 h-auto max-w-full justify-start whitespace-normal p-0 text-left break-all">
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          void (actions?.openExternalUrl
+            ? actions.openExternalUrl(url)
+            : ipcApi.request('system.shell.open_external_website', url))
+        }}>
         {name ?? url}
-      </MarkdownLinkRenderer>
-    </div>
+      </a>
+    </Button>
   )
 }

@@ -2422,6 +2422,7 @@
   "message.tools.labels.webSearch": "Tìm kiếm trên web",
   "message.tools.labels.workflow": "Quy trình làm việc",
   "message.tools.labels.write": "Viết",
+  "message.tools.linksOmitted": "Liên kết bổ sung đã bỏ qua: {{count}}",
   "message.tools.meta.invoke_missing_name": "Không có tên công cụ.",
   "message.tools.meta.no_tools_matched": "Không có công cụ nào khớp.",
   "message.tools.noData": "Không có dữ liệu nào cho công cụ này",

@@ -2422,6 +2422,7 @@
   "message.tools.labels.webSearch": "ウェブ検索",
   "message.tools.labels.workflow": "ワークフロー",
   "message.tools.labels.write": "書く",
+  "message.tools.linksOmitted": "省略された追加リンク：{{count}}",
   "message.tools.meta.invoke_missing_name": "ツール名が指定されていません。",
   "message.tools.meta.no_tools_matched": "一致するツールはありません。",
   "message.tools.noData": "このツールに利用可能なデータはありません",

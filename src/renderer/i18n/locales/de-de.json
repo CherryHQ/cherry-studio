@@ -2422,6 +2422,7 @@
   "message.tools.labels.webSearch": "Websuche",
   "message.tools.labels.workflow": "Workflow",
   "message.tools.labels.write": "Schreiben",
+  "message.tools.linksOmitted": "Weitere ausgelassene Links: {{count}}",
   "message.tools.meta.invoke_missing_name": "Es wurde kein Tool-Name angegeben.",
   "message.tools.meta.no_tools_matched": "Keine Tools gefunden.",
   "message.tools.noData": "Keine Daten für dieses Tool verfügbar",

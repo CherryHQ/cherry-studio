@@ -2,7 +2,10 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, options?: { count: number }) =>
+      key === 'message.tools.linksOmitted' ? `Omitted: ${options?.count}` : key
+  })
 }))
 vi.mock('../../shared/GenericTools', () => ({
   ToolHeader: ({ toolName }: { toolName: string }) => <div data-testid="tool-header">{toolName}</div>
@@ -16,8 +19,14 @@ const Harness = (props: { toolName: string; input?: unknown; output?: unknown })
 )
 
 describe('UnknownToolRenderer', () => {
-  beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 405 }))))
-  afterEach(() => vi.unstubAllGlobals())
+  beforeEach(() => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Unexpected renderer fetch'))
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (_route, input) => ({
+      ok: true,
+      data: (input as { imageHint: boolean }).imageHint ? 'data:image/png;base64,aW1hZ2U=' : null
+    }))
+  })
+  afterEach(() => vi.restoreAllMocks())
   it('renders inline MCP image content blocks as data URLs alongside the text', () => {
     render(
       <Harness
@@ -59,7 +68,7 @@ describe('UnknownToolRenderer', () => {
     )
     expect(await screen.findByRole('img', { name: 'message.tools.sections.output' })).toHaveAttribute(
       'src',
-      'https://example.com/result.png?signature=abc'
+      'data:image/png;base64,aW1hZ2U='
     )
     expect(screen.getByText('Generated an image')).toBeInTheDocument()
     expect(screen.queryByText('https://example.com/result.png?signature=abc')).not.toBeInTheDocument()
@@ -72,5 +81,14 @@ describe('UnknownToolRenderer', () => {
       'https://example.com/docs'
     )
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+  it('bounds a large URL array before creating preview requests', () => {
+    const output = Array.from({ length: 20000 }, (_, index) => `https://example.com/budget/${index}`)
+    render(<Harness toolName="lookup" output={output} />)
+    expect(screen.getAllByRole('link')).toHaveLength(20)
+    expect(screen.getByText('Omitted: 19980')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: output[20] })).not.toBeInTheDocument()
+    expect(window.api.ipcApi.request).toHaveBeenCalledTimes(20)
+    expect(fetch).not.toHaveBeenCalled()
   })
 })

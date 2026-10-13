@@ -2422,6 +2422,7 @@
   "message.tools.labels.webSearch": "Recherche Web",
   "message.tools.labels.workflow": "Flux de travail",
   "message.tools.labels.write": "Écrire",
+  "message.tools.linksOmitted": "Liens supplémentaires omis : {{count}}",
   "message.tools.meta.invoke_missing_name": "Aucun nom d'outil n'a été fourni.",
   "message.tools.meta.no_tools_matched": "Aucun outil correspondant.",
   "message.tools.noData": "Aucune donnée disponible pour cet outil",

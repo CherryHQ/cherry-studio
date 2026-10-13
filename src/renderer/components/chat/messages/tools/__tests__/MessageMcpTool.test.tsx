@@ -36,7 +36,8 @@ vi.mock('@renderer/components/icons/CopyIcon', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => {
+    t: (key: string, fallback?: string | { count: number }) => {
+      if (key === 'message.tools.linksOmitted' && typeof fallback === 'object') return `Omitted: ${fallback.count}`
       if (key === 'agent.toolPermission.decisionDenied') return 'Denied'
       return typeof fallback === 'string' ? fallback : key
     }
@@ -69,7 +70,11 @@ const createMcpToolResponse = (overrides: Partial<McpToolResponse> = {}): McpToo
 
 describe('MessageMcpTool', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 405 })))
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Unexpected renderer fetch'))
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (_route, input) => ({
+      ok: true,
+      data: (input as { imageHint: boolean }).imageHint ? 'data:image/png;base64,aW1hZ2U=' : null
+    }))
     // An abort handler is available, so the removed v1 ActionsBar *would* have
     // rendered its destructive abort button — making the absence assertion meaningful.
     mockActions.mockReturnValue({ abortTool: vi.fn() })
@@ -85,7 +90,7 @@ describe('MessageMcpTool', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
-    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it('renders nothing while awaiting approval (the composer owns that surface)', () => {
@@ -199,8 +204,6 @@ describe('MessageMcpTool', () => {
 
   it('previews links in MCP text and resource blocks without displaying their JSON', async () => {
     const user = userEvent.setup()
-    const headResponse = Promise.withResolvers<Response>()
-    vi.mocked(fetch).mockReturnValue(headResponse.promise)
     render(
       <MessageMcpTool
         toolResponse={createMcpToolResponse({
@@ -224,12 +227,11 @@ describe('MessageMcpTool', () => {
 
     expect(await screen.findByRole('img', { name: 'Generated image' })).toHaveAttribute(
       'src',
-      'https://example.com/download?id=1'
+      'data:image/png;base64,aW1hZ2U='
     )
-    headResponse.resolve(new Response(null, { status: 405 }))
     expect(await screen.findByRole('img', { name: 'message.tools.sections.output' })).toHaveAttribute(
       'src',
-      'https://example.com/result.png?signature=abc'
+      'data:image/png;base64,aW1hZ2U='
     )
     expect(screen.getByRole('link', { name: 'https://example.com/docs' })).toHaveAttribute(
       'href',
@@ -246,7 +248,30 @@ describe('MessageMcpTool', () => {
       />
     )
     await user.click(screen.getByRole('button', { name: /CherryBrowser : execute/ }))
-    expect(await screen.findByRole('img')).toHaveAttribute('src', 'https://example.com/result.webp')
+    expect(await screen.findByRole('img')).toHaveAttribute('src', 'data:image/png;base64,aW1hZ2U=')
     expect(screen.queryByText('"https://example.com/result.webp"')).not.toBeInTheDocument()
+  })
+  it('caps previews across MCP blocks and reports the omitted count', async () => {
+    const user = userEvent.setup()
+    render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'done',
+          response: {
+            content: Array.from({ length: 25 }, (_, index) => ({
+              type: 'resource_link',
+              name: `Link ${index}`,
+              uri: `https://example.com/capped/${index}`,
+              mimeType: 'text/html'
+            }))
+          }
+        })}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: /CherryBrowser : execute/ }))
+    expect(await screen.findByText('Omitted: 5')).toBeInTheDocument()
+    expect(screen.getAllByRole('link')).toHaveLength(20)
+    expect(screen.queryByRole('link', { name: 'Link 20' })).not.toBeInTheDocument()
+    expect(fetch).not.toHaveBeenCalled()
   })
 })

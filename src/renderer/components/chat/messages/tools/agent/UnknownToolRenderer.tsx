@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ToolArgsTable } from '../shared/ArgsTable'
 import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { ToolResultLink } from '../shared/ToolResultLink'
+import { ToolResultLinkList } from '../shared/ToolResultLinkList'
 import { getToolResultLinks, type ToolResultLinkData } from '../shared/toolResultLinks'
 
 interface UnknownToolProps {
@@ -112,9 +112,7 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
       <div className="space-y-1">
         {normalizedInput && <ToolArgsTable args={normalizedInput} title={t('message.tools.sections.input')} />}
         {normalizedOutput && <ToolArgsTable args={normalizedOutput} title={t('message.tools.sections.output')} />}
-        {links?.map((link, index) => (
-          <ToolResultLink key={`${index}:${link.url}`} {...link} />
-        ))}
+        {links && <ToolResultLinkList links={links} />}
         {mcpImages.map((img, idx) => (
           <img
             key={idx}
