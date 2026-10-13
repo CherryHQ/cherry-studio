@@ -130,6 +130,9 @@ describe('backgroundTasks', () => {
       expect(args[1]).toBe(POSIX_DETACHED_TASK_SUPERVISOR)
       expect(args[2]).toBe('echo hi')
       expect(options.shell).toBeUndefined()
+      // `process.execPath` is the Electron binary in the packaged app, so the supervisor only
+      // reaches Node mode when the app hands it this flag.
+      expect(options.env?.ELECTRON_RUN_AS_NODE).toBe('1')
       // The stop signals are the work's, not the anchor's: a supervisor that died on SIGTERM
       // would strand the members it exists to vouch for.
       expect(POSIX_DETACHED_TASK_SUPERVISOR).toContain("'SIGTERM'")
@@ -225,6 +228,27 @@ describe('backgroundTasks', () => {
         })
       ).rejects.toThrow(/exceeds/)
     })
+
+    it.skipIf(process.platform === 'win32')(
+      'runs the command as Node in Electron and does not leak the Node flag into it',
+      async () => {
+        // The packaged app launches the supervisor with ELECTRON_RUN_AS_NODE=1 so `process.execPath`
+        // — the Electron binary — behaves as Node. That flag names the supervisor's own process: left
+        // in the environment it would turn every Electron binary the command itself launches into a
+        // plain Node, so the supervisor has to strip it before starting the work.
+        const onExit = vi.fn()
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "process.stdout.write(String(process.env.ELECTRON_RUN_AS_NODE))"`,
+          cwd: storageDir,
+          onExit
+        })
+
+        await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+        const log = await readFile(record.logFile, 'utf8')
+        expect(log.trim()).toBe('undefined')
+      }
+    )
   })
 
   describe('list / status reconciliation', () => {

@@ -186,10 +186,15 @@ export const POSIX_DETACHED_TASK_SUPERVISOR = `
 const { spawn, execFileSync } = require('node:child_process')
 const self = process.pid
 const pgid = self
+// The app ran this process with ELECTRON_RUN_AS_NODE=1 to get a Node here, and that flag is for
+// this process alone: left in the environment it would turn any Electron binary the command
+// launches into a plain Node too.
+const env = { ...process.env }
+delete env.ELECTRON_RUN_AS_NODE
 for (const ignored of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
   try { process.on(ignored, () => {}) } catch (error) {}
 }
-const task = spawn(process.argv[1], { shell: true, stdio: 'inherit' })
+const task = spawn(process.argv[1], { shell: true, stdio: 'inherit', env })
 task.on('error', () => process.exit(1))
 task.on('exit', (code, signal) => {
   const status = signal ? 1 : (code == null ? 1 : code)
@@ -250,8 +255,14 @@ export function buildDetachedBackgroundTaskSpawn(
     }
   }
   // The supervisor is the session leader, so the pid this app records is its own and the group it
-  // leads holds the command and everything the command forks.
-  return { file: process.execPath, args: ['-e', POSIX_DETACHED_TASK_SUPERVISOR, command], options }
+  // leads holds the command and everything the command forks. `process.execPath` is the Electron
+  // binary in the packaged app, so it only behaves as Node under ELECTRON_RUN_AS_NODE — and the
+  // supervisor strips that flag again before running the command, since it names this process only.
+  return {
+    file: process.execPath,
+    args: ['-e', POSIX_DETACHED_TASK_SUPERVISOR, command],
+    options: { ...options, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }
+  }
 }
 
 /**
