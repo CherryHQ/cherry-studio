@@ -13,6 +13,7 @@
 #include <climits>
 #include <cmath>
 #include <cstdint>
+#include <cwchar>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -183,6 +184,43 @@ JsonArray installedVoices() {
         result.Append(voice);
     }
     return result;
+}
+
+JsonObject resolveVoice(const JsonObject& request) {
+    auto result = object();
+    result.SetNamedValue(L"voice", JsonValue::CreateNullValue());
+    const auto locale = request.HasKey(L"locale") ? requiredString(request, L"locale") : L"";
+    const auto requested = locale.empty() ? 0 : LocaleNameToLCID(locale.c_str(), 0);
+    if (!locale.empty() && !requested) return success(L"resolve_voice", result);
+
+    ComPtr<ISpObjectToken> token;
+    const auto defaultResult = SpGetDefaultTokenFromCategoryId(SPCAT_VOICES, token.GetAddressOf(), FALSE);
+    if (FAILED(defaultResult) && defaultResult != SPERR_NOT_FOUND) require(defaultResult, "native_helper_failed");
+    if (token && requested) {
+        const auto languages = tokenLanguages(token.Get());
+        if (std::find(languages.begin(), languages.end(), requested) == languages.end()) token.Reset();
+    }
+    if (!token && requested) {
+        wchar_t attributes[32]{};
+        swprintf_s(attributes, L"Language=%lx", static_cast<unsigned long>(requested));
+        const auto match = SpFindBestToken(SPCAT_VOICES, attributes, nullptr, token.GetAddressOf());
+        if (match != SPERR_NOT_FOUND) require(match, "native_helper_failed");
+    }
+    if (token) {
+        const auto languages = tokenLanguages(token.Get());
+        if (!languages.empty()) {
+            const auto resolvedLocale = localeName(requested ? requested : languages.front());
+            if (!resolvedLocale.empty()) {
+                auto voice = object();
+                put(voice, L"id", tokenId(token.Get()));
+                put(voice, L"name", tokenName(token.Get()));
+                put(voice, L"locale", resolvedLocale);
+                put(voice, L"quality", 0);
+                put(result, L"voice", voice);
+            }
+        }
+    }
+    return success(L"resolve_voice", result);
 }
 
 JsonObject capabilities(const JsonObject& request) {
@@ -367,6 +405,7 @@ JsonObject synthesize(const JsonObject& request) {
 
 JsonObject execute(const JsonObject& request) {
     const auto operation = requiredString(request, L"operation");
+    if (operation == L"resolve_voice") return resolveVoice(request);
     if (operation == L"capabilities") return capabilities(request);
     if (operation == L"list_asr_locales") return listAsrLocales();
     if (operation == L"probe_asr") return probeAsr(request);

@@ -91,7 +91,13 @@ function createHarness(
       interruptionListeners.add(listener)
       return () => interruptionListeners.delete(listener)
     },
-    resolveTranscriptionPreferences: vi.fn<() => Promise<ResolvedTranscriptionPreferences>>(async () => ({
+    resolveTranscriptionPreferences: vi.fn<
+      (captured?: ResolvedTranscriptionPreferences) => Promise<ResolvedTranscriptionPreferences>
+    >(async () => ({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' }
+    })),
+    readTranscriptionPreferenceInput: vi.fn<() => Promise<ResolvedTranscriptionPreferences>>(async () => ({
       modelId: APPLE_ASR_MODEL_ID,
       language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' }
     })),
@@ -206,6 +212,95 @@ describe('DictationService recording lifecycle', () => {
     expect(harness.service.getSnapshot().phase).toBe('idle')
   })
 
+  it('does not discard a newer run when the superseded admission or configuration settles', async () => {
+    const firstAdmission = deferred<{ revision: number; phase: 'recording'; sessionId: string }>()
+    const firstConfiguration = deferred<ResolvedTranscriptionPreferences>()
+    const harness = createHarness()
+    const firstSelection = {
+      modelId: APPLE_ASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' as const }
+    }
+    const secondSelection = {
+      modelId: FUNASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'en-US' as const }
+    }
+    harness.voice.readTranscriptionPreferenceInput
+      .mockResolvedValueOnce(firstSelection)
+      .mockResolvedValueOnce(secondSelection)
+    harness.voice.startRecording
+      .mockReturnValueOnce(operation('session-1', 'request-1', firstAdmission.promise))
+      .mockReturnValueOnce(
+        operation(
+          'session-2',
+          'request-2',
+          Promise.resolve({ revision: 2, phase: 'recording', sessionId: 'session-2' })
+        )
+      )
+    harness.voice.resolveTranscriptionPreferences.mockImplementation(async (captured) => captured ?? secondSelection)
+    const first = harness.service.start()
+    await vi.waitFor(() => expect(harness.voice.startRecording).toHaveBeenCalledTimes(1))
+
+    const second = harness.service.start()
+    await vi.waitFor(() => expect(harness.service.getSnapshot().phase).toBe('recording'))
+    await second
+    expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
+    expect(harness.voice.resolveTranscriptionPreferences).toHaveBeenCalledWith(secondSelection)
+    expect(harness.voice.resolveTranscriptionPreferences).not.toHaveBeenCalledWith(firstSelection)
+
+    firstAdmission.reject({ reason: 'operation_failed' })
+    await first
+    expect(harness.voice.discardSession).not.toHaveBeenCalledWith('session-2')
+    expect(harness.service.getSnapshot().phase).toBe('recording')
+
+    harness.voice.readTranscriptionPreferenceInput.mockResolvedValue({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'ja-JP' }
+    })
+    await harness.service.stop()
+    expect(harness.voice.transcribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-2',
+        modelId: FUNASR_MODEL_ID,
+        language: secondSelection.language
+      })
+    )
+    expect(harness.voice.discardSession).toHaveBeenCalledWith('session-2')
+
+    const thirdSelection = {
+      modelId: APPLE_ASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'ja-JP' as const }
+    }
+    harness.voice.readTranscriptionPreferenceInput
+      .mockResolvedValueOnce(thirdSelection)
+      .mockResolvedValueOnce(secondSelection)
+    harness.voice.startRecording
+      .mockReturnValueOnce(
+        operation(
+          'session-3',
+          'request-3',
+          Promise.resolve({ revision: 3, phase: 'recording', sessionId: 'session-3' })
+        )
+      )
+      .mockReturnValueOnce(
+        operation(
+          'session-4',
+          'request-4',
+          Promise.resolve({ revision: 4, phase: 'recording', sessionId: 'session-4' })
+        )
+      )
+    harness.voice.resolveTranscriptionPreferences.mockReturnValueOnce(firstConfiguration.promise)
+    const third = harness.service.start()
+    await vi.waitFor(() => expect(harness.voice.resolveTranscriptionPreferences).toHaveBeenCalledWith(thirdSelection))
+    const fourth = harness.service.start()
+    await vi.waitFor(() => expect(harness.service.getSnapshot().phase).toBe('recording'))
+    firstConfiguration.reject({ reason: 'unsupported' })
+    await third
+    expect(harness.voice.discardSession.mock.calls.filter(([sessionId]) => sessionId === 'session-4')).toHaveLength(0)
+    expect(harness.service.getSnapshot().phase).toBe('recording')
+    await fourth
+    await harness.service.cancel()
+  })
+
   it('discards a retained interrupted recording without transcribing', async () => {
     const harness = createHarness()
     await harness.service.start()
@@ -253,7 +348,7 @@ describe('DictationService recording lifecycle', () => {
     await vi.waitFor(() => expect(harness.service.getSnapshot().phase).toBe('idle'))
   })
 
-  it.each(['initialize', 'resolveTranscriptionPreferences'] as const)(
+  it.each(['initialize', 'readTranscriptionPreferenceInput'] as const)(
     'does not admit recording after power interruption during %s',
     async (boundary) => {
       const waiting = deferred<any>()
@@ -592,6 +687,25 @@ describe('DictationService recording lifecycle', () => {
 
     lateTracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
     expect(harness.createMediaRecorder).not.toHaveBeenCalled()
+    expect(harness.service.getSnapshot().phase).toBe('idle')
+  })
+
+  it('discards an admitted recording when power interrupts preference resolution', async () => {
+    const waiting = deferred<ResolvedTranscriptionPreferences>()
+    const harness = createHarness()
+    harness.voice.resolveTranscriptionPreferences.mockReturnValueOnce(waiting.promise)
+    const starting = harness.service.start()
+    await vi.waitFor(() => expect(harness.voice.startRecording).toHaveBeenCalled())
+
+    harness.emitInterruption()
+    waiting.resolve({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' }
+    })
+    await starting
+
+    expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
+    expect(harness.getUserMedia).not.toHaveBeenCalled()
     expect(harness.service.getSnapshot().phase).toBe('idle')
   })
 

@@ -77,6 +77,19 @@ async function protocolSmoke(helperPath) {
   ) {
     throw new Error('Voice enumeration depends on ASR locale support')
   }
+  const absentDefault = await client.request({ operation: 'resolve_voice', locale: 'zz-ZZ' })
+  if (absentDefault.result.voice !== null) throw new Error('Default voice substituted an unrelated language')
+  await client.request({ operation: 'resolve_voice' })
+  for (const locale of new Set(capabilities.result.voices.map((voice) => voice.locale))) {
+    const { result } = await client.request({ operation: 'resolve_voice', locale })
+    if (
+      !result.voice ||
+      result.voice.locale.toLowerCase() !== locale.toLowerCase() ||
+      !capabilities.result.voices.some((voice) => voice.id === result.voice.id)
+    ) {
+      throw new Error('Language default did not resolve to an installed voice')
+    }
+  }
   await client.request({ operation: 'list_asr_locales' })
   const missingRecognizer = invokeRaw(
     helperPath,

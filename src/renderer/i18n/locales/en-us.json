@@ -5809,6 +5809,7 @@
   "settings.voice.resources.remove_description": "Speech recognition using this model will be unavailable until you download it again. Your model selection will be kept.",
   "settings.voice.resources.remove_title": "Remove speech recognition model?",
   "settings.voice.speech.language": "Speech language",
+  "settings.voice.speech.language_default": "Language default · {{name}}",
   "settings.voice.speech.model": "Speech model",
   "settings.voice.speech.sample": "Hello, this is a preview of the voice used to read your responses.",
   "settings.voice.speech.speed": "Speech speed",

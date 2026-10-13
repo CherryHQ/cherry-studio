@@ -9,7 +9,7 @@ import {
 } from './readableText'
 import {
   VoiceDomainError,
-  type ResolvedSpeechPreferences,
+  type SpeechPreferenceInput,
   type SpeechInput,
   type VoiceCommandEvent,
   type VoiceOperation,
@@ -51,7 +51,7 @@ export type SpeechPlaybackStartResult =
 type PlaybackVoiceService = Pick<
   VoiceService,
   | 'initialize'
-  | 'resolveSpeechPreferences'
+  | 'readSpeechPreferenceInput'
   | 'subscribeCommands'
   | 'subscribeInterruptions'
   | 'generateSpeech'
@@ -75,10 +75,10 @@ interface PlaybackRun {
   readonly sourceLabel: SpeechPlaybackSourceLabel
   readonly trigger: ReadableTextTrigger
   readonly sourceEntityId: string
-  readonly modelId: ResolvedSpeechPreferences['modelId']
-  readonly voice: string
-  readonly language?: string
-  readonly speed?: number
+  modelId?: SpeechPreferenceInput['modelId']
+  voice: string
+  language?: string
+  speed?: number
   readonly chunks: readonly string[]
   index: number
   completed: number
@@ -209,11 +209,11 @@ export class SpeechPlaybackService {
         throw new VoiceDomainError('aborted')
       }
     }
-    let preferences: ResolvedSpeechPreferences
+    let preferences: SpeechPreferenceInput
     try {
       await this.initialize()
       assertStartCurrent()
-      preferences = await this.voice.resolveSpeechPreferences()
+      preferences = await this.voice.readSpeechPreferenceInput()
       assertStartCurrent()
     } catch (error) {
       detachAbort()
@@ -231,7 +231,7 @@ export class SpeechPlaybackService {
       trigger: input.trigger,
       sourceEntityId: input.sourceEntityId,
       modelId: preferences.modelId,
-      voice: preferences.voice,
+      voice: preferences.voice ?? '',
       language: preferences.language,
       speed: preferences.speed,
       chunks: plan.chunks,
@@ -346,23 +346,24 @@ export class SpeechPlaybackService {
 
   private speechInput(
     input: SpeechPlaybackStartInput,
-    preferences: ResolvedSpeechPreferences,
+    preferences: SpeechPreferenceInput,
     chunks: readonly string[],
     index: number,
     sessionId?: string
   ): SpeechInput {
     return {
       ...(sessionId && { sessionId }),
-      modelId: preferences.modelId,
+      ...(preferences.modelId && { modelId: preferences.modelId }),
       text: chunks[index],
-      voice: preferences.voice,
+      ...(preferences.voice && { voice: preferences.voice }),
       ...(preferences.language && { language: preferences.language }),
       speed: preferences.speed,
       source: 'playback',
       sourceEntityId: input.sourceEntityId,
       trigger: input.trigger,
       chunkIndex: index,
-      chunkCount: chunks.length
+      chunkCount: chunks.length,
+      ...(!sessionId && index === 0 && { preferenceResolution: true as const })
     }
   }
 
@@ -381,6 +382,12 @@ export class SpeechPlaybackService {
         this.publish(run, 'generating')
       }
       if (run.operation === operation) run.operation = undefined
+      if (result.resolved) {
+        run.modelId = result.resolved.modelId
+        run.voice = result.resolved.voice
+        run.language = result.resolved.language
+        run.speed = result.resolved.speed
+      }
       run.outputId = result.output.id
       const audio = this.createAudio(result.output.url)
       run.audio = audio
@@ -407,9 +414,9 @@ export class SpeechPlaybackService {
     this.publish(run, 'generating')
     const operation = this.voice.generateSpeech({
       sessionId: run.sessionId,
-      modelId: run.modelId,
+      ...(run.modelId && { modelId: run.modelId }),
       text: run.chunks[run.index],
-      voice: run.voice,
+      ...(run.voice && { voice: run.voice }),
       ...(run.language && { language: run.language }),
       ...(run.speed !== undefined && { speed: run.speed }),
       source: 'playback',

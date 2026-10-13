@@ -25,6 +25,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
 import { popup } from '@renderer/services/popup'
 import {
   enumerateMicrophones,
@@ -52,6 +53,7 @@ import {
   type LocalTranscriptionModelId
 } from '@shared/ai/localVoice'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
+import { defaultLanguage as fallbackSampleCatalog } from '@shared/utils/languages'
 
 type ModelStatus = 'unsupported' | 'not_installed' | 'installing' | 'ready' | 'failed' | 'loading'
 
@@ -157,6 +159,28 @@ function languageLabel(language: string, displayNames: Intl.DisplayNames, worldL
   }
 }
 
+function previewSampleCatalog(locale: string): string {
+  if (isAppLanguage(locale)) return locale
+  let language: string
+  try {
+    language = new Intl.Locale(locale).language
+  } catch {
+    return fallbackSampleCatalog
+  }
+  const catalogs = appLanguageOptions.filter((option) => new Intl.Locale(option.value).language === language)
+  // zh-CN and zh-TW are distinct catalogs; only an unambiguous language may borrow one.
+  return catalogs.length === 1 ? catalogs[0].value : fallbackSampleCatalog
+}
+
+function trackSettingsInspection(pending: Set<Promise<unknown>>, promise: Promise<unknown>) {
+  pending.add(promise)
+  void promise.finally(() => pending.delete(promise)).catch(() => undefined)
+}
+
+async function settleSettingsInspections(pending: Set<Promise<unknown>>) {
+  while (pending.size > 0) await Promise.allSettled(Array.from(pending))
+}
+
 function VoiceSettings() {
   const { t, i18n } = useTranslation()
   const { theme } = useTheme()
@@ -190,8 +214,10 @@ function VoiceSettings() {
   const [asrLocales, setAsrLocales] = useState<Awaited<ReturnType<typeof voiceService.listTranscriptionLocales>>>()
   const [defaultAsrModel, setDefaultAsrModel] = useState<LocalTranscriptionModelId>()
   const [defaultSpeechModel, setDefaultSpeechModel] = useState<LocalSpeechModelId>()
-  const [recommendedVoice, setRecommendedVoice] = useState<string>()
+  const [defaultVoice, setDefaultVoice] =
+    useState<Awaited<ReturnType<typeof voiceService.resolveSpeechConfiguration>>>()
   const [voices, setVoices] = useState<readonly { id: string; name: string; language: string }[]>([])
+  const [voicesLoading, setVoicesLoading] = useState(true)
   const [queriedRecognitionStatus, setQueriedRecognitionStatus] = useState<QueriedRecognitionStatus>()
   const [queriedSpeechStatus, setQueriedSpeechStatus] = useState<QueriedSpeechStatus>()
   const [microphoneStatus, setMicrophoneStatus] =
@@ -201,6 +227,7 @@ function VoiceSettings() {
   const localeSelectionGeneration = useRef(0)
   const recognitionInspectionRef = useRef<Promise<void>>(Promise.resolve())
   const installingRecognitionLocaleRef = useRef(false)
+  const pendingSettingsInspectionsRef = useRef(new Set<Promise<unknown>>())
   const [actionFailed, setActionFailed] = useState<boolean | VoiceErrorReason>(false)
   const [previewFailure, setPreviewFailure] = useState<{ snapshot: SpeechPlaybackSnapshot; reason: VoiceErrorReason }>()
   const autoReadRef = useRef<HTMLButtonElement>(null)
@@ -253,13 +280,19 @@ function VoiceSettings() {
   }, [queryRevision])
 
   useEffect(() => {
+    if (installingRecognitionLocaleRef.current) return
     let current = true
     const downloadable = models.filter(
       (model) => isTranscriptionModelId(model.id) && model.resourceOperations.includes(VoiceResourceOperation.Download)
     )
-    void Promise.all(
-      downloadable.map(async (model) => [model.id, await voiceService.getModelStatus({ modelId: model.id })] as const)
+    const inspection = Promise.all(
+      downloadable.map((model) => {
+        const status = voiceService.getModelStatus({ modelId: model.id })
+        trackSettingsInspection(pendingSettingsInspectionsRef.current, status)
+        return status.then((result) => [model.id, result] as const)
+      })
     )
+    void inspection
       .then((statuses) => {
         if (current) setDownloadableModelStatuses(Object.fromEntries(statuses))
       })
@@ -280,7 +313,7 @@ function VoiceSettings() {
   const incompatibleLanguage = automaticLanguage ? languageValue(recognitionLanguage) : undefined
   const defaultLanguage = getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
   const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? defaultLanguage
-  const selectedVoice = voices.find((voice) => voice.id === (speechVoice || recommendedVoice))
+  const selectedVoice = voices.find((voice) => voice.id === speechVoice)
   const effectiveSpeechLanguage = languageValue(speechLanguage) ?? selectedVoice?.language ?? defaultLanguage
   useEffect(() => {
     ++previewGenerationRef.current
@@ -311,8 +344,12 @@ function VoiceSettings() {
   const speechVoiceOptions: VoiceSelectOption[] = [
     {
       value: EMPTY_VALUE,
-      label: t('settings.voice.recommended', {
-        name: voices.find((voice) => voice.id === recommendedVoice)?.name ?? t('common.loading')
+      label: t('settings.voice.speech.language_default', {
+        name:
+          defaultVoice?.status.status === 'ready'
+            ? (voices.find((voice) => voice.id === defaultVoice.voice)?.name ??
+              t(voicesLoading ? 'common.loading' : 'settings.voice.status.voice_unavailable'))
+            : t(defaultVoice ? statusKey(defaultVoice.status) : 'common.loading')
       })
     },
     ...voices
@@ -376,8 +413,9 @@ function VoiceSettings() {
 
   useEffect(() => {
     if (hasConfiguredRecognitionModel && !configuredRecognitionModel) return
+    if (installingRecognitionLocaleRef.current) return
     let current = true
-    recognitionInspectionRef.current = recognitionInspectionRef.current.then(async () => {
+    const inspection = recognitionInspectionRef.current.then(async () => {
       if (!current || installingRecognitionLocaleRef.current) return
       setQueriedRecognitionStatus(undefined)
       try {
@@ -402,6 +440,8 @@ function VoiceSettings() {
         if (current && !installingRecognitionLocaleRef.current) setCatalogFailed(true)
       }
     })
+    recognitionInspectionRef.current = inspection
+    trackSettingsInspection(pendingSettingsInspectionsRef.current, inspection)
     return () => {
       current = false
     }
@@ -414,27 +454,44 @@ function VoiceSettings() {
   ])
 
   useEffect(() => {
+    if (installingRecognitionLocaleRef.current) return
     setQueriedSpeechStatus(undefined)
-    setRecommendedVoice(undefined)
+    setDefaultVoice(undefined)
     if (!configuredSpeechModel) return
     let current = true
     const query = { modelId: configuredSpeechModel, language: configuredSpeechLanguage, voice: configuredSpeechVoice }
-    speechStatusCheckRef.current = speechStatusCheckRef.current.then(async () => {
-      if (!current) return
+    const inspection = speechStatusCheckRef.current.then(async () => {
+      if (!current || installingRecognitionLocaleRef.current) return
       try {
         const resolved = await voiceService.resolveSpeechConfiguration({
           ...query,
-          language: configuredSpeechLanguage ?? (configuredSpeechVoice ? undefined : defaultLanguage),
+          language: effectiveSpeechLanguage,
           speed: speechSpeed
         })
         if (current) {
-          setRecommendedVoice(resolved.voice)
           setQueriedSpeechStatus({ ...query, result: resolved.status })
+          if (!configuredSpeechVoice) setDefaultVoice(resolved)
+        }
+        if (current && configuredSpeechVoice) {
+          try {
+            const automatic = await voiceService.resolveSpeechConfiguration({
+              modelId: configuredSpeechModel,
+              language: effectiveSpeechLanguage
+            })
+            if (current) setDefaultVoice(automatic)
+          } catch {
+            if (current) setDefaultVoice({ speed: 1, status: { status: 'failed', reason: 'operation_failed' } })
+          }
         }
       } catch {
-        if (current) setQueriedSpeechStatus({ ...query, result: { status: 'failed', reason: 'operation_failed' } })
+        if (current) {
+          setQueriedSpeechStatus({ ...query, result: { status: 'failed', reason: 'operation_failed' } })
+          setDefaultVoice({ speed: 1, status: { status: 'failed', reason: 'operation_failed' } })
+        }
       }
     })
+    speechStatusCheckRef.current = inspection
+    trackSettingsInspection(pendingSettingsInspectionsRef.current, inspection)
     return () => {
       current = false
     }
@@ -442,17 +499,19 @@ function VoiceSettings() {
     configuredSpeechLanguage,
     configuredSpeechModel,
     configuredSpeechVoice,
-    defaultLanguage,
+    effectiveSpeechLanguage,
     speechSpeed,
     queryRevision
   ])
 
   useEffect(() => {
+    if (installingRecognitionLocaleRef.current) return
     let current = true
     setAsrLocales(undefined)
     if (effectiveRecognitionModel && recognitionDescriptor?.localeSelection) {
-      void voiceService
-        .listTranscriptionLocales(effectiveRecognitionModel)
+      const inspection = voiceService.listTranscriptionLocales(effectiveRecognitionModel)
+      trackSettingsInspection(pendingSettingsInspectionsRef.current, inspection)
+      void inspection
         .then((result) => {
           if (current) setAsrLocales(result)
         })
@@ -466,16 +525,23 @@ function VoiceSettings() {
   }, [effectiveRecognitionModel, recognitionDescriptor, queryRevision])
 
   useEffect(() => {
+    if (installingRecognitionLocaleRef.current) return
     let current = true
     setVoices([])
+    setVoicesLoading(false)
     if (configuredSpeechModel && models.some((model) => model.id === configuredSpeechModel)) {
-      void voiceService
-        .listVoices(configuredSpeechModel)
+      setVoicesLoading(true)
+      const inspection = voiceService.listVoices(configuredSpeechModel)
+      trackSettingsInspection(pendingSettingsInspectionsRef.current, inspection)
+      void inspection
         .then((result) => {
           if (current) setVoices(result)
         })
         .catch(() => {
           if (current) setCatalogFailed(true)
+        })
+        .finally(() => {
+          if (current) setVoicesLoading(false)
         })
     }
     return () => {
@@ -635,7 +701,7 @@ function VoiceSettings() {
       await setRecognitionPreferences({ language })
       if (generation !== localeSelectionGeneration.current) return
       if (install && modelId) {
-        await recognitionInspectionRef.current
+        await settleSettingsInspections(pendingSettingsInspectionsRef.current)
         if (generation !== localeSelectionGeneration.current) return
         await voiceService.installTranscriptionAsset({
           modelId,
@@ -685,13 +751,14 @@ function VoiceSettings() {
       return
     }
     setPreviewLoading(true)
+    const sampleLanguage = previewSampleCatalog(effectiveSpeechLanguage)
     void i18n
-      .loadLanguages(effectiveSpeechLanguage)
+      .loadLanguages(sampleLanguage)
       .then(() => {
         if (generation !== previewGenerationRef.current) return
         setPreviewLoading(false)
         return speechPlaybackService.start({
-          text: i18n.getFixedT(effectiveSpeechLanguage)('settings.voice.speech.sample'),
+          text: i18n.getFixedT(sampleLanguage)('settings.voice.speech.sample'),
           trigger: 'manual',
           sourceLabel: 'preview',
           sourceEntityId: 'voice-settings'
@@ -1047,8 +1114,7 @@ function VoiceSettings() {
                 onValueChange={(value) => {
                   savePreference(() =>
                     setSpeechPreferences({
-                      voiceId: value === EMPTY_VALUE ? '' : value,
-                      language: effectiveSpeechLanguage
+                      voiceId: value === EMPTY_VALUE ? '' : value
                     })
                   )
                 }}>
