@@ -3,6 +3,8 @@ import {
   type AgentBeforeSettleEvent,
   type AgentBeforeSettleEventResult,
   type AgentToolResult,
+  buildSessionContext,
+  convertToLlm,
   type ExtensionContext,
   type ExtensionFactory
 } from '@earendil-works/pi-coding-agent'
@@ -34,7 +36,7 @@ import {
   tailRound,
   toolCallKey
 } from './goalState'
-import type { ConversationModelMessage } from './modelMessages'
+import { type ConversationModelMessage, toModelMessages } from './modelMessages'
 
 export interface GoalApprovalEvent {
   kind: 'pending' | 'granted' | 'denied' | 'unavailable'
@@ -193,6 +195,11 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       runtime.goal = withUsage
       pi.appendEntry(GOAL_STATE_TYPE, withUsage)
     }
+    /** Spec §7.5: a user edit starts the blocked count over. */
+    const commitEdit = (next: GoalSnapshot) => {
+      commit(next)
+      runtime.blocked = { round: 0, count: 0 }
+    }
     const stop = (code: GoalStopCode, message?: string) => {
       if (!runtime.goal) return
       runtime.armed = false
@@ -208,6 +215,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       })
       runtime.goal = undefined
       runtime.armed = false
+      runtime.inGoalRound = false
       resetGoalRuntime()
     }
     const notice = (value: string, level: GoalNotice['level'] = 'info') =>
@@ -216,6 +224,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       commit(goal)
       resetGoalRuntime()
       runtime.armed = true
+      // A round still running belongs to the previous goal; the new one counts from its own first round.
+      runtime.inGoalRound = false
     }
     /** Returns false when the goal already was paused. */
     const pause = (goal: GoalSnapshot): boolean => {
@@ -351,7 +361,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
                 'invalid_action',
                 'edit needs an objective, max_goal_rounds, budget_tokens or budget_usd'
               )
-            commit(
+            commitEdit(
               editGoal(
                 goal,
                 {
@@ -373,24 +383,78 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
             resume(goal)
             return ok()
           case 'complete':
-            return completeGoal(goal, params.evidence, signal)
+            return completeGoal(goal, params.evidence, signal, ctx)
           case 'blocked':
-            return blockGoal(goal, params.blocked_reason)
+            return blockGoal(goal, params.blocked_reason, ctx)
         }
       }
     })
 
-    // Tasks 5–9 fill these in; the skeleton keeps the model-facing contract compilable.
-    const completeGoal = async (goal: GoalSnapshot, evidence: string | undefined, _signal: AbortSignal | undefined) => {
-      void goal
-      void evidence
-      void _signal
-      throw new GoalError('invalid_action', 'complete is not available yet')
+    /** The conversation as the session model would get it, for the host's verifier (spec §9). */
+    const conversation = (ctx: ExtensionContext): ConversationModelMessage[] => {
+      const { messages } = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId())
+      return toModelMessages(convertToLlm(messages), ctx.model!)
     }
-    const blockGoal = (goal: GoalSnapshot, reason: string | undefined) => {
-      void goal
-      void reason
-      throw new GoalError('invalid_action', 'blocked is not available yet')
+    const completeGoal = async (
+      goal: GoalSnapshot,
+      evidence: string | undefined,
+      signal: AbortSignal | undefined,
+      ctx: ExtensionContext
+    ) => {
+      const claim: { evidence?: string } = hasText(evidence) ? { evidence: evidence.trim() } : {}
+      if (port.verify) {
+        let verdict: Awaited<ReturnType<GoalVerifier['verify']>>
+        try {
+          verdict = await port.verify.verify({
+            objective: goal.objective,
+            claim,
+            messages: conversation(ctx),
+            signal: signal ?? new AbortController().signal
+          })
+        } catch (error) {
+          throw new GoalError(
+            'invalid_action',
+            `Completion could not be verified (${error instanceof Error ? error.message : String(error)}); keep working or report a blocker.`
+          )
+        }
+        // A command may have edited, paused or cleared the goal while the verifier ran.
+        requireRevision(goal.id, goal.revision)
+        if (verdict.verdict === 'not_met') throw new GoalError('invalid_action', `Not complete yet: ${verdict.reason}`)
+        if (verdict.verdict === 'impossible') stop('model_blocked', verdict.reason)
+        else stop('complete')
+        return ok()
+      }
+      if (!claim.evidence)
+        throw new GoalError(
+          'invalid_action',
+          'complete needs evidence: name each deliverable and what proves it is done.'
+        )
+      if (goal.progressRounds === 0 && !(runtime.inGoalRound && roundProgressed()))
+        throw new GoalError(
+          'invalid_action',
+          'No round of this goal changed anything yet; do the work before marking it complete.'
+        )
+      stop('complete')
+      return ok()
+    }
+    const blockGoal = (goal: GoalSnapshot, reason: string | undefined, ctx: ExtensionContext) => {
+      if (!hasText(reason))
+        throw new GoalError('invalid_action', 'blocked needs blocked_reason: the concrete condition that persisted.')
+      // Spec §7.5: in a human turn a person is there to resume; a goal round needs consecutive reports.
+      if (!isHumanTurn(ctx.sessionManager.getBranch())) {
+        const round = goal.roundsStarted
+        if (runtime.blocked.round !== round)
+          runtime.blocked = { round, count: runtime.blocked.round === round - 1 ? runtime.blocked.count + 1 : 1 }
+        const { count } = runtime.blocked
+        const needed = port.defaults.blockedAfter
+        if (count < needed)
+          throw new GoalError(
+            'invalid_action',
+            `Keep trying; if the same condition still blocks you in round ${round + needed - count}, report it again (${count}/${needed}).`
+          )
+      }
+      stop('model_blocked', reason.trim())
+      return ok()
     }
 
     const roundMessage = (goal: GoalSnapshot, details: RoundDetails) => ({
@@ -601,18 +665,20 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
           }
           // With no goal to edit, a leading "edit" followed by text is part of a new objective.
           if (keyword === 'edit' && (runtime.goal || value === '')) {
-            commit(editGoal(requireGoal(), { objective: value }, port.defaults.maxGoalRoundsCeiling, now()))
+            commitEdit(editGoal(requireGoal(), { objective: value }, port.defaults.maxGoalRoundsCeiling, now()))
             notice('Goal objective updated.')
             return
           }
           if (keyword === 'rounds' && NUMBER.test(value)) {
-            commit(editGoal(requireGoal(), { maxGoalRounds: Number(value) }, port.defaults.maxGoalRoundsCeiling, now()))
+            commitEdit(
+              editGoal(requireGoal(), { maxGoalRounds: Number(value) }, port.defaults.maxGoalRoundsCeiling, now())
+            )
             notice(`Round cap set to ${runtime.goal!.maxGoalRounds}.`)
             return
           }
           if (keyword === 'budget' && NUMBER.test(value.replace(/^\$/, ''))) {
             const budget = value.startsWith('$') ? { usd: Number(value.slice(1)) } : { tokens: Number(value) }
-            commit(editGoal(requireGoal(), { budget }, port.defaults.maxGoalRoundsCeiling, now()))
+            commitEdit(editGoal(requireGoal(), { budget }, port.defaults.maxGoalRoundsCeiling, now()))
             notice('Budget updated.')
             return
           }
