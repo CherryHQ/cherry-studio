@@ -15,6 +15,7 @@
 export const ENDPOINT_TYPE = {
   ANTHROPIC_MESSAGES: 'anthropic-messages',
   GOOGLE_GENERATE_CONTENT: 'google-generate-content',
+  GOOGLE_INTERACTIONS: 'google-interactions',
   JINA_RERANK: 'jina-rerank',
   OLLAMA_CHAT: 'ollama-chat',
   OLLAMA_GENERATE: 'ollama-generate',

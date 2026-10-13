@@ -59,6 +59,7 @@ const ENDPOINT_TYPE_LABEL_KEYS: Partial<Record<EndpointType, string>> = {
   [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'settings.provider.more_endpoints.openai_chat',
   [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'settings.provider.more_endpoints.anthropic',
   [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'settings.provider.more_endpoints.gemini',
+  [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]: 'endpoint_type.gemini_interactions',
   [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'settings.provider.more_endpoints.openai_responses'
 }
 
@@ -77,6 +78,7 @@ const DEFAULT_CHAT_ENDPOINT_TYPES = new Set<EndpointType>([
   ENDPOINT_TYPE.OPENAI_RESPONSES,
   ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
   ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.GOOGLE_INTERACTIONS,
   ENDPOINT_TYPE.OLLAMA_CHAT,
   ENDPOINT_TYPE.OLLAMA_GENERATE,
   ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS

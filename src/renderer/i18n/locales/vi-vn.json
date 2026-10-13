@@ -1344,6 +1344,7 @@
   "emoji_picker.search": "Tìm kiếm",
   "endpoint_type.anthropic": "Anthropic",
   "endpoint_type.gemini": "Gemini",
+  "endpoint_type.gemini_interactions": "Gemini Interactions",
   "endpoint_type.image-edit": "Chỉnh sửa hình ảnh (OpenAI)",
   "endpoint_type.image-generation": "Tạo ảnh (OpenAI)",
   "endpoint_type.jina-rerank": "Xếp hạng lại Jina",

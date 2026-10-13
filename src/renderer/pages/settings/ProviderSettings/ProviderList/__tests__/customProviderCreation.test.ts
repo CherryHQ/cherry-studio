@@ -15,7 +15,8 @@ describe('custom provider creation', () => {
     ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
     ENDPOINT_TYPE.OPENAI_RESPONSES,
     ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-    ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+    ENDPOINT_TYPE.GOOGLE_INTERACTIONS
   ] as const)('uses a single configured %s endpoint as the default', (endpointType) => {
     const payload = buildCustomProviderCreationPayload({
       endpointUrls: {
@@ -84,6 +85,7 @@ describe('custom provider creation', () => {
     [ENDPOINT_TYPE.OPENAI_RESPONSES, 'https://api.example.com/v1/responses'],
     [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'https://api.example.com/v1/messages'],
     [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'https://api.example.com/v1/models/{model}:generateContent'],
+    [ENDPOINT_TYPE.GOOGLE_INTERACTIONS, 'https://api.example.com/v1/interactions'],
     [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, 'https://api.example.com/v1/images/generations'],
     [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, 'https://api.example.com/v1/images/edits']
   ] as const)('builds the %s request path preview', (endpointType, expectedPreview) => {
@@ -91,6 +93,9 @@ describe('custom provider creation', () => {
   })
 
   it('preserves an explicit API version in the request path preview', () => {
+    expect(buildCustomProviderEndpointPreview('https://api.example.com', ENDPOINT_TYPE.GOOGLE_INTERACTIONS)).toBe(
+      'https://api.example.com/v1beta/interactions'
+    )
     expect(
       buildCustomProviderEndpointPreview(' https://api.example.com/custom/v2/ ', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     ).toBe('https://api.example.com/custom/v2/chat/completions')

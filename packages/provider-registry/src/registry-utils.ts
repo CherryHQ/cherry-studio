@@ -92,6 +92,7 @@ export function buildPersistedEndpointConfigs(
 const ENDPOINT_TYPE_TO_DEFAULT_ADAPTER_FAMILY: Partial<Record<EndpointType, string>> = {
   [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'anthropic',
   [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'google',
+  [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]: 'google-interactions',
   [ENDPOINT_TYPE.OLLAMA_CHAT]: 'ollama',
   [ENDPOINT_TYPE.OLLAMA_GENERATE]: 'ollama',
   [ENDPOINT_TYPE.JINA_RERANK]: 'jina-rerank',

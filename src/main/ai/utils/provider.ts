@@ -109,6 +109,7 @@ export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: s
   const SUPPORTED_ENDPOINTS = [
     'chat/completions',
     'responses',
+    'interactions',
     'messages',
     'generateContent',
     'streamGenerateContent',

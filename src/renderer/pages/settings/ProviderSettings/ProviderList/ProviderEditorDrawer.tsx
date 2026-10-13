@@ -68,9 +68,14 @@ const COMMON_CUSTOM_PROVIDER_ENDPOINTS = [
 const ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS = [
   ENDPOINT_TYPE.OPENAI_RESPONSES,
   ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.GOOGLE_INTERACTIONS,
   ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
 ] as const
+
+const NEW_API_TEXT_ENDPOINTS = CUSTOM_PROVIDER_TEXT_ENDPOINTS.filter(
+  (endpointType) => endpointType !== ENDPOINT_TYPE.GOOGLE_INTERACTIONS
+)
 
 interface ProviderEditorDrawerProps {
   open: boolean
@@ -91,6 +96,7 @@ const SECONDARY_ENDPOINT_LABELS: Array<{ type: EndpointType; labelKey: string }>
   { type: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, labelKey: 'settings.provider.more_endpoints.openai_chat' },
   { type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, labelKey: 'settings.provider.more_endpoints.anthropic' },
   { type: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, labelKey: 'settings.provider.more_endpoints.gemini' },
+  { type: ENDPOINT_TYPE.GOOGLE_INTERACTIONS, labelKey: 'endpoint_type.gemini_interactions' },
   { type: ENDPOINT_TYPE.OPENAI_RESPONSES, labelKey: 'settings.provider.more_endpoints.openai_responses' }
 ]
 
@@ -224,7 +230,7 @@ export default function ProviderEditorDrawer({
     }
 
     if (duplicateSource?.presetProviderId === 'new-api') {
-      for (const endpointType of CUSTOM_PROVIDER_TEXT_ENDPOINTS) {
+      for (const endpointType of NEW_API_TEXT_ENDPOINTS) {
         if (!values[endpointType]?.trim()) {
           values[endpointType] = baseUrl
         }
@@ -411,7 +417,7 @@ export default function ProviderEditorDrawer({
         const trimmedBaseUrl = baseUrl.trim()
         if (trimmedBaseUrl) {
           const primaryEndpoints =
-            source.presetProviderId === 'new-api' ? CUSTOM_PROVIDER_TEXT_ENDPOINTS : [defaultChatEndpoint]
+            source.presetProviderId === 'new-api' ? NEW_API_TEXT_ENDPOINTS : [defaultChatEndpoint]
           for (const endpointType of primaryEndpoints) {
             endpointConfigs[endpointType] = { baseUrl: trimmedBaseUrl }
           }
@@ -691,6 +697,7 @@ const CUSTOM_PROVIDER_ENDPOINT_LABEL_KEYS: Record<CustomProviderEndpoint, string
   [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'settings.provider.more_endpoints.openai_responses',
   [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'settings.provider.more_endpoints.anthropic',
   [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'settings.provider.more_endpoints.gemini',
+  [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]: 'endpoint_type.gemini_interactions',
   [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: 'settings.provider.image_endpoints.image_generation_base_url.label',
   [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: 'settings.provider.image_endpoints.image_edit_base_url.label'
 }

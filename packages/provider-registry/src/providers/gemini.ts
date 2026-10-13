@@ -19,8 +19,25 @@ export default defineProvider({
     'google-generate-content': {
       adapterFamily: 'google',
       baseUrl: 'https://generativelanguage.googleapis.com'
+    },
+    'google-interactions': {
+      adapterFamily: 'google-interactions',
+      baseUrl: 'https://generativelanguage.googleapis.com'
     }
   },
+  supplementModelsFromRegistry: true,
+  overrides: [
+    {
+      modelId: 'antigravity-preview-latest',
+      apiModelId: 'antigravity-preview-latest',
+      endpointTypes: ['google-interactions']
+    },
+    {
+      modelId: 'antigravity-preview-09-2026',
+      apiModelId: 'antigravity-preview-09-2026',
+      endpointTypes: ['google-interactions']
+    }
+  ],
   serverTools: [
     {
       id: 'web-search',

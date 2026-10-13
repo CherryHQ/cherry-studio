@@ -338,7 +338,7 @@ function getGeminiModelMetadata(
 }
 
 const geminiFetcher: ModelFetcher = {
-  match: (p) => isGeminiProvider(p),
+  match: (p) => isGeminiProvider(p) || p.defaultChatEndpoint === ENDPOINT_TYPE.GOOGLE_INTERACTIONS,
   fetch: async (provider, signal) => {
     let baseUrl = withoutTrailingSlash(getBaseUrl(provider))
     baseUrl = baseUrl.replace(/\/v1(beta)?$/, '')

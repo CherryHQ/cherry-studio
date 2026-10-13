@@ -8134,6 +8134,32 @@
       "ownedBy": "elevenlabs"
     },
     {
+      "capabilities": ["image-recognition", "function-call", "code-execution"],
+      "contextWindow": 1048576,
+      "endpointTypes": ["google-interactions"],
+      "family": "antigravity",
+      "id": "antigravity-preview-09-2026",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Antigravity Preview (September 2026)",
+      "outputModalities": ["text"],
+      "ownedBy": "google"
+    },
+    {
+      "capabilities": ["image-recognition", "function-call", "code-execution"],
+      "contextWindow": 1048576,
+      "endpointTypes": ["google-interactions"],
+      "family": "antigravity",
+      "id": "antigravity-preview-latest",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Antigravity Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "google"
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",

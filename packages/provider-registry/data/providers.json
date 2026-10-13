@@ -1433,6 +1433,10 @@
         "google-generate-content": {
           "adapterFamily": "google",
           "baseUrl": "https://generativelanguage.googleapis.com"
+        },
+        "google-interactions": {
+          "adapterFamily": "google-interactions",
+          "baseUrl": "https://generativelanguage.googleapis.com"
         }
       },
       "id": "gemini",
@@ -1454,7 +1458,8 @@
           "id": "url-context",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global"],
@@ -2718,5 +2723,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "932c0006165e4fcb"
+  "version": "56351f7323be0e3a"
 }

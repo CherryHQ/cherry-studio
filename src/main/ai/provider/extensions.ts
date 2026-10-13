@@ -4,6 +4,7 @@ import type { AmazonBedrockProvider, AmazonBedrockProviderSettings } from '@ai-s
 import type { ByteDanceProviderSettings } from '@ai-sdk/bytedance'
 import type { CerebrasProviderSettings } from '@ai-sdk/cerebras'
 import type { GatewayProviderSettings } from '@ai-sdk/gateway'
+import type { GoogleGenerativeAIProviderSettings } from '@ai-sdk/google'
 import type { GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
 import type { GoogleVertexProvider, GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
 import type { GoogleVertexMaasProvider, GoogleVertexMaasProviderSettings } from '@ai-sdk/google-vertex/maas/edge'
@@ -44,6 +45,13 @@ import type { ZhipuProviderSettings } from './custom/zhipuProvider'
 
 let moonshotWebSearchToolFactory: typeof createKimiWebSearchToolFor | undefined
 let moonshotWebSearchToolName: typeof KIMI_WEB_SEARCH_TOOL_NAME | undefined
+
+export const GoogleInteractionsExtension = ProviderExtension.create({
+  name: 'google-interactions',
+  supportsImageGeneration: false,
+  create: async (settings) =>
+    (await import('./custom/googleInteractionsProvider')).createGoogleInteractionsProvider(settings)
+} as const satisfies ProviderExtensionConfig<GoogleGenerativeAIProviderSettings, ProviderV3, 'google-interactions'>)
 
 export const GoogleVertexExtension = ProviderExtension.create({
   name: 'google-vertex',
@@ -410,6 +418,7 @@ export const LocalEmbeddingExtension = ProviderExtension.create({
 >)
 
 export const extensions = [
+  GoogleInteractionsExtension,
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
   GoogleVertexMaaSExtension,

@@ -16235,6 +16235,18 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "antigravity-preview-09-2026",
+      "endpointTypes": ["google-interactions"],
+      "modelId": "antigravity-preview-09-2026",
+      "providerId": "gemini"
+    },
+    {
+      "apiModelId": "antigravity-preview-latest",
+      "endpointTypes": ["google-interactions"],
+      "modelId": "antigravity-preview-latest",
+      "providerId": "gemini"
+    },
+    {
       "apiModelId": "grok-4.20-0309-non-reasoning",
       "capabilities": {
         "force": ["function-call", "image-recognition"]

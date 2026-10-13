@@ -89,6 +89,30 @@ afterEach(() => {
 })
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
+  it('routes Antigravity on an existing Gemini provider through the Interactions adapter and v1beta host', async () => {
+    const provider = makeProvider({
+      id: 'gemini',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://gemini.example.com', adapterFamily: 'google' }
+      }
+    })
+    const model = makeModel({
+      id: 'gemini::antigravity-preview-09-2026',
+      apiModelId: 'antigravity-preview-09-2026',
+      providerId: 'gemini',
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+
+    expect(config.providerId).toBe('google-interactions')
+    expect(config.providerSettings).toMatchObject({
+      baseURL: 'https://gemini.example.com/v1beta',
+      apiKey: 'sk-test-key'
+    })
+  })
+
   it.each([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])(
     'passes managed Cherry Cloud %s models to its credential-free transport',
     async (endpointType) => {
