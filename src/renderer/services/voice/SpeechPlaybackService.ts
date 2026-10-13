@@ -89,6 +89,7 @@ interface PlaybackRun {
   releasing: boolean
   stopped: boolean
   operation?: VoiceOperation<unknown>
+  audioFailureRevision: number
   playAttempt?: Promise<void>
   retryAttempt?: Promise<void>
   outputId?: string
@@ -239,6 +240,7 @@ export class SpeechPlaybackService {
       materializing: false,
       releasing: false,
       stopped: false,
+      audioFailureRevision: 0,
       operation,
       detachAbort
     }
@@ -416,8 +418,9 @@ export class SpeechPlaybackService {
 
   private playAudio(run: PlaybackRun, reportPlaying: boolean): Promise<void> {
     if (run.playAttempt) return run.playAttempt
+    const failureRevision = run.audioFailureRevision
     const playAttempt = Promise.resolve()
-      .then(() => this.performPlay(run, reportPlaying))
+      .then(() => this.performPlay(run, reportPlaying, failureRevision))
       .finally(() => {
         if (run.playAttempt === playAttempt) run.playAttempt = undefined
         this.flushEnded(run)
@@ -426,12 +429,16 @@ export class SpeechPlaybackService {
     return playAttempt
   }
 
-  private async performPlay(run: PlaybackRun, reportPlaying: boolean): Promise<void> {
-    this.assertCurrent(run)
+  private async performPlay(run: PlaybackRun, reportPlaying: boolean, failureRevision: number): Promise<void> {
+    const assertPlayable = () => {
+      this.assertCurrent(run, audio)
+      if (run.audioFailureRevision !== failureRevision) throw new VoiceDomainError('operation_failed')
+    }
     const audio = run.audio
     if (!audio) throw new VoiceDomainError('invalid_audio')
+    assertPlayable()
     await audio.play()
-    this.assertCurrent(run, audio)
+    assertPlayable()
     if (run.desiredPaused) {
       audio.pause()
       run.phase = 'paused'
@@ -441,7 +448,7 @@ export class SpeechPlaybackService {
     if (reportPlaying && !run.mainPlaying) {
       await this.voice.updatePlayback({ sessionId: run.sessionId, phase: 'playing' })
     }
-    this.assertCurrent(run, audio)
+    assertPlayable()
     if (run.desiredPaused) {
       audio.pause()
       run.phase = 'paused'
@@ -516,16 +523,16 @@ export class SpeechPlaybackService {
 
   private async failAudio(run: PlaybackRun, reason: VoiceErrorReason): Promise<void> {
     if (run.stopped) return
+    run.audioFailureRevision += 1
     run.audio?.pause()
     run.phase = 'failed'
+    run.mainPlaying = false
+    this.publish(run, 'failed', reason)
     try {
       await this.voice.updatePlayback({ sessionId: run.sessionId, phase: 'failed', reason })
     } catch {
       // The stable Renderer state still reports the local playback failure.
     }
-    if (run.stopped || this.runs.get(run.sessionId) !== run) return
-    run.mainPlaying = false
-    this.publish(run, 'failed', reason)
   }
 
   private async handleFailure(run: PlaybackRun, reason: VoiceErrorReason): Promise<void> {
