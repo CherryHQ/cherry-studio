@@ -190,7 +190,7 @@ export async function crashedTranscript(objective: string, port: GoalPort, cwd: 
 
 /**
  * A port with a single approval listener, and a tool that reports `kind` for its own call, as the
- * host's approval layer would.
+ * host's approval layer would. `listening()` tells whether a listener is subscribed.
  */
 export function approvals(kind: GoalApprovalEvent['kind'], overrides: Parameters<typeof goalPort>[0] = {}) {
   let listener: ((event: GoalApprovalEvent) => void) | undefined
@@ -211,7 +211,7 @@ export function approvals(kind: GoalApprovalEvent['kind'], overrides: Parameters
       return { content: [{ type: 'text', text: `approval ${kind}` }], details: undefined, isError: true }
     }
   })
-  return { port, tool }
+  return { port, tool, listening: () => listener !== undefined }
 }
 
 /** Every `cherry.goal` entry in order: snapshots and clear tombstones. */
