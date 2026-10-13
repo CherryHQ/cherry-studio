@@ -6,6 +6,8 @@ import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/Co
 import { NavbarHeader } from '@renderer/components/Navbar'
 
 interface HeaderNavbarProps {
+  title?: string
+  actions?: ReactNode
   conversationControls?: ReactNode
   showSidebarControls?: boolean
   sidebarOpen?: boolean
@@ -13,6 +15,8 @@ interface HeaderNavbarProps {
 }
 
 const HeaderNavbar: FC<HeaderNavbarProps> = ({
+  title,
+  actions,
   conversationControls,
   showSidebarControls = true,
   sidebarOpen,
@@ -32,7 +36,15 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({
               tooltipPlacement="bottom"
             />
           )}
-          <ConversationTopBarPortalHost>{conversationControls}</ConversationTopBarPortalHost>
+          {title && (
+            <div className="min-w-0 flex-1 truncate px-2 font-medium text-sm" title={title}>
+              {title}
+            </div>
+          )}
+          <ConversationTopBarPortalHost className={title ? 'max-w-[60%] flex-initial justify-end' : undefined}>
+            {conversationControls}
+          </ConversationTopBarPortalHost>
+          {actions}
         </div>
       </div>
     </NavbarHeader>

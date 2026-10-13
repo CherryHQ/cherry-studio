@@ -193,6 +193,7 @@ interface Props {
   message: MessageListItem
   /** File attachments are rendered outside this subtree (see `getHoistedAttachments`). */
   hoistAttachments?: boolean
+  defaultUserContentExpanded?: boolean
 }
 
 // ============================================================================
@@ -1468,6 +1469,7 @@ const ActiveTurnStatusView = ({ fallback }: { fallback: React.ReactNode }) => {
 
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
   collapseCompletedToolHistory,
+  defaultUserContentExpanded,
   hoistAttachments,
   isActiveTurnProcessing,
   isStreamLive,
@@ -1478,7 +1480,14 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const { subagentListTitle } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive } = useMessageListActions()
   const { t } = useTranslation()
-  const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
+  const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(
+    () =>
+      new Set(
+        defaultUserContentExpanded
+          ? messageParts.flatMap((part, index) => (part.type === 'text' ? [`${message.id}-part-${index}`] : []))
+          : []
+      )
+  )
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
   )
@@ -1755,7 +1764,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
 })
 
-const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) => {
+const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments, defaultUserContentExpanded }) => {
   const messageParts = useMessageParts(message.id)
   const { isActiveTurnProcessing, isStreamLive } = useMessageListItemActivityState(message)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
@@ -1764,6 +1773,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) =>
   return (
     <MessagePartsRendererContent
       collapseCompletedToolHistory={collapseCompletedToolHistory}
+      defaultUserContentExpanded={defaultUserContentExpanded}
       hoistAttachments={hoistAttachments}
       isActiveTurnProcessing={isActiveTurnProcessing}
       isStreamLive={isStreamLive}

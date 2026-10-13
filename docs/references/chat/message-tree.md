@@ -53,9 +53,8 @@ the indexed root *lookup* key.
 
 ### Persisted awaiting-input branches
 
-Starting a branch below an assistant uses `POST /messages/:id/branches` to persist empty successful
-`role = 'user'` leaves. A leaf assistant gets two children so its first reservation forms a real
-branch; an assistant that already has a child gets one new node. Multiple empty reservations below
+Starting a branch below an assistant uses `POST /messages/:id/branches` to persist one empty successful
+`role = 'user'` leaf per call. Multiple empty reservations below
 one assistant are intentional branch points, not duplicates. Awaiting-input state is derived from
 that structure — no draft marker is stored. The conversation list hides empty successful user rows,
 while `getTree` projects empty user leaves as `isAwaitingInput` for the flow canvas.
@@ -80,7 +79,7 @@ reserved-branch submission before any write, closing renderer timing races.
 | Every content message has a non-null parent | **DB CHECK** `message_root_parent_check` `((role = 'root') = (parent_id IS NULL))` — a content row (`role != 'root'`) with a null parent is rejected at the storage layer, not by convention. First-turn content messages get `parentId = <virtual root>`. |
 | `role = 'root'` ⇔ `parentId IS NULL` | Same **DB CHECK** `message_root_parent_check`. `createRootMessageTx` (runtime) / `ChatMigrator` (migration) are the sole *writers* of the root row, but the biconditional itself is enforced structurally. |
 | `activeNodeId` is never the virtual root | `NULL` for an empty topic, otherwise a content message; read paths drop the root from the active path. |
-| An awaiting-input branch is an empty successful user leaf | `MessageService.reserveBranch` creates two distinct rows for a leaf anchor, otherwise one. `createUserMessageWithPlaceholders(mode = 'fill-reserved')` revalidates the selected leaf and atomically fills it with its assistant placeholder(s). |
+| An awaiting-input branch is an empty successful user leaf | `MessageService.reserveBranch` inserts one empty user row per call. `createUserMessageWithPlaceholders(mode = 'fill-reserved')` revalidates the selected leaf and atomically fills it with its assistant placeholder(s). |
 | Deleting an awaiting-input node must never delete a message that was filled meanwhile | Canvas requests `DELETE /messages/:id?awaitingInputOnly=true`; `MessageService.delete` revalidates empty parts, success status, user role, and absence of live children before deleting it. |
 | The virtual root is deletable only via topic deletion | `delete()` hard-rejects it (see below); the topic FK `ON DELETE CASCADE` is the only path that removes it. |
 

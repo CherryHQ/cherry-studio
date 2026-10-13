@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { layoutTopicMessageFlowGraph, TOPIC_MESSAGE_FLOW_NODE_SIZE } from '../topicMessageFlowLayout'
+import { layoutTopicMessageFlowGraph } from '../topicMessageFlowLayout'
 import type {
   TopicMessageFlowEdgeModel,
   TopicMessageFlowGraph,
@@ -89,7 +89,7 @@ describe('topicMessageFlowLayout', () => {
     })
   })
 
-  it('lays out graph nodes top-to-bottom with fixed React Flow dimensions', () => {
+  it('places responses to the right of their prompts without fixing their height', () => {
     const graph = createGraph({
       nodes: [
         createNode('root', null, { role: 'user', isInactiveBranch: false, isOnActivePath: true }),
@@ -112,17 +112,63 @@ describe('topicMessageFlowLayout', () => {
     const root = getNode(layout.nodes, 'root')
     const assistant = getNode(layout.nodes, 'assistant-1')
 
-    expect(root.position.y).toBeLessThan(assistant.position.y)
-    expect(root.type).toBe('topicMessage')
+    expect(root.position.x + root.width!).toBeLessThan(assistant.position.x)
+    expect(root.sourcePosition).toBe('right')
+    expect(assistant.targetPosition).toBe('left')
+    expect(root.height).toBeUndefined()
+    expect(root.style?.height).toBeUndefined()
+    expect(assistant.style?.height).toBeUndefined()
+  })
+
+  it('stacks responses below their prompts in the vertical direction', () => {
+    const graph = createGraph({
+      nodes: [
+        createNode('root', null, { role: 'user', isInactiveBranch: false, isOnActivePath: true }),
+        createNode('assistant-1', 'root', { isInactiveBranch: false, isOnActivePath: true })
+      ],
+      edges: [createEdge('root', 'assistant-1', { isActivePath: true })],
+      activeNodeId: 'assistant-1',
+      stats: {
+        nodeCount: 2,
+        branchCount: 0,
+        activePathLength: 2
+      }
+    })
+
+    const layout = layoutTopicMessageFlowGraph(graph, new Map(), 'vertical')
+    const root = getNode(layout.nodes, 'root')
+    const assistant = getNode(layout.nodes, 'assistant-1')
+
+    expect(root.position.y + root.measured!.height!).toBeLessThan(assistant.position.y)
     expect(root.sourcePosition).toBe('bottom')
-    expect(root.targetPosition).toBe('top')
-    expect(root.draggable).toBe(false)
-    expect(root.connectable).toBe(false)
-    expect(root.width).toBe(TOPIC_MESSAGE_FLOW_NODE_SIZE.width)
-    expect(root.height).toBe(TOPIC_MESSAGE_FLOW_NODE_SIZE.height)
-    expect(root.style).toMatchObject(TOPIC_MESSAGE_FLOW_NODE_SIZE)
-    expect(layout.activeNodeId).toBe('assistant-1')
-    expect(layout.stats).toBe(graph.stats)
+    expect(assistant.targetPosition).toBe('top')
+  })
+
+  it('places sibling replies side by side in the vertical direction', () => {
+    const graph = createGraph({
+      nodes: [
+        createNode('root', null, { role: 'user', isInactiveBranch: false }),
+        createNode('model-a', 'root', { createdAt: '2026-05-22T14:16:01.000Z', siblingsGroupId: 7 }),
+        createNode('model-b', 'root', { createdAt: '2026-05-22T14:16:02.000Z', siblingsGroupId: 7 })
+      ],
+      edges: [
+        createEdge('root', 'model-a', { isSiblingBranch: true }),
+        createEdge('root', 'model-b', { isSiblingBranch: true })
+      ],
+      activeNodeId: null,
+      stats: {
+        nodeCount: 3,
+        branchCount: 1,
+        activePathLength: 0
+      }
+    })
+
+    const layout = layoutTopicMessageFlowGraph(graph, new Map(), 'vertical')
+    const first = getNode(layout.nodes, 'model-a')
+    const second = getNode(layout.nodes, 'model-b')
+
+    expect(first.position.y).toBe(second.position.y)
+    expect(first.position.x + first.width!).toBeLessThan(second.position.x)
   })
 
   it('preserves node data and marks active, sibling, and inactive edge styles', () => {
@@ -160,27 +206,27 @@ describe('topicMessageFlowLayout', () => {
 
     expect(activeNode.data.messageId).toBe('answer-active')
     expect(activeNode.data.siblingsGroupId).toBe(7)
-    expect(getNode(layout.nodes, 'answer-sibling').position.y).toBe(activeNode.position.y)
+    expect(getNode(layout.nodes, 'answer-sibling').position.x).toBe(activeNode.position.x)
 
     const activeEdge = getEdge(layout.edges, 'root', 'answer-active')
     const siblingEdge = getEdge(layout.edges, 'root', 'answer-sibling')
     const inactiveEdge = getEdge(layout.edges, 'root', 'answer-inactive')
 
     expect(activeEdge.data?.state).toBe('active')
-    expect(activeEdge.animated).toBe(true)
-    expect(activeEdge.style?.strokeDasharray).toBe('4 4')
+    expect(activeEdge.animated).toBe(false)
+    expect(activeEdge.style?.strokeDasharray).toBeUndefined()
 
     expect(siblingEdge.data?.state).toBe('sibling')
     expect(siblingEdge.animated).toBe(false)
-    expect(siblingEdge.style?.strokeDasharray).toBe('4 4')
+    expect(siblingEdge.style?.strokeDasharray).toBeUndefined()
 
     expect(inactiveEdge.data?.state).toBe('inactive')
-    expect(activeEdge.style?.stroke).toBe('var(--success)')
-    expect(inactiveEdge.style?.stroke).toBe('oklch(0.71 0.02 261)')
+    expect(activeEdge.style?.stroke).toBe('var(--primary)')
+    expect(inactiveEdge.style?.stroke).toBe('var(--border-strong)')
     expect(inactiveEdge.style?.opacity).toBe(1)
   })
 
-  it('lays out same-rank multi-model branches left-to-right by message order', () => {
+  it('orders parallel replies from top to bottom by message creation time', () => {
     const graph = createGraph({
       nodes: [
         createNode('root', null, {
@@ -211,8 +257,26 @@ describe('topicMessageFlowLayout', () => {
 
     const layout = layoutTopicMessageFlowGraph(graph)
 
-    expect(getNode(layout.nodes, 'model-a').position.x).toBeLessThan(getNode(layout.nodes, 'model-b').position.x)
-    expect(getNode(layout.nodes, 'model-b').position.x).toBeLessThan(getNode(layout.nodes, 'model-c').position.x)
+    expect(getNode(layout.nodes, 'model-a').position.y).toBeLessThan(getNode(layout.nodes, 'model-b').position.y)
+    expect(getNode(layout.nodes, 'model-b').position.y).toBeLessThan(getNode(layout.nodes, 'model-c').position.y)
+  })
+
+  it('keeps long sibling responses apart while holding their first message in place', () => {
+    const graph = createGraph({
+      nodes: [createNode('topic', null, { role: 'user' }), createNode('short', 'topic'), createNode('long', 'topic')],
+      edges: [createEdge('topic', 'short'), createEdge('topic', 'long')]
+    })
+    const initial = layoutTopicMessageFlowGraph(graph)
+    const resized = layoutTopicMessageFlowGraph(
+      graph,
+      new Map([
+        ['short', { width: 440, height: 160 }],
+        ['long', { width: 440, height: 1200 }]
+      ])
+    )
+    const siblings = resized.nodes.filter((node) => node.id !== 'topic').sort((a, b) => a.position.y - b.position.y)
+    expect(siblings[0].position.y + siblings[0].measured!.height!).toBeLessThan(siblings[1].position.y)
+    expect(getNode(resized.nodes, 'topic').position).toEqual(getNode(initial.nodes, 'topic').position)
   })
 
   it('keeps edges without active path state visually neutral', () => {

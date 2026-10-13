@@ -1,3 +1,4 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
@@ -76,13 +77,6 @@ const messageActivityStoreMock = vi.hoisted(() => ({
   subscribe: vi.fn(() => vi.fn())
 }))
 
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: {
-    get: vi.fn(),
-    patch: vi.fn()
-  }
-}))
-
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'chat.message.navigation_mode') return ['anchor', vi.fn()]
@@ -100,10 +94,6 @@ vi.mock('@logger', () => ({
       warn: vi.fn()
     })
   }
-}))
-
-vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
-  resolvePartFromParts: vi.fn(() => undefined)
 }))
 
 vi.mock('@renderer/components/chat/messages/utils/messageListItem', async (importOriginal) => ({
@@ -262,7 +252,6 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { dataApiService } from '@data/DataApiService'
-import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toast } from '@renderer/services/toast'
@@ -327,6 +316,7 @@ function MessageListAdapterHarness({
 describe('useHomeMessageListProviderValue topic image actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockDataApiUtils.resetMocks()
     chatWriteMock.canStartNewContext = true
     messageEditingMock.editingMessageId = null
     messageEditingMock.editingMessage = null
@@ -673,11 +663,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     }
     let value: MessageListProviderValue | undefined
 
-    vi.mocked(resolvePartFromParts).mockReturnValue({
-      index: 0,
-      messageId: 'message-1',
-      part: textPart
-    })
     vi.mocked(updateCodeBlock).mockReturnValue(updatedText)
 
     render(
@@ -690,7 +675,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     await waitFor(() => expect(value).toBeDefined())
     await value?.actions.saveCodeBlock?.({
-      msgBlockId: 'block-1',
+      msgBlockId: 'message-1-block-0',
       originalContent: 'const value = "old"',
       newContent: 'const value = "new"'
     })
@@ -753,6 +738,27 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     })
   })
 
+  it('removes a translation from an off-branch message without dropping its text or attachments', async () => {
+    const sourceParts = [
+      { type: 'text', text: 'Other branch response' },
+      { type: 'file', mediaType: 'image/png', url: 'attachment.png' }
+    ] as CherryMessagePart[]
+    MockDataApiUtils.setCustomResponse('/messages/off-branch', 'GET', {
+      data: { parts: [...sourceParts, { type: 'data-translation', data: { content: 'Translated response' } }] }
+    })
+    let value: MessageListProviderValue | undefined
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        onValue={(next) => {
+          value = next
+        }}
+      />
+    )
+    await value?.actions.removeMessageTranslation?.('off-branch')
+    expect(chatWriteMock.editMessage).toHaveBeenCalledWith('off-branch', sourceParts)
+  })
+
   it('keeps a message translation active until its final update is persisted', async () => {
     let finishPersistingTranslation: (() => void) | undefined
     let value: MessageListProviderValue | undefined
@@ -803,11 +809,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     } as CherryMessagePart
     let value: MessageListProviderValue | undefined
 
-    vi.mocked(resolvePartFromParts).mockReturnValue({
-      index: 0,
-      messageId: 'message-1',
-      part: textPart
-    })
     vi.mocked(updateCodeBlock).mockReturnValue(null)
 
     render(
@@ -820,7 +821,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     await waitFor(() => expect(value).toBeDefined())
     await value?.actions.saveCodeBlock?.({
-      msgBlockId: 'block-1',
+      msgBlockId: 'message-1-block-0',
       originalContent: 'const value = "missing"',
       newContent: 'const value = "new"'
     })
@@ -840,11 +841,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     }
     let value: MessageListProviderValue | undefined
 
-    vi.mocked(resolvePartFromParts).mockReturnValue({
-      index: 0,
-      messageId: 'message-1',
-      part: textPart
-    })
     vi.mocked(updateCodeBlock).mockReturnValue('```ts\nconst value = "new"\n```')
     chatWriteMock.editMessage.mockRejectedValueOnce(new Error('edit failed'))
 
@@ -858,7 +854,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     await waitFor(() => expect(value).toBeDefined())
     await value?.actions.saveCodeBlock?.({
-      msgBlockId: 'block-1',
+      msgBlockId: 'message-1-block-0',
       originalContent: 'const value = "old"',
       newContent: 'const value = "new"'
     })
