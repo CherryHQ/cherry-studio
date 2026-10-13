@@ -89,7 +89,7 @@ afterEach(() => {
 })
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
-  it('routes Antigravity on an existing Gemini provider through the Interactions adapter and v1beta host', async () => {
+  it('routes Omni on an existing Gemini provider through the Interactions adapter and v1beta host', async () => {
     const provider = makeProvider({
       id: 'gemini',
       defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
@@ -98,8 +98,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       }
     })
     const model = makeModel({
-      id: 'gemini::antigravity-preview-09-2026',
-      apiModelId: 'antigravity-preview-09-2026',
+      id: 'gemini::gemini-omni-1.1-flash',
+      apiModelId: 'gemini-omni-1.1-flash',
       providerId: 'gemini',
       endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]
     })

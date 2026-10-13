@@ -61,7 +61,6 @@ export default defineCreator({
   // here so they aren't mis-attributed to OpenAI (bare `text-embedding`) or left to a gateway listing.
   idPrefixes: [
     'gemini',
-    'antigravity-preview',
     'gemma',
     'palm',
     'learnlm',
@@ -106,13 +105,26 @@ export default defineCreator({
       }
     },
     {
-      id: 'gemini-omni-1-1-flash',
+      id: 'gemini-omni-1.1-flash',
       name: 'Gemini Omni 1.1 Flash',
-      family: 'gemini',
+      family: 'gemini-omni',
       capabilities: ['image-recognition', 'video-recognition', 'video-generation', 'file-input'],
       contextWindow: 1048576,
+      maxOutputTokens: 65536,
       inputModalities: ['text', 'image', 'video'],
-      outputModalities: ['video']
+      outputModalities: ['video'],
+      endpointTypes: ['google-interactions']
+    },
+    {
+      id: 'gemini-omni-flash-preview',
+      name: 'Gemini Omni Flash Preview',
+      family: 'gemini-omni',
+      capabilities: ['image-recognition', 'video-recognition', 'video-generation', 'file-input'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['video'],
+      endpointTypes: ['google-interactions']
     },
     {
       id: 'gemini-embedding-2-preview',
@@ -209,28 +221,6 @@ export default defineCreator({
           }
         }
       }
-    },
-    {
-      id: 'antigravity-preview-latest',
-      name: 'Antigravity Preview',
-      family: 'antigravity',
-      capabilities: ['image-recognition', 'function-call', 'code-execution'],
-      contextWindow: 1048576,
-      maxOutputTokens: 65536,
-      inputModalities: ['text', 'image'],
-      outputModalities: ['text'],
-      endpointTypes: ['google-interactions']
-    },
-    {
-      id: 'antigravity-preview-09-2026',
-      name: 'Antigravity Preview (September 2026)',
-      family: 'antigravity',
-      capabilities: ['image-recognition', 'function-call', 'code-execution'],
-      contextWindow: 1048576,
-      maxOutputTokens: 65536,
-      inputModalities: ['text', 'image'],
-      outputModalities: ['text'],
-      endpointTypes: ['google-interactions']
     },
     {
       id: 'gemini-2-5-flash-image',

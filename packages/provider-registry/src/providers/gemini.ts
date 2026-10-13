@@ -27,13 +27,13 @@ export default defineProvider({
   },
   overrides: [
     {
-      modelId: 'antigravity-preview-latest',
-      apiModelId: 'antigravity-preview-latest',
+      modelId: 'gemini-omni-1-1-flash',
+      apiModelId: 'gemini-omni-1.1-flash',
       endpointTypes: ['google-interactions']
     },
     {
-      modelId: 'antigravity-preview-09-2026',
-      apiModelId: 'antigravity-preview-09-2026',
+      modelId: 'gemini-omni-flash-preview',
+      apiModelId: 'gemini-omni-flash-preview',
       endpointTypes: ['google-interactions']
     }
   ],

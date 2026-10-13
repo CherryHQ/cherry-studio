@@ -16235,15 +16235,15 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "antigravity-preview-09-2026",
+      "apiModelId": "gemini-omni-1.1-flash",
       "endpointTypes": ["google-interactions"],
-      "modelId": "antigravity-preview-09-2026",
+      "modelId": "gemini-omni-1-1-flash",
       "providerId": "gemini"
     },
     {
-      "apiModelId": "antigravity-preview-latest",
+      "apiModelId": "gemini-omni-flash-preview",
       "endpointTypes": ["google-interactions"],
-      "modelId": "antigravity-preview-latest",
+      "modelId": "gemini-omni-flash-preview",
       "providerId": "gemini"
     },
     {
@@ -41323,5 +41323,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "24243e9504b54823"
+  "version": "8881da49ade0e37e"
 }

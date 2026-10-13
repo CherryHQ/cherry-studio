@@ -326,11 +326,18 @@ const GEMINI_MODEL_TYPES: Array<{ methods: string[]; metadata: Partial<Model> | 
 
 const EXCLUDED_GEMINI_MODEL_KEYWORDS = ['tts'] as const
 
+// Hosted agents require a session runtime; keep them out of model sync until it is supported.
+const EXCLUDED_GEMINI_MODEL_PREFIXES = ['antigravity-', 'deep-research-'] as const
+
 function getGeminiModelMetadata(
   model: z.infer<typeof GeminiModelsResponseSchema>['models'][number]
 ): Partial<Model> | null {
   const id = (model.name.startsWith('models/') ? model.name.slice(7) : model.name).toLowerCase()
-  if (EXCLUDED_GEMINI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))) return null
+  if (
+    EXCLUDED_GEMINI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword)) ||
+    EXCLUDED_GEMINI_MODEL_PREFIXES.some((prefix) => id.startsWith(prefix))
+  )
+    return null
 
   const methods = model.supportedGenerationMethods ?? []
   if (methods.length === 0) return {}

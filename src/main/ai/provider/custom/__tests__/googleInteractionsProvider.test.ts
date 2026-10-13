@@ -1,156 +1,156 @@
-import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
+
+import { applyMaxMessagesWindow } from '@main/ai/messages/maxMessagesWindow'
 
 import { createGoogleInteractionsProvider } from '../googleInteractionsProvider'
 
-const agent = 'antigravity-preview-09-2026'
+type Prompt = LanguageModelV3CallOptions['prompt']
+const modelId = 'gemini-4-argon'
+const prompt: Prompt = [{ role: 'user', content: [{ type: 'text', text: 'Reply OK.' }] }]
 const baseURL = 'https://gemini.example.test/v1beta'
-const prompt: LanguageModelV3CallOptions['prompt'] = [
-  { role: 'user', content: [{ type: 'text', text: 'Create a file.' }] }
-]
-const completed = {
+const completed = (text = 'OK') => ({
   id: 'interaction-1',
-  environment_id: 'environment-1',
   status: 'completed',
-  steps: [{ type: 'model_output', content: [{ type: 'text', text: 'Created file.' }] }]
-}
+  steps: [{ type: 'model_output', content: [{ type: 'text', text }] }]
+})
 
-function setup(responses: Response[]) {
-  const requests: { url: string; body: Record<string, unknown>; headers: Headers; signal?: AbortSignal | null }[] = []
+function setup(responses: Response[], id = modelId) {
+  const requests: { url: string; body: Record<string, unknown>; headers: Headers }[] = []
   const provider = createGoogleInteractionsProvider({
     apiKey: 'test-key',
     baseURL,
     headers: { 'x-custom-header': 'test-value' },
     fetch: async (url, init) => {
-      requests.push({
-        url: String(url),
-        body: JSON.parse(String(init?.body)),
-        headers: new Headers(init?.headers),
-        signal: init?.signal
-      })
+      requests.push({ url: String(url), body: JSON.parse(String(init?.body)), headers: new Headers(init?.headers) })
       const response = responses.shift()
       if (!response) throw new Error('Unexpected request')
       return response
     }
   })
-  return { requests, provider, model: provider.languageModel(agent) }
+  return { requests, model: provider.languageModel(id) }
 }
 
-function jsonResponse(body = completed) {
-  return Response.json(body)
+function streamResponse(text: string) {
+  const events = [
+    { event_type: 'interaction.created', interaction: { id: 'interaction-1', status: 'in_progress' } },
+    { event_type: 'step.start', index: 0, step: { type: 'model_output', id: 'step-1', content: [] } },
+    { event_type: 'step.delta', index: 0, delta: { type: 'text', text } },
+    { event_type: 'step.stop', index: 0 },
+    { event_type: 'interaction.completed', interaction: completed(text) }
+  ]
+  return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+    headers: { 'content-type': 'text/event-stream' }
+  })
 }
 
-describe('Antigravity Interactions transport', () => {
-  it('uses the agent endpoint, provisions a sandbox, and returns the text with resumable state', async () => {
-    const { requests, model } = setup([jsonResponse()])
-    const signal = new AbortController().signal
-    const result = await model.doGenerate({ prompt, abortSignal: signal })
+async function generate(model: LanguageModelV3, history: Prompt, mode: 'generate' | 'stream') {
+  if (mode === 'generate') {
+    const result = await model.doGenerate({ prompt: history })
+    return result.content
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('')
+  }
+  const result = await model.doStream({ prompt: history })
+  let text = ''
+  for await (const chunk of result.stream) {
+    expect(chunk.type).not.toBe('error')
+    if (chunk.type === 'text-delta') text += chunk.delta
+  }
+  return text
+}
 
-    expect(requests[0].url).toBe(`${baseURL}/interactions`)
-    expect(requests[0].body).toMatchObject({ agent, environment: 'remote' })
-    expect(requests[0].body).not.toHaveProperty('model')
-    expect(requests[0].headers.get('x-goog-api-key')).toBe('test-key')
-    expect(requests[0].headers.get('x-custom-header')).toBe('test-value')
-    expect(requests[0].signal).toBe(signal)
-    expect(result.content).toContainEqual({
-      type: 'text',
-      text: 'Created file.',
-      providerMetadata: {
-        google: {
-          interactionId: 'interaction-1',
-          environmentId: 'environment-1',
-          agentModelId: agent,
-          agentBaseURL: baseURL
-        }
-      }
-    })
-    expect(model.supportedUrls).toEqual({})
-  })
+function inputText(body: Record<string, unknown>) {
+  return (body.input as { content: { text: string }[] }[]).flatMap((step) => step.content.map((part) => part.text))
+}
 
-  it('resumes both conversation and sandbox using persisted assistant metadata without replaying old input', async () => {
-    const { requests, model } = setup([jsonResponse(), jsonResponse()])
-    const first = await model.doGenerate({ prompt })
-    const text = first.content.find((part) => part.type === 'text')!
-    const nextPrompt: LanguageModelV3CallOptions['prompt'] = [
-      ...prompt,
-      { role: 'assistant', content: [{ type: 'text', text: 'Created file.', providerOptions: text.providerMetadata }] },
-      { role: 'user', content: [{ type: 'text', text: 'Edit that file.' }] }
-    ]
-    await model.doGenerate({ prompt: nextPrompt })
-
-    expect(requests[1].body).toMatchObject({ previous_interaction_id: 'interaction-1', environment: 'environment-1' })
-    expect(JSON.stringify(requests[1].body.input)).toContain('Edit that file.')
-    expect(JSON.stringify(requests[1].body.input)).not.toContain('Create a file.')
-  })
-
-  it('does not resume an interaction belonging to another host or model', async () => {
-    const { requests, model } = setup([jsonResponse()])
-    await model.doGenerate({
-      prompt: [
+describe('client-owned Google Interactions', () => {
+  it.each(['generate', 'stream'] as const)(
+    'sends full client history through %s without resuming server state',
+    async (mode) => {
+      const { requests, model } = setup([mode === 'generate' ? Response.json(completed()) : streamResponse('OK')])
+      const history: Prompt = [
+        { role: 'system', content: 'Be concise.' },
+        { role: 'user', content: [{ type: 'text', text: 'Edited request.' }] },
         {
           role: 'assistant',
-          content: [
-            {
-              type: 'text',
-              text: 'Hello',
-              providerOptions: {
-                google: {
-                  interactionId: 'other-interaction',
-                  environmentId: 'other-environment',
-                  agentModelId: agent,
-                  agentBaseURL: 'https://other.example.test/v1beta'
-                }
-              }
-            }
-          ]
+          content: [{ type: 'text', text: 'Edited answer.', providerOptions: { google: { interactionId: 'old' } } }]
         },
-        ...prompt
+        { role: 'user', content: [{ type: 'text', text: 'Continue.' }] }
       ]
+      expect(await generate(model, history, mode)).toBe('OK')
+      expect(requests[0].url).toBe(`${baseURL}/interactions`)
+      expect(requests[0].headers.get('x-goog-api-key')).toBe('test-key')
+      expect(requests[0].headers.get('x-custom-header')).toBe('test-value')
+      expect(requests[0].body).toMatchObject({
+        model: modelId,
+        store: false,
+        background: false,
+        system_instruction: 'Be concise.'
+      })
+      expect(requests[0].body).not.toHaveProperty('agent')
+      expect(requests[0].body).not.toHaveProperty('environment')
+      expect(requests[0].body).not.toHaveProperty('previous_interaction_id')
+      expect(inputText(requests[0].body)).toEqual(['Edited request.', 'Edited answer.', 'Continue.'])
+    }
+  )
+
+  it('does not allow provider options to bypass client-owned history', async () => {
+    const { requests, model } = setup([Response.json(completed())])
+    await model.doGenerate({
+      prompt,
+      providerOptions: { google: { previousInteractionId: 'old', store: true, background: true } }
     })
-    expect(requests[0].body.environment).toBe('remote')
+    expect(requests[0].body).toMatchObject({ store: false, background: false })
     expect(requests[0].body).not.toHaveProperty('previous_interaction_id')
+    expect(inputText(requests[0].body)).toEqual(['Reply OK.'])
   })
 
-  it('streams text and retains sandbox state while hiding internal raw events', async () => {
-    const events = [
-      {
-        event_type: 'interaction.created',
-        interaction: { id: 'interaction-1', environment_id: 'environment-1', status: 'in_progress' }
-      },
-      { event_type: 'step.start', index: 0, step: { type: 'model_output', id: 'step-1', content: [] } },
-      { event_type: 'step.delta', index: 0, delta: { type: 'text', text: 'Created file.' } },
-      { event_type: 'step.stop', index: 0 },
-      { event_type: 'interaction.completed', interaction: completed }
-    ]
-    const { requests, model } = setup([
-      new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
-        headers: { 'content-type': 'text/event-stream' }
+  it.each(['generate', 'stream'] as const)('honors the moving context window through %s', async (mode) => {
+    const { requests, model } = setup(
+      [1, 2, 3].map((turn) => (mode === 'generate' ? Response.json(completed(`A${turn}`)) : streamResponse(`A${turn}`)))
+    )
+    const history: Prompt = []
+    for (let turn = 1; turn <= 3; turn++) {
+      history.push({ role: 'user', content: [{ type: 'text', text: `U${turn}` }] })
+      const text = await generate(model, applyMaxMessagesWindow(history, 2), mode)
+      history.push({
+        role: 'assistant',
+        content: [{ type: 'text', text, providerOptions: { google: { interactionId: 'old' } } }]
       })
-    ])
-    const result = await model.doStream({ prompt })
-    const chunks: LanguageModelV3StreamPart[] = []
-    for await (const chunk of result.stream) chunks.push(chunk)
+    }
+    expect(inputText(requests[2].body)).toEqual(['U2', 'A2', 'U3'])
+    expect(requests[2].body).not.toHaveProperty('previous_interaction_id')
+  })
 
-    expect(requests[0].body).toMatchObject({ agent, environment: 'remote', stream: true })
-    expect(chunks.filter((chunk) => chunk.type === 'error')).toEqual([])
-    expect(chunks.filter((chunk) => chunk.type === 'raw')).toEqual([])
-    expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'Created file.' }))
-    expect(chunks).toContainEqual(
-      expect.objectContaining({
-        type: 'text-end',
-        providerMetadata: {
-          google: {
-            interactionId: 'interaction-1',
-            environmentId: 'environment-1',
-            agentModelId: agent,
-            agentBaseURL: baseURL
-          }
-        }
-      })
+  it.each(['gemini-omni-1.1-flash', 'gemini-omni-flash-preview'])('returns the video from %s as a file', async (id) => {
+    const { requests, model } = setup(
+      [
+        Response.json({
+          id: 'video-1',
+          status: 'completed',
+          steps: [{ type: 'model_output', content: [{ type: 'video', mime_type: 'video/mp4', data: 'dmlkZW8=' }] }]
+        })
+      ],
+      id
+    )
+    const result = await model.doGenerate({
+      prompt,
+      providerOptions: { google: { responseFormat: [{ type: 'video', resolution: '360p', duration: '3s' }] } }
+    })
+    expect(requests[0].body).toMatchObject({
+      model: id,
+      store: false,
+      response_format: [{ type: 'video', resolution: '360p', duration: '3s' }]
+    })
+    expect(requests[0].body).not.toHaveProperty('agent')
+    expect(result.content).toContainEqual(
+      expect.objectContaining({ type: 'file', mediaType: 'video/mp4', data: 'dmlkZW8=' })
     )
   })
 
-  it('propagates API failures instead of returning an empty successful answer', async () => {
+  it('propagates API failures', async () => {
     const { model } = setup([
       Response.json({ error: { message: 'Quota exceeded', code: 429, status: 'RESOURCE_EXHAUSTED' } }, { status: 429 })
     ])

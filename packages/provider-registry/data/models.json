@@ -8134,32 +8134,6 @@
       "ownedBy": "elevenlabs"
     },
     {
-      "capabilities": ["image-recognition", "function-call", "code-execution"],
-      "contextWindow": 1048576,
-      "endpointTypes": ["google-interactions"],
-      "family": "antigravity",
-      "id": "antigravity-preview-09-2026",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 65536,
-      "metadata": {},
-      "name": "Antigravity Preview (September 2026)",
-      "outputModalities": ["text"],
-      "ownedBy": "google"
-    },
-    {
-      "capabilities": ["image-recognition", "function-call", "code-execution"],
-      "contextWindow": 1048576,
-      "endpointTypes": ["google-interactions"],
-      "family": "antigravity",
-      "id": "antigravity-preview-latest",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 65536,
-      "metadata": {},
-      "name": "Antigravity Preview",
-      "outputModalities": ["text"],
-      "ownedBy": "google"
-    },
-    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -10020,24 +9994,27 @@
     {
       "capabilities": ["image-recognition", "video-recognition", "video-generation", "file-input"],
       "contextWindow": 1048576,
-      "family": "gemini",
+      "endpointTypes": ["google-interactions"],
+      "family": "gemini-omni",
       "id": "gemini-omni-1-1-flash",
       "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 65536,
       "metadata": {},
       "name": "Gemini Omni 1.1 Flash",
       "outputModalities": ["video"],
       "ownedBy": "google"
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "video-recognition", "video-generation", "file-input"],
-      "contextWindow": 1000000,
-      "family": "gemini",
+      "capabilities": ["image-recognition", "video-recognition", "video-generation", "file-input"],
+      "contextWindow": 1048576,
+      "endpointTypes": ["google-interactions"],
+      "family": "gemini-omni",
       "id": "gemini-omni-flash-preview",
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 65536,
       "metadata": {},
       "name": "Gemini Omni Flash Preview",
-      "outputModalities": ["video", "text"],
+      "outputModalities": ["video"],
       "ownedBy": "google",
       "pricing": {
         "input": {
@@ -10052,11 +10029,16 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "effort",
+            "values": ["none", "low", "medium", "high"]
+          },
+          {
             "kind": "budget",
             "max": 24576,
             "min": 0
           }
         ],
+        "supportedEfforts": ["none", "low", "medium", "high"],
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
@@ -22924,5 +22906,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "bb6e15beb6217721"
+  "version": "96901ff62ab9deda"
 }

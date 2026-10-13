@@ -5,14 +5,16 @@ import { createRegistry } from '../registry'
 
 const registry = createRegistry(bundledCatalog)
 
-describe('Antigravity model contracts', () => {
-  it.each(['antigravity-preview-09-2026', 'antigravity-preview-latest'])(
+describe('Gemini Omni model contracts', () => {
+  it.each(['gemini-omni-1.1-flash', 'gemini-omni-flash-preview'])(
     'routes %s through Interactions while retaining its wire ID',
     (id) => {
       expect(registry.findModel(id)).toMatchObject({
         ownedBy: 'google',
         endpointTypes: ['google-interactions'],
-        inputModalities: ['text', 'image']
+        inputModalities: ['text', 'image', 'video'],
+        outputModalities: ['video'],
+        capabilities: expect.arrayContaining(['video-generation'])
       })
       expect(registry.findOverride('gemini', id)).toMatchObject({
         apiModelId: id,

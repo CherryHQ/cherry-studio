@@ -32,6 +32,15 @@ const createModel = (capabilities: Model['capabilities'] = []): Model => ({
 })
 
 describe('shared model capability helpers', () => {
+  it('allows Interactions video models in conversations but not the text API gateway', () => {
+    const model = {
+      ...createModel([MODEL_CAPABILITY.VIDEO_GENERATION]),
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]
+    }
+    expect(isNonChatModel(model)).toBe(false)
+    expect(isGatewayRoutableModel(model)).toBe(false)
+    expect(isNonChatModel({ ...model, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })).toBe(true)
+  })
   it.each([
     [undefined, 'gpt-4o'],
     ['', 'gpt-4o'],

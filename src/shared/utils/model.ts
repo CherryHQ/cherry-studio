@@ -11,7 +11,7 @@
  *    `@cherrystudio/provider-registry` (creator-declared data).
  */
 
-import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
@@ -90,7 +90,7 @@ export const isNonChatModel = (model: Model): boolean =>
   isEmbeddingModel(model) ||
   isRerankModel(model) ||
   isGenerateImageModel(model) ||
-  isGenerateVideoModel(model) ||
+  (isGenerateVideoModel(model) && model.endpointTypes?.[0] !== ENDPOINT_TYPE.GOOGLE_INTERACTIONS) ||
   isGenerateAudioModel(model) ||
   isTextToSpeechModel(model) ||
   isSpeechToTextModel(model)
@@ -104,7 +104,7 @@ export const isNonChatModel = (model: Model): boolean =>
  * ("providerId:apiModelId") splits on the FIRST ':', so such ids cannot round-trip.
  */
 export const isGatewayRoutableModel = (model: Model): boolean => {
-  if (model.providerId.includes(':') || isNonChatModel(model)) return false
+  if (model.providerId.includes(':') || isNonChatModel(model) || isGenerateVideoModel(model)) return false
   return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
 }
 
