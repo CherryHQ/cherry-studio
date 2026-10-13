@@ -278,6 +278,8 @@ export class SpeechPlaybackService {
         this.rejectUnadmittedRun(run, reason)
         throw new VoiceDomainError(reason)
       }
+      // A superseded audio attempt can also abort after synthesis has handed off ownership.
+      if (!run.stopped && reason === 'aborted' && run.operation === operation) await this.terminate(run, true)
       if (!run.stopped && reason !== 'aborted') await this.handleFailure(run, reason)
       throw new VoiceDomainError(reason)
     }
