@@ -787,6 +787,61 @@ describe('JobManager integration', () => {
   })
 
   describe('graceful shutdown', () => {
+    for (const blockedOnMutex of [false, true]) {
+      it(`does not start pending jobs during shutdown${blockedOnMutex ? ' after waiting for the queue mutex' : ''}`, async () => {
+        const started: string[] = []
+        let markEntered!: () => void
+        const entered = new Promise<void>((resolve) => {
+          markEntered = resolve
+        })
+        const handler: JobHandler<SlowInput> = {
+          recovery: 'retry',
+          defaultConcurrency: 1,
+          async execute(ctx) {
+            started.push(ctx.input.message)
+            if (ctx.input.message === 'active') {
+              await new Promise<void>((_resolve, reject) => {
+                ctx.signal.addEventListener('abort', () => reject(ctx.signal.reason), { once: true })
+                markEntered()
+              })
+            }
+            return { echoed: ctx.input.message }
+          }
+        }
+        const { scheduler, jobManager } = await bootstrapManager({
+          handlers: [['shutdown.backlog', handler as JobHandler]]
+        })
+        let releaseMutex: (() => void) | undefined
+        try {
+          const active = jobManager.enqueue('shutdown.backlog' as never, { message: 'active' } as never)
+          await entered
+          await drainAllQueues(jobManager)
+          if (blockedOnMutex) {
+            const queues = (
+              jobManager as unknown as {
+                queues: Map<string, { mutex: { acquire: () => Promise<() => void> } }>
+              }
+            ).queues
+            releaseMutex = await queues.get('shutdown.backlog')!.mutex.acquire()
+          }
+          const pending = jobManager.enqueue('shutdown.backlog' as never, { message: 'pending' } as never)
+          expect(jobService.getById(pending.id)?.status).toBe('pending')
+          await jobManager._doStop()
+          releaseMutex?.()
+          releaseMutex = undefined
+          await drainAllQueues(jobManager)
+          expect(started).toEqual(['active'])
+          expect(jobService.getById(active.id)?.status).toBe('cancelled')
+          expect(jobService.getById(pending.id)?.status).toBe('pending')
+          expect(jobService.getById(pending.id)?.startedAt).toBeNull()
+        } finally {
+          releaseMutex?.()
+          await drainAllQueues(jobManager)
+          await teardownManager(scheduler, jobManager)
+        }
+      })
+    }
+
     it('aborts in-flight handlers and resolves the finished promise quickly', async () => {
       const { scheduler, jobManager } = await bootstrapManager({
         handlers: [['shutdown.slow', makeSlowHandler('retry') as JobHandler]]
