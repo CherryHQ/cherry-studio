@@ -6,7 +6,7 @@
  * needs no edit.
  *
  * KNOWN GAP (#18898): only the Claude Code runtime evaluates this table. Pi returns before any
- * equivalent check under bypassPermissions and dsh has none, so a built-in Agent on those runtimes
+ * equivalent check under bypassPermissions, so a built-in Agent on those runtimes
  * is not held to these rules — a pre-existing hole this table inherited, not a design choice. Do
  * not describe these as cross-runtime guarantees until every runtime shares the evaluator.
  */
@@ -83,7 +83,7 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   },
   {
     // The result is useful only when AgentChat can present its user-owned review dialog.
-    // Headless deny holds on Claude Code only until #18898 closes the Pi/DSH gap.
+    // Headless deny holds on Claude Code only until #18898 closes the Pi gap.
     id: 'support-diagnostic-draft',
     appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.ASSISTANT] },
     match: { tool: 'mcp__assistant__prepare_diagnostic_report' },

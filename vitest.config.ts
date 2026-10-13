@@ -30,6 +30,7 @@ export default defineConfig({
       {
         extends: true,
         plugins: mainConfig.plugins,
+        define: { __CLAUDE_CODE_BINARY_MANIFEST__: mainConfig.define.__CLAUDE_CODE_BINARY_MANIFEST__ },
         resolve: {
           alias: mainConfig.resolve.alias
         },
@@ -198,7 +199,6 @@ export default defineConfig({
       },
       ...[
         ['ai-sdk-provider', 'src'],
-        ['dsh-bridge', '__tests__'],
         ['remote-protocol', 'tests'],
         ['remote-transport', 'tests']
       ].map(([name, directory]) => ({
