@@ -6,6 +6,7 @@ import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 
+import { normalizeReadableText } from './readableText'
 import { speechPlaybackService } from './SpeechPlaybackService'
 import { VoiceDomainError } from './VoiceService'
 
@@ -70,6 +71,8 @@ export async function readMessageAloud({ messageId, parts, focusOnClose }: ReadM
   }
 
   try {
+    if (!normalizeReadableText(text)) return
+
     const result = await speechPlaybackService.start(startInput)
     if (result.status !== 'confirmation_required') return
 

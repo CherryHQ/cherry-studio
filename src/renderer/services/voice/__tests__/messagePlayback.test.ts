@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import i18n from '@renderer/i18n/resolver'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -24,6 +23,8 @@ describe('readMessageAloud', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.mocked(openSettingsTab).mockReset()
+    vi.mocked(toast.error).mockReset()
+    vi.mocked(popup.confirm).mockReset()
   })
 
   it('sends only natural-language text parts through shared manual playback with message provenance', async () => {
@@ -50,6 +51,19 @@ describe('readMessageAloud', () => {
     })
     expect(popup.confirm).not.toHaveBeenCalled()
   })
+
+  it.each(['```ts\nconst answer = 42\n```', '<pre><code>const answer = 42</code></pre>'])(
+    'quietly skips a code-only reply without changing playback state: %s',
+    async (text) => {
+      const playbackBefore = speechPlaybackService.getSnapshot()
+
+      await readMessageAloud({ messageId: 'message-code', parts: parts({ type: 'text', text }) })
+
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(popup.confirm).not.toHaveBeenCalled()
+      expect(speechPlaybackService.getSnapshot()).toEqual(playbackBefore)
+    }
+  )
 
   it('does not start playback again when the user cancels the long-text confirmation', async () => {
     const start = vi.spyOn(speechPlaybackService, 'start').mockResolvedValue({
@@ -152,6 +166,5 @@ describe('readMessageAloud', () => {
 
     expect(toast.error).toHaveBeenCalledWith({ title: 'settings.voice.status.operation_failed' })
     expect(JSON.stringify(vi.mocked(toast.error).mock.calls)).not.toContain('secret native adapter failure')
-    expect(i18n.t).toBeTypeOf('function')
   })
 })
