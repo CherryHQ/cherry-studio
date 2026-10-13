@@ -243,11 +243,26 @@ function SendToChat({ onSend }: { onSend?: (text: string) => Promise<void> }) {
       </NormalTooltip>
       <PopoverContent
         align="end"
-        className="space-y-2 p-3"
+        sideOffset={10}
+        collisionPadding={16}
+        className="w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl p-0"
         onPointerDown={(event) => event.stopPropagation()}
         onDoubleClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 pt-3 pb-1">
+          <span className="text-sm font-medium">{t('screenshot.action.send_to_chat')}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 text-muted-foreground"
+            aria-label={t('common.close')}
+            onClick={() => setOpen(false)}>
+            <X className="size-4" />
+          </Button>
+        </div>
         <Textarea.Input
+          className="min-h-24 max-h-48 resize-none rounded-none border-0 px-4 py-2 text-sm leading-relaxed focus-visible:ring-0"
+          autoFocus
           value={text}
           maxLength={10000}
           disabled={pending}
@@ -255,15 +270,21 @@ function SendToChat({ onSend }: { onSend?: (text: string) => Promise<void> }) {
           placeholder={t('screenshot.chat.message')}
           onValueChange={setText}
         />
-        {!onSend && <p className="text-sm text-muted-foreground">{t('screenshot.chat.unavailable')}</p>}
+        {!onSend && <p className="px-4 pb-3 text-xs text-muted-foreground">{t('screenshot.chat.unavailable')}</p>}
         {failed && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="px-4 pb-3 text-xs text-error">
             {t('common.error')}
           </p>
         )}
-        <Button className="w-full" disabled={pending || !onSend} onClick={() => void send()}>
-          {t('screenshot.action.send_to_chat')}
-        </Button>
+        <div className="flex items-center justify-between border-t border-border-subtle px-3 py-2">
+          <span className="px-1 text-xs text-muted-foreground tabular-nums">
+            {text.length.toLocaleString()} / 10,000
+          </span>
+          <Button size="sm" disabled={pending || !onSend} onClick={() => void send()}>
+            <MessageSquare className="size-4" />
+            {t('screenshot.action.send_to_chat')}
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   )
