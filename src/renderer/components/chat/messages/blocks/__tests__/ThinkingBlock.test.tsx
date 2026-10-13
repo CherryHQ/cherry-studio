@@ -358,6 +358,44 @@ describe('ThinkingBlock', () => {
     })
   })
 
+  it('follows streamed thinking only while the reader remains at the bottom', () => {
+    mockRenderConfig.thoughtAutoCollapse = false
+    let resize: (() => void) | undefined
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          resize = () => callback([], this as unknown as ResizeObserver)
+        }
+        observe() {}
+        disconnect() {}
+      }
+    )
+    try {
+      renderThinkingBlock(createThinkingBlock({ status: 'streaming' }))
+      const panel = getContentContainer()!
+      let height = 200
+      Object.defineProperties(panel, {
+        clientHeight: { configurable: true, get: () => 100 },
+        scrollHeight: { configurable: true, get: () => height }
+      })
+      act(() => resize?.())
+      expect(panel.scrollTop).toBe(100)
+      panel.scrollTop = 25
+      fireEvent.scroll(panel)
+      height = 400
+      act(() => resize?.())
+      expect(panel.scrollTop).toBe(25)
+      panel.scrollTop = 300
+      fireEvent.scroll(panel)
+      height = 500
+      act(() => resize?.())
+      expect(panel.scrollTop).toBe(400)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   describe('integration and edge cases', () => {
     it('should handle content updates correctly', () => {
       const block1 = createThinkingBlock({ content: 'Original thought' })
