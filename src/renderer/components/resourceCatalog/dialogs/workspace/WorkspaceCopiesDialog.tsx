@@ -70,14 +70,14 @@ export function WorkspaceCopiesDialog({ source, onClose }: { source?: AgentWorks
       onOpenChange={(open) => {
         if (!open) onClose()
       }}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-3rem)] max-w-2xl flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{t('workspace_copy.manage')}</DialogTitle>
           <DialogDescription>
             {t('workspace_copy.description')} {t('workspace_copy.kept')} {t('workspace_copy.backup_external')}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-2 rounded-md border border-border p-3">
+        <div className="shrink-0 space-y-2 rounded-md border border-border p-3">
           <p className="text-sm">{t('workspace_copy.storage')}</p>
           <p className="break-all text-muted-foreground text-xs">
             {storageParent ?? t('workspace_copy.storage_default')}
@@ -107,7 +107,7 @@ export function WorkspaceCopiesDialog({ source, onClose }: { source?: AgentWorks
           </div>
         </div>
         {source ? (
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex shrink-0 items-center justify-between gap-3">
             <span className="truncate">{source.name}</span>
             <Button
               disabled={pending !== null}
@@ -129,7 +129,7 @@ export function WorkspaceCopiesDialog({ source, onClose }: { source?: AgentWorks
             {t('workspace_copy.action_failed')}
           </p>
         ) : null}
-        <div className="max-h-96 space-y-3 overflow-y-auto" aria-live="polite">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto" aria-live="polite">
           {copies?.map((copy) => {
             const active = copy.state === 'creating' || copy.state === 'prepared'
             const statistics = active ? progress[copy.id] : copy.statistics
@@ -192,7 +192,7 @@ export function WorkspaceCopiesDialog({ source, onClose }: { source?: AgentWorks
             )
           })}
         </div>
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={onClose}>
             {t('common.close')}
           </Button>
