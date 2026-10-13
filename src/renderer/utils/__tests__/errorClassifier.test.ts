@@ -474,6 +474,18 @@ describe('classifyError', () => {
     expect(result.navTarget).toBe('/settings/general')
   })
 
+  it('keeps a proxy failure that also says service unavailable on the proxy recovery link', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED: service unavailable' }))
+    expect(result.category).toBe('proxy')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('keeps a TLS failure that also says service unavailable on the proxy recovery link', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_CERT_AUTHORITY_INVALID: service unavailable' }))
+    expect(result.category).toBe('proxy')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
   it('classifies Chromium ERR_PROXY_AUTH_REQUESTED as proxy', () => {
     const result = classifyError(makeError({ message: 'net::ERR_PROXY_AUTH_REQUESTED' }))
     expect(result.category).toBe('proxy')

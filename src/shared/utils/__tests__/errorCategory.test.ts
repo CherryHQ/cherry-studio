@@ -70,6 +70,14 @@ describe('classifyErrorCategory transport failures', () => {
     expect(classifyErrorCategory({ text: 'net::ERR_PROXY_CONNECTION_FAILED' })).toBe('proxy')
   })
 
+  it('keeps a proxy failure that also says service unavailable in the proxy category', () => {
+    expect(classifyErrorCategory({ text: 'net::ERR_PROXY_CONNECTION_FAILED: service unavailable' })).toBe('proxy')
+  })
+
+  it('keeps a TLS failure that also says service unavailable in the proxy category', () => {
+    expect(classifyErrorCategory({ text: 'net::ERR_CERT_AUTHORITY_INVALID: service unavailable' })).toBe('proxy')
+  })
+
   // Provider requests go through Electron net.fetch, which wraps a rejected certificate in
   // `Cannot connect to API: net::ERR_CERT_*` — the cert code, not a `certificate` word, is
   // the only signal, and it must beat the generic network branch that matches the wrapper.
@@ -96,6 +104,13 @@ describe('classifyErrorCategory server failures', () => {
   it.each([500, 502, 503, 504, 522, 524, 529])('maps HTTP %i to server', (status) => {
     expect(classifyErrorCategory({ status })).toBe('server')
   })
+
+  it.each(['unauthorized', 'insufficient_balance', 'too many requests', 'model_not_found'])(
+    'maps HTTP 503 with a "%s" message to server',
+    (text) => {
+      expect(classifyErrorCategory({ status: 503, text })).toBe('server')
+    }
+  )
 
   it.each([
     'Overloaded',

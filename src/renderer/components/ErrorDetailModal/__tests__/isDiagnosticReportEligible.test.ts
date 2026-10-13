@@ -22,6 +22,17 @@ describe('isDiagnosticReportEligible', () => {
     expect(isDiagnosticReportEligible(makeError({ statusCode: 503, message: 'Service Unavailable' }))).toBe(false)
     expect(isDiagnosticReportEligible(makeError({ message: 'Service temporarily unavailable' }))).toBe(false)
     expect(isDiagnosticReportEligible(makeError({ statusCode: 503, message: 'fetch failed' }))).toBe(false)
+    expect(isDiagnosticReportEligible(makeError({ statusCode: 503, message: 'unauthorized' }))).toBe(false)
+    expect(isDiagnosticReportEligible(makeError({ statusCode: 503, message: 'insufficient_balance' }))).toBe(false)
+  })
+
+  it('keeps a proxy failure that mentions service unavailable eligible', () => {
+    expect(
+      isDiagnosticReportEligible(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED: service unavailable' }))
+    ).toBe(true)
+    expect(
+      isDiagnosticReportEligible(makeError({ message: 'net::ERR_CERT_AUTHORITY_INVALID: service unavailable' }))
+    ).toBe(true)
   })
 
   it.each([
