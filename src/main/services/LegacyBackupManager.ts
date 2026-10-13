@@ -33,6 +33,7 @@ import type { CreateDirectoryOptions, FileStat } from 'webdav'
 import { application } from '@application'
 import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskService'
 import { loggerService } from '@logger'
+import { listLiveDetachedBackgroundTasks } from '@main/ai/agents/backgroundTaskActions'
 import { WindowType } from '@main/core/window/types'
 import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
@@ -951,6 +952,20 @@ class BackupManager {
           ])
         )
         this.assertNoActiveDataWriters()
+        // Promotion replaces Data/Agents and the database wholesale, while a detached task lives
+        // on in its own process session: its JSON record and index row vanish, and with them the
+        // only handle that can still list, stop, or purge it. Pausing the index writes does not
+        // protect it — the task is not the write — so the restore is refused while one is live,
+        // the way every other unsatisfied precondition here is refused: before the journal is
+        // committed, so nothing is staged and the write holds are released.
+        const liveTasks = await listLiveDetachedBackgroundTasks()
+        if (liveTasks.length > 0) {
+          throw new Error(
+            `${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: A detached background task is still running (${liveTasks
+              .map((task) => task.id)
+              .join(', ')}). Stop it from the agent's background tasks, then retry the restore.`
+          )
+        }
         const dbService = application.get('DbService')
         dbService.checkpointTruncate()
         const fingerprint = await hashDbFile(application.getPath('app.database.file'))

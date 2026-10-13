@@ -326,6 +326,17 @@ vi.mock('node-stream-zip', () => ({
   default: { async: MockStreamZipAsync }
 }))
 
+// Restore replaces Data/Agents wholesale, so anything this module reports live is what the
+// promotion would strand with no control record. It is mocked rather than spawned: the condition
+// under test is the restore ordering, not whether a detached process stays up.
+const { mockLiveDetachedTasks } = vi.hoisted(() => ({
+  mockLiveDetachedTasks: vi.fn((): Array<{ id: string; agentId: string }> => [])
+}))
+
+vi.mock('@main/ai/agents/backgroundTaskActions', () => ({
+  listLiveDetachedBackgroundTasks: mockLiveDetachedTasks
+}))
+
 // Import after mocks
 import { ZipArchive } from 'archiver'
 import * as fs from 'fs-extra'
@@ -387,6 +398,7 @@ describe('BackupManager direct v2 data compatibility', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockLiveDetachedTasks.mockReturnValue([])
     backupManager = new BackupManager()
     mockRandomUUID.mockReturnValue('operation-id')
     mockHashDbFile.mockResolvedValue('same-fingerprint')
@@ -885,6 +897,18 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.openSync).toHaveBeenCalledWith('/mock/userData/restore-staging/work.sqlite', 'r+')
     expect(fs.fsyncSync).toHaveBeenCalledWith(42)
     expect(fs.closeSync).toHaveBeenCalledWith(42)
+  })
+
+  it('refuses restore promotion while a detached background task is still live', async () => {
+    arrangeDirectRestore()
+    mockLiveDetachedTasks.mockReturnValue([{ id: 'bt-1', agentId: 'agent-1' }])
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      'detached background task is still running'
+    )
+
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
   })
 
   it('commits one crash-safe restore journal without relaunching inside staging', async () => {
