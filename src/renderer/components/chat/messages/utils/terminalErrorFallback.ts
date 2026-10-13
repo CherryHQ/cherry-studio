@@ -1,4 +1,4 @@
-import { hasRenderableContent } from '@shared/ai/messageRenderability'
+import { hasRenderableContent, isSteerHandoffEmptySuccess } from '@shared/ai/messageRenderability'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { hasDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
@@ -53,6 +53,7 @@ export function withEmptySuccessFallback(
     const parts = partsByMessageId[message.id] ?? message.parts ?? []
     if (hasDismissedNoResponsePart(parts)) continue
     if (hasRenderableContent(parts)) continue
+    if (isSteerHandoffEmptySuccess(parts)) continue
 
     if (next === partsByMessageId) next = { ...partsByMessageId }
     next[message.id] = [...parts, createNoResponsePart(noResponseMessage)]

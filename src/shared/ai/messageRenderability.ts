@@ -382,6 +382,33 @@ export function hasRenderableContent(parts: CherryMessagePart[]): boolean {
   return false
 }
 
+/**
+ * Deliberate ordinary-chat steer yields can end as `success` with only a
+ * non-renderable tool step (e.g. `read_file`) while the follow-up is queued.
+ * `AiStreamManager` preserves that boundary; Home must not synthesize a
+ * no-response error for it when showing historical rows.
+ */
+export function isSteerHandoffEmptySuccess(parts: CherryMessagePart[]): boolean {
+  if (hasRenderableContent(parts)) return false
+
+  let sawNonRenderableTool = false
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index]
+    if (isHiddenMarkerPart(part)) continue
+    if (isIgnorableEmptyTextPart(part)) continue
+    // Any textual payload (including process ellipsis) means this is not a bare
+    // steer handoff boundary.
+    if (part.type === 'text' || part.type === 'reasoning') return false
+    if (part.type === 'dynamic-tool' || part.type.startsWith('tool-')) {
+      if (isRenderablePart(part)) return false
+      sawNonRenderableTool = true
+      continue
+    }
+    if (isRenderablePart(part)) return false
+  }
+  return sawNonRenderableTool
+}
+
 /** Whether an assistant row still carries user-visible or failed-turn payload (retry eligibility). */
 export function hasSubstantiveAssistantParts(parts: readonly CherryMessagePart[] | undefined): boolean {
   if (!parts || parts.length === 0) return false

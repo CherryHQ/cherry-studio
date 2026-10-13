@@ -6,6 +6,7 @@ import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
 import {
   hasRenderableContent,
   hasSubstantiveAssistantParts,
+  isSteerHandoffEmptySuccess,
   isHiddenMarkerPart,
   isRenderablePart
 } from '../messageRenderability'
@@ -234,6 +235,19 @@ describe('hasRenderableContent', () => {
         part({ type: 'text', text: '...' })
       ])
     ).toBe(true)
+  })
+
+  it('recognizes steer handoff rows that only contain a non-renderable tool step', () => {
+    expect(
+      isSteerHandoffEmptySuccess([part({ type: 'step-start' }), part({ type: 'tool-read_file', toolCallId: 'call-1' })])
+    ).toBe(true)
+    expect(
+      isSteerHandoffEmptySuccess([
+        part({ type: 'text', text: '...' }),
+        part({ type: 'tool-read_file', toolCallId: 'call-1' })
+      ])
+    ).toBe(false)
+    expect(isSteerHandoffEmptySuccess([part({ type: 'step-start' })])).toBe(false)
   })
 
   it('treats dismissal markers as non-substantive for retry eligibility', () => {
