@@ -430,14 +430,25 @@ export class SpeechPlaybackService {
   }
 
   private async performPlay(run: PlaybackRun, reportPlaying: boolean, failureRevision: number): Promise<void> {
+    const audio = run.audio
     const assertPlayable = () => {
       this.assertCurrent(run, audio)
       if (run.audioFailureRevision !== failureRevision) throw new VoiceDomainError('operation_failed')
     }
-    const audio = run.audio
     if (!audio) throw new VoiceDomainError('invalid_audio')
     assertPlayable()
-    await audio.play()
+    try {
+      await audio.play()
+    } catch (error) {
+      // pause() rejects the pending play() with AbortError. A newer failure or stop still wins.
+      assertPlayable()
+      if (run.desiredPaused && error instanceof DOMException && error.name === 'AbortError') {
+        run.phase = 'paused'
+        this.publish(run, 'paused')
+        return
+      }
+      throw error
+    }
     assertPlayable()
     if (run.desiredPaused) {
       audio.pause()

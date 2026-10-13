@@ -2,6 +2,7 @@ import type { FormatCallback, SelectorDefinition } from 'html-to-text'
 import { htmlToText } from 'html-to-text'
 import type { PhrasingContent, RootContent } from 'mdast'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 
@@ -19,7 +20,12 @@ export type ReadableTextPlan =
   | { status: 'confirmation_required'; normalizedLength: number; chunks: [] }
   | { status: 'skipped'; reason: 'too_long'; normalizedLength: number; chunks: [] }
 
-const markdownParser = unified().use(remarkParse).use(remarkGfm).use(remarkLatexMath).freeze()
+const markdownParser = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkLatexMath)
+  .use(remarkMath, { singleDollarTextMath: true })
+  .freeze()
 
 const skippedHtmlSelectors = [
   'code',
