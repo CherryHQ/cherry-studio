@@ -272,6 +272,7 @@ export class JobManager extends BaseService {
   // ---------------- Lifecycle ----------------
 
   protected override onInit(): void {
+    this._isShuttingDown = false
     logger.info('JobManager initialized')
   }
 

@@ -787,6 +787,27 @@ describe('JobManager integration', () => {
   })
 
   describe('graceful shutdown', () => {
+    it('completes newly enqueued jobs after stopping and starting the same instance', async () => {
+      const handler: JobHandler = {
+        recovery: 'retry',
+        async execute() {
+          return { restarted: true }
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({ handlers: [['restart.echo', handler]] })
+      try {
+        await jobManager._doStop()
+        await jobManager._doInit()
+        const handle = jobManager.enqueue('restart.echo' as never, {} as never)
+        await drainAllQueues(jobManager)
+        expect(jobService.getById(handle.id)?.status).toBe('completed')
+        expect(await handle.finished).toMatchObject({ status: 'completed', output: { restarted: true } })
+      } finally {
+        await drainAllQueues(jobManager)
+        await teardownManager(scheduler, jobManager)
+      }
+    })
+
     for (const blockedOnMutex of [false, true]) {
       it(`does not start pending jobs during shutdown${blockedOnMutex ? ' after waiting for the queue mutex' : ''}`, async () => {
         const started: string[] = []
