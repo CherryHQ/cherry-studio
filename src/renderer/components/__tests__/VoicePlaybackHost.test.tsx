@@ -12,13 +12,11 @@ vi.unmock('@cherrystudio/ui')
 const state = vi.hoisted(() => ({
   snapshot: { revision: 2, phase: 'playing', sessionId: 'session-1', source: 'playback' } as any,
   listeners: new Set<() => void>(),
-  playbackListeners: new Set<() => void>(),
-  retryableSessionId: undefined as string | undefined,
   initialize: vi.fn(async (): Promise<void> => undefined),
-  retry: vi.fn(async (): Promise<void> => undefined),
-  pause: vi.fn(async (): Promise<void> => undefined),
-  resume: vi.fn(async (): Promise<void> => undefined),
-  stop: vi.fn(async (): Promise<void> => undefined)
+  retry: vi.fn<(sessionId: string) => Promise<void>>(async () => undefined),
+  pause: vi.fn<(sessionId: string) => Promise<void>>(async () => undefined),
+  resume: vi.fn<(sessionId: string) => Promise<void>>(async () => undefined),
+  stop: vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
 }))
 
 vi.mock('@renderer/services/voice', async (importOriginal) => ({
@@ -29,22 +27,30 @@ vi.mock('@renderer/services/voice', async (importOriginal) => ({
       state.listeners.add(listener)
       return () => state.listeners.delete(listener)
     },
-    getSnapshot: () => state.snapshot
-  },
-  speechPlaybackService: {
-    pause: state.pause,
-    resume: state.resume,
-    stop: state.stop,
-    retry: state.retry,
-    canRetry: (sessionId: string) => state.retryableSessionId === sessionId,
-    subscribe: (listener: () => void) => {
-      state.playbackListeners.add(listener)
-      return () => state.playbackListeners.delete(listener)
-    }
+    getSnapshot: () => state.snapshot,
+    controlPlayback: ({ sessionId, command }: { sessionId: string; command: 'pause' | 'resume' | 'retry' | 'stop' }) =>
+      state[command](sessionId)
   }
 }))
 
 import { VoicePlaybackHost } from '../VoicePlaybackHost'
+
+function playbackSnapshot(snapshot: any) {
+  if (snapshot.source !== 'playback') return snapshot
+  return {
+    ...snapshot,
+    playback: {
+      attemptId: 1,
+      commandRevision: 0,
+      synthesis: 'completed',
+      desired: snapshot.phase === 'paused' ? 'paused' : 'playing',
+      observed: snapshot.phase,
+      pendingCommand: null,
+      availableCommands:
+        snapshot.phase === 'failed' ? ['stop'] : [snapshot.phase === 'paused' ? 'resume' : 'pause', 'stop']
+    }
+  }
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -63,14 +69,16 @@ describe('VoicePlaybackHost', () => {
 
   beforeEach(() => {
     vi.useRealTimers()
-    state.snapshot = { revision: 2, phase: 'playing', sessionId: 'session-1', source: 'playback' }
-    state.retryableSessionId = undefined
+    state.snapshot = playbackSnapshot({ revision: 2, phase: 'playing', sessionId: 'session-1', source: 'playback' })
     vi.clearAllMocks()
     state.retry.mockReset().mockResolvedValue(undefined)
     state.initialize.mockResolvedValue(undefined)
     state.pause.mockResolvedValue(undefined)
     state.resume.mockResolvedValue(undefined)
-    state.stop.mockReset().mockResolvedValue(undefined)
+    state.stop.mockReset().mockImplementation(async () => {
+      state.snapshot = { phase: 'idle', revision: state.snapshot.revision + 1 }
+      state.listeners.forEach((listener) => listener())
+    })
   })
 
   it('uses Main playback state and sends explicit-session controls', async () => {
@@ -87,7 +95,7 @@ describe('VoicePlaybackHost', () => {
   it('renders no global bar for non-playback state and resumes a paused session', async () => {
     const view = render(<VoicePlaybackHost />)
     act(() => {
-      state.snapshot = { revision: 3, phase: 'paused', sessionId: 'session-1', source: 'playback' }
+      state.snapshot = playbackSnapshot({ revision: 3, phase: 'paused', sessionId: 'session-1', source: 'playback' })
       state.listeners.forEach((listener) => listener())
     })
 
@@ -95,7 +103,12 @@ describe('VoicePlaybackHost', () => {
     expect(state.resume).toHaveBeenCalledWith('session-1')
 
     act(() => {
-      state.snapshot = { revision: 4, phase: 'recording', sessionId: 'session-2', source: 'dictation' }
+      state.snapshot = playbackSnapshot({
+        revision: 4,
+        phase: 'recording',
+        sessionId: 'session-2',
+        source: 'dictation'
+      })
       state.listeners.forEach((listener) => listener())
     })
     await waitFor(() => expect(view.queryByRole('status')).not.toBeInTheDocument())
@@ -103,7 +116,7 @@ describe('VoicePlaybackHost', () => {
 
   it('closes a failed playback instead of offering inactive playback controls', async () => {
     const user = userEvent.setup()
-    state.snapshot = { revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' }
+    state.snapshot = playbackSnapshot({ revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' })
     render(<VoicePlaybackHost />)
 
     expect(screen.getByRole('status')).toHaveTextContent('Playback failed')
@@ -118,14 +131,14 @@ describe('VoicePlaybackHost', () => {
     expect(state.stop).toHaveBeenCalledWith('session-1')
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
     act(() => {
-      state.snapshot = { revision: 4, phase: 'playing', sessionId: 'session-2', source: 'playback' }
+      state.snapshot = playbackSnapshot({ revision: 4, phase: 'playing', sessionId: 'session-2', source: 'playback' })
       state.listeners.forEach((listener) => listener())
     })
     expect(screen.getByRole('status')).toHaveTextContent('Playing')
   })
 
   it('dismisses an obsolete failure when its playback session has already ended', async () => {
-    state.snapshot = { revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' }
+    state.snapshot = playbackSnapshot({ revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' })
     state.stop.mockRejectedValueOnce(new VoiceDomainError('invalid_request'))
     render(<VoicePlaybackHost />)
 
@@ -137,14 +150,17 @@ describe('VoicePlaybackHost', () => {
   it('offers retry when retained audio becomes available and stays busy until playback recovers', async () => {
     const user = userEvent.setup()
     const retried = deferred<void>()
-    state.snapshot = { revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' }
+    state.snapshot = playbackSnapshot({ revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' })
     state.retry.mockReturnValueOnce(retried.promise)
     render(<VoicePlaybackHost />)
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
 
     act(() => {
-      state.retryableSessionId = 'session-1'
-      state.playbackListeners.forEach((listener) => listener())
+      state.snapshot = {
+        ...state.snapshot,
+        playback: { ...state.snapshot.playback, availableCommands: ['retry', 'stop'] }
+      }
+      state.listeners.forEach((listener) => listener())
     })
     const retry = screen.getByRole('button', { name: 'Retry' })
     await user.hover(retry)
@@ -156,7 +172,7 @@ describe('VoicePlaybackHost', () => {
     expect(state.retry).toHaveBeenCalledWith('session-1')
 
     await act(async () => {
-      state.snapshot = { revision: 4, phase: 'playing', sessionId: 'session-1', source: 'playback' }
+      state.snapshot = playbackSnapshot({ revision: 4, phase: 'playing', sessionId: 'session-1', source: 'playback' })
       state.listeners.forEach((listener) => listener())
       retried.resolve()
     })
@@ -166,8 +182,11 @@ describe('VoicePlaybackHost', () => {
   })
 
   it('restores retry and close with feedback after a retry fails', async () => {
-    state.snapshot = { revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' }
-    state.retryableSessionId = 'session-1'
+    state.snapshot = playbackSnapshot({ revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' })
+    state.snapshot = {
+      ...state.snapshot,
+      playback: { ...state.snapshot.playback, availableCommands: ['retry', 'stop'] }
+    }
     state.retry.mockRejectedValueOnce(new VoiceDomainError('operation_failed'))
     render(<VoicePlaybackHost />)
 
@@ -182,20 +201,26 @@ describe('VoicePlaybackHost', () => {
 
   it('does not offer another session’s retained audio or let its pending retry affect a newer session', async () => {
     const retried = deferred<void>()
-    state.snapshot = { revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' }
-    state.retryableSessionId = 'session-1'
+    state.snapshot = playbackSnapshot({ revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' })
+    state.snapshot = {
+      ...state.snapshot,
+      playback: { ...state.snapshot.playback, availableCommands: ['retry', 'stop'] }
+    }
     state.retry.mockReturnValueOnce(retried.promise)
     render(<VoicePlaybackHost />)
     await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
 
     act(() => {
-      state.snapshot = { revision: 4, phase: 'failed', sessionId: 'session-2', source: 'playback' }
+      state.snapshot = playbackSnapshot({ revision: 4, phase: 'failed', sessionId: 'session-2', source: 'playback' })
       state.listeners.forEach((listener) => listener())
     })
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
     act(() => {
-      state.retryableSessionId = 'session-2'
-      state.playbackListeners.forEach((listener) => listener())
+      state.snapshot = {
+        ...state.snapshot,
+        playback: { ...state.snapshot.playback, availableCommands: ['retry', 'stop'] }
+      }
+      state.listeners.forEach((listener) => listener())
     })
     await act(async () => retried.reject(new VoiceDomainError('operation_failed')))
 
@@ -204,7 +229,7 @@ describe('VoicePlaybackHost', () => {
   })
 
   it('keeps the failed session visible when cleanup fails for a reason other than an ended session', async () => {
-    state.snapshot = { revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' }
+    state.snapshot = playbackSnapshot({ revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' })
     state.stop.mockRejectedValueOnce(new VoiceDomainError('operation_failed'))
     render(<VoicePlaybackHost />)
 
@@ -226,7 +251,7 @@ describe('VoicePlaybackHost', () => {
       await user.unhover(button)
     }
     act(() => {
-      state.snapshot = { revision: 3, phase: 'paused', sessionId: 'session-1', source: 'playback' }
+      state.snapshot = playbackSnapshot({ revision: 3, phase: 'paused', sessionId: 'session-1', source: 'playback' })
       state.listeners.forEach((listener) => listener())
     })
     await user.hover(screen.getByRole('button', { name: 'Resume' }))
@@ -235,13 +260,13 @@ describe('VoicePlaybackHost', () => {
 
   it('does not dismiss a newer failure when an older close operation settles', async () => {
     const stopped = deferred<void>()
-    state.snapshot = { revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' }
+    state.snapshot = playbackSnapshot({ revision: 3, phase: 'failed', sessionId: 'session-1', source: 'playback' })
     state.stop.mockReturnValueOnce(stopped.promise)
     render(<VoicePlaybackHost />)
     await userEvent.setup().click(screen.getByRole('button', { name: 'Close' }))
 
     act(() => {
-      state.snapshot = { revision: 4, phase: 'failed', sessionId: 'session-2', source: 'playback' }
+      state.snapshot = playbackSnapshot({ revision: 4, phase: 'failed', sessionId: 'session-2', source: 'playback' })
       state.listeners.forEach((listener) => listener())
     })
     await act(async () => stopped.resolve())
@@ -285,7 +310,7 @@ describe('VoicePlaybackHost', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/operation failed/i)
 
     act(() => {
-      state.snapshot = { revision: 3, phase: 'playing', sessionId: 'session-1', source: 'playback' }
+      state.snapshot = playbackSnapshot({ revision: 3, phase: 'playing', sessionId: 'session-1', source: 'playback' })
       state.listeners.forEach((listener) => listener())
     })
     expect(screen.getByRole('status')).toHaveTextContent(/playing/i)
@@ -299,7 +324,7 @@ describe('VoicePlaybackHost', () => {
     fireEvent.click(await screen.findByRole('button', { name: /pause/i }))
 
     act(() => {
-      state.snapshot = { revision: 3, phase: 'playing', sessionId: 'session-2', source: 'playback' }
+      state.snapshot = playbackSnapshot({ revision: 3, phase: 'playing', sessionId: 'session-2', source: 'playback' })
       state.listeners.forEach((listener) => listener())
     })
     pause.reject(new Error('old session failed'))
@@ -316,7 +341,7 @@ describe('VoicePlaybackHost', () => {
     fireEvent.click(await screen.findByRole('button', { name: /pause/i }))
 
     act(() => {
-      state.snapshot = { revision: 3, phase: 'playing', sessionId: 'session-1', source: 'playback' }
+      state.snapshot = playbackSnapshot({ revision: 3, phase: 'playing', sessionId: 'session-1', source: 'playback' })
       state.listeners.forEach((listener) => listener())
     })
     pause.reject(new Error('stale revision failed'))
@@ -333,7 +358,7 @@ describe('VoicePlaybackHost', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/operation failed/i))
 
     act(() => {
-      state.snapshot = { revision: 3, phase: 'playing', sessionId: 'session-1', source: 'playback' }
+      state.snapshot = playbackSnapshot({ revision: 3, phase: 'playing', sessionId: 'session-1', source: 'playback' })
       state.listeners.forEach((listener) => listener())
     })
     expect(screen.getByRole('status')).toHaveTextContent(/playing/i)
@@ -344,6 +369,21 @@ describe('VoicePlaybackHost', () => {
     fireEvent.click(screen.getByRole('button', { name: /stop/i }))
     oldPause.reject(new Error('older operation failed'))
     await act(async () => oldPause.promise.catch(() => undefined))
-    expect(screen.getByRole('status')).not.toHaveTextContent(/operation failed/i)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('uses the available commands while a pause is still awaiting confirmation', async () => {
+    state.snapshot = playbackSnapshot({ revision: 3, phase: 'playing', sessionId: 'session-1', source: 'playback' })
+    state.snapshot.playback = {
+      ...state.snapshot.playback,
+      desired: 'paused',
+      pendingCommand: 'pause',
+      availableCommands: ['resume', 'stop']
+    }
+    render(<VoicePlaybackHost />)
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Resume' }))
+    expect(state.resume).toHaveBeenCalledWith('session-1')
   })
 })

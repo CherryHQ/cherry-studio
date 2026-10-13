@@ -1,5 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { VoiceSessionState } from '@shared/ipc/schemas/voice'
+
+import {
+  applyPlaybackCommand,
+  applyPlaybackReport,
+  beginPlaybackSynthesis,
+  completePlaybackSynthesis,
+  createPlaybackSnapshot,
+  createPlaybackState,
+  playbackPhase,
+  type PlaybackState
+} from '../../../../main/ai/voice/playbackState'
 import { SpeechPlaybackService, type SpeechPlaybackStartInput } from '../SpeechPlaybackService'
 import { VoiceDomainError, type VoiceService } from '../VoiceService'
 
@@ -23,6 +35,51 @@ class FakeAudio extends EventTarget {
 
 class FakeVoiceService {
   readonly events: string[] = []
+  private playback = createPlaybackState()
+  private snapshot: VoiceSessionState = { phase: 'idle', revision: 0 }
+  private hasOutput = false
+  private ownedSessionId = sessionId
+  private readonly listeners = new Set<() => void>()
+  readonly subscribe = (listener: () => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+  readonly getSnapshot = () => this.snapshot
+  private publish(playback: PlaybackState): VoiceSessionState {
+    this.playback = playback
+    this.snapshot = {
+      phase: playbackPhase(playback),
+      revision: this.snapshot.revision + 1,
+      sessionId: this.ownedSessionId,
+      source: 'playback',
+      playback: createPlaybackSnapshot(playback, this.hasOutput)
+    }
+    this.listeners.forEach((listener) => listener())
+    return this.snapshot
+  }
+  private idle() {
+    this.snapshot = { phase: 'idle', revision: this.snapshot.revision + 1 }
+    this.listeners.forEach((listener) => listener())
+    return this.snapshot
+  }
+  readonly startSpeech = (input: any) => {
+    const operation = this.generateSpeech(input)
+    if (this.snapshot.phase === 'idle' || this.ownedSessionId === operation.sessionId) {
+      if (this.snapshot.phase === 'idle') this.playback = createPlaybackState()
+      this.ownedSessionId = operation.sessionId
+      this.publish(beginPlaybackSynthesis(this.playback))
+    }
+    return {
+      ...operation,
+      result: operation.result.then((result) => {
+        if (this.ownedSessionId !== operation.sessionId) this.playback = createPlaybackState()
+        this.ownedSessionId = operation.sessionId
+        this.hasOutput = true
+        this.publish(completePlaybackSynthesis(this.playback))
+        return { ...result, playback: createPlaybackSnapshot(this.playback, true) }
+      })
+    }
+  }
   readonly initialize = vi.fn(async (): Promise<void> => undefined)
   readonly readSpeechPreferenceInput = vi.fn(
     async (): ReturnType<VoiceService['readSpeechPreferenceInput']> => ({
@@ -49,17 +106,34 @@ class FakeVoiceService {
   readonly abortSpeech = vi.fn(async () => undefined)
   readonly releaseOutput = vi.fn(async ({ outputId }: any) => {
     this.events.push(`release:${outputId}`)
+    this.hasOutput = false
   })
-  readonly updatePlayback = vi.fn(async ({ sessionId: id, phase }: any) => ({
-    revision: 1,
-    phase: phase === 'completed' ? 'idle' : phase,
-    ...(phase === 'completed' ? {} : { sessionId: id })
-  }))
+  readonly reportPlayback = vi.fn(async (input: any): Promise<VoiceSessionState> => {
+    if (input.sessionId !== this.ownedSessionId) throw new VoiceDomainError('invalid_request')
+    const next = applyPlaybackReport(this.playback, input)
+    if (next === this.playback) return this.snapshot
+    if (input.phase === 'completed' || input.phase === 'stopped') return this.idle()
+    return this.publish(next)
+  })
   readonly controlPlayback = vi.fn(async ({ sessionId: id, command }: any) => {
-    this.commandListeners.forEach((listener) => listener({ type: 'command', revision: 1, sessionId: id, command }))
-    return { revision: 1, phase: command === 'stop' ? 'idle' : command === 'pause' ? 'paused' : 'playing' }
+    if (id !== this.ownedSessionId || this.snapshot.phase === 'idle') throw new VoiceDomainError('invalid_request')
+    const next = applyPlaybackCommand(this.playback, command, this.hasOutput)
+    if (next === this.playback) return this.snapshot
+    this.publish(next)
+    this.commandListeners.forEach((listener) =>
+      listener({
+        type: 'command',
+        revision: this.snapshot.revision,
+        sessionId: id,
+        command,
+        playback: createPlaybackSnapshot(next, this.hasOutput)
+      })
+    )
+    return this.snapshot
   })
-  readonly discardSession = vi.fn(async () => undefined)
+  readonly discardSession = vi.fn(async (id: string) => {
+    if (id === this.ownedSessionId) this.idle()
+  })
   private readonly commandListeners = new Set<(event: any) => void>()
   private readonly interruptionListeners = new Set<() => void>()
   readonly subscribeCommands = vi.fn((listener: (event: any) => void): (() => void) => {
@@ -73,10 +147,11 @@ class FakeVoiceService {
 
   emitInterruption(): void {
     this.interruptionListeners.forEach((listener) => listener())
+    if (this.snapshot.phase !== 'idle') void this.controlPlayback({ sessionId: this.ownedSessionId, command: 'pause' })
   }
 
   emitCommand(command: 'pause' | 'resume' | 'stop'): void {
-    this.commandListeners.forEach((listener) => listener({ type: 'command', revision: 1, sessionId, command }))
+    void this.controlPlayback({ sessionId: this.ownedSessionId, command })
   }
 }
 
@@ -93,13 +168,13 @@ function createHarness(options: { chunks?: string[]; audio?: FakeAudio } = {}) {
   const audios: FakeAudio[] = []
   const createAudio = vi.fn((url: string) => {
     voice.events.push(`create-audio:${url}`)
-    const audio = options.audio ?? new FakeAudio()
+    const audio = (audios.length === 0 && options.audio) || new FakeAudio()
     audio.src = url
     audios.push(audio)
     return audio as unknown as HTMLAudioElement
   })
   const service = new SpeechPlaybackService({
-    voice: voice as never,
+    voice: { ...voice, generateSpeech: voice.startSpeech } as never,
     ownerWindow,
     createAudio,
     ...(options.chunks && {
@@ -189,7 +264,7 @@ describe('SpeechPlaybackService planning and playback', () => {
   it('releases audio that ends before Main acknowledges playback and completes each chunk once', async () => {
     const { service, voice, audios } = createHarness({ chunks: ['first', 'second'] })
     let acknowledge!: () => void
-    voice.updatePlayback.mockImplementationOnce(
+    voice.reportPlayback.mockImplementationOnce(
       () => new Promise<any>((done) => (acknowledge = () => done({ phase: 'playing' })))
     )
     const starting = service.start(baseInput)
@@ -203,7 +278,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     audios[1].dispatchEvent(new Event('ended'))
     await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
     expect(voice.events.filter((event) => event.startsWith('release:'))).toEqual(['release:file-1', 'release:file-2'])
-    expect(voice.updatePlayback).toHaveBeenCalledWith({ sessionId, phase: 'completed' })
+    expect(voice.reportPlayback).toHaveBeenCalledWith(expect.objectContaining({ sessionId, phase: 'completed' }))
   })
 
   it('cancels active playback and detaches cancellation after completion', async () => {
@@ -288,7 +363,7 @@ describe('SpeechPlaybackService planning and playback', () => {
 
     expect(audios[0].play).not.toHaveBeenCalled()
     expect(service.getSnapshot().phase).toBe('paused')
-    expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'playing' }))
+    expect(voice.reportPlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'playing' }))
     await service.stop()
   })
 
@@ -409,7 +484,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
   })
 
-  it('does not report playing again when Main pauses and resumes during synthesis', async () => {
+  it('confirms actual playback when pause and resume arrive during synthesis', async () => {
     const { service, voice, audios } = createHarness()
     let finishRead!: () => void
     voice.generateSpeech.mockImplementationOnce(() => ({
@@ -434,7 +509,7 @@ describe('SpeechPlaybackService planning and playback', () => {
 
     expect(audios[0].play).toHaveBeenCalledTimes(1)
     expect(service.getSnapshot().phase).toBe('playing')
-    expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'playing' }))
+    expect(voice.getSnapshot()).toMatchObject({ phase: 'playing', playback: { pendingCommand: null } })
   })
 
   it('continues with the next chunk when pause and resume both occur during output release', async () => {
@@ -476,7 +551,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     rejectGeneration(new VoiceDomainError('aborted'))
     await stopped
 
-    expect(voice.discardSession).toHaveBeenCalledWith(sessionId)
+    expect(voice.getSnapshot().phase).toBe('idle')
     expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
   })
 
@@ -485,9 +560,9 @@ describe('SpeechPlaybackService planning and playback', () => {
     await service.start(baseInput)
 
     await service.stop()
-    await vi.waitFor(() => expect(voice.discardSession).toHaveBeenCalledWith(sessionId))
+    await vi.waitFor(() => expect(voice.getSnapshot().phase).toBe('idle'))
 
-    expect(voice.discardSession).toHaveBeenCalledTimes(1)
+    expect(voice.getSnapshot().phase).toBe('idle')
     expect(audios[0].pause).toHaveBeenCalledTimes(1)
     expect(audios[0].src).toBe('')
     expect(service.getSnapshot().phase).toBe('idle')
@@ -495,7 +570,7 @@ describe('SpeechPlaybackService planning and playback', () => {
 
   it.each(['play', 'acknowledgment'])('preserves audio failure during pending %s and allows retry', async (stage) => {
     const audio = new FakeAudio()
-    const { service, voice } = createHarness({ audio })
+    const { service, voice, audios } = createHarness({ audio })
     let finish!: () => void
     if (stage === 'play') {
       audio.play.mockImplementationOnce(
@@ -505,7 +580,7 @@ describe('SpeechPlaybackService planning and playback', () => {
           })
       )
     } else {
-      voice.updatePlayback.mockImplementationOnce(
+      voice.reportPlayback.mockImplementationOnce(
         () =>
           new Promise<any>((resolve) => {
             finish = () => resolve({ phase: 'playing' })
@@ -522,7 +597,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(service.canRetry(sessionId)).toBe(true)
     await service.retry()
     expect(service.getSnapshot().phase).toBe('playing')
-    expect(audio.paused).toBe(false)
+    expect(audios.at(-1)?.paused).toBe(false)
     expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
     await service.stop()
   })
@@ -543,19 +618,25 @@ describe('SpeechPlaybackService planning and playback', () => {
 
     expect(service.canRetry(sessionId)).toBe(false)
     expect(service.getSnapshot().phase).toBe('playing')
-    expect(audios[0].currentTime).toBe(7)
-    expect(audios[0].play).toHaveBeenCalledTimes(2)
+    expect(audios[0].src).toBe('')
+    expect(audios[1].currentTime).toBe(0)
+    expect(audios[1].paused).toBe(false)
     expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
   })
 
   it('coalesces concurrent retries into one audio play and one Main update', async () => {
-    const { service, voice, audios } = createHarness()
+    const { service, voice, audios, createAudio } = createHarness()
     await service.start(baseInput)
     audios[0].dispatchEvent(new Event('error'))
     await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('failed'))
-    voice.updatePlayback.mockClear()
+    voice.reportPlayback.mockClear()
+    const retryAudio = new FakeAudio()
+    createAudio.mockImplementationOnce(() => {
+      audios.push(retryAudio)
+      return retryAudio as unknown as HTMLAudioElement
+    })
     let finishPlay!: () => void
-    audios[0].play.mockImplementationOnce(
+    retryAudio.play.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
           finishPlay = resolve
@@ -568,8 +649,9 @@ describe('SpeechPlaybackService planning and playback', () => {
     finishPlay()
     await Promise.all([first, second])
 
-    expect(audios[0].play).toHaveBeenCalledTimes(2)
-    expect(voice.updatePlayback.mock.calls.filter(([input]) => input.phase === 'playing')).toHaveLength(1)
+    expect(audios).toHaveLength(2)
+    expect(retryAudio.play).toHaveBeenCalledTimes(1)
+    expect(voice.reportPlayback.mock.calls.filter(([input]) => input.phase === 'playing')).toHaveLength(1)
   })
 
   it('keeps the visible session when a new auto-read admission is busy', async () => {
@@ -627,7 +709,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(voice.controlPlayback).toHaveBeenLastCalledWith({ sessionId, command: 'pause' })
   })
 
-  it('detaches the player before release and discards ownership if release fails', async () => {
+  it('detaches the player before release and reports a release failure while retaining recovery ownership', async () => {
     const { service, voice, audios } = createHarness()
     await service.start(baseInput)
     voice.releaseOutput.mockImplementationOnce(async () => {
@@ -637,14 +719,18 @@ describe('SpeechPlaybackService planning and playback', () => {
     })
     audios[0].dispatchEvent(new Event('ended'))
     await vi.waitFor(() => expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' }))
-    expect(voice.discardSession).toHaveBeenCalledWith(sessionId)
-    expect(service.canRetry(sessionId)).toBe(false)
+    expect(voice.getSnapshot()).toMatchObject({ phase: 'failed' })
+    await service.stop()
+    expect(voice.getSnapshot().phase).toBe('idle')
   })
 
   it('discards terminal ownership when completed update fails after final output release', async () => {
     const { service, voice, audios } = createHarness()
-    voice.updatePlayback.mockResolvedValueOnce({ revision: 1, phase: 'playing', sessionId })
-    voice.updatePlayback.mockRejectedValueOnce(new VoiceDomainError('operation_failed'))
+    const reportPlayback = voice.reportPlayback.getMockImplementation()!
+    voice.reportPlayback.mockImplementation(async (input) => {
+      if (input.phase === 'completed') throw new VoiceDomainError('operation_failed')
+      return reportPlayback(input)
+    })
     await service.start(baseInput)
 
     audios[0].dispatchEvent(new Event('ended'))
@@ -658,19 +744,17 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(audios[0].play).toHaveBeenCalledTimes(1)
   })
 
-  it('retains cleanup ownership after discard failure and retries it on a later stop', async () => {
+  it('retains cleanup ownership after stop confirmation failure and retries it on a later stop', async () => {
     const { service, voice, audios } = createHarness()
-    voice.discardSession.mockRejectedValueOnce(new VoiceDomainError('operation_failed'))
     await service.start(baseInput)
+    voice.reportPlayback.mockRejectedValueOnce(new VoiceDomainError('operation_failed'))
 
     await expect(service.stop()).rejects.toMatchObject({ reason: 'operation_failed' })
-    expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
     expect(service.canRetry(sessionId)).toBe(false)
     expect(audios[0].pause).toHaveBeenCalledTimes(1)
     expect(audios[0].src).toBe('')
 
     await service.stop()
-    expect(voice.discardSession).toHaveBeenCalledTimes(2)
     expect(audios[0].src).toBe('')
     expect(service.getSnapshot().phase).toBe('idle')
   })
@@ -681,7 +765,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     await service.start(baseInput)
 
     await expect(service.teardown()).rejects.toMatchObject({ reason: 'operation_failed' })
-    expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
+    expect(service.canRetry(sessionId)).toBe(false)
 
     await service.teardown()
     expect(voice.discardSession).toHaveBeenCalledTimes(2)
@@ -690,18 +774,79 @@ describe('SpeechPlaybackService planning and playback', () => {
 })
 
 describe('SpeechPlaybackService ownership and lifecycle', () => {
-  it('routes pause, resume, and stop controls for a Main session from a window that does not own audio', async () => {
-    const { service, voice } = createHarness()
+  it.each(['pause', 'stop'] as const)('preserves a new %s while retry playback is pending', async (command) => {
+    const { service, voice, audios, createAudio } = createHarness()
+    await service.start(baseInput)
+    audios[0].dispatchEvent(new Event('error'))
+    await vi.waitFor(() => expect(voice.getSnapshot().phase).toBe('failed'))
+    const retryAudio = new FakeAudio()
+    let finish!: () => void
+    retryAudio.play.mockImplementationOnce(() =>
+      new Promise<void>((resolve) => {
+        finish = resolve
+      }).then(() => {
+        retryAudio.paused = false
+      })
+    )
+    createAudio.mockImplementationOnce((url) => {
+      retryAudio.src = url
+      audios.push(retryAudio)
+      return retryAudio as unknown as HTMLAudioElement
+    })
+    await service.retry()
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    await service.control(sessionId, command)
+    finish()
+    await vi.waitFor(() => expect(retryAudio.paused).toBe(true))
+    await vi.waitFor(() => expect(voice.getSnapshot().phase).toBe(command === 'pause' ? 'paused' : 'idle'))
+    expect(service.getSnapshot().phase).toBe(command === 'pause' ? 'paused' : 'idle')
+    expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
+  })
 
-    await service.pause(sessionId)
-    await service.resume(sessionId)
-    await service.stop(sessionId)
+  it('does not let a failed attempt settle into or finish a successfully retried player', async () => {
+    const oldAudio = new FakeAudio()
+    let rejectOld!: (error: Error) => void
+    oldAudio.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectOld = reject
+        })
+    )
+    const { service, voice, audios } = createHarness({ audio: oldAudio })
+    const starting = service.start(baseInput).catch((error: unknown) => error)
+    await vi.waitFor(() => expect(rejectOld).toBeTypeOf('function'))
+    oldAudio.dispatchEvent(new Event('error'))
+    await vi.waitFor(() => expect(voice.getSnapshot().phase).toBe('failed'))
+    await service.retry()
+    await vi.waitFor(() => expect(voice.getSnapshot().phase).toBe('playing'))
+    rejectOld(new Error('old playback failure'))
+    expect(await starting).toMatchObject({ reason: 'aborted' })
+    oldAudio.dispatchEvent(new Event('error'))
+    oldAudio.dispatchEvent(new Event('ended'))
+    expect(service.getSnapshot().phase).toBe('playing')
+    expect(voice.getSnapshot().phase).toBe('playing')
+    expect(audios[1].paused).toBe(false)
+    expect(voice.releaseOutput).not.toHaveBeenCalled()
+  })
 
-    expect(voice.controlPlayback.mock.calls.map(([input]) => input)).toEqual([
-      { sessionId, command: 'pause' },
-      { sessionId, command: 'resume' },
-      { sessionId, command: 'stop' }
-    ])
+  it('resumes when a superseded pause aborts the previous pending play', async () => {
+    const audio = new FakeAudio()
+    let rejectPlay!: (error: DOMException) => void
+    audio.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPlay = reject
+        })
+    )
+    const { service, voice } = createHarness({ audio })
+    const starting = service.start(baseInput)
+    await vi.waitFor(() => expect(rejectPlay).toBeTypeOf('function'))
+    await service.pause()
+    await service.resume()
+    rejectPlay(new DOMException('Interrupted by pause', 'AbortError'))
+    await starting
+    await vi.waitFor(() => expect(voice.getSnapshot().phase).toBe('playing'))
+    expect(audio.paused).toBe(false)
   })
 
   it('fails with the stable missing-voice error and never selects a fallback', async () => {
@@ -816,9 +961,10 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
           finishOldRelease = resolve
         })
     )
-    voice.updatePlayback.mockImplementation(async ({ sessionId: id, phase }: any) => {
-      if (id === sessionId && phase === 'completed') throw new VoiceDomainError('operation_failed')
-      return { revision: 1, phase, sessionId: id }
+    const reportPlayback = voice.reportPlayback.getMockImplementation()!
+    voice.reportPlayback.mockImplementation(async (input) => {
+      if (input.sessionId === sessionId && input.phase === 'completed') throw new VoiceDomainError('operation_failed')
+      return reportPlayback(input)
     })
     await service.start(baseInput)
     audios[0].dispatchEvent(new Event('ended'))
@@ -879,7 +1025,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
 
     expect(audio.paused).toBe(true)
     expect(service.getSnapshot().phase).toBe('paused')
-    expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'playing' }))
+    expect(voice.reportPlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'playing' }))
   })
 
   it('stays paused and can resume when pause rejects the pending play promise', async () => {
@@ -901,15 +1047,15 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
 
     expect(service.getSnapshot()).toMatchObject({ phase: 'paused' })
     expect(service.getSnapshot().error).toBeUndefined()
-    expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'failed' }))
-    expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'playing' }))
+    expect(voice.reportPlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'failed' }))
+    expect(voice.reportPlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'playing' }))
     expect(service.canRetry(sessionId)).toBe(false)
 
     voice.emitCommand('resume')
     await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
     expect(audio.play).toHaveBeenCalledTimes(2)
     expect(audio.paused).toBe(false)
-    expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'failed' }))
+    expect(voice.reportPlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'failed' }))
   })
 
   it('fails playback when a pending play rejects without an intentional pause', async () => {
@@ -930,7 +1076,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
     await failure
 
     expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
-    expect(voice.updatePlayback).toHaveBeenCalledWith(
+    expect(voice.reportPlayback).toHaveBeenCalledWith(
       expect.objectContaining({ phase: 'failed', reason: 'operation_failed' })
     )
     expect(service.canRetry(sessionId)).toBe(true)
@@ -955,9 +1101,14 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
     await failure
 
     expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
-    expect(voice.updatePlayback).toHaveBeenCalledWith(
+    expect(voice.reportPlayback).toHaveBeenCalledWith(
       expect.objectContaining({ phase: 'failed', reason: 'operation_failed' })
     )
+
+    await service.retry(sessionId)
+
+    expect(service.getSnapshot()).toMatchObject({ phase: 'playing' })
+    expect(voice.reportPlayback).toHaveBeenLastCalledWith(expect.objectContaining({ sessionId, phase: 'playing' }))
   })
 
   it('keeps a genuine audio failure when the paused play later rejects with AbortError', async () => {
@@ -981,7 +1132,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
     await failure
 
     expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
-    expect(voice.updatePlayback).toHaveBeenCalledWith(
+    expect(voice.reportPlayback).toHaveBeenCalledWith(
       expect.objectContaining({ phase: 'failed', reason: 'operation_failed' })
     )
   })
