@@ -263,7 +263,13 @@ export class ScreenshotOverlayService extends BaseService {
 
       try {
         const sourceWindow = sourceWindowId && manager.getWindow(sourceWindowId)
-        if (sourceWindow && !sourceWindow.isDestroyed() && sourceWindow.isVisible() && !sourceWindow.isMinimized()) {
+        if (
+          sourceWindow &&
+          !sourceWindow.isDestroyed() &&
+          sourceWindow.isVisible() &&
+          !sourceWindow.isMinimized() &&
+          !(isMac && sourceWindow.isFullScreen())
+        ) {
           this.hiddenSourceWindow = sourceWindow
           sourceWindow.hide()
           // Give the desktop compositor time to remove the source before freezing the display.

@@ -125,6 +125,7 @@ function createFakeWindow() {
     focus: vi.fn(),
     isDestroyed: vi.fn(() => false),
     isMinimized: vi.fn(() => false),
+    isFullScreen: vi.fn(() => false),
     restore: vi.fn(),
     isVisible: vi.fn(() => true),
     webContents: new EventEmitter()
@@ -384,6 +385,21 @@ describe('ScreenshotOverlayService', () => {
       chatService = new ScreenshotChatService()
       ;(chatService as any).onInit()
     })
+    it('keeps a macOS fullscreen source visible throughout capture and dismissal', async () => {
+      singleDisplaySetup()
+      const chat = createFakeWindow()
+      chat.isFullScreen.mockReturnValue(true)
+      chat.hide.mockImplementation(() => {
+        throw new Error('Hiding a fullscreen source would orphan its Space')
+      })
+      container.windows.set('chat', chat)
+      await chatService.startCapture('chat')
+      expect(container.openCalls).toHaveLength(1)
+      service.dismiss()
+      expect(chat.hide).not.toHaveBeenCalled()
+      expect(chat.show).not.toHaveBeenCalled()
+    })
+
     it.each([false, true])(
       'handles a late receipt after dismissal without affecting a new capture (accepted: %s)',
       async (accepted) => {
