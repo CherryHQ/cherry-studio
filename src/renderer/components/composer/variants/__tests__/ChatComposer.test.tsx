@@ -2015,6 +2015,24 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
+  it('disables steering a queued follow-up into a running turn when the backend cannot take it', async () => {
+    // Temporary topics have no steer queue: a steer would be rejected by main after the dock
+    // had already dropped the item, losing the follow-up.
+    mocks.topicPending = true
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'follow-up', tokens: [] })
+    })
+    const steerDisabled = () => {
+      const dock = mocks.surfaceProps?.queueContent as any
+      return dock.props.isSteerDisabled(dock.props.items[0])
+    }
+    expect(steerDisabled()).toBe(false)
+
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} steerWhileBusy={false} />)
+    expect(steerDisabled()).toBe(true)
+  })
+
   it('does not carry a queued follow-up into the next topic of a shared draft scope', async () => {
     // Quick assistant keeps one draft scope across temporary topics. A follow-up queued on
     // an aborted turn never drains there, so it must not drain into the next conversation.

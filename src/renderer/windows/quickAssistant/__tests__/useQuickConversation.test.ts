@@ -33,8 +33,10 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   })
 }))
 
+const streamStatus = vi.hoisted(() => ({ isPending: false }))
+
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ activeExecutions: [], isPending: false })
+  useTopicStreamStatus: () => ({ activeExecutions: [], isPending: streamStatus.isPending })
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
@@ -48,6 +50,20 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 describe('finalizeLiveMessages', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    streamStatus.isPending = false
+  })
+
+  it('refuses a submit while a turn is in flight instead of reporting it as sent', () => {
+    // Main rejects busy temporary-chat submits; the stream is fire-and-forget, so without
+    // this the composer would drop a steered follow-up that never got an answer.
+    streamStatus.isPending = true
+    conversation.sendMessage.mockClear()
+    const { result } = renderHook(() => useQuickConversation({}))
+
+    act(() => {
+      expect(result.current.send('steered follow-up')).toBe(false)
+    })
+    expect(conversation.sendMessage).not.toHaveBeenCalled()
   })
 
   it('finalizes streaming content parts without replacing unchanged messages', () => {

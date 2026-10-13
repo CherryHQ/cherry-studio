@@ -210,7 +210,10 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
     (text: string, options?: Parameters<typeof send>[1]) => {
       // Only grow once the turn is actually under way — a send dropped because the
       // temporary topic lease has not landed yet would leave an empty panel behind.
-      if (send(text, options)) setView('panel')
+      // Returned so the composer keeps a draft or queued follow-up that was not taken.
+      const sent = send(text, options)
+      if (sent) setView('panel')
+      return sent
     },
     [send]
   )
@@ -336,6 +339,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               resolvedProviders={providers}
               externalContextControls
               sendDisabled={!topicId}
+              steerWhileBusy={false}
               onConversationControlsChange={setConversationControlsSnapshot}
               onSend={handleSend}
             />
@@ -353,6 +357,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               // reads as a second window edge around the composer card.
               externalContextControls
               sendDisabled={!topicId}
+              steerWhileBusy={false}
               onConversationControlsChange={setConversationControlsSnapshot}
               onSend={handleSend}
               onDraftAssistantChange={handleAssistantChange}

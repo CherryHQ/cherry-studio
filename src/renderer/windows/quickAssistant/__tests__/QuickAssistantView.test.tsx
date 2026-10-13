@@ -20,7 +20,9 @@ const runtime = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
   quickPanelVisible: false,
   assistants: [] as { id: string; name: string }[],
-  ipcHandlers: new Map<string, () => void>()
+  ipcHandlers: new Map<string, () => void>(),
+  /** The latest `onSend` handed to the composer, to read what it reports back. */
+  composerOnSend: null as ((text: string) => unknown) | null
 }))
 
 // The bar's background depends on whether its frame is transparent, which is macOS-only.
@@ -72,25 +74,28 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     compactWhenSingleLine?: boolean
     externalContextControls?: boolean
     onNewTopic?: () => void
-    onSend: (text: string) => void
+    onSend: (text: string) => unknown
     placement: string
-  }) => (
-    <div
-      data-compact={String(Boolean(compactWhenSingleLine))}
-      data-external-context={String(Boolean(externalContextControls))}
-      data-new-topic={String(Boolean(onNewTopic))}
-      data-placement={placement}
-      data-testid="quick-composer">
-      {/* Mirrors ComposerSurfaceRuntime: the marker sits on a non-focusable wrapper and
+  }) => {
+    runtime.composerOnSend = onSend
+    return (
+      <div
+        data-compact={String(Boolean(compactWhenSingleLine))}
+        data-external-context={String(Boolean(externalContextControls))}
+        data-new-topic={String(Boolean(onNewTopic))}
+        data-placement={placement}
+        data-testid="quick-composer">
+        {/* Mirrors ComposerSurfaceRuntime: the marker sits on a non-focusable wrapper and
           the caret target is the contenteditable Tiptap renders inside it. */}
-      <div data-ui="part:composer-input">
-        <div aria-label="message" contentEditable role="textbox" suppressContentEditableWarning tabIndex={0} />
+        <div data-ui="part:composer-input">
+          <div aria-label="message" contentEditable role="textbox" suppressContentEditableWarning tabIndex={0} />
+        </div>
+        <button type="button" onClick={() => onSend('hello')}>
+          mock send
+        </button>
       </div>
-      <button type="button" onClick={() => onSend('hello')}>
-        mock send
-      </button>
-    </div>
-  )
+    )
+  }
 }))
 
 vi.mock('@renderer/components/composer/variants/chat/ChatConversationControls', () => ({
@@ -355,6 +360,24 @@ describe('QuickAssistantView', () => {
     await user.click(screen.getByRole('button', { name: 'mock send' }))
 
     await waitFor(() => expect(screen.getByTestId('quick-messages')).toBeInTheDocument())
+  })
+
+  it('tells the composer when a send was not taken, so it keeps the draft or queued follow-up', () => {
+    // The composer drops a steered follow-up unless onSend reports exactly `false`.
+    render(<QuickAssistantView draggable={false} />)
+
+    quickConversation.send.mockReturnValue(false)
+    let reported: unknown
+    act(() => {
+      reported = runtime.composerOnSend?.('busy')
+    })
+    expect(reported).toBe(false)
+
+    quickConversation.send.mockReturnValue(true)
+    act(() => {
+      reported = runtime.composerOnSend?.('idle')
+    })
+    expect(reported).toBe(true)
   })
 
   it('gives the bar an opaque surface where the window frame is not transparent', () => {

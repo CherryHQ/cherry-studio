@@ -126,35 +126,40 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     setEpoch((n) => n + 1)
   }, [])
 
-  const persist = useCallback(async (initialName?: string) => {
-    const id = leaseRef.current
-    if (!id) return
-    // Claim before the request so a concurrent reset/unmount cannot DELETE the topic
-    // mid-persist, and give the claim back on failure so the save stays retryable.
-    persistedIdsRef.current.add(id)
-    try {
-      await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
-    } catch (err) {
-      persistedIdsRef.current.delete(id)
-      throw err
-    }
-    if (leaseRef.current === id) leaseRef.current = null
-    logger.debug('Persisted temporary topic', { topicId: id })
-
-    const trimmed = initialName?.trim()
-    if (trimmed) {
+  const persist = useCallback(
+    async (initialName?: string) => {
+      const id = leaseRef.current
+      if (!id) return
+      // Claim before the request so a concurrent reset/unmount cannot DELETE the topic
+      // mid-persist, and give the claim back on failure so the save stays retryable.
+      persistedIdsRef.current.add(id)
       try {
-        await dataApiService.patch(`/topics/${id}`, {
-          body: {
-            name: trimmed.slice(0, clampSurrogateBoundary(trimmed, TEMPORARY_TOPIC_NAME_MAX_LENGTH)),
-            isNameManuallyEdited: false
-          }
-        })
+        await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
       } catch (err) {
-        logger.warn('Failed to seed placeholder topic name', err as Error)
+        persistedIdsRef.current.delete(id)
+        // Its run ended mid-save and skipped the DELETE for this claim; nothing else releases it.
+        if (leaseRef.current !== id) releaseLease(id, 'Failed to release temporary topic after a failed save')
+        throw err
       }
-    }
-  }, [])
+      if (leaseRef.current === id) leaseRef.current = null
+      logger.debug('Persisted temporary topic', { topicId: id })
+
+      const trimmed = initialName?.trim()
+      if (trimmed) {
+        try {
+          await dataApiService.patch(`/topics/${id}`, {
+            body: {
+              name: trimmed.slice(0, clampSurrogateBoundary(trimmed, TEMPORARY_TOPIC_NAME_MAX_LENGTH)),
+              isNameManuallyEdited: false
+            }
+          })
+        } catch (err) {
+          logger.warn('Failed to seed placeholder topic name', err as Error)
+        }
+      }
+    },
+    [releaseLease]
+  )
 
   return { topicId, topic, ready: topicId !== null, reset, persist }
 }

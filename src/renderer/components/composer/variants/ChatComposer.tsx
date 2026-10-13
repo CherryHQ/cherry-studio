@@ -177,6 +177,8 @@ export interface ChatComposerProps {
   ) => boolean | void | Promise<boolean | void>
   chatTarget?: ComposerChatTarget
   sendDisabled?: boolean
+  /** False when the backend cannot take a turn mid-stream (temporary topics have no steer queue). */
+  steerWhileBusy?: boolean
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
@@ -409,6 +411,7 @@ const ChatComposerRoot = ({
   onSend,
   chatTarget,
   sendDisabled,
+  steerWhileBusy,
   compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -471,6 +474,7 @@ const ChatComposerRoot = ({
             onSend={onSend}
             chatTarget={chatTarget}
             sendDisabled={sendDisabled}
+            steerWhileBusy={steerWhileBusy}
             compactWhenSingleLine={compactWhenSingleLine}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
@@ -512,6 +516,7 @@ const ChatComposerInner = ({
   onSend,
   chatTarget,
   sendDisabled = false,
+  steerWhileBusy = true,
   compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -1546,8 +1551,10 @@ const ChatComposerInner = ({
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
   const isQueuedFollowupSteerDisabled = useCallback(
-    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
-    [awaitingApproval, isPending]
+    (item: FollowupQueueItem) =>
+      (isPending && !steerWhileBusy) ||
+      ((isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch'),
+    [awaitingApproval, isPending, steerWhileBusy]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 

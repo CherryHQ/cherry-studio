@@ -230,7 +230,9 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
   /** Returns whether the turn was actually started, so callers can hold off on expanding. */
   const send = useCallback(
     (text: string, options?: QuickSendOptions): boolean => {
-      if (!ready || !topicId) return false
+      // Main refuses a temporary-chat submit while a turn is in flight; say so up front, since
+      // the stream itself is fire-and-forget and would report success either way.
+      if (!ready || !topicId || isPreparing || isPending) return false
       const parts = options?.userMessageParts ?? [{ type: 'text' as const, text }]
       if (parts.length === 0) return false
 
@@ -257,7 +259,7 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
       }
       return true
     },
-    [ready, sendMessage, topicId]
+    [isPending, isPreparing, ready, sendMessage, topicId]
   )
 
   const reset = useCallback(() => {
