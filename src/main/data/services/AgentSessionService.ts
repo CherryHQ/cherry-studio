@@ -385,8 +385,12 @@ export class AgentSessionService {
       .from(agentsTable)
       .where(and(inArray(agentsTable.id, [currentAgentId, nextAgentId]), isNull(agentsTable.deletedAt)))
       .all()
-    // The raw column is plain text; the API layer owns the enum narrowing.
-    const runtimeById = new Map<string, AgentType>(runtimeTypes.map((row) => [row.id, row.type as AgentType]))
+    // The raw column is plain text; the API layer owns the enum narrowing. Migrations preserve the
+    // legacy `cherry-claw` alias while the API exposes it as `claude-code` (AgentService), so both
+    // sides are normalized the same way before comparing.
+    const runtimeById = new Map<string, AgentType>(
+      runtimeTypes.map((row) => [row.id, (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType])
+    )
     const currentRuntime = runtimeById.get(currentAgentId)
     const nextRuntime = runtimeById.get(nextAgentId)
     if (!canReassignSessionAgent({ hasMessages: true, currentRuntime, nextRuntime })) {

@@ -1334,6 +1334,45 @@ describe('AgentSessionService', () => {
     expect(agentSessionService.getById(established.id).agentId).toBe('agent-session-other-claude')
   })
 
+  it('compares legacy cherry-claw rows by their normalized runtime type when reassigning', async () => {
+    // Migrations preserve the raw `cherry-claw` column while the API layer exposes that agent as
+    // `claude-code` (AgentService.rowToAgent). A conversation with messages on a migrated agent may
+    // therefore switch to a canonical Claude Code agent — and back — as a same-runtime reassignment.
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-legacy-claw',
+      type: 'cherry-claw',
+      name: 'Legacy claw agent',
+      instructions: '',
+      orderKey: 'z3'
+    })
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-pi',
+      type: 'pi',
+      name: 'Pi target',
+      instructions: '',
+      orderKey: 'z4'
+    })
+
+    const legacy = await createSession('Migrated conversation')
+    agentSessionService.update(legacy.id, { agentId: 'agent-session-legacy-claw' })
+    await insertSessionMessage(legacy.id, 'message-legacy-to-canonical')
+    agentSessionService.update(legacy.id, { agentId: 'agent-session-test' })
+    expect(agentSessionService.getById(legacy.id).agentId).toBe('agent-session-test')
+
+    const backToLegacy = await createSession('Migrated conversation back')
+    await insertSessionMessage(backToLegacy.id, 'message-canonical-to-legacy')
+    agentSessionService.update(backToLegacy.id, { agentId: 'agent-session-legacy-claw' })
+    expect(agentSessionService.getById(backToLegacy.id).agentId).toBe('agent-session-legacy-claw')
+
+    // Normalization must not widen the guard: a migrated Claude Code agent is still not a pi agent.
+    const crossRuntime = await createSession('Migrated cross-runtime conversation')
+    await insertSessionMessage(crossRuntime.id, 'message-legacy-to-pi')
+    expect(
+      captureError(() => agentSessionService.update(crossRuntime.id, { agentId: 'agent-session-pi' }))
+    ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    expect(agentSessionService.getById(crossRuntime.id).agentId).toBe('agent-session-test')
+  })
+
   it('keeps a binding and emits nothing when an outer transaction rolls back session deletion', async () => {
     const task = createTaskSchedule()
     const session = await createSession('Rollback bound task')
