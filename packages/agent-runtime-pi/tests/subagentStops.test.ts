@@ -132,7 +132,7 @@ describe('subagent stops', () => {
 
     expect(shutdowns).toBe(1)
     expect(calls.filter((call) => call.userText.includes('TASK-A'))).toHaveLength(1)
-    const childEvents = host.events.get(`${runtime.session.sessionId}.call_a`)!
+    const childEvents = host.events.get(host.subagents[0].sessionId)!
     expect(childEvents.at(-1)).toMatchObject({ type: 'turn-complete', aborted: true })
     expect(toolResultOf(runtime.session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
   })
