@@ -189,7 +189,7 @@ export function editGoal(
   const closedByLimit =
     goal.phase === 'blocked' && (goal.lastStop?.code === 'round_limit' || goal.lastStop?.code === 'budget_exhausted')
   const reopened = { ...edited, wrapUpDone: false }
-  return closedByLimit ? reactivate(reopened) : reopened
+  return closedByLimit && hasCapacity(reopened) ? reactivate(reopened) : reopened
 }
 
 export function stopGoal(
