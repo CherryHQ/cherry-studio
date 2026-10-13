@@ -38,9 +38,12 @@ export const RENDERED_AGENT_TOOL_NAMES = {
 
 export type RenderedAgentToolName = (typeof RENDERED_AGENT_TOOL_NAMES)[keyof typeof RENDERED_AGENT_TOOL_NAMES]
 
-const CHERRY_AGENT_TRANSPORTS: ReadonlySet<string> = new Set(
-  Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport)
-)
+// Historical transport: saved DSH parts carry no runtime capability entry, but their lowercase
+// builtin names are still rendered through this mapping.
+const CHERRY_AGENT_TRANSPORTS: ReadonlySet<string> = new Set([
+  ...Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport),
+  'dsh-agent'
+])
 
 /**
  * Runtime-native tool names (pi/dsh lower-case identities) mapped onto the shared agent-tool card

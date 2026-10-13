@@ -179,6 +179,24 @@ describe('isVisibleAgentSessionPart', () => {
     expect(isVisibleAgentSessionPart(runtimeNative('get_goal', 'pi-agent'))).toBe(false)
   })
 
+  it('still maps historical dsh-agent builtins onto their card names', () => {
+    // Saved DSH parts carry a transport no runtime capability advertises anymore, so dropping it
+    // from the transport set would leave their lower-case names unnormalized and hide the cards.
+    const dshBuiltin = (toolName: string) =>
+      ({
+        type: 'dynamic-tool',
+        toolCallId: `t-dsh-${toolName}`,
+        toolName,
+        state: 'output-available',
+        input: {},
+        output: {},
+        providerExecuted: true,
+        callProviderMetadata: { cherry: { transport: 'dsh-agent', tool: { type: 'builtin', name: toolName } } }
+      }) as never
+    expect(isVisibleAgentSessionPart(dshBuiltin('todo_write'))).toBe(true)
+    expect(isVisibleAgentSessionPart(dshBuiltin('read'))).toBe(true)
+  })
+
   it('drops file parts the renderer cannot render, keeps resolvable ones', () => {
     // An image without a URL renders nothing.
     expect(isVisibleAgentSessionPart({ type: 'file', mediaType: 'image/png' } as never)).toBe(false)
