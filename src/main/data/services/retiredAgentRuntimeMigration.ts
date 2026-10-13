@@ -8,9 +8,10 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import type { DbOrTx, DbType } from '@data/db/types'
-import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
+
+import type { RuntimeForkAnchor } from './agentSessionForkContract'
 
 const MIGRATION_KEY_PREFIX = 'agent-runtime-migration:'
 const PI_FILE_SHELL_TOOLS = new Set(['read', 'edit', 'write', 'bash'])

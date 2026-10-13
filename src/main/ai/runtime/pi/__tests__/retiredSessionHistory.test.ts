@@ -836,4 +836,95 @@ describe('retired DSH session migration', () => {
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(3)
     expect(dbh.db.select().from(agentSessionMessageTable).all()).toHaveLength(4)
   })
+
+  it.each(['none', 'completion'] as const)(
+    'recovers a completed delivery before importing history with reply policy %s',
+    async (replyPolicy) => {
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({
+          data: { parts: [{ type: 'text', text: 'Durable delivery context 21400' }] },
+          deliveryStatus: 'delivering',
+          deliveryTurnRef: 'assistant-2',
+          delivery: {
+            version: 1,
+            sender: { agentId: 'legacy', sessionId: 'empty' },
+            receiver: { agentId: 'legacy', sessionId: 'conversation' },
+            replyPolicy,
+            sourceMessageId: null,
+            outcome: null,
+            error: null,
+            statusAt: new Date().toISOString()
+          }
+        })
+        .where(eq(agentSessionMessageTable.id, 'user-2'))
+        .run()
+      seeder.run(dbh.db)
+      BaseService.resetInstances()
+      const runtime = new AgentSessionRuntimeService()
+      try {
+        if (replyPolicy === 'completion') {
+          dbh.sqlite.exec(`CREATE TRIGGER reject_delivery_recovery
+            BEFORE UPDATE OF delivery_status ON agent_session_message
+            WHEN NEW.delivery_status = 'consumed'
+            BEGIN SELECT RAISE(ABORT, 'delivery recovery interrupted'); END`)
+          try {
+            await expect(runtime._doInit()).rejects.toThrow('delivery recovery interrupted')
+          } finally {
+            dbh.sqlite.exec('DROP TRIGGER reject_delivery_recovery')
+          }
+          expect(getRetiredAgentSessionMigration(dbh.db, 'conversation')).toBeDefined()
+          expect(agentSessionMessageService.getLastRuntimeResumeToken('conversation')).toBe('old-dsh-token')
+          expect(
+            dbh.db
+              .select()
+              .from(agentSessionMessageTable)
+              .where(eq(agentSessionMessageTable.deliveryInReplyTo, 'user-2'))
+              .all()
+          ).toHaveLength(0)
+        }
+        await runtime._doInit()
+        expect(agentSessionMessageService.getSessionMessage('conversation', 'user-2').delivery).toMatchObject({
+          status: 'consumed',
+          outcome: 'success'
+        })
+        agentSessionMessageService.finalizeSessionDelivery({
+          requestSessionId: 'conversation',
+          requestMessageId: 'user-2',
+          assistantMessageId: 'assistant-2',
+          outcome: 'success'
+        })
+        expect(agentSessionMessageService.getSessionMessage('conversation', 'user-2').delivery?.status).toBe('consumed')
+        expect(
+          dbh.db
+            .select()
+            .from(agentSessionMessageTable)
+            .where(eq(agentSessionMessageTable.deliveryInReplyTo, 'user-2'))
+            .all()
+        ).toHaveLength(replyPolicy === 'completion' ? 1 : 0)
+        const token = agentSessionMessageService.getLastRuntimeResumeToken('conversation')!
+        const file = resolveResumeTokenSessionFile(token, path.join(directory, 'sessions'))!
+        const context = JSON.stringify(SessionManager.open(file, path.dirname(file), directory).buildContextEntries())
+        expect(context).toContain('Durable delivery context 21400')
+        expect(context).toContain('Second response')
+        const child = await new AgentSessionForkOperations().fork('conversation', 'assistant-2')
+        const rows = dbh.db
+          .select()
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.sessionId, child))
+          .all()
+        const childFile = resolveResumeTokenSessionFile(
+          agentSessionMessageService.getLastRuntimeResumeToken(child)!,
+          path.join(directory, 'sessions')
+        )!
+        expect(
+          JSON.stringify(SessionManager.open(childFile, path.dirname(childFile), directory).buildContextEntries())
+        ).toContain('Durable delivery context 21400')
+        expect(JSON.stringify(rows)).toContain('Durable delivery context 21400')
+      } finally {
+        await runtime._doDestroy()
+        runtimeDriverRegistry.clearForTest()
+      }
+    }
+  )
 })

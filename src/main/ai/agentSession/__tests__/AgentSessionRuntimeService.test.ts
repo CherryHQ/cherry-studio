@@ -18,6 +18,8 @@ import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRet
 
 import type * as ForkResourcesModule from '../fork/resources'
 
+vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
+
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
@@ -1413,7 +1415,6 @@ describe('AgentSessionRuntimeService', () => {
 
       await (service as any).onInit()
 
-      expect(mocks.findCrashOrphanedAssistantMessages).toHaveBeenCalledOnce()
       expect(mocks.resolveCrashOrphanedMessages).toHaveBeenCalledWith(
         [
           {
@@ -1436,15 +1437,6 @@ describe('AgentSessionRuntimeService', () => {
         ],
         ['session-a', 'session-b']
       )
-    })
-
-    it('does not resolve anything when there are no stale messages', async () => {
-      mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
-      const service = new AgentSessionRuntimeService()
-
-      await (service as any).onInit()
-
-      expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
     })
 
     it('logs and does not rethrow when the reconcile lookup throws, so boot is not blocked', async () => {

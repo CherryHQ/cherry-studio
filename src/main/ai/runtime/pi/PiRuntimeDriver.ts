@@ -22,12 +22,13 @@ import { assertPiProviderUsable } from './modelInjection'
 import { forkPiSession } from './piFork'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
-import { ensureRetiredSessionHistory } from './retiredSessionHistory'
+import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'pi'
   readonly capabilities = ['agent-session'] as const
   readonly fork = forkPiSession
+  readonly recoverSessions = migrateRetiredSessionHistories
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
     await ensureRetiredSessionHistory(session.id)

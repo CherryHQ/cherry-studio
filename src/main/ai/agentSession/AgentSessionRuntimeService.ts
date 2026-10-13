@@ -63,7 +63,6 @@ import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shar
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import { migrateRetiredSessionHistories } from '../runtime/pi/retiredSessionHistory'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
@@ -111,6 +110,7 @@ import {
 } from './agentSessionRuntimeState'
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
+import { recoverSessionDeliveries } from './recoverSessionDeliveries'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
@@ -485,7 +485,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
     // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
     this.reconcileStalePendingMessages()
-    await migrateRetiredSessionHistories()
+    recoverSessionDeliveries()
+    for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
