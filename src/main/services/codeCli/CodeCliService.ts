@@ -486,15 +486,25 @@ export class CodeCliService extends BaseService {
    * Command Code refuses raw secrets inside its own config files — the renderer
    * writes a `$CHERRY_COMMAND_CODE_API_KEY` reference into providers.json, so
    * the real key has to ride the launch environment. Resolved main-side from
-   * the selected Cherry provider, or the gateway preference for gateway runs.
+   * the gateway preference for gateway-backed runs (the config's baseURL points
+   * at the gateway regardless of which provider was selected), otherwise from
+   * the selected Cherry provider. A keyless provider (local Ollama) still
+   * exports the variable — empty — so the config reference resolves.
    */
-  private applyCommandCodeCredentialEnv(env: Record<string, string>, cliTool: CodeCli, providerId?: string): void {
+  private applyCommandCodeCredentialEnv(
+    env: Record<string, string>,
+    cliTool: CodeCli,
+    providerId?: string,
+    gateway?: boolean
+  ): void {
     if (cliTool !== CodeCli.COMMAND_CODE || !providerId?.trim()) return
-    const apiKey = isApiGatewayProviderId(providerId)
-      ? application.get('PreferenceService').get('feature.api_gateway.api_key')
-      : providerService.getApiKeys(providerId, { enabled: true })[0]?.key
+    const apiKey =
+      gateway || isApiGatewayProviderId(providerId)
+        ? application.get('PreferenceService').get('feature.api_gateway.api_key')
+        : providerService.getApiKeys(providerId, { enabled: true })[0]?.key
     if (!apiKey) {
-      logger.warn(`No enabled API key for ${providerId}; Command Code requests will fail until one exists`)
+      logger.warn(`No enabled API key for ${providerId}; exporting an empty CHERRY_COMMAND_CODE_API_KEY`)
+      env.CHERRY_COMMAND_CODE_API_KEY = ''
       return
     }
     env.CHERRY_COMMAND_CODE_API_KEY = apiKey
@@ -613,7 +623,7 @@ export class CodeCliService extends BaseService {
     // terminal from `env`, so the bundled-git tail must land here too, not only
     // in the spawn env assembled below.
     if (usesCherryExecutionEnv && isWin) appendBundledGitPathTail(env)
-    this.applyCommandCodeCredentialEnv(env, cliTool, normal?.providerId)
+    this.applyCommandCodeCredentialEnv(env, cliTool, normal?.providerId, normal?.gateway)
     logger.debug(`Environment variables:`, Object.keys(env))
 
     // Select different terminal based on operating system

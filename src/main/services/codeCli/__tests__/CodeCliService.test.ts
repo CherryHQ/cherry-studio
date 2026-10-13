@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import type { BinaryRemoveRequest, BinaryRemoveResult } from '@shared/types/binary'
-import { CodeCli, TerminalApp } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli, TerminalApp } from '@shared/types/codeCli'
 
 const binaryManagerMock = vi.hoisted(() => ({
   installByName: vi.fn(() => Promise.resolve()),
@@ -13,6 +13,8 @@ const binaryManagerMock = vi.hoisted(() => ({
   getToolSnapshots: vi.fn()
 }))
 const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
+const preferenceServiceMock = vi.hoisted(() => ({ get: vi.fn() }))
+const providerServiceMock = vi.hoisted(() => ({ getApiKeys: vi.fn() }))
 const antigravityLaunchMock = vi.hoisted(() => vi.fn())
 const skillServiceMock = vi.hoisted(() => ({
   syncBuiltinSkill: vi.fn(() => Promise.resolve(false)),
@@ -34,6 +36,7 @@ vi.mock('@application', () => ({
     get: vi.fn().mockImplementation((name: string) => {
       if (name === 'BinaryManager') return binaryManagerMock
       if (name === 'HermesDashboardService') return hermesDashboardMock
+      if (name === 'PreferenceService') return preferenceServiceMock
       return {}
     }),
     getPath: vi.fn().mockReturnValue('/mock/binary-data')
@@ -42,6 +45,10 @@ vi.mock('@application', () => ({
 
 vi.mock('../antigravity', () => ({
   prepareAntigravityLaunch: antigravityLaunchMock
+}))
+
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: providerServiceMock
 }))
 
 const loggerMock = vi.hoisted(() => ({
@@ -602,6 +609,108 @@ describe('CodeCliService', () => {
 
       expect(script).toContain('GEMINI_CLI_TRUST_WORKSPACE=')
       expect(script).not.toContain('_cherry_mise_key')
+    })
+  })
+
+  // Command Code's providers.json only ever carries a `$CHERRY_COMMAND_CODE_API_KEY`
+  // reference, so the launch env must define that variable: the gateway key for a
+  // gateway-backed run (even when a regular provider is selected), the selected
+  // provider's key for direct runs, and an empty value for keyless providers.
+  describe('run (Command Code credential env)', () => {
+    const originalPlatform = process.platform
+
+    beforeEach(async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+    })
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    const launch = async (input: CodeCliRunInput) => {
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+        const result = await codeCliService.run(input)
+        expect(result.success).toBe(true)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        expect(call).toBeDefined()
+        // The macOS terminal command embeds the export prefix in an osascript
+        // string where single quotes are escaped to `'\''`, so the credential
+        // value is asserted against the spawned process env instead of the script.
+        return {
+          script: (call![1] as string[]).join(' '),
+          env: (call![2] as { env: Record<string, string> }).env
+        }
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it('uses the gateway key when the launch is gateway-backed, even with a regular provider selected', async () => {
+      preferenceServiceMock.get.mockReturnValue('gateway-secret')
+      providerServiceMock.getApiKeys.mockReturnValue([{ key: 'provider-secret' }])
+
+      const { env } = await launch({
+        mode: 'normal',
+        cliTool: CodeCli.COMMAND_CODE,
+        providerId: 'minimax',
+        model: 'MiniMax-M2',
+        gateway: true,
+        directory: '/tmp/project'
+      })
+
+      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('gateway-secret')
+      expect(providerServiceMock.getApiKeys).not.toHaveBeenCalled()
+    })
+
+    it('uses the selected provider key for a direct (non-gateway) run', async () => {
+      providerServiceMock.getApiKeys.mockReturnValue([{ key: 'provider-secret' }])
+
+      const { env, script } = await launch({
+        mode: 'normal',
+        cliTool: CodeCli.COMMAND_CODE,
+        providerId: 'minimax',
+        model: 'MiniMax-M2',
+        directory: '/tmp/project'
+      })
+
+      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('provider-secret')
+      expect(script).toContain('CHERRY_COMMAND_CODE_API_KEY=')
+      expect(preferenceServiceMock.get).not.toHaveBeenCalled()
+    })
+
+    it('uses the gateway key when the gateway pseudo-provider is selected directly', async () => {
+      preferenceServiceMock.get.mockReturnValue('gateway-secret')
+
+      const { env } = await launch({
+        mode: 'normal',
+        cliTool: CodeCli.COMMAND_CODE,
+        providerId: CLI_API_GATEWAY_PROVIDER_ID,
+        model: 'MiniMax-M2',
+        directory: '/tmp/project'
+      })
+
+      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('gateway-secret')
+      expect(providerServiceMock.getApiKeys).not.toHaveBeenCalled()
+    })
+
+    it('still defines the credential reference for a keyless provider (local Ollama)', async () => {
+      providerServiceMock.getApiKeys.mockReturnValue([])
+
+      const { env, script } = await launch({
+        mode: 'normal',
+        cliTool: CodeCli.COMMAND_CODE,
+        providerId: 'ollama-local',
+        model: 'qwen3:8b',
+        directory: '/tmp/project'
+      })
+
+      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('')
+      expect(script).toContain('CHERRY_COMMAND_CODE_API_KEY=')
     })
   })
 
