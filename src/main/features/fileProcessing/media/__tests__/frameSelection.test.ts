@@ -158,6 +158,17 @@ describe('planAnalysisFrameTimestamps', () => {
     ).toEqual(planFrameTimestamps(3_000, 24, 4_000))
   })
 
+  it('keeps both ends when a near-end cut is already covered by the backbone', () => {
+    expect(
+      planAnalysisFrameTimestamps({
+        durationMs: 3_000,
+        maxFrames: 24,
+        targetIntervalMs: 4_000,
+        sceneChanges: [{ timestampMs: 2_875, score: 1 }]
+      })
+    ).toEqual([0, 2_950])
+  })
+
   it('moves an earlier uniform anchor onto a cut in the same scan sample', () => {
     const timestamps = planAnalysisFrameTimestamps({
       durationMs: 16_000,
