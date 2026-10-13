@@ -96,6 +96,8 @@ vi.mock('@main/ai/agents/agentWorkspaceStorage', () => ({
 vi.mock('@main/ai/agents/agentWorkspaceArchive', () => ({
   archiveSystemWorkspace: vi.fn(),
   restoreSystemWorkspace: vi.fn(),
+  finalizeSystemWorkspaceRestore: vi.fn(),
+  hasWorkspaceRestore: () => false,
   purgeSystemWorkspace: mocks.purgeSystemWorkspace
 }))
 

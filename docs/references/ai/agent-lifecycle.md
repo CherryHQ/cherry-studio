@@ -10,6 +10,8 @@ sources:
   - src/main/ai/agents/agentWorkspaceArchive.ts
   - src/main/ai/agents/agentWorkspaceStorage.ts
   - src/main/data/services/AgentWorkspaceService.ts
+  - src/main/core/concurrency/PathReservationService.ts
+  - src/main/utils/file/pathIdentity.ts
   - src/main/services/LegacyBackupManager.ts
 ---
 
@@ -156,18 +158,28 @@ archive; the original contents are removed only after the archive is validated
 and published. Failures retain the files for a later lifecycle sweep to retry.
 Linked or special files prevent compression rather than being silently omitted.
 
-Workspace registration and storage reclamation share a synchronous reservation
-boundary in the agentWorkspaceStorage domain module. The registration handler enters this domain coordinator before writing rows; AgentWorkspaceService only reads and writes database records. Registered overlapping workspaces protect the
+Workspace registration and storage reclamation share the process-local
+`PathReservationService` in `core/concurrency`. The DataApi handler checks active
+reservations before its synchronous database write. The AI coordinator resolves
+filesystem identities and combines persisted claims with those reservations;
+AgentWorkspaceService only reads and writes database records. Registered overlapping workspaces protect the
 whole system tree, including user directories nested below it; logical Session
 archival still succeeds. Archive, restore, purge, and orphan sweep hold the reservation
 through their filesystem work, so new overlapping registrations fail with a
-retryable conflict until it completes. Checks resolve existing path aliases and
-include temporary archive and restore paths. Protected directories remain intact
+retryable conflict until it completes. Checks resolve existing path aliases, probe
+the managed containing directory's case and Unicode behavior, and include temporary
+archive and restore paths. Missing components and stale claims beneath a file remain
+protected. Distinct names on case-sensitive filesystems remain independent. Protected directories remain intact
 even after the owning system Session is permanently removed. Session and Agent restore reject storage conflicts before activating database rows; a skipped reservation is never treated as a successful restore.
 
-Restore extracts into a `.restoring` directory and publishes the complete directory
-at its original path before restoring the Session's database state. Agent restore
-does this only for Sessions archived together with that Agent. Interrupted archive
+Restore extracts into a unique child of `.restoring`, records the prepared directory
+identity and archive digest in `.restore.json`, and publishes the directory before
+restoring the Session's database state. A file or an unknown directory at the destination
+is a conflict: the archive is preserved and the Session stays trashed. The record
+recognizes a published restore after interruption; mere path existence does not.
+Agent restore prepares all Sessions archived together with that Agent before its
+single database transaction. Archives are removed only after activation commits;
+cleanup failures retain the record for a later lifecycle sweep. Interrupted archive
 and restore artifacts remain claimed while the workspace row exists. Explicit
 purge and retention cleanup remove both the workspace and its archive artifacts;
 the orphan sweep reclaims residue after their database rows have disappeared.
