@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { type SpeechPlaybackSnapshot, VoiceDomainError } from '@renderer/services/voice'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID, VoiceResourceOperation } from '@shared/ai/localVoice'
 
@@ -335,8 +336,10 @@ describe('VoiceSettings', () => {
     const language = screen.getByRole('combobox', { name: 'Recognition language' })
     await user.click(language)
     await user.click(screen.getByRole('option', { name: /Follow interface.*Download/ }))
-    await waitFor(() => expect(language).toBeDisabled())
-    expect(voice.install).toHaveBeenCalledWith({ modelId: APPLE_ASR_MODEL_ID, language: 'en-US', source: 'settings' })
+    await waitFor(() =>
+      expect(voice.install).toHaveBeenCalledWith({ modelId: APPLE_ASR_MODEL_ID, language: 'en-US', source: 'settings' })
+    )
+    expect(language).toBeDisabled()
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('')
     expect(screen.getByRole('combobox', { name: 'Recognition model' })).toBeDisabled()
     voice.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })
@@ -345,6 +348,114 @@ describe('VoiceSettings', () => {
     await waitFor(() => expect(language).toBeEnabled())
     await user.click(language)
     expect(screen.getByRole('option', { name: /Follow interface/ })).not.toHaveTextContent('Download')
+  })
+
+  it('waits for an in-flight recognition inspection before installing a newly selected locale', async () => {
+    const user = userEvent.setup()
+    const inspection = deferred<void>()
+    const persistence = deferred<void>()
+    const originalPreferences = vi.mocked(useMultiplePreferences).getMockImplementation()
+    vi.mocked(useMultiplePreferences).mockImplementation((keys, options) => {
+      const [values, setValues] = originalPreferences!(keys, options)
+      return [
+        values,
+        async (updates) => {
+          const write = setValues(updates)
+          await persistence.promise
+          await write
+        }
+      ]
+    })
+    voice.resolveTranscription.mockImplementation(() =>
+      inspection.promise.then(() => ({ modelId: APPLE_ASR_MODEL_ID, status: { status: 'ready' as const } }))
+    )
+
+    try {
+      render(<VoiceSettings />)
+      const language = screen.getByRole('combobox', { name: 'Recognition language' })
+      await waitFor(() => expect(language).toBeEnabled())
+      await waitFor(() => expect(voice.resolveTranscription).toHaveBeenCalled())
+      const inspectionsBeforeSelection = voice.resolveTranscription.mock.calls.length
+
+      await user.click(language)
+      const selecting = user.click(screen.getByRole('option', { name: /Chinese.*Download/ }))
+      await waitFor(() =>
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
+      )
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(voice.resolveTranscription).toHaveBeenCalledTimes(inspectionsBeforeSelection)
+      expect(voice.install).not.toHaveBeenCalled()
+
+      await act(async () => {
+        persistence.resolve()
+      })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(voice.resolveTranscription).toHaveBeenCalledTimes(inspectionsBeforeSelection)
+      expect(voice.install).not.toHaveBeenCalled()
+
+      await act(async () => {
+        inspection.resolve()
+      })
+      await selecting
+      await waitFor(() =>
+        expect(voice.install).toHaveBeenCalledWith({
+          modelId: APPLE_ASR_MODEL_ID,
+          language: 'zh-CN',
+          source: 'settings'
+        })
+      )
+      expect(voice.install).toHaveBeenCalledTimes(1)
+      await waitFor(() =>
+        expect(voice.resolveTranscription.mock.calls.length).toBeGreaterThan(inspectionsBeforeSelection)
+      )
+    } finally {
+      if (originalPreferences) vi.mocked(useMultiplePreferences).mockImplementation(originalPreferences)
+    }
+  })
+
+  it('restores the saved locale status after installation fails', async () => {
+    const user = userEvent.setup()
+    const refresh = deferred<void>()
+    let inspections = 0
+    let selected = false
+    voice.resolveTranscription.mockImplementation(() => {
+      inspections += 1
+      if (!selected) {
+        return Promise.resolve({ modelId: APPLE_ASR_MODEL_ID, status: { status: 'ready' as const } })
+      }
+      return refresh.promise.then(() => ({
+        modelId: APPLE_ASR_MODEL_ID,
+        status: { status: 'not_installed' as const, reason: 'asset_required' as const }
+      }))
+    })
+    voice.install.mockImplementation(() => ({ result: Promise.reject(new VoiceDomainError('download_failed')) }))
+    render(<VoiceSettings />)
+    const language = screen.getByRole('combobox', { name: 'Recognition language' })
+    await waitFor(() => expect(language).toBeEnabled())
+    await waitFor(() => expect(inspections).toBeGreaterThan(0))
+    const inspectionsBeforeSelection = inspections
+    selected = true
+
+    await user.click(language)
+    await user.click(screen.getByRole('option', { name: /Chinese.*Download/ }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/download/i))
+    await waitFor(() => expect(inspections).toBeGreaterThan(inspectionsBeforeSelection))
+    const recognitionStatus = within(document.getElementById('setting-voice-recognition-status')!).getByRole('status')
+    expect(recognitionStatus).toHaveTextContent('Loading')
+    await act(async () => {
+      refresh.resolve()
+    })
+    await waitFor(() =>
+      expect(recognitionStatus).toHaveTextContent('Speech resources must be installed for this language.')
+    )
+    expect(language).toBeEnabled()
+    expect(language).toHaveTextContent('Chinese')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
   })
 
   it('keeps a failed language selection available for explicit retry without automatic downloads', async () => {
@@ -395,7 +506,7 @@ describe('VoiceSettings', () => {
     await waitFor(() => expect(language).toBeEnabled())
     await user.click(language)
     await user.click(screen.getByRole('option', { name: /Chinese.*Download/ }))
-    await waitFor(() => expect(language).toBeDisabled())
+    await waitFor(() => expect(voice.install).toHaveBeenCalledTimes(1))
     unmount()
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.language', 'ja-JP')
     await act(async () => installation.resolve())
