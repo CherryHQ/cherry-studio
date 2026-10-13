@@ -417,6 +417,21 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     }
   })
 
+  const publishMarkdownFromEditor = useCallback(
+    (currentEditor: NonNullable<typeof editor>) => {
+      try {
+        const convertedMarkdown = currentEditor.getMarkdown()
+        setMarkdownState(convertedMarkdown)
+        onChange?.(convertedMarkdown)
+        onContentChange?.(currentEditor.getText())
+        onHtmlChange?.(currentEditor.getHTML())
+      } catch (error) {
+        logger.error('Error serializing editor content to markdown:', error as Error)
+      }
+    },
+    [onChange, onContentChange, onHtmlChange]
+  )
+
   // Handle image paste function
   const handleImagePaste = useCallback(
     async (file: File) => {
@@ -473,11 +488,13 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         })
         const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
 
-        // Insert image into editor using local file path
-        if (editor && !editor.isDestroyed && editor.isEditable) {
+        // Insert image into editor using local file path. In-flight pastes must
+        // finish even if migration locked the editor before async work settled.
+        if (editor && !editor.isDestroyed) {
           const imageUrl = `file://${physicalPath}`
           const alt = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}`
           editor.chain().focus().setImage({ src: imageUrl, alt }).run()
+          publishMarkdownFromEditor(editor)
         }
 
         logger.info('Image pasted and saved:', { id: entry.id })
@@ -485,7 +502,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         logger.error('Failed to handle image paste:', error as Error)
       }
     },
-    [editable, editor]
+    [editable, editor, publishMarkdownFromEditor]
   )
 
   useEffect(() => {

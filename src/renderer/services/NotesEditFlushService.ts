@@ -10,6 +10,7 @@ export class NotesEditFlushService {
   private migrationLockDepth = 0
   private migrationLockListeners = new Set<() => void>()
   private pendingEditorMutations = new Set<Promise<unknown>>()
+  private flushing = false
 
   register(flush: NotesEditFlush): () => void {
     this.callbacks.add(flush)
@@ -26,10 +27,19 @@ export class NotesEditFlushService {
     return tracked
   }
 
+  isFlushing(): boolean {
+    return this.flushing
+  }
+
   async flushAll(): Promise<void> {
-    await Promise.all([...this.callbacks].map((flush) => flush()))
-    if (this.pendingEditorMutations.size > 0) {
-      await Promise.all([...this.pendingEditorMutations])
+    this.flushing = true
+    try {
+      if (this.pendingEditorMutations.size > 0) {
+        await Promise.all([...this.pendingEditorMutations])
+      }
+      await Promise.all([...this.callbacks].map((flush) => flush()))
+    } finally {
+      this.flushing = false
     }
   }
 

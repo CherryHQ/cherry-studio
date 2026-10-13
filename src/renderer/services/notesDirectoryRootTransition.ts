@@ -4,10 +4,15 @@ import { cacheService } from '@renderer/data/CacheService'
 import { normalizePathValue } from '@renderer/services/NotesTreeService'
 
 export function recordNotesDirectoryRootTransition(from: string, to: string): void {
+  const normalizedFrom = normalizePathValue(from)
+  const normalizedTo = normalizePathValue(to)
+  const pending = cacheService.getShared('notes.directory_root_transition')
+  const chainedFrom =
+    pending && normalizePathValue(pending.to) === normalizedFrom ? normalizePathValue(pending.from) : normalizedFrom
   cacheService.setShared('notes.directory_root_transition', {
     id: randomUUID(),
-    from: normalizePathValue(from),
-    to: normalizePathValue(to)
+    from: chainedFrom,
+    to: normalizedTo
   })
 }
 

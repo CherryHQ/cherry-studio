@@ -29,4 +29,14 @@ describe('notesDirectoryRootTransition', () => {
     recordNotesDirectoryRootTransition('/old/notes', '/new/notes')
     expect(consumeNotesDirectoryRootTransition('/other/notes')).toBeNull()
   })
+
+  it('chains consecutive root transitions into one mapping', () => {
+    recordNotesDirectoryRootTransition('/a/notes', '/b/notes')
+    recordNotesDirectoryRootTransition('/b/notes', '/c/notes')
+
+    expect(consumeNotesDirectoryRootTransition('/c/notes')).toEqual({
+      from: '/a/notes',
+      to: '/c/notes'
+    })
+  })
 })

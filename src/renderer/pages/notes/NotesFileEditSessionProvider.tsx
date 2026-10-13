@@ -30,7 +30,11 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
     }
     return {
       ...session,
-      setDraft: () => {
+      setDraft: (content: string) => {
+        if (notesEditFlushService.isFlushing()) {
+          session.setDraft(content)
+          return
+        }
         // Directory copy is in flight; ignore edits until migration finishes.
       }
     }
