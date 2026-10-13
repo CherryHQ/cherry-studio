@@ -24,7 +24,10 @@ import type { AuthConfig } from '@shared/data/types/provider'
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { customFetch } from '../../utils/customFetch'
+import { splitParamValues } from '../../utils/imageOptions'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
+import { buildVendorProviderOptions } from '../custom/wire/buildImageRequest'
+import { WIRE_REGISTRY } from '../custom/wire/wireProfile'
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
 // provider auth config from the direct-import ProviderService singleton. Mock
@@ -1778,17 +1781,25 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           ['https://relay.example.com/v1', 'https://relay.example.com/v1'],
           ['https://relay.example.com/v1beta', 'https://relay.example.com/v1'],
           ['https://relay.example.com/gateway/v1', 'https://relay.example.com/gateway/v1'],
-          ['https://relay.example.com/custom#', 'https://relay.example.com/custom']
-        ].map(([baseUrl, expected]) => ({ endpointType, baseUrl, expected }))
+          ['https://relay.example.com/custom#', 'https://relay.example.com/custom'],
+          ['https://relay.example.com/v1', 'https://relay.example.com/v1', 'my-newapi', 'qwen-image'],
+          ['https://relay.example.com/v1', 'https://relay.example.com/v1', 'openai-compatible', 'qwen-image']
+        ].map(([baseUrl, expected, providerId = 'my-newapi', modelId = 'gpt-image-2.5-flare']) => ({
+          endpointType,
+          baseUrl,
+          expected,
+          providerId,
+          modelId
+        }))
       )
     )(
-      'requests the versioned $endpointType route for a bundled New API host $baseUrl',
-      async ({ endpointType, baseUrl, expected }) => {
+      'preserves $modelId parameters on $endpointType for New API instance $providerId at $baseUrl',
+      async ({ endpointType, baseUrl, expected, providerId, modelId }) => {
         const preset = readProviderRegistry('packages/provider-registry/data/providers.json').providers.find(
           (provider) => provider.id === 'new-api'
         )
         const provider = makeProvider({
-          id: 'my-newapi',
+          id: providerId,
           presetProviderId: 'new-api',
           defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
           endpointConfigs: {
@@ -1800,7 +1811,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           }
         })
         const model = makeModel({
-          apiModelId: 'gpt-image-2.5-flare',
+          apiModelId: modelId,
           endpointTypes: [endpointType],
           capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
         })
@@ -1812,23 +1823,51 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
             headers: { 'content-type': 'application/json' }
           })
         )
+        const paramValues =
+          modelId === 'qwen-image'
+            ? {
+                negativePrompt: 'blurry',
+                numInferenceSteps: 25,
+                seed: 0,
+                guidanceScale: 0,
+                cfg: 0,
+                promptEnhancement: false
+              }
+            : { quality: 'high', background: 'transparent', moderation: 'low' }
+        const expectedParameters =
+          modelId === 'qwen-image'
+            ? {
+                negative_prompt: 'blurry',
+                num_inference_steps: 25,
+                seed: 0,
+                guidance_scale: 0,
+                cfg: 0,
+                prompt_enhancement: false
+              }
+            : { quality: 'high', background: 'transparent', moderation: 'low' }
+        const { structured, vendorBag } = splitParamValues(paramValues)
         const options: ImageModelV3CallOptions = {
           prompt: 'a red circle',
           n: 1,
           size: undefined,
           aspectRatio: undefined,
-          seed: undefined,
+          seed: structured.seed,
           files:
             endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
               ? [{ type: 'file', data: new Uint8Array([137, 80, 78, 71]), mediaType: 'image/png' }]
               : undefined,
           mask: undefined,
-          providerOptions: {},
+          providerOptions: buildVendorProviderOptions(
+            config.providerId,
+            paramValues,
+            WIRE_REGISTRY[config.providerId],
+            vendorBag
+          ),
           headers: undefined,
           abortSignal: undefined
         }
         const result = await createNewApi(config.providerSettings as NewApiProviderSettings)
-          .imageModel('gpt-image-2.5-flare')
+          .imageModel(modelId)
           .doGenerate(options)
 
         const [url, request] = vi.mocked(net.fetch).mock.calls[0]
@@ -1839,9 +1878,18 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         if (endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT) {
           const body = request?.body
           if (!(body instanceof FormData)) throw new Error('Image edits must send multipart form data')
-          expect(body.get('model')).toBe('gpt-image-2.5-flare')
+          expect(body.get('model')).toBe(modelId)
+          for (const [key, value] of Object.entries(expectedParameters)) expect(body.get(key)).toBe(String(value))
+          expect(body.has('negativePrompt')).toBe(false)
+          expect(body.has('numInferenceSteps')).toBe(false)
         } else {
-          expect(JSON.parse(String(request?.body)).model).toBe('gpt-image-2.5-flare')
+          expect(JSON.parse(String(request?.body))).toEqual({
+            model: modelId,
+            prompt: 'a red circle',
+            n: 1,
+            ...(modelId === 'qwen-image' ? { response_format: 'b64_json' } : {}),
+            ...expectedParameters
+          })
         }
         expect(result.images).toEqual(['QUJD'])
       }

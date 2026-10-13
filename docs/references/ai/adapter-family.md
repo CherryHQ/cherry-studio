@@ -5,6 +5,7 @@ sources:
   - packages/provider-registry/src/registry-utils.ts
   - packages/provider-registry/data/providers.json
   - packages/provider-registry/src/providers/new-api.ts
+  - src/main/ai/provider/custom/wire/wireProfile.ts
   - src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts
 ---
 
@@ -60,6 +61,9 @@ web UI instead of image JSON.
 Image endpoints inherit the configured primary host unless the user supplies
 a separate image base URL. Explicit paths and the trailing `#` opt-out retain
 the existing New API URL rules; no model-name exception is needed.
+
+Image parameters use the existing OpenAI and diffusion wire mappings, with
+unmapped vendor parameters preserved under the SDK's `newapi` options key.
 
 ## Write paths
 
