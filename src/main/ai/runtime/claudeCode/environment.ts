@@ -208,7 +208,6 @@ export async function buildEnvironment(
     CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
     CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
-    CLAUDE_AGENT_SDK_CLIENT_APP: `cherry-studio/${app.getVersion()}`,
     CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
     // Identify Cherry Studio in the agent CLI's User-Agent (appends
     // `client-app/cherry-studio/<version>`) so gateways and analytics can
@@ -239,7 +238,6 @@ export async function buildEnvironment(
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
-      'CLAUDE_AGENT_SDK_CLIENT_APP',
       'CHERRY_STUDIO_SKILLS_DIR',
       'CLAUDE_AGENT_SDK_CLIENT_APP',
       'NODE_OPTIONS',
