@@ -821,7 +821,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       ...queryQueue.iterable,
       interrupt: vi.fn(async () => undefined),
       close: vi.fn(),
-      return: vi.fn()
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
     }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -856,7 +856,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         ...queryQueue.iterable,
         interrupt: vi.fn(() => new Promise<void>(() => {})),
         close: vi.fn(),
-        return: vi.fn()
+        return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
       }
       mocks.createClaudeQuery.mockReturnValue(query)
       const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -885,7 +885,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         throw new Error('awaitControlResponse: CLI error verdict')
       }),
       close: vi.fn(),
-      return: vi.fn()
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
     }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -903,7 +903,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
   it('reports success when a stop lands on a warm connection with no active turn', async () => {
     const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), return: vi.fn() }
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+    }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
