@@ -141,6 +141,19 @@ describe('ai.agent.create IPC schema', () => {
   })
 })
 
+describe('ai.agent.session.fork IPC schema', () => {
+  it('accepts only the source session and checkpoint message, rejecting history reconstruction', () => {
+    const forkSession = aiRequestSchemas['ai.agent.session.fork'].input
+    const input = {
+      sourceSessionId: '11111111-1111-4111-8111-111111111111',
+      messageId: '22222222-2222-4222-8222-222222222222'
+    }
+
+    expect(forkSession.parse(input)).toEqual(input)
+    expect(forkSession.safeParse({ ...input, allowHistoryRebuild: true }).success).toBe(false)
+  })
+})
+
 describe('ai.agent.session.delete IPC schema', () => {
   const deleteSessions = aiRequestSchemas['ai.agent.session.delete'].input
 
@@ -180,5 +193,21 @@ describe('ai.agent.support_session.create IPC schema', () => {
     expect(
       createSupportSessionResult.safeParse({ sessionId: 'feedback-session', agentId: 'cherry-support' }).success
     ).toBe(false)
+  })
+})
+
+describe('ai.agent.skill_session.create IPC schema', () => {
+  const createSkillSession = aiRequestSchemas['ai.agent.skill_session.create'].input
+  const createSkillSessionResult = aiRequestSchemas['ai.agent.skill_session.create'].output
+
+  it('requires one non-empty Skill id and rejects unrelated fields', () => {
+    expect(createSkillSession.parse({ skillId: 'skill-1' })).toEqual({ skillId: 'skill-1' })
+    expect(createSkillSession.safeParse({ skillId: '' }).success).toBe(false)
+    expect(createSkillSession.safeParse({ skillId: 'skill-1', agentId: 'agent-1' }).success).toBe(false)
+  })
+
+  it('returns only the prepared Session id', () => {
+    expect(createSkillSessionResult.parse({ sessionId: 'session-1' })).toEqual({ sessionId: 'session-1' })
+    expect(createSkillSessionResult.safeParse({ sessionId: 'session-1', skillId: 'skill-1' }).success).toBe(false)
   })
 })

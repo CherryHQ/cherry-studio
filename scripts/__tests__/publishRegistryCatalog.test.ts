@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { REGISTRY_MIN_APP_VERSION, REGISTRY_SCHEMA_VERSION } from '../../packages/provider-registry/src/registry-loader'
 import { publishRegistryCatalog } from '../publishRegistryCatalog'
 
 const COMPAT_DIRECTORY = path.resolve(__dirname, '../../packages/provider-registry/compat')
@@ -55,6 +56,55 @@ const publishOptions = {
 }
 
 describe('publishRegistryCatalog', () => {
+  it('keeps v2 catalog updates available when Sonnet 5.5 moves to a new schema stream', async () => {
+    const { destinationDirectory } = makeDirectories()
+    const sourceDirectory = path.resolve(COMPAT_DIRECTORY, '../data')
+    fs.mkdirSync(path.join(destinationDirectory, 'v2'))
+    fs.writeFileSync(
+      path.join(destinationDirectory, 'v2/manifest.json'),
+      JSON.stringify({ minAppVersion: '2.0.13', sourceAppVersion: '2.1.3', revision: 35, schemaVersion: 2, files: {} })
+    )
+
+    const published = await publishRegistryCatalog({
+      ...publishOptions,
+      sourceDirectory,
+      destinationDirectory,
+      currentVersion: REGISTRY_SCHEMA_VERSION,
+      minAppVersion: REGISTRY_MIN_APP_VERSION,
+      sourceAppVersion: '2.1.4'
+    })
+
+    expect(published).toEqual(expect.arrayContaining(['v2', 'v3']))
+    const v2Directory = path.join(destinationDirectory, 'v2')
+    const v2Manifest = JSON.parse(fs.readFileSync(path.join(v2Directory, 'manifest.json'), 'utf8'))
+    expect(v2Manifest).toMatchObject({
+      minAppVersion: '2.0.13',
+      sourceAppVersion: '2.1.4',
+      revision: 41,
+      schemaVersion: 2
+    })
+    const { validateCatalogDirectory } = await import(path.join(COMPAT_DIRECTORY, 'v2-validator.mjs'))
+    expect(() => validateCatalogDirectory(v2Directory)).not.toThrow()
+
+    const sourceModels = JSON.parse(fs.readFileSync(path.join(sourceDirectory, 'models.json'), 'utf8'))
+    const v2Models = JSON.parse(fs.readFileSync(path.join(v2Directory, 'models.json'), 'utf8'))
+    expect(v2Models.models).toContainEqual(
+      sourceModels.models.find((model: { id: string }) => model.id === 'claude-opus-5-5')
+    )
+    expect(v2Manifest.files['models.json']).toBe(sourceModels.version)
+
+    const v3Directory = path.join(destinationDirectory, 'v3')
+    const v3Manifest = JSON.parse(fs.readFileSync(path.join(v3Directory, 'manifest.json'), 'utf8'))
+    expect(v3Manifest).toMatchObject({ minAppVersion: '2.1.4', schemaVersion: 3 })
+    const v3Models = JSON.parse(fs.readFileSync(path.join(v3Directory, 'models.json'), 'utf8'))
+    expect(v3Models.models).toContainEqual(
+      expect.objectContaining({
+        id: 'claude-sonnet-5-5',
+        reasoning: expect.objectContaining({ wireDialect: 'adaptive-between-tools' })
+      })
+    )
+  })
+
   it('keeps a model reaching an older schema by dropping only what it cannot represent', async () => {
     const { sourceDirectory, destinationDirectory } = makeDirectories()
     writeCatalog(sourceDirectory, OVERRIDE_WITH_UNKNOWN_EFFORT)

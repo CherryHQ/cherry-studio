@@ -24,6 +24,7 @@ import {
   Label
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
@@ -109,6 +110,17 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   const activeCmTheme = useCmTheme(visible && importMethod === 'json')
   const [packageFile, setPackageFile] = useState<File | null>(null)
   const { setTimeoutTimer } = useTimer()
+  const invalidateCache = useInvalidateCache()
+
+  // A failed connect stays enabled on purpose: the server card only surfaces the runtime error for
+  // active servers, so disabling it again would hide why the import did not work.
+  const activateImportedServer = async (server: McpServer) => {
+    await dataApiService.patch(`/mcp-servers/${server.id}`, { body: { isActive: true } })
+    await invalidateCache('/mcp-servers').catch((error) =>
+      logger.warn('Failed to refresh MCP server list after import', error as Error)
+    )
+    await ipcApi.request('mcp.server.refresh_tools', { serverId: server.id })
+  }
 
   const form = useForm<JsonFieldType>({
     resolver: zodResolver(
@@ -252,25 +264,16 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           setPackageFile(null)
           onClose()
 
-          // Check server connectivity in background (with timeout)
           setTimeoutTimer(
             'handleOk',
             () => {
-              ipcApi
-                .request('mcp.server.check_connectivity', { serverId: createdServer.id })
-                .then((isConnected) => {
-                  logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
-                  void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
-                    body: { isActive: isConnected }
-                  })
-                })
-                .catch((connError: any) => {
-                  logger.error(`Connectivity check failed for ${createdServer.name}:`, connError)
-                  // Don't show error for package servers as they might need additional setup
-                  logger.warn(
-                    `Package server ${createdServer.name} connectivity check failed, this is normal for servers requiring additional configuration`
-                  )
-                })
+              activateImportedServer(createdServer).catch((connError: any) => {
+                // Don't show error for package servers as they might need additional setup
+                logger.warn(
+                  `Package server ${createdServer.name} failed to start, this is normal for servers requiring additional configuration`,
+                  connError
+                )
+              })
             },
             1000
           ) // Delay to ensure server is properly added to store
@@ -335,18 +338,10 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
         // 在背景非同步檢查伺服器可用性並更新狀態
         for (const createdServer of createdServers) {
-          ipcApi
-            .request('mcp.server.check_connectivity', { serverId: createdServer.id })
-            .then((isConnected) => {
-              logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
-              void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
-                body: { isActive: isConnected }
-              })
-            })
-            .catch((connError: any) => {
-              logger.error(`Connectivity check failed for ${createdServer.name}:`, connError)
-              toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
-            })
+          activateImportedServer(createdServer).catch((connError: any) => {
+            logger.error(`Failed to start imported server ${createdServer.name}:`, connError)
+            toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
+          })
         }
       }
     } finally {

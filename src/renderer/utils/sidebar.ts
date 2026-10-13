@@ -318,23 +318,12 @@ export function addSidebarShortcut(
   ]
 }
 
-export function canRemoveSidebarShortcut(
-  values: readonly unknown[] | undefined,
-  target: SidebarShortcutTarget
-): boolean {
-  if (!isBuiltInAppShortcutTarget(target)) return true
-
-  const visibleAppIds = getVisibleSidebarAppIds(values)
-  return !visibleAppIds.includes(target.locator.resourceId) || visibleAppIds.length > 1
-}
-
 export function removeSidebarShortcut(
   values: readonly unknown[] | undefined,
   target: SidebarShortcutTarget
 ): SidebarShortcutItem[] {
   const id = createSidebarShortcutId(target)
   const items = normalizeSidebarShortcutItems(values)
-  if (!canRemoveSidebarShortcut(items, target)) return items
   return items.filter((item) => !isSidebarShortcutItem(item) || item.id !== id)
 }
 

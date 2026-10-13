@@ -5,9 +5,20 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { ApiKeysResponseSchema, CHERRYIN_CONFIG, validateCherryInApiHost } from '../../CherryInOAuthConfig'
 import { OAuthServiceError } from '../../errors'
 import { PkceOAuthClient } from '../PkceOAuthClient'
-import type { OAuthRuntimeProviderContext, OAuthRuntimeProviderDefinition } from '../types'
+import type { OAuthAccount, OAuthRuntimeProviderContext, OAuthRuntimeProviderDefinition } from '../types'
 
-function resolveCherryInContext(context?: OAuthRuntimeProviderContext): { oauthServer: string; apiHost: string } {
+export interface CherryInOAuthContext extends OAuthRuntimeProviderContext {
+  oauthServer?: string
+  apiHost?: string
+}
+
+export interface CherryInSignInResult extends OAuthAccount {
+  apiKeys: string
+}
+
+const API_KEYS_HTTP_TIMEOUT_MS = 30_000
+
+function resolveCherryInContext(context?: CherryInOAuthContext): { oauthServer: string; apiHost: string } {
   const oauthServer = context?.oauthServer ?? CHERRYIN_CONFIG.ALLOWED_HOSTS[0]
   validateCherryInApiHost(oauthServer)
 
@@ -19,7 +30,8 @@ function resolveCherryInContext(context?: OAuthRuntimeProviderContext): { oauthS
 async function fetchCherryInApiKeys(accessToken: string, apiHost: string): Promise<string> {
   const response = await net.fetch(`${apiHost}/api/v1/oauth/tokens`, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${accessToken}` }
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(API_KEYS_HTTP_TIMEOUT_MS)
   })
 
   if (!response.ok) {
@@ -37,8 +49,15 @@ async function fetchCherryInApiKeys(accessToken: string, apiHost: string): Promi
 export const cherryInOAuthProvider = {
   providerId: SystemProviderIds.cherryin,
   clientId: CHERRYIN_CONFIG.CLIENT_ID,
-  transport: { type: 'deep-link', config: { redirectUri: CHERRYIN_CONFIG.REDIRECT_URI } },
-  createClient: (context?: OAuthRuntimeProviderContext) => {
+  transport: {
+    hosts: ['127.0.0.1'],
+    port: CHERRYIN_CONFIG.CALLBACK_PORT,
+    path: CHERRYIN_CONFIG.CALLBACK_PATH,
+    redirectUri: CHERRYIN_CONFIG.REDIRECT_URI
+  },
+  matchesSignInContext: (current, requested) =>
+    current.oauthServer === requested.oauthServer && current.apiHost === requested.apiHost,
+  createClient: (context?: CherryInOAuthContext) => {
     const { oauthServer, apiHost } = resolveCherryInContext(context)
     const tokenHost = context?.oauthServer ?? apiHost
     return new PkceOAuthClient({
@@ -53,4 +72,4 @@ export const cherryInOAuthProvider = {
     const { apiHost } = resolveCherryInContext(context)
     return { apiKeys: await fetchCherryInApiKeys(tokenData.access_token, apiHost) }
   }
-} satisfies OAuthRuntimeProviderDefinition
+} satisfies OAuthRuntimeProviderDefinition<CherryInOAuthContext, Pick<CherryInSignInResult, 'apiKeys'>>

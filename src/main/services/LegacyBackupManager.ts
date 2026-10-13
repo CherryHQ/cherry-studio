@@ -37,7 +37,7 @@ import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
-import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/file'
+import { type AtomicWriteStream, createAtomicWriteStream, ensureDir } from '@main/utils/file'
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { getDeviceType, getHostname } from '@main/utils/system'
@@ -327,7 +327,7 @@ class BackupManager {
     let output: AtomicWriteStream | undefined
 
     try {
-      await fs.ensureDir(outputDirectory)
+      await ensureDir(AbsoluteFilePathSchema.parse(outputDirectory))
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       const userDataPath = application.getPath('app.userdata')
@@ -344,13 +344,16 @@ class BackupManager {
 
         const aiStreamManager = application.get('AiStreamManager')
         const jobManager = application.get('JobManager')
+        const agentJobs = application.get('AgentJobsService')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
           writerHolds.push(aiStreamManager.pause(quiesceReason))
           writerHolds.push(agentLifecycle.pauseExecution(quiesceReason))
+          writerHolds.push(agentJobs.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
 
           const writerVerdicts = await Promise.all([
+            agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
@@ -701,7 +704,7 @@ class BackupManager {
       const operationSignal = event === null ? signal : undefined
       operationSignal?.throwIfAborted()
       const backupDir = localConfig.localBackupDir || this.backupDir
-      await fs.ensureDir(backupDir)
+      await ensureDir(AbsoluteFilePathSchema.parse(backupDir))
       const result = await this.backupDirect(
         fileName || this.createBackupFileName(),
         backupDir,
@@ -1034,7 +1037,7 @@ class BackupManager {
           `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (database is ahead of this version) and cannot be restored here. Please update Cherry Studio and try again. Backup appVersion: ${metadata.appVersion ?? 'unknown'}, current: ${app.getVersion()}.`
         )
       }
-      onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
+      onProgress({ stage: 'restoring_database', progress: 95, total: 100 })
 
       const fileResources: RestoreJournal['fileResources'] = []
       fileResources.push(
@@ -1084,12 +1087,18 @@ class BackupManager {
       this.fsyncTree(stagingRoot)
 
       const jobManager = application.get('JobManager')
+      const agentJobs = application.get('AgentJobsService')
+      const heartbeatHold = agentJobs.pause('backup restore: stage promotion journal')
       const quiesceHold = jobManager.pause('backup restore: stage promotion journal')
       const agentLifecycle = application.get('AgentLifecycleService')
       const agentIngressHold = agentLifecycle.pauseIngress('backup restore')
       const writerHolds: Array<{ dispose(): void }> = []
       try {
-        await this.assertJobsDrained(jobManager)
+        const [heartbeatVerdict] = await Promise.all([
+          agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+          this.assertJobsDrained(jobManager)
+        ])
+        this.assertWritersDrained([heartbeatVerdict])
         this.assertWritersDrained([await agentLifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })])
         const aiStreamManager = application.get('AiStreamManager')
         writerHolds.push(aiStreamManager.pause('backup restore'))
@@ -1128,6 +1137,7 @@ class BackupManager {
           for (const hold of writerHolds.reverse()) hold.dispose()
           agentIngressHold.dispose()
           quiesceHold.dispose()
+          heartbeatHold.dispose()
         }
       }
     } catch (error) {
@@ -1561,8 +1571,16 @@ class BackupManager {
     this.assertWritersDrained([verdict])
   }
 
-  private assertWritersDrained(verdicts: Array<{ stragglerIds: string[]; startupRecoveryPending?: boolean }>): void {
-    if (verdicts.some((verdict) => verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending === true)) {
+  private assertWritersDrained(
+    verdicts: Array<{ stragglerIds: string[]; startupRecoveryPending?: boolean } | { settled: boolean }>
+  ): void {
+    if (
+      verdicts.some((verdict) =>
+        'settled' in verdict
+          ? !verdict.settled
+          : verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending === true
+      )
+    ) {
       throw new Error(`${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: Background data writes did not quiesce in time.`)
     }
   }

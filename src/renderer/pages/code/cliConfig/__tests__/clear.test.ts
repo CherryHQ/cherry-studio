@@ -20,6 +20,7 @@ let deletes: string[]
 const resolvedSpecPath = (target: CliConfigTarget) => `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
 const hermesConfigPath = resolvedSpecPath('hermes-config')
 const hermesEnvPath = resolvedSpecPath('hermes-env')
+const minimaxConfigPath = resolvedSpecPath('minimax-config')
 
 beforeEach(() => {
   existing = {}
@@ -351,6 +352,54 @@ describe('clearCliConfig', () => {
       providers: { user: { baseUrl: 'https://user.example' } }
     })
     expect(JSON.parse(writes['/resolved~/.pi/agent/settings.json'])).toEqual({ theme: 'light' })
+  })
+
+  it('minimax: strips the Cherry-managed custom provider and its defaultModel while preserving user config', async () => {
+    existing[minimaxConfigPath] = [
+      '# user-owned comment',
+      'permissionMode: default # keep inline comment',
+      'custom_provider:',
+      '  cherry-deepseek:',
+      '    api: openai-completions',
+      '    options: { apiKey: sk-secret, baseURL: https://api.deepseek.com/v1 }',
+      '    models: { "deepseek-chat": {} }',
+      '  user-relay:',
+      '    options: { apiKey: user-key, baseURL: https://relay.example.com }',
+      'defaultModel: custom_provider:cherry-deepseek/deepseek-chat',
+      ''
+    ].join('\n')
+
+    await clearCliConfig({ cliTool: CodeCli.MINIMAX_CODE })
+
+    expect(parseYaml(writes[minimaxConfigPath])).toEqual({
+      permissionMode: 'default',
+      custom_provider: {
+        'user-relay': { options: { apiKey: 'user-key', baseURL: 'https://relay.example.com' } }
+      }
+    })
+    expect(writes[minimaxConfigPath]).toContain('# user-owned comment')
+    expect(writes[minimaxConfigPath]).toContain('permissionMode: default # keep inline comment')
+  })
+
+  it('minimax: strips every Cherry-managed provider and a defaultModel aimed at any of them', async () => {
+    existing[minimaxConfigPath] = [
+      'custom_provider:',
+      '  cherry-a:',
+      '    options: { apiKey: key-a, baseURL: https://a.example }',
+      '  cherry-b:',
+      '    options: { apiKey: key-b, baseURL: https://b.example }',
+      'defaultModel: custom_provider:cherry-b/model-b',
+      ''
+    ].join('\n')
+
+    await clearCliConfig({ cliTool: CodeCli.MINIMAX_CODE })
+
+    expect(parseYaml(writes[minimaxConfigPath])).toEqual({})
+  })
+
+  it('minimax: missing config is already clear and sends no rewrite', async () => {
+    await clearCliConfig({ cliTool: CodeCli.MINIMAX_CODE })
+    expect(writes[minimaxConfigPath]).toBeUndefined()
   })
 
   it('is a no-op for tools without a managed config file (openclaw)', async () => {

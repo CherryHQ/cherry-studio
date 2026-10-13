@@ -3,6 +3,7 @@
  */
 
 import {
+  type FinishReason,
   InvalidResponseDataError,
   type LanguageModelUsage,
   type ModelMessage,
@@ -13,6 +14,7 @@ import {
 
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { isAbortError } from '@main/utils/error'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
@@ -157,7 +159,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
     signal?: AbortSignal
-  ): Promise<{ text: string; usage: LanguageModelUsage }> {
+  ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
     try {
       await safeCall('onStart', hooks.onStart)
@@ -184,7 +186,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       })
       if (terminalError) throw terminalError
       await safeCall('onFinish', hooks.onFinish)
-      return { text: result.text, usage: result.usage }
+      return {
+        text: result.text,
+        usage: result.usage,
+        finishReason: result.finishReason,
+        ...(result.rawFinishReason === undefined ? {} : { rawFinishReason: result.rawFinishReason })
+      }
     } catch (err) {
       const isCancellation = signal?.aborted === true && (err === signal.reason || isAbortError(err))
       if (isCancellation) {
@@ -192,7 +199,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         throw err
       }
 
-      logger.error('agent generate error', err as Error)
+      logger.error('agent generate error', chatErrorContext(err))
       if (hooks.onError) {
         try {
           await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
@@ -413,7 +420,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           params.errorContext?.modelId ?? params.modelId
         )
         const action = await invokeOnError(streamError)
-        const logError = streamError instanceof Error ? streamError : serializeError(streamError)
+        const logError = chatErrorContext(streamError)
         if (action === 'retry') {
           // TODO: retry logic
           // retry is reserved for a future implementation — today the loop logs and aborts.

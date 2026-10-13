@@ -36,6 +36,9 @@ type AvatarPopoverView = 'menu' | 'emoji'
 
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [userName, setUserName] = usePreference('app.user.name')
+  // The stored name is always trimmed; the draft keeps the raw text so a space can be typed
+  // mid-name, and stays unset until typed so the input follows the preference until then.
+  const [userNameDraft, setUserNameDraft] = useState<string>()
 
   const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
   const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
@@ -181,8 +184,11 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         <RowFlex className="items-center gap-2.5 p-5">
           <Input
             placeholder={t('settings.general.user_name.placeholder')}
-            value={userName}
-            onChange={(e) => setUserName(e.target.value.trim())}
+            value={userNameDraft ?? userName}
+            onChange={(e) => {
+              setUserNameDraft(e.target.value)
+              void setUserName(e.target.value.trim())
+            }}
             className="w-full flex-1 text-center"
             maxLength={30}
           />

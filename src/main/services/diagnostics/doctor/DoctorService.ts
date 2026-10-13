@@ -209,7 +209,7 @@ export class DoctorService extends BaseService {
   cancelConnectivity(scope: DoctorScopeKey, runId: string): DoctorCancelResult {
     const active = this.connectivityRuns.get(scope)
     const record = this.subjects.get(scope)
-    if (record?.runId === runId) {
+    if (record?.runId === runId && (active?.runId === runId || record.execution.snapshot().pendingChecks.length > 0)) {
       record.onResults?.({ ...record.execution.snapshot(), pendingChecks: [] })
       this.subjects.delete(scope)
       if (active?.runId === runId) active.controller.abort()
@@ -349,7 +349,11 @@ export class DoctorService extends BaseService {
 
   cancel(scope: DoctorScopeKey, runId: string): DoctorCancelResult {
     const active = this.activeRuns.get(scope)
-    if (!active || active.runId !== runId) return this.cancelConnectivity(scope, runId)
+    if (!active || active.runId !== runId) {
+      return this.connectivityRuns.get(scope)?.runId === runId
+        ? this.cancelConnectivity(scope, runId)
+        : { status: 'not_running' }
+    }
     active.controller.abort()
     this.subjects.delete(scope)
     return { status: 'canceled' }

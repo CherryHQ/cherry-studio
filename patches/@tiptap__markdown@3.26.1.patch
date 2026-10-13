@@ -1,5 +1,5 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 5812dcd0b49a7e78b4381a91e4631c5c69eaa48b..a2378f06073d606eda0001ffe4e3853a81ff67f3 100644
+index 5812dcd0b4..8cdda3f5df 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
 @@ -231,7 +231,8 @@ var MarkdownManager = class {
@@ -12,11 +12,52 @@ index 5812dcd0b49a7e78b4381a91e4631c5c69eaa48b..a2378f06073d606eda0001ffe4e3853a
      };
    }
    tokenizeInline(src) {
+@@ -805,7 +806,7 @@ var MarkdownManager = class {
+       return this.htmlAsLiteralText(html, !!token.block);
+     }
+     try {
+-      const parsed = _core.generateJSON.call(void 0, html, this.baseExtensions);
++      const parsed = _core.createNodeFromContent(html, _core.getSchema(this.baseExtensions), { slice: false, parseOptions: { preserveWhitespace: token.block ? false : "full" } }).toJSON();
+       if (parsed.type === "doc" && parsed.content) {
+         if (token.block) {
+           return parsed.content;
+@@ -1011,6 +1012,21 @@ var MarkdownManager = class {
+    * This handles cases where marks span across multiple text nodes.
+    */
+   renderNodesWithMarkBoundaries(nodes, parentNode, separator = "", level = 0) {
++    const needsHtml = nodes.some((node, index) => {
++      if (node.type !== "text") return false;
++      return (node.marks || []).some((mark) => {
++        const opening = this.getMarkOpening(mark.type, mark);
++        if (!/^(?:\*{1,2}|_{1,2})$/.test(opening) || this.getMarkClosing(mark.type, mark) !== opening) return false;
++        const hasMark = (adjacent) => adjacent?.marks?.some((other) => other.type === mark.type);
++        const previous = nodes[index - 1];
++        const next = nodes[index + 1];
++        return (!hasMark(previous) && /^[\p{P}\p{S}]/u.test(node.text || "") && /[^\s\p{P}\p{S}]$/u.test(previous?.text || "")) ||
++          (!hasMark(next) && /[\p{P}\p{S}]$/u.test(node.text || "") && /^[^\s\p{P}\p{S}]/u.test(next?.text || ""));
++      });
++    });
++    if (needsHtml) {
++      return `<span>${_core.generateHTML({ type: "doc", content: nodes }, this.baseExtensions)}</span>`;
++    }
+     const result = [];
+     const activeMarks = /* @__PURE__ */ new Map();
+     const reopenWithHtmlOnNextOpen = /* @__PURE__ */ new Set();
 diff --git a/dist/index.js b/dist/index.js
-index f29ad96882b43e17dcf4bb78998e6a88a4c5b192..b7f071ea827055f93cf9a16bc3965c1c68887b34 100644
+index f29ad96882..11527901c7 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -231,7 +231,8 @@ var MarkdownManager = class {
+@@ -11,7 +11,8 @@ import {
+   decodeHtmlEntities,
+   encodeHtmlEntities,
+   flattenExtensions,
+-  generateJSON,
++  generateHTML,
++  createNodeFromContent,
+   getExtensionField,
+   getSchema,
+   marksEqual,
+@@ -231,7 +232,8 @@ var MarkdownManager = class {
    createTokenizerHelpers(lexer) {
      return {
        inlineTokens: (src) => lexer.inlineTokens(src),
@@ -26,3 +67,91 @@ index f29ad96882b43e17dcf4bb78998e6a88a4c5b192..b7f071ea827055f93cf9a16bc3965c1c
      };
    }
    tokenizeInline(src) {
+@@ -805,7 +807,7 @@ var MarkdownManager = class {
+       return this.htmlAsLiteralText(html, !!token.block);
+     }
+     try {
+-      const parsed = generateJSON(html, this.baseExtensions);
++      const parsed = createNodeFromContent(html, getSchema(this.baseExtensions), { slice: false, parseOptions: { preserveWhitespace: token.block ? false : "full" } }).toJSON();
+       if (parsed.type === "doc" && parsed.content) {
+         if (token.block) {
+           return parsed.content;
+@@ -1011,6 +1013,21 @@ var MarkdownManager = class {
+    * This handles cases where marks span across multiple text nodes.
+    */
+   renderNodesWithMarkBoundaries(nodes, parentNode, separator = "", level = 0) {
++    const needsHtml = nodes.some((node, index) => {
++      if (node.type !== "text") return false;
++      return (node.marks || []).some((mark) => {
++        const opening = this.getMarkOpening(mark.type, mark);
++        if (!/^(?:\*{1,2}|_{1,2})$/.test(opening) || this.getMarkClosing(mark.type, mark) !== opening) return false;
++        const hasMark = (adjacent) => adjacent?.marks?.some((other) => other.type === mark.type);
++        const previous = nodes[index - 1];
++        const next = nodes[index + 1];
++        return (!hasMark(previous) && /^[\p{P}\p{S}]/u.test(node.text || "") && /[^\s\p{P}\p{S}]$/u.test(previous?.text || "")) ||
++          (!hasMark(next) && /[\p{P}\p{S}]$/u.test(node.text || "") && /^[^\s\p{P}\p{S}]/u.test(next?.text || ""));
++      });
++    });
++    if (needsHtml) {
++      return `<span>${generateHTML({ type: "doc", content: nodes }, this.baseExtensions)}</span>`;
++    }
+     const result = [];
+     const activeMarks = /* @__PURE__ */ new Map();
+     const reopenWithHtmlOnNextOpen = /* @__PURE__ */ new Set();
+diff --git a/src/MarkdownManager.ts b/src/MarkdownManager.ts
+index 0d1c9fd5c8..86747543d4 100644
+--- a/src/MarkdownManager.ts
++++ b/src/MarkdownManager.ts
+@@ -15,7 +15,8 @@ import {
+   decodeHtmlEntities,
+   encodeHtmlEntities,
+   flattenExtensions,
+-  generateJSON,
++  generateHTML,
++  createNodeFromContent,
+   getExtensionField,
+   getSchema,
+   marksEqual,
+@@ -985,9 +986,12 @@ export class MarkdownManager {
+       return this.htmlAsLiteralText(html, !!token.block)
+     }
+-
++
+-    // Use generateJSON to parse the HTML using extensions' parseHTML rules
++    // Preserve inline Markdown whitespace when parsing its HTML representation.
+     try {
+-      const parsed = generateJSON(html, this.baseExtensions)
++      const parsed = createNodeFromContent(html, getSchema(this.baseExtensions), {
++        slice: false,
++        parseOptions: { preserveWhitespace: token.block ? false : 'full' },
++      }).toJSON()
+-
++
+       // If the result is a doc node, extract its content
+       if (parsed.type === 'doc' && parsed.content) {
+@@ -1271,6 +1275,25 @@ export class MarkdownManager {
+     separator = '',
+     level = 0,
+   ): string {
++    const needsHtml = nodes.some((node, index) => {
++      if (node.type !== 'text') return false
++      return (node.marks || []).some(mark => {
++        const opening = this.getMarkOpening(mark.type, mark)
++        if (!/^(?:\*{1,2}|_{1,2})$/.test(opening) || this.getMarkClosing(mark.type, mark) !== opening) return false
++        const hasMark = (adjacent?: JSONContent) => adjacent?.marks?.some(other => other.type === mark.type)
++        const previous = nodes[index - 1]
++        const next = nodes[index + 1]
++        return (
++          (!hasMark(previous) && /^[\p{P}\p{S}]/u.test(node.text || '') && /[^\s\p{P}\p{S}]$/u.test(previous?.text || '')) ||
++          (!hasMark(next) && /[\p{P}\p{S}]$/u.test(node.text || '') && /^[^\s\p{P}\p{S}]/u.test(next?.text || ''))
++        )
++      })
++    })
++    if (needsHtml) {
++      // CommonMark cannot delimit these emphasis ranges. Keep the inline fragment in HTML
++      // so nested marks and literal markdown characters retain their meaning together.
++      return `<span>${generateHTML({ type: 'doc', content: nodes }, this.baseExtensions)}</span>`
++    }
+     const result: string[] = []
+     const activeMarks: Map<string, any> = new Map()
+     const reopenWithHtmlOnNextOpen = new Set<string>()

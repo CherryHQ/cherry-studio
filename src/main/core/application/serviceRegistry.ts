@@ -16,6 +16,7 @@ import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
 import {
+  ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
@@ -45,8 +46,8 @@ import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
-import { DoctorService } from '@main/services/diagnostics'
-import { DirectoryTreeManager, FileManager } from '@main/services/file'
+import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
+import { DirectoryTreeManager, FileManager, FileIntakeService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { LogRetentionService } from '@main/services/LogRetentionService'
@@ -64,6 +65,7 @@ import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryU
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
+import { AttachmentPresenceService, RemoteAccessService } from '@main/services/remoteAccess'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SentryLogService } from '@main/services/SentryLogService'
@@ -100,6 +102,7 @@ import { WebviewService } from '@main/services/webview'
  * Value = service class constructor
  */
 export const services = {
+  RemoteAccessService,
   MainNetworkDevtoolsService,
   WindowManager,
   UtilityProcessManager,
@@ -123,6 +126,8 @@ export const services = {
   HermesDashboardService,
   LanTransferService,
   FileManager,
+  AttachmentPresenceService,
+  FileIntakeService,
   DirectoryTreeManager,
   FileProcessingService,
   PowerService,
@@ -140,6 +145,7 @@ export const services = {
   NetworkService,
   StorageMonitorService,
   DoctorService,
+  DoctorAgentService,
   LogRetentionService,
   PythonService,
   TrayService,
@@ -156,6 +162,7 @@ export const services = {
   BinaryManager,
   OpenClawService,
   PdfTranslationService,
+  ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,

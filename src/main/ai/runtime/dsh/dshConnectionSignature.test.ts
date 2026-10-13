@@ -1,5 +1,5 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -16,9 +16,11 @@ const mocks = vi.hoisted(() => ({
   getSkillDirectory: vi.fn(),
   findMcp: vi.fn(),
   listTools: vi.fn(),
+  getInstructions: vi.fn(),
   findBySessionId: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   usesDshGateway: vi.fn(),
+  getGatewayConfig: vi.fn(),
   gatewayFingerprint: 'gateway-1'
 }))
 
@@ -28,8 +30,10 @@ vi.mock('@application', async () => {
   const get = result.application.getContainer().get.bind(result.application.getContainer())
   result.application.get.mockImplementation((name: string) => {
     if (name === 'McpCatalogService') return { listTools: mocks.listTools }
+    if (name === 'McpRuntimeService') return { getConnectedServerInstructions: mocks.getInstructions }
     if (name === 'AgentSessionRuntimeService')
       return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+    if (name === 'ApiGatewayService') return { getCurrentConfig: mocks.getGatewayConfig }
     return get(name)
   })
   return result
@@ -69,7 +73,25 @@ const agent = {
   configuration: { permission_mode: 'acceptEdits' }
 } as unknown as AgentEntity
 
+const PROXY_ENV_KEYS = [
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'ALL_PROXY',
+  'all_proxy',
+  'SOCKS_PROXY',
+  'socks_proxy',
+  'grpc_proxy',
+  'NO_PROXY',
+  'no_proxy',
+  'CHERRY_STUDIO_NODE_PROXY_RULES',
+  'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES'
+]
+
 beforeEach(() => {
+  mocks.getInstructions.mockReturnValue(undefined)
+  for (const key of PROXY_ENV_KEYS) vi.stubEnv(key, '')
   mocks.getAgent.mockReturnValue(agent)
   mocks.getSession.mockReturnValue({
     id: 'session-1',
@@ -89,10 +111,32 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', null)
   mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
   mocks.usesDshGateway.mockReturnValue(false)
+  mocks.getGatewayConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
   mocks.gatewayFingerprint = 'gateway-1'
 })
 
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
 describe('captureDshConnectionSnapshot', () => {
+  it('rebuilds a warm connection when server instructions arrive or disappear', async () => {
+    const cold = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getInstructions.mockReturnValue({
+      serverId: 'mcp-1',
+      serverName: 'server',
+      text: 'Read before writing.',
+      truncated: false
+    })
+    const connected = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(connected.mcpInstructions).toContain('Read before writing.')
+    expect(connected.signature).not.toBe(cold.signature)
+    mocks.getInstructions.mockReturnValue(undefined)
+    const disconnected = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(disconnected.mcpInstructions).toBeUndefined()
+    expect(disconnected.signature).not.toBe(connected.signature)
+  })
+
   it('ignores the live permission mode but covers every reconcilable external input', async () => {
     const baseline = (await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
     mocks.getAgent.mockReturnValueOnce({
@@ -198,6 +242,24 @@ describe('captureDshConnectionSnapshot', () => {
     expect((await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).not.toBe(
       gatewaySignature
     )
+  })
+  it('changes its signature when the applied proxy changes', async () => {
+    const baseline = (await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    vi.stubEnv('HTTP_PROXY', 'http://proxy-a.example:8080')
+    const changed = (await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    expect(changed).not.toBe(baseline)
+    vi.stubEnv('HTTP_PROXY', 'http://proxy-b.example:8080')
+    expect((await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).not.toBe(changed)
+    vi.stubEnv('HTTP_PROXY', '')
+    expect((await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).toBe(baseline)
+  })
+
+  it('changes its signature when the gateway bypass host changes', async () => {
+    mocks.usesDshGateway.mockReturnValue(true)
+    vi.stubEnv('HTTP_PROXY', 'http://proxy.corp.example:8080')
+    const loopback = (await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    mocks.getGatewayConfig.mockReturnValue({ enabled: true, host: '127.0.0.2', port: 23333 })
+    expect((await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).not.toBe(loopback)
   })
   it('invalidates cached tools when Agent browser control changes', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)

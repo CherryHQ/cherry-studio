@@ -1,4 +1,4 @@
-import { Archive, Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { Archive, Pin, PinOff, Plus, Smile, SquarePen } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -51,7 +51,6 @@ const logger = loggerService.withContext('AgentResourceList')
 const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
 const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
 const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
-const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
 const AGENT_ENTITY_ARCHIVE_ACTION_ID = 'agent-entity.archive'
 const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 
@@ -298,14 +297,13 @@ export function AgentResourceList({
   }, [refetchAgents, reload])
 
   const handleDeleteAgent = useCallback(
-    async (agentId: string, permanent = false) => {
+    async (agentId: string) => {
       if (deletingAgentId) return
 
       const deleteSessionsOnly = isProtectedBuiltinAgentRole(
         agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
       )
       const agentName = agents.find((agent) => agent.id === agentId)?.name ?? t('common.unnamed')
-      if (permanent && deleteSessionsOnly) return
 
       const performDelete = async (deleteSessions: boolean) => {
         setDeletingAgentId(agentId)
@@ -317,7 +315,7 @@ export function AgentResourceList({
             deletedSessionIds = result.deletedIds
             deletionChangedState = deletedSessionIds.length > 0
           } else {
-            const result = await ipcApi.request(permanent ? 'ai.agent.delete_permanently' : 'ai.agent.delete', {
+            const result = await ipcApi.request('ai.agent.delete', {
               agentId,
               deleteSessions
             })
@@ -356,10 +354,6 @@ export function AgentResourceList({
           }
 
           await reloadResources()
-          if (permanent) {
-            toast.success(t('settings.data.trash.permanent_delete.success'))
-            return
-          }
           if (deleteSessionsOnly) {
             showRecycleBinBatchUndo({
               itemCount: deletedSessionIds.length,
@@ -409,7 +403,7 @@ export function AgentResourceList({
         return
       }
 
-      await deleteConversationOwnerPopup.show({ type: 'agent', permanent, action: performDelete })
+      await deleteConversationOwnerPopup.show({ type: 'agent', action: performDelete })
     },
     [
       activeSessionId,
@@ -472,15 +466,6 @@ export function AgentResourceList({
           group: 'danger',
           order: 30,
           availability: { visible: true, enabled: deletingAgentId === null }
-        }),
-        buildResolvedResourceEntityMenuAction({
-          id: AGENT_ENTITY_DELETE_ACTION_ID,
-          label: t('common.delete_permanently'),
-          icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
-          group: 'danger',
-          order: 40,
-          danger: true,
-          availability: { visible: !deleteSessionsOnly, enabled: deletingAgentId === null }
         })
       ]
     },
@@ -515,8 +500,8 @@ export function AgentResourceList({
         void setAssistantIconType(action.id.slice(AGENT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
         return
       }
-      if (action.id === AGENT_ENTITY_DELETE_ACTION_ID || action.id === AGENT_ENTITY_ARCHIVE_ACTION_ID) {
-        void handleDeleteAgent(item.id, action.id === AGENT_ENTITY_DELETE_ACTION_ID)
+      if (action.id === AGENT_ENTITY_ARCHIVE_ACTION_ID) {
+        void handleDeleteAgent(item.id)
       }
     },
     [

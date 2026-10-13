@@ -3,7 +3,7 @@ import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react
 import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { Tooltip, TooltipSurface } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { RightSidebarCollapseIcon } from '@renderer/components/icons/SidebarToggleIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
@@ -543,9 +543,13 @@ export function RightPanel() {
         {mountedEntries.map((entry) => {
           const active = state.isActive(entry.id)
           return (
-            <Activity key={`${entry.id}:${entry.instanceKey}`} mode={active ? 'visible' : 'hidden'}>
-              <RightPanelEntry active={active} entry={entry} scope={context.scope} />
-            </Activity>
+            <TooltipSurface key={`${entry.id}:${entry.instanceKey}`} active={active}>
+              {/* Switching panels hides the previous one via Activity (display:none): a tooltip
+                  left open over it parks at the viewport origin, so the surface drops it. */}
+              <Activity mode={active ? 'visible' : 'hidden'}>
+                <RightPanelEntry active={active} entry={entry} scope={context.scope} />
+              </Activity>
+            </TooltipSurface>
           )
         })}
       </div>

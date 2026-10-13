@@ -166,6 +166,20 @@ describe('checkSkillRuntimeDependencies', () => {
     expect(result.warning).not.toContain('"npx"')
   })
 
+  it('warns instead of rejecting when an executable lookup fails', async () => {
+    const workdir = await writeWorkspaceSkill('local-skill', 'allowed-tools: Bash(jq:*), Bash(npx:*)\n')
+    mocks.findExecutableInEnv.mockImplementation(async (name) => {
+      if (name === 'jq') throw new Error("Timed out resolving command 'jq'")
+      return '/usr/bin/npx'
+    })
+
+    const result = await checkSkillRuntimeDependencies('local-skill', workdir, new Map())
+
+    expect(result.deny).toBeUndefined()
+    expect(result.warning).toContain('the executable "jq"')
+    expect(result.warning).not.toContain('"npx"')
+  })
+
   it('skips shell builtins and stays silent when every declared executable resolves', async () => {
     const workdir = await writeWorkspaceSkill('local-skill', 'allowed-tools: Bash(cd:*), Bash(echo:*), Bash(jq:*)\n')
 

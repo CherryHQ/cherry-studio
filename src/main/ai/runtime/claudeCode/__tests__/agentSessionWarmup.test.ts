@@ -4,6 +4,7 @@ import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { computeLanguageCost } from '@shared/utils/usagePricing'
 
 const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   buildSkillWhitelist: vi.fn(),
   findChannelBySessionId: vi.fn(),
   findMcpServerByIdOrName: vi.fn(),
+  getMcpInstructions: vi.fn(),
   preferenceGet: vi.fn(),
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
@@ -92,6 +94,9 @@ vi.mock('@application', () => ({
       }
       if (name === 'AgentSessionRuntimeService') {
         return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+      }
+      if (name === 'McpRuntimeService') {
+        return { getConnectedServerInstructions: mocks.getMcpInstructions }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -808,6 +813,37 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
+  it('estimates direct Claude Code usage at the scheduled peak without a request start event', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
+      settings: {
+        billing: {
+          defaultMultiplier: 0.5,
+          scheduleEnabled: true,
+          timeZone: 'UTC',
+          periods: [
+            { id: 'peak', name: '09:00–18:00', start: '09:00', end: '18:00', mode: 'multiplier', multiplier: 4 }
+          ]
+        }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      pricing: {
+        input: { perMillionTokens: 2, currency: 'USD' },
+        output: { perMillionTokens: 6, currency: 'USD' }
+      }
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    if (request?.usageCapture.owner !== 'agent-sdk') throw new Error('Expected direct SDK capture')
+    const snapshot = request.usageCapture.frozenModels[0].pricingSnapshot
+    expect(snapshot?.billing).toMatchObject({ reason: 'peak_fallback', multiplier: 4, periodId: 'peak' })
+    expect(snapshot?.billing?.pricedAt).toBeUndefined()
+    expect(computeLanguageCost({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, snapshot!)?.cost).toBe(32)
+  })
+
   it('captures distinct same-provider models for direct-route usage attribution', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -903,6 +939,27 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'qwen3:14b'
     })
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+
+  it('injects a per-provider dummy token for a keyless local provider', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'omlx::qwen3-coder-30b' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'omlx',
+      presetProviderId: 'omlx',
+      authOptional: true,
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://localhost:8000' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'qwen3-coder-30b', apiModelId: 'qwen3-coder-30b' })
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://localhost:8000',
+      ANTHROPIC_API_KEY: 'omlx',
+      ANTHROPIC_AUTH_TOKEN: 'omlx'
+    })
   })
 
   it('strips a trailing API version from Anthropic base URLs before launching Claude Code agents', async () => {
@@ -1720,6 +1777,14 @@ describe('deriveConnectionConfig', () => {
     })
     const mcpDefinitionChanged = await deriveSignature()
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
+    mocks.getMcpInstructions.mockReturnValueOnce({
+      serverId: 'mcp-1',
+      serverName: 'server',
+      text: 'Use search before reading.',
+      truncated: false
+    })
+    const instructionsArrived = await deriveSignature()
+    expect(instructionsArrived.rebuildSignature).not.toBe(mcpDefinitionChanged.rebuildSignature)
   })
 
   it('fingerprints knowledge-base bindings as a set', async () => {

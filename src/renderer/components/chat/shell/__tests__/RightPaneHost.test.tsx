@@ -3,15 +3,19 @@ import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
+
 import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+  CHAT_CENTER_MIN_USABLE_WIDTH,
   getRightPaneWidthPolicy
 } from '../paneLayout'
 import { PersistentRightPaneHost, RightPaneHost } from '../RightPaneHost'
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 280, byKey: {} as Record<string, number> }
+  const state = { width: 280, byKey: {} as Record<string, number>, windowByKey: {} as Record<string, number> }
 
   return {
     state,
@@ -20,6 +24,9 @@ const persistCacheMock = vi.hoisted(() => {
     }),
     setByKey: vi.fn((key: string, width: number) => {
       state.byKey[key] = width
+    }),
+    setWindowByKey: vi.fn((key: string, width: number) => {
+      state.windowByKey[key] = width
     })
   }
 })
@@ -42,6 +49,10 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
+  useCache: vi.fn((key: string, initialValue: number) => [
+    persistCacheMock.state.windowByKey[key] ?? initialValue,
+    (width: number) => persistCacheMock.setWindowByKey(key, width)
+  ]),
   usePersistCache: vi.fn((key: string) => [
     persistCacheMock.state.byKey[key] ?? persistCacheMock.state.width,
     (width: number) => {
@@ -221,8 +232,10 @@ describe('RightPaneHost', () => {
     restoreResizeObserver = null
     persistCacheMock.state.width = ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH
     persistCacheMock.state.byKey = {}
+    persistCacheMock.state.windowByKey = {}
     persistCacheMock.setWidth.mockClear()
     persistCacheMock.setByKey.mockClear()
+    persistCacheMock.setWindowByKey.mockClear()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     vi.restoreAllMocks()
@@ -272,6 +285,13 @@ describe('RightPaneHost', () => {
     )
 
     expect(container.querySelector('[data-right-pane-resize-handle]')).not.toBeInTheDocument()
+  })
+
+  it('uses the configured right pane default and minimum widths', () => {
+    expect(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH).toBe(280)
+    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH).toBe(255)
+    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(280)
+    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH).toBe(615)
   })
 
   it('lets the pane and the center share space instead of clamping the pane to zero', () => {
@@ -371,6 +391,35 @@ describe('RightPaneHost', () => {
 
     expect(persistCacheMock.setByKey).toHaveBeenCalledWith(LIST_POLICY.cacheKey, LIST_POLICY.minWidth)
     expect(persistCacheMock.state.byKey[INSPECTOR_POLICY.cacheKey]).toBe(460)
+  })
+
+  it.each([
+    { policy: LIST_POLICY, windowKey: 'ui.window.chat.resource_pane.width' },
+    { policy: INSPECTOR_POLICY, windowKey: 'ui.window.chat.artifact_pane.width' }
+  ])('keeps detached $policy.cacheKey resizing local to its renderer window', ({ policy, windowKey }) => {
+    mockMainRegionWidth(900)
+    const { container } = render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <div data-main-region>
+          <PersistentRightPaneHost
+            open
+            resizable
+            minWidth={policy.minWidth}
+            maxWidth={policy.maxWidth}
+            cacheKey={policy.cacheKey}>
+            <div>pane</div>
+          </PersistentRightPaneHost>
+        </div>
+      </WindowFrameProvider>
+    )
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    if (!handle) throw new Error('Expected resize handle')
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+
+    expect(persistCacheMock.setWindowByKey).toHaveBeenCalledWith(windowKey, policy.minWidth)
+    expect(persistCacheMock.setByKey).not.toHaveBeenCalled()
   })
 
   it('builds the list pane spacer expression from the list floor', () => {

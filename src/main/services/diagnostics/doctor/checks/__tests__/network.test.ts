@@ -1,5 +1,8 @@
+import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { DOCTOR_CHECK_CATALOG, type DoctorCheckId } from '@shared/types/doctor'
 
 import { runDoctorChecks } from '../../engine'
@@ -11,14 +14,14 @@ const network = vi.hoisted(() => ({
   diagnoseEndpoint: vi.fn(),
   effectiveProxy: vi.fn()
 }))
-const providers = vi.hoisted(() => ({ getByProviderId: vi.fn() }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({ NetworkService: network } as never)
 })
-vi.mock('@main/data/services/ProviderService', () => ({ providerService: providers }))
 
 const checks = await import('../network')
+const { providerModel } = await import('../provider')
+const dbh = setupTestDatabase()
 
 /** No memo: the run-scoped sharing itself is covered by the DoctorService tests. */
 const ctx = (): DoctorContextBase => {
@@ -216,10 +219,15 @@ describe('network-provider-endpoint', () => {
     ['proxy_auth', 'HTTP 407', '/settings/general'],
     ['proxy_unreachable', 'ERR_PROXY_CONNECTION_FAILED', '/settings/general']
   ])('routes %s failures to the settings that own the problem', async (kind, code, target) => {
-    providers.getByProviderId.mockReturnValue({
-      id: 'openai',
-      endpointConfigs: { 'openai-chat': { baseUrl: 'https://api.openai.example' } }
-    })
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'openai',
+        name: 'OpenAI',
+        orderKey: 'a0',
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.example' } }
+      })
+      .run()
     every({ http: failed(kind, code), verdict: 'unreachable' })
 
     await expect(checks.providerEndpoint.run({ ...ctx(), subject: { providerId: 'openai' } })).resolves.toMatchObject({
@@ -229,11 +237,16 @@ describe('network-provider-endpoint', () => {
   })
 
   it("probes the subject provider's chat base URL and reports its HTTP verdict", async () => {
-    providers.getByProviderId.mockReturnValue({
-      id: 'openai',
-      defaultChatEndpoint: 'openai-chat',
-      endpointConfigs: { 'openai-chat': { baseUrl: 'api.openai.com/v1' } }
-    })
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'openai',
+        name: 'OpenAI',
+        orderKey: 'a0',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'api.openai.com/v1' } }
+      })
+      .run()
     network.diagnoseEndpoint.mockImplementation(async ({ id }: { id: string }) =>
       diagnosis(id, { http: failed('refused', 'ECONNREFUSED') })
     )
@@ -249,7 +262,10 @@ describe('network-provider-endpoint', () => {
   })
 
   it('passes without probing when the provider has no base URL to reach', async () => {
-    providers.getByProviderId.mockReturnValue({ id: 'vertex', endpointConfigs: {} })
+    dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'vertex', name: 'Vertex', orderKey: 'a0', endpointConfigs: {} })
+      .run()
 
     await expect(checks.providerEndpoint.run({ ...ctx(), subject: { providerId: 'vertex' } })).resolves.toEqual({
       status: 'pass'
@@ -260,10 +276,15 @@ describe('network-provider-endpoint', () => {
 
 // A failed app-update host must not become the diagnosis of a reachable chat provider.
 it('uses the chat provider for DNS, TLS and proxy checks instead of built-in hosts', async () => {
-  providers.getByProviderId.mockReturnValue({
-    id: 'openai',
-    endpointConfigs: { 'openai-chat': { baseUrl: 'https://api.openai.example' } }
-  })
+  dbh.db
+    .insert(userProviderTable)
+    .values({
+      providerId: 'openai',
+      name: 'OpenAI',
+      orderKey: 'a0',
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.example' } }
+    })
+    .run()
   network.builtinEndpoints.mockReturnValue([{ id: 'update', url: 'https://unrelated.invalid' }])
   network.diagnoseEndpoint.mockImplementation(async ({ id }: { id: string }) =>
     diagnosis(
@@ -288,6 +309,52 @@ it('uses the chat provider for DNS, TLS and proxy checks instead of built-in hos
     expect.any(AbortSignal)
   )
   expect(network.builtinEndpoints).not.toHaveBeenCalled()
+})
+
+it('skips contextual network probes for a deleted provider while global network checks still run', async () => {
+  dbh.db.insert(userProviderTable).values({ providerId: 'deleted', name: 'Deleted', orderKey: 'a0' }).run()
+  dbh.db.delete(userProviderTable).run()
+  network.isOnline.mockReturnValue(true)
+  const context = { ...ctx(), subject: { providerId: 'deleted', modelId: 'model' } }
+  const definitions = [
+    providerModel,
+    checks.online,
+    checks.dnsResolution,
+    checks.tlsHandshake,
+    checks.proxyApplied,
+    checks.providerEndpoint
+  ]
+  const results = await runDoctorChecks<DoctorCheckId, DoctorProbeOutcome<DoctorCheckId>>({
+    checks: definitions.map((definition) => ({
+      id: definition.id,
+      run: () => (definition.id === 'network-online' ? definition.run(ctx()) : definition.run(context)),
+      requires: DOCTOR_CHECK_CATALOG[definition.id].requires,
+      lane: 'live',
+      timeoutMs: 1_000
+    }))
+  })
+  expect(results).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ id: 'provider-model', status: 'fail', detail: { variant: 'provider_unavailable' } }),
+      expect.objectContaining({
+        id: 'network-dns-resolution',
+        status: 'skip',
+        detail: { variant: 'provider_unavailable' }
+      }),
+      expect.objectContaining({
+        id: 'network-proxy-applied',
+        status: 'skip',
+        detail: { variant: 'provider_unavailable' }
+      }),
+      expect.objectContaining({ id: 'network-tls-handshake', status: 'skip', skippedBy: 'network-dns-resolution' }),
+      expect.objectContaining({ id: 'network-provider-endpoint', status: 'skip', skippedBy: 'provider-model' })
+    ])
+  )
+  expect(network.diagnoseEndpoint).not.toHaveBeenCalled()
+  for (const check of [checks.dnsResolution, checks.tlsHandshake, checks.proxyApplied]) {
+    await expect(check.run(context)).resolves.toEqual({ status: 'skip', detail: { variant: 'provider_unavailable' } })
+    await expect(check.run({ ...ctx(), subject: null })).resolves.toMatchObject({ status: 'pass' })
+  }
 })
 
 it('keeps a reachable cloud check running when the unrelated update host cannot resolve', async () => {

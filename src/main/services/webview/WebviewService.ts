@@ -98,9 +98,11 @@ export class WebviewService extends BaseService {
     wvSession.setUserAgent(newUA)
     wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
       const language = getAppLanguage()
+      // Only sign-in needs the native identity; application APIs must match the page UA.
+      const isGoogleSignIn = new URL(details.url).hostname === 'accounts.google.com'
       const headers = {
         ...details.requestHeaders,
-        'User-Agent': details.url.includes('google.com') ? originUA : newUA,
+        'User-Agent': isGoogleSignIn ? originUA : newUA,
         'Accept-Language': `${language}, en;q=0.9, *;q=0.5`
       }
       cb({ requestHeaders: headers })
@@ -161,6 +163,14 @@ export class WebviewService extends BaseService {
   }
 
   private initializeWebview(contents: Electron.WebContents, announceIfLoaded = false) {
+    if (contents.isDestroyed()) return
+    // Apply before the webview-only guard so popup windows on these sessions are covered too.
+    if (
+      contents.session === session.fromPartition(WEBVIEW_PARTITION) ||
+      contents.session === session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+    ) {
+      contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
+    }
     if (contents.getType?.() !== 'webview' || !isAnnotationCapableSession(contents.session)) {
       return
     }

@@ -7,6 +7,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 
+import { useComposerLayerActive } from '../../ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH } from '../../composerDraft'
 import type { ComposerDraftToken } from '../../tokens'
 
@@ -36,6 +37,7 @@ export function useComposerSelectionReferenceInsertion<T extends SelectionRefere
   topicId: string
 ): void {
   const { t } = useTranslation()
+  const layerActive = useComposerLayerActive()
 
   const insertReference = useEffectEvent((reference: SelectionReference) => {
     const token = createSelectionReferenceToken(reference, t)
@@ -50,10 +52,11 @@ export function useComposerSelectionReferenceInsertion<T extends SelectionRefere
   })
 
   useEffect(() => {
+    if (!layerActive) return
     return EventEmitter.on(EVENT_NAMES.INSERT_COMPOSER_SELECTION_REFERENCE, (payload) => {
       const request = payload as { topicId?: string; reference?: SelectionReference } | undefined
       if (!request?.reference || request.topicId !== topicId) return
       insertReference(request.reference)
     })
-  }, [insertReference, topicId])
+  }, [insertReference, layerActive, topicId])
 }

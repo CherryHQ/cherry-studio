@@ -1,8 +1,18 @@
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 
+import { application } from '@application'
+
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import type { ClaudeCodeSettings } from './types'
+
+/** An explicit child environment is authoritative, even when it omits the config override. */
+export function resolveClaudeConfigDirectory(env?: Options['env']): string {
+  return (
+    (env === undefined ? process.env.CLAUDE_CONFIG_DIR : env.CLAUDE_CONFIG_DIR) ??
+    application.getPath('external.claude.config')
+  )
+}
 
 export interface ClaudeCodeQueryOptionsInput {
   modelId: string

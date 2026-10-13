@@ -1,10 +1,11 @@
 import path from 'node:path'
 
 import { application } from '@application'
+import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '@main/ai/runtime/fork'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import { createClaudeCodeRuntimeDriver } from './claudeCode'
+import { createClaudeCodeRuntimeDriver, readClaudeTranscriptEvidence } from './claudeCode'
 import { DshRuntimeDriver } from './dsh/DshRuntimeDriver'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
@@ -32,6 +33,14 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
     return this.loadImplementation().then((driver) => driver.connect(input))
+  }
+
+  async fork(input: RuntimeForkInput): Promise<RuntimeForkResult> {
+    input.signal.throwIfAborted()
+    const driver = await this.loadImplementation()
+    input.signal.throwIfAborted()
+    if (!driver.fork) throw new AgentSessionForkError('unsupported_checkpoint')
+    return driver.fork(input)
   }
 
   onSessionIdle(sessionId: string): void {
@@ -79,6 +88,11 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     }
 
     return { removed }
+  }
+
+  /** Pure filesystem work like the sweep above, so it never loads the implementation either. */
+  readTranscriptEvidence(resumeToken: string, maxEntries: number): Promise<Record<string, unknown>[] | undefined> {
+    return readClaudeTranscriptEvidence(application.getPath('feature.agents.claude.projects'), resumeToken, maxEntries)
   }
 
   private loadImplementation(): Promise<AgentSessionRuntimeDriver> {

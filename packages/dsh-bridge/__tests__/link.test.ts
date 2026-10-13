@@ -68,16 +68,22 @@ describe('connectBridgeLink', () => {
       })
   })
 
-  it('rejects in-flight and later tool calls when the host disconnects', async () => {
-    const host = await listenSilentHost()
-    const link = connectBridgeLink({ socketPath: host.socketPath, onRequest: async () => ({}) })
-    const pending = link.callTool({ sessionId: 'session-1', name: 'slow', args: {} })
-    await expect.poll(() => host.requests[0]?.method).toBe('tool/call')
+  it.each(['end', 'destroy'] as const)(
+    'rejects in-flight and later tool calls as soon as the host disconnects: %s',
+    async (disconnect) => {
+      const host = await listenSilentHost()
+      const link = connectBridgeLink({ socketPath: host.socketPath, onRequest: async () => ({}) })
+      const pending = link.callTool({ sessionId: 'session-1', name: 'slow', args: {} })
+      await expect.poll(() => host.requests[0]?.method).toBe('tool/call')
 
-    for (const socket of sockets.splice(0)) socket.destroy()
+      for (const socket of sockets) socket[disconnect]()
 
-    await expect(pending).rejects.toThrow()
-    await expect.poll(() => link.connected).toBe(false)
-    await expect(link.callTool({ sessionId: 'session-1', name: 'slow', args: {} })).rejects.toThrow('not connected')
-  })
+      await expect(pending).rejects.toThrow()
+      expect(link.connected).toBe(false)
+      await expect(
+        link.request('guard/check', { sessionId: 'session-1', toolName: 'write', args: {}, cwd: '/workspace' })
+      ).rejects.toThrow('not connected')
+      await expect(link.callTool({ sessionId: 'session-1', name: 'slow', args: {} })).rejects.toThrow('not connected')
+    }
+  )
 })

@@ -3,16 +3,19 @@ import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
 import type { BrowserWindow } from 'electron'
-import { app, nativeImage, nativeTheme, session, shell } from 'electron'
+import { app, dialog, nativeImage, nativeTheme, session, shell } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
+import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
+import { t } from '@main/i18n'
+import { openRequestPath } from '@main/services/file'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
@@ -20,6 +23,7 @@ import {
   isAllowedAgentDevPreviewEntryUrl,
   isAllowedAgentHtmlArtifactEntryUrl
 } from '@main/utils/agentWebviewRequest'
+import { getAppEdition } from '@main/utils/appEdition'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -37,6 +41,8 @@ const logger = loggerService.withContext('MainWindowService')
 
 // Create nativeImage for Linux window icon (required for Wayland)
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
+// Matches the renderer's main tab bar height (AppShellTabBar `h-11`).
+const MAIN_TITLE_BAR_HEIGHT = 44
 
 @Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)
@@ -60,6 +66,7 @@ export class MainWindowService extends BaseService {
    * window. Runtime rebuilds (showMainWindow with init data) always show.
    */
   private suppressInitialLaunchShow = false
+  private architectureWarningShown = false
 
   constructor() {
     super()
@@ -255,9 +262,10 @@ export class MainWindowService extends BaseService {
       initData,
       options: {
         darkTheme: nativeTheme.shouldUseDarkColors,
-        ...(isLinux && {
-          frame: preferenceService.get('app.use_system_title_bar'),
-          icon: linuxIcon
+        ...(isLinux && { icon: linuxIcon }),
+        ...(this.usesTitleBarOverlay() && {
+          titleBarStyle: 'hidden',
+          titleBarOverlay: getTitleBarOverlay(MAIN_TITLE_BAR_HEIGHT)
         }),
         ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
         ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
@@ -268,12 +276,19 @@ export class MainWindowService extends BaseService {
     })
   }
 
+  /** Windows uses WCO; Linux can opt into the system title bar instead. */
+  private usesTitleBarOverlay(): boolean {
+    return isWin || (isLinux && !application.get('PreferenceService').get('app.use_system_title_bar'))
+  }
+
   private setupMainWindow(mainWindow: BrowserWindow) {
     // Position/size are restored declaratively by WindowManager (rememberBounds);
     // re-apply the saved maximized state here, on our own show schedule (tray
     // launch defers it to first show — see setupMaximize).
     const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
+    // Runs inside openMainWindow's open() call, so it sees the same preference value.
+    if (this.usesTitleBarOverlay()) syncTitleBarOverlayWithTheme(mainWindow)
 
     this.setupWebviewSecurityProfiles(mainWindow)
     this.setupWindowEvents(mainWindow)
@@ -312,6 +327,9 @@ export class MainWindowService extends BaseService {
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
       logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      // A window being torn down can report its renderer gone after the webContents is
+      // destroyed, where reload() throws and hides the real crash behind a dialog.
+      if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
       const currentTime = Date.now()
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime
@@ -484,7 +502,33 @@ export class MainWindowService extends BaseService {
     })
   }
 
+  private async showArchitectureWarning(mainWindow: BrowserWindow) {
+    if (!isMac || !app.runningUnderARM64Translation || this.architectureWarningShown) return
+    this.architectureWarningShown = true
+
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      message: t('dialog.architecture_mismatch.title'),
+      detail: t('dialog.architecture_mismatch.detail'),
+      buttons: [t('dialog.architecture_mismatch.download'), t('dialog.architecture_mismatch.later')],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true
+    })
+    if (response === 0) {
+      await shell.openExternal(
+        getAppEdition() === 'cn' ? 'https://cherryai.com.cn/download' : 'https://cherryai.com/download'
+      )
+    }
+  }
+
   private setupWindowEvents(mainWindow: BrowserWindow) {
+    mainWindow.once('show', () => {
+      void this.showArchitectureWarning(mainWindow).catch((error) => {
+        logger.error('Failed to show architecture warning or open download page', error)
+      })
+    })
+
     mainWindow.once('ready-to-show', () => {
       const preferenceService = application.get('PreferenceService')
       mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
@@ -645,7 +689,7 @@ export class MainWindowService extends BaseService {
         if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {
           logger.warn(`Blocked path traversal attempt: ${fileName}`)
         } else {
-          shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
+          openRequestPath(filePath).catch((err) => logger.error('Failed to open file:', err))
         }
       } else if (isSafeExternalUrl(details.url)) {
         void this.openWebsite(details.url).catch((error) => logger.warn('Failed to open website', { error }))
@@ -734,8 +778,10 @@ export class MainWindowService extends BaseService {
        * When the window is visible but covered by other windows, simply calling show() and focus()
        * is not enough to bring it to the front. We need to hide it first, then show it again.
        * This mimics the "close to tray and reopen" behavior which works correctly.
+       * X11 only: on Wayland hide() destroys the xdg_toplevel and the re-created one is
+       * denied activation, so the window ends up buried; plain show()+focus() works there.
        */
-      if (isLinux && mainWindow.isVisible() && !mainWindow.isFocused()) {
+      if (isLinux && !isLinuxWayland && mainWindow.isVisible() && !mainWindow.isFocused()) {
         mainWindow.hide()
         setImmediate(() => {
           // Re-check through the field — the window may have been destroyed
@@ -750,18 +796,9 @@ export class MainWindowService extends BaseService {
         return
       }
 
-      /**
-       * About setVisibleOnAllWorkspaces
-       *
-       * [macOS] Known Issue
-       *  setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
-       *  AppleScript may be a solution, but it's not worth
-       *
-       * [Linux] Known Issue
-       *  setVisibleOnAllWorkspaces 在 Linux 环境下（特别是 KDE Wayland）会导致窗口进入"假弹出"状态
-       *  因此在 Linux 环境下不执行这两行代码
-       */
-      if (!isLinux) {
+      // Windows uses this toggle to raise covered windows. On macOS it briefly hides the window
+      // and Dock while transforming the process type; Linux compositors also handle it poorly.
+      if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(true)
       }
 
@@ -778,7 +815,7 @@ export class MainWindowService extends BaseService {
 
       mainWindow.show()
       mainWindow.focus()
-      if (!isLinux) {
+      if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }
       this.pushMainWindowInitData(initData)

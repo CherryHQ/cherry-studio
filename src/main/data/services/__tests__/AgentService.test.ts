@@ -499,6 +499,37 @@ describe('AgentService', () => {
       expect(activeBuiltinRows()).toHaveLength(1)
     })
 
+    it('re-fires onAgentCreated when a soft-deleted Support agent is restored in place', () => {
+      // The claim path restores the reserved support row WITHOUT creating a
+      // new one (created: false) — post-commit provisioning subscribers (the
+      // heartbeat schedule sync) must still hear about it.
+      const supportDefaults: Parameters<typeof agentService.ensureBuiltinAgent>[0] = {
+        ...defaults,
+        builtinRole: 'support',
+        name: 'Cherry Support'
+      }
+      const first = agentService.ensureBuiltinAgent(supportDefaults)
+      dbh.db
+        .update(agentTable)
+        .set({ deletedAt: Date.UTC(2026, 0, 1) })
+        .where(eq(agentTable.id, first.id))
+        .run()
+
+      const events: string[] = []
+      const disposable = agentService.onAgentCreated(({ agentId }) => events.push(agentId))
+      try {
+        const restored = agentService.ensureBuiltinAgent(supportDefaults)
+        // Restored in place under the reserved identity — not a fresh row.
+        expect(restored.id).toBe(first.id)
+        // An active repeat fires nothing.
+        agentService.ensureBuiltinAgent(supportDefaults)
+      } finally {
+        disposable.dispose()
+      }
+
+      expect(events).toEqual([first.id])
+    })
+
     it('leaves the model unset when the default cannot run the Agent runtime', () => {
       dbh.db
         .insert(userProviderTable)
@@ -1383,7 +1414,7 @@ describe('AgentService', () => {
       expect(session).toEqual({ agentId: id, deletedAt: null })
     })
 
-    it('trashes only active sessions and restores the agent independently', async () => {
+    it('trashes only active sessions and restores them with the agent', async () => {
       const { id } = await insertAgent({ id: 'agent_trash_restore_001' })
       await dbh.db.insert(agentWorkspaceTable).values([
         { id: 'workspace-trash-1', name: 'W1', path: '/tmp/agent-trash-1', orderKey: 'a0' },
@@ -1425,8 +1456,9 @@ describe('AgentService', () => {
       const sessions = await dbh.db
         .select({ id: agentSessionTable.id, deletedAt: agentSessionTable.deletedAt })
         .from(agentSessionTable)
-      expect(sessions.find((s) => s.id === 'session-with-agent')?.deletedAt).not.toBeNull()
-      expect(sessions.find((s) => s.id === 'session-trashed-earlier')?.deletedAt).not.toBeNull()
+      expect(sessions.find((s) => s.id === 'session-with-agent')?.deletedAt).toBeNull()
+      // Trashed on its own before the agent — restoring the agent must not revive it.
+      expect(sessions.find((s) => s.id === 'session-trashed-earlier')?.deletedAt).toBe(100)
     })
 
     it('does not reclaim a related session that was independently restored and reassigned', async () => {

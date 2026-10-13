@@ -98,7 +98,11 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(consumed?.warmQuery).toBe(warm)
     expect(second).toBeUndefined()
     expect(startupMock).toHaveBeenCalledWith({
-      options: { model: 'sonnet', resume: 'sdk-1', spawnClaudeCodeProcess: expect.any(Function) },
+      options: {
+        model: 'sonnet',
+        resume: 'sdk-1',
+        spawnClaudeCodeProcess: expect.any(Function)
+      },
       initializeTimeoutMs: undefined
     })
     expect(warm.close).not.toHaveBeenCalled()
@@ -117,7 +121,10 @@ describe('ClaudeCodeWarmQueryManager', () => {
     await Promise.resolve()
 
     expect(startupMock).toHaveBeenCalledWith({
-      options: { model: 'sonnet', spawnClaudeCodeProcess: expect.any(Function) },
+      options: {
+        model: 'sonnet',
+        spawnClaudeCodeProcess: expect.any(Function)
+      },
       initializeTimeoutMs: undefined
     })
     expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(ignoredSpawn)

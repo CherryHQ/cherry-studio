@@ -25,7 +25,7 @@ export interface ScreenshotInitData {
   }
   /** Whether the overlay should run OCR once a selection settles. */
   autoOcr: boolean
-  /** Whether the OCR model is on disk; false disables the OCR affordance. */
+  /** Whether system OCR or an installed local model is available for this session. */
   ocrAvailable: boolean
 }
 

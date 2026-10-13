@@ -1,6 +1,8 @@
 export {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
+  type DshAssistantChunk,
+  type DshRuntimeEvent,
   type BridgeCommandResult,
   type BridgeContextUsage,
   type BridgeHostParams,

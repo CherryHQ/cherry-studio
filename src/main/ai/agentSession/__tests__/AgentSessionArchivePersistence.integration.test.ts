@@ -24,6 +24,8 @@ vi.mock('@application', async () => {
       hasUnsettledTopicWork: mocks.hasUnsettledTopicWork
     },
     AgentSessionRuntimeService: {
+      cancelSessionForks: vi.fn().mockResolvedValue(undefined),
+      recoverSessionForks: vi.fn().mockResolvedValue(undefined),
       isSessionBusy: mocks.isSessionBusy,
       closeSession: mocks.closeSession
     }
@@ -79,6 +81,35 @@ describe('Agent Session archive persistence', () => {
       }
     })
   })
+
+  it.each(['success', 'paused', 'error'] as const)(
+    'persists a background session terminal reply with %s status',
+    async (status) => {
+      await dbh.db.update(agentSessionTable).set({ type: 'background' }).where(eq(agentSessionTable.id, SESSION_ID))
+      // Background sessions stay outside the conversation API, but their terminal
+      // persistence receipt must still include the session's history revision.
+      expect(() => agentSessionService.getConversationById(SESSION_ID)).toThrow()
+
+      const receipt = new AgentSessionMessageBackend({
+        sessionId: SESSION_ID,
+        assistantMessageId: ASSISTANT_MESSAGE_ID
+      }).persistAssistant({
+        status,
+        finalMessage: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'HEARTBEAT_OK' }]
+        }
+      })
+
+      expect(receipt).toMatchObject({ messageId: ASSISTANT_MESSAGE_ID })
+      expect(Number(receipt.historyRevision)).toBeGreaterThan(0)
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toMatchObject({
+        status,
+        data: { parts: [{ type: 'text', text: 'HEARTBEAT_OK' }] }
+      })
+    }
+  )
 
   it('preserves the terminal assistant reply when archive is retried after generation settles', async () => {
     const service = new AgentLifecycleService()

@@ -7,6 +7,7 @@ import type {
   NetworkLayerResult
 } from '@main/services/network'
 import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { DoctorCheckId, DoctorEvidenceItem, DoctorNavigateTarget } from '@shared/types/doctor'
 
 import { defaultChatModel } from '../subjectDefaults'
@@ -15,10 +16,15 @@ import { defineDoctorCheck, type DoctorContextBase, type DoctorProbeOutcome } fr
 /** One diagnosis pass per run: every network check reads it instead of resolving the same hosts again. */
 async function diagnoseAll(
   ctx: DoctorContextBase & { readonly subject?: { readonly providerId: string } | null }
-): Promise<readonly EndpointDiagnosis[]> {
+): Promise<readonly EndpointDiagnosis[] | null> {
   if (ctx.subject) {
-    const diagnosis = await diagnoseProvider(ctx, ctx.subject.providerId)
-    return diagnosis ? [diagnosis] : []
+    try {
+      const diagnosis = await diagnoseProvider(ctx, ctx.subject.providerId)
+      return diagnosis ? [diagnosis] : []
+    } catch (error) {
+      if (!isDataApiNotFoundError(error)) throw error
+      return null
+    }
   }
   return ctx.share('network:diagnoses', async (signal) => {
     const network = application.get('NetworkService')
@@ -53,6 +59,7 @@ export const dnsResolution = defineDoctorCheck({
   id: 'network-dns-resolution',
   async run(ctx): Promise<DoctorProbeOutcome<'network-dns-resolution'>> {
     const diagnoses = await diagnoseAll(ctx)
+    if (!diagnoses) return { status: 'skip', detail: { variant: 'provider_unavailable' } }
     if (diagnoses.length === 0) return { status: 'pass' }
     const failing = diagnoses.filter((d) => d.dns.status === 'failed')
     const evidence = layerEvidence(diagnoses, 'dns')
@@ -77,6 +84,7 @@ export const tlsHandshake = defineDoctorCheck({
   id: 'network-tls-handshake',
   async run(ctx): Promise<DoctorProbeOutcome<'network-tls-handshake'>> {
     const diagnoses = await diagnoseAll(ctx)
+    if (!diagnoses) return { status: 'skip', detail: { variant: 'provider_unavailable' } }
     if (diagnoses.length === 0) return { status: 'pass' }
     const evidence = layerEvidence(diagnoses, 'tls')
     if (diagnoses.every((d) => d.tls.status === 'skipped' && d.tls.skippedBecause === 'proxy_in_use')) {
@@ -113,6 +121,7 @@ export const proxyApplied = defineDoctorCheck({
   id: 'network-proxy-applied',
   async run(ctx): Promise<DoctorProbeOutcome<'network-proxy-applied'>> {
     const diagnoses = await diagnoseAll(ctx)
+    if (!diagnoses) return { status: 'skip', detail: { variant: 'provider_unavailable' } }
     const proxy = diagnoses.find((diagnosis) => diagnosis.proxy.mismatch)?.proxy ?? diagnoses[0]?.proxy
     if (!proxy) return { status: 'pass' }
     const evidence: DoctorEvidenceItem[] = [
@@ -177,7 +186,7 @@ function endpointCheck<Id extends Extract<DoctorCheckId, `network-endpoint-${str
   return defineDoctorCheck({
     id,
     async run(ctx): Promise<DoctorProbeOutcome<Id>> {
-      const diagnosis = (await diagnoseAll(ctx)).find((d) => d.endpointId === endpointId)
+      const diagnosis = (await diagnoseAll(ctx))?.find((d) => d.endpointId === endpointId)
       if (!diagnosis) throw new Error(`Endpoint "${endpointId}" was not probed`)
       return endpointOutcome(diagnosis, '/settings/general')
     },
