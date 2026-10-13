@@ -19,7 +19,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
-import { changedFileRefEffects } from '@data/services/FileRefService'
+import { changedFileRefEffects, fileRefSourceReadModelEffects } from '@data/services/FileRefService'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata, ReasoningProviderContext } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -981,7 +981,7 @@ class ProviderService {
   delete(providerId: string): void {
     assertManagedCherryProviderMutationAllowed(providerId, `delete provider ${providerId}`)
 
-    const deletedModelCount = application.get('DbService').withWriteTx((tx) => {
+    const { deletedModelCount, fileEffects } = application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
         .select({
           providerId: userProviderTable.providerId,
@@ -1021,6 +1021,7 @@ class ProviderService {
       // DB-only: drop the logo slot's ref (the file is preserved per the
       // file layer's policy). The FK cascade would also clear it on row delete;
       // the explicit clear keeps the intent local to this flow.
+      const fileEffects = fileRefSourceReadModelEffects(tx, 'provider_logo', [providerId])
       clearSingleFileRefTx(tx, providerLogoFileRefTable, providerId)
 
       const deleted = tx
@@ -1033,9 +1034,10 @@ class ProviderService {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
 
-      return models.length
+      return { deletedModelCount: models.length, fileEffects }
     })
 
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     if (deletedModelCount > 0) pinService.notifyPurged()
 
     logger.info('Deleted provider', { providerId })

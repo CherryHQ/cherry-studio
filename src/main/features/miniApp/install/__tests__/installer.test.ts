@@ -8,7 +8,12 @@ import JSZip from 'jszip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppGrantTable, miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { fileRefService } from '@data/services/FileRefService'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 
 import { extractMiniAppArchive } from '../archive'
 
@@ -314,6 +319,29 @@ describe('installMiniAppFromFile', () => {
     notifyDataApiDataChange.mockClear()
     await uninstallMiniApp(APP_ID)
     expect(notifyDataApiDataChange).toHaveBeenCalledWith([{ endpoint: '/mini-apps', kind: 'membership' }])
+  })
+
+  it('invalidates logo usage after uninstall commits, before physical cleanup', async () => {
+    await installMiniAppFromFile(await makePackage())
+    const fileId = '019606a0-0000-7000-8000-0000000000aa'
+    dbh.db.insert(fileEntryTable).values({ id: fileId, origin: 'internal', name: 'logo', ext: 'webp', size: 3 }).run()
+    dbh.db.insert(miniAppLogoFileRefTable).values({ sourceId: APP_ID, fileEntryId: fileId }).run()
+    const effects: DataApiDataChangeEffect[] = []
+    notifyDataApiDataChange.mockImplementationOnce((batch) => {
+      expect(dbh.sqlite.inTransaction).toBe(false)
+      expect(fileRefService.countByEntryIds([fileId]).get(fileId)).toBeUndefined()
+      effects.push(...batch)
+    })
+
+    await uninstallMiniApp(APP_ID)
+
+    expect(fileEntryService.listCursor({ usage: 'unreferenced' }).items.map((entry) => entry.id)).toContain(fileId)
+    expect(effects).toEqual(
+      expect.arrayContaining([
+        { endpoint: '/files/entries', kind: 'membership', entityIds: [fileId] },
+        { endpoint: '/files/entries/ref-counts', kind: 'projection', entityIds: [fileId] }
+      ])
+    )
   })
 
   it('publishes nothing when the install is refused', async () => {
