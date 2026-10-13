@@ -74,6 +74,8 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const [runtimeReady, setRuntimeReady] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
   const sendBlockedReasonRef = useRef(props.sendBlockedReason)
+  const editableRef = useRef(props.editable)
+  editableRef.current = props.editable
   const textRef = useRef(props.text)
   const onTextChangeRef = useRef(props.onTextChange)
   textRef.current = props.text
@@ -128,7 +130,8 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       sourceEntityId: voiceSourceEntityId,
       owner: window,
       captureReplaceRange: () => voiceInputAdapterRef.current.captureReplaceRange?.() ?? null,
-      replaceRange: (range, text) => voiceInputAdapterRef.current.replaceRange?.(range, text) ?? false
+      replaceRange: (range, text) =>
+        editableRef.current !== false && (voiceInputAdapterRef.current.replaceRange?.(range, text) ?? false)
     })
   }, [voiceSourceEntityId, voiceTargetId])
 

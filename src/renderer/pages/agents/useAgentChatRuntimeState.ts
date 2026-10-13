@@ -18,6 +18,7 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import { cacheService } from '@renderer/data/CacheService'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -36,6 +37,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
@@ -269,7 +271,10 @@ export function useAgentChatRuntimeState({
   const handleExecutionFinish = useCallback(
     (_executionId: string, event: ExecutionFinishEvent) => {
       const projectedMessage = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
-      const turnOrigin = projectedMessage?.metadata?.turnOrigin ?? event.message.metadata?.turnOrigin
+      const turnOrigin =
+        cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, event.message.id)) ??
+        projectedMessage?.metadata?.turnOrigin ??
+        event.message.metadata?.turnOrigin
       void autoReadService.consume({
         enabled: autoReadEnabled,
         message: event.message,
@@ -279,7 +284,7 @@ export function useAgentChatRuntimeState({
         eligible: !turnOrigin
       })
     },
-    [autoReadEnabled]
+    [autoReadEnabled, sessionId]
   )
   const {
     overlay,

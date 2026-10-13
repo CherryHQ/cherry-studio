@@ -2,6 +2,7 @@ import { mockToast } from '@test-mocks/renderer/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Editor } from '@tiptap/core'
+import { Mapping } from '@tiptap/pm/transform'
 import type * as TiptapReact from '@tiptap/react'
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
@@ -514,6 +515,9 @@ describe('ComposerSurface', () => {
     mocks.pinnedLauncherIds = []
     mocks.selection = { from: 1, to: 1, $to: {} }
     mocks.transaction = {
+      getMeta: () => undefined,
+      mapping: new Mapping(),
+      steps: [],
       doc: {},
       delete: vi.fn(() => mocks.transaction),
       setNodeMarkup: vi.fn(() => mocks.transaction),
@@ -989,7 +993,7 @@ describe('ComposerSurface', () => {
     })
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
@@ -1018,13 +1022,13 @@ describe('ComposerSurface', () => {
     })
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
 
     compactRowScrollWidth = 240
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
@@ -1041,7 +1045,7 @@ describe('ComposerSurface', () => {
 
     mocks.editorScrollHeight = 28
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
@@ -1058,16 +1062,16 @@ describe('ComposerSurface', () => {
 
     act(() => {
       mocks.editorContentLineCount = 1
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
       mocks.editorContentLineCount = 2
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
 
     act(() => {
       mocks.editorContentLineCount = 1
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
@@ -1099,13 +1103,13 @@ describe('ComposerSurface', () => {
     mocks.editorScrollHeight = 52
     mocks.editorViewComposing = true
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
     expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact')
 
     mocks.editorViewComposing = false
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
   })
@@ -1439,7 +1443,7 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.actions).toBeDefined())
     act(() => {
-      mocks.editorOptions?.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions?.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     const liveDraft = mocks.actions?.getDraft()
@@ -3304,6 +3308,7 @@ describe('ComposerSurface', () => {
 
     act(() => {
       mocks.editorOptions.onUpdate({
+        transaction: mocks.transaction,
         editor: {
           getJSON: () => ({
             type: 'doc',
@@ -3364,12 +3369,12 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor() })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor() })
     })
     onTokensChange.mockClear()
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor('hello ') })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor('hello ') })
     })
 
     expect(onTokensChange).toHaveBeenCalledWith([
@@ -3420,12 +3425,12 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor('${city}') })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor('${city}') })
     })
     onTokensChange.mockClear()
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor('上海') })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor('上海') })
     })
 
     expect(onTokensChange).toHaveBeenCalledWith([
@@ -4695,6 +4700,7 @@ describe('ComposerSurface', () => {
 
     act(() => {
       mocks.editorOptions.onUpdate({
+        transaction: mocks.transaction,
         editor: {
           getJSON: () => tokenDocument,
           state: {

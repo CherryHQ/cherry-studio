@@ -243,6 +243,31 @@ describe('deferred ComposerSurface', () => {
     expect(manager.insert(binding, 'late transcript')).toBe('unavailable')
   })
 
+  it.each(['fallback', 'runtime'])('rejects late dictation while the %s is submitting', async (surface) => {
+    const props = { voiceTarget: { targetId: 'composer', sourceEntityId: 'topic' } }
+    const view = render(<Harness {...props} />)
+    const manager = mocks.targetManager!
+    manager.markCurrent('composer')
+    const binding = manager.captureCurrent()!
+    if (surface === 'runtime') {
+      fireEvent.focus(screen.getByRole('textbox', { name: 'Message' }))
+      await screen.findByTestId('composer-runtime')
+    }
+
+    view.rerender(<Harness {...props} editable={false} />)
+
+    expect(manager.insert(binding, 'late transcript')).toBe('unavailable')
+    expect(mocks.runtimeInputAdapter.replaceRange).not.toHaveBeenCalled()
+    expect(manager.captureCurrent()).toEqual(binding)
+    if (surface === 'fallback') expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
+
+    view.rerender(<Harness {...props} editable />)
+    act(() => expect(manager.insert(binding, 'recovered transcript')).toBe('inserted'))
+    if (surface === 'fallback') {
+      expect(await screen.findByTestId('composer-runtime')).toHaveTextContent('recovered transcript')
+    }
+  })
+
   it('accepts a normalized literal replacement at the fallback draft limit', () => {
     const text = ' '.repeat(COMPOSER_INPUT_MAX_LENGTH)
     const onTextChange = vi.fn()

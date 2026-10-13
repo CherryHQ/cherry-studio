@@ -1808,9 +1808,9 @@ export default function ComposerSurfaceRuntime({
     enableSpellCheck,
     editorProps: memoizedEditorProps,
     handlePaste: memoizedHandlePaste,
-    onUpdate: ({ editor: updatedEditor }) => {
+    onUpdate: ({ editor: updatedEditor, transaction }) => {
       requestCompactMeasurement()
-      if (tokenizePromptVariablesInEditor(updatedEditor)) return
+      if (tokenizePromptVariablesInEditor(updatedEditor, transaction)) return
 
       const draft = serializeComposerDocument(updatedEditor)
       lastSerializedDraftRef.current = draft
