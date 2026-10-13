@@ -85,10 +85,27 @@ export const VOICE_SESSION_PHASES = [
 ] as const
 export type VoiceSessionPhase = (typeof VOICE_SESSION_PHASES)[number]
 
-export const VOICE_SESSION_COMMANDS = ['pause', 'resume', 'stop', 'interrupt'] as const
+export const VOICE_SESSION_COMMANDS = ['pause', 'resume', 'retry', 'stop', 'interrupt'] as const
 export type VoiceSessionCommand = (typeof VOICE_SESSION_COMMANDS)[number]
 
 const revision = z.number().int().nonnegative()
+const playbackControl = z.enum(['pause', 'resume', 'retry', 'stop'])
+const voiceReason = z.enum(
+  Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>]
+)
+export const playbackStateSchema = z.strictObject({
+  attemptId: revision,
+  commandRevision: revision,
+  synthesis: z.enum(['idle', 'generating', 'completed', 'failed']),
+  desired: z.enum(['playing', 'paused', 'stopped']),
+  observed: z.enum(['empty', 'ready', 'playing', 'paused', 'ended', 'failed']),
+  pendingCommand: playbackControl.nullable(),
+  availableCommands: z.array(playbackControl),
+  failure: z.strictObject({ stage: z.enum(['synthesis', 'playback', 'control']), reason: voiceReason }).optional()
+})
+export type VoicePlaybackState = z.infer<typeof playbackStateSchema>
+export type VoicePlaybackControl = z.infer<typeof playbackControl>
+
 const activePhase = z.enum(
   VOICE_SESSION_PHASES.filter((phase) => phase !== 'idle') as [
     Exclude<VoiceSessionPhase, 'idle'>,
@@ -102,6 +119,7 @@ export const voiceSessionStateSchema = z.union([
     phase: activePhase,
     source: z.enum(VOICE_SESSION_SOURCES).optional(),
     trigger: z.enum(VOICE_SESSION_TRIGGERS).optional(),
+    playback: playbackStateSchema.optional(),
     reason: z
       .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
       .optional()
@@ -117,6 +135,7 @@ export type VoiceSessionEvent =
       sessionId: string
       revision: number
       command: VoiceSessionCommand
+      playback?: VoicePlaybackState
     }
 
 export type VoiceEventSchemas = {
@@ -171,6 +190,7 @@ export const voiceRequestSchemas = {
       sessionId: z.uuid(),
       requestId: z.uuid(),
       output: z.strictObject({ id: z.uuid(), url: z.url(), mimeType: z.literal('audio/wav') }),
+      playback: playbackStateSchema,
       resolved: z
         .strictObject({
           modelId: speechModelId,
@@ -201,17 +221,17 @@ export const voiceRequestSchemas = {
   'ai.voice.session.state': defineRoute({ input: z.void(), output: voiceSessionStateSchema }),
   'ai.voice.recording.start': defineRoute({ input: sessionAdmission, output: voiceSessionStateSchema }),
   'ai.voice.output.release': defineRoute({ input: session.extend({ outputId: z.uuid() }), output: z.void() }),
-  'ai.voice.playback.update': defineRoute({
+  'ai.voice.playback.report': defineRoute({
     input: session.extend({
-      phase: z.enum(['playing', 'paused', 'completed', 'failed']),
-      reason: z
-        .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
-        .optional()
+      attemptId: revision,
+      commandRevision: revision,
+      phase: z.enum(['playing', 'paused', 'ended', 'completed', 'stopped', 'failed']),
+      reason: voiceReason.optional()
     }),
     output: voiceSessionStateSchema
   }),
   'ai.voice.playback.control': defineRoute({
-    input: session.extend({ command: z.enum(['pause', 'resume', 'stop']) }),
+    input: session.extend({ command: playbackControl }),
     output: voiceSessionStateSchema
   }),
   'ai.voice.microphone.status': defineRoute({

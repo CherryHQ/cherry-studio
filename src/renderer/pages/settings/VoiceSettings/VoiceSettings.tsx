@@ -656,7 +656,7 @@ function VoiceSettings() {
   const transcriptionModels = models.filter((model) => isTranscriptionModelId(model.id))
   const speechModels = models.filter((model) => isSpeechModelId(model.id))
   const canOpenMicrophoneSettings = needsMicrophoneRecovery
-  const speechBusy = previewLoading || ['generating', 'playing', 'paused'].includes(speech.phase)
+  const speechBusy = previewLoading || ['generating', 'ready', 'playing', 'paused'].includes(speech.phase)
   const speechError = previewFailure?.snapshot === speech ? previewFailure.reason : speech.error
 
   useEffect(() => {
