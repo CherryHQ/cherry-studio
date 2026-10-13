@@ -20,7 +20,7 @@ export type GoalStopCode =
   | 'approval_denied'
   | 'awaiting_approval'
   | 'needs_user_input'
-  | 'waiting_children'
+  | 'waiting_subagents'
   | 'provider_error'
   | 'aborted'
   | 'paused_by_user'
