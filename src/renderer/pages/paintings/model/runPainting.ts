@@ -30,14 +30,20 @@ function terminalSerializedError(detail: SerializedError): SerializedError {
   return detail
 }
 
+function serializedErrorFallbackMessage(error: SerializedError): string {
+  const status = typeof error.statusCode === 'number' ? `HTTP ${error.statusCode}` : ''
+  const body = typeof error.responseBody === 'string' ? error.responseBody.slice(0, 300) : ''
+  return [status, body].filter(Boolean).join(' ') || error.name || ''
+}
+
 function aiDetailMessage(detail: SerializedError): string {
   const terminal = terminalSerializedError(detail)
   if (terminal.statusCode === 504) return i18n.t('error.http.504')
   if (terminal.message) return terminal.message
+  const terminalFallback = serializedErrorFallbackMessage(terminal)
+  if (terminalFallback) return terminalFallback
   if (detail.message) return detail.message
-  const status = typeof terminal.statusCode === 'number' ? `HTTP ${terminal.statusCode}` : ''
-  const body = typeof terminal.responseBody === 'string' ? terminal.responseBody.slice(0, 300) : ''
-  return [status, body].filter(Boolean).join(' ') || terminal.name || detail.name || 'Image generation failed'
+  return serializedErrorFallbackMessage(detail) || 'Image generation failed'
 }
 
 export type GenerationResult =

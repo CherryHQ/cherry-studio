@@ -95,6 +95,21 @@ describe('runPainting error surfacing', () => {
     })
   })
 
+  it('surfaces terminal HTTP status when exhausted retries leave an empty provider message', async () => {
+    const detail = {
+      name: 'AI_RetryError',
+      message: 'Failed after 3 attempts',
+      stack: null,
+      lastError: { name: 'AI_APICallError', message: '', stack: null, statusCode: 503 }
+    }
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+
+    await expect(fail(err)).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: 'HTTP 503'
+    })
+  })
+
   it('preserves a terminal non-504 failure when earlier retries were 504', async () => {
     const detail = {
       name: 'AI_RetryError',

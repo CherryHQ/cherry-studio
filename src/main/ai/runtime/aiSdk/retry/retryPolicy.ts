@@ -1,11 +1,12 @@
 import { application } from '@application'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { RetryFallbackModelId } from '@shared/data/preference/preferenceTypes'
 
 export const MIN_RETRY_ATTEMPTS = 1
 export const MAX_RETRY_ATTEMPTS = 10
 
 export const MIN_IMAGE_RETRY_ATTEMPTS = 0
-export const DEFAULT_IMAGE_MAX_RETRIES = 2
+export const DEFAULT_IMAGE_MAX_RETRIES = DefaultPreferences.default['image.retry.max_attempts']
 
 export interface RetryPolicy {
   enabled: boolean
