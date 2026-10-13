@@ -28,6 +28,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { capturePromptVariableInputs, type PromptVariableInputs } from '@main/utils/prompt'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -66,6 +67,8 @@ export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
   /** The System Prompt this request materialized, so installs can report it to the connection. */
   capturedInstructions?: string | null
+  /** Variable values these instructions resolved to, so a replay keeps the turn's own values. */
+  capturedPromptVariables?: PromptVariableInputs
   settings: ClaudeCodeSettings
   sdkModelId: string
   usageCapture: AgentSessionUsageCapture
@@ -486,6 +489,12 @@ export interface FallbackReplayPins {
    * restores that tightening so the replay cannot execute a tool the user disabled during the wait.
    */
   disabledTools?: readonly string[]
+  /**
+   * Prompt-variable values the turn resolved at admission (`{{username}}` / `{{model_name}}`).
+   * The raw instructions pin keeps their template, not their values, so a user name saved while the
+   * provider backed off would otherwise change this same turn's instructions on rebuild.
+   */
+  promptVariables?: PromptVariableInputs | null
 }
 
 export async function buildClaudeCodeQueryRequestForAgentSession(
@@ -584,7 +593,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
-        effectiveLanguage
+        effectiveLanguage,
+        promptVariables: pinned?.promptVariables
       },
       agent
     ),
@@ -628,6 +638,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   return {
     connectionConfig,
     capturedInstructions: agent.instructions ?? null,
+    capturedPromptVariables: pinned?.promptVariables ?? capturePromptVariableInputs(agent.modelName ?? null),
     key: settings.warmQueryKey ?? session.id,
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,

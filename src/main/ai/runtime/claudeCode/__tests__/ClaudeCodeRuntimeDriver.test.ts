@@ -4036,6 +4036,70 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  // Pinning the raw instructions preserves the TEMPLATE, not its resolved values: {{username}} is
+  // read from app.user.name at every materialization, so a name saved while the provider backs off
+  // used to change the replayed turn's instructions. The driver must carry the admitted values.
+  it('rebuilds the fallback replay on the variable values the turn was admitted with', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      if (key === 'app.user.name') return 'Alice'
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest.mockImplementation(async () => {
+      const isFallbackBuild = mocks.buildRequest.mock.calls.length > 1
+      return {
+        connectionConfig: {
+          rebuildSignature: isFallbackBuild ? 'sig-2' : 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        capturedInstructions: 'Address {{username}}.',
+        capturedPromptVariables: { username: isFallbackBuild ? 'Alice' : 'Alice', modelName: null },
+        key: 'warm-key',
+        options: { model: isFallbackBuild ? 'haiku' : 'sonnet' },
+        settings: {},
+        sdkModelId: isFallbackBuild ? 'haiku-sdk' : 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      }
+    })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    // Saved mid-backoff: the row's instruction text is unchanged, but the variable input moved.
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      if (key === 'app.user.name') return 'Bob'
+      return undefined
+    })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+
+    expect(mocks.buildRequest.mock.calls[1][6]).toEqual({
+      permissionMode: null,
+      instructions: 'Address {{username}}.',
+      disabledTools: [],
+      promptVariables: { username: 'Alice', modelName: null }
+    })
+    void connection.close()
+  })
+
   // The connection's model is what the INSTALLED query serves, which after a fallback is not the
   // constructor's primary. Everything downstream of the swap — fallback selection, the transcript
   // notice, and the image capability the next turn's attachments are materialized for — has to read
