@@ -15,7 +15,7 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { getExtraHeaders } from '@main/ai/utils/provider'
-import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { type DshApi, mapEndpointToDshApi, resolveDshEndpointType } from '@shared/ai/dshModelCompatibility'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
@@ -240,7 +240,13 @@ export function buildDshProviderInjection(
           apiModelId: modelId,
           modelName: model.name ?? model.id,
           aliases: [...new Set([model.id, modelId])],
-          pricingSnapshot: createAiUsagePricingSnapshot(model.pricing)
+          pricingSnapshot: createAiUsageCaptureContext({
+            providerId: provider.id,
+            modelId: parseUniqueModelId(model.id).modelId,
+            pricing: model.pricing,
+            billing: provider.settings?.billing,
+            invocationStartedAt: null
+          }).pricingSnapshot
         }
       ]
     }

@@ -3,11 +3,11 @@ import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toFileUrl } from '@shared/utils/file'
 
-import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('VideoFilePreview')

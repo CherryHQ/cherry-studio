@@ -1474,6 +1474,7 @@ const AgentComposerInner = ({
 
   const sendQueuedPayload = useCallback(
     async (payload: ComposerQueuedMessagePayload) => {
+      if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const originals = launchOptions?.initialParts?.filter((part): part is FileUIPart => part.type === 'file') ?? []
@@ -1514,6 +1515,7 @@ const AgentComposerInner = ({
     [
       accessiblePaths,
       agentId,
+      sendDisabled,
       chatSendMessage,
       initialDraft.files,
       launchOptions,
@@ -1570,7 +1572,7 @@ const AgentComposerInner = ({
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
-    isFulfilled: !launchOptions?.editing && sessionFulfilled,
+    isFulfilled: !sendDisabled && !launchOptions?.editing && sessionFulfilled,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload
   })

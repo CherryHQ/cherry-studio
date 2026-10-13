@@ -264,6 +264,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         {props.leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{props.leadingContent}</div> : null}
         <div className="group/composer-editor relative flex min-w-0 flex-1">
           <textarea
+            dir="auto"
             ref={textareaRef}
             aria-label={props.placeholder}
             value={props.text}
@@ -278,6 +279,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               minHeight: editorMinHeight,
               padding: '6px 15px 0',
               fontSize: props.fontSize,
+              textAlign: 'start',
               lineHeight: 1.4
             }}
             onChange={(event) => {

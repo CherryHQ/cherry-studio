@@ -744,6 +744,8 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
       if (!agent?.model) return
+      if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
+        return
       if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
@@ -2008,7 +2010,10 @@ export class AgentSessionRuntimeService extends BaseService {
         providerName: capture.providerName,
         modelId,
         modelName: frozenModel?.modelName ?? invocation.model,
-        pricingSnapshot: frozenModel?.pricingSnapshot ?? null,
+        pricingSnapshot:
+          invocation.pricingSnapshot === undefined
+            ? (frozenModel?.pricingSnapshot ?? null)
+            : invocation.pricingSnapshot,
         credentialReceipt: capture.credentialReceipt,
         source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
         messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null

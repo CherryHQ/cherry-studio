@@ -98,6 +98,13 @@ export interface PrepareChatContext {
   isToolCapable: boolean
   /** Shared token pool for inlined text. Absent → every file gets the flat page size. */
   budget?: AttachmentBudget
+  /**
+   * Path-forwarding caller (agent runtime): keep a first-party part whose extension is
+   * unlisted (`FILE_TYPE.OTHER` — e.g. an AVIF/HEIC image) as a file part instead of
+   * replacing it with an unsupported-type note, so the caller's local-path fallback still
+   * has the file reference.
+   */
+  keepUnroutableFileParts?: boolean
   signal?: AbortSignal
 }
 
@@ -255,6 +262,13 @@ async function prepareChatMessage<T extends UIMessage>(
           throw new NonVisionImageOcrError()
         }
         defer(kept, pending, handle, ocrText)
+        continue
+      }
+
+      // The caller forwards the file by local path (agent runtime), and the note below would
+      // drop the only usable reference to it.
+      if (ctx.keepUnroutableFileParts && fileType === FILE_TYPE.OTHER) {
+        kept.push(part)
         continue
       }
 

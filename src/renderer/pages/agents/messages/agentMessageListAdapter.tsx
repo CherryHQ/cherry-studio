@@ -125,6 +125,7 @@ interface AgentMessageListParams {
   messageNavigation: string
   workspacePath?: string
   messageTail?: MessageListState['messageTail']
+  afterMessages?: MessageListState['afterMessages']
 }
 
 /**
@@ -187,7 +188,8 @@ export function useAgentMessageListProviderValue({
   imageActionConsumer,
   messageNavigation,
   workspacePath,
-  messageTail
+  messageTail,
+  afterMessages
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
@@ -430,6 +432,7 @@ export function useAgentMessageListProviderValue({
       streamingLayers: displayStreamingLayers,
       activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
       messageTail: normalInteractionsEnabled ? messageTail : undefined,
+      afterMessages: normalInteractionsEnabled ? afterMessages : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -454,6 +457,7 @@ export function useAgentMessageListProviderValue({
       messageItems,
       messageActivityStore,
       messageTail,
+      afterMessages,
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,

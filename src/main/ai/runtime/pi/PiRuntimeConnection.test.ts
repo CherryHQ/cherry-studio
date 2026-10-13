@@ -1002,6 +1002,7 @@ describe('PiRuntimeConnection', () => {
         invocation: {
           requestId: 'pi-agent:sess-1:response-1',
           model: 'm',
+          pricingSnapshot: null,
           messageAssociation: 'current-turn',
           usage: {
             inputTokens: 15,

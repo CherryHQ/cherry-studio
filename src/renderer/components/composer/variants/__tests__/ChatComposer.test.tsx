@@ -585,7 +585,8 @@ vi.mock('react-i18next', async (importOriginal) => {
       t: (key: string, options?: Record<string, unknown>) => {
         if (key === 'common.selectedItems') return `${options?.count ?? 0} selected`
         return String(options?.defaultValue ?? key)
-      }
+      },
+      i18n: { resolvedLanguage: 'en-US' }
     })
   }
 })

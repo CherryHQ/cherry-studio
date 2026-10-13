@@ -30,6 +30,7 @@ export default defineConfig({
       {
         extends: true,
         plugins: mainConfig.plugins,
+        define: { __CLAUDE_CODE_BINARY_MANIFEST__: mainConfig.define.__CLAUDE_CODE_BINARY_MANIFEST__ },
         resolve: {
           alias: mainConfig.resolve.alias
         },
@@ -75,6 +76,21 @@ export default defineConfig({
           benchmark: {
             include: ['src/renderer/**/*.bench.{ts,tsx}', 'src/renderer/**/__tests__/**/*.bench.{ts,tsx}']
           }
+        }
+      },
+      {
+        extends: true,
+        resolve: {
+          alias: [
+            { find: /^@cherrystudio\/ui$/, replacement: resolve('packages/file-preview/src/bundledUi.ts') },
+            { find: '@cherrystudio/ui', replacement: resolve('packages/ui/src') }
+          ]
+        },
+        test: {
+          name: 'file-preview',
+          environment: 'jsdom',
+          setupFiles: ['@vitest/web-worker', 'tests/file-preview.setup.ts'],
+          include: ['packages/file-preview/src/**/*.test.{ts,tsx}']
         }
       },
       // 脚本单元测试配置

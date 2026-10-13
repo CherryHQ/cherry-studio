@@ -107,6 +107,8 @@ export function buildPathRegistry() {
     ),
 
     'feature.remote_access.identity_file': path.join(appUserDataRuntime, 'remote-identity.enc'),
+    // Plaintext fallback (0600) used only when no OS key store is available
+    'feature.remote_access.plain_identity_file': path.join(appUserDataRuntime, 'remote-identity.key'),
 
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
@@ -122,6 +124,8 @@ export function buildPathRegistry() {
 
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
+
+    'feature.claude_code.binary': path.join(appUserDataToolchain, 'claude-agent-sdk'),
 
     // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
     // use of local embedding or local OCR — see ai/localModel's shared artifacts.
@@ -259,6 +263,7 @@ export function buildPathRegistry() {
     // durable (see restoreJournal.ts). Never relocate the two independently.
     'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+    'feature.backup.restore.session': path.join(appUserData, 'restore-session'),
 
     // Stored in the profile it authorizes for reset.
     'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),
@@ -275,6 +280,7 @@ export function buildPathRegistry() {
     'feature.mcp.resource_results.temp': path.join(appTemp, 'mcp-resource-results'),
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
     'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
+    'feature.files.intakes': path.join(appUserDataData, 'FileIntakes'),
     'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
     // FileManager's `withTempCopy` escape hatch parent dir; each call mkdtemps a
     // unique sub-directory under here.
@@ -384,6 +390,7 @@ const NO_ENSURE = [
   'feature.selection.native_panel_file',
   'app.utility_process',
   'app.session.webview',
+  'feature.backup.restore.session',
   'app.database.migrations',
   'feature.provider_registry.data',
   'feature.pdfjs.cmaps',
