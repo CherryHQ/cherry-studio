@@ -185,7 +185,9 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
       lockedMentionedModels={activeConversationControlsSnapshot?.lockedMentionedModels ?? EMPTY_MODELS}
       mentionedModelMultiSelectMode={activeConversationControlsSnapshot?.mentionedModelMultiSelectMode ?? false}
       selectModelLabel={composerContext.isModelPending ? t('common.loading') : t('button.select_model')}
-      useMentionedModelSelector
+      // Single-model selector on purpose: TemporaryChatContextProvider answers only
+      // `mentionedModelIds[0]`, so a multi-select here would drop every model after the
+      // first with nothing but a main-process warning to show for it.
       shouldAutoSelectCreatedAssistant={false}
       side={side}
       onAssistantChange={handleAssistantChange}

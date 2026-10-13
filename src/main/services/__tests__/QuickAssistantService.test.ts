@@ -39,10 +39,32 @@ const setupQuickAssistant = (service: QuickAssistantService, window: ReturnType<
     }
   ).setupQuickAssistant('quick-assistant-window', window)
 
+/** One poll tick, with margin — the poll runs on a 200ms interval. */
+const POLL_TICKS_MS = 250
+
+/** Arm the post-unpin focus poll against a window in the given focus state. */
+const startUnpinPoll = (service: QuickAssistantService, state: { isFocused: boolean }) => {
+  const internals = service as unknown as {
+    windowId: string | null
+    isPinnedQuickAssistant: boolean
+    getQuickAssistant: () => unknown
+    startPostUnpinFocusPoll: () => void
+  }
+  internals.windowId = 'quick-assistant-window'
+  internals.isPinnedQuickAssistant = false
+  internals.getQuickAssistant = () => ({
+    isDestroyed: () => false,
+    isVisible: () => true,
+    isFocused: () => state.isFocused
+  })
+  internals.startPostUnpinFocusPoll()
+}
+
 describe('QuickAssistantService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
+    vi.useFakeTimers()
     appGetMock.mockImplementation((name: string) => {
       if (name === 'ScreenshotOverlayService') return { isSessionRequestedBy: screenshotSessionRequestedByMock }
       throw new Error(`Unexpected application.get(${name})`)
@@ -62,6 +84,34 @@ describe('QuickAssistantService', () => {
     // after open() returns, so a guard reading it would skip the check entirely.
     expect(screenshotSessionRequestedByMock).toHaveBeenCalledWith('quick-assistant-window')
     expect(hideQuickAssistant).not.toHaveBeenCalled()
+  })
+
+  it('keeps the quick assistant visible while it owns a capture session during the unpin poll', () => {
+    const service = new QuickAssistantService()
+    const hideQuickAssistant = vi.spyOn(service, 'hideQuickAssistant').mockImplementation(() => {})
+    screenshotSessionRequestedByMock.mockReturnValue(true)
+    // The overlay holds focus during a capture, so the poll's own focus check reads false
+    // — without the ownership exemption it hides the window taking the screenshot.
+    startUnpinPoll(service, { isFocused: false })
+
+    vi.advanceTimersByTime(POLL_TICKS_MS)
+
+    expect(hideQuickAssistant).not.toHaveBeenCalled()
+    // Still armed: the capture ends, focus returns, and a later outside click must hide.
+    screenshotSessionRequestedByMock.mockReturnValue(false)
+    vi.advanceTimersByTime(POLL_TICKS_MS)
+    expect(hideQuickAssistant).toHaveBeenCalled()
+  })
+
+  it('hides during the unpin poll when focus is lost without a capture of its own', () => {
+    const service = new QuickAssistantService()
+    const hideQuickAssistant = vi.spyOn(service, 'hideQuickAssistant').mockImplementation(() => {})
+    screenshotSessionRequestedByMock.mockReturnValue(false)
+    startUnpinPoll(service, { isFocused: false })
+
+    vi.advanceTimersByTime(POLL_TICKS_MS)
+
+    expect(hideQuickAssistant).toHaveBeenCalled()
   })
 
   it('hides on blur when the capture session belongs to another window', () => {

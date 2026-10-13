@@ -648,6 +648,13 @@ export class QuickAssistantService extends BaseService implements Activatable {
         return
       }
       if (!window.isFocused()) {
+        // Same exemption as onBlur: a capture this window asked for holds focus in the
+        // overlay, and hiding here would take the requester off screen mid-capture. Keep
+        // polling rather than stopping — commit() refocuses this window, and a genuine
+        // outside click after the capture still has ticks left to catch it.
+        if (this.windowId && application.get('ScreenshotOverlayService').isSessionRequestedBy(this.windowId)) {
+          return
+        }
         this.stopPostUnpinFocusPoll()
         this.hideQuickAssistant()
         return
