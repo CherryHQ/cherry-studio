@@ -3,7 +3,7 @@ import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createAskUserExtension } from '../src'
+import { createAskUserExtension, type GoalSnapshot } from '../src'
 import {
   approvals,
   askAtTurnEnd,
@@ -14,6 +14,7 @@ import {
   lastSnapshot,
   notices,
   promptIdle,
+  readGoal,
   rounds,
   roundStart,
   say,
@@ -457,5 +458,219 @@ describe('goal stops for people, errors and aborts', () => {
       lastStop: { code: 'waiting_subagents' }
     })
     expect(calls).toHaveLength(1)
+  })
+})
+
+/** Each round reads the goal, sends update_goal with `update(goal)` when it returns arguments, then replies. */
+function eachRound(update: (goal: GoalSnapshot) => Record<string, unknown> | undefined) {
+  return (prompt: LanguageModelV3Prompt, call: number) => {
+    if (roundStart(prompt) !== undefined) return [toolCall(`g${call}`, 'get_goal', {}), finish('tool-calls')]
+    const last = prompt.at(-1)
+    const afterGetGoal =
+      last?.role === 'tool' && last.content.some((part) => part.type === 'tool-result' && part.toolName === 'get_goal')
+    const { goal } = readGoal(prompt)
+    const args = afterGetGoal && goal ? update(goal) : undefined
+    return args
+      ? [
+          toolCall(`u${call}`, 'update_goal', { goal_id: goal!.id, revision: goal!.revision, ...args }),
+          finish('tool-calls')
+        ]
+      : say(`reply ${call}`)
+  }
+}
+const updates = (s: AgentSession) => toolResults(s).filter((result) => result.toolName === 'update_goal')
+
+describe('goal self-reports', () => {
+  // Breaks when the fallback skips a check: round 1 would complete with no progress, round 2 without evidence.
+  it('without a verifier, complete needs a round that progressed and evidence', async () => {
+    const { session: s, host } = await goalSession([
+      eachRound((goal) => ({ action: 'complete', evidence: goal.roundsStarted === 2 ? '' : 'the docs gate passes' }))
+    ])
+    await promptIdle(s, '/goal Keep working')
+
+    const attempts = updates(s)
+    expect(attempts.map((result) => result.isError)).toEqual([true, true, false])
+    expect(textOf(attempts[0])).toMatch(/No round of this goal changed anything yet/)
+    expect(textOf(attempts[1])).toMatch(/complete needs evidence/)
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete', lastStop: { code: 'complete' } })
+    expect(rounds(host.entries)).toHaveLength(3)
+  })
+
+  // Breaks when not_met lets the goal complete, impossible does not block it, or the verifier gets no conversation.
+  it('a verifier that says not_met keeps the goal open with its reason; impossible blocks it', async () => {
+    const verdicts: Array<'not_met' | 'impossible'> = ['not_met', 'impossible']
+    const seen: string[] = []
+    const port = goalPort({
+      verify: {
+        verify: async ({ messages }) => {
+          seen.push(JSON.stringify(messages))
+          return { verdict: verdicts.shift()!, reason: 'tests are red' }
+        }
+      }
+    })
+    const { session: s, host } = await goalSession([eachRound(() => ({ action: 'complete', evidence: 'done' }))], port)
+    await promptIdle(s, '/goal Keep working')
+
+    const [notMet, impossible] = updates(s)
+    expect(notMet.isError).toBe(true)
+    expect(textOf(notMet)).toBe('Not complete yet: tests are red')
+    expect(impossible.isError).toBe(false)
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'blocked',
+      roundsStarted: 2,
+      lastStop: { code: 'model_blocked', message: 'tests are red' }
+    })
+    // The verifier gets the session's conversation, round prompt included.
+    expect(seen[0]).toContain('<goal_round>')
+  })
+
+  // Breaks when a verifier that throws lets the completion through.
+  it('a verifier that throws does not pass the completion', async () => {
+    const port = goalPort({
+      defaults: { maxGoalRounds: 1 },
+      verify: {
+        verify: async () => {
+          throw new Error('evaluator offline')
+        }
+      }
+    })
+    const { session: s, host } = await goalSession([eachRound(() => ({ action: 'complete', evidence: 'done' }))], port)
+    await promptIdle(s, '/goal Keep working')
+
+    const [attempt] = updates(s)
+    expect(attempt.isError).toBe(true)
+    expect(textOf(attempt)).toContain('evaluator offline')
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'blocked', lastStop: { code: 'round_limit' } })
+  })
+
+  // Breaks without the revision check after the verifier's await: the goal would complete under an objective nobody verified.
+  it('a goal edited while the verifier runs is not completed by that call', async () => {
+    const user: { session?: AgentSession } = {}
+    let edited = false
+    const port = goalPort({
+      verify: {
+        verify: async () => {
+          if (!edited) {
+            edited = true
+            await user.session!.prompt('/goal edit Ship v2 instead')
+          }
+          return { verdict: 'met', reason: 'ok' }
+        }
+      }
+    })
+    const opened = await goalSession([eachRound(() => ({ action: 'complete', evidence: 'done' }))], port)
+    user.session = opened.session
+    await promptIdle(opened.session, '/goal Ship v1')
+
+    const [stale, completed] = updates(opened.session)
+    expect(stale.isError).toBe(true)
+    expect(textOf(stale)).toMatch(/Stale goal reference/)
+    expect(completed.isError).toBe(false)
+    expect(lastSnapshot(opened.host.entries)).toMatchObject({ objective: 'Ship v2 instead', phase: 'complete' })
+  })
+
+  // Breaks when /goal pause treats a complete goal like an open one and reopens it as paused.
+  it('/goal pause leaves a complete goal complete', async () => {
+    const port = goalPort({ verify: { verify: async () => ({ verdict: 'met', reason: 'ok' }) } })
+    const { session: s, host } = await goalSession([eachRound(() => ({ action: 'complete', evidence: 'done' }))], port)
+    await promptIdle(s, '/goal Keep working')
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete' })
+
+    await s.prompt('/goal pause')
+    expect(notices(host.entries).at(-1)).toBe('the goal is complete; create a new one')
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete' })
+  })
+
+  // Breaks when create() keeps the finished goal's round open: that round's last reply would count as
+  // progress for the new goal, which could then complete in its first round without doing anything.
+  it('a goal created after the last one completed mid-round gets no progress from that round', async () => {
+    const { session: s, host } = await goalSession([eachRound(() => ({ action: 'complete', evidence: 'done' }))])
+    let created = false
+    s.subscribe((event) => {
+      if (event.type !== 'turn_end' || created) return
+      if (!event.toolResults.some((result) => result.toolName === 'update_goal' && !result.isError)) return
+      created = true
+      void s.prompt('/goal Ship v2')
+    })
+    await promptIdle(s, '/goal Ship v1')
+
+    // Ship v1 completes in round 2; Ship v2's round 1 has only read the goal when it tries.
+    expect(updates(s).map((result) => result.isError)).toEqual([true, false, true, false])
+    expect(lastSnapshot(host.entries)).toMatchObject({ objective: 'Ship v2', phase: 'complete', roundsStarted: 2 })
+  })
+
+  // Breaks when the threshold is skipped, or counts reports that are not in consecutive rounds.
+  it('blocked is accepted only after three consecutive goal rounds report it', async () => {
+    const { session: s, host } = await goalSession(
+      [
+        eachRound((goal) =>
+          goal.roundsStarted === 2 ? undefined : { action: 'blocked', blocked_reason: 'the API key is missing' }
+        )
+      ],
+      goalPort({ defaults: { maxGoalRounds: 10 } })
+    )
+    await promptIdle(s, '/goal Keep working')
+
+    // Round 2 reports nothing, so round 3 starts the count over.
+    const attempts = updates(s)
+    expect(attempts.map((result) => result.isError)).toEqual([true, true, true, false])
+    expect(textOf(attempts[0])).toBe(
+      'Keep trying; if the same condition still blocks you in round 3, report it again (1/3).'
+    )
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'blocked',
+      roundsStarted: 5,
+      lastStop: { code: 'model_blocked', message: 'the API key is missing' }
+    })
+  })
+
+  // Breaks when a human turn or a user edit does not start the blocked count over (spec §7.5).
+  it.each([
+    ['a user message', (s: AgentSession) => s.prompt('a question from the user', { streamingBehavior: 'followUp' })],
+    ['a /goal edit', (s: AgentSession) => s.prompt('/goal edit Keep working, differently')],
+    ['a /goal rounds change', (s: AgentSession) => s.prompt('/goal rounds 20')],
+    ['a /goal budget change', (s: AgentSession) => s.prompt('/goal budget 100000')]
+  ])('%s between reports starts the blocked count over', async (_name, interject) => {
+    const opened = await goalSession(
+      [eachRound(() => ({ action: 'blocked', blocked_reason: 'the API key is missing' }))],
+      goalPort({ defaults: { maxGoalRounds: 10 } })
+    )
+    const { session: s, host } = opened
+    let done = false
+    s.subscribe((event) => {
+      // After round 2's reply and before its settle.
+      if (event.type !== 'turn_end' || event.toolResults.length > 0 || done || rounds(host.entries).length !== 2) return
+      done = true
+      void interject(s)
+    })
+    await promptIdle(s, '/goal Keep working')
+
+    expect(updates(s).map((result) => result.isError)).toEqual([true, true, true, true, false])
+    expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 5, lastStop: { code: 'model_blocked' } })
+  })
+
+  // Breaks when the round threshold also applies in a human turn, where a person is there to resume.
+  it('in a human turn blocked is accepted at once', async () => {
+    const { session: s, host } = await goalSession([
+      () => [toolCall('c', 'create_goal', { objective: 'g' }), finish('tool-calls')],
+      (prompt) => [
+        toolCall('b', 'update_goal', {
+          goal_id: readGoal(prompt).goal!.id,
+          revision: 1,
+          action: 'blocked',
+          blocked_reason: 'the API key is missing'
+        }),
+        finish('tool-calls')
+      ],
+      () => say('Blocked.')
+    ])
+    await s.prompt('please do g')
+
+    expect(updates(s).map((result) => result.isError)).toEqual([false])
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'blocked',
+      roundsStarted: 0,
+      lastStop: { code: 'model_blocked' }
+    })
   })
 })
