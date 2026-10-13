@@ -11,8 +11,13 @@ import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
 import { application } from '@application'
-import type { ModelLookupResult } from '@cherrystudio/provider-registry'
-import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import type {
+  ModelLookupResult,
+  ProviderReasoningFormat,
+  ReasoningEffort,
+  ReasoningWireProfile
+} from '@cherrystudio/provider-registry'
+import { inferReasoningOwnedBy, REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -460,8 +465,58 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
   }
 }
 
+/**
+ * The full effort ladder offered when a model's reasoning is user-declared but
+ * the catalog's id heuristics know no knob vocabulary for it — every level a
+ * user may need to match their endpoint, instead of no selector at all (#19761).
+ */
+const MANUAL_REASONING_EFFORTS: readonly ReasoningEffort[] = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max'
+]
+
+/**
+ * Reasoning knobs for a model whose REASONING capability the user declared but
+ * whose id matches no catalog heuristic. Ollama keeps a toggle-shaped control:
+ * its wire switches reasoning with a boolean, not an effort level.
+ */
+function manualDeclaredReasoning(
+  format: ProviderReasoningFormat | undefined,
+  wire: ReasoningWireProfile | undefined,
+  declaredReasoning: boolean
+): RuntimeReasoning | undefined {
+  if (!declaredReasoning) return undefined
+  return projectRuntimeReasoning(
+    {
+      controls:
+        format === 'ollama'
+          ? [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+          : [{ kind: 'effort', values: [...MANUAL_REASONING_EFFORTS] }]
+    },
+    wire ?? REASONING_FORMAT_PROFILES['openai-chat'].wire
+  )
+}
+
+/**
+ * Reasoning knobs for models the user marks as reasoning-capable. The bundled
+ * registry projects `reasoning.selectableEfforts` only for ids it knows, so
+ * toggling the `reasoning` capability on an unknown id (brand-new or niche
+ * models) left the composer without an effort selector — the capability toggle
+ * did nothing visible. Fill only the void: a registry-projected reasoning
+ * profile always wins. (CherryHQ/cherry-studio#19761)
+ */
+function withManualReasoningControls(model: Model): Model {
+  if (!model.capabilities?.includes('reasoning') || model.reasoning != null) return model
+  return { ...model, reasoning: { selectableEfforts: [...MANUAL_REASONING_EFFORTS] } }
+}
+
 function applyStoredModelState(model: Model, row: UserModelRow): Model {
-  return {
+  return withManualReasoningControls({
     ...model,
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
@@ -471,7 +526,7 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
     notes: row.notes ?? undefined
-  }
+  })
 }
 
 function createPresetFallback(
@@ -526,14 +581,11 @@ class ModelService {
       const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
       const inferred =
         inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, { declaredReasoning }) ??
-        (declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
-          ? projectRuntimeReasoning(
-              {
-                controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
-              },
-              registryData.reasoningProfile.wire
-            )
-          : undefined)
+        manualDeclaredReasoning(
+          registryData?.reasoningProfile.format,
+          registryData?.reasoningProfile.wire,
+          declaredReasoning
+        )
       if (inferred) dtoValues.reasoning = inferred
     }
 
@@ -816,9 +868,15 @@ class ModelService {
         } else if (model.reasoning?.controls?.length) {
           reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
         } else {
-          reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, {
-            declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
-          })
+          reasoning =
+            inferCustomModelReasoning(modelId, reasoningProfile.wire, {
+              declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
+            }) ??
+            manualDeclaredReasoning(
+              reasoningProfile.format,
+              reasoningProfile.wire,
+              model.capabilities.includes(MODEL_CAPABILITY.REASONING)
+            )
         }
         if (reasoning) updates.reasoning = reasoning
         else if (model.reasoning) updates.reasoning = undefined

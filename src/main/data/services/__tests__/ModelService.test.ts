@@ -886,6 +886,96 @@ describe('ModelService.create', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Manual reasoning capability → composer effort controls (#19761)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService — manual reasoning capability projects effort controls', () => {
+  const dbh = setupTestDatabase()
+
+  /** The full manual effort vocabulary the fix must expose for declared-but-unknown ids. */
+  const MANUAL_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+  beforeEach(() => {
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+  })
+
+  it('gives a user-added reasoning-capable model the full manual effort vocabulary', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'tencent/hy4-preview',
+          name: 'Hy4 Preview',
+          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+          supportsStreaming: true
+        },
+        registryData: null
+      }
+    ])
+
+    expect(created.capabilities).toContain(MODEL_CAPABILITY.REASONING)
+    expect(created.reasoning?.selectableEfforts).toEqual(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+  })
+
+  it('never overrides a registry-projected reasoning profile', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'claude-sonnet-5',
+          name: 'Claude Sonnet 5',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        },
+        registryData: {
+          presetModel: {
+            id: 'claude-sonnet-5',
+            capabilities: [MODEL_CAPABILITY.REASONING],
+            reasoning: {
+              controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+              supportedEfforts: ['low', 'medium', 'high']
+            }
+          },
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+        }
+      }
+    ])
+
+    const efforts = created.reasoning?.selectableEfforts ?? []
+    expect(efforts.length).toBeGreaterThan(0)
+    expect(efforts).not.toEqual([...MANUAL_REASONING_EFFORTS])
+  })
+
+  it('leaves models without the reasoning capability untouched', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          name: 'GPT-4o',
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+          supportsStreaming: true
+        },
+        registryData: null
+      }
+    ])
+
+    expect(created.reasoning).toBeUndefined()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ModelService.delete — pin cleanup
 // ─────────────────────────────────────────────────────────────────────────────
 
