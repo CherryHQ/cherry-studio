@@ -297,6 +297,20 @@ describe('ThinkingBlock', () => {
   })
 
   describe('layout and readability', () => {
+    it('keeps its own scrollbar visible under the idle message scrollbar', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock()
+      render(
+        <div style={{ scrollbarColor: 'transparent transparent' }}>
+          <ThinkingBlock id={block.id} content={block.content} isStreaming={false} />
+        </div>
+      )
+
+      // Inherited transparent hides the panel's own bar, so the panel must declare auto.
+      const panelClasses = getContentContainer()!.className.split(/\s+/)
+      expect(panelClasses).toEqual(expect.arrayContaining(['overflow-auto', '[scrollbar-color:auto]']))
+    })
+
     it('uses viewport-aware max height and overscroll containment on the content panel', () => {
       mockRenderConfig.thoughtAutoCollapse = false
       const block = createThinkingBlock()

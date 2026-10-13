@@ -12,8 +12,10 @@ import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
 
 const THINKING_PREVIEW_MIN_DURATION_MS = 1000
+// scrollbar-color is inherited: the message Scrollbar composite sets `transparent`
+// while idle, hiding this panel's own bar. `auto` breaks the inheritance (#21598).
 export const THINKING_CONTENT_PANEL_CLASSNAME =
-  'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto overscroll-contain rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground'
+  'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto overscroll-contain rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground [scrollbar-color:auto]'
 
 function getThinkingPreviewKey(preview: string): string {
   return preview
