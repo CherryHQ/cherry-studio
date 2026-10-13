@@ -74,18 +74,19 @@ describe('goal caps and budgets', () => {
     const { session: s, host } = await goalSession(
       [
         () => [
-          toolCall('c1', 'create_goal', { objective: 'g', max_goal_rounds: 5000 }),
+          toolCall('c1', 'create_goal', { objective: 'g', max_goal_rounds: 60 }),
           toolCall('c2', 'create_goal', { objective: 'g', max_goal_rounds: 2 }),
           finish('tool-calls')
         ],
         working
       ],
-      goalPort({ defaults: { maxGoalRoundsCeiling: 1000 } })
+      // A non-default ceiling, so a hard-coded one cannot pass.
+      goalPort({ defaults: { maxGoalRounds: 10, maxGoalRoundsCeiling: 50 } })
     )
     await s.prompt('go')
     const [tooHigh, accepted] = toolResults(s)
     expect(tooHigh.isError).toBe(true)
-    expect(textOf(tooHigh)).toMatch(/between 1 and 1000/)
+    expect(textOf(tooHigh)).toMatch(/between 1 and 50\b/)
     expect(accepted.isError).toBe(false)
     expect(lastSnapshot(host.entries)).toMatchObject({
       maxGoalRounds: 2,

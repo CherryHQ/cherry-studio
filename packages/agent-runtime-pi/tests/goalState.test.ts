@@ -202,6 +202,16 @@ describe('goal limit rules', () => {
     })
   })
 
+  // Breaks when raising one limit re-arms the wrap-up while the other is still crossed: a second wrap-up runs, past the cap
+  it.each([{ maxGoalRounds: 5 }, { budget: { tokens: 100 } }])(
+    'raising only one of two crossed limits keeps an active goal wrapped up (%o)',
+    (patch) => {
+      let goal = admitRound(createGoal('g', limits, { maxGoalRounds: 1, budget: { tokens: 50 } }, 1), 'wrap-up', 2)
+      goal = recordUsage(goal, { tokens: 60, usd: 0 }, true)
+      expect(editGoal(goal, patch, 1000, 3)).toMatchObject({ phase: 'active', wrapUpDone: true })
+    }
+  )
+
   it.each(['paused_by_user', 'aborted'] as const)(
     'raising the cap does not re-activate a goal paused by %s',
     (code) => {
