@@ -1,11 +1,21 @@
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { formatMessageQuotes } from '@shared/utils/messageQuotes'
 
+import { COMPOSER_INPUT_MAX_LENGTH } from '../../composerDraft'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../../composerDraft'
 import type { ComposerSerializedDraft } from '../../tokens'
 import { getComposerTokenIds } from './composerTokens'
+
+export function validateComposerDraftLength(draft: Pick<ComposerSerializedDraft, 'text' | 'quotes'>): boolean {
+  if (formatMessageQuotes(draft.text, draft.quotes).length <= COMPOSER_INPUT_MAX_LENGTH) return true
+  toast.error(i18n.t('chat.input.paste_text_too_long', { max: COMPOSER_INPUT_MAX_LENGTH }))
+  return false
+}
 
 interface BuildComposerQueuedPayloadOptions {
   /** Files currently held by the composer; filtered down to those still present as draft tokens. */
@@ -33,7 +43,8 @@ export function buildComposerQueuedPayload(
   { files, fileTokenId, requireText = false, extra }: BuildComposerQueuedPayloadOptions
 ): ComposerQueuedMessagePayload | null {
   const normalizedDraft = trimComposerDraftBoundaryBlankLines(draft)
-  const hasText = normalizedDraft.text.trim().length > 0
+  if (!validateComposerDraftLength(normalizedDraft)) return null
+  const hasText = normalizedDraft.text.trim().length > 0 || Boolean(normalizedDraft.quotes?.length)
   const text = hasText ? normalizedDraft.text : ''
   const tokenIds = getComposerTokenIds(normalizedDraft.tokens)
   const attachedFiles = files.filter((file) => tokenIds.has(fileTokenId(file)))

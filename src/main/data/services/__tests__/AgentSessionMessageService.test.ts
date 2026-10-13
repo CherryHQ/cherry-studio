@@ -88,6 +88,35 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  it.each(['success', 'paused', 'error'] as const)(
+    'retains a reserved reply quote when the agent finishes as %s',
+    (status) => {
+      const quotes = [
+        { id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' }
+      ]
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [], quotes }
+        }
+      })
+      const saved = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status,
+          data: { parts: [{ type: 'text', text: 'Answer' }] }
+        }
+      })
+      expect(saved.data.quotes).toEqual(quotes)
+      expect(saved.data.parts).toEqual([{ type: 'text', text: 'Answer' }])
+    }
+  )
+
   it('reports message existence per session', async () => {
     await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)

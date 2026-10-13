@@ -6,6 +6,7 @@ import {
   type ComposerTokenKind,
   isComposerTokenKind
 } from '@renderer/utils/composerTokenPolicy'
+import type { MessageQuote } from '@shared/data/types/message'
 
 export const COMPOSER_DRAFT_TOKEN_KINDS = COMPOSER_TOKEN_KINDS
 
@@ -34,6 +35,7 @@ export interface ComposerSerializedToken extends ComposerDraftToken {
 }
 
 export interface ComposerSerializedDraft {
+  quotes?: MessageQuote[]
   text: string
   tokens: ComposerSerializedToken[]
 }

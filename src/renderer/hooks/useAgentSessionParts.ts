@@ -42,7 +42,7 @@ interface CachedAgentSessionMessage {
 }
 
 export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
-  const metadata: CherryUIMessage['metadata'] = {}
+  const metadata: CherryUIMessage['metadata'] = { quotes: row.data.quotes }
   if (row.createdAt) metadata.createdAt = row.createdAt
   if (row.updatedAt) metadata.updatedAt = row.updatedAt
   metadata.status = row.status
@@ -84,7 +84,7 @@ function reservedUIMessageToAgentSessionMessage(
     id: message.id,
     sessionId,
     role: message.role,
-    data: { parts: message.parts ?? [] },
+    data: { parts: message.parts ?? [], quotes: metadata.quotes },
     searchableText: '',
     status:
       metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),

@@ -1,6 +1,8 @@
+import type { TextUIPart } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
 import { ContextPrompts } from '@cherrystudio/ai-core'
+import { getQuotedMessageText } from '@shared/utils/messageQuotes'
 
 import type { TokenDialect } from '../../tokens/dialect'
 import { imageTokensFor, mediaTokensFor } from '../../tokens/profiles'
@@ -79,7 +81,7 @@ export function estimateRowTokens(row: CompactionRow, dialect: TokenDialect): nu
   let total = 0
   for (const part of row.parts) {
     if (typeof part.text === 'string') {
-      total += estimateTokenCount(part.text)
+      total += estimateTokenCount(part.type === 'text' ? getQuotedMessageText(part as TextUIPart) : part.text)
       continue
     }
     const mediaTokens = mediaPartTokens(part, dialect)

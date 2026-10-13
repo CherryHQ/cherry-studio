@@ -48,6 +48,7 @@ import {
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -1392,7 +1393,7 @@ export class MessageService {
             topicId: input.topicId,
             parentId: userMessage.id,
             role: p.role,
-            data: p.data,
+            data: { ...p.data, quotes: p.data?.quotes ?? getMessageQuotes(userMessage.data.parts ?? []) },
             status,
             ...(input.siblingsGroupId !== undefined ? { siblingsGroupId: input.siblingsGroupId } : {}),
             modelId: p.modelId,
@@ -1583,7 +1584,7 @@ export class MessageService {
         : null
       tx.update(messageTable)
         .set({
-          data: { ...input.data, modelSelection: row.data?.modelSelection },
+          data: { ...input.data, modelSelection: row.data?.modelSelection, quotes: row.data?.quotes },
           status: input.status,
           stats: stats ?? null
         })

@@ -49,7 +49,7 @@
 }
 
 .animation-locate-highlight {
-  animation: animation-locate-highlight 2.5s ease-in-out;
+  animation: animation-locate-highlight 1s ease-in-out;
 }
 
 @keyframes animation-provider-model-pull-guide {

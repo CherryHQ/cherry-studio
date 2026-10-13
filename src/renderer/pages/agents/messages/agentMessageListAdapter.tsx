@@ -509,11 +509,23 @@ export function useAgentMessageListProviderValue({
       bindMessageRuntime,
       bindMessageGroupRuntime,
       locateMessage,
+      quoteMessage: normalInteractionsEnabled
+        ? (messageId, text) => {
+            void EventEmitter.emit(EVENT_NAMES.INSERT_MESSAGE_QUOTE, {
+              topicId: topic.id,
+              quote: { id: crypto.randomUUID(), sourceMessageId: messageId, text }
+            })
+          }
+        : undefined,
+      locateQuotedMessage: (messageId) => {
+        void EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, { topicId: topic.id, messageId })
+      },
       ...selectionController.actions,
       updateMessageUiState: messageUiStateCache.updateMessageUiState,
       updateRenderConfig
     }),
     [
+      topic.id,
       forkSession,
       startEditing,
       editBusy,

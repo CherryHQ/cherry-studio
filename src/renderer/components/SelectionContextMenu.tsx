@@ -14,6 +14,7 @@ const TEXT_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H
 
 interface SelectionContextMenuProps {
   children: React.ReactNode
+  getQuoteAction?: (selection: Selection) => ((text: string) => void) | undefined
   openBrowserUrl?: (url: string) => void
 }
 
@@ -84,7 +85,7 @@ function extractSelectedText(selection: Selection): string {
 /**
  * Right-click actions for website links and selected text in conversation content.
  */
-const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl }) => {
+const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl, getQuoteAction }) => {
   const { t } = useTranslation()
   const handleCopy = useCallback(
     (text: string) => {
@@ -104,7 +105,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
   }, [])
 
   const getMenuItems = useCallback(
-    (text: string): CommandContextMenuExtraItem[] => {
+    (text: string, quoteAction = handleQuote): CommandContextMenuExtraItem[] => {
       if (text.length === 0) return []
 
       return [
@@ -118,7 +119,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           type: 'item',
           id: 'selection.quote',
           label: t('chat.message.quote'),
-          onSelect: () => handleQuote(text)
+          onSelect: () => quoteAction(text)
         }
       ]
     },
@@ -129,6 +130,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
     (event: React.MouseEvent): CommandContextMenuExtraItem[] => {
       const selection = window.getSelection()
       const selectedText = selection ? extractSelectedText(selection) : ''
+      const quoteAction = selection ? getQuoteAction?.(selection) : undefined
       const target = event.target instanceof Element ? event.target : null
       const anchor = target?.closest('a[href]')
       const href = anchor?.getAttribute('href')
@@ -164,12 +166,14 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
             onSelect: () => handleCopy(href)
           }
         ]
-        return selectedLinkText ? [...getMenuItems(selectedLinkText), { type: 'separator' }, ...linkItems] : linkItems
+        return selectedLinkText
+          ? [...getMenuItems(selectedLinkText, quoteAction), { type: 'separator' }, ...linkItems]
+          : linkItems
       }
 
-      return getMenuItems(selectedText)
+      return getMenuItems(selectedText, quoteAction)
     },
-    [getMenuItems, handleCopy, openBrowserUrl, t]
+    [getMenuItems, getQuoteAction, handleCopy, openBrowserUrl, t]
   )
 
   return (

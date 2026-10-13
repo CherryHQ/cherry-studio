@@ -13,6 +13,7 @@ import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
 import type { McpServer } from '../types/mcpServer'
+import type { MessageQuote } from '../types/message'
 import type { MiniApp } from '../types/miniApp'
 import type { UniqueModelId } from '../types/model'
 import type { ComposerMessageTokenKind } from '../types/uiParts'
@@ -160,6 +161,7 @@ export interface CacheComposerAttachment {
 }
 
 export interface CacheComposerDraftBase {
+  quotes?: MessageQuote[]
   text: string
   tokens: CacheComposerSerializedToken[]
   files: CacheComposerAttachment[]

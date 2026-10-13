@@ -10,6 +10,8 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
+import { getQuotedMessageText } from '@shared/utils/messageQuotes'
+
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
@@ -93,7 +95,7 @@ function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
 function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
   const text = (input.message.data.parts ?? [])
     .filter((part) => part.type === 'text')
-    .map((part) => part.text)
+    .map(getQuotedMessageText)
     .join('\n')
     .trimStart()
 
@@ -1206,7 +1208,7 @@ async function materializeUserContent(
 
   const text = preparedParts
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-    .map((part) => part.text)
+    .map(getQuotedMessageText)
     .join('\n')
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []

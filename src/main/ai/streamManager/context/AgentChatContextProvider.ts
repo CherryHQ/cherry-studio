@@ -21,6 +21,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
@@ -37,6 +38,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
     parts: row.data.parts ?? [],
     metadata: {
       status: row.status,
+      quotes: row.data.quotes,
       createdAt: row.createdAt,
       modelId: row.modelId ?? undefined,
       messageSnapshot: row.messageSnapshot ?? undefined,
@@ -192,7 +194,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             id: assistantMessageId,
             role: 'assistant',
             status: 'pending',
-            data: { parts: [] },
+            data: { parts: [], quotes: getMessageQuotes(validated.userMessageParts) },
             modelId: validated.uniqueModelId,
             messageSnapshot: validated.messageSnapshot
           }

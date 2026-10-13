@@ -94,6 +94,7 @@ describe('agentDraftCache', () => {
   it('round-trips a complete same-workspace draft', () => {
     const draft = {
       text: 'draft text',
+      quotes: [{ id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' }],
       tokens: [skillToken, knowledgeToken, fileToken, folderToken, linkToken],
       files: [file],
       knowledgeBaseIds: ['kb-1'],

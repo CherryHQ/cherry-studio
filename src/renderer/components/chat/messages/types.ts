@@ -21,6 +21,7 @@ import type {
   CherryMessagePart,
   CherryUIMessage,
   MessageSnapshot,
+  MessageQuote,
   MessageStats,
   MessageStatus,
   ModelSnapshot
@@ -203,6 +204,7 @@ export interface RemoveMessageErrorPartInput {
 }
 
 export interface MessageListItem {
+  quotes?: MessageQuote[]
   id: string
   role: CherryUIMessage['role']
   assistantId?: string
@@ -357,6 +359,8 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  quoteMessage?: (messageId: string, text: string) => void
+  locateQuotedMessage?: (messageId: string) => void
   openForkSourceSession?: (sessionId: string) => Promise<void>
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)

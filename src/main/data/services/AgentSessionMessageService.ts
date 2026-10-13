@@ -1042,6 +1042,7 @@ export class AgentSessionMessageService {
     if (params.runtimeAnchor) data.runtimeAnchor = params.runtimeAnchor
 
     if (existingRow) {
+      if (existingRow.role === 'assistant' && existingRow.data.quotes) data.quotes = existingRow.data.quotes
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs

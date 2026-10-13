@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import { mcpResultToModelOutput } from '@main/ai/tools/adapters/aiSdk/mcp/utils'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
 import { createToolSearchTool } from '../../tools/adapters/aiSdk/meta/toolSearch'
 import { ToolRegistry } from '../../tools/adapters/aiSdk/registry'
@@ -13,6 +14,30 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
+  it('sends complete numbered quote context while keeping the displayed question unchanged', async () => {
+    const quotes = [
+      {
+        ...{ id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' },
+        text: '```ts\nconst value = 1\n```\n- first\n- second\n' + 'detail '.repeat(850) + 'END'
+      },
+      {
+        ...{ id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' },
+        id: 'quote-2',
+        text: 'Another selected passage'
+      }
+    ]
+    const part = withCherryMeta({ type: 'text' as const, text: 'Expand the second point' }, { quotes })
+    const model = await toModelMessages([ui('user', [part])])
+    const content = (model[0].content as Array<{ type: string; text: string }>).find(
+      (part) => part.type === 'text'
+    )!.text
+    expect(content).toContain(JSON.stringify({ index: 1, text: quotes[0].text }))
+    expect(content).toContain(JSON.stringify({ index: 2, text: quotes[1].text }))
+    expect(content).toContain('#cherry-quote-N')
+    expect(content).toContain('Expand the second point')
+    expect(part.text).toBe('Expand the second point')
+  })
+
   it('keeps knowledge scope out of provider messages', async () => {
     const model = await toModelMessages([
       ui('user', [

@@ -3,8 +3,8 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
 import { isComposerInputTokenKind, isComposerMessageTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 import type {
-  CherryProviderMetadata,
   ComposerMessageSnapshot,
   ComposerMessageToken,
   ComposerMessageTokenPayload
@@ -290,6 +290,7 @@ export function excludeComposerDraftTokens(
   }
 
   return {
+    ...draft,
     text,
     tokens: draft.tokens
       .filter((token) => !shouldExclude(token))
@@ -364,7 +365,7 @@ export function trimComposerDraftBoundaryBlankLines(draft: ComposerSerializedDra
     textOffset: Math.min(text.length, Math.max(0, token.textOffset - start))
   }))
 
-  return { text, tokens }
+  return { ...draft, text, tokens }
 }
 
 export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): ComposerMessageSnapshot | undefined {
@@ -394,17 +395,12 @@ export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): C
   }
 }
 
-function createComposerTextPart(text: string, composer?: ComposerMessageSnapshot): CherryMessagePart {
-  if (!composer) return { type: 'text', text }
-
-  const cherry: CherryProviderMetadata = { composer }
-  return {
-    type: 'text',
-    text,
-    providerMetadata: {
-      cherry
-    }
-  } as unknown as CherryMessagePart
+function createComposerTextPart(
+  text: string,
+  composer?: ComposerMessageSnapshot
+): Extract<CherryMessagePart, { type: 'text' }> {
+  const part = { type: 'text' as const, text }
+  return composer ? withCherryMeta(part, { composer }) : part
 }
 
 /**
@@ -414,5 +410,6 @@ function createComposerTextPart(text: string, composer?: ComposerMessageSnapshot
  * The draft must already be normalized with `trimComposerDraftBoundaryBlankLines`.
  */
 export function createComposerUserMessageParts(draft: ComposerSerializedDraft): CherryMessagePart[] {
-  return [createComposerTextPart(draft.text, createComposerMessageSnapshot(draft))]
+  const part = createComposerTextPart(draft.text, createComposerMessageSnapshot(draft))
+  return draft.quotes?.length ? [withCherryMeta(part, { quotes: structuredClone(draft.quotes) })] : [part]
 }

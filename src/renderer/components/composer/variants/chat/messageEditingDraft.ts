@@ -9,16 +9,19 @@ import {
   readComposerFileTokenIdSuffix
 } from '@renderer/utils/message/composerFileTokenSource'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { MessageQuote } from '@shared/data/types/message'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ComposerMessageTokenPayload } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getFileTypeByExt } from '@shared/utils/file'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 import { trimTextBoundaryBlankLines } from '../../composerDraft'
 import { type ComposerSerializedDraft, type ComposerSerializedToken, isComposerDraftTokenKind } from '../../tokens'
 import { chatComposerTokenId, getComposerTokenIds } from '../chatComposerTokens'
 
 export interface EditableMessageDraft {
+  quotes?: MessageQuote[]
   text: string
   draftTokens: ComposerSerializedToken[]
   files: ComposerAttachment[]
@@ -307,7 +310,7 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
     return { ...token, id: composerFileTokenIdFromSourceId(file.fileTokenSourceId), payload: file }
   })
 
-  return { text, draftTokens: [...normalizedDraftTokens, ...anchors], files }
+  return { text, draftTokens: [...normalizedDraftTokens, ...anchors], files, quotes: getMessageQuotes(parts) }
 }
 
 export function getEditableKnowledgeBases(

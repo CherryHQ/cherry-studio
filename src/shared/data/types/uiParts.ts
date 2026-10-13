@@ -29,6 +29,7 @@ import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { type FileType, FileTypeSchema } from '@shared/types/file'
 
 import type { SerializedError } from '../../types/error'
+import { type MessageQuote, MessageQuoteSchema } from './message'
 import type { CherryMessagePart } from './message'
 
 // ============================================================================
@@ -158,6 +159,7 @@ export type CherryDataPartTypes = {
 
 /** Cherry metadata on a TextUIPart. */
 export interface CherryTextMeta {
+  quotes?: MessageQuote[]
   /** Content references (citations, mentions). */
   references?: unknown[]
   /** Composer inline token display snapshot — on user TextUIPart by convention. */
@@ -292,6 +294,7 @@ const ComposerMessageSnapshotSchema: z.ZodType<ComposerMessageSnapshot> = z.obje
 })
 
 export const CherryTextMetaSchema: z.ZodType<CherryTextMeta> = z.object({
+  quotes: z.array(MessageQuoteSchema).optional(),
   references: z.array(z.unknown()).optional(),
   composer: ComposerMessageSnapshotSchema.optional()
 })

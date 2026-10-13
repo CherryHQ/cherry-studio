@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { defangSystemReminderTags } from '@main/ai/untrustedContent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import { getQuotedMessageText } from '@shared/utils/messageQuotes'
 
 /**
  * Build the user-turn content sent to an agent runtime. Agent runtimes are
@@ -61,7 +62,7 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
   return (
     message.data?.parts
       ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)
-      .map((part) => part.text)
+      .map(getQuotedMessageText)
       .join('\n') ?? ''
   )
 }

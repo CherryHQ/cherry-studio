@@ -26,6 +26,7 @@ import {
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import {
   bindCaptureMessageImageRuntime,
   flushPendingMessageImageActions,
@@ -414,16 +415,7 @@ export function useHomeMessageListProviderValue({
   )
 
   const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
-    const runtime = listRuntimeRef.current
-    if (!runtime) {
-      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
-      return
-    }
-
-    runtime.locateMessage(messageId)
-    window.requestAnimationFrame(() => {
-      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
-    })
+    dispatchLocateMessage(listRuntimeRef.current, messageId, highlight)
   }, [])
 
   const startNewContext = useCallback(() => {
@@ -842,6 +834,17 @@ export function useHomeMessageListProviderValue({
       bindMessageRuntime,
       bindMessageGroupRuntime,
       locateMessage,
+      quoteMessage: normalInteractionsEnabled
+        ? (messageId, text) => {
+            void EventEmitter.emit(EVENT_NAMES.INSERT_MESSAGE_QUOTE, {
+              topicId: topic.id,
+              quote: { id: crypto.randomUUID(), sourceMessageId: messageId, text }
+            })
+          }
+        : undefined,
+      locateQuotedMessage: (messageId) => {
+        void EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, { topicId: topic.id, messageId })
+      },
       ...(canStartNewContext && { startNewContext }),
       saveCodeBlock,
       ...exportActions,
@@ -875,6 +878,7 @@ export function useHomeMessageListProviderValue({
       renderRegenerateModelPicker
     }),
     [
+      topic.id,
       abortTool,
       abortMessageTranslation,
       bindMessageGroupRuntime,

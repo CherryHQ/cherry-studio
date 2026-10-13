@@ -185,6 +185,21 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   const data = useMessageListData()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
+  const quoteMessage = actions.quoteMessage
+  const getQuoteAction = useCallback(
+    (selection: Selection) => {
+      if (!quoteMessage || !selection.rangeCount) return undefined
+      const range = selection.getRangeAt(0)
+      const messageElement = (node: Node) =>
+        (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>('[data-message-id]')
+      const start = messageElement(range.startContainer)
+      const end = messageElement(range.endContainer)
+      const messageId = start?.dataset.messageId
+      if (!messageId || start !== end) return undefined
+      return (text: string) => quoteMessage?.(messageId, text)
+    },
+    [quoteMessage]
+  )
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
@@ -812,7 +827,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           scopeRef={messageListScopeRef}
         />
       )}
-      <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
+      <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl} getQuoteAction={getQuoteAction}>
         <div ref={messageListScopeRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <MessageVirtualList
             handleRef={messageListRef}

@@ -1,6 +1,8 @@
 import type { JSONContent } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
+
 import {
   createComposerDocumentContent,
   createComposerMessageSnapshot,
@@ -100,6 +102,21 @@ describe('excludeComposerDraftTokens', () => {
 })
 
 describe('composer draft serialization', () => {
+  it.each([
+    ['\n', ''],
+    ['\n  Explain\n\n', '  Explain']
+  ])('preserves quotes while normalizing %j and freezes sent references', (text, expected) => {
+    const quotes = [
+      { id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' }
+    ]
+    const parts = createComposerUserMessageParts(trimComposerDraftBoundaryBlankLines({ text, tokens: [], quotes }))
+    quotes[0].text = 'Changed draft'
+    expect(getMessageQuotes(parts)).toEqual([
+      { id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' }
+    ])
+    expect(parts[0]).toMatchObject({ type: 'text', text: expected })
+  })
+
   it('trims only boundary blank lines while preserving meaningful-line whitespace and internal blank lines', () => {
     const draft = trimComposerDraftBoundaryBlankLines({
       text: ' \t\n  first line  \n\nlast line \t\n \t\n',

@@ -1,6 +1,7 @@
+import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
+
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/TopicService'
-import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -16,6 +17,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -202,6 +204,35 @@ describe('MessageService', () => {
       .insert(fileEntryTable)
       .values({ id, origin: 'internal', name: `file-${id.slice(-4)}`, ext: 'txt', size: 1 })
   }
+
+  it.each(['success', 'paused', 'error'] as const)(
+    'keeps the reply quote snapshot after %s and later user edits',
+    async (status) => {
+      await seedTopicWithRoot('topic-quotes')
+      const quotes = [
+        { id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' }
+      ]
+      const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
+        topicId: 'topic-quotes',
+        userMessage: {
+          mode: 'create',
+          dto: {
+            role: 'user',
+            status: 'success',
+            data: {
+              parts: [withCherryMeta({ type: 'text' as const, text: 'Explain' }, { quotes })]
+            }
+          }
+        },
+        placeholders: [{ role: 'assistant', status: 'pending', data: { parts: [] } }]
+      })
+      messageService.update(userMessage.id, { data: mainText('Edited question') })
+      messageService.finalizeAssistantMessage(placeholders[0].id, { status, data: mainText('Answer') })
+      const saved = messageService.getById(placeholders[0].id)
+      expect(saved.data.quotes).toEqual(quotes)
+      expect(saved.data.parts).toEqual(mainText('Answer').parts)
+    }
+  )
 
   describe('trashed Topic message addressability', () => {
     const topicId = 'topic-message-gate'

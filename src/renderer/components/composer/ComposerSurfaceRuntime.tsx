@@ -33,6 +33,7 @@ import {
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
+import type { MessageQuote } from '@shared/data/types/message'
 
 import { useComposerLayerActive } from './ComposerContext'
 import {
@@ -147,6 +148,8 @@ type ComposerSurfaceSendAccessoryRenderer = (
 ) => React.ReactNode
 
 export interface ComposerSurfaceProps {
+  quotes?: MessageQuote[]
+  onQuotesChange?: (quotes: MessageQuote[]) => void
   text: string
   onTextChange: (text: string) => void
   tokens: readonly ComposerDraftToken[]
@@ -493,6 +496,8 @@ const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
 export default function ComposerSurfaceRuntime({
+  quotes,
+  onQuotesChange,
   text,
   onTextChange,
   tokens,
@@ -567,6 +572,17 @@ export default function ComposerSurfaceRuntime({
   const { setTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
   const editorRef = useRef<Editor | null>(null)
+  const quotesRef = useRef(quotes)
+  quotesRef.current = quotes
+  const onQuotesChangeRef = useRef(onQuotesChange)
+  onQuotesChangeRef.current = onQuotesChange
+  const withQuotes = useCallback(
+    (draft: ComposerSerializedDraft): ComposerSerializedDraft => ({
+      ...draft,
+      ...(quotesRef.current?.length ? { quotes: quotesRef.current } : {})
+    }),
+    []
+  )
   const textRef = useRef(text)
   const pendingLocalTextEchoRef = useRef<string | null>(null)
   // The most recent full document serialization; served by getDraft() once the editor is gone.
@@ -788,14 +804,14 @@ export default function ComposerSurfaceRuntime({
         return
       }
 
-      const draft = serializeComposerDocument(editorRef.current)
+      const draft = withQuotes(serializeComposerDocument(editorRef.current))
       const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
       const sent = steer ? onSendDraftRef.current(draft, { steer: true }) : onSendDraftRef.current(draft)
       void Promise.resolve(sent).finally(() => {
         if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
       })
     },
-    [createEditorFocusRestoreSnapshot, focusEditor, shouldRestoreEditorFocus, showBlockedSendReason]
+    [createEditorFocusRestoreSnapshot, focusEditor, shouldRestoreEditorFocus, showBlockedSendReason, withQuotes]
   )
 
   const compactMeasurementInputsRef = useRef({
@@ -912,13 +928,15 @@ export default function ComposerSurfaceRuntime({
     if (!editor || editor.isDestroyed) {
       // Callers persist the returned pair verbatim; a fabricated { text, tokens: [] } would strand
       // managed chips' prompt sentences as visible prose on the next restore.
-      return lastSerializedDraftRef.current ?? { text: textRef.current, tokens: [] }
+      return withQuotes(lastSerializedDraftRef.current ?? { text: textRef.current, tokens: [] })
     }
 
-    return serializeComposerDocument(editor)
-  }, [])
+    return withQuotes(serializeComposerDocument(editor))
+  }, [withQuotes])
 
   const replaceDraft = useCallback((draft: ComposerSerializedDraft) => {
+    quotesRef.current = draft.quotes
+    onQuotesChangeRef.current?.(draft.quotes ?? [])
     const editor = editorRef.current
     if (!editor || editor.isDestroyed) return
 
@@ -2036,7 +2054,7 @@ export default function ComposerSurfaceRuntime({
       showBlockedSendReason()
       return
     }
-    const draft = serializeComposerDocument(editor)
+    const draft = withQuotes(serializeComposerDocument(editor))
     const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
     void Promise.resolve(onSendDraft(draft)).finally(() => {
       if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
@@ -2048,7 +2066,8 @@ export default function ComposerSurfaceRuntime({
     onSendDraft,
     sendDisabled,
     shouldRestoreEditorFocus,
-    showBlockedSendReason
+    showBlockedSendReason,
+    withQuotes
   ])
 
   const onSaveEditing = editingState?.onSave
@@ -2058,8 +2077,8 @@ export default function ComposerSurfaceRuntime({
       showBlockedSendReason()
       return
     }
-    void onSaveEditing(serializeComposerDocument(editor))
-  }, [editor, onSaveEditing, sendDisabled, showBlockedSendReason])
+    void onSaveEditing(withQuotes(serializeComposerDocument(editor)))
+  }, [editor, onSaveEditing, sendDisabled, showBlockedSendReason, withQuotes])
 
   const handleExpandControlClick = useCallback(() => {
     if (hasCustomHeight) {

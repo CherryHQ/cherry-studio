@@ -96,11 +96,12 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const getFallbackDraft = useCallback(
     (): ComposerSerializedDraft => ({
       text: props.text,
+      ...(props.quotes?.length ? { quotes: props.quotes } : {}),
       tokens: props.draftTokens?.length
         ? [...props.draftTokens]
         : props.tokens.map((token, index) => ({ ...token, index, textOffset: props.text.length }))
     }),
-    [props.draftTokens, props.text, props.tokens]
+    [props.draftTokens, props.quotes, props.text, props.tokens]
   )
 
   // The fallback cannot rebase token offsets, render the editing header, grow beyond its fixed
@@ -151,6 +152,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       onTextChange: updateText,
       replaceDraft: (draft) => {
         selectionRef.current = { start: draft.text.length, end: draft.text.length }
+        props.onQuotesChange?.(draft.quotes ?? [])
         props.onTextChange(draft.text)
         updateTokens(draft.tokens)
       },

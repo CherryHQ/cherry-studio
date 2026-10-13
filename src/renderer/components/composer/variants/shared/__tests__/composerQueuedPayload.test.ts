@@ -30,6 +30,19 @@ const draft = (text: string, tokenIds: string[] = [], tokenTextOffset = 0): Comp
 })
 
 describe('buildComposerQueuedPayload', () => {
+  it('accepts a reference without a separate question', () => {
+    const result = buildComposerQueuedPayload(
+      {
+        text: '',
+        tokens: [],
+        quotes: [{ id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' }]
+      },
+      { files: [], fileTokenId }
+    )
+    expect(result).not.toBeNull()
+    expect(result?.text).toBe('')
+  })
+
   it('returns null for empty text when text is required (chat)', () => {
     expect(buildComposerQueuedPayload(draft('   '), { files: [], fileTokenId, requireText: true })).toBeNull()
   })

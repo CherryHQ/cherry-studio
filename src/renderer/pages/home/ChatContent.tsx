@@ -15,6 +15,7 @@ import type {
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
+import { useQuotedMessageLocateRequest } from '@renderer/hooks/useQuotedMessageLocateRequest'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -180,23 +181,27 @@ const ChatContentInner: FC<InnerProps> = ({
     return { contextTokens, modelId }
   }, [activeNodeId, isHistoryStale, uiMessages])
 
+  const { quotedMessageId, finish: finishQuoteLocate } = useQuotedMessageLocateRequest(topic.id)
+  const locateTargetId = quotedMessageId ?? locateMessageId
+
   useEffect(() => {
-    if (!locateMessageId) {
+    if (!locateTargetId) {
       locateLoadRequestRef.current = undefined
       return
     }
 
-    if (uiMessages.some((message) => message.id === locateMessageId)) {
+    if (uiMessages.some((message) => message.id === locateTargetId)) {
       locateLoadRequestRef.current = undefined
       window.requestAnimationFrame(() => {
-        locateRuntimeMessage(locateMessageId, true)
+        locateRuntimeMessage(locateTargetId, true)
       })
-      onLocateMessageHandled?.()
+      if (quotedMessageId) finishQuoteLocate(true)
+      else onLocateMessageHandled?.()
       return
     }
 
     if (hasOlder && !isHistoryLoading) {
-      const requestKey = `${locateMessageId}:${uiMessages.length}`
+      const requestKey = `${locateTargetId}:${uiMessages.length}`
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
         loadOlder()
@@ -206,9 +211,20 @@ const ChatContentInner: FC<InnerProps> = ({
 
     if (!hasOlder && !isHistoryLoading) {
       locateLoadRequestRef.current = undefined
-      onLocateMessageHandled?.()
+      if (quotedMessageId) finishQuoteLocate(false)
+      else onLocateMessageHandled?.()
     }
-  }, [hasOlder, isHistoryLoading, loadOlder, locateMessageId, locateRuntimeMessage, onLocateMessageHandled, uiMessages])
+  }, [
+    quotedMessageId,
+    finishQuoteLocate,
+    hasOlder,
+    isHistoryLoading,
+    loadOlder,
+    locateTargetId,
+    locateRuntimeMessage,
+    onLocateMessageHandled,
+    uiMessages
+  ])
 
   const isEmptyConversation = !isHistoryLoading && runtime.messages.length === 0
   const main = (

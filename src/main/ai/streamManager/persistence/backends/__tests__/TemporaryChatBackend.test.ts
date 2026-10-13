@@ -15,26 +15,37 @@ beforeEach(() => {
 })
 
 describe('TemporaryChatBackend.persistAssistant', () => {
-  it('passes only runtimeTiming to the data-layer owner', async () => {
-    const backend = new TemporaryChatBackend({ topicId: 'topic-1', messageId: 'msg-1', modelId: 'openai::gpt-4o' })
-    const runtimeTiming = { startedAt: 100, completedAt: 600, spans: [] }
+  it.each(['success', 'paused', 'error'] as const)(
+    'preserves quote snapshots and only runtimeTiming on %s',
+    async (status) => {
+      const quotes = [{ id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'Quoted text' }]
+      const backend = new TemporaryChatBackend({
+        topicId: 'topic-1',
+        messageId: 'msg-1',
+        modelId: 'openai::gpt-4o',
+        quotes
+      })
+      const runtimeTiming = { startedAt: 100, completedAt: 600, spans: [] }
 
-    await backend.persistAssistant({
-      finalMessage: {
-        id: 'final',
-        role: 'assistant',
-        parts: [{ type: 'text', text: 'yo' }],
-        metadata: {}
-      } as unknown as CherryUIMessage,
-      status: 'success',
-      modelId: 'openai::gpt-4o',
-      runtimeStats: { runtimeTiming }
-    })
+      await backend.persistAssistant({
+        finalMessage: {
+          id: 'final',
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'yo' }],
+          metadata: {}
+        } as unknown as CherryUIMessage,
+        status,
+        modelId: 'openai::gpt-4o',
+        runtimeStats: { runtimeTiming }
+      })
 
-    const [topicId, dto, runtimeStats, messageId] = appendAssistantMessageMock.mock.calls[0]
-    expect(topicId).toBe('topic-1')
-    expect(messageId).toBe('msg-1')
-    expect(dto).not.toHaveProperty('stats')
-    expect(runtimeStats).toEqual({ runtimeTiming })
-  })
+      const [topicId, dto, runtimeStats, messageId] = appendAssistantMessageMock.mock.calls[0]
+      expect(topicId).toBe('topic-1')
+      expect(messageId).toBe('msg-1')
+      expect(dto).not.toHaveProperty('stats')
+      expect(dto.data.quotes).toEqual(quotes)
+      expect(dto.status).toBe(status)
+      expect(runtimeStats).toEqual({ runtimeTiming })
+    }
+  )
 })

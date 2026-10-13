@@ -13,6 +13,7 @@ import {
   Save,
   Split,
   ThumbsUp,
+  TextQuote,
   Upload
 } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
@@ -192,6 +193,10 @@ async function withMessageCaptureLease<T>(context: MessageMenuBarActionContext, 
   }
 }
 
+registerCommand('message.quote', ({ actions, message, mainTextContent }) => {
+  actions.quoteMessage?.(message.id, mainTextContent)
+})
+
 registerCommand('message.copy', async ({ actions, mainTextContent, messageParts, setCopied, t }) => {
   const richContent = actions.copyRichContent ? createComposerRichClipboardContentFromParts(messageParts) : null
   if (richContent) {
@@ -347,6 +352,17 @@ registerToolbarAction({
   label: ({ t, actions }) => actions.editLabel ?? t('common.edit'),
   icon: <EditIcon size={15} />,
   availability: toolbarAvailability('user-edit', (context) => context.isUserMessage && canStartEditing(context))
+})
+
+registerToolbarAction({
+  id: 'quote',
+  commandId: 'message.quote',
+  label: ({ t }) => t('chat.message.quotes.reply'),
+  icon: <TextQuote size={15} />,
+  availability: toolbarAvailability(
+    'quote',
+    ({ actions, mainTextContent }) => !!actions.quoteMessage && !!mainTextContent.trim()
+  )
 })
 
 registerToolbarAction({

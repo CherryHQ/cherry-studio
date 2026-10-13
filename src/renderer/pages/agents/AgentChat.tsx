@@ -33,6 +33,7 @@ import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useQuotedMessageLocateRequest } from '@renderer/hooks/useQuotedMessageLocateRequest'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
@@ -345,23 +346,27 @@ const AgentChat = ({
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const sessionTopicId = runtimeSessionId ? buildAgentSessionTopicId(runtimeSessionId) : ''
 
+  const { quotedMessageId, finish: finishQuoteLocate } = useQuotedMessageLocateRequest(sessionTopicId)
+  const locateTargetId = quotedMessageId ?? locateMessageId
+
   useEffect(() => {
-    if (!runtimeSessionId || !locateMessageId) {
+    if (!runtimeSessionId || !locateTargetId) {
       locateLoadRequestRef.current = undefined
       return
     }
 
-    if (runtimeUiMessages.some((message) => message.id === locateMessageId)) {
+    if (runtimeUiMessages.some((message) => message.id === locateTargetId)) {
       locateLoadRequestRef.current = undefined
       window.requestAnimationFrame(() => {
-        locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+        locateAgentMessageInList(sessionTopicId, locateTargetId, true)
       })
-      onLocateMessageHandled?.()
+      if (quotedMessageId) finishQuoteLocate(true)
+      else onLocateMessageHandled?.()
       return
     }
 
     if (runtimeHasOlder && !runtimeIsLoading) {
-      const requestKey = `${runtimeSessionId}:${locateMessageId}:${runtimeUiMessages.length}`
+      const requestKey = `${runtimeSessionId}:${locateTargetId}:${runtimeUiMessages.length}`
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
         runtimeLoadOlder?.()
@@ -371,10 +376,13 @@ const AgentChat = ({
 
     if (!runtimeHasOlder && !runtimeIsLoading) {
       locateLoadRequestRef.current = undefined
-      onLocateMessageHandled?.()
+      if (quotedMessageId) finishQuoteLocate(false)
+      else onLocateMessageHandled?.()
     }
   }, [
-    locateMessageId,
+    quotedMessageId,
+    finishQuoteLocate,
+    locateTargetId,
     onLocateMessageHandled,
     runtimeHasOlder,
     runtimeIsLoading,
