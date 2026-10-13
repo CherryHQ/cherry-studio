@@ -7,7 +7,7 @@ import { ImageBytesSchema } from './entityImage'
  * Profile IPC schemas — the user-profile fields owned by the main process.
  *
  * `set_avatar` is the avatar owner. Like provider / mini-app logos, an uploaded
- * avatar is sent as **raw bytes**; the handler normalizes to a 128×128 WebP,
+ * avatar is sent as **raw bytes**; the main process normalizes to a 128×128 WebP,
  * creates the `file_entry`, and stores a `file:<id>` ref in the
  * `app.user.avatar` preference (compensating on failure) — the preference is
  * the avatar's only persisted copy; there is no `file_ref` row for it. The

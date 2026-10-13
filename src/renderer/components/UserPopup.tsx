@@ -64,10 +64,8 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     }
   }
 
-  // The `profile.set_avatar` handler owns the `app.user.avatar` Preference write;
-  // the Preference auto-syncs back to `useAvatar`, so these flows don't write the
-  // value themselves. A superseded file_entry is left for the orphan sweep, not
-  // pruned here.
+  // `profile.set_avatar` owns the Preference write and retires replaced images.
+  // The Preference auto-syncs back to `useAvatar`.
   const handleEmojiClick = async (emoji: string) => {
     try {
       await ipcApi.request('profile.set_avatar', { kind: 'emoji', emoji })

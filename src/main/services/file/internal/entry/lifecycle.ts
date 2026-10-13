@@ -91,6 +91,20 @@ export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): P
   await cleanupDeletedEntry(deps, entry)
 }
 
+export async function deleteUnreferencedInternalEntry(deps: FileManagerDeps, id: FileEntryId): Promise<boolean> {
+  const entry = deps.fileEntryService.withWriteTx((tx) => {
+    const current = deps.fileEntryService.findByIdTx(tx, id)
+    if (!current || current.origin !== 'internal' || deps.fileRefService.countPersistentRefsByEntryIdTx(tx, id) > 0) {
+      return null
+    }
+    deps.fileEntryService.deleteTx(tx, id)
+    return current
+  })
+  if (!entry) return false
+  await cleanupDeletedEntry(deps, entry)
+  return true
+}
+
 function assertUnreferenced(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId, operation: string): void {
   if (deps.fileRefService.countPersistentRefsByEntryIdTx(tx, id) > 0) {
     throw DataApiErrorFactory.invalidOperation(operation, `File entry ${id} is still referenced`)
