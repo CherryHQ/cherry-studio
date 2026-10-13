@@ -415,25 +415,18 @@ export class AgentSessionRuntimeService extends BaseService {
     persist: (tx: DbOrTx, nativeSessionId: string) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
-    return this.forks
-      .edit(
-        sessionId,
-        target,
-        async () => {
-          this.assertSessionEditable(sessionId, true)
-          const entry = this.entries.get(sessionId)
-          const connection = entry && this.closeConnection(entry)
-          await this.closeRuntimeConnection(connection, sessionId, true)
-          await this.closeSession(sessionId)
-        },
-        persist
-      )
-      .then((result) => {
-        // The replacement history cannot inherit the recorded plan exit: a first-message edit
-        // drops the approved plan entirely, and a forked prefix's fold is the runtime's to re-commit.
-        this.planExitedSessions.delete(sessionId)
-        return result
-      })
+    return this.forks.edit(
+      sessionId,
+      target,
+      async () => {
+        this.assertSessionEditable(sessionId, true)
+        const entry = this.entries.get(sessionId)
+        const connection = entry && this.closeConnection(entry)
+        await this.closeRuntimeConnection(connection, sessionId, true)
+        await this.closeSession(sessionId)
+      },
+      persist
+    )
   }
 
   forkSession(sourceSessionId: string, messageId: string): Promise<string> {
@@ -459,9 +452,6 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
-  /** Sessions whose runtime history folds plan mode inactive (an approved plan exit): a
-   *  reconnecting plan-permission connection must keep plan folded instead of re-arming it. */
-  private readonly planExitedSessions = new Set<string>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
@@ -820,14 +810,6 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
     const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
-    // An explicit return to Plan must retire every remembered exit for this agent's sessions —
-    // the overlay also remembers disconnected sessions, which nothing else reconciles here, and a
-    // stale approval would otherwise open their next connection with plan folded inactive.
-    if (updates.configuration?.permission_mode === 'plan') {
-      for (const sessionId of agentSessionService.listIdsByAgent(agentId)) {
-        this.planExitedSessions.delete(sessionId)
-      }
-    }
     const reconciles: Promise<void>[] = []
     for (const entry of this.entries.values()) {
       if (entry.agentId !== agentId) continue
@@ -1573,10 +1555,9 @@ export class AgentSessionRuntimeService extends BaseService {
    * allowed), but the user asked for a different execution model. The running model is spawn-frozen
    * for the live turn's connection, so the handoff stops the turn here — the same teardown a user
    * Stop performs — and the renderer completes it by switching the agent model and sending the
-   * execution follow-up, which starts a fresh turn on the new model with the session resumed. The
-   * approved exit is recorded first so the reconnecting connection keeps plan folded inactive
-   * instead of re-arming it. `already-current` when the turn runs that model already; `refused`
-   * when there is no live turn to stop — the caller must not report a handoff that cannot happen.
+   * execution follow-up, which starts a fresh turn on the new model with the session resumed.
+   * `already-current` when the turn runs that model already; `refused` when there is no live turn
+   * to stop — the caller must not report a handoff that cannot happen.
    */
   private stopTurnForModelHandoff(
     sessionId: string,
@@ -1596,9 +1577,6 @@ export class AgentSessionRuntimeService extends BaseService {
       executionModelId,
       runningModelId
     })
-    // The approved exit must survive the teardown below: the follow-up turn reconnects with plan
-    // still folded inactive (mutation tools admitted), not re-armed plan mode.
-    this.planExitedSessions.add(sessionId)
     void this.stopApprovedPlanTurn(entry, turn, toolCallId)
     return 'started'
   }
@@ -1623,17 +1601,6 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.liveTurn(entry) && this.liveTurn(entry) !== turn) return
     streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
     await this.closeSession(entry.sessionId)
-  }
-
-  /**
-   * Mirror the runtime's committed plan fold (an approved exit or a `/plan` re-entry) into the
-   * session-level overlay so it survives connection replacement; a fold reported by a replaced
-   * entry's connection must not clobber the current one's state.
-   */
-  private syncPlanExitOverlay(entry: AgentSessionRuntimeEntry, active: boolean): void {
-    if (!this.isCurrentEntry(entry)) return
-    if (active) this.planExitedSessions.delete(entry.sessionId)
-    else this.planExitedSessions.add(entry.sessionId)
   }
 
   /**
@@ -1926,11 +1893,9 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeBaseIds: target.knowledgeBaseIds,
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
-      planExitApproved: this.planExitedSessions.has(entry.sessionId),
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId),
-      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs),
-      onPlanModeFold: (active) => this.syncPlanExitOverlay(entry, active)
+      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       await this.closeRuntimeConnection(connection, entry.sessionId)
