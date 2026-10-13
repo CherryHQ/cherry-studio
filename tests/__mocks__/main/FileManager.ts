@@ -24,8 +24,6 @@ export type MockFileSweepReport = MockFileSweepStats &
     | { outcome: 'failed'; errorMessage: string }
   )
 
-type MockFileSweep = (options?: { readonly bypassSafetyThreshold?: boolean }) => Promise<MockFileSweepReport>
-
 function emptyOrphanFileReport(): MockFileSweepReport {
   return {
     outcome: 'completed',
@@ -54,8 +52,8 @@ const mockFileManager = {
   getById: vi.fn(),
   getUrl: vi.fn((id: FileEntryId): FileUrlString => `file:///mock/files/${id}.webp` as FileUrlString),
   findInternalByContentHash: vi.fn((_contentHash: ContentHash) => []),
-  inspectOrphanFiles: vi.fn<MockFileSweep>(async () => emptyOrphanFileReport()),
-  cleanupOrphanFiles: vi.fn<MockFileSweep>(async () => emptyOrphanFileReport())
+  inspectOrphanFiles: vi.fn(async (_options?: { readonly bypassSafetyThreshold?: boolean }) => emptyOrphanFileReport()),
+  cleanupOrphanFiles: vi.fn(async (_options?: { readonly bypassSafetyThreshold?: boolean }) => emptyOrphanFileReport())
 }
 
 export const MockMainFileManagerExport = {
