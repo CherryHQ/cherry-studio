@@ -1365,6 +1365,7 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly capabilities = ['agent-session'] as const
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
+    await application.get('ClaudeCodeBinaryService').ensureExecutable()
     const cwd = session.workspace?.path
     if (!cwd) {
       throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
