@@ -8,7 +8,8 @@ import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
   createComposerClipboardFragment,
@@ -20,6 +21,7 @@ import { ComposerContextProvider, ComposerLayerActiveProvider } from '../Compose
 import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
 import type * as ComposerPreset from '../composerPreset'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
+import type * as PasteHandling from '../paste/pasteHandling'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
@@ -28,14 +30,17 @@ const mocks = vi.hoisted(() => ({
   currentView: undefined as any,
   stabilizeEditor: false,
   simulateDeferredEditorStyle: false,
+  editorAbsent: false,
   actions: undefined as ComposerSurfaceActions | undefined,
   editorClientHeight: 28,
   deferredEditorMinHeight: 46,
   editorContentLineCount: 1,
   editorViewComposing: false,
   editorViewDom: undefined as HTMLElement | undefined,
+  viewState: undefined as any,
   editorScrollHeight: 28,
   insertContent: vi.fn(),
+  insertContentAt: vi.fn(),
   insertComposerToken: vi.fn(),
   deleteRange: vi.fn(),
   deleteSelection: vi.fn(),
@@ -53,6 +58,9 @@ const mocks = vi.hoisted(() => ({
   getJSON: vi.fn(),
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
+  pasteHandlerOptions: undefined as any,
+  editorIsFocused: false,
+  docTextContent: '',
   fileDragDropOptions: undefined as any,
   setTimeoutTimer: vi.fn(),
   timeoutCleanups: [] as Array<() => void>,
@@ -178,9 +186,16 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
   useRichTextEditorKernel: (options: any) => {
     mocks.editorOptions = options
+    // The real kernel answers null before the view exists (SSR guard); the runtime assigns the
+    // ref from this return value, so `true` simulates the mount-frame window where the guard's
+    // editor branch is unreachable.
+    if (mocks.editorAbsent) return null
     const editor = {
       isDestroyed: false,
       isEditable: true,
+      get isFocused() {
+        return mocks.editorIsFocused
+      },
       getJSON: mocks.getJSON,
       commands: {
         focus: mocks.focus,
@@ -188,17 +203,27 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         setHardBreak: mocks.setHardBreak,
         setNodeSelection: mocks.setNodeSelection
       },
-      chain: () => ({
-        focus: () => ({
+      chain: () => {
+        const chain: Record<string, (...args: unknown[]) => any> = {
+          insertContent: (...args: unknown[]) => {
+            mocks.insertContent(...args)
+            return { run: mocks.chainRun }
+          },
+          insertContentAt: (...args: unknown[]) => {
+            mocks.insertContentAt(...args)
+            return { run: mocks.chainRun }
+          },
+          insertComposerToken: (...args: unknown[]) => {
+            mocks.insertComposerToken(...args)
+            return chain
+          },
+          setMeta: (...args: unknown[]) => {
+            mocks.setMeta(...args)
+            return chain
+          },
           deleteRange: (...args: unknown[]) => {
             mocks.deleteRange(...args)
-            return {
-              insertContent: (...contentArgs: unknown[]) => {
-                mocks.insertContent(...contentArgs)
-                return { run: mocks.chainRun }
-              },
-              run: mocks.chainRun
-            }
+            return chain
           },
           setNodeSelection: (...args: unknown[]) => {
             mocks.setNodeSelection(...args)
@@ -212,38 +237,20 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
             mocks.deleteSelection()
             return { run: mocks.chainRun }
           },
-          setMeta: (...args: unknown[]) => {
-            mocks.setMeta(...args)
-            return {
-              insertContent: (...contentArgs: unknown[]) => {
-                mocks.insertContent(...contentArgs)
-                return { run: mocks.chainRun }
-              },
-              run: mocks.chainRun
-            }
-          },
-          insertContent: (...args: unknown[]) => {
-            mocks.insertContent(...args)
-            return { run: mocks.chainRun }
-          },
-          insertComposerToken: (...args: unknown[]) => {
-            mocks.insertComposerToken(...args)
-            return {
-              insertContent: (...contentArgs: unknown[]) => {
-                mocks.insertContent(...contentArgs)
-                return { run: mocks.chainRun }
-              },
-              run: mocks.chainRun
-            }
-          }
-        })
-      }),
+          run: mocks.chainRun
+        }
+        chain.focus = () => chain
+        return chain
+      },
       view: {
         get composing() {
           return mocks.editorViewComposing
         },
         get dom() {
           return mocks.editorViewDom
+        },
+        get state() {
+          return mocks.viewState
         },
         dispatch: mocks.dispatch
       },
@@ -259,6 +266,9 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
             get size() {
               return mocks.docContentSize
             }
+          },
+          get textContent() {
+            return mocks.docTextContent
           },
           descendants: mocks.docDescendants,
           textBetween: mocks.docTextBetween
@@ -327,12 +337,18 @@ vi.mock('@renderer/components/composer/paste/useFileDragDrop', () => ({
 }))
 
 vi.mock('@renderer/components/composer/paste/usePasteHandler', () => ({
-  usePasteHandler: () => ({
-    handlePaste: mocks.pasteHandler
-  })
+  usePasteHandler: (options: any) => {
+    mocks.pasteHandlerOptions = options
+    return {
+      handlePaste: mocks.pasteHandler
+    }
+  }
 }))
 
-vi.mock('@renderer/components/composer/paste/pasteHandling', () => ({
+// Only the default export's side-effecting registration is mocked; the paste-routing predicates
+// stay real so a delegation test exercises the actual decision, not a stand-in for it.
+vi.mock('@renderer/components/composer/paste/pasteHandling', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   default: {
     init: vi.fn(),
     registerHandler: vi.fn(),
@@ -458,12 +474,14 @@ describe('ComposerSurface', () => {
     mocks.currentView = undefined
     mocks.stabilizeEditor = false
     mocks.simulateDeferredEditorStyle = false
+    mocks.editorAbsent = false
     mocks.actions = undefined
     mocks.editorClientHeight = 28
     mocks.deferredEditorMinHeight = 46
     mocks.editorContentLineCount = 1
     mocks.editorViewComposing = false
     mocks.editorViewDom = document.createElement('div')
+    mocks.viewState = { doc: { textBetween: mocks.docTextBetween } }
     mocks.editorScrollHeight = 28
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
@@ -486,6 +504,10 @@ describe('ComposerSurface', () => {
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
     mocks.pasteHandler.mockReset()
+    mocks.pasteHandlerOptions = undefined
+    mocks.editorIsFocused = false
+    mocks.docTextContent = ''
+    mocks.insertContentAt.mockReset()
     mocks.fileDragDropOptions = undefined
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void, delay?: number) => {
@@ -521,6 +543,9 @@ describe('ComposerSurface', () => {
       value: {
         fs: {
           readText: mocks.fsReadText
+        },
+        file: {
+          getPathForFile: vi.fn().mockReturnValue('')
         }
       }
     })
@@ -3426,6 +3451,133 @@ describe('ComposerSurface', () => {
     expect(event.preventDefault).not.toHaveBeenCalled()
   })
 
+  it('does not detach a file whose chip is still in the draft when the caret is not behind it', async () => {
+    // Two file chips and nothing else is what dropping two files leaves behind: each chip insert
+    // appends a separator space, so the draft's text is whitespace and the node before the caret
+    // is that space rather than a chip. The chip is still rendered, so detaching its attachment
+    // would orphan it — visible in the composer, absent from every send.
+    const setFiles = vi.fn()
+    render(<ComposerSurface {...baseProps} filesCount={2} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'composerToken', attrs: { id: 'file:f-1', kind: 'file', label: 'a.png' } },
+            { type: 'text', text: ' ' },
+            { type: 'composerToken', attrs: { id: 'file:f-2', kind: 'file', label: 'b.png' } },
+            { type: 'text', text: ' ' }
+          ]
+        }
+      ]
+    })
+    mocks.selection = {
+      empty: true,
+      from: 4,
+      to: 4,
+      node: null,
+      $from: { nodeBefore: { type: { name: 'text' } } }
+    }
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(handled).toBe(false)
+  })
+
+  it('does not detach an attachment when the draft holds prose and no chip at all', async () => {
+    // The painting composer attaches uploads it never renders a chip for, so "files attached with
+    // nothing in the document" is a state it produces on purpose. Measuring emptiness on chips
+    // alone reads that draft as empty and detaches the attachment, leaving Backspace to delete
+    // nothing — the character the keystroke was aimed at survives and the image disappears.
+    const setFiles = vi.fn()
+    render(<ComposerSurface {...baseProps} filesCount={1} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'make it blue' }] }]
+    })
+    mocks.selection = {
+      empty: true,
+      from: 11,
+      to: 11,
+      node: null,
+      $from: { nodeBefore: { type: { name: 'text' } } }
+    }
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(handled).toBe(false)
+  })
+
+  it('keeps an attachment when a mount-frame Backspace arrives while the draft holds prose', async () => {
+    // The view answers keys before the passive effect assigns editorRef (tiptap renders
+    // synchronously, the ref lands after commit). The merge base put the prose term ahead of
+    // the `!editor` disjunct, so a draft restored with text must not lose its attachment to a
+    // keystroke from that window.
+    const setFiles = vi.fn()
+    mocks.editorAbsent = true
+    render(<ComposerSurface {...baseProps} text="make it blue" filesCount={1} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(handled).toBe(false)
+  })
+
+  it('detaches an attachment on a mount-frame Backspace when the draft holds no prose', async () => {
+    // The other direction of the same window: with nothing to delete, the keystroke falls
+    // through to the attachment, exactly as it does once the editor exists.
+    const setFiles = vi.fn()
+    mocks.editorAbsent = true
+    render(<ComposerSurface {...baseProps} text="" filesCount={1} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).toHaveBeenCalledWith(expect.any(Function))
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(handled).toBe(true)
+  })
+
   it('opens the QuickPanel root when slash follows whitespace', async () => {
     render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
@@ -4147,6 +4299,61 @@ describe('ComposerSurface', () => {
       editor.destroy()
     }
   })
+
+  it.each([false, true])(
+    'attaches a copied file without replacing draft text (selected token: %s)',
+    async (selected) => {
+      const file: FileMetadata = {
+        id: 'model-file',
+        name: 'model.onnx',
+        origin_name: 'model.onnx',
+        path: '/tmp/model.onnx',
+        ext: '.onnx',
+        type: FILE_TYPE.OTHER,
+        size: 4,
+        created_at: '2026-10-12T00:00:00.000Z',
+        count: 1
+      }
+      vi.mocked(window.api.file.getPathForFile).mockReturnValue(file.path)
+      window.api.file.get = vi.fn().mockResolvedValue(file)
+      if (selected) {
+        mocks.selection = {
+          empty: false,
+          from: 1,
+          to: 2,
+          node: {
+            type: { name: 'composerToken' },
+            attrs: { id: 'prompt-variable:0:city', kind: 'promptVariable', label: '${city}', promptText: '${city}' }
+          },
+          $from: { nodeBefore: null }
+        }
+      }
+      let files: ComposerAttachment[] = []
+      const { handlePaste } = await vi.importActual<typeof PasteHandling>('../paste/pasteHandling')
+      mocks.pasteHandler.mockImplementation((event) =>
+        handlePaste(event, ['*'], (updater) => {
+          files = updater(files)
+        })
+      )
+      render(<ComposerSurface {...baseProps} supportedExts={['*']} text="Existing draft" />)
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: {
+          getData: (type: string) =>
+            type === 'text/plain' ? file.name : type === 'text/html' ? `<b>${file.name}</b>` : '',
+          files: [new File(['onnx'], file.name)]
+        }
+      }
+      mocks.editorOptions.handlePaste(mocks.currentView, event)
+
+      await waitFor(() => expect(files).toHaveLength(1))
+      expect(files[0]).toMatchObject({ path: file.path, origin_name: file.name })
+      expect(mocks.insertContent).not.toHaveBeenCalled()
+      expect(mocks.dispatch).not.toHaveBeenCalled()
+    }
+  )
 
   it('suppresses composer suggestions when pasting scoped shell command text', async () => {
     const pastedText = "-lc 'exec npx -y @agentclientprotocol/claude-agent-acp'"
