@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   admitRound,
+  assistantText,
   createGoal,
   currentGoal,
   editGoal,
@@ -11,14 +12,14 @@ import {
   goalView,
   hasCapacity,
   isHumanTurn,
+  isProgressResult,
   phaseForStop,
   recordUsage,
   renderRoundPrompt,
   resumeGoal,
   stopGoal,
   tailRound,
-  toolCallKey,
-  turnProgress
+  toolCallKey
 } from '../src/goalState'
 
 const limits = { maxGoalRounds: 100, maxGoalRoundsCeiling: 1000 }
@@ -280,8 +281,13 @@ describe('goal branch reading', () => {
     expect(isHumanTurn([userEntry('u', 'do it'), assistantEntry('a', 'ok'), otherMessage('o')])).toBe(true)
   })
 
-  it('reads a round only when it is the branch tail', () => {
+  it('reads the round committed after the last message, past entries other extensions append', () => {
     expect(tailRound([userEntry('u', 'x'), roundEntry('r', 3)])).toMatchObject({ round: 3, goalId: 'g1' })
+    expect(
+      tailRound([assistantEntry('a', 'x'), roundEntry('r', 3), otherMessage('o'), stateEntry('s', {})])
+    ).toMatchObject({
+      round: 3
+    })
     expect(tailRound([roundEntry('r', 3), assistantEntry('a', 'y')])).toBeUndefined()
   })
 })
@@ -291,13 +297,17 @@ describe('progress and prompts', () => {
   const result = (toolName: string, isError = false) =>
     ({ role: 'toolResult', toolCallId: 'c', toolName, content: [], isError, timestamp: 1 }) as any
 
-  it('counts a successful non-read tool call or a changed reply as progress', () => {
-    expect(turnProgress(assistant('same'), [result('read')], 'same')).toBe(false)
-    expect(turnProgress(assistant('same'), [result('todo_write')], 'same')).toBe(false)
-    expect(turnProgress(assistant('same'), [result('edit', true)], 'same')).toBe(false)
-    expect(turnProgress(assistant('same'), [result('edit')], 'same')).toBe(true)
-    expect(turnProgress(assistant('different now'), [], 'same')).toBe(true)
-    expect(turnProgress(assistant('  same \n'), [], 'same')).toBe(false)
+  it('counts a successful call to a tool that does more than read or bookkeep as progress', () => {
+    expect(isProgressResult(result('read'))).toBe(false)
+    expect(isProgressResult(result('todo_write'))).toBe(false)
+    expect(isProgressResult(result('edit', true))).toBe(false)
+    expect(isProgressResult(result('edit'))).toBe(true)
+    // A delegated task is work done in the round (spec §7.2).
+    expect(isProgressResult(result('subagent'))).toBe(true)
+  })
+
+  it('normalizes reply text so whitespace changes do not count as a new reply', () => {
+    expect(assistantText(assistant('  same \n'))).toBe('same')
   })
 
   it('keys tool calls by name and argument content, not object key order', () => {
