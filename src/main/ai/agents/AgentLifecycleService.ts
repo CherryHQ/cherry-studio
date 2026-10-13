@@ -1,8 +1,11 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -406,6 +409,14 @@ export class AgentLifecycleService extends BaseService {
     const root = application.getPath('feature.agents.system_workspaces')
     for (const workspacePath of paths) {
       try {
+        const claimed = agentWorkspaceService
+          .list({ includeSystem: true })
+          .some((workspace) =>
+            [workspace.path, ...workspace.additionalDirectories].some(
+              (directory) => path.relative(directory, workspacePath) === ''
+            )
+          )
+        if (claimed) continue
         await removeAgentStorageSubdirectory(root, workspacePath)
       } catch (error) {
         logger.warn('Failed to remove purged Agent Session workspace', { workspacePath, error })

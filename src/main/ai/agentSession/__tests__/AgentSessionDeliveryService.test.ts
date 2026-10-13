@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { agentService } from '@data/services/AgentService'
 import type { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -224,6 +225,7 @@ describe('AgentSessionDeliveryService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
+    vi.spyOn(agentWorkspaceService, 'list').mockReturnValue([])
     mocks.terminalListeners.clear()
     mocks.idleListeners.clear()
     mocks.listAccepted.mockReturnValue([])
