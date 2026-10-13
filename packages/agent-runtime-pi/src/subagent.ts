@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { type AssistantMessage, Type, type Usage } from '@earendil-works/pi-ai'
 import type { AgentSession, AgentToolResult, ExtensionFactory, SessionEntry } from '@earendil-works/pi-coding-agent'
 import type { ToolCallPart } from 'ai'
@@ -77,8 +79,8 @@ export interface Subagent {
   /** The `subagent` call that creates it. */
   parentToolCallId: string
   /**
-   * Its Pi session id and its requests' `sessionId`: `<parent session id>.<parentToolCallId>`, characters Pi rejects
-   * replaced by `-`, with `-n` appended when the call id appears for the nth time in the parent.
+   * Its Pi session id and its requests' `sessionId`: `<parent session id>.<random UUID>`, unique per
+   * subagent. Treat it as opaque; `parentToolCallId` ties the subagent to its call.
    */
   sessionId: string
   fork: boolean
@@ -184,15 +186,6 @@ const parameters = Type.Object({
 const text = (value: string) => ({ type: 'text' as const, text: value })
 const taskText = (prompt: string) => `${PREAMBLE}\n\nTask:\n${prompt}`
 
-/**
- * Pi accepts session ids of letters, digits and `._-` that start and end with a letter or digit.
- * `occurrence` keeps ids apart when a provider reuses a call id across turns.
- */
-const subagentSessionId = (parentSessionId: string, toolCallId: string, occurrence: number) => {
-  const callId = toolCallId.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[._-]+|[._-]+$/g, '') || 'call'
-  return `${parentSessionId}.${callId}${occurrence > 1 ? `-${occurrence}` : ''}`
-}
-
 const zeroUsage = (): Usage => ({
   input: 0,
   output: 0,
@@ -291,12 +284,9 @@ export function subagentExtension({ port, createSession, parentTranscript }: Sub
         if (!description || !prompt) throw new Error('A subagent needs a non-empty description and prompt.')
         const fork = params.fork ?? false
         const parent = parentTranscript()
-        const occurrence = parent.filter((entry) =>
-          toolCallsOf(entry).some((call) => call.toolCallId === toolCallId)
-        ).length
         const subagent: Subagent = {
           parentToolCallId: toolCallId,
-          sessionId: subagentSessionId(ctx.sessionManager.getSessionId(), toolCallId, occurrence),
+          sessionId: `${ctx.sessionManager.getSessionId()}.${randomUUID()}`,
           fork
         }
         // Built before `configure`, so a failure building the fork transcript never reaches the host.
