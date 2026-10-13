@@ -520,13 +520,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         // settles the no-op case where pi resolves without emitting any compaction event.
         () => this.maybeCompleteManualCompactTurn(),
         (error) => {
-          // pi always emits compaction_end (which already settled the turn and cleared the
-          // in-flight flag) before rejecting, so this is normally a no-op. Only settle here
-          // defensively if the flag is somehow still set (compaction_end never arrived) — never
-          // push a second terminal.
+          // pi always emits compaction_end (which already settled the turn and cleared the flag)
+          // before rejecting, so this is normally a no-op. Only settle here defensively if the flag
+          // is somehow still set (compaction_end never arrived) — never push a second terminal.
           if (!this.manualCompactInFlight) return
           this.manualCompactInFlight = false
-          this.releaseReplayFreeze()
           if (this.closed) return
           logger.error('pi compact failed', error as Error)
           this.eventQueue.push({ type: 'error', error })
@@ -733,7 +731,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.closed) return
     this.promptRunActive = false
     // The replayed turn ended: its policy freeze goes with it, so idle reconciles adopt row saves.
-    this.releaseReplayFreeze()
+    this.replayTurnPending = false
     this.maybeEmitResumeToken()
     const undelivered = this.pendingSteers.splice(0).map((pending) => pending.input)
     if (undelivered.length > 0) {
@@ -771,11 +769,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     this.lastStopReason = undefined
     this.lastAgentError = undefined
-  }
-
-  /** End the replayed turn's policy freeze so an idle reconcile adopts the saved permission mode. */
-  private releaseReplayFreeze(): void {
-    this.replayTurnPending = false
   }
 
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
@@ -931,9 +924,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // clearing the flag here makes the later reject handler a no-op.
       if (this.manualCompactInFlight) {
         this.manualCompactInFlight = false
-        // The replayed turn is over, so its policy freeze ends with it — a leaked freeze would
-        // keep deferring permission-mode saves past the compaction and into the next turn.
-        this.releaseReplayFreeze()
         this.eventQueue.push({ type: 'error', error: new Error(event.errorMessage ?? 'pi compaction aborted') })
         return
       }
@@ -955,8 +945,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.closed) return
     if (!this.manualCompactInFlight) return
     this.manualCompactInFlight = false
-    // A replayed compaction ends its turn without a prompt run to release the freeze.
-    this.releaseReplayFreeze()
     this.eventQueue.push({ type: 'turn-complete' })
   }
 

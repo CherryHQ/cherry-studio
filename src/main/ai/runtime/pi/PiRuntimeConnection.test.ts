@@ -1877,6 +1877,8 @@ describe('PiRuntimeConnection', () => {
     ['a successful compaction event', { emitsEvent: true, errorMessage: undefined, compactRejects: false }],
     // pi resolves without emitting any compaction event; the promise settles the turn.
     ['a no-op completion', { emitsEvent: false, errorMessage: undefined, compactRejects: false }],
+    // Real pi order: the failed compaction_end settles the turn, then compact() rejects.
+    ['a failed compaction event', { emitsEvent: true, errorMessage: 'context too large', compactRejects: true }],
     // Defensive path: compaction_end never arrived, so the rejection settles the turn itself.
     ['a rejection with no compaction event', { emitsEvent: false, errorMessage: undefined, compactRejects: true }]
   ])('a replayed compaction ending with %s releases the replay freeze', (_label, options) => {
@@ -1903,7 +1905,7 @@ describe('PiRuntimeConnection', () => {
         (event) => event.type === 'turn-complete' || event.type === 'error'
       )
       expect(terminals).toHaveLength(1)
-      expect(terminals[0].type).toBe(options.compactRejects ? 'error' : 'turn-complete')
+      expect(terminals[0].type).toBe(options.errorMessage || options.compactRejects ? 'error' : 'turn-complete')
       await new Promise((resolve) => setTimeout(resolve, 0))
 
       // Saved after the replay ended: default mode, so the next turn's bash call must prompt again.
