@@ -23,7 +23,7 @@ class FakeAudio extends EventTarget {
     if (name === 'src') this.src = ''
   }
   load() {}
-  duration = 1
+  duration = 30
   currentTime = 0
   paused = true
   ended = false
