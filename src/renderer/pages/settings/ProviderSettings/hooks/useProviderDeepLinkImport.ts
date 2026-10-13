@@ -230,6 +230,8 @@ export function useProviderDeepLinkImport(
       return
     }
 
+    // Reserve before the confirmation popup so a providers refresh cannot restart this import.
+    importRunningRef.current = true
     runImportSession(importSessionRef.current)
   }, [createProvider, navigate, onSelectProvider, providers, runImportSession, searchAddProviderData, t])
 }

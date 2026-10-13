@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -123,11 +123,12 @@ describe('ProviderApiOptionsDrawer', () => {
     isSystemProviderMock.mockReturnValue(false)
   })
 
-  it('preserves sibling endpoints when changing the selected endpoint dialect', () => {
+  it('preserves sibling endpoints when changing the selected endpoint dialect', async () => {
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByLabelText('settings.provider.api.options.developer_role.label'))
 
+    await waitFor(() => expect(updateProviderMock).toHaveBeenCalled())
     expect(updateProviderMock).toHaveBeenCalledWith({
       endpointConfigs: {
         'openai-chat-completions': {
@@ -139,7 +140,42 @@ describe('ProviderApiOptionsDrawer', () => {
     })
   })
 
-  it('offers the summary compatibility switch only on a Responses endpoint and persists it there', () => {
+  it('preserves a committed reasoning format when toggling dialect after endpoint drawer save', async () => {
+    const mutateMock = vi.fn().mockResolvedValue({
+      ...provider,
+      endpointConfigs: {
+        'openai-chat-completions': {
+          baseUrl: 'https://api.example.com/v1',
+          reasoningFormat: { type: 'self-hosted' }
+        },
+        'anthropic-messages': { baseUrl: 'https://api.example.com/anthropic' }
+      }
+    })
+    useProviderMock.mockReturnValue({
+      provider,
+      updateProvider: updateProviderMock,
+      mutate: mutateMock
+    })
+
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByLabelText('settings.provider.api.options.stream_options.label'))
+
+    await waitFor(() => expect(updateProviderMock).toHaveBeenCalled())
+    expect(mutateMock).toHaveBeenCalled()
+    expect(updateProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        'openai-chat-completions': {
+          baseUrl: 'https://api.example.com/v1',
+          reasoningFormat: { type: 'self-hosted' },
+          dialect: { streamOptions: false }
+        },
+        'anthropic-messages': { baseUrl: 'https://api.example.com/anthropic' }
+      }
+    })
+  })
+
+  it('offers the summary compatibility switch only on a Responses endpoint and persists it there', async () => {
     useProviderMock.mockReturnValue({
       provider: {
         ...provider,
@@ -155,6 +191,7 @@ describe('ProviderApiOptionsDrawer', () => {
     expect(screen.queryByLabelText('settings.provider.api.options.stream_options.label')).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('settings.provider.api.options.reasoning_summary.label'))
 
+    await waitFor(() => expect(updateProviderMock).toHaveBeenCalled())
     expect(updateProviderMock).toHaveBeenCalledWith({
       endpointConfigs: {
         'openai-responses': {
