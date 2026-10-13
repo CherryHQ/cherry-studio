@@ -1,9 +1,9 @@
 /src/main/ai/ @DeJeune
-/src/main/features/fileProcessing/ @eeee0717
-/src/main/features/knowledge/ @eeee0717
+/src/main/features/fileProcessing/ @eeee0717 @DeJeune
+/src/main/features/knowledge/ @eeee0717 @DeJeune
 
 /src/shared/ai/ @DeJeune
 
-/packages/ui/ @kangfenmao
+/packages/ui/ @kangfenmao @DeJeune
 
 /docs/references/ai/ @DeJeune
