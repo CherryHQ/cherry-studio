@@ -82,6 +82,9 @@ const STOP_AFTER_ROUNDS = 3
 /** Identical calls in one round before they are blocked, and before the goal stops (spec §7.2). */
 const BLOCK_REPEAT_AT = 3
 const STOP_REPEAT_AT = 5
+/** Sent after the goal view when a completion is accepted (spec §7.5). */
+const COMPLETE_INSTRUCTION =
+  'The goal is complete. End your turn with a short summary for the user of what was delivered and how it was checked; do not start new work.'
 
 const text = (value: string) => ({ type: 'text' as const, text: value })
 const hasText = (value: string | undefined): value is string => typeof value === 'string' && value.trim().length > 0
@@ -215,7 +218,6 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       })
       runtime.goal = undefined
       runtime.armed = false
-      runtime.inGoalRound = false
       resetGoalRuntime()
     }
     const notice = (value: string, level: GoalNotice['level'] = 'info') =>
@@ -353,6 +355,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
           throw new GoalError('invalid_action', 'objective and limits are valid only with action edit')
         if (params.action !== 'blocked' && hasText(params.blocked_reason))
           throw new GoalError('invalid_action', 'blocked_reason is valid only with action blocked')
+        if ((params.action === 'complete' || params.action === 'blocked') && goal.phase === 'complete')
+          throw new GoalError('invalid_action', 'The goal is already complete; new work needs a new goal.')
         switch (params.action) {
           case 'edit':
             requireHumanTurn(ctx, 'edit')
@@ -395,6 +399,11 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       const { messages } = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId())
       return toModelMessages(convertToLlm(messages), ctx.model!)
     }
+    const finishGoal = (): AgentToolResult<unknown> => {
+      stop('complete')
+      const { content } = ok()
+      return { content: [...content, text(COMPLETE_INSTRUCTION)], details: undefined }
+    }
     const completeGoal = async (
       goal: GoalSnapshot,
       evidence: string | undefined,
@@ -420,8 +429,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
         // A command may have edited, paused or cleared the goal while the verifier ran.
         requireRevision(goal.id, goal.revision)
         if (verdict.verdict === 'not_met') throw new GoalError('invalid_action', `Not complete yet: ${verdict.reason}`)
-        if (verdict.verdict === 'impossible') stop('model_blocked', verdict.reason)
-        else stop('complete')
+        if (verdict.verdict === 'met') return finishGoal()
+        stop('model_blocked', verdict.reason)
         return ok()
       }
       if (!claim.evidence)
@@ -434,8 +443,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
           'invalid_action',
           'No round of this goal changed anything yet; do the work before marking it complete.'
         )
-      stop('complete')
-      return ok()
+      return finishGoal()
     }
     const blockGoal = (goal: GoalSnapshot, reason: string | undefined, ctx: ExtensionContext) => {
       if (!hasText(reason))
