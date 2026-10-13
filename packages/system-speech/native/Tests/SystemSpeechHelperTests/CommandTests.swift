@@ -5,6 +5,28 @@ import Testing
 @Suite("Native command contract")
 struct CommandTests {
     @Test
+    func encodesMissingDefaultVoiceAsNull() throws {
+        let data = try JSONEncoder().encode(ResolveVoiceResult(voice: nil))
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(object["voice"] is NSNull)
+    }
+
+    @Test
+    func preservesDefaultVoiceLocaleAndRejectsEmptyLocale() throws {
+        let data = Data(#"{"operation":"resolve_voice","locale":"zh-CN"}"#.utf8)
+        let command = try JSONDecoder().decode(NativeRequest.self, from: data).validated()
+        guard case let .resolveVoice(locale) = command else {
+            Issue.record("Expected resolve_voice command")
+            return
+        }
+        #expect(locale == "zh-CN")
+        let invalid = Data(#"{"operation":"resolve_voice","locale":""}"#.utf8)
+        #expect(throws: HelperError.self) {
+            try JSONDecoder().decode(NativeRequest.self, from: invalid).validated()
+        }
+    }
+
+    @Test
     func encodesUnsupportedLocaleAsExplicitNull() throws {
         let result = CapabilitiesResult(
             osVersion: "26.0", requestedLocale: "unsupported", supportedLocale: nil,
