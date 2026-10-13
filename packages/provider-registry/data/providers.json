@@ -1458,8 +1458,7 @@
           "id": "url-context",
           "modelScope": "model-dependent"
         }
-      ],
-      "supplementModelsFromRegistry": true
+      ]
     },
     {
       "availableInEditions": ["global"],
@@ -2723,5 +2722,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "56351f7323be0e3a"
+  "version": "895891c9c7f961d0"
 }

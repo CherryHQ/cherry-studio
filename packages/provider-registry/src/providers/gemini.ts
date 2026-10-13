@@ -25,7 +25,6 @@ export default defineProvider({
       baseUrl: 'https://generativelanguage.googleapis.com'
     }
   },
-  supplementModelsFromRegistry: true,
   overrides: [
     {
       modelId: 'antigravity-preview-latest',
