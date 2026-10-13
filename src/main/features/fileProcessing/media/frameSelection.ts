@@ -165,6 +165,11 @@ function selectDistributedScenes(
     }
     if (nearestIndex >= 0) {
       const anchor = anchors[nearestIndex]
+      // Replacing 0 or the end drops an endpoint a caller still has budget to keep.
+      if ((anchor === 0 || anchor === lastMs) && anchor < timestampMs && scenes.length < sceneReserve) {
+        scenes.push(timestampMs)
+        return true
+      }
       if (anchor >= timestampMs) {
         covered = true
         return false
