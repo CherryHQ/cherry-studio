@@ -338,10 +338,8 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 
 @Injectable('AgentSessionRuntimeService')
 @ServicePhase(Phase.WhenReady)
-// The dependency is runtime, not lexical: this service's connections spawn CLI children through
-// ClaudeCodeProcessManager. Declaring it keeps that owner stopping LAST, so its sweep runs after
-// these entries are closed — do not drop it as unused. Covered by a stop-order test.
-@DependsOn(['ClaudeCodeProcessManager'])
+// Process and prewarm owners must outlive this runtime's shutdown barriers.
+@DependsOn(['ClaudeCodeProcessManager', 'ClaudeCodeWarmQueryManager'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
   private readonly failedClosures = new Map<string, Set<AgentRuntimeConnection>>()
@@ -1084,6 +1082,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   async closeSessionForArchive(sessionId: string): Promise<void> {
     await this.closeSession(sessionId)
+    await application.get('ClaudeCodeWarmQueryManager').close(sessionId)
     const attempt = this.connectionAttempts.get(sessionId)?.promise
     if (attempt) await attempt
     while (this.closingSessions.has(sessionId)) {

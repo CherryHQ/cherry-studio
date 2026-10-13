@@ -2,6 +2,8 @@
 description: Agent lifecycle command ownership, atomic archive and restore, schedule recovery, purge, and backup quiescing
 sources:
   - src/main/ai/agents/AgentLifecycleService.ts
+  - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager.ts
   - src/main/data/services/AgentService.ts
   - src/main/data/services/AgentSessionService.ts
   - src/main/data/services/AgentTaskService.ts
@@ -156,6 +158,8 @@ are retained unchanged. Compression uses an `.archiving` directory and a tempora
 archive; the original contents are removed only after the archive is validated
 and published. Failures retain the files for a later lifecycle sweep to retry.
 Linked or special files prevent compression rather than being silently omitted.
+Archive shutdown also drains pending Claude idle-prewarm preparation before filesystem
+work starts, including preparations that have not created a runtime connection yet.
 
 Workspace registration and storage reclamation share `AgentWorkspaceStorageService`
 in the AI domain. Registration enters through `ai.agent.workspace.register` IPC;
@@ -179,9 +183,12 @@ identity and archive digest in `.restore.json`, and publishes the directory befo
 restoring the Session's database state. A file or an unknown directory at the destination
 is a conflict: the archive is preserved and the Session stays trashed. The record
 recognizes a published restore after interruption; mere path existence does not.
+Retry sweeps require the same provenance before replacing an existing archive.
 Agent restore prepares all Sessions archived together with that Agent before its
 single database transaction. Archives are removed only after activation commits;
-cleanup failures retain the record for a later lifecycle sweep. Interrupted archive
+cleanup failures retain the record for a later lifecycle sweep. Managed `.archiving`
+residue is removed before the archive and receipt so another archive/restore cycle
+can proceed; a cleanup failure retains the backup. Interrupted archive
 and restore artifacts remain claimed while the workspace row exists. Explicit
 purge and retention cleanup remove both the workspace and its archive artifacts;
 the orphan sweep reclaims residue after their database rows have disappeared.

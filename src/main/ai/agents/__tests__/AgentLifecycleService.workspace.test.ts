@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -414,11 +414,15 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
         await writeFile(path.join(parent, 'keep.txt'), 'unrelated')
       }
       await expect(lifecycle.restoreSession('system')).rejects.toThrow()
+      await lifecycle.sweepOrphans()
       expect(await readFile(`${parent}.tar.gz`)).toEqual(archive)
       expect(await readFile(type === 'file' ? parent : path.join(parent, 'keep.txt'), 'utf8')).toBe('unrelated')
       expect(
         dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
       ).not.toBeNull()
+      await rename(parent, `${parent}.kept`)
+      await lifecycle.restoreSession('system')
+      expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
     }
   )
 

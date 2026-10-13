@@ -167,11 +167,25 @@ export function createClaudeCodeWarmQuerySignature(
 @DependsOn(['ClaudeCodeProcessManager'])
 export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly entries = new Map<string, WarmQueryEntry>()
+  private readonly preparingSessions = new Map<string, Set<Promise<void>>>()
 
   // `ai.agent.session.prewarm` / `ai.agent.session.close_warm` (IpcApi, validated by the router)
   // delegate to the public methods below; this service registers no IPC of its own.
 
   async prewarmAgentSession(sessionId: string): Promise<void> {
+    const preparing = this.prepareAgentSession(sessionId)
+    const preparations = this.preparingSessions.get(sessionId) ?? new Set<Promise<void>>()
+    this.preparingSessions.set(sessionId, preparations)
+    preparations.add(preparing)
+    try {
+      await preparing
+    } finally {
+      preparations.delete(preparing)
+      if (preparations.size === 0) this.preparingSessions.delete(sessionId)
+    }
+  }
+
+  private async prepareAgentSession(sessionId: string): Promise<void> {
     try {
       const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
@@ -279,17 +293,19 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     return { warmQuery, usageCapture: entry.usageCapture, processDiagnostics: entry.processDiagnostics }
   }
 
-  close(key: string): Promise<void> {
+  async close(key: string): Promise<void> {
+    while (this.preparingSessions.has(key)) {
+      await Promise.allSettled([...this.preparingSessions.get(key)!])
+    }
     const entry = this.entries.get(key)
-    if (!entry) return Promise.resolve()
+    if (!entry) return
     this.entries.delete(key)
     return this.closeEntry(entry)
   }
 
   closeAll(): Promise<void> {
-    const entries = [...this.entries.values()]
-    this.entries.clear()
-    return Promise.allSettled(entries.map((entry) => this.closeEntry(entry))).then(() => undefined)
+    const keys = new Set([...this.entries.keys(), ...this.preparingSessions.keys()])
+    return Promise.allSettled([...keys].map((key) => this.close(key))).then(() => undefined)
   }
 
   protected onStop(): Promise<void> {

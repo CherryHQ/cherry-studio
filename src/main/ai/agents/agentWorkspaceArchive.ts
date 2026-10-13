@@ -103,16 +103,19 @@ export async function archiveSystemWorkspace(root: string, workspace: string): P
   const archive = `${workspace}.tar.gz`
   const pending = `${workspace}.archiving`
   const temporary = `${archive}.tmp`
+  let restored: z.infer<typeof restoreRecordSchema> | undefined
   if (await statIfExists(workspace)) {
     await assertAgentStorageDirectory(root, workspace)
-    const record = await readRestoreRecord(workspace)
-    if (record) {
-      if (!(await matchesDirectory(workspace, record)))
+    restored = await readRestoreRecord(workspace)
+    if (restored) {
+      if (!(await matchesDirectory(workspace, restored)))
         throw new Error(`Workspace restore destination changed: ${workspace}`)
     }
   }
   if (await statIfExists(archive)) {
     if (await statIfExists(workspace)) {
+      if (!restored) throw new Error(`Workspace restore destination is occupied: ${workspace}`)
+      await validateRecordArchive(workspace, restored)
       await validateContents(workspace)
       await removeAgentStorageSubdirectory(root, pending)
       // Invalidate the stale snapshot before staging newer files for crash recovery.
@@ -287,6 +290,8 @@ export async function finalizeSystemWorkspaceRestore(root: string, workspace: st
   if (!(await matchesDirectory(workspace, record)))
     throw new Error(`Workspace restore destination changed: ${workspace}`)
   await validateRecordArchive(workspace, record)
+  // A complete published restore supersedes the managed interrupted-compression residue.
+  await removeAgentStorageSubdirectory(root, `${workspace}.archiving`)
   await rm(`${workspace}.tar.gz`, { force: true })
   await rm(`${workspace}.restore.json`)
   await rm(`${workspace}.restore.json.tmp`, { force: true })

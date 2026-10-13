@@ -1,5 +1,15 @@
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  archiveSystemWorkspace,
+  finalizeSystemWorkspaceRestore,
+  restoreSystemWorkspace
+} from '@main/ai/agents/agentWorkspaceArchive'
 import { BaseService, LifecycleManager, ServiceContainer } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
@@ -479,6 +489,50 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     expect(warm.close).toHaveBeenCalledOnce()
   })
+
+  it.each(['session', 'all'] as const)(
+    '%s close drains delayed workspace preparation before archiving',
+    async (scope) => {
+      const manager = new ClaudeCodeWarmQueryManager()
+      const root = await mkdtemp(path.join(os.tmpdir(), 'warm-archive-'))
+      const workspace = path.join(root, 'session-1')
+      const entered = createDeferred<void>()
+      const resume = createDeferred<void>()
+      buildWarmRequestMock.mockImplementationOnce(async () => {
+        entered.resolve()
+        await resume.promise
+        await mkdir(workspace, { recursive: true })
+        await writeFile(path.join(workspace, 'settings.txt'), 'prepared before archive')
+        return { key: 'session-1', options: { model: 'sonnet' } }
+      })
+      startupMock.mockResolvedValueOnce(warmQuery())
+      const preparing = manager.prewarmAgentSession('session-1')
+      await entered.promise
+      let closed = false
+      const closing = (scope === 'all' ? manager.closeAll() : manager.close('session-1')).then(() => {
+        closed = true
+      })
+      try {
+        await Promise.resolve()
+        expect(closed).toBe(false)
+        resume.resolve()
+        await preparing
+        await closing
+        expect(await manager.consume({ key: 'session-1', options: { model: 'sonnet' } })).toBeUndefined()
+        await archiveSystemWorkspace(root, workspace)
+        expect(existsSync(workspace)).toBe(false)
+        await restoreSystemWorkspace(root, workspace)
+        await finalizeSystemWorkspaceRestore(root, workspace)
+        expect(await readFile(path.join(workspace, 'settings.txt'), 'utf8')).toBe('prepared before archive')
+      } finally {
+        resume.resolve()
+        await preparing
+        await closing
+        await manager.closeAll()
+        await rm(root, { recursive: true, force: true })
+      }
+    }
+  )
 
   it('prewarms an agent session from the session request builder', async () => {
     const manager = new ClaudeCodeWarmQueryManager()

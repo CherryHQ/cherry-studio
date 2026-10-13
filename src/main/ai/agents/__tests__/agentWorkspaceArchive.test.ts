@@ -6,6 +6,7 @@ import path from 'node:path'
 import { create } from 'tar'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as agentStorageDirectory from '../agentDataDirectory'
 import {
   archiveSystemWorkspace,
   finalizeSystemWorkspaceRestore,
@@ -99,8 +100,31 @@ describe(`system workspace archives (${process.platform})`, () => {
     await writeFile(path.join(`${workspace}.restoring`, 'result.txt'), 'partial extraction')
     await restoreSystemWorkspace(root, workspace)
     expect(await readFile(path.join(workspace, 'result.txt'), 'utf8')).toBe('recoverable output')
-    expect(await readFile(path.join(`${workspace}.archiving`, 'result.txt'), 'utf8')).toBe('partial residue')
+    expect(existsSync(`${workspace}.archiving`)).toBe(false)
     expect(await readFile(path.join(`${workspace}.restoring`, 'result.txt'), 'utf8')).toBe('partial extraction')
+    await writeFile(path.join(workspace, 'result.txt'), 'updated after restoration')
+    await archiveSystemWorkspace(root, workspace)
+    await restoreSystemWorkspace(root, workspace)
+    expect(await readFile(path.join(workspace, 'result.txt'), 'utf8')).toBe('updated after restoration')
+  })
+
+  it('retains the archive and receipt when interrupted-compression cleanup fails', async () => {
+    await archiveSystemWorkspace(root, workspace)
+    await mkdir(`${workspace}.archiving`)
+    await writeFile(path.join(`${workspace}.archiving`, 'result.txt'), 'partial residue')
+    const archive = await readFile(`${workspace}.tar.gz`)
+    await prepareRestore(root, workspace)
+    const cleanup = vi
+      .spyOn(agentStorageDirectory, 'removeAgentStorageSubdirectory')
+      .mockRejectedValueOnce(new Error('cleanup blocked'))
+    await expect(finalizeSystemWorkspaceRestore(root, workspace)).rejects.toThrow('cleanup blocked')
+    expect(await readFile(`${workspace}.tar.gz`)).toEqual(archive)
+    expect(existsSync(`${workspace}.restore.json`)).toBe(true)
+    cleanup.mockRestore()
+    await finalizeSystemWorkspaceRestore(root, workspace)
+    expect(existsSync(`${workspace}.archiving`)).toBe(false)
+    expect(existsSync(`${workspace}.tar.gz`)).toBe(false)
+    expect(await readFile(path.join(workspace, 'result.txt'), 'utf8')).toBe('recoverable output')
   })
 
   it.each(['file', 'directory'] as const)(
@@ -208,9 +232,7 @@ describe(`system workspace archives (${process.platform})`, () => {
 
   it('rearchives a published restore without losing files newer than the old snapshot', async () => {
     await archiveSystemWorkspace(root, workspace)
-    const oldArchive = await readFile(`${workspace}.tar.gz`)
-    await restoreSystemWorkspace(root, workspace)
-    await writeFile(`${workspace}.tar.gz`, oldArchive)
+    await prepareRestore(root, workspace)
     await writeFile(path.join(workspace, 'result.txt'), 'newer output')
     await writeFile(path.join(workspace, 'new.txt'), 'new file')
     await archiveSystemWorkspace(root, workspace)
@@ -222,9 +244,7 @@ describe(`system workspace archives (${process.platform})`, () => {
 
   it('retains newer restored files when recompression fails and recovers on retry', async () => {
     await archiveSystemWorkspace(root, workspace)
-    const oldArchive = await readFile(`${workspace}.tar.gz`)
-    await restoreSystemWorkspace(root, workspace)
-    await writeFile(`${workspace}.tar.gz`, oldArchive)
+    await prepareRestore(root, workspace)
     await writeFile(path.join(workspace, 'result.txt'), 'newer output')
     await mkdir(`${workspace}.tar.gz.tmp`)
     await expect(archiveSystemWorkspace(root, workspace)).rejects.toThrow()

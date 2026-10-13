@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   cacheDeleteShared: vi.fn(),
   closeWarmQueries: vi.fn(),
   closeAgentSessionWarm: vi.fn(),
+  closeWarmSession: vi.fn().mockResolvedValue(undefined),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
@@ -525,7 +526,11 @@ describe('AgentSessionRuntimeService', () => {
           deleteShared: mocks.cacheDeleteShared
         }
       if (name === 'ClaudeCodeWarmQueryManager')
-        return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
+        return {
+          closeAll: mocks.closeWarmQueries,
+          closeAgentSessionWarm: mocks.closeAgentSessionWarm,
+          close: mocks.closeWarmSession
+        }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
       throw new Error(`Unexpected application.get(${name})`)
@@ -3733,6 +3738,21 @@ describe('AgentSessionRuntimeService', () => {
     onIdle.mockClear()
     service.markTurnTerminal('session-1', 'success')
     expect(onIdle).toHaveBeenCalledWith({ sessionId: 'session-1' })
+  })
+
+  it('waits for pending warm preparation even when runtime maps are empty', async () => {
+    const service = new AgentSessionRuntimeService()
+    const prepared = createDeferred<void>()
+    mocks.closeWarmSession.mockReturnValueOnce(prepared.promise)
+    let closed = false
+    const closing = service.closeSessionForArchive('session-1').then(() => {
+      closed = true
+    })
+    await vi.waitFor(() => expect(mocks.closeWarmSession).toHaveBeenCalledWith('session-1'))
+    expect(closed).toBe(false)
+    prepared.resolve()
+    await closing
+    expect(closed).toBe(true)
   })
 
   it('blocks archiving after native close failure even after the runtime entry disappears', async () => {
