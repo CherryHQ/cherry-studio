@@ -53,6 +53,51 @@ function emitVoiceEvent(event: any): void {
 }
 
 describe('VoiceService state ownership', () => {
+  it('delivers an unexecuted playback command after a newer state snapshot and deduplicates commands separately', async () => {
+    request.mockImplementation(async (route, input) => {
+      if (route === 'ai.voice.session.state') return { phase: 'idle', revision: 0 }
+      if (route === 'ai.speech.generate')
+        return {
+          sessionId: input.sessionId,
+          requestId: input.requestId,
+          output: { id: ids[2], url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+        }
+      return undefined
+    })
+    const service = createService()
+    await service.initialize()
+    const operation = service.generateSpeech({ text: 'hello', voice: 'voice' })
+    await operation.result
+    const commands: string[] = []
+    service.subscribeCommands((event) => commands.push(event.command))
+    const playback = {
+      attemptId: 1,
+      commandRevision: 2,
+      desired: 'paused',
+      observed: 'playing',
+      synthesis: 'completed',
+      pendingCommand: 'pause',
+      availableCommands: ['resume', 'stop']
+    }
+    emitVoiceEvent({
+      type: 'state',
+      revision: 20,
+      phase: 'playing',
+      source: 'playback',
+      sessionId: operation.sessionId,
+      playback
+    })
+    const command = { type: 'command', revision: 19, sessionId: operation.sessionId, command: 'pause', playback }
+    emitVoiceEvent(command)
+    emitVoiceEvent(command)
+    emitVoiceEvent({ ...command, playback: { ...playback, commandRevision: 1 } })
+    expect(commands).toEqual(['pause'])
+    expect(service.getSnapshot()).toMatchObject({ revision: 20, playback: { pendingCommand: 'pause' } })
+
+    emitVoiceEvent({ ...command, command: 'stop' })
+    expect(commands).toEqual(['pause', 'stop'])
+  })
+
   it('resolves empty speech preferences through Main without persisting a guessed voice', async () => {
     request.mockResolvedValue({
       modelId: APPLE_TTS_MODEL_ID,
@@ -788,7 +833,7 @@ describe('VoiceService route facade', () => {
           output: { id: 'output-1', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         }
       }
-      if (route === 'ai.voice.playback.update' || route === 'ai.voice.playback.control') {
+      if (route === 'ai.voice.playback.report' || route === 'ai.voice.playback.control') {
         return { revision: 7, phase: 'playing', sessionId: input.sessionId }
       }
       return undefined
@@ -806,7 +851,7 @@ describe('VoiceService route facade', () => {
     })
     await speech.result
     await service.releaseOutput({ sessionId: speech.sessionId, outputId: 'output-1' })
-    await service.updatePlayback({ sessionId: speech.sessionId, phase: 'playing' })
+    await service.reportPlayback({ sessionId: speech.sessionId, attemptId: 1, commandRevision: 0, phase: 'playing' })
     await service.controlPlayback({ sessionId: speech.sessionId, command: 'pause' })
     await service.abortSpeech(speech)
 
@@ -827,7 +872,7 @@ describe('VoiceService route facade', () => {
     ])
     expect(request.mock.calls.slice(1)).toEqual([
       ['ai.voice.output.release', { sessionId: ids[0], outputId: 'output-1' }],
-      ['ai.voice.playback.update', { sessionId: ids[0], phase: 'playing' }],
+      ['ai.voice.playback.report', { sessionId: ids[0], attemptId: 1, commandRevision: 0, phase: 'playing' }],
       ['ai.voice.playback.control', { sessionId: ids[0], command: 'pause' }],
       ['ai.speech.abort', { sessionId: ids[0], requestId: ids[1] }]
     ])

@@ -20,7 +20,7 @@ const boundary = vi.hoisted(() => ({
   speech: vi.fn(),
   startRecording: vi.fn(),
   transcribe: vi.fn(),
-  updatePlayback: vi.fn(),
+  reportPlayback: vi.fn(),
   window: vi.fn()
 }))
 vi.mock('@application', async () => {
@@ -41,7 +41,7 @@ vi.mock('@application', async () => {
         speech: boundary.speech,
         startRecording: boundary.startRecording,
         transcribe: boundary.transcribe,
-        updatePlayback: boundary.updatePlayback
+        reportPlayback: boundary.reportPlayback
       }
     throw new Error('Unexpected service')
   })
@@ -106,8 +106,8 @@ describe('Voice handlers through real IpcRouter', () => {
       { senderId: 'owner' }
     )
     await router.dispatch(
-      'ai.voice.playback.update',
-      { sessionId: input.sessionId, phase: 'playing' },
+      'ai.voice.playback.report',
+      { sessionId: input.sessionId, attemptId: 1, commandRevision: 0, phase: 'playing' },
       { senderId: 'owner' }
     )
     await router.dispatch(
@@ -122,7 +122,7 @@ describe('Voice handlers through real IpcRouter', () => {
       boundary.getState,
       boundary.startRecording,
       boundary.releaseOutput,
-      boundary.updatePlayback,
+      boundary.reportPlayback,
       boundary.controlPlayback,
       boundary.getMicrophoneStatus,
       boundary.openMicrophoneSettings

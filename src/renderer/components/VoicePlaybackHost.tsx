@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
-import { speechPlaybackService, VoiceDomainError, voiceService } from '@renderer/services/voice'
-import type { VoiceSessionPhase } from '@shared/ipc/schemas/voice'
+import { VoiceDomainError, voiceService } from '@renderer/services/voice'
+import type { VoicePlaybackControl, VoiceSessionPhase } from '@shared/ipc/schemas/voice'
 
 export interface VoicePlaybackBarProps {
   readonly phase: Exclude<VoiceSessionPhase, 'idle'>
   readonly source: 'playback'
+  readonly availableCommands: readonly VoicePlaybackControl[]
+  readonly pendingCommand: VoicePlaybackControl | null
   readonly failed: boolean
   readonly onRetry?: () => void
   readonly retrying?: boolean
@@ -31,6 +33,8 @@ interface ControlFailure extends FailureVersion {
 
 export function VoicePlaybackBar({
   phase,
+  availableCommands,
+  pendingCommand,
   failed,
   onRetry,
   retrying = false,
@@ -39,24 +43,27 @@ export function VoicePlaybackBar({
   onStop
 }: VoicePlaybackBarProps) {
   const { t } = useTranslation()
-  const canPause = phase === 'playing' || phase === 'ready'
-  const canResume = phase === 'paused'
+  const canPause = availableCommands.includes('pause')
+  const canResume = availableCommands.includes('resume')
   const playbackFailed = phase === 'failed'
 
   return (
     <div
       role="status"
+      aria-busy={pendingCommand !== null}
       aria-label={t('settings.voice.playback.title')}
       className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-border bg-popover px-3 py-2 text-popover-foreground shadow-lg">
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">{t('settings.voice.playback.source')}</div>
         <div className="truncate text-xs text-muted-foreground">
           {t(
-            playbackFailed
-              ? 'settings.voice.playback.state.failed'
-              : failed
-                ? 'settings.voice.status.operation_failed'
-                : `settings.voice.playback.state.${phase}`
+            pendingCommand
+              ? 'common.loading'
+              : playbackFailed
+                ? 'settings.voice.playback.state.failed'
+                : failed
+                  ? 'settings.voice.status.operation_failed'
+                  : `settings.voice.playback.state.${phase}`
           )}
         </div>
       </div>
@@ -109,9 +116,7 @@ export function VoicePlaybackHost(): React.ReactElement | null {
   const { t } = useTranslation()
   const state = useSyncExternalStore(voiceService.subscribe, voiceService.getSnapshot, voiceService.getSnapshot)
   const sessionId = state.phase === 'idle' || state.source !== 'playback' ? undefined : state.sessionId
-  const retryAvailable = useSyncExternalStore(speechPlaybackService.subscribe, () =>
-    Boolean(sessionId && speechPlaybackService.canRetry(sessionId))
-  )
+  const retryAvailable = state.phase !== 'idle' && Boolean(state.playback?.availableCommands.includes('retry'))
   const currentStateRef = useRef<FailureVersion>({ sessionId, revision: state.revision })
   const controlGenerationRef = useRef(0)
   const [initializationFailure, setInitializationFailure] = useState<FailureVersion>()
@@ -166,7 +171,7 @@ export function VoicePlaybackHost(): React.ReactElement | null {
   const control = (
     operationSessionId: string,
     operationRevision: number,
-    operation: () => Promise<void>,
+    operation: () => Promise<unknown>,
     notifyFailure = false
   ) => {
     const generation = ++controlGenerationRef.current
@@ -191,6 +196,8 @@ export function VoicePlaybackHost(): React.ReactElement | null {
     <VoicePlaybackBar
       phase={state.phase}
       source="playback"
+      availableCommands={state.playback?.availableCommands ?? []}
+      pendingCommand={state.playback?.pendingCommand ?? null}
       failed={initializationFailed || controlFailed || state.phase === 'failed'}
       retrying={retrying?.sessionId === sessionId}
       onRetry={
@@ -203,7 +210,7 @@ export function VoicePlaybackHost(): React.ReactElement | null {
                 state.revision,
                 async () => {
                   try {
-                    await speechPlaybackService.retry(sessionId)
+                    await voiceService.controlPlayback({ sessionId, command: 'retry' })
                   } finally {
                     setRetrying((current) => (current === attempt ? undefined : current))
                   }
@@ -213,15 +220,19 @@ export function VoicePlaybackHost(): React.ReactElement | null {
             }
           : undefined
       }
-      onPause={() => control(sessionId, state.revision, () => speechPlaybackService.pause(sessionId))}
-      onResume={() => control(sessionId, state.revision, () => speechPlaybackService.resume(sessionId))}
+      onPause={() =>
+        control(sessionId, state.revision, () => voiceService.controlPlayback({ sessionId, command: 'pause' }))
+      }
+      onResume={() =>
+        control(sessionId, state.revision, () => voiceService.controlPlayback({ sessionId, command: 'resume' }))
+      }
       onStop={() =>
         control(
           sessionId,
           state.revision,
           async () => {
             try {
-              await speechPlaybackService.stop(sessionId)
+              await voiceService.controlPlayback({ sessionId, command: 'stop' })
             } catch (error) {
               if (
                 state.phase !== 'failed' ||
@@ -229,8 +240,8 @@ export function VoicePlaybackHost(): React.ReactElement | null {
                 error.reason !== 'invalid_request'
               )
                 throw error
+              setDismissedFailure({ sessionId, revision: state.revision })
             }
-            if (state.phase === 'failed') setDismissedFailure({ sessionId, revision: state.revision })
           },
           state.phase === 'failed'
         )
