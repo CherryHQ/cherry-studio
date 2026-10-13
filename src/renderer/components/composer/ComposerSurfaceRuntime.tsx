@@ -44,21 +44,17 @@ import {
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
 import {
-  createComposerPathReferenceText,
   getComposerClipboardPasteOverride,
   getComposerInputTextWithinLimit,
-  getComposerPathReferenceInsertion,
   getComposerPlainTextPasteOverride,
-  hasSupportedClipboardImage,
   PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
-import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
-import pasteHandling, { hasWildcardPathReferenceFile } from './paste/pasteHandling'
+import pasteHandling, { shouldHandleClipboardFiles } from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
 import {
@@ -694,39 +690,6 @@ export default function ComposerSurfaceRuntime({
     [onTextChange]
   )
 
-  const insertPastedPaths = useCallback((paths: string[]) => {
-    const editor = editorRef.current
-    if (!editor || editor.isDestroyed) return
-    // Both branches keep the rich tokens intact.
-    if (editor.isFocused) {
-      // At the caret the path is the user's own text and takes no break; `insertContent` replaces
-      // the selection, so the budget has to allow for the text it removes.
-      const replaced = getComposerReplacementText(editor.view, editor.state.selection.from, editor.state.selection.to)
-      const addition = getComposerPathReferenceInsertion(textRef.current, paths.join('\n'), replaced)
-      if (!addition) return
-      editor
-        .chain()
-        .setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true)
-        .insertContent(createComposerPlainTextContent(addition))
-        .run()
-      return
-    }
-    // A global-handler paste lands at the end of the draft rather than at the possibly stale stored
-    // selection, so it needs a break of its own or the path runs on after the last word. Emptiness is
-    // measured on the serialized draft, not on `doc.textContent`: a draft token is an atom whose text
-    // lives in attributes. A token that carries no prompt text at all — a file chip, whose path the
-    // agent reads itself — serializes to '' while still being content, so the token count decides it.
-    const draft = serializeComposerDocument(editor)
-    const body = createComposerPathReferenceText(paths.join('\n'), !draft.text && draft.tokens.length === 0)
-    const addition = getComposerPathReferenceInsertion(textRef.current, body)
-    if (!addition) return
-    editor
-      .chain()
-      .setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true)
-      .insertContentAt(editor.state.doc.content.size, createComposerPlainTextContent(addition))
-      .run()
-  }, [])
-
   const pasteHandlerOptions = useMemo(
     () => ({
       supportedExts,
@@ -734,10 +697,9 @@ export default function ComposerSurfaceRuntime({
       onResize: undefined,
       pasteLongTextAsFile,
       pasteLongTextThreshold,
-      t,
-      onInsertPaths: insertPastedPaths
+      t
     }),
-    [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t, insertPastedPaths]
+    [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
   const { handlePaste } = usePasteHandler(pasteHandlerOptions)
@@ -1735,15 +1697,7 @@ export default function ComposerSurfaceRuntime({
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
       const editor = (view.dom as TiptapEditorHTMLElement).editor
-      const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
-      const hasTextualClipboardRepresentation = Boolean(pastedText && pastedHtml)
-      // A wildcard catalog must still see an unlisted path-backed file: its text flavour is only
-      // the file's name, so claiming the paste here would drop a name the agent cannot open. Every
-      // route that claims a paste on the strength of that text flavour — a selected token below
-      // included — has to yield to this one, so it is decided before any of them.
-      const shouldDelegateToFileHandler =
-        (!hasTextualClipboardRepresentation && hasSupportedClipboardImage(clipboardFiles, supportedExts)) ||
-        hasWildcardPathReferenceFile(clipboardFiles, supportedExts)
+      const shouldDelegateToFileHandler = shouldHandleClipboardFiles(event.clipboardData, supportedExts)
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
       if (editor && selectedPromptVariable && pastedText && !shouldDelegateToFileHandler) {
         event.preventDefault()

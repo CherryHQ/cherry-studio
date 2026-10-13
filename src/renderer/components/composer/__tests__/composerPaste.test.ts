@@ -8,7 +8,6 @@ import {
 import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
 import {
   createComposerMarkedTextPasteContent,
-  createComposerPathReferenceText,
   createComposerPlainTextPasteContent,
   getComposerClipboardPasteOverride,
   getComposerInputTextWithinLimit,
@@ -50,19 +49,6 @@ describe('composer paste handling', () => {
       { type: 'text', text: 'b' },
       { type: 'hardBreak' },
       { type: 'text', text: 'c' }
-    ])
-  })
-
-  it('breaks before a path appended to an existing draft so it does not join the last word', () => {
-    expect(createComposerPlainTextPasteContent(createComposerPathReferenceText('/w/model.onnx', false))).toEqual([
-      { type: 'hardBreak' },
-      { type: 'text', text: '/w/model.onnx' }
-    ])
-  })
-
-  it('adds no leading break to a path pasted into an empty draft', () => {
-    expect(createComposerPlainTextPasteContent(createComposerPathReferenceText('/w/model.onnx', true))).toEqual([
-      { type: 'text', text: '/w/model.onnx' }
     ])
   })
 

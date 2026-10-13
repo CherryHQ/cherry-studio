@@ -6,13 +6,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { GB, KB, MB } from '@shared/utils/constants'
 import { audioExts, createFilePathHandle, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
-/**
- * Wildcard entry for an extension allowlist: a list containing it accepts every file,
- * whatever its extension. Only the composer's capability lists carry it, and only on the
- * agent surface — there the attachment is forwarded to the agent as a path and never read
- * by Cherry, so no catalog of presentable formats describes what is attachable. Same token
- * the file dialogs already use for their "all files" filter.
- */
+/** Wildcard entry accepting every extension, matching the file dialog's all-files filter. */
 export const anyFileExt = '*'
 
 /**

@@ -12,8 +12,6 @@ export interface UsePasteHandlerOptions {
   pasteLongTextAsFile?: boolean
   pasteLongTextThreshold?: number
   t: TFunction
-  /** Wildcard surfaces turn an unlisted path-backed paste into its absolute path. */
-  onInsertPaths?: (paths: string[]) => void
 }
 
 /**
@@ -46,8 +44,7 @@ export function usePasteHandler(options: UsePasteHandlerOptions) {
         options.pasteLongTextAsFile,
         options.pasteLongTextThreshold,
         options.onResize ?? (() => {}),
-        options.t,
-        options.onInsertPaths
+        options.t
       )
     },
     [options]

@@ -8,7 +8,8 @@ import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
   createComposerClipboardFragment,
@@ -20,7 +21,7 @@ import { ComposerContextProvider, ComposerLayerActiveProvider } from '../Compose
 import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
 import type * as ComposerPreset from '../composerPreset'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
-import { createComposerPlainTextContent } from '../composerTokenMarkers'
+import type * as PasteHandling from '../paste/pasteHandling'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
@@ -543,8 +544,6 @@ describe('ComposerSurface', () => {
         fs: {
           readText: mocks.fsReadText
         },
-        // The paste gate resolves each pasted file's absolute path; an empty one means no wildcard
-        // path-reference candidate, which is what every non-wildcard paste here wants.
         file: {
           getPathForFile: vi.fn().mockReturnValue('')
         }
@@ -596,158 +595,6 @@ describe('ComposerSurface', () => {
     document.removeEventListener('paste', onDocument)
     viewDom.remove()
     vi.unstubAllGlobals()
-  })
-
-  describe('wildcard path references', () => {
-    const PATH = '/Users/me/models/model.onnx'
-
-    // Whether the draft already holds something is read from the serialized document, and a token
-    // contributes to that while contributing nothing to `doc.textContent`.
-    const draftOf = (text: string) => ({
-      type: 'doc',
-      content: [{ type: 'paragraph', content: text ? [{ type: 'text', text }] : [] }]
-    })
-
-    it('inserts a focused paste at the caret with no break of its own', () => {
-      // The user is typing mid-draft, so a leading hard break would split their own sentence.
-      mocks.editorIsFocused = true
-      mocks.docTextContent = 'look at this'
-      mocks.getJSON.mockReturnValue(draftOf('look at this'))
-      render(<ComposerSurface {...baseProps} text="look at this" />)
-
-      mocks.pasteHandlerOptions.onInsertPaths([PATH])
-
-      expect(mocks.insertContent).toHaveBeenCalledWith(createComposerPlainTextContent(PATH))
-    })
-
-    it('breaks before a path appended to a draft that no editor holds focus on', () => {
-      // The global-handler route lands at the end, so the path would run on after the last word.
-      mocks.editorIsFocused = false
-      mocks.docTextContent = 'look at this'
-      mocks.getJSON.mockReturnValue(draftOf('look at this'))
-      render(<ComposerSurface {...baseProps} text="look at this" />)
-
-      mocks.pasteHandlerOptions.onInsertPaths([PATH])
-
-      expect(mocks.insertContentAt).toHaveBeenCalledWith(
-        mocks.docContentSize,
-        createComposerPlainTextContent(`\n${PATH}`)
-      )
-    })
-
-    it('inserts an append into an empty draft with no leading break', () => {
-      mocks.editorIsFocused = false
-      mocks.docTextContent = ''
-      mocks.getJSON.mockReturnValue(draftOf(''))
-      render(<ComposerSurface {...baseProps} text="" />)
-
-      mocks.pasteHandlerOptions.onInsertPaths([PATH])
-
-      expect(mocks.insertContentAt).toHaveBeenCalledWith(mocks.docContentSize, createComposerPlainTextContent(PATH))
-    })
-
-    it('breaks before a path appended to a draft that holds only a token', () => {
-      // A token is an atom node, so the document's text content is empty even though the draft is
-      // not: appending without a break would splice the path onto the token's own prompt text.
-      mocks.editorIsFocused = false
-      mocks.docTextContent = ''
-      mocks.getJSON.mockReturnValue({
-        type: 'doc',
-        content: [
-          {
-            type: 'paragraph',
-            content: [
-              {
-                type: 'composerToken',
-                attrs: { id: 'knowledge:kb-1', kind: 'knowledge', label: 'KB One', promptText: 'kb sentence' }
-              }
-            ]
-          }
-        ]
-      })
-      render(<ComposerSurface {...baseProps} text="kb sentence" />)
-
-      mocks.pasteHandlerOptions.onInsertPaths([PATH])
-
-      expect(mocks.insertContentAt).toHaveBeenCalledWith(
-        mocks.docContentSize,
-        createComposerPlainTextContent(`\n${PATH}`)
-      )
-    })
-
-    it('breaks before a path appended to a draft that holds only a file chip', () => {
-      // A file chip carries no prompt text — the agent reads the path itself — so it contributes
-      // nothing to the draft's text while still being content the path must not be glued onto.
-      mocks.editorIsFocused = false
-      mocks.docTextContent = ''
-      mocks.getJSON.mockReturnValue({
-        type: 'doc',
-        content: [
-          {
-            type: 'paragraph',
-            content: [{ type: 'composerToken', attrs: { id: 'file:f-1', kind: 'file', label: 'model.onnx' } }]
-          }
-        ]
-      })
-      render(<ComposerSurface {...baseProps} text="" />)
-
-      mocks.pasteHandlerOptions.onInsertPaths([PATH])
-
-      expect(mocks.insertContentAt).toHaveBeenCalledWith(
-        mocks.docContentSize,
-        createComposerPlainTextContent(`\n${PATH}`)
-      )
-    })
-
-    it('drops a path that only partly fits instead of truncating it to a real-looking prefix', () => {
-      // `/Users/me` names a directory, not the pasted file, so a near-limit draft takes nothing.
-      const draft = 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - PATH.length + 1)
-      mocks.editorIsFocused = false
-      mocks.docTextContent = draft
-      mocks.getJSON.mockReturnValue(draftOf(draft))
-      render(<ComposerSurface {...baseProps} text={draft} />)
-
-      mocks.pasteHandlerOptions.onInsertPaths([PATH])
-
-      expect(mocks.insertContentAt).not.toHaveBeenCalled()
-      expect(mocks.insertContent).not.toHaveBeenCalled()
-    })
-
-    it('drops a path whose only remaining room is the break it needs', () => {
-      // One character short: inserting the bare separator would blank a line and lose the file.
-      const draft = 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - 1)
-      mocks.editorIsFocused = false
-      mocks.docTextContent = draft
-      mocks.getJSON.mockReturnValue(draftOf(draft))
-      render(<ComposerSurface {...baseProps} text={draft} />)
-
-      mocks.pasteHandlerOptions.onInsertPaths([PATH])
-
-      expect(mocks.insertContentAt).not.toHaveBeenCalled()
-      expect(mocks.insertContent).not.toHaveBeenCalled()
-    })
-
-    it('replaces a selected token with the path once its serialized text is credited', () => {
-      // 38,600 ordinary chars plus a 1,400-char prompt variable is exactly full, so the pasted
-      // path fits only when the selection is measured by the token's serialized prompt text:
-      // the plain leaf callback counts the atom as empty and silently drops the paste.
-      const ordinary = 'x'.repeat(38600)
-      const promptText = 'v'.repeat(1400)
-      const tokenNode = {
-        type: { name: 'composerToken' },
-        attrs: { id: 'prompt-variable:1', kind: 'promptVariable', label: 'Var', promptText }
-      }
-      mocks.editorIsFocused = true
-      mocks.selection = { from: 2, to: 3 }
-      mocks.docTextBetween.mockImplementation(
-        (_from: number, _to: number, _separator: string, leaf: (node: unknown) => string) => leaf(tokenNode)
-      )
-      render(<ComposerSurface {...baseProps} text={ordinary + promptText} />)
-
-      mocks.pasteHandlerOptions.onInsertPaths(['/tmp/model.onnx'])
-
-      expect(mocks.insertContent).toHaveBeenCalledWith(createComposerPlainTextContent('/tmp/model.onnx'))
-    })
   })
 
   it('restores the caret the fallback left behind instead of collapsing to the end', () => {
@@ -4453,62 +4300,60 @@ describe('ComposerSurface', () => {
     }
   })
 
-  it('delegates an unlisted path-backed file that carries a filename text flavor', async () => {
-    // The OS hands a copied file both its name (text/plain) and an html flavour, so the runtime's
-    // own text check would claim the paste and drop the filename into the draft — leaving the agent
-    // with a name it cannot open. The wildcard surface must still reach the file handler, which is
-    // the only route that can hand over the absolute path.
-    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/Users/me/models/${file.name}`)
-    render(<ComposerSurface {...baseProps} supportedExts={['*']} />)
-    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
-
-    const event = {
-      preventDefault: vi.fn(),
-      clipboardData: {
-        getData: (type: string) =>
-          type === 'text/plain' ? 'model.onnx' : type === 'text/html' ? '<b>model.onnx</b>' : '',
-        files: [new File(['onnx'], 'model.onnx', { type: '' })]
+  it.each([false, true])(
+    'attaches a copied file without replacing draft text (selected token: %s)',
+    async (selected) => {
+      const file: FileMetadata = {
+        id: 'model-file',
+        name: 'model.onnx',
+        origin_name: 'model.onnx',
+        path: '/tmp/model.onnx',
+        ext: '.onnx',
+        type: FILE_TYPE.OTHER,
+        size: 4,
+        created_at: '2026-10-12T00:00:00.000Z',
+        count: 1
       }
-    }
-
-    mocks.editorOptions.handlePaste(mocks.currentView, event)
-
-    expect(mocks.pasteHandler).toHaveBeenCalled()
-    expect(mocks.insertContent).not.toHaveBeenCalled()
-  })
-
-  it('delegates an unlisted path-backed file even when a prompt variable token is selected', async () => {
-    // A selected token makes the runtime claim any paste carrying text, and the copied file's
-    // text flavour is its name — so the token swallows the name and the agent never learns the
-    // path. The file handler is the only route that can hand the absolute path over.
-    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/Users/me/models/${file.name}`)
-    mocks.selection = {
-      empty: false,
-      from: 1,
-      to: 2,
-      node: {
-        type: { name: 'composerToken' },
-        attrs: { id: 'prompt-variable:0:city', kind: 'promptVariable', label: '${city}', promptText: '${city}' }
-      },
-      $from: { nodeBefore: null }
-    }
-    render(<ComposerSurface {...baseProps} supportedExts={['*']} />)
-    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
-
-    const event = {
-      preventDefault: vi.fn(),
-      clipboardData: {
-        getData: (type: string) =>
-          type === 'text/plain' ? 'model.onnx' : type === 'text/html' ? '<b>model.onnx</b>' : '',
-        files: [new File(['onnx'], 'model.onnx', { type: '' })]
+      vi.mocked(window.api.file.getPathForFile).mockReturnValue(file.path)
+      window.api.file.get = vi.fn().mockResolvedValue(file)
+      if (selected) {
+        mocks.selection = {
+          empty: false,
+          from: 1,
+          to: 2,
+          node: {
+            type: { name: 'composerToken' },
+            attrs: { id: 'prompt-variable:0:city', kind: 'promptVariable', label: '${city}', promptText: '${city}' }
+          },
+          $from: { nodeBefore: null }
+        }
       }
+      let files: ComposerAttachment[] = []
+      const { handlePaste } = await vi.importActual<typeof PasteHandling>('../paste/pasteHandling')
+      mocks.pasteHandler.mockImplementation((event) =>
+        handlePaste(event, ['*'], (updater) => {
+          files = updater(files)
+        })
+      )
+      render(<ComposerSurface {...baseProps} supportedExts={['*']} text="Existing draft" />)
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: {
+          getData: (type: string) =>
+            type === 'text/plain' ? file.name : type === 'text/html' ? `<b>${file.name}</b>` : '',
+          files: [new File(['onnx'], file.name)]
+        }
+      }
+      mocks.editorOptions.handlePaste(mocks.currentView, event)
+
+      await waitFor(() => expect(files).toHaveLength(1))
+      expect(files[0]).toMatchObject({ path: file.path, origin_name: file.name })
+      expect(mocks.insertContent).not.toHaveBeenCalled()
+      expect(mocks.dispatch).not.toHaveBeenCalled()
     }
-
-    mocks.editorOptions.handlePaste(mocks.currentView, event)
-
-    expect(mocks.pasteHandler).toHaveBeenCalled()
-    expect(mocks.dispatch).not.toHaveBeenCalled()
-  })
+  )
 
   it('suppresses composer suggestions when pasting scoped shell command text', async () => {
     const pastedText = "-lc 'exec npx -y @agentclientprotocol/claude-agent-acp'"
