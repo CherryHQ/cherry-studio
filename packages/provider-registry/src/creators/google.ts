@@ -20,13 +20,15 @@ export default defineCreator({
     // before, so it had been silently taking the Gemini 3 level wire.
     { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },
     { pattern: '^gemini-(?:3|flash-latest|pro-latest|flash-lite-latest)', wireDialect: 'effort', template: true },
+    { pattern: '^(?:gemini-nano-banana|nano-banana-pro)', wireDialect: 'effort', template: true },
 
     { pattern: '^gemma-?4', toggle: true },
+    { pattern: '^gemini-nano-banana', effort: ['minimal', 'medium', 'high'] },
     {
       pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
       effort: ['minimal', 'low', 'medium', 'high']
     },
-    { pattern: '^gemini-3-pro', effort: ['low', 'high'] },
+    { pattern: '^(?:gemini-3-pro|nano-banana-pro)', effort: ['low', 'high'] },
     { pattern: '^gemini-3\\.\\d+-pro|^gemini-pro-latest', effort: ['low', 'medium', 'high'] },
     // Robotics ER (vision-language-action) exposes a thinking on/off toggle; not a flash/pro budget SKU.
     { pattern: '^gemini-robotics', toggle: true },
@@ -100,6 +102,111 @@ export default defineCreator({
         maxTokens: true,
         stopSequences: true,
         systemMessage: true
+      }
+    },
+    {
+      id: 'gemini-omni-1-1-flash',
+      name: 'Gemini Omni 1.1 Flash',
+      family: 'gemini',
+      capabilities: ['image-recognition', 'video-recognition', 'video-generation', 'file-input'],
+      contextWindow: 1048576,
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['video']
+    },
+    {
+      id: 'gemini-embedding-2-preview',
+      name: 'Gemini Embedding 2 Preview',
+      family: 'gemini',
+      capabilities: ['embedding', 'image-recognition', 'audio-recognition', 'video-recognition', 'file-input'],
+      contextWindow: 8192,
+      inputModalities: ['text', 'image', 'audio', 'video'],
+      outputModalities: ['vector']
+    },
+    {
+      id: 'gemini-nano-banana-2-1',
+      name: 'Nano Banana 2.1',
+      family: 'gemini-flash',
+      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'video-recognition', 'file-input'],
+      contextWindow: 131072,
+      maxOutputTokens: 32768,
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text', 'image'],
+      reasoning: { controls: [{ kind: 'effort', values: ['minimal', 'medium', 'high'] }] },
+      imageGeneration: {
+        modes: {
+          generate: {
+            supports: {
+              aspectRatio: {
+                default: 'ASPECT_1_1',
+                options: [
+                  'ASPECT_1_1',
+                  'ASPECT_1_4',
+                  'ASPECT_1_8',
+                  'ASPECT_2_3',
+                  'ASPECT_3_2',
+                  'ASPECT_3_4',
+                  'ASPECT_4_1',
+                  'ASPECT_4_3',
+                  'ASPECT_4_5',
+                  'ASPECT_5_4',
+                  'ASPECT_8_1',
+                  'ASPECT_9_16',
+                  'ASPECT_16_9',
+                  'ASPECT_21_9'
+                ],
+                render: 'chips',
+                type: 'enum'
+              },
+              imageResolution: {
+                default: '1K',
+                options: ['1K', '2K', '4K'],
+                render: 'chips',
+                type: 'enum'
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      id: 'nano-banana-pro-preview',
+      name: 'Nano Banana Pro',
+      family: 'gemini-pro',
+      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
+      contextWindow: 131072,
+      maxOutputTokens: 32768,
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text', 'image'],
+      imageGeneration: {
+        modes: {
+          generate: {
+            supports: {
+              aspectRatio: {
+                default: 'ASPECT_1_1',
+                options: [
+                  'ASPECT_1_1',
+                  'ASPECT_2_3',
+                  'ASPECT_3_2',
+                  'ASPECT_3_4',
+                  'ASPECT_4_3',
+                  'ASPECT_4_5',
+                  'ASPECT_5_4',
+                  'ASPECT_9_16',
+                  'ASPECT_16_9',
+                  'ASPECT_21_9'
+                ],
+                render: 'chips',
+                type: 'enum'
+              },
+              imageResolution: {
+                default: '1K',
+                options: ['1K', '2K', '4K'],
+                render: 'chips',
+                type: 'enum'
+              }
+            }
+          }
+        }
       }
     },
     {

@@ -25,7 +25,7 @@ index bc47fc6b0d..d1c6424599 100644
  };
  function isGeminiModel(modelId) {
 -  return modelId.startsWith("gemini-");
-+  return modelId.replace(/^(google\/|models\/)/i, "").startsWith("gemini-");
++  return /^(?:google\/|models\/)?(?:gemini-|nano-banana-)/i.test(modelId);
  }
  var googleImageResponseSchema = (0, import_provider_utils16.lazySchema)(
    () => (0, import_provider_utils16.zodSchema)(
@@ -56,7 +56,7 @@ index a63765d629..0b55cf9b21 100644
  };
  function isGeminiModel(modelId) {
 -  return modelId.startsWith("gemini-");
-+  return modelId.replace(/^(google\/|models\/)/i, "").startsWith("gemini-");
++  return /^(?:google\/|models\/)?(?:gemini-|nano-banana-)/i.test(modelId);
  }
  var googleImageResponseSchema = lazySchema11(
    () => zodSchema11(

@@ -167,12 +167,14 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
   { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },
   { pattern: '^gemini-(?:3|flash-latest|pro-latest|flash-lite-latest)', wireDialect: 'effort', template: true },
+  { pattern: '^(?:gemini-nano-banana|nano-banana-pro)', wireDialect: 'effort', template: true },
   { pattern: '^gemma-?4', toggle: true },
+  { pattern: '^gemini-nano-banana', effort: ['minimal', 'medium', 'high'] },
   {
     pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
     effort: ['minimal', 'low', 'medium', 'high']
   },
-  { pattern: '^gemini-3-pro', effort: ['low', 'high'] },
+  { pattern: '^(?:gemini-3-pro|nano-banana-pro)', effort: ['low', 'high'] },
   { pattern: '^gemini-3\\.\\d+-pro|^gemini-pro-latest', effort: ['low', 'medium', 'high'] },
   { pattern: '^gemini-robotics', toggle: true },
   { pattern: '^gemini-[\\d.]+.*flash', toggle: true, template: true },
