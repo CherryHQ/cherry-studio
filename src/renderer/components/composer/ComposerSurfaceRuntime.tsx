@@ -1367,21 +1367,14 @@ export default function ComposerSurfaceRuntime({
             return
           }
 
-          let refreshGeneration = 0
           const refresh = async () => {
-            const requestGeneration = ++refreshGeneration
             const generation = quickPanel.getPanelGeneration()
             quickPanel.updateList([])
             try {
-              const items = await source.items({ editor: options.editor, query: options.query })
+              const refreshed = await options.refreshItems?.()
               const current = suggestionPanelStateRef.current.quickPanel
-              if (
-                !current.isVisible ||
-                current.getPanelGeneration() !== generation ||
-                requestGeneration !== refreshGeneration
-              )
-                return
-              current.updateList(items.map((item) => createComposerSuggestionQuickPanelItem(item, options)))
+              if (!refreshed || !current.isVisible || current.getPanelGeneration() !== generation) return
+              current.updateList(refreshed.items.map((item) => createComposerSuggestionQuickPanelItem(item, refreshed)))
             } catch (error) {
               logger.error('Failed to refresh composer suggestions', error as Error)
             }
