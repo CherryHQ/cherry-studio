@@ -204,6 +204,7 @@ describe('MainNetworkDevtoolsService helpers', () => {
   })
 
   it('captures and redacts common request body shapes', () => {
+    expect(getEffectiveFetchRequestContentType(undefined, 'plain message')).toBe('text/plain;charset=UTF-8')
     expect(getEffectiveFetchRequestContentType({}, 'plain message')).toBe('text/plain;charset=UTF-8')
     expect(getEffectiveFetchRequestContentType({ 'Content-Type': 'application/json' }, 'plain message')).toBe(
       'application/json'

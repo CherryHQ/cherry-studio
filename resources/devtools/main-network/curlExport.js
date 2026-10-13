@@ -21,7 +21,7 @@ function getHeaderValue(headers, name) {
 }
 
 function hasReplayableCurlBody(body) {
-  return Boolean(body?.text && body.replayable !== false && !body.truncated)
+  return body?.text !== undefined && body.replayable !== false && !body.truncated
 }
 
 function buildCurlCommand(event) {

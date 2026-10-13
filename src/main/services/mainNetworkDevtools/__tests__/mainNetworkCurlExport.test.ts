@@ -96,6 +96,22 @@ describe('main network cURL export', () => {
     expect(curl).toContain('--data-raw')
   })
 
+  it('exports an empty POST body with inferred Content-Type', () => {
+    const curl = buildCurlCommand({
+      method: 'POST',
+      url: 'https://api.example/v1',
+      requestBody: {
+        text: '',
+        contentType: 'text/plain;charset=UTF-8',
+        replayable: true
+      }
+    })
+
+    expect(curl).toContain('--data-raw')
+    expect(curl).toMatch(/\n\s+''$/)
+    expect(curl).toContain('text/plain;charset=UTF-8')
+  })
+
   it('does not send FormData display summaries as --data-raw', () => {
     const curl = buildCurlCommand({
       method: 'POST',
