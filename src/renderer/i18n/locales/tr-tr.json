@@ -134,7 +134,7 @@
   "agent.delete.title": "Ajanı Sil",
   "agent.edit.title": "Ajanı Düzenle",
   "agent.edit_resend.error.attachment_unavailable": "Bir ek okunamıyor. Kaldırın veya yeniden ekleyin.",
-  "agent.edit_resend.error.busy": "Önce görevleri durdurun ve bekleyen iletileri işleyin.",
+  "agent.edit_resend.error.busy": "Oturum hâlâ meşgul. Mevcut işlemin tamamlanmasını bekleyip tekrar deneyin.",
   "agent.edit_resend.error.checkpoint_unsupported": "Bu kontrol noktası eski bir sürümde oluşturulduğu veya mevcut sürüm tarafından geri yüklenemediği için buradan düzenleyip yeniden gönderme desteklenmiyor. Görüşmenin kendisi etkilenmez ve devam edebilir.",
   "agent.edit_resend.error.close_failed": "Önceki çalışma ortamı güvenli biçimde kapanmadı. Asıl görüşme korundu.",
   "agent.edit_resend.error.history_changed": "Görüşme değişti. Düzenlemeyi iptal edip düzenleyiciyi yeniden açın.",

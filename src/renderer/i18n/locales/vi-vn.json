@@ -134,7 +134,7 @@
   "agent.delete.title": "Xóa Agent",
   "agent.edit.title": "Chỉnh sửa Agent",
   "agent.edit_resend.error.attachment_unavailable": "Không đọc được tệp đính kèm. Hãy xóa hoặc đính kèm lại.",
-  "agent.edit_resend.error.busy": "Hãy dừng tác vụ và xử lý tin nhắn đang chờ trước.",
+  "agent.edit_resend.error.busy": "Phiên vẫn đang bận. Hãy đợi công việc hiện tại hoàn tất rồi thử lại.",
   "agent.edit_resend.error.checkpoint_unsupported": "Điểm kiểm tra này được tạo bằng phiên bản cũ hoặc không thể khôi phục bằng phiên bản hiện tại, nên không hỗ trợ sửa và gửi lại từ vị trí này. Cuộc trò chuyện không bị ảnh hưởng và có thể tiếp tục.",
   "agent.edit_resend.error.close_failed": "Môi trường chạy cũ chưa thoát an toàn. Cuộc trò chuyện gốc được giữ lại.",
   "agent.edit_resend.error.history_changed": "Cuộc trò chuyện đã thay đổi. Hủy chỉnh sửa rồi mở lại trình soạn thảo.",

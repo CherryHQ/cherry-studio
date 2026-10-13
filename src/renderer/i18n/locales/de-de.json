@@ -134,7 +134,7 @@
   "agent.delete.title": "Agent löschen",
   "agent.edit.title": "Agent bearbeiten",
   "agent.edit_resend.error.attachment_unavailable": "Ein Anhang ist nicht lesbar. Entfernen oder erneut anhängen.",
-  "agent.edit_resend.error.busy": "Zuerst Aufgaben stoppen und ausstehende Nachrichten bearbeiten.",
+  "agent.edit_resend.error.busy": "Die Sitzung ist noch beschäftigt. Warten Sie, bis die aktuelle Arbeit abgeschlossen ist, und versuchen Sie es dann erneut.",
   "agent.edit_resend.error.checkpoint_unsupported": "Dieser Prüfpunkt wurde mit einer älteren Version erstellt oder kann von der aktuellen Version nicht wiederhergestellt werden. Daher wird das Bearbeiten und erneute Senden ab dieser Stelle nicht unterstützt. Die Unterhaltung bleibt unberührt und kann fortgesetzt werden.",
   "agent.edit_resend.error.close_failed": "Die alte Laufzeit wurde nicht sicher beendet. Die ursprüngliche Unterhaltung bleibt erhalten.",
   "agent.edit_resend.error.history_changed": "Die Unterhaltung hat sich geändert. Bearbeitung abbrechen und erneut öffnen.",

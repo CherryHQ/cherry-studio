@@ -134,7 +134,7 @@
   "agent.delete.title": "删除智能体",
   "agent.edit.title": "编辑智能体",
   "agent.edit_resend.error.attachment_unavailable": "附件无法读取，请移除或重新添加。",
-  "agent.edit_resend.error.busy": "请先停止任务并处理待发送消息。",
+  "agent.edit_resend.error.busy": "会话仍在忙碌中，请等待当前工作结束后再试。",
   "agent.edit_resend.error.checkpoint_unsupported": "该检查点由旧版本创建，或当前版本无法恢复，因此暂不支持在此处编辑重发。会话本身不受影响，可正常继续对话。",
   "agent.edit_resend.error.close_failed": "旧运行时尚未安全退出，原对话已保留。",
   "agent.edit_resend.error.history_changed": "对话已变化，请取消编辑后重新打开。",

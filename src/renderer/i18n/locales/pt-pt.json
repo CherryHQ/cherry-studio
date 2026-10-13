@@ -134,7 +134,7 @@
   "agent.delete.title": "Eliminar Agente",
   "agent.edit.title": "Editor de agentes",
   "agent.edit_resend.error.attachment_unavailable": "Não é possível ler um anexo. Remova-o ou anexe-o novamente.",
-  "agent.edit_resend.error.busy": "Pare as tarefas e trate as mensagens pendentes primeiro.",
+  "agent.edit_resend.error.busy": "A sessão ainda está ocupada. Aguarde até que o trabalho atual termine e tente novamente.",
   "agent.edit_resend.error.checkpoint_unsupported": "Este ponto de verificação foi criado numa versão anterior ou não pode ser restaurado pela versão atual, pelo que não é possível editar e reenviar a partir daqui. A conversa não é afetada e pode continuar.",
   "agent.edit_resend.error.close_failed": "O ambiente anterior não terminou em segurança. A conversa original foi mantida.",
   "agent.edit_resend.error.history_changed": "A conversa mudou. Cancele a edição e volte a abrir o editor.",

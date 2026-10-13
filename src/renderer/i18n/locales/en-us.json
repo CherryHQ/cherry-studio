@@ -134,7 +134,7 @@
   "agent.delete.title": "Delete Agent",
   "agent.edit.title": "Edit Agent",
   "agent.edit_resend.error.attachment_unavailable": "An attachment cannot be read. Remove it or attach it again.",
-  "agent.edit_resend.error.busy": "Stop tasks and clear pending messages first.",
+  "agent.edit_resend.error.busy": "The session is still busy. Wait for the current work to finish, then try again.",
   "agent.edit_resend.error.checkpoint_unsupported": "This checkpoint was created by an older version or cannot be restored by the current one, so editing and resending from this point is not supported. The conversation itself is unaffected and can continue.",
   "agent.edit_resend.error.close_failed": "The old runtime has not exited safely. The original conversation was kept.",
   "agent.edit_resend.error.history_changed": "The conversation changed. Cancel editing and open the editor again.",

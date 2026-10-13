@@ -134,7 +134,7 @@
   "agent.delete.title": "Supprimer l'Agent",
   "agent.edit.title": "Éditer Agent",
   "agent.edit_resend.error.attachment_unavailable": "Une pièce jointe est illisible. Supprimez-la ou joignez-la à nouveau.",
-  "agent.edit_resend.error.busy": "Arrêtez les tâches et traitez les messages en attente.",
+  "agent.edit_resend.error.busy": "La session est encore occupée. Attendez la fin du travail en cours, puis réessayez.",
   "agent.edit_resend.error.checkpoint_unsupported": "Ce point de contrôle a été créé avec une ancienne version ou ne peut pas être restauré par la version actuelle. La modification et le renvoi à partir de ce point ne sont donc pas pris en charge. La conversation reste intacte et peut continuer.",
   "agent.edit_resend.error.close_failed": "L’ancien environnement ne s’est pas arrêté correctement. La conversation originale a été conservée.",
   "agent.edit_resend.error.history_changed": "La conversation a changé. Annulez la modification et rouvrez l’éditeur.",

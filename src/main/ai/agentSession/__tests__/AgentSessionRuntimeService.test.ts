@@ -3902,8 +3902,31 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toBeUndefined()
 
     firstConnectionClose.resolve()
+    await firstClose
+    expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.closing.session-1', false)
+    expect(() => service.assertSessionEditable('session-1')).toThrow('busy')
     secondConnectionClose.resolve()
-    await expect(Promise.all([firstClose, secondClose])).resolves.toBeDefined()
+    await secondClose
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.closing.session-1', false)
+    expect(() => service.assertSessionEditable('session-1')).not.toThrow()
+  })
+
+  it('publishes the closing session to the edit gate until the teardown settles', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const closed = createDeferred<void>()
+    getEntry(service).connection = { close: vi.fn(() => closed.promise), send: vi.fn(), events: [] }
+
+    const closing = service.closeSession('session-1')
+
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.closing.session-1', true)
+    expect(() => service.assertSessionEditable('session-1')).toThrow('busy')
+
+    closed.resolve()
+    await closing
+
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.closing.session-1', false)
+    expect(() => service.assertSessionEditable('session-1')).not.toThrow()
   })
 
   it('does not throw and logs a warning when the connection close rejects on closeSession (REGRESSION agent-session-5)', async () => {
@@ -4563,9 +4586,10 @@ describe('AgentSessionRuntimeService', () => {
     // still true. An in-flight compaction is settled to idle (not deleted) so a re-open doesn't
     // briefly observe a stale compacting status.
     expect(mocks.cacheDeleteShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1')
-    expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
-      status: 'idle'
-    })
+    const compactionPublishes = mocks.cacheSetShared.mock.calls.filter(
+      ([key]) => key === 'agent.session.compaction.session-1'
+    )
+    expect(compactionPublishes.at(-1)).toEqual(['agent.session.compaction.session-1', { status: 'idle' }])
   })
 
   it('enqueues a compaction anchor into the current turn and refreshes context usage on completion', async () => {

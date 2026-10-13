@@ -43,7 +43,11 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import {
+  AGENT_SESSION_CLOSING_CACHE_KEY,
+  type AgentSessionEditDraft,
+  type AgentSessionEditTarget
+} from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
@@ -1092,12 +1096,25 @@ export class AgentSessionRuntimeService extends BaseService {
     const priorClosing = this.closingSessions.get(sessionId)
     const barrier = {
       promise: Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(() => {
-        if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
+        if (this.closingSessions.get(sessionId) === barrier) {
+          this.closingSessions.delete(sessionId)
+          this.publishSessionClosing(sessionId, false)
+        }
       }),
       resumeToken: resumeToken ?? priorClosing?.resumeToken
     }
     this.closingSessions.set(sessionId, barrier)
+    this.publishSessionClosing(sessionId, true)
     return barrier.promise
+  }
+
+  private publishSessionClosing(sessionId: string, closing: boolean): void {
+    try {
+      application.get('CacheService').setShared(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId), closing)
+    } catch (error) {
+      // Cache broadcast failures must not interrupt session teardown.
+      logger.warn('Failed to publish agent session closing state', error as Error, { sessionId })
+    }
   }
 
   /**

@@ -134,7 +134,7 @@
   "agent.delete.title": "Șterge agentul",
   "agent.edit.title": "Editează agentul",
   "agent.edit_resend.error.attachment_unavailable": "Un atașament nu poate fi citit. Elimină-l sau atașează-l din nou.",
-  "agent.edit_resend.error.busy": "Oprește sarcinile și rezolvă mesajele în așteptare.",
+  "agent.edit_resend.error.busy": "Sesiunea este încă ocupată. Așteptați să se încheie activitatea curentă, apoi încercați din nou.",
   "agent.edit_resend.error.checkpoint_unsupported": "Acest punct de control a fost creat cu o versiune mai veche sau nu poate fi restaurat de versiunea actuală, astfel că editarea și retrimiterea din acest punct nu sunt acceptate. Conversația nu este afectată și poate continua.",
   "agent.edit_resend.error.close_failed": "Mediul anterior nu s-a închis în siguranță. Conversația originală a fost păstrată.",
   "agent.edit_resend.error.history_changed": "Conversația s-a schimbat. Anulează editarea și redeschide editorul.",
