@@ -269,9 +269,17 @@ export function isHumanTurn(entries: readonly SessionEntry[]): boolean {
   return true
 }
 
+/**
+ * The goal round message after the branch's last message entry: one Pi has committed but not sent
+ * yet. Other extensions' entries may follow it.
+ */
 export function tailRound(entries: readonly SessionEntry[]): RoundDetails | undefined {
-  const tail = entries.at(-1)
-  return tail?.type === 'custom_message' && isRoundMessage(tail) ? (tail.details as RoundDetails) : undefined
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]
+    if (entry.type === 'message') return undefined
+    if (entry.type === 'custom_message' && isRoundMessage(entry)) return entry.details as RoundDetails
+  }
+  return undefined
 }
 
 export function assistantText(message: AssistantMessage): string {
@@ -282,14 +290,9 @@ export function assistantText(message: AssistantMessage): string {
     .trim()
 }
 
-export function turnProgress(
-  message: AssistantMessage,
-  toolResults: readonly ToolResultMessage[],
-  previousText: string | undefined
-): boolean {
-  if (toolResults.some((result) => result.isError !== true && !NON_PROGRESS_TOOLS.has(result.toolName))) return true
-  const text = assistantText(message)
-  return text.length > 0 && text !== previousText
+/** A tool result that moved the objective: it succeeded, and its tool does more than read or bookkeep. */
+export function isProgressResult(result: ToolResultMessage): boolean {
+  return result.isError !== true && !NON_PROGRESS_TOOLS.has(result.toolName)
 }
 
 const stable = (value: unknown): unknown =>
