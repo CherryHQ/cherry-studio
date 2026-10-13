@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
 import type { RuntimeForkResult } from '../../fork'
 import { forkClaudeSession } from '../claudeFork'
@@ -815,7 +816,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     }
   })
 
-  it('rejects the SDK-owned /fast command before it enters the input queue', async () => {
+  it.each([false, true])('rejects /fast before it enters the input queue (quoted: %s)', async (quoted) => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -826,6 +827,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const blockedMessage = userMessage()
     blockedMessage.data.parts[0].text = '  /fast'
+    if (quoted) {
+      blockedMessage.data.parts[0] = withCherryMeta(blockedMessage.data.parts[0], {
+        quotes: [{ id: 'quote-fast', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'Quoted context' }]
+      })
+    }
 
     await expect(connection.send({ message: blockedMessage })).rejects.toThrow('use the host Fast control')
     expect(mocks.prepareChatMessages).not.toHaveBeenCalled()

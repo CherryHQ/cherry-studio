@@ -95,7 +95,7 @@ function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
 function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
   const text = (input.message.data.parts ?? [])
     .filter((part) => part.type === 'text')
-    .map(getQuotedMessageText)
+    .map((part) => part.text)
     .join('\n')
     .trimStart()
 
