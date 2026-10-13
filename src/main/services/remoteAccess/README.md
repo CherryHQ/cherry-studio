@@ -141,3 +141,9 @@ entry IDs. The phone reads images for thumbnails and ordinary documents on deman
 Large-file verification: set `REMOTE_UPLOAD_TEST_BYTES=1073741824` when running the
 `RemoteUploads.test.ts` streaming test to exercise 1 GiB and a receiver restart midway.
 This filesystem/RPC validation does not replace device, VPN throughput or OS-background tests.
+
+[Upload Integrity](../../../../docs/references/file/upload-integrity.md) describes the optional
+`agentUploadChecksum: sha256` capability. Prepare fixes checksum mode; complete binds the phone's
+expected SHA-256. Intake checkpoints retain verification failures and rehash bytes on restart.
+Legacy absent-mode clients keep their existing behavior. Shared release and native-device
+acceptance are tracked separately in that document.

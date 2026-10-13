@@ -244,6 +244,8 @@ export interface AgentRuntimeConnection {
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+  /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
+  recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
   /**
    * Per-driver session prerequisite check: throws if the session can't be

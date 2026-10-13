@@ -1091,6 +1091,32 @@ describe('release publication state', () => {
 describe('release workflow gates', () => {
   const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
 
+  it('publishes npm packages without creating remote tags or GitHub releases', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release-packages.yml'), 'utf8'))
+    const changesets = workflow.jobs.release.steps.find((step: { id?: string }) => step.id === 'changesets')
+    const summary = workflow.jobs.release.steps.find((step: { name?: string }) => step.name === 'Publish Summary')
+    const manifest = JSON.parse(fs.readFileSync(path.join(workflowRoot, '../../package.json'), 'utf8'))
+
+    expect(changesets.uses).toBe('changesets/action@v2')
+    expect(changesets.with).toMatchObject({
+      'create-github-releases': false,
+      'push-git-tags': false,
+      'publish-script': 'pnpm changeset:publish',
+      'version-script': 'pnpm changeset:version'
+    })
+    // Action v2 derives published outputs from CLI git-tag events; --no-git-tag suppresses them.
+    expect(manifest.scripts['changeset:publish']).toBe('changeset publish')
+    expect(summary.if).toBe("steps.changesets.outputs.published == 'true'")
+    expect(summary.env.PUBLISHED_PACKAGES).toBe('${{ steps.changesets.outputs.published-packages }}')
+  })
+
+  it('keeps snapshot npm releases independent of Git tags', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'snapshot.yml'), 'utf8'))
+    const publish = workflow.jobs.snapshot.steps.find((step: { name?: string }) => step.name === 'Publish Snapshot')
+
+    expect(publish.run).toBe('pnpm changeset publish --tag snapshot --no-git-tag')
+  })
+
   it('builds and stages both editions for every selected release platform', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
     const releaseJob = workflow.jobs.release

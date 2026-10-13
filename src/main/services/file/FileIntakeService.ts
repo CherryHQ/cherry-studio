@@ -113,11 +113,11 @@ export class FileIntakeService extends BaseService {
         if (upload.state === 'cancelled' || upload.state === 'ready') continue
         try {
           const size = (await stat(this.file(upload))).size
-          if (size < upload.offset) await this.save({ ...upload, state: 'failed' })
+          if (size < upload.offset) await this.save({ ...upload, state: 'failed', failureCode: 'VERIFICATION_FAILED' })
           else if (size > upload.offset) await truncate(this.file(upload), upload.offset)
         } catch (error) {
           logger.warn('Intake source unavailable', { uploadId: upload.uploadId, error })
-          if (!upload.entryId) await this.save({ ...upload, state: 'failed' })
+          if (!upload.entryId) await this.save({ ...upload, state: 'failed', failureCode: 'VERIFICATION_FAILED' })
         }
       }
     })())
@@ -149,7 +149,10 @@ export class FileIntakeService extends BaseService {
       state: upload.state,
       committedOffset: String(upload.offset),
       writerEpoch: String(upload.epoch),
-      expiresAt: new Date(upload.expiresAt).toISOString()
+      expiresAt: new Date(upload.expiresAt).toISOString(),
+      checksumAlgorithm: upload.checksumAlgorithm,
+      ...(upload.state === 'ready' ? { sha256: upload.sha256 } : {}),
+      ...(upload.state === 'failed' ? { failureCode: upload.failureCode } : {})
     }
   }
   private touch(upload: Upload): number {
@@ -166,7 +169,8 @@ export class FileIntakeService extends BaseService {
           if (
             previous.filename !== input.filename ||
             previous.mediaType !== input.mediaType ||
-            previous.byteLength !== input.byteLength
+            previous.byteLength !== input.byteLength ||
+            previous.checksumAlgorithm !== input.checksumAlgorithm
           )
             throw new FileIntakeError('IDEMPOTENCY_CONFLICT', 'Upload metadata changed')
           return this.snapshot(previous)
@@ -260,13 +264,29 @@ export class FileIntakeService extends BaseService {
       }
     })
   }
-  complete(owner: FileIntakeOwner, input: { uploadId: string; writerEpoch: string }): Promise<FileIntakeSnapshot> {
+  complete(
+    owner: FileIntakeOwner,
+    input: { uploadId: string; writerEpoch: string; expectedSha256?: string }
+  ): Promise<FileIntakeSnapshot> {
     return this.serial(this.key(owner, input.uploadId), async () => {
       const upload = this.find(owner, input.uploadId)
       if (String(upload.epoch) !== input.writerEpoch) throw new FileIntakeError('CONFLICT', 'Upload writer changed')
       if (upload.offset !== upload.byteLength) throw new FileIntakeError('CONFLICT', 'Upload is incomplete')
+      if (input.expectedSha256 !== undefined && upload.expectedSha256 && upload.expectedSha256 !== input.expectedSha256)
+        throw new FileIntakeError('IDEMPOTENCY_CONFLICT', 'Upload checksum changed')
+      if (
+        upload.checksumAlgorithm === 'sha256'
+          ? !input.expectedSha256 || !/^[a-f0-9]{64}$/.test(input.expectedSha256)
+          : input.expectedSha256 !== undefined
+      )
+        throw new FileIntakeError('CONFLICT', 'Upload checksum does not match the prepared mode')
       if (upload.state === 'receiving')
-        await this.save({ ...upload, state: 'verifying', expiresAt: this.touch(upload) })
+        await this.save({
+          ...upload,
+          expectedSha256: input.expectedSha256,
+          state: 'verifying',
+          expiresAt: this.touch(upload)
+        })
       const current = this.find(owner, input.uploadId)
       if (current.state === 'verifying') this.verify(current)
       return this.snapshot(current)
@@ -275,22 +295,38 @@ export class FileIntakeService extends BaseService {
   private verify(upload: Upload): void {
     const key = this.key(upload, upload.uploadId)
     if (this.verifying.has(key) || this.stopped) return
+    const startedAt = Date.now()
     const work = this.verificationSlots
       .runExclusive(async () => {
         if (this.stopped || this.uploads.get(key)?.state !== 'verifying') return
-        let digest = upload.sha256
-        if (!digest) {
-          const hash = createHash('sha256')
+        const hash = createHash('sha256')
+        let byteLength = 0
+        let digest: string
+        try {
           for await (const bytes of createReadStream(this.file(upload))) {
             if (this.stopped) return
             hash.update(bytes)
+            byteLength += bytes.length
           }
           digest = hash.digest('hex')
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || !upload.entryId || !upload.sha256) throw error
+          // Publication recovery rehashes the surviving managed file before exposing its entry.
+          digest = upload.sha256
+          byteLength = upload.byteLength
         }
         await this.serial(key, async () => {
           const current = this.uploads.get(key)
           if (current?.state !== 'verifying') return
           this.check()
+          if (current.expiresAt <= Date.now()) return
+          if (
+            byteLength !== current.byteLength ||
+            (current.checksumAlgorithm === 'sha256' && digest !== current.expectedSha256)
+          ) {
+            await this.save({ ...current, state: 'failed', failureCode: 'CHECKSUM_MISMATCH' })
+            return
+          }
           const publication = {
             ...current,
             sha256: digest,
@@ -306,6 +342,11 @@ export class FileIntakeService extends BaseService {
           })
           if (this.stopped) return
           await this.save({ ...current, sha256: digest, entryId: entry.id, state: 'ready' })
+          logger.info('Upload verified and published', {
+            uploadId: current.uploadId,
+            byteLength,
+            elapsedMs: Date.now() - startedAt
+          })
         })
       })
       .catch(async (error) => {
@@ -313,7 +354,8 @@ export class FileIntakeService extends BaseService {
         logger.warn('Upload verification failed', { key, error })
         await this.serial(key, async () => {
           const current = this.uploads.get(key)
-          if (current?.state === 'verifying' && !current.entryId) await this.save({ ...current, state: 'failed' })
+          if (current?.state === 'verifying')
+            await this.save({ ...current, state: 'failed', failureCode: 'VERIFICATION_FAILED' })
         }).catch((failure) => logger.warn('Upload failure persistence deferred', { key, failure }))
       })
       .finally(() => this.verifying.delete(key))
