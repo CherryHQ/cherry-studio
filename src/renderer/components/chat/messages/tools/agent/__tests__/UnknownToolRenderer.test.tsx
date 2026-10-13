@@ -4,9 +4,6 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
-vi.mock('../../shared/ArgsTable', () => ({
-  ToolArgsTable: ({ title }: { title: string }) => <div data-testid="args-table">{title}</div>
-}))
 vi.mock('../../shared/GenericTools', () => ({
   ToolHeader: ({ toolName }: { toolName: string }) => <div data-testid="tool-header">{toolName}</div>
 }))
@@ -32,8 +29,7 @@ describe('UnknownToolRenderer', () => {
       />
     )
     expect(screen.getByRole('img')).toHaveAttribute('src', 'data:image/png;base64,BASE64')
-    // The text summary still shows in the output table.
-    expect(screen.getAllByTestId('args-table').length).toBeGreaterThan(0)
+    expect(screen.getByText('Generated 1 image(s)')).toBeInTheDocument()
   })
 
   it('shows text only when the MCP result carries no image content', () => {
@@ -44,5 +40,32 @@ describe('UnknownToolRenderer', () => {
       />
     )
     expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.getByText('No painting model is configured.')).toBeInTheDocument()
+  })
+
+  it('previews image URLs from MCP text while retaining the other result text', () => {
+    render(
+      <Harness
+        toolName="mcp__images__generate"
+        output={{
+          content: [
+            { type: 'text', text: 'Generated an image' },
+            { type: 'text', text: 'https://example.com/result.png?signature=abc' }
+          ]
+        }}
+      />
+    )
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/result.png?signature=abc')
+    expect(screen.getByText('Generated an image')).toBeInTheDocument()
+    expect(screen.queryByText('https://example.com/result.png?signature=abc')).not.toBeInTheDocument()
+  })
+
+  it('renders a plain URL result as a link instead of an output table', () => {
+    render(<Harness toolName="lookup" output="https://example.com/docs" />)
+    expect(screen.getByRole('link', { name: 'https://example.com/docs' })).toHaveAttribute(
+      'href',
+      'https://example.com/docs'
+    )
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 })

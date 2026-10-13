@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { userEvent } from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { McpToolResponse } from '@renderer/types/mcpTool'
@@ -190,5 +191,55 @@ describe('MessageMcpTool', () => {
       expect(container.textContent).toContain('"status": "ready"')
       expect(container.textContent).toContain('"installedVersion": "1.0.77"')
     })
+  })
+
+  it('previews links in MCP text and resource blocks without displaying their JSON', async () => {
+    const user = userEvent.setup()
+    render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'done',
+          response: {
+            content: [
+              { type: 'text', text: '"https://example.com/result.png?signature=abc"' },
+              { type: 'text', text: 'https://example.com/docs' },
+              {
+                type: 'resource_link',
+                uri: 'https://example.com/download?id=1',
+                name: 'Generated image',
+                mimeType: 'image/webp'
+              }
+            ]
+          }
+        })}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: /CherryBrowser : execute/ }))
+
+    expect(await screen.findByRole('img', { name: 'Generated image' })).toHaveAttribute(
+      'src',
+      'https://example.com/download?id=1'
+    )
+    expect(screen.getByRole('img', { name: 'message.tools.sections.output' })).toHaveAttribute(
+      'src',
+      'https://example.com/result.png?signature=abc'
+    )
+    expect(screen.getByRole('link', { name: 'https://example.com/docs' })).toHaveAttribute(
+      'href',
+      'https://example.com/docs'
+    )
+    expect(screen.queryByText('"https://example.com/result.png?signature=abc"')).not.toBeInTheDocument()
+  })
+
+  it('previews a direct URL result outside an MCP envelope', async () => {
+    const user = userEvent.setup()
+    render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({ status: 'done', response: 'https://example.com/result.webp' })}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: /CherryBrowser : execute/ }))
+    expect(await screen.findByRole('img')).toHaveAttribute('src', 'https://example.com/result.webp')
+    expect(screen.queryByText('"https://example.com/result.webp"')).not.toBeInTheDocument()
   })
 })
