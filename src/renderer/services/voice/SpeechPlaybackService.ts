@@ -135,6 +135,7 @@ export class SpeechPlaybackService {
   private readonly runs = new Map<string, PlaybackRun>()
   private snapshot: SpeechPlaybackSnapshot = IDLE_SNAPSHOT
   private visibleRun?: PlaybackRun
+  private visibilityClaimRevision = 0
   private initialization?: Promise<void>
   private unsubscribeState?: () => void
   private unsubscribeCommands?: () => void
@@ -233,7 +234,10 @@ export class SpeechPlaybackService {
       this.publishStartFailure(input.sourceLabel, plan.chunks.length, reason)
       throw new VoiceDomainError(reason)
     }
-    const deferredVisibleRun = input.trigger === 'auto_read' ? this.visibleRun : undefined
+    const visibilityClaim =
+      input.trigger === 'auto_read' && this.visibleRun
+        ? { owner: this.visibleRun, revision: this.visibilityClaimRevision }
+        : undefined
     const operation = this.voice.generateSpeech(this.speechInput(input, preferences, plan.chunks, 0))
     const run: PlaybackRun = {
       generation,
@@ -258,13 +262,10 @@ export class SpeechPlaybackService {
     }
     startedRun = run
     this.runs.set(run.sessionId, run)
-    if (!deferredVisibleRun) {
-      this.visibleRun = run
-      this.publish(run)
-    }
+    if (!visibilityClaim) this.claimVisibleRun(run)
 
     try {
-      await this.finishGeneration(run, operation, deferredVisibleRun)
+      await this.finishGeneration(run, operation, visibilityClaim)
       return { status: 'started' }
     } catch (error) {
       const reason = run.stopped || run.generation !== this.lifecycleGeneration ? 'aborted' : errorReason(error)
@@ -358,16 +359,20 @@ export class SpeechPlaybackService {
   private async finishGeneration(
     run: PlaybackRun,
     operation: VoiceOperation<unknown>,
-    claimVisibilityFrom?: PlaybackRun
+    claim?: { readonly owner: PlaybackRun; readonly revision: number }
   ): Promise<void> {
     run.materializing = true
     try {
       const result = (await operation.result) as Awaited<ReturnType<PlaybackVoiceService['generateSpeech']>['result']>
       this.assertCurrent(run)
-      if (claimVisibilityFrom) {
-        if (this.visibleRun !== claimVisibilityFrom) throw new VoiceDomainError('aborted')
-        this.visibleRun = run
-        this.publish(run)
+      if (claim) {
+        const predecessorRemains = this.visibleRun === claim.owner
+        const releasedWithoutNewOwner = !this.visibleRun && this.visibilityClaimRevision === claim.revision
+        if (!predecessorRemains && !releasedWithoutNewOwner) {
+          await this.terminate(run, false)
+          throw new VoiceDomainError('aborted')
+        }
+        this.claimVisibleRun(run)
       }
       if (run.operation === operation) run.operation = undefined
       if (result.resolved) {
@@ -649,6 +654,13 @@ export class SpeechPlaybackService {
       })
     run.cleanup = cleanup
     return cleanup
+  }
+
+  // Replacing the visible owner bumps the claim revision. Release leaves it unchanged.
+  private claimVisibleRun(run: PlaybackRun): void {
+    if (this.visibleRun !== run) this.visibilityClaimRevision += 1
+    this.visibleRun = run
+    this.publish(run)
   }
 
   private releaseRun(run: PlaybackRun, publishIdle: boolean): void {
