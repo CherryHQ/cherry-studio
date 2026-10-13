@@ -779,6 +779,41 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.runtimeState.queue).toEqual([])
       void service.closeSession('session-1')
     })
+
+    // An empty completion is dispatched on the ERROR path with `isTopicDone=false`, because the
+    // stream manager had already selected chaining on the SDK's clean finish. The runtime owns that
+    // turn regardless of the flag: skipping the release strands the queued follow-up, since nothing
+    // else will ever schedule its drain.
+    it('drains a queued follow-up when an empty completion is downgraded and chained', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.runtimeState.execution = {
+        ...entry.runtimeState.execution,
+        stream: 'open',
+        admission: 'admitted'
+      }
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+
+      const downgraded = {
+        error: { name: 'AgentRuntimeError', message: 'This turn produced no output.', stack: null },
+        failure: { message: 'This turn produced no output.', retryable: false, failure: {} }
+      }
+      void terminalListener(handle).onError({ error: downgraded.error, isTopicDone: false, downgradedTo: downgraded })
+
+      await vi.waitFor(() => {
+        expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
+        expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
+      })
+
+      // The queued follow-up really ran: a fresh assistant row for it was saved and its turn opened.
+      expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
+      expect(entry.runtimeState.queue).toEqual([])
+      expect(entry.runtimeState.lastTerminal).toBe('error')
+      void service.closeSession('session-1')
+    })
   })
 
   it('keeps the active usage source frozen when the agent is edited or deleted mid-turn', () => {

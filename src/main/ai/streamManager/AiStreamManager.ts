@@ -24,6 +24,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -2155,7 +2156,10 @@ export class AiStreamManager extends BaseService {
       isTopicDone: result.isTopicDone,
       timings: result.timings,
       runtimeTiming: result.runtimeTiming,
-      persistence: result.persistence
+      persistence: result.persistence,
+      // Carried forward so a listener that owns turn lifecycle can tell this apart from a real SDK
+      // error: a downgraded terminal still ends the turn the runtime owns, `isTopicDone` aside.
+      downgradedTo
     }
   }
 
