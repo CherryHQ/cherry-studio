@@ -1868,6 +1868,37 @@ describe('PiRuntimeConnection', () => {
     await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('rebuild')
   })
 
+  // A replay bakes the turn's pinned exclusions into the SDK session's `excludeTools`, but the
+  // startup signature it stores comes from the row the user just saved — so a re-enabled tool is
+  // "not disabled" everywhere the signature looks, while its definition is still absent from the
+  // running session. Only a rebuild gives the next turn a session that can see it again.
+  it('rebuilds after a replay baked out a tool the saved row re-enabled', async () => {
+    // Admitted with Bash disabled; Bash re-enabled (and the fallback F saved as primary) during
+    // provider backoff. The replay keeps the turn's exclusion, so nothing in the row's signature
+    // records that Bash is baked out of this session.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'f::m', disabledTools: [], configuration: {} })
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      modelId: 'f::m',
+      permissionPolicy: { permissionMode: 'default', disabledTools: ['bash'] }
+    }).start()
+    expect(mocks.createOpts?.excludeTools).toEqual(['bash'])
+
+    const promptRun = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(promptRun.promise)
+    conn.send(userInput('Replayed turn.'))
+
+    // Mid-turn: the pinned exclusion is still in force, so the live turn keeps its own session.
+    await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('current')
+
+    promptRun.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // The replayed turn is over and nothing is disabled any more, yet this session was spawned with
+    // Bash excluded — the model cannot see it. Rebuild rather than reuse (agent-session-runtime.md).
+    await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('rebuild')
+  })
+
   // A manual `/compact` settles its host turn without ever calling finishPromptRun(), so a replayed
   // compaction used to leak `replayTurnPending`. Permission mode is excluded from the connection
   // signature, so the host kept reusing that connection and the next ordinary turn kept the frozen

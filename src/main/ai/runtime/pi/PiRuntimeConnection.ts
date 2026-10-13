@@ -173,6 +173,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** `agent.instructions` as this turn captured it; a fallback replay keeps materializing it. */
   private turnInstructions?: string | null
   private disabledTools = new Set<string>()
+  /** Tools baked out of the spawned SDK session. Re-enabling one in the row cannot restore its
+   *  definition mid-connection, so the next fresh turn needs a rebuilt session. */
+  private bakedExclusions?: ReadonlySet<string>
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
   /** Serializes push/pull reconciles so snapshot reads and live policy writes cannot land out of order. */
@@ -249,6 +252,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.disabledTools = this.input.permissionPolicy
       ? new Set(this.input.permissionPolicy.disabledTools)
       : normalizeDisabledTools(agent.disabledTools, initialSnapshot)
+    this.bakedExclusions = new Set(this.disabledTools)
     this.replayTurnPending = this.input.permissionPolicy !== undefined
     // A replay stays inside the turn it was admitted for: it materializes that turn's System
     // Prompt — a captured `null` is an explicit "none configured", never the row's later save.
@@ -630,9 +634,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     // A replay materializes its pinned prompt, so a row-matching signature does not prove this
     // connection materialized the row's prompt; the divergence rebuilds on the next fresh turn.
+    // A tool baked out of the spawned session is the same: the row can re-enable it, but its
+    // definition is still absent here (agent-session-runtime.md), so only a rebuild restores it.
     if (
       snapshot.signature !== this.connectionSignature ||
-      (snapshot.agent.instructions ?? null) !== this.turnInstructions
+      (snapshot.agent.instructions ?? null) !== this.turnInstructions ||
+      [...(this.bakedExclusions ?? [])].some((name) => !applicableDisabledTools.has(name))
     ) {
       return 'rebuild'
     }
