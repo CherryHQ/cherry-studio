@@ -880,6 +880,101 @@ describe('SpeechPlaybackService planning and playback', () => {
   })
 })
 
+describe('SpeechPlaybackService terminal ownership', () => {
+  function pauseBeforeCompletion(voice: FakeVoiceService) {
+    const completion = Promise.withResolvers<VoiceSessionState>()
+    const reportPlayback = voice.reportPlayback.getMockImplementation()!
+    voice.reportPlayback.mockImplementation(async (input) => {
+      if (input.phase === 'completed') await voice.controlPlayback({ sessionId: input.sessionId, command: 'pause' })
+      const state = await reportPlayback(input)
+      if (input.phase === 'completed') completion.resolve(state)
+      return state
+    })
+    return completion.promise
+  }
+
+  it('retains an exhausted run until an ignored completion is explicitly closed', async () => {
+    const { service, voice, audios } = createHarness()
+    const completion = pauseBeforeCompletion(voice)
+    const cleanup = Promise.withResolvers<void>()
+    const discardSession = voice.discardSession.getMockImplementation()!
+    voice.discardSession.mockImplementationOnce(async (id) => {
+      await cleanup.promise
+      await discardSession(id)
+    })
+    await service.start(baseInput)
+    audios[0].dispatchEvent(new Event('ended'))
+
+    await expect(completion).resolves.toMatchObject({ sessionId, playback: { desired: 'paused' } })
+    await vi.waitFor(() => expect(voice.discardSession).toHaveBeenCalledWith(sessionId))
+    expect(service.getSnapshot().phase).not.toBe('idle')
+    expect(voice.getSnapshot().phase).not.toBe('idle')
+    expect(audios[0].src).toBe('')
+    cleanup.resolve()
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
+    expect(voice.getSnapshot().phase).toBe('idle')
+
+    await expect(service.start({ ...baseInput, trigger: 'auto_read' })).resolves.toEqual({ status: 'started' })
+    expect(audios[1].paused).toBe(false)
+    await service.stop()
+    expect(voice.getSnapshot().phase).toBe('idle')
+  })
+
+  it('keeps failed terminal cleanup available for a later stop', async () => {
+    const { service, voice, audios } = createHarness()
+    const completion = pauseBeforeCompletion(voice)
+    const cleanup = Promise.withResolvers<void>()
+    voice.discardSession.mockReturnValueOnce(cleanup.promise)
+    await service.start(baseInput)
+    audios[0].dispatchEvent(new Event('ended'))
+
+    await expect(completion).resolves.toMatchObject({ sessionId })
+    await vi.waitFor(() => expect(voice.discardSession).toHaveBeenCalledWith(sessionId))
+    const stopped = expect(service.stop()).rejects.toMatchObject({ reason: 'operation_failed' })
+    cleanup.reject(new VoiceDomainError('operation_failed'))
+    await stopped
+    expect(service.getSnapshot().phase).not.toBe('idle')
+    expect(voice.getSnapshot().phase).not.toBe('idle')
+    expect(audios[0].src).toBe('')
+
+    await service.stop()
+    expect(service.getSnapshot().phase).toBe('idle')
+    expect(voice.getSnapshot().phase).toBe('idle')
+  })
+
+  it('does not stop a newer run when an ignored completion arrives late', async () => {
+    const { service, voice, audios } = createHarness()
+    const completion = pauseBeforeCompletion(voice)
+    const reply = Promise.withResolvers<void>()
+    const reportPlayback = voice.reportPlayback.getMockImplementation()!
+    voice.reportPlayback.mockImplementation(async (input) => {
+      const state = await reportPlayback(input)
+      if (input.sessionId === sessionId && input.phase === 'completed') await reply.promise
+      return state
+    })
+    await service.start(baseInput)
+    audios[0].dispatchEvent(new Event('ended'))
+    await expect(completion).resolves.toMatchObject({ sessionId })
+
+    const nextSessionId = '00000000-0000-4000-8000-000000000015'
+    const generateSpeech = voice.generateSpeech.getMockImplementation()!
+    voice.generateSpeech.mockImplementationOnce((input) => generateSpeech({ ...input, sessionId: nextSessionId }))
+    await service.start({ ...baseInput, sourceLabel: 'selection' })
+    reply.resolve()
+    await vi.waitFor(() => expect(voice.discardSession).toHaveBeenCalledWith(sessionId))
+
+    expect(service.getSnapshot()).toMatchObject({ phase: 'playing', sourceLabel: 'selection' })
+    expect(voice.getSnapshot()).toMatchObject({ sessionId: nextSessionId, phase: 'playing' })
+    expect(audios[1].paused).toBe(false)
+    await service.pause()
+    expect(audios[1].paused).toBe(true)
+    await service.resume()
+    await vi.waitFor(() => expect(audios[1].paused).toBe(false))
+    await service.stop()
+    expect(voice.getSnapshot().phase).toBe('idle')
+  })
+})
+
 describe('SpeechPlaybackService ownership and lifecycle', () => {
   it.each(['pause', 'stop'] as const)('preserves a new %s while retry playback is pending', async (command) => {
     const { service, voice, audios, createAudio } = createHarness()
