@@ -29,14 +29,8 @@ vi.mock('@application', async () => {
   })
   mocked.application.getPath.mockImplementation((key: string, filename?: string) => {
     if (key === 'app.temp') return filename ? join(runtime.tempRoot, filename) : runtime.tempRoot
-    const bases: Record<string, string> = {
-      'cherry.bin': join(runtime.tempRoot, 'bin'),
-      'cherry.bin.ffmpeg.bin': join(runtime.tempRoot, 'bin', 'ffmpeg', 'bin'),
-      'cherry.bin.ffmpeg.lib': join(runtime.tempRoot, 'bin', 'ffmpeg', 'lib')
-    }
-    const base = bases[key]
-    if (!base) throw new Error(`unexpected path key ${key}`)
-    return filename ? join(base, filename) : base
+    if (key === 'app.root.resources.binaries') return join(runtime.tempRoot, 'resources', 'binaries')
+    throw new Error(`unexpected path key ${key}${filename ? `:${filename}` : ''}`)
   })
   return mocked
 })
@@ -59,6 +53,7 @@ vi.mock('node:fs/promises', async () => {
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { getConditions } from '@main/core/lifecycle/decorators'
+import { getBinaryName } from '@main/utils/binaryResolver'
 
 import { mediaFfmpegCommandEnv } from '../mediaFfmpegLoader'
 import { mediaFfmpegProcess } from '../mediaFfmpegProcess'
@@ -104,14 +99,11 @@ describe('MediaFfmpegService lifecycle', () => {
       vi.mocked(application.getPath).mockClear()
       const init = mediaFfmpegProcess.createInitData?.()
       if (!init || init instanceof Promise) throw new Error('expected sync init data')
-      expect(init.ffmpegPath).toBe(join(runtime.tempRoot, 'bin', 'ffmpeg', 'bin', 'ffmpeg'))
-      expect(init.ffprobePath).toBe(join(runtime.tempRoot, 'bin', 'ffmpeg', 'bin', 'ffprobe'))
-      expect(init.linuxLibraryDir).toBe(join(runtime.tempRoot, 'bin', 'ffmpeg', 'lib'))
-      expect(vi.mocked(application.getPath).mock.calls).toEqual([
-        ['cherry.bin.ffmpeg.bin', 'ffmpeg'],
-        ['cherry.bin.ffmpeg.bin', 'ffprobe'],
-        ['cherry.bin.ffmpeg.lib']
-      ])
+      const tree = join(runtime.tempRoot, 'resources', 'binaries', `linux-${process.arch}`, 'ffmpeg')
+      expect(init.ffmpegPath).toBe(join(tree, 'bin', 'ffmpeg'))
+      expect(init.ffprobePath).toBe(join(tree, 'bin', 'ffprobe'))
+      expect(init.linuxLibraryDir).toBe(join(tree, 'lib'))
+      expect(vi.mocked(application.getPath).mock.calls).toEqual([['app.root.resources.binaries']])
       const env = mediaFfmpegCommandEnv(init.linuxLibraryDir, {
         PATH: '/usr/bin',
         LD_LIBRARY_PATH: '/usr/lib:/opt/lib',
@@ -136,13 +128,13 @@ describe('MediaFfmpegService lifecycle', () => {
         vi.mocked(application.getPath).mockClear()
         const init = mediaFfmpegProcess.createInitData?.()
         if (!init || init instanceof Promise) throw new Error('expected sync init data')
-        const suffix = platform === 'win32' ? '.exe' : ''
-        expect(init.ffmpegPath).toBe(join(runtime.tempRoot, 'bin', `ffmpeg${suffix}`))
-        expect(init.ffprobePath).toBe(join(runtime.tempRoot, 'bin', `ffprobe${suffix}`))
+        const root = join(runtime.tempRoot, 'resources', 'binaries', `${platform}-${process.arch}`)
+        expect(init.ffmpegPath).toBe(join(root, getBinaryName('ffmpeg')))
+        expect(init.ffprobePath).toBe(join(root, getBinaryName('ffprobe')))
         expect(init.linuxLibraryDir).toBeUndefined()
         expect(vi.mocked(application.getPath).mock.calls).toEqual([
-          ['cherry.bin', `ffmpeg${suffix}`],
-          ['cherry.bin', `ffprobe${suffix}`]
+          ['app.root.resources.binaries'],
+          ['app.root.resources.binaries']
         ])
         expect(mediaFfmpegCommandEnv(init.linuxLibraryDir, { LD_LIBRARY_PATH: '/usr/lib' })).toBeUndefined()
       }
