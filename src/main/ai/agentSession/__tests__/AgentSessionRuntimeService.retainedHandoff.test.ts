@@ -299,4 +299,90 @@ describe('retained-reply interruption hands B back only after A persists', () =>
     void reader.cancel().catch(() => undefined)
     void service.closeSession('session-1')
   })
+
+  /**
+   * Pre-registration gap: the interrupted reply is a receive-only turn whose launch saved its
+   * placeholder but is still yielding inside `refreshTurnTraceContext` — its stream was never
+   * registered, so `pauseRuntimeTurn` cannot abort it and `awaitAbortedExecutions` observes a
+   * previous execution. The teardown must wait for that exact launch to finish (and settle the
+   * registered stream it may still open) before acknowledging the interruption and letting B run;
+   * otherwise B takes the topic over while A's row is still `pending`.
+   */
+  it('holds the acknowledgement until the interrupted receive-only launch settles', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = entryOf(service)
+    let releaseTraceRefresh: (() => void) | undefined
+    const traceGate = new Promise<void>((resolve) => {
+      releaseTraceRefresh = resolve
+    })
+    const retained = {
+      agentId: 'agent-1',
+      send: vi.fn(),
+      close: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('invalid' as const),
+      // Keeps A's launch suspended after the placeholder save, before its stream registers.
+      refreshTraceContext: vi.fn(() => traceGate)
+    }
+    entry.runtimeState.connection = { kind: 'connected', connection: retained, occupancy: {} }
+    ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, retained)
+    service.markTurnTerminal('session-1', 'success')
+
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId })
+    service.beginTurn({
+      ...baseTurnInput,
+      agentId: 'agent-2',
+      modelId: switchedModelId,
+      assistantMessageId: 'assistant-2',
+      messageSnapshot: { agentName: 'Agent B' } as any,
+      userMessage: userMessage('user-2')
+    })
+
+    mocks.saveMessage.mockClear()
+    ;(service as any).handleRuntimeEvent(
+      entry,
+      { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+      retained
+    )
+    await flush()
+
+    // The launch is suspended mid-flight: placeholder persisted, turn created, stream unregistered.
+    const interruptedTurn = entry.runtimeState.execution.turn
+    expect(interruptedTurn).toBeDefined()
+    const savedId = interruptedTurn.assistantMessageId as string
+    expect(persistedRows().get(savedId)).toBe('pending')
+    const managerInternals = manager as unknown as {
+      activeStreams: Map<string, { executions: Map<string, unknown> }>
+    }
+    expect(managerInternals.activeStreams.get('agent-session:session-1')).toBeUndefined()
+
+    // Clearing A's model invalidates the retained connection while A's launch is still yielding.
+    mocks.getAgent.mockImplementation((agentId: string) =>
+      agentId === 'agent-1'
+        ? { id: 'agent-1', type: 'test-runtime', model: null }
+        : { id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId }
+    )
+    await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+    await flush()
+
+    // The acknowledgement must not adopt B's deferred turn before A's launch has settled.
+    expect(entry.runtimeState.execution.kind).toBe('autonomous-turn')
+
+    // Releasing the launch lets A register, take the teardown's abort, and persist `paused` —
+    // only then is B's deferred input handed back.
+    releaseTraceRefresh!()
+    await vi.waitFor(() => expect(persistedRows().get(savedId)).toBe('paused'))
+    await vi.waitFor(() =>
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+      })
+    )
+    expect(persistedRows().get(savedId)).toBe('paused')
+    expect(retained.close).toHaveBeenCalled()
+
+    void service.closeSession('session-1')
+  })
 })
