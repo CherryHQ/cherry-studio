@@ -179,6 +179,7 @@ import { IntakeStore } from './internal/IntakeStore'
 import { observeExternalAccess } from './internal/observe'
 import {
   type DbSweepReport,
+  type FileSweepOptions,
   type FileSweepReport,
   inspectFileSweep,
   type OrphanReport,
@@ -233,9 +234,8 @@ function summariseFsSweepIssue(report: FileSweepReport): string | undefined {
  *   rescanning everything half an hour later, and treating it as retryable
  *   would turn one unlinkable blob into a full-tree scan every idle tick,
  *   forever. The next scheduled sweep retries it.
- * - `aborted` by a safety threshold — the tree *was* enumerated; refusing is
- *   the considered verdict of a completed plan phase, and the state it reads
- *   will not have changed by the next tick.
+ * - `aborted` by a safety threshold — enumeration completed, so the weekly
+ *   interval is consumed.
  * - `aborted` for `pending-restore` — returns before enumerating anything. A
  *   stand-aside is not a sweep. This is the case that made the bug visible:
  *   the first tick of a session correctly defers to a staged restore, and the
@@ -647,10 +647,10 @@ export interface IFileManager {
   // ─── Orphan sweep ───
 
   /** Inspect the FS-level orphan plan without deleting files. */
-  inspectOrphanFiles(): Promise<FileSweepReport>
+  inspectOrphanFiles(options?: FileSweepOptions): Promise<FileSweepReport>
 
   /** Run only the FS-level orphan-file cleanup pass. */
-  cleanupOrphanFiles(): Promise<FileSweepReport>
+  cleanupOrphanFiles(options?: FileSweepOptions): Promise<FileSweepReport>
 
   /**
    * Run the scan-based entry cleanup pass, then the FS-level orphan sweep
@@ -889,12 +889,12 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
   }
 
-  inspectOrphanFiles(): Promise<FileSweepReport> {
-    return inspectFileSweep({ fileEntryService: this.deps.fileEntryService, intakeProtection: this.intakes })
+  inspectOrphanFiles(options?: FileSweepOptions): Promise<FileSweepReport> {
+    return inspectFileSweep({ fileEntryService: this.deps.fileEntryService, intakeProtection: this.intakes }, options)
   }
 
-  cleanupOrphanFiles(): Promise<FileSweepReport> {
-    return runFileSweep({ fileEntryService: this.deps.fileEntryService, intakeProtection: this.intakes })
+  cleanupOrphanFiles(options?: FileSweepOptions): Promise<FileSweepReport> {
+    return runFileSweep({ fileEntryService: this.deps.fileEntryService, intakeProtection: this.intakes }, options)
   }
 
   /**
