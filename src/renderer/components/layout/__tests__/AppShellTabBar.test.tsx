@@ -300,81 +300,94 @@ describe('AppShellTabBar', () => {
     expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
   })
 
-  it('detaches the focused tab after the destination acknowledges it', async () => {
-    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
-    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
-      const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
-      return {
-        width: isTabBar ? 800 : 160,
-        height: isTabBar ? 44 : 30,
-        top: 0,
-        left: 0,
-        right: isTabBar ? 800 : 160,
-        bottom: isTabBar ? 44 : 30,
-        x: 0,
-        y: 0,
-        toJSON: () => ({})
-      }
-    })
-    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
-      configurable: true,
-      value: vi.fn()
-    })
+  it.each(['success', 'failure'])(
+    'handles drag detach %s without losing the source or retrying a failed gesture',
+    async (outcome) => {
+      const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
+      const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+        const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
+        return {
+          width: isTabBar ? 800 : 160,
+          height: isTabBar ? 44 : 30,
+          top: 0,
+          left: 0,
+          right: isTabBar ? 800 : 160,
+          bottom: isTabBar ? 44 : 30,
+          x: 0,
+          y: 0,
+          toJSON: () => ({})
+        }
+      })
+      Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+        configurable: true,
+        value: vi.fn()
+      })
 
-    let accept!: () => void
-    mocks.ipcRequest.mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        accept = resolve
-      })
-    )
-    try {
-      const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
-      const closeTab = renderTabBar({
-        tabs: [settingsTab],
-        activeTabId: settingsTab.id,
-        isFocusedTab: true,
-        detachTab: vi.fn()
-      })
-      const tab = screen.getByRole('button', { name: 'common.back' })
-      const pointerDown = new MouseEvent('pointerdown', {
-        bubbles: true,
-        button: 0,
-        clientX: 100,
-        clientY: 20,
-        screenX: 100,
-        screenY: 20
-      })
-      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
-      fireEvent(tab, pointerDown)
-
-      const pointerMove = new MouseEvent('pointermove', {
-        bubbles: true,
-        clientX: 100,
-        clientY: 100,
-        screenX: 100,
-        screenY: 100
-      })
-      Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
-      fireEvent(document, pointerMove)
-
-      expect(mocks.ipcRequest).toHaveBeenCalledWith(
-        'tab.detach',
-        expect.objectContaining({ id: settingsTab.id, url: settingsTab.url })
+      let accept!: () => void
+      let reject!: (error: Error) => void
+      mocks.ipcRequest.mockReturnValueOnce(
+        new Promise<void>((resolve, fail) => {
+          accept = resolve
+          reject = fail
+        })
       )
-      expect(closeTab).not.toHaveBeenCalled()
-      await act(async () => accept())
-      expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
-    } finally {
-      if (originalSetPointerCapture) {
-        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
-      } else {
-        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
-      }
-      rectSpy.mockRestore()
-    }
-  })
+      try {
+        const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
+        const closeTab = renderTabBar({
+          tabs: [settingsTab],
+          activeTabId: settingsTab.id,
+          isFocusedTab: true,
+          detachTab: vi.fn()
+        })
+        const tab = screen.getByRole('button', { name: 'common.back' })
+        const pointerDown = new MouseEvent('pointerdown', {
+          bubbles: true,
+          button: 0,
+          clientX: 100,
+          clientY: 20,
+          screenX: 100,
+          screenY: 20
+        })
+        Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
+        fireEvent(tab, pointerDown)
 
-  it('positions a fast-dropped window without closing its source before acknowledgement', async () => {
+        const pointerMove = new MouseEvent('pointermove', {
+          bubbles: true,
+          clientX: 100,
+          clientY: 100,
+          screenX: 100,
+          screenY: 100
+        })
+        Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
+        fireEvent(document, pointerMove)
+
+        expect(mocks.ipcRequest).toHaveBeenCalledWith(
+          'tab.detach',
+          expect.objectContaining({ id: settingsTab.id, url: settingsTab.url })
+        )
+        expect(closeTab).not.toHaveBeenCalled()
+        if (outcome === 'success') {
+          await act(async () => accept())
+          expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
+        } else {
+          await act(async () => reject(new Error('window creation failed')))
+          fireEvent(document, pointerMove)
+          expect(mocks.ipcRequest).toHaveBeenCalledTimes(1)
+          expect(closeTab).not.toHaveBeenCalled()
+          expect(screen.getByRole('button', { name: 'common.back' })).toBeVisible()
+        }
+      } finally {
+        if (originalSetPointerCapture) {
+          Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
+        } else {
+          Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+        }
+        rectSpy.mockRestore()
+      }
+    }
+  )
+
+  it('positions a fast-dropped window without closing its source before main-process delivery', async () => {
     const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
       const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
       return {

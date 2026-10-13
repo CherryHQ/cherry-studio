@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 import { useCache, useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useOptionalTabsContext, useTabs } from '@renderer/hooks/tab'
 import { useIpcOn } from '@renderer/ipc'
-import { webviewRuntimeService, type WebviewRequest } from '@renderer/services/WebviewRuntimeService'
+import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
 import { toTransientMiniApp } from '@renderer/utils/miniAppDescriptor'
 import {
   DEFAULT_MAX_KEEP_ALIVE_MINI_APPS,
@@ -39,27 +39,44 @@ function useMiniAppLayout() {
   const tabs = useOptionalTabsContext()
   const [split, setSplit] = useCache('mini_app.split')
   const currentMiniAppId = miniAppIdFromTabUrl(tabs?.activeTab?.url) ?? ''
-  const secondary = tabs?.tabs.find((tab) => tab.id === split?.tabId)
-  const secondaryAppId = miniAppIdFromTabUrl(secondary?.url)
-  const splitOpen =
-    !!currentMiniAppId && !!split && (split.tabId === null || (!!secondaryAppId && secondaryAppId !== currentMiniAppId))
+  const splitOpen = !!currentMiniAppId && !!split && split.appId !== currentMiniAppId
+  const splitMiniAppId = splitOpen ? (split.appId ?? '') : ''
+  const appIds = useMemo(
+    () => [
+      ...new Set([
+        ...(tabs?.tabs.flatMap((tab) => {
+          const id = miniAppIdFromTabUrl(tab.url)
+          return id ? [id] : []
+        }) ?? []),
+        ...(splitMiniAppId ? [splitMiniAppId] : [])
+      ])
+    ],
+    [tabs?.tabs, splitMiniAppId]
+  )
   return {
     split,
     setSplit,
     currentMiniAppId,
     splitOpen,
-    splitMiniAppId: splitOpen ? (secondaryAppId ?? '') : ''
+    splitMiniAppId,
+    appIds
   }
 }
 
 export function useMiniAppRuntime() {
   const resources = useSyncExternalStore(webviewRuntimeService.subscribe, webviewRuntimeService.getSnapshot)
   const layout = useMiniAppLayout()
-  const appIds = useMemo(() => resources.map((resource) => resource.key.slice('miniapp:'.length)), [resources])
-  const { byId } = useMiniAppDescriptors(appIds)
+  const { byId } = useMiniAppDescriptors(layout.appIds)
+  const guests = useMemo(() => {
+    const appsByKey = new Map([...byId].map(([appId, app]) => [miniAppResourceKey(appId), app]))
+    return resources.flatMap((resource) => {
+      const app = appsByKey.get(resource.key)
+      return app ? [{ resource, app }] : []
+    })
+  }, [resources, byId])
   return {
-    resources,
-    openedKeepAliveMiniApps: useMemo(() => [...byId.values()].filter((app) => app !== undefined), [byId]),
+    guests,
+    openedKeepAliveMiniApps: useMemo(() => guests.map(({ app }) => app), [guests]),
     currentMiniAppId: layout.currentMiniAppId,
     miniAppShow: !!layout.currentMiniAppId,
     splitOpen: layout.splitOpen,
@@ -75,27 +92,10 @@ export function useMiniAppWebview(appId: string) {
 /** Mounted once outside page Activities; page subscriptions never own guests. */
 export function useMiniAppRuntimeBinding(): void {
   const { tabs, activeTabId, closeTabs } = useTabs()
-  const { split, setSplit, currentMiniAppId, splitOpen } = useMiniAppLayout()
+  const { split, setSplit, splitMiniAppId, appIds } = useMiniAppLayout()
   const [capacity] = usePreference('feature.mini_app.max_keep_alive')
-  const appIds = useMemo(
-    () => [
-      ...new Set(
-        tabs.flatMap((tab) => {
-          const id = miniAppIdFromTabUrl(tab.url)
-          return id ? [id] : []
-        })
-      )
-    ],
-    [tabs]
-  )
   const { apps, byId } = useMiniAppDescriptors(appIds)
   const previousCatalog = useRef(apps)
-
-  useLayoutEffect(() => {
-    if (!split?.tabId) return
-    const secondaryAppId = miniAppIdFromTabUrl(tabs.find((tab) => tab.id === split.tabId)?.url)
-    if (!secondaryAppId || secondaryAppId === currentMiniAppId) setSplit(null)
-  }, [tabs, split, currentMiniAppId, setSplit])
 
   useLayoutEffect(() => {
     const removed = new Set(
@@ -106,28 +106,28 @@ export function useMiniAppRuntimeBinding(): void {
     if (apps !== undefined) previousCatalog.current = apps
     const removedTabs = tabs.filter((tab) => removed.has(miniAppIdFromTabUrl(tab.url) ?? ''))
     if (removedTabs.length) closeTabs(removedTabs.map((tab) => tab.id))
-    const requests = new Map<string, WebviewRequest>()
-    for (const tab of tabs) {
-      const appId = miniAppIdFromTabUrl(tab.url)
-      if (!appId || removed.has(appId)) continue
-      const key = miniAppResourceKey(appId)
-      const existing = requests.get(key)
-      const app = byId.get(appId)
-      requests.set(key, {
-        key,
-        source: app
-          ? { src: app.url, partition: app.kind === 'app' ? `persist:miniapp:${appId}` : 'persist:webview' }
-          : undefined,
-        visible: tab.id === activeTabId || (splitOpen && tab.id === split?.tabId) || !!existing?.visible,
-        protected: !!tab.isPinned || !!existing?.protected,
-        lastAccessTime: Math.max(tab.lastAccessTime ?? 0, existing?.lastAccessTime ?? 0)
+    if (split?.appId && removed.has(split.appId)) setSplit(null)
+    const requests = appIds
+      .filter((appId) => !removed.has(appId))
+      .map((appId) => {
+        const owners = tabs.filter((tab) => miniAppIdFromTabUrl(tab.url) === appId)
+        const app = byId.get(appId)
+        return {
+          key: miniAppResourceKey(appId),
+          source: app
+            ? { src: app.url, partition: app.kind === 'app' ? `persist:miniapp:${appId}` : 'persist:webview' }
+            : undefined,
+          visible: appId === splitMiniAppId || owners.some((tab) => tab.id === activeTabId),
+          protected: owners.some((tab) => !!tab.isPinned),
+          lastAccessTime: Math.max(0, ...owners.map((tab) => tab.lastAccessTime ?? 0))
+        }
       })
-    }
-    webviewRuntimeService.sync([...requests.values()], capacity ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS)
-  }, [tabs, activeTabId, split, splitOpen, apps, byId, capacity, closeTabs])
+    webviewRuntimeService.sync(requests, capacity ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS)
+  }, [tabs, activeTabId, split, setSplit, splitMiniAppId, appIds, apps, byId, capacity, closeTabs])
 
   useIpcOn('mini_app.runtime.evicted', ({ appId }) => {
+    if (split?.appId === appId) setSplit(null)
     closeTabs(tabs.filter((tab) => miniAppIdFromTabUrl(tab.url) === appId).map((tab) => tab.id))
   })
-  useEffect(() => () => webviewRuntimeService.dispose(), [])
+  useLayoutEffect(() => () => webviewRuntimeService.dispose(), [])
 }

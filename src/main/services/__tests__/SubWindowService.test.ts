@@ -24,7 +24,6 @@ const {
     getWindowType: vi.fn<(id: string) => string | undefined>(() => undefined),
     getWindowsByType: vi.fn<(type: string) => unknown[]>(() => []),
     getWindowInfosByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),
-    getWindowId: vi.fn(() => 'main1'),
     getWindowIdByWebContents: vi.fn<(wc: unknown) => string | undefined>(() => undefined),
     broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>(),
     onWindowCreatedByType: vi.fn(() => vi.fn()),
@@ -422,11 +421,11 @@ describe('SubWindowService', () => {
   describe('attachTab', () => {
     const tab = { id: 'tab-1', title: 'T' } as Parameters<SubWindowService['attachTab']>[0]
 
-    it('delivers the selected tab without closing its source window', () => {
+    it('closes the detached window after delivering its tab to main', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
       svc.attachTab(tab, 'sub1')
       expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
-      expect(windowManagerMock.close).not.toHaveBeenCalled()
+      expect(windowManagerMock.close).toHaveBeenCalledWith('sub1')
     })
 
     it('rejects attach from a non-subwindow', () => {

@@ -10,6 +10,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
+import { ipcApi } from '@renderer/ipc'
 import { isLinux, isWin } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import type { SubWindowInitData } from '@shared/types/subWindow'
@@ -29,14 +30,13 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const SubWindowAppShell = () => {
-  const tabsApi = useTabs()
-  const { tabs, activeTabId, updateTab, attachTab, closeTab } = tabsApi
+  const { tabs, activeTabId, updateTab, attachTab } = useTabs()
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
   const isFullscreen = useNativeFullscreen()
   const handleCloseTab = useCallback(() => {
-    if (activeTabId) closeTab(activeTabId)
-  }, [activeTabId, closeTab])
+    void ipcApi.request('window.close')
+  }, [])
   useCommandHandler('tab.close', handleCloseTab)
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
@@ -85,7 +85,6 @@ export const SubWindowAppShell = () => {
           className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
           style={
             {
-              '--sidebar-width': '0px',
               '--window-controls-width': !isFullscreen && (isWin || isLinux) ? WINDOW_CONTROLS_OVERLAY_WIDTH : '0px'
             } as CSSProperties
           }>

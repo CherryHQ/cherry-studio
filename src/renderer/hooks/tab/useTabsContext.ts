@@ -8,8 +8,6 @@ import type { Tab, TabType } from '@shared/data/cache/cacheValueTypes'
 export interface OpenTabOptions {
   /** Force open a new tab even if one with the same URL exists */
   forceNew?: boolean
-  /** Open or reuse a background tab without changing the active tab. */
-  activate?: boolean
   /** Tab title (defaults to URL path) */
   title?: string
   /** Tab type (defaults to 'route') */
@@ -53,7 +51,7 @@ export interface TabsContextValue {
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
 
   // Detach
-  detachTab: (tabId: string) => void
+  detachTab: (tabId: string, activateId?: string) => void
 
   // Attach (from detached window)
   attachTab: (tabData: Tab) => void

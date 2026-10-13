@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
@@ -222,7 +223,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   // Global keeps pinned apps across region choices; CN still enforces its edition catalog.
   const pinnedApps = useMemo(() => filterByEdition(pinned, appEdition), [appEdition, pinned])
 
-  const runtime = useMiniAppRuntime()
+  const { openedKeepAliveMiniApps, currentMiniAppId, miniAppShow, splitOpen, splitMiniAppId } = useMiniAppRuntime()
   const { remove: removeSidebarShortcut } = useSidebarShortcuts()
   const tabsContext = useOptionalTabsContext()
   const tabsContextRef = useRef(tabsContext)
@@ -290,6 +291,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   )
 
   const closeMiniAppTabs = useCallback((appId: string) => {
+    if (cacheService.get('mini_app.split')?.appId === appId) cacheService.set('mini_app.split', null)
     const context = tabsContextRef.current
     context?.closeTabs(context.tabs.filter((tab) => miniAppIdFromTabUrl(tab.url) === appId).map((tab) => tab.id))
   }, [])
@@ -465,7 +467,11 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     miniApps,
     disabled: disabledApps,
     pinned: pinnedApps,
-    ...runtime,
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    miniAppShow,
+    splitOpen,
+    splitMiniAppId,
     isLoading,
     error,
     refetch,

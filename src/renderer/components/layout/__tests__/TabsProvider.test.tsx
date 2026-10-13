@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -127,6 +127,7 @@ vi.mock('@renderer/hooks/useWindowInitData', () => ({
 }))
 
 import { useCloseConversationTabs, useMainWindowNavigation, useTabsContext } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
 
 import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
@@ -445,6 +446,46 @@ afterEach(() => {
 })
 
 describe('TabsProvider', () => {
+  it('preserves Settings on failed detach and selects the requested survivor only after success', async () => {
+    function Navigation() {
+      const { openTab, detachTab, activeTabId, tabs } = useTabsContext()
+      return (
+        <>
+          <button type="button" onClick={() => openTab('/settings/provider', { id: 'settings' })}>
+            Open settings
+          </button>
+          <button type="button" onClick={() => detachTab('settings', 'home')}>
+            Detach settings
+          </button>
+          <output aria-label="selection">{activeTabId}</output>
+          <output aria-label="pages">{tabs.map((tab) => tab.id).join(',')}</output>
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <Navigation />
+      </TabsProvider>
+    )
+    await user.click(screen.getByText('Open settings'))
+    vi.mocked(ipcApi.request).mockRejectedValueOnce(new Error('window creation failed'))
+    await user.click(screen.getByText('Detach settings'))
+    expect(screen.getByLabelText('selection')).toHaveTextContent('settings')
+    expect(screen.getByLabelText('pages')).toHaveTextContent('settings')
+    let accept!: () => void
+    vi.mocked(ipcApi.request).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        accept = resolve
+      })
+    )
+    await user.click(screen.getByText('Detach settings'))
+    expect(screen.getByLabelText('selection')).toHaveTextContent('settings')
+    await act(async () => accept())
+    expect(screen.getByLabelText('selection')).toHaveTextContent('home')
+    expect(screen.getByLabelText('pages')).not.toHaveTextContent('settings')
+  })
+
   it('preserves the source conversation while opening and closing error recovery settings', async () => {
     const user = userEvent.setup()
 

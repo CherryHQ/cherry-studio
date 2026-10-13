@@ -41,7 +41,7 @@ function SubWindowApp(): React.ReactElement {
         <CodeStyleProvider>
           <CommandContextKeyProvider>
             <CommandProvider>
-              <TabsProvider initialDefaultTab={null} includePinnedTabs={false} closeWindowOnEmpty>
+              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
                 <SubWindowAppShell />
                 <SubWindowRuntime />
                 <ConversationNotificationRuntime />

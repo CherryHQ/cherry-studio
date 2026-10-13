@@ -296,6 +296,7 @@ export function useTabDrag({
           const allTabs = [...pinnedTabs, ...normalTabs]
           const tab = allTabs.find((t) => t.id === dragState.tabId)
           if (tab) {
+            const drag = dragRef.current
             void ipcApi
               .request('tab.detach', {
                 ...tab,
@@ -304,11 +305,11 @@ export function useTabDrag({
               })
               .then(() => {
                 closeTab(tab.id)
-                dragRef.current.tabClosed = true
+                drag.tabClosed = true
               })
               .catch((error) => {
                 logger.error('Tab detach failed', error)
-                dragRef.current.detachedCreated = false
+                if (dragRef.current === drag) setDragState(null)
               })
             dragRef.current.detachedCreated = true
             didDragRef.current = true
@@ -345,8 +346,7 @@ export function useTabDrag({
       // key off the ref that the detach branch sets synchronously.
       const detaching = dragState.mode === 'detach' || dragRef.current.detachedCreated
       if (detaching) {
-        // A fast drop can beat the pointermoves that position the fresh sub-window
-        // (SubWindowService keeps position-aware windows hidden until a move shows them).
+        // Send the final position even when no further pointermove follows the detach.
         if (dragRef.current.detachedCreated) {
           window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
             tabId: dragState.tabId,

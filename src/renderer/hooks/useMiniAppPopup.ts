@@ -28,18 +28,7 @@ export const useMiniAppPopup = () => {
   const tabs = useOptionalTabsContext()
   const openTab = tabs?.openTab
   const [, setSplit] = useCache('mini_app.split')
-  const openMiniAppInSplit = useCallback(
-    (app: MiniApp) => {
-      if (!openTab) return
-      const tabId = openTab(`/app/mini-app/${app.appId}`, {
-        title: app.name,
-        icon: app.logoSrc ?? app.logo,
-        activate: false
-      })
-      setSplit({ tabId })
-    },
-    [openTab, setSplit]
-  )
+  const openMiniAppInSplit = useCallback((app: MiniApp) => setSplit({ appId: app.appId }), [setSplit])
   const openSmartMiniApp = useCallback(
     (config: MiniAppInput) => {
       if (!openTab) return openExternalMiniAppUrl(config.url)
@@ -52,7 +41,7 @@ export const useMiniAppPopup = () => {
     },
     [openTab]
   )
-  const openSplit = useCallback(() => setSplit({ tabId: null }), [setSplit])
+  const openSplit = useCallback(() => setSplit({ appId: null }), [setSplit])
   const closeSplit = useCallback(() => setSplit(null), [setSplit])
   return { openMiniAppInSplit, openSmartMiniApp, openSplit, closeSplit }
 }

@@ -74,12 +74,9 @@ export const AppShell = () => {
   const handleDetachTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
-      detachTab(id)
-      if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
-        setActiveTab(previousWorkspaceTabIdRef.current)
-      }
+      detachTab(id, isSettingsPath(tab?.url) ? previousWorkspaceTabIdRef.current : undefined)
     },
-    [detachTab, setActiveTab, tabs]
+    [detachTab, tabs]
   )
 
   const handleOpenGlobalSearch = useCallback(() => {

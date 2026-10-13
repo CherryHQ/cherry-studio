@@ -4,7 +4,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
-import { useCallback } from 'react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
@@ -13,6 +13,7 @@ import { createMiniApp } from '@renderer/hooks/__tests__/fixtures/miniApp'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniAppRuntime } from '@renderer/hooks/useMiniAppRuntime'
+import MiniAppPane from '@renderer/pages/miniApps/components/MiniAppPane'
 import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
 
 import MiniAppTabsPool from '../MiniAppTabsPool'
@@ -28,24 +29,25 @@ vi.mock('@renderer/ipc', () => ({
 }))
 vi.mock('@renderer/components/AgentBrowserRuntimeHost', () => ({ AgentBrowserRuntimeHost: () => null }))
 vi.mock('@renderer/hooks/command', () => ({ useCommandContextKey: () => {} }))
-vi.mock('../WebviewContainer', () => ({
-  default: function Guest({
-    appid,
-    onSetRefCallback
-  }: {
-    appid: string
-    onSetRefCallback: (id: string, el: WebviewTag | null) => void
-  }) {
-    const bind = useCallback(
-      (el: HTMLDivElement | null) => onSetRefCallback(appid, el as unknown as WebviewTag | null),
-      [appid, onSetRefCallback]
-    )
-    return <div ref={bind} data-testid={`guest-${appid}`} />
-  }
+vi.mock('@renderer/pages/miniApps/components/MinimalToolbar', () => ({
+  default: ({ isWebviewReady, onReload }: { isWebviewReady: boolean; onReload: () => void }) => (
+    <button type="button" disabled={!isWebviewReady} onClick={onReload}>
+      Reload guest
+    </button>
+  )
 }))
+vi.mock('@renderer/components/WebviewSearch', () => ({ default: () => null }))
+
+const queryGuest = (appId: string) => document.querySelector<WebviewTag>(`webview[data-mini-app-id="${appId}"]`)
+const getGuest = (appId: string) => {
+  const guest = queryGuest(appId)
+  expect(guest).not.toBeNull()
+  return guest!
+}
 
 function Controls() {
   const tabs = useTabs()
+  const [poolVersion, setPoolVersion] = useState(0)
   const popup = useMiniAppPopup()
   const runtime = useMiniAppRuntime()
   return (
@@ -53,12 +55,10 @@ function Controls() {
       <button type="button" onClick={() => tabs.openTab('/app/mini-app/a', { id: 'a' })}>
         Open A
       </button>
-      <button
-        type="button"
-        onClick={() => {
-          tabs.openTab('/app/mini-app/b', { id: 'b', activate: false })
-          popup.openMiniAppInSplit(createMiniApp('b'))
-        }}>
+      <button type="button" onClick={() => tabs.openTab('/app/mini-app/b', { id: 'b' })}>
+        Open B
+      </button>
+      <button type="button" onClick={() => popup.openMiniAppInSplit(createMiniApp('b'))}>
         Split B
       </button>
       <button type="button" onClick={() => tabs.openTab('/app/mini-app/a', { id: 'duplicate', forceNew: true })}>
@@ -97,7 +97,11 @@ function Controls() {
       <output aria-label="tabs">{tabs.tabs.map((tab) => tab.id).join(',')}</output>
       <output aria-label="primary">{tabs.activeTabId}</output>
       <output aria-label="secondary">{runtime.splitMiniAppId}</output>
-      <MiniAppTabsPool />
+      <button type="button" onClick={() => setPoolVersion((version) => version + 1)}>
+        Remount pool
+      </button>
+      <MiniAppTabsPool key={poolVersion} />
+      <MiniAppPane app={createMiniApp('a')} splitMode="open" onSplit={popup.openSplit} />
     </>
   )
 }
@@ -119,34 +123,88 @@ const mount = () =>
     </TabsProvider>
   )
 
-describe('Tab-owned MiniApp guests', () => {
-  it('keeps the split tab reachable after collapsing and releases its guest when closed', async () => {
+describe('MiniApp guest ownership', () => {
+  it('keeps the guest usable while navigation is in progress or aborted', async () => {
     const user = userEvent.setup()
     mount()
     await user.click(screen.getByText('Open A'))
-    const a = screen.getByTestId('guest-a')
+    const guest = getGuest('a')
+    guest.getWebContentsId = () => 42
+    guest.reload = vi.fn()
+    await act(() => guest.dispatchEvent(new Event('dom-ready')))
+    expect(screen.getByRole('button', { name: 'Reload guest' })).toBeEnabled()
+    await act(() =>
+      guest.dispatchEvent(
+        Object.assign(new Event('did-start-navigation'), {
+          isMainFrame: true,
+          isInPlace: false
+        })
+      )
+    )
+    expect(screen.getByRole('button', { name: 'Reload guest' })).toBeEnabled()
+    await act(() =>
+      guest.dispatchEvent(
+        Object.assign(new Event('did-fail-load'), {
+          isMainFrame: true,
+          errorCode: -3
+        })
+      )
+    )
+    await user.click(screen.getByRole('button', { name: 'Reload guest' }))
+    expect(guest.reload).toHaveBeenCalledOnce()
+    expect(getGuest('a')).toBe(guest)
+  })
+
+  it('keeps the new pool guest after the previous pool unmounts', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open A'))
+    await user.click(screen.getByText('Remount pool'))
+    const guest = getGuest('a')
+    guest.getWebContentsId = () => 42
+    await act(() => guest.dispatchEvent(new Event('dom-ready')))
+    expect(screen.getByRole('button', { name: 'Reload guest' })).toBeEnabled()
+  })
+
+  it('opens split without a tab and releases its guest when collapsed', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open A'))
+    const a = getGuest('a')
     await user.click(screen.getByText('Split B'))
-    const b = screen.getByTestId('guest-b')
+    expect(getGuest('b')).toBeInTheDocument()
     expect(screen.getByLabelText('primary')).toHaveTextContent('a')
     expect(screen.getByLabelText('secondary')).toHaveTextContent('b')
     await user.click(screen.getByText('Collapse split'))
-    expect(screen.getByLabelText('tabs')).toHaveTextContent('b')
-    expect(screen.getByTestId('guest-b')).toBe(b)
+    expect(queryGuest('b')).toBeNull()
+    expect(getGuest('a')).toBe(a)
+  })
+
+  it('preserves an independently opened tab and guest when split collapses', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open B'))
+    const b = getGuest('b')
+    await user.click(screen.getByText('Open A'))
+    await user.click(screen.getByText('Split B'))
+    expect(screen.getByLabelText('primary')).toHaveTextContent('a')
+    expect(getGuest('b')).toBe(b)
+    await user.click(screen.getByText('Collapse split'))
+    expect(getGuest('b')).toBe(b)
     await user.click(screen.getByText('Close B'))
-    expect(screen.queryByTestId('guest-b')).toBeNull()
-    expect(screen.getByTestId('guest-a')).toBe(a)
+    expect(queryGuest('b')).toBeNull()
   })
 
   it('retains a shared guest until the last matching tab closes', async () => {
     const user = userEvent.setup()
     mount()
     await user.click(screen.getByText('Open A'))
-    const guest = screen.getByTestId('guest-a')
+    const guest = getGuest('a')
     await user.click(screen.getByText('Duplicate A'))
     await user.click(screen.getByText('Close A'))
-    expect(screen.getByTestId('guest-a')).toBe(guest)
+    expect(getGuest('a')).toBe(guest)
     await user.click(screen.getByText('Close duplicate'))
-    expect(screen.queryByTestId('guest-a')).toBeNull()
+    expect(queryGuest('a')).toBeNull()
   })
 
   it('removes every matching owner on main-process eviction', async () => {
@@ -155,21 +213,22 @@ describe('Tab-owned MiniApp guests', () => {
     await user.click(screen.getByText('Open A'))
     await user.click(screen.getByText('Duplicate A'))
     act(() => ipc.events.get('mini_app.runtime.evicted')?.({ appId: 'a' }))
-    expect(screen.queryByTestId('guest-a')).toBeNull()
+    expect(queryGuest('a')).toBeNull()
     expect(screen.getByLabelText('tabs')).not.toHaveTextContent('duplicate')
   })
   it('keeps a guest independent of its dormant route page and restores split presentation', async () => {
     const user = userEvent.setup()
     mount()
+    await user.click(screen.getByText('Open B'))
     await user.click(screen.getByText('Open A'))
     await user.click(screen.getByText('Split B'))
     await user.click(screen.getByText('Show home'))
     expect(screen.getByLabelText('secondary')).toHaveTextContent(/^$/)
-    const guest = screen.getByTestId('guest-b')
+    const guest = getGuest('b')
     await user.click(screen.getByText('Sleep B'))
-    expect(screen.getByTestId('guest-b')).toBe(guest)
+    expect(getGuest('b')).toBe(guest)
     await user.click(screen.getByText('Show A'))
-    expect(screen.getByTestId('guest-b')).toBeInTheDocument()
+    expect(getGuest('b')).toBeInTheDocument()
     expect(screen.getByLabelText('secondary')).toHaveTextContent('b')
     expect(screen.getByLabelText('dormant')).toHaveTextContent('b')
   })
@@ -184,7 +243,7 @@ describe('Tab-owned MiniApp guests', () => {
         <Controls />
       </TabsProvider>
     )
-    expect(screen.queryByTestId('guest-a')).toBeNull()
+    expect(queryGuest('a')).toBeNull()
     expect(screen.getByLabelText('tabs')).not.toHaveTextContent('a')
     act(() =>
       cacheService.setShared('mini_app.transient_descriptor.a', {
@@ -194,14 +253,14 @@ describe('Tab-owned MiniApp guests', () => {
       })
     )
     await user.click(screen.getByText('Open A'))
-    expect(screen.getByTestId('guest-a')).toBeInTheDocument()
+    expect(getGuest('a')).toBeInTheDocument()
   })
 
   it('receives an existing tab without duplicating its owner or guest', async () => {
     const user = userEvent.setup()
     mount()
     await user.click(screen.getByText('Open A'))
-    const guest = screen.getByTestId('guest-a')
+    const guest = getGuest('a')
     await act(async () =>
       ipc.events.get('tab.attached')?.({
         id: 'a',
@@ -211,7 +270,7 @@ describe('Tab-owned MiniApp guests', () => {
       })
     )
     expect(screen.getByLabelText('tabs')).toHaveTextContent('home,a')
-    expect(screen.getByTestId('guest-a')).toBe(guest)
+    expect(getGuest('a')).toBe(guest)
   })
 
   it('uses the current tab selection when a pending detach completes', async () => {
@@ -226,34 +285,34 @@ describe('Tab-owned MiniApp guests', () => {
     )
     await user.click(screen.getByText('Detach A'))
     await user.click(screen.getByText('Show home'))
-    expect(screen.getByTestId('guest-a')).toBeInTheDocument()
+    expect(getGuest('a')).toBeInTheDocument()
     await act(async () => accept(true))
-    expect(screen.queryByTestId('guest-a')).toBeNull()
+    expect(queryGuest('a')).toBeNull()
     expect(screen.getByLabelText('primary')).toHaveTextContent('home')
   })
   it('does not interpret catalog visibility changes as global tab closure', async () => {
     const user = userEvent.setup()
     const view = mount()
     await user.click(screen.getByText('Open A'))
-    const guest = screen.getByTestId('guest-a')
+    const guest = getGuest('a')
     MockUseDataApiUtils.mockQueryData('/mini-apps', [{ ...createMiniApp('a'), status: 'disabled' }, createMiniApp('b')])
     view.rerender(
       <TabsProvider>
         <Controls />
       </TabsProvider>
     )
-    expect(screen.getByTestId('guest-a')).toBe(guest)
+    expect(getGuest('a')).toBe(guest)
     expect(screen.getByLabelText('tabs')).toHaveTextContent('a')
   })
   it('preserves the source tab and guest when detaching fails', async () => {
     const user = userEvent.setup()
     mount()
     await user.click(screen.getByText('Open A'))
-    const guest = screen.getByTestId('guest-a')
+    const guest = getGuest('a')
     ipc.request.mockRejectedValueOnce(new Error('window creation failed'))
     await user.click(screen.getByText('Detach A'))
     expect(screen.getByLabelText('tabs')).toHaveTextContent('a')
     expect(screen.getByLabelText('primary')).toHaveTextContent('a')
-    expect(screen.getByTestId('guest-a')).toBe(guest)
+    expect(getGuest('a')).toBe(guest)
   })
 })

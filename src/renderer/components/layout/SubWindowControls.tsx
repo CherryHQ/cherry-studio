@@ -14,7 +14,7 @@ const logger = loggerService.withContext('SubWindowControls')
 
 export const SubWindowControls = () => {
   const { t } = useTranslation()
-  const { tabs, activeTabId, closeTab } = useTabs()
+  const { tabs, activeTabId } = useTabs()
   const [pinned, setPinned] = useState(false)
 
   const handleTogglePin = async () => {
@@ -26,12 +26,9 @@ export const SubWindowControls = () => {
   const handleBackToMain = () => {
     const tab = tabs.find((tabItem) => tabItem.id === activeTabId) ?? tabs[0]
     if (!tab) return
-    ipcApi
-      .request('tab.attach', tab)
-      .then(() => closeTab(tab.id))
-      .catch((err) => {
-        logger.error('Back to main window failed', err as Error)
-      })
+    ipcApi.request('tab.attach', tab).catch((err) => {
+      logger.error('Back to main window failed', err as Error)
+    })
   }
 
   const pinLabel = pinned ? t('subWindow.unpin') : t('subWindow.pin')

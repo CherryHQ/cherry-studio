@@ -28,16 +28,7 @@ const mocks = vi.hoisted(() => ({
   ],
   tabBarProps: undefined as Record<string, unknown> | undefined,
   showSearchPopup: vi.fn(),
-  hideSearchPopup: vi.fn(),
-  miniApps: {
-    openedKeepAliveMiniApps: [] as unknown[],
-    currentMiniAppId: '',
-    openedOneOffMiniApp: null,
-    setOpenedKeepAliveMiniApps: vi.fn(),
-    setCurrentMiniAppId: vi.fn(),
-    setMiniAppShow: vi.fn()
-  },
-  clearWebviewState: vi.fn()
+  hideSearchPopup: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
@@ -124,15 +115,6 @@ vi.mock('../TabRouter', () => ({
   TabRouter: ({ tab }: { tab: { id: string } }) => <section data-testid="tab-router" data-tab-id={tab.id} />
 }))
 
-vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => mocks.miniApps
-}))
-
-vi.mock('@renderer/utils/miniAppKeepAlive', async () => {
-  const actual = await vi.importActual('@renderer/utils/miniAppKeepAlive')
-  return actual
-})
-
 import { AppShell } from '../AppShell'
 
 afterEach(() => {
@@ -154,9 +136,6 @@ afterEach(() => {
     }
   ]
   mocks.tabBarProps = undefined
-  mocks.miniApps.openedKeepAliveMiniApps = []
-  mocks.miniApps.currentMiniAppId = ''
-  mocks.miniApps.openedOneOffMiniApp = null
 })
 
 describe('AppShell', () => {
@@ -300,8 +279,8 @@ describe('AppShell', () => {
     const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
     detachFocusedTab?.(settingsTab.id)
 
-    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id)
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('first')
+    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id, 'first')
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
   })
 
   it('restores the most recently accessed workspace tab when Settings is restored active', () => {
@@ -336,8 +315,8 @@ describe('AppShell', () => {
 
     const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
     detachFocusedTab?.(settingsTab.id)
-    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id)
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('home')
+    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id, 'home')
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
   })
 
   it('blocks and dismisses global search while the Settings tab is focused', () => {

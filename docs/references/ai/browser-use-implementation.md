@@ -1209,7 +1209,7 @@ guest host and navigation state. Both products compose `WebviewHost`; MiniApp re
 |---|---|---|---|
 | Guest host | [WebviewContainer](../../../src/renderer/components/MiniApp/WebviewContainer.tsx) | [WebviewHost](../../../src/renderer/components/WebviewHost.tsx), composed by `WebviewBrowser` | Shared element creation, event cleanup, focus/keyboard forwarding and preference application |
 | Navigation toolbar | `MinimalToolbar` | `WebviewNavigation` | Separate product controls; shared `useWebviewNavigation` for guest-bound navigation and address drafts |
-| Page lifetime | `TabsProvider` owns pages and split selection; `MiniAppWebviewService` owns window-local guests; `MiniAppTabsPool` renders resources | Browser tab or Agent pane owns the guest | Separate product ownership |
+| Page lifetime | `TabsProvider` owns pages; MiniApp layout owns split selection; `WebviewRuntimeService` owns window-local guests; `MiniAppTabsPool` renders resources | Browser tab or Agent pane owns the guest | Separate product ownership |
 | Page search | `WebviewSearch` | `WebviewSearch` | Shared |
 | Annotation controls | Hidden | `WebviewAnnotationControls` in Agent panes only; hidden in standalone tabs | Requires a conversation receiver (`onAnnotationSaved`) |
 | Annotation accessibility capture | [annotationExport](../../../src/main/services/webview/annotationExport.ts) borrows a guest lease | `BrowserSessionService` / `GuestSession` | Shared debugger ownership and capture engine |
@@ -1238,27 +1238,31 @@ callbacks without replaying readiness on preference or callback changes. The Min
 for runtime preparation and remounts that preparation state when app identity changes. Its loaded
 callback timer is cancelled on a new full navigation or eviction. MiniApp resource callbacks carry
 an instance token so a retired guest cannot overwrite a reopened app's readiness or element.
+A loaded guest remains usable during normal navigation, including aborted requests; only a new
+resource or a changed source URL resets readiness. Pool disposal runs in layout cleanup before
+a replacement pool synchronizes its resources.
 
-MiniApp pages, including split selections and transient apps, open through tabs. The secondary pane
-references a tab ID; collapsing it preserves that tab. A window shares one guest per app ID until
-its last tab closes or capacity evicts an unprotected background guest. Route-page dormancy does
-not release the guest: TabLruManager controls React page caching only.
+MiniApp pages and transient apps open through tabs. The secondary pane selects an app ID without
+opening or reusing a tab. A window shares one guest per app ID across tabs and the visible split
+pane. Collapsing split releases a split-only guest; an independently opened tab keeps its guest.
+Closing the last consumer releases the guest. Route-page dormancy does not release tab-owned
+guests: TabLruManager controls React page caching only.
 Both visible panes are exempt from eviction. Evicted background guests remain absent until shown
 again. Pool DOM order stays stable while recency changes; the pool lives outside page Activities.
-Catalog deletion and runtime eviction close all matching tabs; region/edition filtering does not.
+Catalog deletion and runtime eviction clear the matching split selection and close all matching tabs; region/edition filtering does not.
 
 Renderer `WebviewRuntimeService` owns MiniApp guest records, loading state and capacity eviction.
 It consumes resource keys, sources, visibility and eviction protection, without importing Tab or
-MiniApp business types. MiniApp binding derives these inputs from the full tab list; split selection
-is renderer-local layout state. MiniAppTabsPool renders the resulting records outside Activity,
+MiniApp business types. MiniApp binding derives these inputs from the full tab list and the visible
+split app; split selection is renderer-local layout state. MiniAppTabsPool renders the resulting records outside Activity,
 while WebviewContainer retains local-app preparation and business preferences. Ordinary Browser
 and Agent guest residency are not yet migrated to this resource service.
 
-Main and detached windows use the same tab strip and resource projection. Returning a tab removes
-only the selected source tab after the existing delivery IPC succeeds; other tabs remain usable,
-and removing the last tab closes the detached window. Delivery does not wait for a destination
-renderer receipt, so this is not a transactional cross-window transfer. Window-local tab closure
-does not invoke global app shutdown or clear storage.
+Detached windows retain their single-tab title bar and use the same guest resource projection.
+Returning to main delivers the tab and closes its source window; delivery failure preserves the
+source window. Delivery does not wait for a destination renderer receipt, so this is not a
+transactional cross-window transfer. Window-local tab closure does not invoke global app shutdown
+or clear storage.
 
 `useWebviewNavigation` binds navigation state to the concrete guest and revision. It shares back /
 forward state, main-frame URL tracking and address draft preservation across both toolbars. Guest

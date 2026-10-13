@@ -14,9 +14,9 @@ const tab: Tab = {
   icon: 'emoji:🤖'
 }
 
-const closeTab = vi.hoisted(() => vi.fn())
+// Detached sub-window hosts exactly one tab; controls read it directly.
 vi.mock('@renderer/hooks/tab', () => ({
-  useTabs: () => ({ tabs: [tab], activeTabId: 'topic-1', closeTab })
+  useTabs: () => ({ tabs: [tab], activeTabId: 'topic-1' })
 }))
 
 // Return the key verbatim so assertions can target stable i18n keys (keep other exports).
@@ -71,24 +71,10 @@ describe('SubWindowControls', () => {
     expect(screen.getByRole('button', { name: 'subWindow.pin' })).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('keeps the source tab until the destination accepts it', async () => {
-    let accept!: () => void
-    mocks.request.mockReturnValue(
-      new Promise<void>((resolve) => {
-        accept = resolve
-      })
-    )
+  it('re-attaches the active tab to the main window via tab.attach', () => {
     render(<SubWindowControls />)
-    fireEvent.click(screen.getByRole('button', { name: 'subWindow.back_to_main' }))
-    expect(closeTab).not.toHaveBeenCalled()
-    await act(async () => accept())
-    expect(closeTab).toHaveBeenCalledWith(tab.id)
-  })
 
-  it('retains the tab when transfer fails', async () => {
-    mocks.request.mockRejectedValue(new Error('timed out'))
-    render(<SubWindowControls />)
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'subWindow.back_to_main' })))
-    expect(closeTab).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'subWindow.back_to_main' }))
+    expect(mocks.request).toHaveBeenCalledWith('tab.attach', tab)
   })
 })

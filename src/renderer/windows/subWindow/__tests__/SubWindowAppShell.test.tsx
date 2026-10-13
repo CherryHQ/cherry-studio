@@ -183,11 +183,11 @@ describe('SubWindowAppShell', () => {
     expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
   })
 
-  it('closes the active tab from the tab-close shortcut', async () => {
+  it('closes the detached window from the tab-close shortcut', async () => {
     await renderSubWindowAppShell()
 
     commandHandlers.get('tab.close')?.()
 
-    expect(closeTab).toHaveBeenCalledWith('home')
+    expect(ipcRequest).toHaveBeenCalledWith('window.close')
   })
 })

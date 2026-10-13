@@ -199,14 +199,12 @@ type TabsProviderProps = {
   children: ReactNode
   initialDefaultTab?: Tab | null
   includePinnedTabs?: boolean
-  closeWindowOnEmpty?: boolean
 }
 
 export function TabsProvider({
   children,
   initialDefaultTab = DEFAULT_TAB,
-  includePinnedTabs = true,
-  closeWindowOnEmpty = false
+  includePinnedTabs = true
 }: TabsProviderProps) {
   // Route-derived tab titles are localized, so recompute them on language change.
   const { i18n } = useTranslation()
@@ -387,14 +385,13 @@ export function TabsProvider({
   )
 
   const addTab = useCallback(
-    (tab: Tab, activate = true) => {
-      const primaryId = activate ? tab.id : activeTabIdRef.current
+    (tab: Tab) => {
       const exists = projectedTabsRef.current.some((item) => item.id === tab.id)
       const refreshed = { ...tab, lastAccessTime: Date.now(), isDormant: false }
       const next = exists
         ? projectedTabsRef.current.map((item) => (item.id === tab.id ? refreshed : item))
         : [...projectedTabsRef.current, refreshed]
-      commitTabs(next, primaryId)
+      commitTabs(next, tab.id)
     },
     [commitTabs]
   )
@@ -409,7 +406,7 @@ export function TabsProvider({
       if (closingTabs.length === 0) return
 
       const remainingTabs = currentTabs.filter((tab) => !closingIdSet.has(tab.id))
-      const fallbackTab = remainingTabs.length === 0 && !closeWindowOnEmpty ? createLaunchpadFallbackTab() : null
+      const fallbackTab = remainingTabs.length === 0 ? createLaunchpadFallbackTab() : null
 
       const currentActiveId = activeTabIdRef.current
       let newActiveId = currentActiveId
@@ -431,9 +428,8 @@ export function TabsProvider({
       }
 
       commitTabs(fallbackTab ? [fallbackTab] : remainingTabs, newActiveId)
-      if (closeWindowOnEmpty && remainingTabs.length === 0) void ipcApi.request('window.close')
     },
-    [closeWindowOnEmpty, commitTabs]
+    [commitTabs]
   )
 
   const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
@@ -458,12 +454,12 @@ export function TabsProvider({
    */
   const openTab = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned, activate = true } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned } = options
 
       if (!forceNew) {
         const existingTab = projectedTabsRef.current.find((t) => t.type === type && t.url === url)
         if (existingTab) {
-          addTab(existingTab, activate)
+          addTab(existingTab)
           return existingTab.id
         }
       }
@@ -480,7 +476,7 @@ export function TabsProvider({
         isDormant: false
       }
 
-      addTab(newTab, activate)
+      addTab(newTab)
       return newTab.id
     },
     [addTab]
@@ -562,16 +558,16 @@ export function TabsProvider({
    * Detach a tab to a new window
    */
   const detachTab = useCallback(
-    (tabId: string) => {
+    (tabId: string, activateId?: string) => {
       const tab = tabs.find((t) => t.id === tabId)
       if (!tab) return
 
       void ipcApi
         .request('tab.detach', tab)
-        .then(() => closeTab(tabId))
+        .then(() => closeTabs([tabId], activateId))
         .catch((error) => logger.error('Tab detach failed', error))
     },
-    [tabs, closeTab]
+    [tabs, closeTabs]
   )
 
   /**
