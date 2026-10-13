@@ -117,6 +117,16 @@ After.`
     expect(normalizeReadableText(selection, { mode: 'selection' })).toBe('`const answer = 42`\n\n$x^2$')
   })
 
+  it('omits inline and display dollar formulas from document speech while keeping the surrounding prose', () => {
+    expect(normalizeReadableText('Before $x^2$ after.')).toBe('Before after.')
+    expect(normalizeReadableText('Before $$x^2$$ after.')).toBe('Before after.')
+    expect(normalizeReadableText('Before.\n\n$$\nx^2\n$$\n\nAfter.')).toBe('Before.\n\nAfter.')
+    expect(normalizeReadableText('Before $x^2$ after.', { mode: 'selection' })).toBe('Before $x^2$ after.')
+    expect(normalizeReadableText('Before.\n\n$$\nx^2\n$$\n\nAfter.', { mode: 'selection' })).toBe(
+      'Before.\n\n$$\nx^2\n$$\n\nAfter.'
+    )
+  })
+
   it('removes internal citation markers from an explicit selection without removing selected code or math', () => {
     const selection = '`answer()` [cite:source-1][cite: source-2 ] $x^2$'
 

@@ -471,6 +471,7 @@
     "rehype-stringify": "^10.0.1",
     "remark-gfm": "^4.0.1",
     "remark-github-blockquote-alert": "^2.0.0",
+    "remark-math": "6.0.0",
     "remark-parse": "11.0.0",
     "remark-stringify": "11.0.0",
     "remove-markdown": "^0.6.2",
