@@ -6,6 +6,7 @@ sources:
   - src/main/ai/runtime/agentSessionWorkspace.ts
   - src/main/data/services/AgentWorkspaceService.ts
   - src/main/data/services/AgentSessionForkService.ts
+  - src/main/data/api/handlers/agentWorkspaces.ts
   - src/main/data/db/schemas/agentWorkspace.ts
   - src/main/core/paths
   - src/shared/ipc/schemas/ai.ts
@@ -21,7 +22,7 @@ sources:
 
 ## 1 交付范围与行为
 
-第一阶段实现完整的创建、查询、取消、会话 fork 接入、显式删除、重启恢复和打包验证。支持两种入口：从已有项目创建独立副本；在 fork 会话时选择使用独立副本。两者共用同一套文件复制和所有权协议。
+第一阶段实现创建、查询、取消、会话 fork 接入、显式删除、重启恢复和打包验证。支持两种入口：从已有项目创建独立副本；在 fork 会话时选择使用独立副本。两者共用同一套文件复制和所有权协议。新副本固定采用优先 CoW、明确降级和 metadata 校验，不向客户端提供复制或校验策略开关。
 
 | 场景 | 目标行为 |
 | --- | --- |
@@ -47,7 +48,7 @@ sources:
 | `AgentSessionForkService.commitTx()` | 验证源消息和工作区并原子创建子会话 | 接受已准备的目标工作区，在同一事务中发布副本和子会话 |
 | `AgentWorkspaceService` | 工作区表、用户目录注册、引用判断 | 识别副本关联；禁止绕过状态门禁注册或使用未发布、删除中的目录 |
 | `AgentLifecycleService` | 会话、Agent 和工作区删除的协调 | 区分移除工作区记录与删除副本文件；不把副本当成系统目录回收 |
-| `agentSessionWorkspace.ts` | 启动 cwd 校验 | 副本必须处于 `ready` 且根身份匹配；目录丢失时不自动创建空目录 |
+| `agentSessionWorkspace.ts` | 启动 cwd 校验 | 副本必须处于 `ready`，容器根和项目树身份均匹配；目录丢失时不自动创建空目录 |
 
 不能只替换 `copyFile()` 就算完成集成：数据发布、运行时 cwd、删除语义和恢复所有者必须一起接入。
 
@@ -69,8 +70,8 @@ Cherry 使用库的 `copyFile()`，不直接使用 `cp()` 作为业务引擎，�
 
 1. 目标路径位于本次操作独占且尚未发布的树中；不接受覆盖已有文件。
 2. 调用 `copyFile(src, dst, COPYFILE_FICLONE_FORCE | COPYFILE_EXCL)`。
-3. 成功记为 `cloned`。`require-clone` 模式下，失败直接上报。
-4. `prefer-clone` 模式仅对明确的能力限制退回 Node `copyFile(src, dst, COPYFILE_EXCL)`；成功记为 `copied`，保留降级原因。
+3. 成功记为 `cloned`。
+4. 仅对明确的能力限制退回 Node `copyFile(src, dst, COPYFILE_EXCL)`；成功记为 `copied`，保留降级原因。
 5. 任一阶段发现 `dst` 意外存在或身份不明，停止整个操作。不得为了重试先删除未知目标。
 
 Node 文档定义 `EXCL` 和克隆标志，但不保证整个复制操作原子；因此目录对外发布必须由 Cherry 单独控制。[Node copyFile](https://nodejs.org/api/fs.html#fspromisescopyfilesrc-dest-mode)
@@ -94,30 +95,27 @@ Node 文档定义 `EXCL` 和克隆标志，但不保证整个复制操作原子�
 
 `sourceWorkspaceId` 和 `copyId` 均为稳定 UUID；项目名称不参与路径。副本再复制沿用其已选择的存储父目录，不在副本的 `project/` 内嵌套新存储。默认候选为源目录父级；如果源目录位于 Git 仓库子目录，选择可识别的最外层包含仓库之外的父级，避免副本落入祖先仓库。发现该候选不可用时使用注册的应用数据根。
 
-路径选择顺序：明确配置的存储父目录、上述同文件系统候选、`feature.agents.workspace_copies` 对应的应用数据目录。明确配置的目录不可写时直接报错，不悄悄改到另一处；默认候选不可用可以降级，但最终位置和降级原因必须进入记录与结果。`require-clone` 不因位置选择悄悄变成普通复制。
+路径选择顺序：明确配置的存储父目录、上述同文件系统候选、`feature.agents.workspace_copies` 对应的应用数据目录。明确配置的目录不可写时直接报错，不悄悄改到另一处；默认候选不可用可以降级，但最终位置和降级原因必须进入记录与结果。
 
 同盘符或同物理磁盘不等于支持 CoW；卷、挂载和单文件状态仍以实际克隆结果为准。拒绝文件系统根、源目录本身、源的后代，以及通过路径别名解析后落回源树的目标。所有存储候选，包括自定义位置，都应位于可识别的 Git 仓库之外，避免没有 `.git` 的副本意外沿用祖先仓库。第一版不提供源项目内 `.cherry/` 模式，避免递归复制和构建、Git、索引器扫描副本。
 
-### 路径模块的前置扩展
+### 路径职责
 
-现有 `getPath()` 的静态注册表在 preboot 构建，无法直接表达每个项目不同的存储父级。应先扩展 [路径模块](../../../src/main/core/paths/README.md)，不能由业务服务绕开它拼出一套应用目录。
+按[路径模块](../../../src/main/core/paths/README.md)的动态目录约定，只增加静态 fallback 根 `feature.agents.workspace_copies`，并加入 `NO_ENSURE`。路径查询不创建目录，物化由副本服务负责；不增加副本专用的 `Application.getPath` 重载或动态注册表。
 
-建议增加一个严格限定的类型重载，保持现有调用兼容：
+`workspaceCopyPaths.ts` 内的纯函数统一构造业务布局：
 
 ```ts
-application.getPath('feature.agents.workspace_copies')
-
-application.getPath('feature.agents.workspace_copy', {
-  storageParent,
+buildWorkspaceCopyPaths({
+  storageRoot,
   sourceWorkspaceId,
-  copyId,
-  part: 'root' // root | manifest_file | staging | project | disposal
+  copyId
 })
 ```
 
-第二种调用由 `core/paths` 内专用解析函数处理，不往冻结的静态 map 动态写 key，也不引入通用路径模板系统。`storageParent` 来自主进程完成验证的路径选择，ID 必须是 UUID，`part` 是封闭枚举。解析无文件副作用，所有相关 key 加入 `NO_ENSURE`；目录只能由副本所有者显式创建。
+`storageRoot` 来自同一领域的路径选择函数：对经过验证的配置或源项目父级追加 `.cherry-workspaces`，fallback 则直接使用 `application.getPath('feature.agents.workspace_copies')`。这些运行时业务输入不注册为 core key。布局函数校验 UUID，在选定根下生成 root、manifest、staging、project、disposal 路径；调用方不散落拼接，core 不理解副本状态或目录角色。
 
-记录创建时的完整 location；设置以后修改只影响新副本。删除旧副本必须用该记录的 location 和身份，不能按当前设置重新推算。应用数据 fallback 与动态路径重载都返回同一目录布局。
+记录创建时的完整 location；设置以后修改只影响新副本。删除旧副本必须用该记录的 location 和身份，不能按当前设置重新推算。所有存储位置使用同一目录布局。
 
 ## 5 抽象与依赖方向
 
@@ -144,11 +142,12 @@ flowchart TD
 
 | 模块 | 形态与责任 | 不承担的责任 |
 | --- | --- | --- |
-| `AgentWorkspaceCopyService` | WhenReady 生命周期服务；任务 Map、取消控制器、全局限流、恢复、文件清理 | 不理解 SDK 历史，不直接修改会话消息 |
+| `AgentWorkspaceCopyService` | WhenReady 生命周期服务；任务与租约、限流、恢复、文件清理、受管路径注册协调 | 不理解 SDK 历史，不直接修改会话消息；fork 的取消控制器仍归协调器 |
 | `AgentWorkspaceCopyRecordService` | `data/services` 直接导入 singleton；表约束、事务状态转换、幂等请求、读模型 | 不遍历文件、不启动任务、不调用生命周期服务 |
 | `copyWorkspaceTree()` | 请求级函数；遍历、排除、文件复制、校验、统计 | 不读数据库、不知会话、不决定最终删除权限 |
 | `copyWorkspaceFile()` | 薄函数；原生加载、单文件克隆与明确降级 | 不隐藏权限和磁盘错误，不维护目录状态机 |
 | `workspaceCopyOwnership.ts` | 领域内文件函数；清单、身份检查、受控改名与清理 | 不扫描任意磁盘，不把路径前缀当所有权证据 |
+| `workspaceCopyPaths.ts` | 领域内路径选择与纯布局函数；静态 fallback 根从 Application 获取 | 不扩展 core 的业务知识，不创建目录 |
 | 原有 fork 协调器 | 组合副本与 SDK 产物，在同一事务中发布会话 | 不重复维护另一套副本恢复状态 |
 
 新代码建议放在 `src/main/ai/workspaceCopy/`。这些函数有文件写入副作用，且只服务此业务，留在领域目录；不放进全局 `utils`。类型和纯策略与消费者同目录，跨进程 DTO 才放 `src/shared`。不为本目录创建未经 lint 封闭的 barrel。
@@ -169,13 +168,13 @@ flowchart TD
 | --- | --- |
 | 身份 | `id` 为 copyId；`requestId` 唯一；`requestDigest` 为规范化创建输入摘要；`revision` 用于条件状态转换 |
 | 来源 | `sourceWorkspaceId` 可空 FK，源被删除时 `SET NULL`；`sourcePathAtCreation`、来源身份和父 copyId 的历史值仅用于溯源 |
-| 消费者 | `consumer: standalone | session-fork`、`forkOperationId`、`intendedSessionId`；创建时固定 |
+| 消费者 | `consumer: standalone \| session-fork`、`forkOperationId`、`intendedSessionId`；创建时固定 |
 | 目标 | `reservedWorkspaceId` 为非 FK 的预留 UUID；`targetWorkspaceId` 可空、唯一、FK `SET NULL`，只在发布事务创建目标工作区行后赋值 |
 | 位置 | 原始 `storageParent`、路径布局版本、资源根绝对路径和最终 cwd；之后不随设置修改 |
-| 所有权 | 随机 `ownershipToken`、父目录及资源根文件系统身份、清单版本；身份不明不允许自动删除 |
-| 创建状态 | `creating | prepared | ready | failed | cancelled | deleting | removed` |
-| 清理状态 | `none | pending | blocked` 与 `cleanupReason`；与创建失败原因分开，避免覆盖原始错误 |
-| 契约 | 复制策略版本及已解析选项、校验级别、排除项、创建统计、结构化失败原因 |
+| 所有权 | 随机 `ownershipToken`、父目录身份、`containerIdentity`、`projectIdentity`、清单版本；身份未捕获时可空，但不得发布或自动删除身份不明的对象 |
+| 创建状态 | `creating \| prepared \| ready \| failed \| cancelled \| deleting \| removed` |
+| 清理状态 | `none \| pending \| blocked` 与 `cleanupReason`；与创建失败原因分开，避免覆盖原始错误 |
+| 契约 | 固定复制策略的版本、排除项、创建统计、结构化失败原因；不持久化用户可选的 mode/validation |
 | 时间 | 创建、更新、准备完成、发布时间；遵循现有毫秒时间和 schema helper 规范 |
 
 `prepared` 是内部状态，不作为可选工作区对外暴露。`ready` 表示创建事务已发布，不承诺目录永远存在；丢失、外部移动或身份改变作为可用性诊断展示并阻止启动，不能伪装成成功的空目录。
@@ -196,22 +195,19 @@ flowchart TD
 
 创建时拥有目录，不意味着可以在引用归零时自动删除。发布前失败允许回滚；发布后只能通过明确的删除命令处理。源 FK、目标 FK 解除后副本记录仍保留，因而数据库清理不会丢失磁盘所有权信息。
 
-`manifest.json` 只保存版本、copyId、ownershipToken、预定路径、已确认身份、阶段和必要校验摘要。它不存源文件内容或凭据，也不是另一套业务真相。SQLite 决定是否已发布及是否准许删除；清单和目录身份共同证明磁盘资源是否是原来那份。仅发现同名目录或一份清单，不能自动接管。
+`containerIdentity` 标识 `<copyId>/`，`projectIdentity` 在独占创建 `project.partial` 时捕获，标识实际项目树；同父级改名为 project、disposal 后身份不变。使用稳定的 dev/ino 或平台等价文件标识，不把随内容变化的 mtime 当目录身份。启动、发布、脱离、清理和恢复都验证相应身份；外层根和清单不变但 project 被替换，也必须阻止使用与删除。
+
+`manifest.json` 只保存版本、copyId、ownershipToken、固定 location 和上述所有权身份。初始创建后不随业务阶段改写，不存进度或校验摘要。SQLite 独占业务状态和删除授权；恢复结合 DB、清单和磁盘上的目录身份判断，不续传复制、不修补清单阶段。仅发现同名目录或一份清单，不能自动接管。复制校验清单是本次操作的临时产物，由副本服务清理。
 
 ## 7 接口与类设计
 
 以下是目标契约草图，具体 DTO 用 Zod 单点定义并推导类型；不会手写一套重复的 TS/Zod 类型。
 
 ```ts
-type CopyMode = 'prefer-clone' | 'require-clone'
-type CopyValidation = 'metadata' | 'content'
-
 interface CreateWorkspaceCopyInput {
   requestId: string
   sourceWorkspaceId: string
   name?: string
-  mode: CopyMode
-  validation: CopyValidation
 }
 
 interface PreparedWorkspaceCopy {
@@ -238,16 +234,16 @@ interface CopyStatistics {
 | 内部方法 | 契约 |
 | --- | --- |
 | `startCreate(input)` | 同步完成准入及数据库预留后返回 copyId，服务持有后台 Promise；重试同 requestId 返回同结果 |
-| `prepareForFork(input, forkContext, signal)` | 内部入口；创建或复用同一请求，等待到 prepared，返回只读准备句柄；服务继续持有租约直到协调器结束 |
-| `finishForkPreparation(copyId)` | 协调器在 `finally` 中调用；读数据库判定已发布则保留，未发布则 drain 后清理；不能由调用方传 `success` 决定删除 |
+| `withPreparedCopy(input, operation, use)` | 内部作用域入口；准备后调用 `use(prepared)`，服务在 finally 中 drain 并收尾；根据 DB 是否已发布决定保留或清理，调用方不传 success、不手动释放准备租约 |
 | `cancel(copyId)` | 停止派发，发 abort，等待原生任务结束后回收；ready 时返回 `already-published`，不删除成果 |
+| `registerWorkspacePath(input)` | 路径注册命令的业务入口；规范化、身份校验和临时租约在此协调，再调用工作区数据事务；不在 DataApi 内执行文件 I/O |
 | `remove(copyId, expectedRevision)` | 条件进入 deleting，检查完整引用，脱离 cwd 后删除；幂等；busy 时返回引用信息 |
 | `recoverPending()` | 只处理本表记录的未完成操作；可重复执行；身份或存储状态不明则保留并标记 blocked |
 | `pauseAdmission()` / `drain()` | 为关闭和备份提供持有式门禁与有界等待；不得只检查一次 Map 长度 |
 | `copyWorkspaceTree(input, context)` | 输入已验证路径、策略、signal、全局限流器和进度回调；返回统计及校验清单；失败前等待已派发 I/O 全部 settle |
-| `copyWorkspaceFile(src, dst, mode)` | 返回 `cloned` 或 `copied` 及降级原因；不返回未经证实的“CoW 支持率” |
+| `copyWorkspaceFile(src, dst)` | 固定优先克隆并按白名单降级；返回 `cloned` 或 `copied` 及原因，不提供业务策略开关 |
 
-数据服务公开 `reserveTx`、`markPreparedTx`、`publishTx`、`beginDeleteTx`、`finishDeleteTx`、`recordFailureTx`、`get`、`list`。所有 Tx 方法同步、接收 `DbOrTx`，返回条件更新结果；状态不符不能无条件覆盖。`publishTx` 自己验证 prepared 状态、revision 和预留目标，外部不能直接 UPDATE 该表。
+数据服务公开 `reserveTx`、`recordOwnershipTx`、`markPreparedTx`、`publishTx`、`beginDeleteTx`、`finishDeleteTx`、`recordFailureTx`、`get`、`list`。所有 Tx 方法同步、接收 `DbOrTx`，返回条件更新结果；状态不符不能无条件覆盖。`recordOwnershipTx` 只在 creating 时首次填充目录身份，不覆盖已有值；`publishTx` 自己验证 prepared 状态、revision、身份字段完整和预留目标，外部不能直接 UPDATE 该表。
 
 `startCreate` 的“同步准入”指进入后台任务前先完成数据库预留，方法仍可返回 Promise；调用方收到 copyId 时必须已经可以查询记录。状态只沿 creating → prepared → ready → deleting → removed 前进，creating/prepared 可进入 failed/cancelled。失败资源的清理通过 cleanup 状态追踪，不把失败操作改成一次成功创建。
 
@@ -255,18 +251,23 @@ cancel 对 failed/cancelled 幂等返回原结果；对 ready 返回 already-pub
 
 standalone 创建由副本服务调用工作区数据服务和记录数据服务发布。fork 创建由 `AgentSessionForkService.commitTx()` 调用同一组数据方法，在既有源校验之后创建目标工作区、关联副本、创建子会话与消息。数据服务若形成真实相互依赖，遵循现有 `dataServiceRegistry` 解环，不使用动态 import 绕过边界。
 
+`operation` 是内部的操作级参数，包含所属创建请求的身份、`signal` 和同步幂等的 `requestCancel(): void`；它不等待任务结束。standalone 的 AbortController 由副本服务持有，fork 的由现有协调器持有，同一次操作只用一个取消源。`use` 的 Promise 必须覆盖本次准备启动且仍可能写入目录的 worker；无法确认退出时作用域保持未完成，关闭时的有界等待只记录待处理，不绕过租约清理目录。不引入通用任务或租约管理框架。
+
 ### IpcApi 与 DataApi
 
 | 接口 | 用途 |
 | --- | --- |
-| `ai.agent.workspace.copy.start` | 创建命令，返回 `{copyId}`；默认 prefer-clone + metadata |
+| `ai.agent.workspace.copy.start` | 创建命令，返回 `{copyId}`；固定 prefer-clone + metadata |
+| `ai.agent.workspace.register` | 路径注册命令，接收 path/name，返回 `{workspace, created}`；主进程执行文件校验与数据发布 |
 | `ai.agent.workspace.copy.cancel` | 取消命令，返回最终创建状态和清理是否待办 |
 | `ai.agent.workspace.copy.remove` | 显式删除文件命令，输入 copyId 与 expectedRevision |
 | `ai.agent.workspace.copy.progress` | 限频进度事件，含 copyId、递增序号、阶段、已处理项；无完整源路径 |
 | `/agent-workspace-copies` 与 `/:id` GET | SQLite 持久读模型，重新打开窗口后可重建状态；不提供绕过文件生命周期的 POST/DELETE |
-| `ai.agent.session.fork` 扩展 | 用户工作区选项 `workspace: {mode: 'shared'} | {mode: 'copy', requestId, copyMode, validation}`；未提供时保持 shared |
+| `ai.agent.session.fork` 扩展 | 用户工作区选项 `workspace: {mode: 'shared'} \| {mode: 'copy', requestId}`；未提供时保持 shared |
 
 现有 fork 返回 `{sessionId}` 的契约保留；renderer 用已知 requestId 关联副本状态，GET 支持 requestId 精确查询。fork 的单次请求丢失响应后重试，由副本记录中的 intendedSessionId 返回已发布会话，不再次创建 SDK 历史。相同 requestId 配不同输入、源消息边界或 consumer，报 `request_conflict`。同进程的并发重复请求加入首次协调器的 Promise，只允许一个协调器调用 driver；首次预留的 forkOperationId 和 targetSessionId 不能被重试替换。对失败请求返回原终态；主动重试应使用新 requestId。
+
+必须同步修改 `AgentSessionForkOperations.pending` 的去重入口：shared 使用带模式前缀的源会话/消息键，copy 使用带模式前缀的 requestId 键；加入已有 Promise 前校验规范化请求摘要。摘要覆盖源会话、消息边界、显式工作区选项及其他业务输入，不依赖重试时源记录仍存在。shared 与 copy、两个不同 requestId 的 copy 均不合并；`sourceSessionId` 另存用于取消与 drain。副本表的唯一约束不能代替协调器入口的请求区分。
 
 进度不是业务真相，可以丢失或重排，UI 只接受更大序号；完成后重新查询持久读模型。copy.start 在退出门禁关闭后拒绝新请求。创建不绑定某个窗口的存活，关闭窗口不隐式取消。
 
@@ -278,32 +279,33 @@ sequenceDiagram
   participant Copy as 副本服务
   participant FS as 文件系统
   participant DB as SQLite
-  Caller->>Copy: 请求和 requestId
+  Caller->>Copy: withPreparedCopy(input, operation, use)
   Copy->>DB: 预留 copyId 和 creating 记录
   Copy->>FS: 独占创建资源根并记录身份
   Copy->>FS: 复制到 project.partial
   Copy->>FS: 校验并改名为 project
   Copy->>DB: 条件标记 prepared
-  Copy-->>Caller: 准备句柄和最终 cwd
-  Note over Caller: fork 在此准备 SDK 历史及产物
+  Copy->>Caller: use(prepared)，包含最终 cwd
+  Note over Caller: fork 在回调内准备 SDK 历史及产物
   Caller->>DB: 同步事务发布工作区和副本，fork 同时发布会话
   DB-->>Caller: committed
-  Caller->>Copy: finish 或 standalone 收尾
+  Caller-->>Copy: use 完成，所有写入者已结束
+  Note over Copy: finally 根据 DB 状态保留或清理
   Copy-->>Caller: ready，发送读模型通知
 ```
 
 1. 准入时捕获源工作区 ID、规范路径、根身份、策略版本、来源关系和完整请求摘要。验证源可读、目标不重叠；落盘前先提交 creating 记录。
-2. 在可信父级中独占 `mkdir` 资源根，获取身份，再以 `wx` 写初始清单。若进程在 mkdir 和身份记录之间退出，留下的身份不明目录保留；恢复不得猜测所有权来强行清理。
-3. 创建 `project.partial`，进行有界遍历、复制和校验。源工作区无论是否来自副本，都只读使用。
-4. 全部文件就绪且通过校验后，更新清单，将 partial 改名为同一资源根内的 `project`；确认目标不存在。同父级重命名不涉及跨卷移动。对外仍不可见。
+2. 在可信父级中独占创建资源根和 `project.partial`，捕获父级、容器根和项目树身份，写入 creating 记录，再以 `wx` 写所有权清单。若进程在身份及清单完整落盘前退出，证据不全的目录保留；恢复不得猜测所有权来强行清理。
+3. 在已确认身份的 `project.partial` 内进行有界遍历、复制和校验。源工作区无论是否来自副本，都只读使用。
+4. 全部文件就绪且通过校验后，确认目标不存在、树身份匹配，将 partial 改名为同一资源根内的 `project`，并验证仍是同一项目树。不更新清单；对外仍不可见。
 5. 条件进入 prepared。fork driver 得到最终 cwd，避免 SDK 持久化临时路径后又被改名。driver 若合法写入 prepared 工作区，其新增文件同样属于本次准备资源。
-6. 发布前重新检查源业务关系、取消状态与目录身份。在一个同步 `withWriteTx` 中创建目标工作区并把副本改为 ready；fork 额外创建子会话与消息。事务中不 await、不执行文件 I/O。
+6. 发布前重新检查源业务关系、取消状态、容器根及项目树身份。在一个同步 `withWriteTx` 中创建目标工作区并把副本改为 ready；fork 额外创建子会话与消息。事务中不 await、不执行文件 I/O。
 7. 提交是唯一发布线性化点。之后取消不再回滚；通知失败也不回滚。客户端重试读取已提交结果。
 8. 发布失败才进入未发布资源清理。原有 fork 清理只管 SDK 产物，副本服务只管副本资源根；两者互不递归删除对方路径。
 
 文件系统改名和 SQLite 不能组成一个原子事务。设计以“先准备文件、后提交可见引用”的顺序与恢复记录弥合窗口，接受短暂的不可见孤儿，不接受指向半成品的可用会话。
 
-清单更新采用同目录临时文件、写入与同步、原子替换；目录项同步在平台支持时执行。这个协议用于进程崩溃恢复，不承诺无条件抵抗突然断电、控制器故障或不遵守持久化语义的网络存储。发布后启动仍需检查磁盘资源存在。
+初始所有权清单写入后同步文件，目录项同步在平台支持时执行；初始写入中断而留下的不完整清单按身份不明处理。这是进程崩溃恢复协议，不承诺无条件抵抗突然断电、控制器故障或不遵守持久化语义的网络存储。发布后启动仍需检查磁盘资源存在和身份匹配。
 
 ## 9 复制策略与一致性
 
@@ -328,13 +330,13 @@ sequenceDiagram
 
 副本是项目文件目录，默认没有 Git 历史和分支，UI 不宣称它是独立 Git checkout。若后续需要 Git 状态，单独设计独立仓库初始化或安全的 Git 元数据复制，不能简单取消 `.git` 的排除就算完成。
 
-### 校验级别
+### 固定校验契约
 
-默认 `metadata` 保留 CoW 的收益：遍历清单记录相对路径、类型、稳定文件身份、大小、高精度 mtime/ctime 和权限；单文件复制前后重新 stat，复制结束重扫源树，比对新增、删除、替换及元数据变化，检查目标清单和尺寸。发现差异整次失败为 `source_changed`，不无限自动重试。
+新副本固定使用 `metadata`：遍历清单记录相对路径、类型、稳定文件身份、大小、高精度 mtime/ctime 和权限；单文件复制前后重新 stat，复制结束重扫源树，比对新增、删除、替换及元数据变化，检查目标清单和尺寸。发现差异整次失败为 `source_changed`，不无限自动重试。
 
-`content` 在此基础上记录源内容摘要、核对目标摘要，并在最终源扫描再次核对摘要，适用于需要更强校验的请求。哈希使用流和同一个限流预算，不整文件读入内存。它会读取大量数据，CoW 的磁盘空间优势仍在，但不能宣称创建时间只与文件数有关。
+现有系统工作区 fork 保留原有内容哈希校验，不因复用单文件复制函数而降级；不把这项既有内部契约推广成新副本的公开选项。原生适配测试直接验证 `COPYFILE_FICLONE_FORCE` 成功或失败，不通过新增 `require-clone` 产品模式获得覆盖。
 
-两种级别都不是跨文件原子快照。metadata 可能漏掉某些时间戳未反映的修改；content 也不能证明所有文件在同一时刻共存。强一致项目快照需要所有写者配合冻结或文件系统快照，不由 `fs-copyfile` 提供。当前系统工作区 fork 的内容校验不得为了复用新函数降级成 metadata。
+metadata 可能漏掉某些时间戳未反映的修改；即使增加内容哈希，也不能证明所有文件在同一时刻共存。强一致项目快照需要所有写者配合冻结或文件系统快照，不由 `fs-copyfile` 提供。
 
 仅在主进程中持锁不能阻止编辑器、编译器和外部进程写源目录。复制期间不强行终止源会话；发生变化明确失败，让调用者在合适时机重试。源文件可能在路径校验与原生打开之间被替换，因此后置检测用于发现常规并发，不构成对恶意同用户进程的 TOCTOU 防护。
 
@@ -342,7 +344,7 @@ sequenceDiagram
 
 契约保证常规文件内容、目录结构、内部链接语义及支持平台上的 executable 等必要 mode 位；不承诺完整备份 ACL、xattr、Windows ADS、稀疏布局、压缩和所有文件系统特有属性。所有权使用当前用户；必要 mode 设置失败应失败，时间戳保留失败可以作为明确警告，不能掩盖内容失败。
 
-初始预算为同时运行最多 2 个目录复制、全服务最多 8 个文件 I/O 作业，且哈希纳入同一预算；这些是待基准验证的内部默认值，不承诺性能指标。遍历使用背压和可迭代目录读取，不能 `Promise.all` 整棵树；大型清单可落在本次资源根下，避免无限占用内存。事件最多约 5 次每秒，并在阶段变化和终态立即发送。
+初始预算为同时运行最多 2 个目录复制、全服务最多 8 个文件 I/O 作业；这些是待基准验证的内部默认值，不承诺性能指标。遍历使用背压和可迭代目录读取，不能 `Promise.all` 整棵树；大型临时校验清单可落在本次资源根下，避免无限占用内存，并在发布前清理。事件最多约 5 次每秒，并在阶段变化和终态立即发送。
 
 不通过全局缓存的“文件系统支持”跳过所有克隆请求。不同挂载点、文件属性和跨卷关系可能不同；首版以实际调用结果为准，避免维护一张文件系统白名单。
 
@@ -361,15 +363,17 @@ sequenceDiagram
 | UI 关闭、IPC 超时或进度丢失 | 主进程继续持有任务；查询 DB 重建状态；不能把断连当取消 |
 | 原生复制取消后仍继续写 | 停止派发并等待所有已提交原生 Promise settle，再清理；不能用 `Promise.race` 提前回收目录 |
 
-使用现有 `KeyedMutex` 按 copyId 串行协调文件状态。多 copyId 必须排序取锁；批量删除不嵌套无序锁。长期复制不持 SQLite 事务或会话锁，也不在持有会话锁时等待副本回调再进入同一锁。引用的授权判断以同步数据库事务中的条件更新为准，mutex 只是减少本进程冲突。
+使用现有 `KeyedMutex` 按 copyId 保护短的任务注册、租约计数及状态协调。取消流程在锁内检查状态并捕获取消句柄和作用域 Promise，释放锁后发取消、等待 drain，完成后再进入短临界区收尾；不持有 copy 锁等待 native I/O、use 回调、租约释放或整个 fork Promise。准备租约是使用计数，不是长期持有的 mutex。文件改名与删除由该 copyId 已登记的唯一任务执行，重试加入已有 Promise。多 copyId 必须排序取锁；长期操作不持 SQLite 事务或会话锁。引用授权以同步数据库事务中的条件更新为准。
 
 引用检查必须包含：普通、归档及回收站会话；Agent tasks 的工作区配置；渠道配置；正在 fork/复制的临时租约；已注册的其他工作区对同一目录、其祖先或后代的别名引用。若终端功能可持有 cwd，也必须参加租约。不能只统计当前活跃会话。
 
 副本自己的 targetWorkspaceId 行是被管理的资源登记，不算阻止删除的额外引用；其他别名工作区仍然阻止删除。完成文件删除后，在同一个最终事务中通过工作区数据服务移除该目标行并标记副本 removed。deleting 期间保留记录用于 UI 和恢复，且禁止所有新使用者进入。
 
-上游必须把 `AgentSessionService.createTx`、计划任务与渠道的工作区绑定、路径注册和恢复入口都接入同一份 **数据层引用准入规则**：ready 可引用，creating/prepared/deleting/removed 不可引用。它位于工作区数据域，可以被其他数据服务同步调用，不能要求 DataApi 去调用 AI 生命周期服务。纯配置引用按 workspaceId 检查；路径注册还需主进程规范化后识别受管资源根及祖先后代重叠。
+上游必须把 `AgentSessionService.createTx`、计划任务与渠道的工作区绑定、路径注册和恢复入口都接入工作区数据域的同一份 `assertUsableTx` 规则：只有 ready 的副本可引用，其他状态均拒绝。其他数据服务同步复用该规则，DataApi 不调用 AI 生命周期服务。纯配置引用按 workspaceId 检查；按路径注册由业务命令先识别规范路径、受管根和祖先后代重叠。
 
-已有 `findOrCreateByPath` 不得把受管的 partial/project/disposal 子路径注册成 external 来绕过门禁。先按记录中的受管根分类，再做允许性检查。操作期间维持租约，避免异步 canonicalize 完成后状态已变。无法确认的路径别名一律不进入自动删除路径。
+现有 `POST /agent-workspaces` 直接调用 `findOrCreateByPathResult`，实现时将路径注册消费者迁移到 `ai.agent.workspace.register`，移除该 POST 及其 schema；GET、元数据 PATCH 和引用查询仍留在 DataApi。命令由 `AgentWorkspaceCopyService.registerWorkspacePath` 协调 canonicalize、受管路径分类、临时租约和身份校验，最后调用纯 SQLite 的工作区数据方法。`findOrCreateByPathTx` 只接受命令层验证后的主进程输入，不能继续作为接收客户端任意路径的入口；数据库事务内不 await 或执行文件 I/O。
+
+注册受管路径时，先规范化和分类，再在确认 ready 的同时取得 copyId 使用租约；若删除已经开始则拒绝。持租约重新检查路径解析结果、容器根及项目树身份，再事务登记，finally 释放；不依赖第一次异步 canonicalize 后状态仍未改变。partial/project/disposal 子路径不得注册成 external，无法确认的路径别名拒绝注册并阻止相关自动清理。
 
 对于已移除工作区记录、文件仍保留的 ready 副本，只允许精确的 project 路径在身份验证后重新关联：事务创建工作区行并更新 targetWorkspaceId，继续投影为 managed-copy。资源根、partial、disposal 及 project 子路径均不能注册为另一个 external 工作区。copy.start 的 creating/prepared 来源记录也作为持久化临时引用参与数据层检查；内存租约补足注册、校验到预留之间的窗口。引用门禁必须在所有写入口闭合后才开启文件删除能力。
 
@@ -381,19 +385,19 @@ sequenceDiagram
 
 | 错误 | 行为 |
 | --- | --- |
-| `EXDEV`、`ENOTSUP` / `EOPNOTSUPP`、`ENOSYS` 来自原生克隆 | prefer-clone 允许普通复制，require-clone 报 `clone_unavailable` |
+| `EXDEV`、`ENOTSUP` / `EOPNOTSUPP`、`ENOSYS` 来自原生克隆 | 允许普通复制并记录降级原因 |
 | `EINVAL`、`EIO`、未知错误 | 不泛化为“不支持”；默认失败，只有明确文档与平台测试确认的条件才可加入降级集合 |
 | `EACCES` / `EPERM`、`ENOSPC` / `EDQUOT` | `permission_denied` 或 `storage_full`；不换目录重做、不盲目重试 |
 | `ENOENT` 来自源文件 | `source_missing` 或 `source_changed`，结合所处阶段；目标父级丢失归为 storage/unowned 错误 |
 | `EEXIST`、大小写冲突 | `path_collision` 或 `ownership_mismatch`；不覆盖、不 unlink 未知对象 |
-| 原生模块缺失或加载失败 | prefer-clone 可退回 Node 普通复制并明确记录 `native_unavailable`；require-clone 失败；发布构建仍将此视为打包缺陷 |
+| 原生模块缺失或加载失败 | 可退回 Node 普通复制并明确记录 `native_unavailable`；发布构建仍将此视为打包缺陷 |
 | DB 源校验不通过或 revision 改变 | `source_changed` / `state_conflict`；未发布资源按所有权清理 |
 | 副本仍被引用 | `workspace_in_use`，返回引用种类及数量；不级联删除会话、任务或渠道 |
 | 目录身份不匹配、清单损坏 | `ownership_mismatch`；清理 blocked，保留证据，不自行接管 |
 | 重复 requestId 输入不同 | `request_conflict`；不重用已有结果执行新工作 |
 | 取消 | `cancelled`；可以同时存在 cleanup pending，终态如实显示 |
 
-原生模块采用主进程惰性加载，在能力适配层捕获 import 失败，不能使整个应用启动失败。可缓存本进程的模块加载结果，不缓存所有卷的克隆能力。require-clone 模式不得用 Node 普通复制“救活”失败。
+原生模块采用主进程惰性加载，在能力适配层捕获 import 失败，不能使整个应用启动失败。可缓存本进程的模块加载结果，不缓存所有卷的克隆能力。
 
 若克隆失败留下目标：仅当包契约和记录能确认是当前独占 staging 内本次创建的对象，才允许清理该对象后降级。否则中止并交给整次操作的所有权清理。第一版宁可保留待处理对象，也不写 `catch { rm(dst); copyAgain() }`。
 
@@ -403,7 +407,7 @@ sequenceDiagram
 
 现有“移除工作区”仍处理会话与数据库关系，不顺带删项目文件；如果涉及副本，文件记录保留为可查询成果。新增“删除副本文件”明确显示目标目录与不可恢复后果，只有用户显式请求才调用 copy.remove。它不增加默认自动删除或按天回收。
 
-删除协议：检查记录与 manifest/根身份 → 事务检查所有引用与租约、条件进入 deleting → 在已验证私有根内将 project 改名为 project.disposal → 持久记录已脱离 → 递归删除 disposal → 验证剩余仅为自己创建的控制文件 → 清理资源根 → 事务标记 removed。ready → deleting 要求 expectedRevision 匹配；已 deleting 的重试加入同一清理，已 removed 返回原成功结果，不创建新的删除任务。
+删除协议：检查记录、manifest、父级、容器根与项目树身份 → 事务检查所有引用，并在同一同步准入步骤检查租约、条件进入 deleting → 改名前重新验证 project 身份，将其改名为 project.disposal → 确认 disposal 仍匹配 projectIdentity → 递归删除 disposal → 验证剩余仅为自己创建的控制文件 → 清理资源根 → 事务标记 removed。deleting 是持久删除授权，改名进度由实际路径和身份确认，不再双写清单阶段。ready → deleting 要求 expectedRevision 匹配；已 deleting 的重试加入同一清理，已 removed 返回原成功结果，不创建新的删除任务。
 
 如果资源根出现不认识的额外用户文件，不递归删除整个资源根；保留并报告 blocked。删除部分完成可重试，仍保持 deleting 并禁止新引用。对只读属性和短暂 Windows sharing violation 只做有界、可取消重试；无法处理则持久化 pending，不阻塞应用退出。已有 source/user/system 根永不成为本服务的 rm 目标。
 
@@ -415,10 +419,11 @@ sequenceDiagram
 | --- | --- |
 | creating/prepared，目标业务未发布，目录身份可信 | 不恢复源复制；进入失败或取消终态并回收本次资源 |
 | fork 消费者且发布事务已提交 | ready 与会话原子存在，保留项目；fork 自己恢复 SDK 资源 |
-| ready，但清单阶段落后 | DB 为发布真相；验证资源后修补清单，不能按旧清单回滚 |
+| ready，容器根、project 与所有权清单匹配 | 保留成果；清单无业务阶段，不需要发布后的修补 |
 | ready，目录丢失或磁盘离线 | 展示不可用；不自动新建、迁移或删除记录，等待存储恢复 |
-| deleting，project 仍在 | 核对删除授权、身份和引用后继续脱离；异常则 blocked |
-| deleting，只有可信 disposal | 继续清理 disposal，不触碰重新出现的 project |
+| deleting，project 仍在 | 核对删除授权、容器根、projectIdentity 和引用后继续脱离；异常则 blocked |
+| deleting，只有可信 disposal | 验证其匹配 projectIdentity 后继续清理；重新出现的 project 不被删除，并阻止资源根清理 |
+| deleting，容器根可信且 project/disposal 均已不存在 | 在父级可访问且卷在线时检查剩余控制文件，再完成资源根清理；未知对象使清理 blocked |
 | deleting，整个资源根不在 | 只有确认父级可访问、卷在线且路径确实不存在才完成 removed；离线不能当删除成功 |
 | DB 与 manifest/token/身份冲突 | 保留全部对象，标记 blocked，提供诊断和显式人工处理入口 |
 | 磁盘有目录但本 DB 没有对应记录 | 不扫盘自动导入或删除；这是未知资源 |
@@ -429,14 +434,14 @@ sequenceDiagram
 
 ## 13 与会话 fork 的具体组合
 
-1. 用户工作区 mode=shared 沿用现有流程。mode=copy 先查 requestId；命中已提交结果即返回，即使源后来已删除也不重新验证源。新请求才进入现有准入和源消息验证，并预留 copyId 与 targetSessionId。
+1. 按第 7 节区分 shared 与 copy 的去重键。mode=copy 先按原始业务输入核对 requestId 和摘要；命中已提交结果即返回，即使源后来已删除也不重新验证源。新请求才进行源消息验证并预留 copyId 与 targetSessionId，重复请求加入同一个协调器 Promise。
 2. fork 资源清单新增版本化的 `workspaceCopyId`，不记录一个“由 fork 可以删除”的副本路径。旧清单读取与旧系统目录清理保持兼容；格式不匹配保留而非猜测。
-3. `prepareForFork()` 返回最终 cwd，driver 在该目录语义下创建自己的历史和 resumeToken。消息边界依旧由各 runtime 自己验证，不能用复制文件代替原生历史 fork。
+3. 协调器调用 `withPreparedCopy()`，在 `use(prepared)` 内使用最终 cwd 创建 driver 历史和 resumeToken，再发布 SDK 产物及业务数据。消息边界依旧由各 runtime 自己验证，不能用复制文件代替原生历史 fork。
 4. SDK 产物按现有协议发布；`commitTx()` 校验源消息前缀、原 workspace 与副本 prepared revision，然后一次提交工作区、副本、子会话和消息。
-5. `finally` 调用 `finishForkPreparation()`；副本已 ready 则只释放临时租约。未发布则取消并 drain 相关操作，再清理。后续通知失败不撤销已提交结果。
+5. `use` 完成后由作用域内部 finally 收尾；副本已 ready 则保留并释放临时租约，未发布则在写入者全部结束后清理。调用方不显式 finish，后续通知失败不撤销已提交结果。
 6. 删除源会话、Agent 或工作区时，现有 lifecycle drain 必须覆盖这个准备调用；副本服务不能另起一个脱离 runtime 的 fork 任务。独立创建的 copy 任务由副本服务自行管理。
 
-prepared 阶段仍可能被 driver 写入，因此 copy.cancel 不能自行删目录。`forkContext` 传入由协调器拥有的取消回调，副本服务发取消后等待准备租约释放；协调器负责中止 driver 并等待它的 worker 退出，然后才调用 finish。finish 自己不等待包含自身的 fork Promise，避免取消与收尾互相等待。这个回调是操作级协作，不是副本服务对 Runtime 的反向容器依赖。无法确认 worker 已结束时只记录待清理，不释放文件删除门禁。
+prepared 阶段仍可能被 driver 写入，copy.cancel 只通过 operation.requestCancel 发出取消，并在 copy 锁外等待作用域完成。协调器在 use 内负责中止 driver、等待其 worker 退出；作用域 finally 不等待包含自身的整个 fork Promise，也不回调等待它的 cancel。这个操作级取消入口不形成副本服务对 Runtime 的容器依赖。无法确认 worker 已结束时，作用域与准备租约继续占用，记录待处理并禁止文件清理。
 
 用于新 cwd 的 resume 必须逐 runtime 验证：Pi、Claude Code、DSH 是否把绝对路径、工具状态或权限绑定在原 cwd。若某 driver 不支持用户项目 cwd 变化，应返回明确的 `unsupported_workspace_copy`，不能共享原目录却向用户显示“已隔离”。现有系统目录 fork 能改变 cwd 是接入依据，但不是所有用户项目情况已经被验证的证据。
 
@@ -455,7 +460,7 @@ prepared 阶段仍可能被 driver 写入，因此 copy.cancel 不能自行删�
 
 当前隔离评估在本机 Windows 构建遇到 MSB8040，缺少 Spectre 库，因此还不能宣称此环境已验证原生绑定。该事实是实现阶段的构建前置条件，不影响先完成本文设计。
 
-上游暂未解决长路径时，prefer-clone 可以在准确识别这项限制后绕过原生克隆使用普通复制，并显式记录原因；require-clone 必须报错。不能把所有 EINVAL 归为长路径。发布前应优先补上游修复或可追踪的包补丁，并测试其余路径不受影响。
+上游暂未解决长路径时，可以在准确识别这项限制后绕过原生克隆使用普通复制，并显式记录原因。不能把所有 EINVAL 归为长路径。发布前应优先补上游修复或可追踪的包补丁，并测试其余路径不受影响。
 
 Electron 原生模块必须针对运行环境正确构建与打包；Node 下的单元测试不能代替安装包内验证。[Electron 原生模块文档](https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules) Windows 临时文件 API 自身也规定路径长度限制。[GetTempFileNameW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-gettempfilenamew)
 
@@ -467,14 +472,14 @@ Electron 原生模块必须针对运行环境正确构建与打包；Node 下的
 | --- | --- |
 | 文件独立性 | 修改源后副本不变；修改副本后源不变；包含截断、追加、原地覆盖与 rename 替换 |
 | 强制 CoW | APFS、启用 reflink 的 XFS/Btrfs、合适 ReFS 上 FORCE 成功；ext4/普通 NTFS 不伪报克隆成功；用平台工具辅助观察共享区段 |
-| 明确降级 | unsupported 可以复制，权限/空间/I/O 错误不能被吞；require-clone 不降级；统计符合实际路径 |
+| 明确降级 | unsupported 可以复制，权限/空间/I/O 错误不能被吞；FORCE 原生测试不通过降级伪报成功；统计符合实际路径 |
 | 文件策略 | 隐藏与未提交文件保留；.git/node_modules 排除；内部链接重定位不指回源；外部链接、junction、特殊文件和大小写冲突失败 |
 | 源并发修改 | 添加、删除、替换、同大小写入、根目录换位；校验失败不产生可用目标会话 |
-| 取消与 drain | 延迟中的 native 调用完成前不清理；取消与提交交错只能得到 cancelled 或完整 ready，不出现 ready 目录被回滚 |
-| 幂等性 | 同 requestId 并发/响应丢失重试只出现一个副本和目标会话；不同输入拒绝 |
+| 取消与 drain | 延迟中的 native/driver 调用结束前不清理；prepared 阶段 cancel 与 use/finally 交错不死锁；提交后不回滚 ready 目录 |
+| 幂等性 | 同 requestId 并发/响应丢失重试只出现一个副本和目标会话；不同输入拒绝；同源同消息的 shared/copy 及不同 requestId 的 copy 不被合并 |
 | 发布事务 | SDK 失败、源消息变化、DB 提交失败不会留下可选的半成品工作区；提交后通知失败仍能查询成功 |
-| 删除门禁 | 回收站会话、任务、渠道、别名工作区、源复制租约均阻止删除；并发新引用与 deleting 只能一方成功 |
-| 所有权 | 同名目录被替换、manifest/token 改动、根下额外文件、离线卷不能触发错误删除；资源根以外哨兵文件始终不变 |
+| 删除门禁 | 回收站会话、任务、渠道、别名工作区、源复制租约均阻止删除；异步路径注册与 deleting 只能一方成功；旧 DataApi POST 无法绕过命令层 |
+| 所有权 | 外层根与 manifest 不变而 project 被替换时阻止使用和删除；partial/project/disposal 改名身份连续；未知对象、清单损坏和离线卷不触发错误删除；资源根外哨兵文件始终不变 |
 | 崩溃恢复 | 在预留、mkdir、清单写、复制、rename、prepared、DB commit、detach、rm 后逐点中断；重启结果符合恢复矩阵 |
 | 数据迁移 | 已有 user/system 工作区行为不变；新表只追加迁移；解除 FK 不丢所有权记录，不级联删目录 |
 | Runtime | 三种 runtime 从新 cwd 继续对话，原 cwd 不被错误沿用；旧 shared 和系统 fork 现有测试继续通过 |
@@ -486,10 +491,10 @@ Electron 原生模块必须针对运行环境正确构建与打包；Node 下的
 
 | 阶段 | 范围 | 完成证据 |
 | --- | --- | --- |
-| 1 依赖与底层契约 | 原生构建链、路径模块扩展、单文件适配和克隆错误分类 | 目标 Electron 加载及 FORCE/fallback 测试；长路径问题有明确处理 |
-| 2 数据与所有权 | 追加表迁移、storage 投影、引用准入、manifest 与身份协议 | 实库迁移、引用竞争、误删除哨兵测试 |
-| 3 创建与恢复 | 生命周期服务、目录复制、幂等、取消、状态查询与清理恢复 | 崩溃矩阵和 native drain 测试 |
-| 4 会话接入 | 用户 fork 的 copy 选项、原子发布、SDK cwd 验证、现有删除入口审计 | 三 runtime 的目标场景以及旧 fork 回归通过 |
+| 1 依赖与底层契约 | 原生构建链、静态 fallback 根与领域路径函数、单文件适配 | 目标 Electron 加载及 FORCE/fallback 测试；长路径问题有明确处理 |
+| 2 数据与所有权 | 追加表迁移、storage 投影、注册命令与引用准入、固定所有权清单 | 实库迁移、注册/删除竞争、容器与项目树身份测试 |
+| 3 创建与恢复 | 生命周期服务、目录复制、作用域准备、幂等、取消与清理恢复 | 崩溃矩阵、native drain、取消/收尾无死锁 |
+| 4 会话接入 | fork 去重与 copy 选项、原子发布、SDK cwd 验证、现有删除入口审计 | 三 runtime 的目标场景、并发请求区分及旧 fork 回归通过 |
 | 5 产品入口 | 创建/进度/保留/显式删除交互，终态查询和降级展示 | 实际 Electron 操作、窗口关闭重开、取消及存储不可用验证 |
 
 上线门槛是生命周期闭环，而非“能复制一次”：创建失败可解释，取消不竞态删除，提交成功可重查，旧会话行为兼容，磁盘资源始终能找到唯一所有者，无法证明所有权时保留文件。
