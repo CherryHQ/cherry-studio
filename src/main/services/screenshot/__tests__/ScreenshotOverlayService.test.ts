@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WindowType } from '@main/core/window/types'
 import type { DetectedWindow } from '@shared/types/screenshot'
 
+import { ScreenshotChatService } from '../../ScreenshotChatService'
 import type { CaptureResult, RawWindowInfo } from '../types'
 
 // ─── Mutable platform flags (macOS is this suite's default) ───────────────────
@@ -155,6 +156,7 @@ const container = vi.hoisted(() => {
 
   const openCalls: Array<{ id: string; args: any }> = []
   const windowManager = {
+    onWindowDestroyed: vi.fn(() => ({ dispose: vi.fn() })),
     // Keyed on the display origin, so the same display hands back the same window
     // on a later session — the pooled-recycle behaviour this service must survive.
     open: vi.fn((type: string, args: any) => {
@@ -194,6 +196,10 @@ const container = vi.hoisted(() => {
     createdListeners,
     openCalls,
     overrides: {
+      ScreenshotOverlayService: {
+        startCapture: (...args: Parameters<InstanceType<typeof ScreenshotOverlayService>['startCapture']>) =>
+          service.startCapture(...args)
+      },
       PreferenceService: preferenceService,
       MediaProtocolService: mediaProtocolService,
       WindowManager: windowManager,
@@ -372,31 +378,36 @@ describe('ScreenshotOverlayService', () => {
     vi.useRealTimers()
   })
 
-  describe('chat delivery', () => {
+  describe('chat delivery integration', () => {
+    let chatService: ScreenshotChatService
+    beforeEach(() => {
+      chatService = new ScreenshotChatService()
+      ;(chatService as any).onInit()
+    })
     it.each([false, true])(
       'handles a late receipt after dismissal without affecting a new capture (accepted: %s)',
       async (accepted) => {
         singleDisplaySetup()
         container.windows.set('chat', createFakeWindow())
-        service.setChatTarget('chat', 'draft')
-        await service.startCapture('chat')
-        const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: 'message' })
+        chatService.setTarget('chat', 'draft')
+        await chatService.startCapture('chat')
+        const sending = service.submitResult({ pngBytes: PNG_BYTES, text: 'message' })
         const rejected = expect(sending).rejects.toThrow('could not accept')
         const delivery = container.ipcApiService.send.mock.calls.find(
-          (call) => call[1] === 'screenshot.chat_attachment'
+          (call) => call[1] === 'chat.screenshot.attachment'
         )![2]
         service.dismiss()
         await rejected
         expect(rmSyncMock).not.toHaveBeenCalled()
-        await service.startCapture('chat')
-        service.receiveChatResult('wrong-window', delivery.deliveryId, false)
+        await chatService.startCapture('chat')
+        chatService.receiveResult('wrong-window', delivery.deliveryId, false)
         expect(rmSyncMock).not.toHaveBeenCalled()
-        service.receiveChatResult('chat', delivery.deliveryId, accepted)
+        chatService.receiveResult('chat', delivery.deliveryId, accepted)
         if (accepted) expect(rmSyncMock).not.toHaveBeenCalled()
-        else expect(rmSyncMock).toHaveBeenCalledWith(delivery.path, { force: true })
+        else expect(rmSyncMock).not.toHaveBeenCalled()
         expect(container.mediaEntries.size).toBe(1)
         rmSyncMock.mockClear()
-        service.receiveChatResult('chat', delivery.deliveryId, false)
+        chatService.receiveResult('chat', delivery.deliveryId, false)
         expect(rmSyncMock).not.toHaveBeenCalled()
       }
     )
@@ -408,17 +419,17 @@ describe('ScreenshotOverlayService', () => {
       container.windows.set('first', first)
       container.windows.set('second', second)
       electron.browserWindows = [first]
-      service.setChatTarget('first', 'first-draft')
-      service.setChatTarget('second', 'second-draft')
+      chatService.setTarget('first', 'first-draft')
+      chatService.setTarget('second', 'second-draft')
       const focusListener = electron.app.on.mock.calls.find(([event]) => event === 'browser-window-focus')![1]
       focusListener({}, second)
       electron.browserWindows = []
-      await service.startCapture()
-      const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: '' })
-      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'screenshot.chat_attachment')!
+      await chatService.startCapture()
+      const sending = service.submitResult({ pngBytes: PNG_BYTES, text: '' })
+      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'chat.screenshot.attachment')!
       expect(delivery[0]).toBe('second')
       expect(delivery[2].scopeKey).toBe('second-draft')
-      service.receiveChatResult('second', delivery[2].deliveryId, true)
+      chatService.receiveResult('second', delivery[2].deliveryId, true)
       await sending
     })
 
@@ -427,15 +438,15 @@ describe('ScreenshotOverlayService', () => {
       const chat = createFakeWindow()
       container.windows.set('chat', chat)
       electron.browserWindows = [chat]
-      service.setChatTarget('chat', 'draft')
+      chatService.setTarget('chat', 'draft')
       electron.browserWindows = []
-      await service.startCapture()
-      expect(container.openCalls[0].args.initData.canSendToChat).toBe(true)
-      const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: 'From another app' })
-      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'screenshot.chat_attachment')!
+      await chatService.startCapture()
+      expect(container.openCalls[0].args.initData.canSubmitResult).toBe(true)
+      const sending = service.submitResult({ pngBytes: PNG_BYTES, text: 'From another app' })
+      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'chat.screenshot.attachment')!
       expect(delivery[0]).toBe('chat')
       expect(delivery[2].scopeKey).toBe('draft')
-      service.receiveChatResult('chat', delivery[2].deliveryId, true)
+      chatService.receiveResult('chat', delivery[2].deliveryId, true)
       await sending
     })
 
@@ -444,11 +455,11 @@ describe('ScreenshotOverlayService', () => {
       const chat = createFakeWindow()
       container.windows.set('chat', chat)
       electron.browserWindows = [chat]
-      service.setChatTarget('chat', 'draft')
+      chatService.setTarget('chat', 'draft')
       electron.browserWindows = []
       chat.isDestroyed.mockReturnValue(true)
-      await service.startCapture()
-      expect(container.openCalls[0].args.initData.canSendToChat).toBe(false)
+      await chatService.startCapture()
+      expect(container.openCalls[0].args.initData.canSubmitResult).toBe(false)
     })
 
     it.each([false, true])(
@@ -469,7 +480,7 @@ describe('ScreenshotOverlayService', () => {
           if (fails) throw new Error('capture failed')
           return new Map([[1, makeCapture()]])
         })
-        await service.startCapture('chat')
+        await chatService.startCapture('chat')
         if (!fails) {
           expect(visible).toBe(false)
           service.dismiss()
@@ -484,30 +495,30 @@ describe('ScreenshotOverlayService', () => {
       electron.browserWindows = [focused]
       container.windows.set('focused', focused)
       container.windows.set('other', createFakeWindow())
-      service.setChatTarget('other', 'topic-b')
-      await service.startCapture()
-      expect(container.openCalls[0].args.initData.canSendToChat).toBe(false)
+      chatService.setTarget('other', 'topic-b')
+      await chatService.startCapture()
+      expect(container.openCalls[0].args.initData.canSubmitResult).toBe(false)
     })
 
     it('keeps a rejected capture available for correction and retry', async () => {
       singleDisplaySetup()
       container.windows.set('chat', createFakeWindow())
-      service.setChatTarget('chat', 'draft')
-      await service.startCapture('chat')
-      const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: 'too long' })
+      chatService.setTarget('chat', 'draft')
+      await chatService.startCapture('chat')
+      const sending = service.submitResult({ pngBytes: PNG_BYTES, text: 'too long' })
       const result = expect(sending).rejects.toThrow('complete screenshot')
       const payload = container.ipcApiService.send.mock.calls.findLast(
-        (call) => call[1] === 'screenshot.chat_attachment'
+        (call) => call[1] === 'chat.screenshot.attachment'
       )![2]
-      service.receiveChatResult('chat', payload.deliveryId, false)
+      chatService.receiveResult('chat', payload.deliveryId, false)
       await result
-      expect(rmSyncMock).toHaveBeenCalledExactlyOnceWith(payload.path, { force: true })
+      expect(rmSyncMock).not.toHaveBeenCalled()
       expect(container.mediaEntries.size).toBe(1)
-      const retry = service.sendToChat({ pngBytes: PNG_BYTES, text: '' })
+      const retry = service.submitResult({ pngBytes: PNG_BYTES, text: '' })
       const retried = container.ipcApiService.send.mock.calls.findLast(
-        (call) => call[1] === 'screenshot.chat_attachment'
+        (call) => call[1] === 'chat.screenshot.attachment'
       )![2]
-      service.receiveChatResult('chat', retried.deliveryId, true)
+      chatService.receiveResult('chat', retried.deliveryId, true)
       await retry
       expect(container.mediaEntries.size).toBe(0)
       expect(rmSyncMock).not.toHaveBeenCalledWith(retried.path, expect.anything())
@@ -516,63 +527,64 @@ describe('ScreenshotOverlayService', () => {
     it('reuses the delivery id and file after an unconfirmed timeout', async () => {
       singleDisplaySetup()
       container.windows.set('chat', createFakeWindow())
-      service.setChatTarget('chat', 'draft')
-      await service.startCapture('chat')
+      chatService.setTarget('chat', 'draft')
+      await chatService.startCapture('chat')
       vi.useFakeTimers()
-      const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: 'note' })
+      const sending = service.submitResult({ pngBytes: PNG_BYTES, text: 'note' })
       const result = expect(sending).rejects.toThrow('not been confirmed')
       const payload = container.ipcApiService.send.mock.calls.findLast(
-        (call) => call[1] === 'screenshot.chat_attachment'
+        (call) => call[1] === 'chat.screenshot.attachment'
       )![2]
       await vi.advanceTimersByTimeAsync(10000)
       await result
-      expect(container.mediaEntries.size).toBe(1)
+      expect(container.mediaEntries.size).toBe(2)
       expect(rmSyncMock).not.toHaveBeenCalled()
-      const retry = service.sendToChat({ pngBytes: PNG_BYTES, text: 'note' })
+      const retry = service.submitResult({ pngBytes: PNG_BYTES, text: 'note' })
       const retried = container.ipcApiService.send.mock.calls.findLast(
-        (call) => call[1] === 'screenshot.chat_attachment'
+        (call) => call[1] === 'chat.screenshot.attachment'
       )![2]
       expect(retried).toEqual(payload)
-      service.receiveChatResult('chat', retried.deliveryId, true)
+      chatService.receiveResult('chat', retried.deliveryId, true)
       await retry
-      expect(writeFileSyncMock).toHaveBeenCalledTimes(1)
+      expect(writeFileSyncMock).not.toHaveBeenCalled()
       expect(rmSyncMock).not.toHaveBeenCalled()
     })
     it('does not redirect an unregistered source window to another window chat', async () => {
       singleDisplaySetup()
       container.windows.set('other-window', createFakeWindow())
-      service.setChatTarget('other-window', 'topic-b')
-      await service.startCapture('source-window')
-      expect(container.openCalls[0].args.initData.canSendToChat).toBe(false)
-      await expect(service.sendToChat({ pngBytes: PNG_BYTES, text: '' })).rejects.toThrow('no longer available')
+      chatService.setTarget('other-window', 'topic-b')
+      await chatService.startCapture('source-window')
+      expect(container.openCalls[0].args.initData.canSubmitResult).toBe(false)
+      await expect(service.submitResult({ pngBytes: PNG_BYTES, text: '' })).rejects.toThrow('No result consumer')
       expect(writeFileSyncMock).not.toHaveBeenCalled()
     })
 
     it('delivers the annotated PNG and message only to the capture source chat', async () => {
       singleDisplaySetup()
       container.windows.set('chat-window', createFakeWindow())
-      service.setChatTarget('chat-window', 'topic-a')
-      await service.startCapture('chat-window')
-      expect(container.openCalls[0].args.initData.canSendToChat).toBe(true)
-      const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: 'Explain this' })
-      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'screenshot.chat_attachment')
+      chatService.setTarget('chat-window', 'topic-a')
+      await chatService.startCapture('chat-window')
+      expect(container.openCalls[0].args.initData.canSubmitResult).toBe(true)
+      const sending = service.submitResult({ pngBytes: PNG_BYTES, text: 'Explain this' })
+      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'chat.screenshot.attachment')
       expect(delivery).toEqual([
         'chat-window',
-        'screenshot.chat_attachment',
+        'chat.screenshot.attachment',
         {
           deliveryId: expect.any(String),
-          path: expect.stringMatching(/screenshot_.*\.png$/),
+          imageUrl: expect.stringMatching(/^cherry-media:\/\/image\//),
           name: expect.stringMatching(/^screenshot_.*\.png$/),
           size: PNG_BYTES.byteLength,
           scopeKey: 'topic-a',
           text: 'Explain this'
         }
       ])
-      expect(writeFileSyncMock).toHaveBeenCalledWith(delivery![2].path, PNG_BYTES)
-      expect(container.mediaEntries.size).toBe(1)
-      service.receiveChatResult('wrong-window', delivery![2].deliveryId, true)
-      expect(container.mediaEntries.size).toBe(1)
-      service.receiveChatResult('chat-window', delivery![2].deliveryId, true)
+      expect(writeFileSyncMock).not.toHaveBeenCalled()
+      expect(container.mediaEntries.get(delivery![2].imageUrl.split('/').pop())).toEqual(Buffer.from(PNG_BYTES))
+      expect(container.mediaEntries.size).toBe(2)
+      chatService.receiveResult('wrong-window', delivery![2].deliveryId, true)
+      expect(container.mediaEntries.size).toBe(2)
+      chatService.receiveResult('chat-window', delivery![2].deliveryId, true)
       await sending
       expect(container.mediaEntries.size).toBe(0)
     })
@@ -580,10 +592,10 @@ describe('ScreenshotOverlayService', () => {
     it('keeps the capture open and does not deliver to a different chat after the target changes', async () => {
       singleDisplaySetup()
       container.windows.set('chat-window', createFakeWindow())
-      service.setChatTarget('chat-window', 'topic-a')
-      await service.startCapture('chat-window')
-      service.setChatTarget('chat-window', 'topic-b')
-      await expect(service.sendToChat({ pngBytes: PNG_BYTES, text: '' })).rejects.toThrow('no longer available')
+      chatService.setTarget('chat-window', 'topic-a')
+      await chatService.startCapture('chat-window')
+      chatService.setTarget('chat-window', 'topic-b')
+      await expect(service.submitResult({ pngBytes: PNG_BYTES, text: '' })).rejects.toThrow('no longer available')
       expect(writeFileSyncMock).not.toHaveBeenCalled()
       expect(container.mediaEntries.size).toBe(1)
     })

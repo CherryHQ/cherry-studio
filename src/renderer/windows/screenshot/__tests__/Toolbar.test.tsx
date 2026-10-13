@@ -29,7 +29,7 @@ const baseProps = {
   onCancel: vi.fn()
 }
 
-function Toolbar(props: Omit<ComponentProps<typeof ScreenshotToolbar>, 'chatMessage' | 'onChatMessageChange'>) {
+function Toolbar(props: Omit<ComponentProps<typeof ScreenshotToolbar>, 'resultMessage' | 'onResultMessageChange'>) {
   const [state, dispatch] = useReducer(overlayReducer, {
     ...initialState,
     phase: 'selected',
@@ -54,8 +54,8 @@ function Toolbar(props: Omit<ComponentProps<typeof ScreenshotToolbar>, 'chatMess
       {state.phase === 'selected' && (
         <ScreenshotToolbar
           {...props}
-          chatMessage={state.chatMessage}
-          onChatMessageChange={(text) => dispatch({ type: 'SET_CHAT_MESSAGE', text })}
+          resultMessage={state.resultMessage}
+          onResultMessageChange={(text) => dispatch({ type: 'SET_RESULT_MESSAGE', text })}
         />
       )}
     </>
@@ -71,7 +71,7 @@ describe('Toolbar accessible names', () => {
     'preserves failed-delivery text after %s unmounts the toolbar',
     async (adjustment) => {
       const onSend = vi.fn().mockRejectedValueOnce(new Error('target unavailable')).mockResolvedValue(undefined)
-      render(<Toolbar {...baseProps} activeTool={null} onSendToChat={onSend} />)
+      render(<Toolbar {...baseProps} activeTool={null} onSubmitResult={onSend} />)
       await userEvent.click(screen.getByRole('button', { name: 'Add to chat' }))
       await userEvent.type(screen.getByRole('textbox'), 'Keep this message for retry')
       await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to chat' }))
@@ -90,7 +90,7 @@ describe('Toolbar accessible names', () => {
 
   it('lets the user attach a message and keeps the message editable after delivery fails', async () => {
     const onSend = vi.fn().mockRejectedValueOnce(new Error('target unavailable')).mockResolvedValue(undefined)
-    render(<Toolbar {...baseProps} activeTool={null} onSendToChat={onSend} />)
+    render(<Toolbar {...baseProps} activeTool={null} onSubmitResult={onSend} />)
     await userEvent.click(screen.getByRole('button', { name: 'Add to chat' }))
     const dialog = screen.getByRole('dialog')
     await userEvent.type(within(dialog).getByRole('textbox'), 'Explain this screenshot')

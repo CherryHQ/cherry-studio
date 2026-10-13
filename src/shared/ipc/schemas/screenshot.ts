@@ -65,12 +65,7 @@ export type OcrRecognitionResult = z.infer<typeof ocrRecognitionResult>
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const screenshotRequestSchemas = {
-  'screenshot.chat_received': defineRoute({
-    input: z.object({ deliveryId: z.string(), accepted: z.boolean() }),
-    output: z.void()
-  }),
-  'screenshot.chat_target': defineRoute({ input: z.object({ scopeKey: z.string().nullable() }), output: z.void() }),
-  'screenshot.send_to_chat': defineRoute({
+  'screenshot.submit_result': defineRoute({
     input: z.object({
       pngBytes: uint8ArraySchema.refine((bytes) => bytes.byteLength <= MAX_RESULT_BYTES),
       text: z.string().max(10000)
@@ -143,14 +138,6 @@ export const screenshotRequestSchemas = {
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──
 export type ScreenshotEventSchemas = {
-  'screenshot.chat_attachment': {
-    deliveryId: string
-    path: string
-    name: string
-    size: number
-    text: string
-    scopeKey: string
-  }
   /** Sent to an overlay that lost the interaction, telling it to drop its selection. */
   'screenshot.reset_overlay': void
   /**

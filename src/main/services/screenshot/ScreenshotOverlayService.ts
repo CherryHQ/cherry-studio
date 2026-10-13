@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto'
-import { rmSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import dayjs from 'dayjs'
@@ -20,7 +19,7 @@ import {
   requestScreenCapturePermission,
   type ScreenCapturePermissionStatus
 } from '@main/utils/screenCapturePermission'
-import type { OcrRecognitionResult, ScreenshotEventSchemas } from '@shared/ipc/schemas/screenshot'
+import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
 
@@ -123,109 +122,21 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Monotonic session id; a callback carrying an older one must not act. */
   private sessionGeneration = 0
-  private chatTargets = new Map<WindowId, string>()
-  private lastChatWindowId: WindowId | null = null
   private hiddenSourceWindow: BrowserWindow | null = null
-  private captureChatTarget: { windowId: WindowId; scopeKey: string } | null = null
-  // Outlive the overlay: a delayed receipt still owns the file, and silence does not prove rejection.
-  private unconfirmedChatFiles = new Map<string, { windowId: WindowId; path: string }>()
-  private chatDelivery: {
-    payload: ScreenshotEventSchemas['screenshot.chat_attachment']
-    bytes: Uint8Array
-    settle?: (accepted: boolean) => void
+  private resultConsumer: {
+    submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
+    dispose: () => void
   } | null = null
 
-  public setChatTarget(windowId: WindowId, scopeKey: string | null): void {
-    if (scopeKey === null) this.chatTargets.delete(windowId)
-    else {
-      this.chatTargets.set(windowId, scopeKey)
-      const focused = BrowserWindow.getFocusedWindow()
-      if (focused && application.get('WindowManager').getWindowId(focused) === windowId) {
-        this.lastChatWindowId = windowId
-      }
-    }
-  }
-
-  public async sendToChat(result: ScreenshotResultData & { text: string }): Promise<void> {
-    const target = this.captureChatTarget
-    const window = target && application.get('WindowManager').getWindow(target.windowId)
-    if (
-      !target ||
-      !window ||
-      window.isDestroyed() ||
-      (!this.chatDelivery && this.chatTargets.get(target.windowId) !== target.scopeKey)
-    ) {
-      throw new Error('The capture chat is no longer available')
-    }
+  public async submitResult(result: ScreenshotResultData & { text: string }): Promise<void> {
+    const consumer = this.resultConsumer
+    const generation = this.sessionGeneration
+    if (!consumer) throw new Error('No result consumer is available')
     if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
       throw new Error('The screenshot could not be decoded')
     }
-    if (this.chatDelivery?.settle) throw new Error('Screenshot delivery is already pending')
-    if (
-      this.chatDelivery &&
-      (this.chatDelivery.payload.text !== result.text ||
-        !Buffer.from(this.chatDelivery.bytes).equals(Buffer.from(result.pngBytes)))
-    ) {
-      throw new Error('Retry the original screenshot while its delivery is unconfirmed')
-    }
-    if (!this.chatDelivery) {
-      const name = `screenshot_${dayjs().format('YYYYMMDD_HHmmss')}.png`
-      const path = application.getPath('app.temp', `${randomUUID()}_${name}`)
-      writeFileSync(path, result.pngBytes)
-      this.chatDelivery = {
-        bytes: result.pngBytes,
-        payload: {
-          deliveryId: randomUUID(),
-          path,
-          name,
-          size: result.pngBytes.byteLength,
-          text: result.text,
-          scopeKey: target.scopeKey
-        }
-      }
-    }
-    const delivery = this.chatDelivery
-    this.unconfirmedChatFiles.set(delivery.payload.deliveryId, {
-      windowId: target.windowId,
-      path: delivery.payload.path
-    })
-    const accepted = await new Promise<boolean>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        delivery.settle = undefined
-        reject(new Error('Screenshot delivery has not been confirmed; retry without changing the content'))
-      }, 10000)
-      delivery.settle = (accepted) => {
-        clearTimeout(timer)
-        resolve(accepted)
-      }
-      try {
-        application.get('IpcApiService').send(target.windowId, 'screenshot.chat_attachment', delivery.payload)
-      } catch (error) {
-        clearTimeout(timer)
-        delivery.settle = undefined
-        reject(error)
-      }
-    })
-    if (!accepted) throw new Error('The chat could not accept the complete screenshot and message')
-  }
-
-  public receiveChatResult(windowId: WindowId, deliveryId: string, accepted: boolean): void {
-    const file = this.unconfirmedChatFiles.get(deliveryId)
-    if (!file || file.windowId !== windowId) return
-    if (!accepted) rmSync(file.path, { force: true })
-    this.unconfirmedChatFiles.delete(deliveryId)
-    const target = this.captureChatTarget
-    const delivery = this.chatDelivery
-    if (!target || target.windowId !== windowId || delivery?.payload.deliveryId !== deliveryId) return
-    delivery.settle?.(accepted)
-    this.chatDelivery = null
-    if (!accepted) return
-    const window = application.get('WindowManager').getWindow(windowId)
-    this.dismiss()
-    if (!window || window.isDestroyed()) return
-    if (window.isMinimized()) window.restore()
-    window.show()
-    window.focus()
+    await consumer.submit(result)
+    if (generation === this.sessionGeneration) this.dismiss()
   }
 
   /** Overlays whose renderer reported a painted frame. Gates the Escape rescue below. */
@@ -254,12 +165,6 @@ export class ScreenshotOverlayService extends BaseService {
 
   protected onInit(): void {
     const windowManager = application.get('WindowManager')
-    const rememberChatWindow = (_event: Electron.Event, window: BrowserWindow) => {
-      const id = windowManager.getWindowId(window)
-      if (id && this.chatTargets.has(id)) this.lastChatWindowId = id
-    }
-    app.on('browser-window-focus', rememberChatWindow)
-    this.registerDisposable(() => app.removeListener('browser-window-focus', rememberChatWindow))
     this.registerDisposable(
       windowManager.onWindowCreatedByType(WindowType.Screenshot, ({ id, window }) => {
         // No declarative equivalent in WindowBehavior, and a macOS panel window can
@@ -316,7 +221,6 @@ export class ScreenshotOverlayService extends BaseService {
 
   protected onDestroy(): void {
     this.dismiss()
-    this.chatTargets.clear()
   }
 
   /**
@@ -326,7 +230,13 @@ export class ScreenshotOverlayService extends BaseService {
    * screen, when the feature is off, or when screen recording is not granted (guiding
    * the user instead).
    */
-  public async startCapture(sourceWindowId?: WindowId): Promise<void> {
+  public async startCapture(
+    sourceWindowId?: WindowId,
+    consumer?: {
+      submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
+      dispose: () => void
+    }
+  ): Promise<void> {
     // `capturing` carries the guard across the capture await, during which
     // `overlayWindowIds` is still empty and a second hotkey press would otherwise pass.
     if (this.capturing || this.overlayWindowIds.length > 0) return
@@ -346,14 +256,7 @@ export class ScreenshotOverlayService extends BaseService {
       // would let a blocked second attempt freeze the FIRST session's overlays at opacity 0.
       const generation = ++this.sessionGeneration
       const manager = application.get('WindowManager')
-      const focusedWindow = BrowserWindow.getFocusedWindow()
-      const preferredId = sourceWindowId ?? (focusedWindow ? manager.getWindowId(focusedWindow) : this.lastChatWindowId)
-      const targetWindow = preferredId && manager.getWindow(preferredId)
-      const targetId =
-        preferredId && targetWindow && !targetWindow.isDestroyed() && this.chatTargets.has(preferredId)
-          ? preferredId
-          : undefined
-      this.captureChatTarget = targetId ? { windowId: targetId, scopeKey: this.chatTargets.get(targetId)! } : null
+      this.resultConsumer = consumer ?? null
 
       const t0 = performance.now()
       this.overlaysCreated = 0
@@ -429,7 +332,7 @@ export class ScreenshotOverlayService extends BaseService {
           const windowId = windowManager.open<ScreenshotInitData>(WindowType.Screenshot, {
             options: bounds,
             initData: {
-              canSendToChat: this.captureChatTarget !== null,
+              canSubmitResult: this.resultConsumer !== null,
               imageUrl: mediaProtocol.getUrl(MediaKind.Image, mediaId),
               mediaId,
               display: {
@@ -852,9 +755,8 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Release every session resource. Pairs with, but is not a substitute for, closing the windows. */
   private cleanup(): void {
-    this.chatDelivery?.settle?.(false)
-    this.chatDelivery = null
-    this.captureChatTarget = null
+    this.resultConsumer?.dispose()
+    this.resultConsumer = null
     const sourceWindow = this.hiddenSourceWindow
     this.hiddenSourceWindow = null
     if (sourceWindow && !sourceWindow.isDestroyed()) sourceWindow.show()

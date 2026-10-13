@@ -211,7 +211,7 @@ const CaptureOverlay: FC = () => {
   }, [])
 
   const handleExport = useCallback(
-    async (action: 'commit' | 'save' | 'chat', text = '') => {
+    async (action: 'commit' | 'save' | 'result', text = '') => {
       if (!imageRef.current || !state.selection || !initData) return
       try {
         const pngBytes = await generateSelectionPng(
@@ -220,11 +220,11 @@ const CaptureOverlay: FC = () => {
           initData.display.scaleFactor,
           annotationCanvasRef.current
         )
-        if (action === 'chat') await ipcApi.request('screenshot.send_to_chat', { pngBytes, text })
+        if (action === 'result') await ipcApi.request('screenshot.submit_result', { pngBytes, text })
         else await ipcApi.request(action === 'commit' ? 'screenshot.commit' : 'screenshot.save', { pngBytes })
       } catch (error) {
         logger.error('Failed to export the selection', error as Error)
-        if (action === 'chat') throw error
+        if (action === 'result') throw error
       }
     },
     [state.selection, initData]
@@ -232,7 +232,7 @@ const CaptureOverlay: FC = () => {
 
   const handleOk = useCallback(() => void handleExport('commit'), [handleExport])
   const handleSave = useCallback(() => void handleExport('save'), [handleExport])
-  const handleSendToChat = useCallback((text: string) => handleExport('chat', text), [handleExport])
+  const handleSubmitResult = useCallback((text: string) => handleExport('result', text), [handleExport])
   const handleCancel = useCallback(() => {
     void ipcApi.request('screenshot.cancel')
   }, [])
@@ -293,7 +293,7 @@ const CaptureOverlay: FC = () => {
           onFirstPaint={handleFirstPaint}
           onOk={handleOk}
           onSave={handleSave}
-          onSendToChat={initData.canSendToChat ? handleSendToChat : undefined}
+          onSubmitResult={initData.canSubmitResult ? handleSubmitResult : undefined}
           onCancel={handleCancel}
         />
       )}
@@ -318,7 +318,7 @@ function OverlayContent({
   onFirstPaint,
   onOk,
   onSave,
-  onSendToChat,
+  onSubmitResult,
   onCancel
 }: {
   image: HTMLImageElement
@@ -336,7 +336,7 @@ function OverlayContent({
   onFirstPaint: () => void
   onOk: () => void
   onSave: () => void
-  onSendToChat?: (text: string) => Promise<void>
+  onSubmitResult?: (text: string) => Promise<void>
   onCancel: () => void
 }) {
   const fullDisplayRect = useMemo<SelectionRect>(
@@ -465,8 +465,8 @@ function OverlayContent({
 
       {state.phase === 'selected' && state.selection && (
         <Toolbar
-          chatMessage={state.chatMessage}
-          onChatMessageChange={(text) => dispatch({ type: 'SET_CHAT_MESSAGE', text })}
+          resultMessage={state.resultMessage}
+          onResultMessageChange={(text) => dispatch({ type: 'SET_RESULT_MESSAGE', text })}
           selection={state.selection}
           logicalHeight={logicalHeight}
           activeTool={activeTool}
@@ -477,7 +477,7 @@ function OverlayContent({
           onRedo={annotation.redo}
           onOk={onOk}
           onSave={onSave}
-          onSendToChat={onSendToChat}
+          onSubmitResult={onSubmitResult}
           onCancel={onCancel}
           onLayout={setToolbarLayout}
           ocrSlot={

@@ -774,8 +774,14 @@ function getQueueDock(): any {
   return children.flat().find((child: any) => child?.props?.items)
 }
 
+const originalFetch = globalThis.fetch
+
 describe('AgentComposer', () => {
   beforeEach(() => {
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob([new Uint8Array(42)], { type: 'image/png' })
+    })) as unknown as typeof fetch
     // The `@` panel's entity-reference merge hits these paths; the mock factory has no
     // canned data for them, so default both to empty results.
     const dataApiGetBase = vi.mocked(dataApiService.get).getMockImplementation()
@@ -950,6 +956,7 @@ describe('AgentComposer', () => {
   })
 
   afterEach(() => {
+    globalThis.fetch = originalFetch
     globalThis.ResizeObserver = originalResizeObserver
     restoreRequestAnimationFrame?.()
     restoreRequestAnimationFrame = undefined
@@ -970,24 +977,24 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'composer:screenshot' })])
     )
-    const scopeKey = mocks.ipcApiRequest.mock.calls.findLast(([route]) => route === 'screenshot.chat_target')?.[1]
+    const scopeKey = mocks.ipcApiRequest.mock.calls.findLast(([route]) => route === 'chat.screenshot.target')?.[1]
       .scopeKey
     expect(scopeKey).toBeTruthy()
     const capture = {
       deliveryId: 'agent-capture',
       scopeKey,
-      path: 'C:/screenshots/capture.png',
+      imageUrl: 'cherry-media://image/capture',
       name: 'capture.png',
       size: 42,
       text: 'Explain this'
     }
-    await act(async () => mocks.screenshotListeners.get('screenshot.chat_attachment')?.(capture))
+    await act(async () => mocks.screenshotListeners.get('chat.screenshot.attachment')?.(capture))
     expect(mocks.surfaceProps?.text).toBe('Agent draft\nExplain this')
-    expect(mocks.files).toEqual([expect.objectContaining({ path: capture.path, type: 'image' })])
+    expect(mocks.files).toEqual([expect.objectContaining({ blob: expect.any(Blob), type: 'image' })])
     expect(mocks.sendMessage).not.toHaveBeenCalled()
-    await act(async () => mocks.screenshotListeners.get('screenshot.chat_attachment')?.(capture))
+    await act(async () => mocks.screenshotListeners.get('chat.screenshot.attachment')?.(capture))
     expect(mocks.files).toHaveLength(1)
-    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('screenshot.chat_received', {
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('chat.screenshot.received', {
       deliveryId: 'agent-capture',
       accepted: true
     })

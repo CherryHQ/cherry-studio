@@ -18,8 +18,8 @@ import { PROPERTY_PANEL_HEIGHT, Z_INDEX } from '../constants'
 import type { AnnotationTool, SelectionRect } from '../types'
 
 interface ToolbarProps {
-  chatMessage: string
-  onChatMessageChange: (text: string) => void
+  resultMessage: string
+  onResultMessageChange: (text: string) => void
   selection: SelectionRect
   logicalHeight: number
   activeTool: AnnotationTool | null
@@ -30,7 +30,7 @@ interface ToolbarProps {
   onRedo: () => void
   onOk: () => void
   onSave: () => void
-  onSendToChat?: (text: string) => Promise<void>
+  onSubmitResult?: (text: string) => Promise<void>
   onCancel: () => void
   /**
    * OCR affordance, rendered with its own divider when present.
@@ -84,8 +84,8 @@ const TOOL_ICONS: { tool: AnnotationTool; icon: ComponentType<{ className?: stri
 ]
 
 export const Toolbar = memo(function Toolbar({
-  chatMessage,
-  onChatMessageChange,
+  resultMessage,
+  onResultMessageChange,
   selection,
   logicalHeight,
   activeTool,
@@ -96,7 +96,7 @@ export const Toolbar = memo(function Toolbar({
   onRedo,
   onOk,
   onSave,
-  onSendToChat,
+  onSubmitResult,
   onCancel,
   ocrSlot,
   onLayout
@@ -186,7 +186,7 @@ export const Toolbar = memo(function Toolbar({
 
       <ToolbarDivider />
 
-      <SendToChat text={chatMessage} setText={onChatMessageChange} onSend={onSendToChat} />
+      <SubmitResult text={resultMessage} setText={onResultMessageChange} onSend={onSubmitResult} />
       <ToolbarButton icon={<Download className="size-5" />} label={t('screenshot.action.save')} onClick={onSave} />
       <ToolbarButton
         icon={<X className="size-5" />}
@@ -204,7 +204,7 @@ export const Toolbar = memo(function Toolbar({
   )
 })
 
-function SendToChat({
+function SubmitResult({
   text,
   setText,
   onSend
