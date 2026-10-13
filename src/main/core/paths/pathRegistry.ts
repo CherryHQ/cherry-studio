@@ -110,7 +110,6 @@ export function buildPathRegistry() {
       `darwin-${process.arch}`,
       'selection-panel.node'
     ),
-
     'feature.remote_access.identity_file': path.join(appUserDataRuntime, 'remote-identity.enc'),
     // Plaintext fallback (0600) used only when no OS key store is available
     'feature.remote_access.plain_identity_file': path.join(appUserDataRuntime, 'remote-identity.key'),
