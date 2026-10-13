@@ -136,7 +136,14 @@ describe('classifyErrorCategory server failures', () => {
 
   it('skips generic server phrases when message-only server matching is ignored', () => {
     expect(classifyErrorCategory({ text: 'Service unavailable', ignoreMessageOnlyServer: true })).toBe('unknown')
-    expect(classifyErrorCategory({ text: 'invalid json', ignoreMessageOnlyServer: true })).toBe('parse')
+    expect(classifyErrorCategory({ text: 'Service unavailable: invalid json', ignoreMessageOnlyServer: true })).toBe(
+      'parse'
+    )
+    expect(classifyErrorCategory({ text: 'Service unavailable: invalid json' })).toBe('server')
+    expect(classifyErrorCategory({ text: 'Service unavailable: knowledge base', ignoreMessageOnlyServer: true })).toBe(
+      'knowledge'
+    )
+    expect(classifyErrorCategory({ text: 'Service unavailable: knowledge base' })).toBe('server')
     expect(classifyErrorCategory({ status: 503, text: 'unauthorized', ignoreMessageOnlyServer: true })).toBe('server')
   })
 

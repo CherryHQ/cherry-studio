@@ -88,12 +88,25 @@ describe('Claude Code process exit diagnostics', () => {
     expect(diagnostics.category).toBe('server')
   })
 
-  it('keeps a later specific category when generic server wording is local', () => {
-    const diagnostics = createClaudeCodeProcessDiagnostics('local-parse-ref')
+  it('keeps parse when local stderr mixes server wording with a parse failure', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('mixed-parse-ref')
 
-    recordClaudeCodeProcessExit(diagnostics, 1, null, 'invalid json')
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'Service unavailable: invalid json')
 
     expect(diagnostics.category).toBe('parse')
+    const serialized = serializeError(createClaudeCodeProcessExitError(new Error('process exited'), diagnostics))
+    expect(serialized.claudeCodeExitCategory).toBe('parse')
+    expect(serialized.message).toBe('Claude Code process exited with code 1')
+    expect(JSON.stringify(serialized)).not.toContain('Service unavailable')
+    expect(JSON.stringify(serialized)).not.toContain('invalid json')
+  })
+
+  it('keeps knowledge when local stderr mixes server wording with a knowledge failure', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('mixed-knowledge-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'Service unavailable: knowledge base')
+
+    expect(diagnostics.category).toBe('knowledge')
   })
 
   it('keeps a structured 503 ahead of an auth-looking CLI message', () => {
