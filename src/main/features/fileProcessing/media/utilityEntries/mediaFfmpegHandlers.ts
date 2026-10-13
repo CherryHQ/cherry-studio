@@ -502,8 +502,9 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     const { ffmpegPath } = requireInitData()
     const buckets = createSceneCandidateBuckets(durationMs, candidateLimit)
     let timestampMs: number | undefined
-    // fps and scale first. rgb24 stays before scene: the built-in score ignores same-luma color cuts.
-    const filter = `fps=${fps},scale=${edge}:-2,format=rgb24,select='gt(scene,${scoreThreshold.toString()})',metadata=print`
+    // First frame of each floor(t*fps) bucket keeps its source PTS. scale stays before rgb24.
+    // rgb24 stays before scene: the built-in score ignores same-luma color cuts.
+    const filter = `select='isnan(prev_selected_t)+gt(floor(t*${fps}),floor(prev_selected_t*${fps}))',scale=${edge}:-2,format=rgb24,select='gt(scene,${scoreThreshold.toString()})',metadata=print`
     await runCommand(
       ffmpegPath,
       ['-y', '-i', filePath, '-map', '0:V:0', '-an', '-vf', filter, '-f', 'null', '-'],
