@@ -205,6 +205,15 @@ describe('/goal command', () => {
     expect(notices(host.entries)).toEqual(['Goal created.'])
   })
 
+  // Breaks when an edit with nothing after it falls through to create: the goal's objective would be "edit".
+  it('with no goal, an edit with no objective answers that no goal is set', async () => {
+    const { session: s, host, calls } = await goalSession([working])
+    for (const command of ['/goal edit', '/goal Edit   ']) await s.prompt(command)
+    expect(notices(host.entries)).toEqual(['No goal is set.', 'No goal is set.'])
+    expect(snapshots(host.entries)).toHaveLength(0)
+    expect(calls).toHaveLength(0)
+  })
+
   it('reports a cap above the ceiling and an empty objective as errors', async () => {
     const { session: s, host } = await goalSession([working], confirmEachRound)
     await promptIdle(s, '/goal Fix it')
@@ -334,6 +343,36 @@ describe('/goal command', () => {
       { text: 'raise max_goal_rounds or the budget before resuming', level: 'error' }
     ])
     expect(calls).toHaveLength(0)
+  })
+
+  // Breaks when resume starts a round although it changed nothing: the notice says the goal is
+  // already active, yet a second round would run.
+  it('resume on a goal that is already active and armed starts no round', async () => {
+    const user: { session?: AgentSession } = {}
+    let resumeAtSettle = false
+    // Re-arms the goal after its settle decision, so the run ends with the goal active and armed.
+    const resumeAfterDecision: ExtensionFactory = (pi) => {
+      pi.on('agent_before_settle', async () => {
+        if (!resumeAtSettle) return
+        resumeAtSettle = false
+        await user.session!.prompt('/goal resume')
+      })
+    }
+    const {
+      session: s,
+      host,
+      calls
+    } = await goalSession([working], confirmEachRound, { laterExtensions: [resumeAfterDecision] })
+    user.session = s
+    await promptIdle(s, '/goal Keep working')
+    resumeAtSettle = true
+    await promptIdle(s, 'hello')
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'active', roundsStarted: 1 })
+
+    await promptIdle(s, '/goal resume')
+    expect(notices(host.entries)).toEqual(['Goal created.', 'Goal resumed.', 'Goal is already active.'])
+    expect(rounds(host.entries)).toHaveLength(1)
+    expect(calls).toHaveLength(2)
   })
 })
 
