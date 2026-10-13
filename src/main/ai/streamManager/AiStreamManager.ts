@@ -1003,6 +1003,8 @@ export class AiStreamManager extends BaseService {
       }
     }
 
+    stream.unadmittedRuntimeSuspended = true
+
     await Promise.allSettled([...stream.executions.values()].map((execution) => execution.loopPromise))
   }
 
@@ -2085,7 +2087,11 @@ export class AiStreamManager extends BaseService {
     } else if (
       !request.allowEmptySuccess &&
       !this.hasPendingSteer(topicId) &&
-      !(isAgentSessionTopic(topicId) && application.get('AgentSessionRuntimeService').willContinueTopic(topicId)) &&
+      !(
+        isAgentSessionTopic(topicId) &&
+        application.get('AgentSessionRuntimeService').willContinueTopic(topicId) &&
+        !this.activeStreams.get(topicId)?.unadmittedRuntimeSuspended
+      ) &&
       isEmptySuccessTurn(exec.finalMessage)
     ) {
       const noResponseError: SerializedError = {
