@@ -13,16 +13,17 @@ import {
   heldGoalSession,
   lastSnapshot,
   notices,
+  openGoalSession,
   promptIdle,
   readGoal,
   rounds,
   roundStart,
   say,
   snapshots,
-  toolCall,
   working
 } from './goalSupport'
-import { finish, MODEL, tempDir, textParts } from './support'
+import { toolCallPart } from './subagentSupport'
+import { finish, lastAssistant, MODEL, scriptedModel, tempDir, textParts } from './support'
 import { textOf, toolResults } from './toolResults'
 
 describe('goal caps and budgets', () => {
@@ -95,8 +96,8 @@ describe('goal caps and budgets', () => {
     const { session: s, host } = await goalSession(
       [
         () => [
-          toolCall('c1', 'create_goal', { objective: 'g', max_goal_rounds: 60 }),
-          toolCall('c2', 'create_goal', { objective: 'g', max_goal_rounds: 2 }),
+          toolCallPart('c1', 'create_goal', { objective: 'g', max_goal_rounds: 60 }),
+          toolCallPart('c2', 'create_goal', { objective: 'g', max_goal_rounds: 2 }),
           finish('tool-calls')
         ],
         working
@@ -149,7 +150,7 @@ describe('goal no-progress detection', () => {
         (prompt, call) =>
           roundStart(prompt) === undefined
             ? say('I read the file.')
-            : [toolCall(`r${call}`, 'read', { path: 'a.md' }), finish('tool-calls')]
+            : [toolCallPart(`r${call}`, 'read', { path: 'a.md' }), finish('tool-calls')]
       ],
       goalPort({ defaults: { maxGoalRounds: 10 } }),
       { tools: [readTool] }
@@ -180,7 +181,7 @@ describe('goal no-progress detection', () => {
       [
         (prompt, call) =>
           (roundStart(prompt) ?? 1) % 3 === 0
-            ? [toolCall(`e${call}`, 'echo', { value: 'x' }), finish('tool-calls')]
+            ? [toolCallPart(`e${call}`, 'echo', { value: 'x' }), finish('tool-calls')]
             : say('nothing new')
       ],
       goalPort({ defaults: { maxGoalRounds: 7 } }),
@@ -240,7 +241,7 @@ describe('goal no-progress detection', () => {
       // The reply after call 8 keeps a broken implementation from reading forever.
       [
         (_prompt, call) =>
-          call <= 8 ? [toolCall(`r${call}`, 'read', { path: 'same.md' }), finish('tool-calls')] : say('giving up')
+          call <= 8 ? [toolCallPart(`r${call}`, 'read', { path: 'same.md' }), finish('tool-calls')] : say('giving up')
       ],
       goalPort({ defaults: { maxGoalRounds: 10 } }),
       { tools: [readTool] }
@@ -263,7 +264,7 @@ describe('goal no-progress detection', () => {
       [
         (_prompt, call) =>
           call <= 4
-            ? [toolCall(`r${call}`, 'read', { path: call === 3 ? 'b.md' : 'a.md' }), finish('tool-calls')]
+            ? [toolCallPart(`r${call}`, 'read', { path: call === 3 ? 'b.md' : 'a.md' }), finish('tool-calls')]
             : say('done')
       ],
       goalPort({ defaults: { maxGoalRounds: 1 } }),
@@ -283,7 +284,7 @@ const askEachRound = [
     roundStart(prompt) === undefined
       ? say(`reply ${call}`)
       : [
-          toolCall(`q${call}`, 'AskUserQuestion', {
+          toolCallPart(`q${call}`, 'AskUserQuestion', {
             questions: [
               {
                 question: 'Which?',
@@ -298,6 +299,19 @@ const askEachRound = [
           finish('tool-calls')
         ]
 ]
+
+/** Replies stream slowly enough for the host to abort one mid-reply. */
+const slowModel = () =>
+  scriptedModel([[...textParts('t', ...Array.from({ length: 20 }, (_, i) => `part ${i} `)), finish('stop')]], 5)
+/** The host's stop button, pressed once the `reply`th reply (from 1) has streamed some text. */
+function abortAtReply(session: AgentSession, stopButton: AbortController, reply: number) {
+  let replies = 0
+  session.subscribe((event) => {
+    if (event.type === 'message_start' && event.message.role === 'assistant') replies++
+    if (replies === reply && event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta')
+      stopButton.abort()
+  })
+}
 
 describe('goal stops for people, errors and aborts', () => {
   it.each([
@@ -314,7 +328,7 @@ describe('goal stops for people, errors and aborts', () => {
         (prompt, call) =>
           roundStart(prompt) === undefined
             ? say(`reply ${call}`)
-            : [toolCall(`k${call}`, 'risky', {}), finish('tool-calls')]
+            : [toolCallPart(`k${call}`, 'risky', {}), finish('tool-calls')]
       ],
       port,
       { tools: [tool] }
@@ -330,8 +344,8 @@ describe('goal stops for people, errors and aborts', () => {
     const { port, tool } = approvals('denied', { defaults: { maxGoalRounds: 2 } })
     const { session: s, host } = await goalSession(
       [
-        () => [toolCall('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
-        () => [toolCall('k1', 'risky', {}), finish('tool-calls')],
+        () => [toolCallPart('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
+        () => [toolCallPart('k1', 'risky', {}), finish('tool-calls')],
         working
       ],
       port,
@@ -358,10 +372,16 @@ describe('goal stops for people, errors and aborts', () => {
     expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 3, lastStop: { code: 'round_limit' } })
   })
 
+  // Breaks when the message is read from the branch's last entry: another extension's entry may follow the reply.
   it('a failed model request blocks the goal with provider_error and the provider message', async () => {
-    const { session: s, host } = await goalSession([
-      (_prompt, call) => (call === 2 ? [{ type: 'error', error: new Error('upstream exploded') }] : say('one'))
-    ])
+    const stateAtTurnEnd: ExtensionFactory = (pi) => {
+      pi.on('turn_end', () => pi.appendEntry('cherry.other', {}))
+    }
+    const { session: s, host } = await goalSession(
+      [(_prompt, call) => (call === 2 ? [{ type: 'error', error: new Error('upstream exploded') }] : say('one'))],
+      goalPort(),
+      { extensionFactories: [stateAtTurnEnd] }
+    )
     await promptIdle(s, '/goal Keep working')
     expect(lastSnapshot(host.entries)).toMatchObject({
       phase: 'blocked',
@@ -448,6 +468,45 @@ describe('goal stops for people, errors and aborts', () => {
     })
   })
 
+  // Breaks when only session.abort() pauses the goal: a request the host aborts through its own signal
+  // settles like a finished one, and the goal opens the next round. Breaks too when the cut-off round counts as progress.
+  it('a request the host aborts through its own signal pauses the goal', async () => {
+    const stopButton = new AbortController()
+    const { model, calls } = slowModel()
+    const { session: s, host } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 4 } }), {
+      hostSignal: stopButton.signal
+    })
+    abortAtReply(s, stopButton, 2)
+    await promptIdle(s, '/goal Keep working')
+
+    expect(calls).toHaveLength(2)
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'paused',
+      roundsStarted: 2,
+      progressRounds: 1,
+      lastStop: { code: 'aborted' }
+    })
+  })
+
+  // Breaks when a host-signal abort pauses any active goal: one restored from the transcript is not armed.
+  it('a request the host aborts in a human turn leaves an unarmed goal alone', async () => {
+    const cwd = tempDir('cwd')
+    const transcript = await crashedTranscript('Keep working', goalPort(), cwd)
+    const stopButton = new AbortController()
+    const { session: s, host } = await openGoalSession(slowModel().model, goalPort(), {
+      cwd,
+      transcript,
+      hostSignal: stopButton.signal
+    })
+    abortAtReply(s, stopButton, 1)
+    await promptIdle(s, 'hello')
+    await s.prompt('/goal')
+
+    expect(lastAssistant(s).stopReason).toBe('aborted')
+    expect(snapshots(host.entries)).toEqual([])
+    expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
+  })
+
   // Breaks when decide() never asks the port: the goal would open round 2 while subagents still run.
   it('a host reporting running subagents ends the goal after the round with waiting_subagents', async () => {
     const { session: s, host, calls } = await goalSession([working], goalPort({ hasRunningSubagents: () => true }))
@@ -464,7 +523,7 @@ describe('goal stops for people, errors and aborts', () => {
 /** Each round reads the goal, sends one update_goal call per argument set `update(goal)` returns, then replies. */
 function eachRound(update: (goal: GoalSnapshot) => Record<string, unknown> | Record<string, unknown>[] | undefined) {
   return (prompt: LanguageModelV3Prompt, call: number) => {
-    if (roundStart(prompt) !== undefined) return [toolCall(`g${call}`, 'get_goal', {}), finish('tool-calls')]
+    if (roundStart(prompt) !== undefined) return [toolCallPart(`g${call}`, 'get_goal', {}), finish('tool-calls')]
     const last = prompt.at(-1)
     const afterGetGoal =
       last?.role === 'tool' && last.content.some((part) => part.type === 'tool-result' && part.toolName === 'get_goal')
@@ -475,7 +534,7 @@ function eachRound(update: (goal: GoalSnapshot) => Record<string, unknown> | Rec
           ...[args]
             .flat()
             .map((one, i) =>
-              toolCall(`u${call}.${i}`, 'update_goal', { goal_id: goal!.id, revision: goal!.revision, ...one })
+              toolCallPart(`u${call}.${i}`, 'update_goal', { goal_id: goal!.id, revision: goal!.revision, ...one })
             ),
           finish('tool-calls')
         ]
@@ -504,12 +563,12 @@ function workThenComplete(prompt: LanguageModelV3Prompt, call: number) {
   const after = (name: string) =>
     last?.role === 'tool' && last.content.some((part) => part.type === 'tool-result' && part.toolName === name)
   if (roundStart(prompt) !== undefined || last?.role === 'user')
-    return [toolCall(`e${call}`, 'echo', { value: 'x' }), finish('tool-calls')]
-  if (after('echo')) return [toolCall(`g${call}`, 'get_goal', {}), finish('tool-calls')]
+    return [toolCallPart(`e${call}`, 'echo', { value: 'x' }), finish('tool-calls')]
+  if (after('echo')) return [toolCallPart(`g${call}`, 'get_goal', {}), finish('tool-calls')]
   if (!after('get_goal')) return say(`reply ${call}`)
   const { goal } = readGoal(prompt)
   return [
-    toolCall(`u${call}`, 'update_goal', {
+    toolCallPart(`u${call}`, 'update_goal', {
       goal_id: goal!.id,
       revision: goal!.revision,
       action: 'complete',
@@ -519,7 +578,7 @@ function workThenComplete(prompt: LanguageModelV3Prompt, call: number) {
   ]
 }
 const blockedCall = (id: string, goal: GoalSnapshot) =>
-  toolCall(id, 'update_goal', {
+  toolCallPart(id, 'update_goal', {
     goal_id: goal.id,
     revision: goal.revision,
     action: 'blocked',
@@ -671,12 +730,12 @@ describe('goal self-reports', () => {
   it('complete and blocked on a complete goal are refused and change nothing', async () => {
     const goal = { id: '' }
     const update = (id: string, args: Record<string, unknown>) => [
-      toolCall(id, 'update_goal', { goal_id: goal.id, revision: 2, ...args }),
+      toolCallPart(id, 'update_goal', { goal_id: goal.id, revision: 2, ...args }),
       finish('tool-calls')
     ]
     const { session: s, host } = await goalSession(
       [
-        () => [toolCall('c', 'create_goal', { objective: 'g' }), finish('tool-calls')],
+        () => [toolCallPart('c', 'create_goal', { objective: 'g' }), finish('tool-calls')],
         (prompt) => {
           goal.id = readGoal(prompt).goal!.id
           return update('done', { revision: 1, action: 'complete', evidence: 'done' })
@@ -786,9 +845,9 @@ describe('goal self-reports', () => {
   // Breaks when blocked on a blocked goal stops it again: a second snapshot with a new lastStop.
   it('blocked on a goal that is already blocked changes nothing', async () => {
     const { session: s, host } = await goalSession([
-      () => [toolCall('c', 'create_goal', { objective: 'g' }), finish('tool-calls')],
+      () => [toolCallPart('c', 'create_goal', { objective: 'g' }), finish('tool-calls')],
       (prompt) => [blockedCall('b1', readGoal(prompt).goal!), finish('tool-calls')],
-      () => [toolCall('g', 'get_goal', {}), finish('tool-calls')],
+      () => [toolCallPart('g', 'get_goal', {}), finish('tool-calls')],
       (prompt) => [blockedCall('b2', readGoal(prompt).goal!), finish('tool-calls')],
       () => say('Blocked.')
     ])
@@ -803,9 +862,9 @@ describe('goal self-reports', () => {
   // Breaks when the round threshold also applies in a human turn, where a person is there to resume.
   it('in a human turn blocked is accepted at once', async () => {
     const { session: s, host } = await goalSession([
-      () => [toolCall('c', 'create_goal', { objective: 'g' }), finish('tool-calls')],
+      () => [toolCallPart('c', 'create_goal', { objective: 'g' }), finish('tool-calls')],
       (prompt) => [
-        toolCall('b', 'update_goal', {
+        toolCallPart('b', 'update_goal', {
           goal_id: readGoal(prompt).goal!.id,
           revision: 1,
           action: 'blocked',
