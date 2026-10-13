@@ -184,7 +184,9 @@ export class ClaudeCodeBinaryService extends BaseService {
       this.publish({ phase: 'ready', receivedBytes: this.status.receivedBytes, totalBytes: this.status.totalBytes })
       await this.cleanupOtherVersions()
     } finally {
-      await rm(staging, { recursive: true, force: true })
+      await rm(staging, { recursive: true, force: true }).catch((error) => {
+        logger.warn('Could not remove Claude Agent staging directory', { error })
+      })
     }
   }
 

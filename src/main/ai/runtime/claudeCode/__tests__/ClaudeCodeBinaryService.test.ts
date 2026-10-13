@@ -222,6 +222,34 @@ describe('Claude runtime acquisition', () => {
     expect(await readdir(root)).not.toContain('1.2.2')
   })
 
+  it.each([false, true])(
+    'preserves the installation outcome when staging cleanup fails (corrupt=%s)',
+    async (corrupt) => {
+      const { rm: realRm } = await vi.importActual<typeof FsPromises>('node:fs/promises')
+      vi.mocked(rm).mockImplementation(async (entry, options) => {
+        if (path.basename(String(entry)).startsWith('.download-')) {
+          throw Object.assign(new Error('staging file locked'), { code: 'EPERM' })
+        }
+        return realRm(entry, options)
+      })
+      try {
+        if (corrupt) vi.mocked(net.fetch).mockImplementation(async () => new Response('corrupt'))
+        if (corrupt) {
+          await expect(service.ensureExecutable()).rejects.toThrow()
+          expect(service.getStatus()).toMatchObject({ phase: 'error', error: 'integrity' })
+        } else {
+          const executable = await service.ensureExecutable()
+          expect(service.getStatus().phase).toBe('ready')
+          expect(await readFile(executable, 'utf8')).toBe('native-cli-fixture')
+          expect(await service.ensureExecutable()).toBe(executable)
+          expect(vi.mocked(net.fetch).mock.calls).toHaveLength(1)
+        }
+      } finally {
+        vi.mocked(rm).mockImplementation(realRm)
+      }
+    }
+  )
+
   it.each([true, false])('falls back from the regional source (%s) to a verified download', async (china) => {
     vi.mocked(regionService.isInChina).mockResolvedValue(china)
     vi.mocked(net.fetch).mockRejectedValueOnce(new Error('offline'))
