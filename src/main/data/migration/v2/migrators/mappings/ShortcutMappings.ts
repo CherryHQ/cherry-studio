@@ -63,6 +63,12 @@ const LEGACY_KEY_PRIORITY: Record<string, number> = {
   toggle_sidebar: 1
 }
 
+const LEGACY_SIDEBAR_SHORTCUT_KEYS = new Set(['shortcut.app.sidebar.toggle', 'shortcut.topic.sidebar.toggle'])
+
+/** v1 has no provenance. Every migrated sidebar chord is kept, including the old default. */
+const inferLegacySidebarShortcutCustomized = (preferenceKey: string): boolean | undefined =>
+  LEGACY_SIDEBAR_SHORTCUT_KEYS.has(preferenceKey) ? true : undefined
+
 export const transformShortcuts: TransformFunction = (sources) => {
   const shortcuts = sources.shortcuts
   const result: Record<string, PreferenceShortcutType> = {}
@@ -102,7 +108,8 @@ export const transformShortcuts: TransformFunction = (sources) => {
     const binding = normalizeShortcutBinding(isStringArray(entry.shortcut) ? entry.shortcut : [])
     const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : true
 
-    result[targetKey] = { binding, enabled }
+    const customized = inferLegacySidebarShortcutCustomized(targetKey)
+    result[targetKey] = { binding, ...(customized !== undefined ? { customized } : {}), enabled }
     priorities.set(targetKey, currentPriority)
   }
 

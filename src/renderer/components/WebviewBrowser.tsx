@@ -8,9 +8,10 @@ import type {
   WebviewTag
 } from 'electron'
 import type { ReactNode } from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useCommandContextKey } from '@renderer/hooks/command'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -79,6 +80,12 @@ export function WebviewBrowser({
   const [isLoading, setIsLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [pageTitle, setPageTitle] = useState('')
+  const [guestFocused, setGuestFocused] = useState(false)
+  // A hidden host drops the flag so the next show does not suppress host shortcuts early.
+  useEffect(() => {
+    if (!isHostActive) setGuestFocused(false)
+  }, [isHostActive])
+  useCommandContextKey('webview.focused', isHostActive && guestFocused)
   const guestAuthorizationKey = getGuestAuthorizationKey(securityProfile, initialUrl)
 
   const handleWebviewChange = useCallback((webview: WebviewTag | null) => {
@@ -175,6 +182,7 @@ export function WebviewBrowser({
         testId="webview-browser-guest"
         className="inline-flex h-full w-full bg-white"
         onWebviewChange={handleWebviewChange}
+        onFocusChange={setGuestFocused}
         onDomReady={handleDomReady}
         onDidStartLoading={handleDidStartLoading}
         onDidStartNavigation={handleDidStartNavigation}

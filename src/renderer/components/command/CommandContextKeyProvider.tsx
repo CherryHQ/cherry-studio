@@ -26,8 +26,9 @@ const buildSnapshot = (
   }
 
   for (const [key, entries] of stacks) {
-    const entry = entries.at(-1)
-    service.set(key, entry?.value)
+    // Every guest host publishes this flag. A later `false` must not hide another host's `true`.
+    const value = key === 'webview.focused' ? entries.some((entry) => entry.value === true) : entries.at(-1)?.value
+    service.set(key, value)
   }
 
   return service.snapshot()

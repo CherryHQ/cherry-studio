@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { RegisteredKeybindingRule } from '@shared/types/command'
 
 import { parseContextExpr } from '../contextExpr'
@@ -192,26 +193,213 @@ describe('command shortcut preferences', () => {
     })
   })
 
-  it('applies the platform default to preferences hydrated from the schema default', () => {
-    // usePreference never yields undefined: unset keys arrive as the schema default.
+  it('uses native history shortcuts on macOS without conflicting with sidebar toggles', () => {
+    expect(getCommandDefaultShortcutPreference('tab.history.back', 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      '['
+    ])
+    expect(getCommandDefaultShortcutPreference('tab.history.forward', 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      ']'
+    ])
+
+    for (const command of ['tab.history.back', 'tab.history.forward'] as const) {
+      const preference = getCommandDefaultShortcutPreference(command, 'darwin')!
+      expect(findKeybindingConflicts({ command, preference, platform: 'darwin' })).toEqual([])
+    }
+
+    expect(getCommandDefaultShortcutPreference('tab.history.back', 'win32')?.binding).toEqual(['Alt', 'Left'])
+    expect(getCommandDefaultShortcutPreference('tab.history.forward', 'linux')?.binding).toEqual(['Alt', 'Right'])
+  })
+
+  it('keeps hydrated schema chords and leaves Option+arrows unclaimed', () => {
+    const preferences = {
+      'tab.history.back': DefaultPreferences.default['shortcut.tab.history.back'],
+      'tab.history.forward': DefaultPreferences.default['shortcut.tab.history.forward'],
+      'app.sidebar.toggle': DefaultPreferences.default['shortcut.app.sidebar.toggle'],
+      'topic.sidebar.toggle': DefaultPreferences.default['shortcut.topic.sidebar.toggle']
+    }
+    const options = { preferences, context: {}, platform: 'darwin' as const, scope: 'renderer' as const }
+
+    expect(resolveCommandByKeybinding({ ...options, binding: ['Alt', 'Left'] })).toBeUndefined()
+    expect(resolveCommandByKeybinding({ ...options, binding: ['Alt', 'Right'] })).toBeUndefined()
+    // Sidebar is registered before history, so the shared chord stays on the sidebar command.
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', '['] })).toBe('app.sidebar.toggle')
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', ']'] })).toBe('topic.sidebar.toggle')
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', 'Alt', '['] })).toBeUndefined()
+  })
+
+  it('uses platform defaults for history and sidebar when no preference rows are passed', () => {
+    const options = { context: {}, platform: 'darwin' as const, scope: 'renderer' as const }
+
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', '['] })).toBe('tab.history.back')
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', ']'] })).toBe('tab.history.forward')
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', 'Alt', '['] })).toBe(
+      'app.sidebar.toggle'
+    )
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', 'Alt', ']'] })).toBe(
+      'topic.sidebar.toggle'
+    )
+  })
+
+  it('keeps a stored Alt+arrow history shortcut on macOS', () => {
+    const preferences = {
+      'tab.history.back': { binding: ['Alt', 'Left'], customized: true, enabled: true },
+      'tab.history.forward': { binding: ['Alt', 'Right'], customized: true, enabled: true }
+    } satisfies Record<'tab.history.back' | 'tab.history.forward', PreferenceShortcutType>
+    const options = { preferences, context: {}, platform: 'darwin' as const, scope: 'renderer' as const }
+
+    expect(
+      resolveCommandShortcutPreference('tab.history.back', preferences['tab.history.back'], 'darwin')?.binding
+    ).toEqual(['Alt', 'Left'])
+    expect(
+      resolveCommandShortcutPreference('tab.history.forward', preferences['tab.history.forward'], 'darwin')?.binding
+    ).toEqual(['Alt', 'Right'])
+    expect(resolveCommandByKeybinding({ ...options, binding: ['Alt', 'Left'] })).toBe('tab.history.back')
+    expect(resolveCommandByKeybinding({ ...options, binding: ['Alt', 'Right'] })).toBe('tab.history.forward')
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', '['] })).toBeUndefined()
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', ']'] })).toBeUndefined()
+  })
+
+  it('keeps stored Command+bracket sidebar shortcuts on macOS', () => {
+    const preferences = {
+      'app.sidebar.toggle': { binding: ['CommandOrControl', '['], customized: true, enabled: true },
+      'topic.sidebar.toggle': { binding: ['CommandOrControl', ']'], customized: true, enabled: true }
+    } satisfies Record<'app.sidebar.toggle' | 'topic.sidebar.toggle', PreferenceShortcutType>
+
+    expect(
+      resolveCommandShortcutPreference('app.sidebar.toggle', preferences['app.sidebar.toggle'], 'darwin')?.binding
+    ).toEqual(['CommandOrControl', '['])
+    expect(
+      resolveCommandShortcutPreference('topic.sidebar.toggle', preferences['topic.sidebar.toggle'], 'darwin')?.binding
+    ).toEqual(['CommandOrControl', ']'])
+  })
+
+  it('keeps an explicit Cmd+[ / Cmd+] sidebar selection on macOS', () => {
+    expect(
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        { binding: ['CommandOrControl', '['], customized: true, enabled: true },
+        'darwin'
+      )?.binding
+    ).toEqual(['CommandOrControl', '['])
+    expect(
+      resolveCommandShortcutPreference(
+        'topic.sidebar.toggle',
+        { binding: ['Command', ']'], customized: true, enabled: true },
+        'darwin'
+      )?.binding
+    ).toEqual(['Command', ']'])
+    expect(
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        { binding: ['Command', '['], customized: false, enabled: true },
+        'darwin'
+      )?.binding
+    ).toEqual(['Command', '['])
+  })
+
+  it('keeps a saved shared-default chord on every platform', () => {
+    for (const platform of ['darwin', 'win32', 'linux'] as const) {
+      expect(
+        resolveCommandShortcutPreference(
+          'app.sidebar.toggle',
+          { binding: ['CommandOrControl', '['], enabled: true },
+          platform
+        )?.binding
+      ).toEqual(['CommandOrControl', '['])
+      expect(
+        resolveCommandShortcutPreference(
+          'topic.sidebar.toggle',
+          { binding: ['CommandOrControl', ']'], enabled: true },
+          platform
+        )?.binding
+      ).toEqual(['CommandOrControl', ']'])
+    }
+  })
+
+  it('keeps a saved custom chord on every platform', () => {
+    for (const platform of ['darwin', 'win32', 'linux'] as const) {
+      expect(
+        resolveCommandShortcutPreference(
+          'app.sidebar.toggle',
+          { binding: ['Alt', 'J'], customized: true, enabled: true },
+          platform
+        )?.binding
+      ).toEqual(['Alt', 'J'])
+    }
+  })
+
+  it('keeps a saved chord when customized is false', () => {
+    expect(
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        { binding: ['CommandOrControl', '['], customized: false, enabled: true },
+        'darwin'
+      )?.binding
+    ).toEqual(['CommandOrControl', '['])
+    expect(
+      resolveCommandShortcutPreference(
+        'topic.sidebar.toggle',
+        { binding: ['CommandOrControl', ']'], customized: false, enabled: false },
+        'linux'
+      )
+    ).toEqual({ binding: ['CommandOrControl', ']'], enabled: false })
+    expect(
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        { binding: ['Ctrl', '['], customized: false, enabled: false },
+        'darwin'
+      )
+    ).toEqual({ binding: ['Ctrl', '['], enabled: false })
+  })
+
+  it('keeps a saved chord when customized is absent', () => {
+    expect(
+      resolveCommandShortcutPreference('tab.next', { binding: ['CommandOrControl', 'Tab'], enabled: true }, 'darwin')
+    ).toEqual({ binding: ['CommandOrControl', 'Tab'], enabled: true })
+    expect(
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        { binding: ['CommandOrControl', '['], enabled: true },
+        'win32'
+      )?.binding
+    ).toEqual(['CommandOrControl', '['])
+  })
+
+  it('applies the platform chord only when no preference object is passed', () => {
+    expect(resolveCommandShortcutPreference('tab.next', undefined, 'darwin')).toEqual({
+      binding: ['Ctrl', 'Tab'],
+      enabled: true
+    })
+    expect(resolveCommandShortcutPreference('tab.next', null, 'darwin')).toEqual({
+      binding: ['Ctrl', 'Tab'],
+      enabled: true
+    })
     expect(
       resolveCommandShortcutPreference('tab.next', DefaultPreferences.default['shortcut.tab.next'], 'darwin')
     ).toEqual({
-      binding: ['Ctrl', 'Tab'],
+      binding: ['CommandOrControl', 'Tab'],
       enabled: true
     })
     expect(
       resolveCommandShortcutPreference('tab.prev', DefaultPreferences.default['shortcut.tab.prev'], 'darwin')
     ).toEqual({
-      binding: ['Ctrl', 'Shift', 'Tab'],
+      binding: ['CommandOrControl', 'Shift', 'Tab'],
       enabled: true
     })
+    expect(resolveCommandShortcutPreference('app.sidebar.toggle', undefined, 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      'Alt',
+      '['
+    ])
     expect(
-      resolveCommandShortcutPreference('tab.next', DefaultPreferences.default['shortcut.tab.next'], 'win32')
-    ).toEqual({
-      binding: ['CommandOrControl', 'Tab'],
-      enabled: true
-    })
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        DefaultPreferences.default['shortcut.app.sidebar.toggle'],
+        'darwin'
+      )?.binding
+    ).toEqual(['CommandOrControl', '['])
   })
 
   it('lets a user shortcut override the platform-specific default', () => {
@@ -349,7 +537,19 @@ describe('resolveCommandByKeybinding', () => {
       })
     ).toBe('tab.next')
 
-    // CommandProvider dispatches with schema-hydrated preferences, never an empty map.
+    // A provided schema row keeps its stored chord. Ctrl+Tab is only the no-row macOS default.
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['CommandOrControl', 'Tab'],
+        preferences: {
+          'tab.next': DefaultPreferences.default['shortcut.tab.next'],
+          'tab.prev': DefaultPreferences.default['shortcut.tab.prev']
+        },
+        context: {},
+        platform: 'darwin',
+        scope: 'renderer'
+      })
+    ).toBe('tab.next')
     expect(
       resolveCommandByKeybinding({
         binding: ['Ctrl', 'Tab'],
@@ -361,7 +561,7 @@ describe('resolveCommandByKeybinding', () => {
         platform: 'darwin',
         scope: 'renderer'
       })
-    ).toBe('tab.next')
+    ).toBeUndefined()
 
     expect(
       resolveCommandByKeybinding({

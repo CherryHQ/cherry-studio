@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import { preferenceTable } from '@data/db/schemas/preference'
+import { resolveCommandShortcutPreference } from '@shared/utils/command'
 import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 
 import type { MigrationContext } from '../../core/MigrationContext'
@@ -260,6 +261,43 @@ describe('PreferencesMigrator', () => {
       const settingsRows = await selectByKey(dbh.db, 'shortcut.app.settings.open')
       expect(settingsRows).toHaveLength(1)
       expect(settingsRows[0].value).toEqual({ binding: ['CommandOrControl', ','], enabled: false })
+    })
+
+    it('records observable v1 sidebar shortcut provenance during migration', async () => {
+      const ctx = createTestContext(
+        {
+          redux: {
+            shortcuts: {
+              shortcuts: [
+                { key: 'toggle_show_assistants', shortcut: ['Command', '['], enabled: false },
+                { key: 'toggle_show_topics', shortcut: ['CommandOrControl', 'Shift', ']'], enabled: true }
+              ]
+            }
+          }
+        },
+        dbh.db
+      )
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const [appSidebar] = await selectByKey(dbh.db, 'shortcut.app.sidebar.toggle')
+      expect(appSidebar.value).toEqual({ binding: ['Command', '['], customized: true, enabled: false })
+      expect(resolveCommandShortcutPreference('app.sidebar.toggle', appSidebar.value, 'darwin')?.binding).toEqual([
+        'Command',
+        '['
+      ])
+
+      const [topicSidebar] = await selectByKey(dbh.db, 'shortcut.topic.sidebar.toggle')
+      expect(topicSidebar.value).toEqual({
+        binding: ['CommandOrControl', 'Shift', ']'],
+        customized: true,
+        enabled: true
+      })
+      expect(resolveCommandShortcutPreference('topic.sidebar.toggle', topicSidebar.value, 'darwin')?.binding).toEqual([
+        'CommandOrControl',
+        'Shift',
+        ']'
+      ])
     })
 
     it('routes websearch.compressionConfig through complex mapping (1 → N split)', async () => {

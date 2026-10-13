@@ -167,15 +167,10 @@ const getDefaultShortcutPreferenceForRule = (
   }
 }
 
-/**
- * Stored binding to honour, or undefined to fall back to the default. `usePreference`
- * hydrates unset keys with the platform-agnostic schema default, so a stored binding
- * equal to it is not a user choice and must still yield to the platform override.
- */
+// A saved row's chord is authoritative, whatever `customized` says. Platform
+// defaults apply only when no row is passed. An empty binding stays cleared.
 const resolvePreferredBinding = (
-  rule: RegisteredKeybindingRule,
-  preference: PreferenceShortcutType | null | undefined,
-  platform?: SupportedPlatform
+  preference: PreferenceShortcutType | null | undefined
 ): ShortcutBinding | undefined => {
   if (preference == null) {
     return undefined
@@ -183,13 +178,7 @@ const resolvePreferredBinding = (
   if (!preference.binding?.length) {
     return []
   }
-
-  const binding = normalizeShortcutBinding(preference.binding)
-  const platformBinding = getRulePlatformBinding(rule.defaultBinding, platform)
-  if (platformBinding && shortcutBindingMatches(binding, getSharedDefaultBinding(rule))) {
-    return platformBinding
-  }
-  return binding
+  return normalizeShortcutBinding(preference.binding)
 }
 
 export const getCommandDefaultShortcutPreference = (
@@ -216,7 +205,7 @@ export const resolveCommandShortcutPreference = (
   const fallback = getDefaultShortcutPreferenceForRule(rule, platform)
 
   return {
-    binding: resolvePreferredBinding(rule, preference, platform) ?? fallback.binding,
+    binding: resolvePreferredBinding(preference) ?? fallback.binding,
     enabled: typeof preference?.enabled === 'boolean' ? preference.enabled : fallback.enabled
   }
 }
