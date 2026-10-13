@@ -903,15 +903,9 @@ export class SkillService {
     this.reconcileInFlight = this.mutationLock
       .runExclusive(async () => {
         const storageRoot = application.getPath('feature.agents.skills')
-        const trackedFolderNames = () => new Set(agentGlobalSkillService.listAll().map((skill) => skill.folderName))
         await this.installer.recoverInterruptedInstalls(
           storageRoot,
-          (folderName) => this.findCatalogSkillCaseInsensitive(folderName) !== null,
-          (oldName, newName) => {
-            const tracked = trackedFolderNames()
-            if (tracked.has(newName) || tracked.has(oldName)) return false
-            return tracked.size > 0
-          }
+          (folderName) => this.findCatalogSkillCaseInsensitive(folderName) !== null
         )
         try {
           await this.ensureSkillPluginManifest()
@@ -935,6 +929,13 @@ export class SkillService {
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
     if (skill.source === 'builtin') throw new Error(`Built-in Skill is read-only: ${skill.folderName}`)
+
+    const storageRoot = application.getPath('feature.agents.skills')
+    await this.installer.settleMigrationMarkersBeforeRename(
+      storageRoot,
+      skill.folderName,
+      (name) => this.findCatalogSkillCaseInsensitive(name) !== null
+    )
 
     const skillDir = this.getSkillStoragePath(skill.folderName)
     let stats: fs.Stats
