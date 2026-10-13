@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "Thêm vào cuộc trò chuyện",
   "screenshot.action.undo": "Hoàn tác",
   "screenshot.chat.message": "Thêm tin nhắn (không bắt buộc)",
+  "screenshot.chat.unavailable": "Mở cuộc trò chuyện hoặc cuộc trò chuyện Agent, rồi chụp lại để thêm vào bản nháp.",
   "screenshot.magnifier.copied": "Đã sao chép!",
   "screenshot.magnifier.hint_color_mode": "Shift: Định dạng màu",
   "screenshot.magnifier.hint_copy": "C: Sao chép màu",

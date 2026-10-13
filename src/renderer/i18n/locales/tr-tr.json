@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "Sohbete ekle",
   "screenshot.action.undo": "Geri Al",
   "screenshot.chat.message": "Mesaj ekle (isteğe bağlı)",
+  "screenshot.chat.unavailable": "Bir sohbet veya Agent görüşmesi açın, ardından taslağa eklemek için yeni bir ekran görüntüsü alın.",
   "screenshot.magnifier.copied": "Kopyalandı!",
   "screenshot.magnifier.hint_color_mode": "Shift: Renk biçimi",
   "screenshot.magnifier.hint_copy": "C: Rengi kopyala",

@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "Adicionar à conversa",
   "screenshot.action.undo": "Anular",
   "screenshot.chat.message": "Adicionar uma mensagem (opcional)",
+  "screenshot.chat.unavailable": "Abra uma conversa ou conversa de Agent e faça uma nova captura para a adicionar ao rascunho.",
   "screenshot.magnifier.copied": "Copiado!",
   "screenshot.magnifier.hint_color_mode": "Shift: Formato da cor",
   "screenshot.magnifier.hint_copy": "C: Copiar cor",

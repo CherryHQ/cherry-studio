@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "Adaugă în conversație",
   "screenshot.action.undo": "Anulează acțiunea",
   "screenshot.chat.message": "Adaugă un mesaj (opțional)",
+  "screenshot.chat.unavailable": "Deschide un chat sau o conversație Agent, apoi pornește o nouă captură pentru acea ciornă.",
   "screenshot.magnifier.copied": "Copiat!",
   "screenshot.magnifier.hint_color_mode": "Shift: Format culoare",
   "screenshot.magnifier.hint_copy": "C: Copiază culoarea",

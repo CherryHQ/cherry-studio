@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "添加到聊天",
   "screenshot.action.undo": "撤销",
   "screenshot.chat.message": "附带文字（可选）",
+  "screenshot.chat.unavailable": "请先打开聊天或 Agent 会话，再重新截图以添加到该输入框。",
   "screenshot.magnifier.copied": "已复制！",
   "screenshot.magnifier.hint_color_mode": "Shift：切换颜色格式",
   "screenshot.magnifier.hint_copy": "C：复制颜色值",

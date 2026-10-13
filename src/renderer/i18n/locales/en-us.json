@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "Add to chat",
   "screenshot.action.undo": "Undo",
   "screenshot.chat.message": "Add a message (optional)",
+  "screenshot.chat.unavailable": "Open a chat or Agent conversation, then start a new capture to add it to that draft.",
   "screenshot.magnifier.copied": "Copied!",
   "screenshot.magnifier.hint_color_mode": "Shift: Color format",
   "screenshot.magnifier.hint_copy": "C: Copy color",

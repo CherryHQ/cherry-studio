@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "Zum Chat hinzufügen",
   "screenshot.action.undo": "Rückgängig",
   "screenshot.chat.message": "Nachricht hinzufügen (optional)",
+  "screenshot.chat.unavailable": "Öffne einen Chat oder eine Agent-Unterhaltung und starte dann eine neue Aufnahme für diesen Entwurf.",
   "screenshot.magnifier.copied": "Kopiert!",
   "screenshot.magnifier.hint_color_mode": "Shift: Farbformat",
   "screenshot.magnifier.hint_copy": "C: Farbe kopieren",

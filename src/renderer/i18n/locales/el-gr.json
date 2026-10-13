@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "Προσθήκη στη συνομιλία",
   "screenshot.action.undo": "Αναίρεση",
   "screenshot.chat.message": "Προσθήκη μηνύματος (προαιρετικό)",
+  "screenshot.chat.unavailable": "Ανοίξτε μια συνομιλία ή συνομιλία Agent και ξεκινήστε νέα λήψη για αυτό το πρόχειρο.",
   "screenshot.magnifier.copied": "Αντιγράφηκε!",
   "screenshot.magnifier.hint_color_mode": "Shift: Μορφή χρώματος",
   "screenshot.magnifier.hint_copy": "C: Αντιγραφή χρώματος",

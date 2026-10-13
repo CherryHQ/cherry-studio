@@ -47,15 +47,12 @@ import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
-import { FILE_TYPE } from '@renderer/types/file'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getComposerShortcutLabel, resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
   isGPT5SeriesReasoningModel,
@@ -74,7 +71,6 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
@@ -115,10 +111,9 @@ import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBase
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
+import { useScreenshotChat } from './shared/useScreenshotChat'
 
 const logger = loggerService.withContext('ChatComposer')
-// Only one capture session can exist. Keep its receipt across composer remounts in this window.
-let acceptedScreenshotDeliveryId: string | undefined
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
   'file'
@@ -510,13 +505,6 @@ const ChatComposerInner = ({
 }: ChatComposerInnerProps) => {
   const { t } = useTranslation()
   const streamScopeKey = topicId ?? scopeKey
-  const [screenshotEnabled] = usePreference('feature.screenshot.enabled')
-  const startScreenshot = useCallback(() => {
-    void ipcApi.request('screenshot.capture').catch((error) => {
-      logger.error('Failed to start screenshot capture', error)
-      toast.error(t('common.error'))
-    })
-  }, [t])
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
   const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
@@ -671,6 +659,14 @@ const ChatComposerInner = ({
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
   const restoredEditingSessionIdRef = useRef<number | null>(null)
   const isSavingEdit = savingEditingSessionId === editingMessageForCurrentTopic?.editingSessionId
+  const { screenshotEnabled, startScreenshot } = useScreenshotChat({
+    scopeKey: streamScopeKey,
+    editingId: editingMessageForCurrentTopic?.editingSessionId,
+    active: layerActive,
+    actionsRef,
+    setFiles,
+    isBlocked: () => isSavingEdit || directSendInFlightRef.current
+  })
   const selectAssistantMessage = t('button.select_assistant')
   const displayAssistant = assistant
   const hasMissingPersistedAssistant = !!assistantId && !isAssistantLoading && !assistant
@@ -1447,61 +1443,6 @@ const ChatComposerInner = ({
   useComposerQuoteInsertion(actionsRef)
 
   const isActiveTab = useIsActiveTab()
-  const editingSessionId = editingMessageForCurrentTopic?.editingSessionId
-  const screenshotTarget = useMemo(
-    () => JSON.stringify([streamScopeKey, editingSessionId, isActiveTab, layerActive, crypto.randomUUID()]),
-    [streamScopeKey, editingSessionId, isActiveTab, layerActive]
-  )
-  useEffect(() => {
-    if (!isActiveTab || !layerActive) return
-    void ipcApi.request('screenshot.chat_target', { scopeKey: screenshotTarget }).catch((error) => {
-      logger.error('Failed to register screenshot chat target', error)
-    })
-    return () => {
-      void ipcApi.request('screenshot.chat_target', { scopeKey: null }).catch((error) => {
-        logger.error('Failed to clear screenshot chat target', error)
-      })
-    }
-  }, [isActiveTab, layerActive, screenshotTarget])
-  useIpcOn(
-    'screenshot.chat_attachment',
-    ({ deliveryId, path, name, size, text: message, scopeKey: targetScopeKey }) => {
-      const report = (accepted: boolean) => {
-        void ipcApi.request('screenshot.chat_received', { deliveryId, accepted }).catch((error) => {
-          logger.error('Failed to acknowledge screenshot delivery', error)
-        })
-      }
-      if (acceptedScreenshotDeliveryId === deliveryId) {
-        report(true)
-        return
-      }
-      if (!isActiveTab || !layerActive) return
-      if (targetScopeKey !== screenshotTarget || isSavingEdit || directSendInFlightRef.current) {
-        report(false)
-        return
-      }
-      const parsedPath = AbsoluteFilePathSchema.safeParse(path)
-      if (!parsedPath.success || !actionsRef.current.appendText(message)) {
-        report(false)
-        return
-      }
-      setFiles((previous) => [
-        ...previous,
-        {
-          fileTokenSourceId: createComposerFileTokenSourceId(),
-          path: parsedPath.data,
-          name,
-          origin_name: name,
-          ext: '.png',
-          size,
-          type: FILE_TYPE.IMAGE
-        }
-      ])
-      acceptedScreenshotDeliveryId = deliveryId
-      report(true)
-      actionsRef.current.focus('end')
-    }
-  )
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
   useCommandHandler('chat.context.toggle_new', () => void handleStartNewContext(), {
     enabled: isActiveTab && Boolean(chatWrite) && !clearContextDisabled

@@ -66,6 +66,16 @@ describe('Toolbar accessible names', () => {
     }
   })
 
+  it('keeps the chat entry and message input visible without a destination', async () => {
+    render(<Toolbar {...baseProps} activeTool={null} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Add to chat' }))
+    const dialog = screen.getByRole('dialog')
+    await userEvent.type(within(dialog).getByRole('textbox'), 'My note')
+    expect(within(dialog).getByRole('textbox')).toHaveValue('My note')
+    expect(within(dialog).getByRole('button', { name: 'Add to chat' })).toBeDisabled()
+    expect(within(dialog).getByText(/Open a chat or Agent conversation/)).toBeInTheDocument()
+  })
+
   it('reports pressed state on the tools only, so the plain actions do not read as toggles', () => {
     render(<Toolbar {...baseProps} activeTool="brush" />)
 

@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "Añadir al chat",
   "screenshot.action.undo": "Deshacer",
   "screenshot.chat.message": "Añadir un mensaje (opcional)",
+  "screenshot.chat.unavailable": "Abre un chat o una conversación de Agent y realiza una nueva captura para añadirla al borrador.",
   "screenshot.magnifier.copied": "¡Copiado!",
   "screenshot.magnifier.hint_color_mode": "Shift: Formato de color",
   "screenshot.magnifier.hint_copy": "C: Copiar color",

@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "Ajouter à la discussion",
   "screenshot.action.undo": "Annuler",
   "screenshot.chat.message": "Ajouter un message (facultatif)",
+  "screenshot.chat.unavailable": "Ouvrez une discussion ou une conversation Agent, puis lancez une nouvelle capture pour ce brouillon.",
   "screenshot.magnifier.copied": "Copié !",
   "screenshot.magnifier.hint_color_mode": "Shift : Format de couleur",
   "screenshot.magnifier.hint_copy": "C : Copier la couleur",

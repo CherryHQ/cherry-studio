@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "チャットに追加",
   "screenshot.action.undo": "元に戻す",
   "screenshot.chat.message": "メッセージを追加（任意）",
+  "screenshot.chat.unavailable": "チャットまたは Agent の会話を開き、もう一度撮影して入力欄に追加してください。",
   "screenshot.magnifier.copied": "コピーしました！",
   "screenshot.magnifier.hint_color_mode": "Shift：カラー形式",
   "screenshot.magnifier.hint_copy": "C：色をコピー",

@@ -3354,6 +3354,7 @@
   "screenshot.action.send_to_chat": "Добавить в чат",
   "screenshot.action.undo": "Отменить",
   "screenshot.chat.message": "Добавить сообщение (необязательно)",
+  "screenshot.chat.unavailable": "Откройте чат или беседу Agent и сделайте новый снимок, чтобы добавить его в черновик.",
   "screenshot.magnifier.copied": "Скопировано!",
   "screenshot.magnifier.hint_color_mode": "Shift: Формат цвета",
   "screenshot.magnifier.hint_copy": "C: Копировать цвет",

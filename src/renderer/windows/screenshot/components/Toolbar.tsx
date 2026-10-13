@@ -182,7 +182,7 @@ export const Toolbar = memo(function Toolbar({
 
       <ToolbarDivider />
 
-      {onSendToChat && <SendToChat onSend={onSendToChat} />}
+      <SendToChat onSend={onSendToChat} />
       <ToolbarButton icon={<Download className="size-5" />} label={t('screenshot.action.save')} onClick={onSave} />
       <ToolbarButton
         icon={<X className="size-5" />}
@@ -200,7 +200,7 @@ export const Toolbar = memo(function Toolbar({
   )
 })
 
-function SendToChat({ onSend }: { onSend: (text: string) => Promise<void> }) {
+function SendToChat({ onSend }: { onSend?: (text: string) => Promise<void> }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -217,7 +217,7 @@ function SendToChat({ onSend }: { onSend: (text: string) => Promise<void> }) {
   }, [open])
 
   const send = async () => {
-    if (sending.current) return
+    if (sending.current || !onSend) return
     sending.current = true
     setPending(true)
     setFailed(false)
@@ -255,12 +255,13 @@ function SendToChat({ onSend }: { onSend: (text: string) => Promise<void> }) {
           placeholder={t('screenshot.chat.message')}
           onValueChange={setText}
         />
+        {!onSend && <p className="text-sm text-muted-foreground">{t('screenshot.chat.unavailable')}</p>}
         {failed && (
           <p role="alert" className="text-sm text-destructive">
             {t('common.error')}
           </p>
         )}
-        <Button className="w-full" disabled={pending} onClick={() => void send()}>
+        <Button className="w-full" disabled={pending || !onSend} onClick={() => void send()}>
           {t('screenshot.action.send_to_chat')}
         </Button>
       </PopoverContent>
