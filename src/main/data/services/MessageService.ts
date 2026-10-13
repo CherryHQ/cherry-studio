@@ -18,6 +18,11 @@ import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
+import {
+  changedFileRefEffects,
+  fileRefReadModelEffects,
+  fileRefSourceReadModelEffects
+} from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
@@ -29,7 +34,7 @@ import type {
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { chatMessageRoles } from '@shared/data/types/file'
 import {
   type BranchMessage,
@@ -280,11 +285,17 @@ function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<s
   return existing
 }
 
-function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
+function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): DataApiDataChangeEffect[] {
+  const before = tx
+    .select({ id: chatMessageFileRefTable.fileEntryId })
+    .from(chatMessageFileRefTable)
+    .where(eq(chatMessageFileRefTable.sourceId, messageId))
+    .all()
+    .map((row) => row.id)
   tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId)).run()
 
   const refs = extractChatMessageFileRefs(data)
-  if (refs.length === 0) return
+  if (refs.length === 0) return changedFileRefEffects(before, [])
 
   const existingIds = selectExistingFileEntryIdsTx(
     tx,
@@ -310,6 +321,10 @@ function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: Messa
       .values(rows.slice(i, i + SQLITE_INSERT_CHUNK))
       .run()
   }
+  return changedFileRefEffects(
+    before,
+    rows.map((row) => row.fileEntryId)
+  )
 }
 
 /**
@@ -1034,6 +1049,7 @@ export class MessageService {
    *   the first user turn creates an ordinary sibling under that root — no special case.
    */
   createSibling(sourceId: string, data: MessageData): Message {
+    const fileEffects: DataApiDataChangeEffect[] = []
     const message = application.get('DbService').withWriteTx((tx) => {
       const source = this.getAddressableMessageRowTx(tx, sourceId)
       // The virtual root has no siblings — copying its null parentId would insert a second
@@ -1068,7 +1084,7 @@ export class MessageService {
         })
         .returning()
         .all()
-      replaceChatMessageFileRefsTx(tx, row.id, data)
+      fileEffects.push(...replaceChatMessageFileRefsTx(tx, row.id, data))
 
       const topicService = getDataService('TopicService')
       topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
@@ -1085,6 +1101,7 @@ export class MessageService {
 
       return rowToMessage(row)
     })
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     if (isConversationActivityRole(message.role)) {
       getDataService('TopicService').notifyReadModelChange([message.topicId], 'projection')
     }
@@ -1139,6 +1156,7 @@ export class MessageService {
    * - Topic activeNodeId update
    */
   create(topicId: string, dto: CreateMessageDto): Message {
+    const fileEffects: DataApiDataChangeEffect[] = []
     const message = application.get('DbService').withWriteTx((tx) => {
       // Step 1: Verify topic exists and fetch its current state.
       // We need the topic to check activeNodeId for parentId auto-resolution.
@@ -1188,7 +1206,7 @@ export class MessageService {
         })
         .returning()
         .all()
-      replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+      fileEffects.push(...replaceChatMessageFileRefsTx(tx, row.id, dto.data))
 
       const topicService = getDataService('TopicService')
 
@@ -1204,6 +1222,7 @@ export class MessageService {
 
       return rowToMessage(row)
     })
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     if (isConversationActivityRole(message.role)) {
       getDataService('TopicService').notifyReadModelChange([topicId], 'projection')
     }
@@ -1292,6 +1311,7 @@ export class MessageService {
     input: CreateUserMessageWithPlaceholdersInput
   ): CreateUserMessageWithPlaceholdersResult {
     let activityChanged = false
+    const fileEffects: DataApiDataChangeEffect[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       // Validate topic
       this.getActiveTopicTx(tx, input.topicId)
@@ -1331,7 +1351,7 @@ export class MessageService {
           })
           .returning()
           .all()
-        replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+        fileEffects.push(...replaceChatMessageFileRefsTx(tx, row.id, dto.data))
         userMessage = rowToMessage(row)
         if (isConversationActivityRole(dto.role)) latestActivityAt = createdAt
       } else if (input.userMessage.mode === 'existing') {
@@ -1367,7 +1387,7 @@ export class MessageService {
           .where(eq(messageTable.id, row.id))
           .returning()
           .all()
-        replaceChatMessageFileRefsTx(tx, row.id, input.userMessage.data)
+        fileEffects.push(...replaceChatMessageFileRefsTx(tx, row.id, input.userMessage.data))
         userMessage = rowToMessage(updatedRow)
         latestActivityAt = activityTimestamp
       }
@@ -1402,7 +1422,7 @@ export class MessageService {
           })
           .returning()
           .all()
-        replaceChatMessageFileRefsTx(tx, row.id, p.data)
+        fileEffects.push(...replaceChatMessageFileRefsTx(tx, row.id, p.data))
         placeholders.push(rowToMessage(row))
         if (isConversationActivityRole(p.role)) {
           latestActivityAt = latestActivityAt === null ? createdAt : Math.max(latestActivityAt, createdAt)
@@ -1431,6 +1451,7 @@ export class MessageService {
 
       return { userMessage, placeholders }
     })
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     const changedIds = [result.userMessage.id, ...result.placeholders.map((placeholder) => placeholder.id)]
     notifyDataApiDataChange([
       {
@@ -1476,6 +1497,7 @@ export class MessageService {
    */
   update(id: string, dto: UpdateMessageDto): Message {
     let activityChanged = false
+    const fileEffects: DataApiDataChangeEffect[] = []
     const message = application.get('DbService').withWriteTx((tx) => {
       // Get existing message within transaction
       const existingRow = this.getAddressableMessageRowTx(tx, id)
@@ -1537,7 +1559,7 @@ export class MessageService {
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
       if (updates.data !== undefined) {
-        replaceChatMessageFileRefsTx(tx, id, updates.data)
+        fileEffects.push(...replaceChatMessageFileRefsTx(tx, id, updates.data))
       }
       if (activityTransitionAt !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, existingRow.topicId, activityTransitionAt)
@@ -1548,6 +1570,7 @@ export class MessageService {
 
       return rowToMessage(row)
     })
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
 
     if (activityChanged) getDataService('TopicService').notifyReadModelChange([message.topicId], 'projection')
     return message
@@ -1567,6 +1590,7 @@ export class MessageService {
     }
   ): Message {
     let activityTopicId: string | null = null
+    const fileEffects: DataApiDataChangeEffect[] = []
     application.get('DbService').withWriteTx((tx) => {
       const row = this.getAddressableMessageRowTx(tx, id)
       if (row.role !== 'assistant') {
@@ -1589,12 +1613,13 @@ export class MessageService {
         })
         .where(eq(messageTable.id, id))
         .run()
-      replaceChatMessageFileRefsTx(tx, id, input.data)
+      fileEffects.push(...replaceChatMessageFileRefsTx(tx, id, input.data))
       if (activityTimestamp !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, row.topicId, activityTimestamp)
         activityTopicId = row.topicId
       }
     })
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     if (activityTopicId) getDataService('TopicService').notifyReadModelChange([activityTopicId], 'projection')
     aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id })
     const finalized = this.getById(id)
@@ -1611,6 +1636,7 @@ export class MessageService {
    * from the failed attempt.
    */
   resetAssistantForRetry(id: string): Message {
+    const fileEffects: DataApiDataChangeEffect[] = []
     const { updated, affectedIds, topicId } = application.get('DbService').withWriteTx((tx) => {
       const row = this.getAddressableMessageRowTx(tx, id)
       if (row.role !== 'assistant') {
@@ -1643,7 +1669,7 @@ export class MessageService {
         .where(eq(messageTable.id, id))
         .returning()
         .all()
-      replaceChatMessageFileRefsTx(tx, id, data)
+      fileEffects.push(...replaceChatMessageFileRefsTx(tx, id, data))
 
       logger.info('Reset assistant message for retry', { id, topicId: row.topicId })
       return {
@@ -1652,6 +1678,7 @@ export class MessageService {
         topicId: row.topicId
       }
     })
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     notifyDataApiDataChange([
       {
         endpoint: '/topics/:topicId/messages',
@@ -1675,7 +1702,7 @@ export class MessageService {
    * conflict clause — or when the ref is already present.
    */
   addToolOutputFileRef(messageId: string, fileEntryId: string): boolean {
-    return application.get('DbService').withWriteTx((tx) => {
+    const changed = application.get('DbService').withWriteTx((tx) => {
       const row = this.findAddressableMessageRowTx(tx, messageId)
       if (!row) return false
       const now = Date.now()
@@ -1686,6 +1713,8 @@ export class MessageService {
         .run()
       return result.changes > 0
     })
+    if (changed) notifyDataApiDataChange(fileRefReadModelEffects([fileEntryId]))
+    return changed
   }
 
   /**
@@ -1773,6 +1802,7 @@ export class MessageService {
    * represents an ungrouped reply and therefore deletes only the requested message.
    */
   deleteReplyGroup(id: string): DeleteMessageResponse {
+    let fileEffects: DataApiDataChangeEffect[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       const target = this.getAddressableMessageRowTx(tx, id)
       if (!target.parentId || target.role !== 'assistant') {
@@ -1820,6 +1850,8 @@ export class MessageService {
       let newActiveNodeId: string | null | undefined
       const activeNodeRemoved = Boolean(topic.activeNodeId && targetIds.includes(topic.activeNodeId))
 
+      fileEffects = fileRefSourceReadModelEffects(tx, 'chat_message', targetIds)
+
       tx.delete(messageTable).where(inArray(messageTable.id, targetIds)).run()
 
       if (activeNodeRemoved) {
@@ -1847,6 +1879,7 @@ export class MessageService {
     const { topicId, contextChangedIds, ...response } = result
     const changedIds = [...new Set([...response.deletedIds, ...(response.reparentedIds ?? []), ...contextChangedIds])]
     notifyDataApiDataChange([
+      ...fileEffects,
       {
         endpoint: '/topics/:topicId/messages',
         kind: 'membership',
@@ -1900,6 +1933,7 @@ export class MessageService {
     activeNodeStrategy: ActiveNodeStrategy = 'parent',
     awaitingInputOnly: boolean = false
   ): DeleteMessageResponse {
+    let fileEffects: DataApiDataChangeEffect[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       const messageRow = this.getAddressableMessageRowTx(tx, id)
       const message = rowToMessage(messageRow)
@@ -1941,6 +1975,7 @@ export class MessageService {
           const chunk = descendantIds.slice(i, i + SQLITE_INARRAY_CHUNK)
           this.flattenUnderTx(tx, id, inArray(messageTable.id, chunk))
         }
+        fileEffects = fileRefSourceReadModelEffects(tx, 'chat_message', deletedIds)
         tx.delete(messageTable).where(eq(messageTable.id, id)).run()
 
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
@@ -1984,6 +2019,8 @@ export class MessageService {
         // Check if activeNodeId is affected
         activeNodeRemoved = topic.activeNodeId === id
 
+        fileEffects = fileRefSourceReadModelEffects(tx, 'chat_message', deletedIds)
+
         tx.delete(messageTable).where(eq(messageTable.id, id)).run()
 
         logger.info('Deleted message with reparenting', { id, reparentedCount: reparentedIds.length })
@@ -2024,6 +2061,7 @@ export class MessageService {
     const { topicId, contextChangedIds, ...response } = result
     const changedIds = [...new Set([...response.deletedIds, ...(response.reparentedIds ?? []), ...contextChangedIds])]
     notifyDataApiDataChange([
+      ...fileEffects,
       {
         endpoint: '/topics/:topicId/messages',
         kind: 'membership',
@@ -2155,6 +2193,7 @@ export class MessageService {
    * so the single-root invariant holds — and clears `activeNodeId`.
    */
   clearTopicMessages(topicId: string): { deletedIds: string[] } {
+    let fileEffects: DataApiDataChangeEffect[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       this.getActiveTopicTx(tx, topicId)
       const rootId = this.getRootMessageIdTx(tx, topicId)
@@ -2169,6 +2208,7 @@ export class MessageService {
       if (deletedIds.length === 0) return { deletedIds }
 
       this.flattenUnderTx(tx, rootId, eq(messageTable.topicId, topicId))
+      fileEffects = fileRefSourceReadModelEffects(tx, 'chat_message', deletedIds)
       tx.delete(messageTable)
         .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId)))
         .run()
@@ -2180,6 +2220,7 @@ export class MessageService {
 
     if (result.deletedIds.length > 0) {
       notifyDataApiDataChange([
+        ...fileEffects,
         {
           endpoint: '/topics/:topicId/messages',
           kind: 'membership',

@@ -14,6 +14,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -135,6 +136,13 @@ export class TopicService {
       options.deleted && entityIds.length === 1
         ? [{ endpoint: '/topics/:id', routeParams: { id: entityIds[0] }, entityIds }]
         : [{ endpoint: '/topics/:id', entityIds }]
+    if (kind === 'membership') {
+      byIdEffects.push(
+        { endpoint: '/files/entries', kind: 'membership' },
+        { endpoint: '/files/entries/stats' },
+        { endpoint: '/files/entries/ref-counts', kind: 'projection' }
+      )
+    }
     notifyDataApiDataChange([
       { endpoint: '/topics', kind, entityIds },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
@@ -526,6 +534,7 @@ export class TopicService {
         .where(inArray(topicTable.id, trashedIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
         .run()
     }
+    fileEntryService.setConversationFilesTrashTx(tx, 'topic', trashedIds, deletedAt)
     tagService.purgeForEntitiesTx(tx, 'topic', trashedIds)
     pinService.purgeForEntitiesTx(tx, 'topic', trashedIds)
 
@@ -563,8 +572,11 @@ export class TopicService {
     if (deletedIds.length === 0) return []
 
     const messageService = getDataService('MessageService')
+    const deletedAt = Date.now()
     for (let i = 0; i < deletedIds.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = deletedIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+      tx.update(topicTable).set({ deletedAt }).where(inArray(topicTable.id, chunk)).run()
+      fileEntryService.setConversationFilesTrashTx(tx, 'topic', chunk, deletedAt)
       messageService.purgeByTopicIdsTx(tx, chunk)
       tagService.purgeForEntitiesTx(tx, 'topic', chunk)
       pinService.purgeForEntitiesTx(tx, 'topic', chunk)
@@ -575,15 +587,17 @@ export class TopicService {
   }
 
   restore(id: string): Topic {
-    const [row] = application
-      .get('DbService')
-      .getDb()
-      .update(topicTable)
-      .set({ deletedAt: null })
-      .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
-      .returning()
-      .all()
-    if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+    const row = application.get('DbService').withWriteTx((tx) => {
+      const [restored] = tx
+        .update(topicTable)
+        .set({ deletedAt: null })
+        .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
+        .returning()
+        .all()
+      if (!restored) throw DataApiErrorFactory.notFound('Topic', id)
+      fileEntryService.setConversationFilesTrashTx(tx, 'topic', [id], null)
+      return restored
+    })
 
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored topic', { id })

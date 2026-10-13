@@ -194,12 +194,14 @@ describe('TemporaryChatService', () => {
 
       const result = service.persist(topic.id)
       expect(result).toEqual({ topicId: topic.id, messageCount: 3 })
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-        { endpoint: '/topics', kind: 'membership', entityIds: [topic.id] },
-        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [topic.id] },
-        { endpoint: '/topics/:id', entityIds: [topic.id] },
-        { endpoint: '/topics/latest' }
-      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          { endpoint: '/topics', kind: 'membership', entityIds: [topic.id] },
+          { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [topic.id] },
+          { endpoint: '/topics/:id', entityIds: [topic.id] },
+          { endpoint: '/topics/latest' }
+        ])
+      )
 
       // In-memory store is cleared
       expect(() => service.listMessages(topic.id)).toThrow(/not found/i)

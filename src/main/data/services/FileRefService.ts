@@ -28,6 +28,7 @@ import {
   translateHistoryFileRefTable
 } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import {
   agentSessionMessageSourceType,
@@ -55,6 +56,8 @@ export interface FileRefService {
 
   /** Ref-count aggregation for a batch of entry ids. */
   countByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number>
+
+  countConversationRefsByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number>
 
   /** Persistent-ref count for one entry, inside the caller's tx (cleanup pass §5.4). */
   countPersistentRefsByEntryIdTx(tx: DbOrTx, id: FileEntryId): number
@@ -351,6 +354,22 @@ class FileRefServiceImpl implements FileRefService {
     return counts
   }
 
+  countConversationRefsByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number> {
+    const counts = new Map<FileEntryId, number>()
+    for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
+      for (const table of [chatMessageFileRefTable, agentSessionMessageFileRefTable]) {
+        const rows = this.getDb()
+          .select({ entryId: table.fileEntryId, refCount: count() })
+          .from(table)
+          .where(inArray(table.fileEntryId, ids.slice(i, i + SQLITE_INARRAY_CHUNK)))
+          .groupBy(table.fileEntryId)
+          .all()
+        for (const row of rows) counts.set(row.entryId, (counts.get(row.entryId) ?? 0) + row.refCount)
+      }
+    }
+    return counts
+  }
+
   countPersistentRefsByEntryIdTx(tx: DbOrTx, id: FileEntryId): number {
     let total = 0
     for (const table of Object.values(persistentFileRefTablesBySourceType)) {
@@ -362,3 +381,37 @@ class FileRefServiceImpl implements FileRefService {
 }
 
 export const fileRefService: FileRefService = new FileRefServiceImpl()
+
+/** Read models affected by persistent reference changes; callers publish after commit. */
+export function fileRefReadModelEffects(entityIds: string[]): DataApiDataChangeEffect[] {
+  if (entityIds.length === 0) return []
+  return [
+    { endpoint: '/files/entries', kind: 'membership', entityIds },
+    { endpoint: '/files/entries/ref-counts', kind: 'projection', entityIds }
+  ]
+}
+
+export function changedFileRefEffects(before: readonly string[], after: readonly string[]): DataApiDataChangeEffect[] {
+  const deltas = new Map<string, number>()
+  for (const id of before) deltas.set(id, (deltas.get(id) ?? 0) - 1)
+  for (const id of after) deltas.set(id, (deltas.get(id) ?? 0) + 1)
+  return fileRefReadModelEffects([...deltas].filter(([, delta]) => delta !== 0).map(([id]) => id))
+}
+
+export function fileRefSourceReadModelEffects(
+  db: DbOrTx,
+  sourceType: PersistentFileRefSourceType,
+  sourceIds: readonly string[]
+): DataApiDataChangeEffect[] {
+  const table = persistentFileRefTablesBySourceType[sourceType]
+  const ids = new Set<string>()
+  for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+    const rows = db
+      .select({ id: table.fileEntryId })
+      .from(table)
+      .where(inArray(table.sourceId, sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
+      .all()
+    for (const row of rows) ids.add(row.id)
+  }
+  return fileRefReadModelEffects([...ids])
+}

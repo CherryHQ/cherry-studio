@@ -14,6 +14,7 @@
 import { and, asc, desc, eq, getTableColumns, gt, inArray, lt, ne } from 'drizzle-orm'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import {
   type InsertMiniAppRow,
@@ -23,6 +24,8 @@ import {
   miniAppTable
 } from '@data/db/schemas/miniApp'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbOrTx } from '@data/db/types'
+import { changedFileRefEffects, fileRefSourceReadModelEffects } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -58,6 +61,24 @@ const customMutableFields = ['name', 'url', 'logo'] as const
 const IDENTITY_FIELDS = ['url', 'name', 'logo'] as const
 const visibleStatusValues = ['enabled', 'pinned'] satisfies MiniAppStatus[]
 const visibleStatuses: ReadonlySet<MiniAppStatus> = new Set(visibleStatusValues)
+
+function reconcileMiniAppLogoTx(tx: DbOrTx, appId: string, logo: LogoBindInput | undefined) {
+  const before = logo
+    ? tx
+        .select({ fileEntryId: miniAppLogoFileRefTable.fileEntryId })
+        .from(miniAppLogoFileRefTable)
+        .where(eq(miniAppLogoFileRefTable.sourceId, appId))
+        .all()
+    : []
+  const columns = reconcileLogoSlotTx(tx, miniAppLogoFileRefTable, appId, logo)
+  return {
+    columns,
+    fileEffects: changedFileRefEffects(
+      before.map((ref) => ref.fileEntryId),
+      logo?.kind === 'file' ? [logo.fileId] : []
+    )
+  }
+}
 
 function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
@@ -253,7 +274,7 @@ export class MiniAppService {
       )
     }
 
-    const row = withSqliteErrors(
+    const { row, fileEffects } = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const [existing] = tx
@@ -299,7 +320,7 @@ export class MiniAppService {
           if (dto.name !== undefined) updates.name = dto.name
           if (dto.url !== undefined) updates.url = dto.url
           // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
-          const logoCols = reconcileLogoSlotTx(tx, miniAppLogoFileRefTable, appId, dto.logo)
+          const { columns: logoCols, fileEffects } = reconcileMiniAppLogoTx(tx, appId, dto.logo)
           if (logoCols) {
             updates.logoKey = logoCols.logoKey
           }
@@ -355,13 +376,14 @@ export class MiniAppService {
           }
 
           // A model-only PATCH touched the installation row alone; an empty SET is a Drizzle error.
-          if (Object.keys(updates).length === 0) return existing
+          if (Object.keys(updates).length === 0) return { row: existing, fileEffects }
           const [updated] = tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning().all()
-          return updated
+          return { row: updated, fileEffects }
         }),
       defaultHandlersFor('MiniApp', appId)
     )
     if (!row) throw DataApiErrorFactory.notFound('MiniApp', appId)
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     logger.info('Updated miniapp', { appId, changes: Object.keys(dto) })
     // Re-read through the join: the written row alone would yield a LocalMiniApp
     // with no version. A row becomes a MiniApp by exactly one path.
@@ -375,7 +397,7 @@ export class MiniAppService {
    * written only by install / update / rollback code.
    */
   setInstalledLogo(appId: string, logo: LogoBindInput): void {
-    withSqliteErrors(
+    const fileEffects = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const [existing] = tx
@@ -393,11 +415,13 @@ export class MiniAppService {
             )
           }
 
-          const logoCols = reconcileLogoSlotTx(tx, miniAppLogoFileRefTable, appId, logo)!
-          tx.update(miniAppTable).set({ logoKey: logoCols.logoKey }).where(eq(miniAppTable.appId, appId)).run()
+          const { columns, fileEffects } = reconcileMiniAppLogoTx(tx, appId, logo)
+          tx.update(miniAppTable).set({ logoKey: columns!.logoKey }).where(eq(miniAppTable.appId, appId)).run()
+          return fileEffects
         }),
       defaultHandlersFor('MiniApp', appId)
     )
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     logger.info('Bound packaged icon', { appId, kind: logo.kind })
   }
 
@@ -406,7 +430,7 @@ export class MiniAppService {
    * Mirrors {@link ProviderService.delete}'s preset guard.
    */
   delete(appId: string): void {
-    withSqliteErrors(
+    const fileEffects = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const [existing] = tx
@@ -436,11 +460,14 @@ export class MiniAppService {
           // DB-only: drop the logo slot's ref (the file is preserved per the
           // file layer's policy), then delete the row. The FK cascade would also
           // clear it on row delete; the explicit clear keeps the intent local.
+          const fileEffects = fileRefSourceReadModelEffects(tx, 'mini_app_logo', [appId])
           clearSingleFileRefTx(tx, miniAppLogoFileRefTable, appId)
           tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId)).run()
+          return fileEffects
         }),
       defaultHandlersFor('MiniApp', appId)
     )
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     logger.info('Deleted miniapp', { appId })
   }
 

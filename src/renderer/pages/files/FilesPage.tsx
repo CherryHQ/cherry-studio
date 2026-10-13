@@ -13,7 +13,7 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
-import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
@@ -26,6 +26,7 @@ import { toast } from '@renderer/services/toast'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
+import type { FileEntryRefCount } from '@shared/data/api/schemas/files'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
@@ -34,7 +35,7 @@ import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/
 
 import type { FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
-import { formatFileSize } from './fileDisplay'
+import { formatFileSize, getFileUsageLabel } from './fileDisplay'
 import { FileGrid } from './FileGrid'
 import type { SortDir, SortKey } from './FileList'
 import { FileList, FileListHeader } from './FileList'
@@ -183,7 +184,8 @@ function toFileItem(
   entry: FileEntry,
   metadataById: FileMetadataById,
   physicalPathById: PhysicalPathById,
-  danglingStateById: DanglingStateById
+  danglingStateById: DanglingStateById,
+  refs?: FileEntryRefCount
 ): FileItem {
   const metadata = metadataById[entry.id]
   const format = entry.ext ?? ''
@@ -205,7 +207,14 @@ function toFileItem(
     updatedAt: formatDateTime(updatedAt),
     trashed: entry.origin === 'internal' && entry.deletedAt !== undefined,
     danglingState,
-    isMissing
+    isMissing,
+    usage: refs
+      ? refs.conversationRefCount > 0
+        ? ('conversation' as const)
+        : refs.refCount > 0
+          ? ('other' as const)
+          : ('unreferenced' as const)
+      : undefined
   }
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
@@ -312,6 +321,8 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
+  const [referenceRevision, setReferenceRevision] = useState(0)
+  const [refsById, setRefsById] = useState<Map<string, FileEntryRefCount>>(new Map())
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const selectionAnchorIdRef = useRef<string | null>(null)
@@ -330,13 +341,15 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   // Sort by raw `ext` server-side so cursor pagination stays globally stable.
   const serverSortKey: ServerSortKey = sortKey === 'type' ? 'ext' : sortKey
   const activeFileType = filter.kind === 'type' ? filter.value : undefined
+  const activeUsage = filter.kind === 'usage' ? filter.value : undefined
   const activeFilesQuery = useMemo(
     () => ({
       sortBy: serverSortKey,
       sortOrder: sortDir,
-      ...(activeFileType && { fileType: activeFileType })
+      ...(activeFileType && { fileType: activeFileType }),
+      ...(activeUsage && { usage: activeUsage })
     }),
-    [activeFileType, serverSortKey, sortDir]
+    [activeFileType, activeUsage, serverSortKey, sortDir]
   )
 
   const {
@@ -423,29 +436,62 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     }
   }, [displayEntries, isFilesLoading, isFilesRefreshing])
 
+  useEffect(() => {
+    let cancelled = false
+    const ids = displayEntries.map((entry) => entry.id)
+    const requests: Promise<FileEntryRefCount[]>[] = []
+    for (let i = 0; i < ids.length; i += FILE_IPC_BATCH_SIZE) {
+      requests.push(
+        dataApiService.get('/files/entries/ref-counts', { query: { entryIds: ids.slice(i, i + FILE_IPC_BATCH_SIZE) } })
+      )
+    }
+    void Promise.all(requests)
+      .then((results) => {
+        if (!cancelled) setRefsById(new Map(results.flat().map((row) => [row.entryId, row])))
+      })
+      .catch((error) => {
+        if (!cancelled) logger.error('Failed to load file references', error as Error)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [displayEntries, referenceRevision])
+
   const files = useMemo(() => {
-    return displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
-  }, [displayEntries, danglingStateById, metadataById, physicalPathById])
+    return displayEntries.map((entry) =>
+      toFileItem(entry, metadataById, physicalPathById, danglingStateById, refsById.get(entry.id))
+    )
+  }, [displayEntries, danglingStateById, metadataById, physicalPathById, refsById])
 
   const refetchFiles = useCallback(async () => {
     resetActiveFiles()
     await Promise.all([refreshActiveFiles(), refetchFileStats()])
   }, [refetchFileStats, refreshActiveFiles, resetActiveFiles])
 
+  useDataChange(['/files/entries', '/files/entries/ref-counts'], (effects) => {
+    if (!effects.some((effect) => effect.endpoint === '/files/entries/ref-counts' || effect.kind === 'membership'))
+      return
+    setRefsById(new Map())
+    setReferenceRevision((revision) => revision + 1)
+    void refetchFiles()
+  })
+
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
   const activeFilterLabel =
     filter.kind === 'library'
       ? t('files.all')
-      : t(
-          {
-            audio: 'files.audio',
-            document: 'files.document',
-            image: 'files.image',
-            other: 'files.other',
-            text: 'files.text',
-            video: 'files.video'
-          }[filter.value]
-        )
+      : filter.kind === 'usage'
+        ? getFileUsageLabel(t, filter.value)
+        : t(
+            {
+              audio: 'files.audio',
+              document: 'files.document',
+              image: 'files.image',
+              other: 'files.other',
+              text: 'files.text',
+              video: 'files.video'
+            }[filter.value]
+          )
   const hasMoreCurrentFiles = hasMoreActiveFiles
   const isLoadingMoreActiveFiles = isActiveFilesRefreshing && activeFilePages.length > 0
   const isLoadingMoreCurrentFiles = isLoadingMoreActiveFiles
@@ -687,7 +733,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   const performDelete = useCallback(
     async (targetIds: Set<string>) => {
       const targets = files.filter((file) => targetIds.has(file.id))
-      if (targets.length === 0) return
+      if (targets.length === 0 || targets.some((file) => file.usage !== 'unreferenced')) return
 
       const trashIds = targets.filter((file) => file.origin === 'internal').map((file) => file.id)
       const removeIds = targets.filter((file) => file.origin === 'external').map((file) => file.id)
@@ -759,7 +805,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     (targetIds: Set<string>) => {
       if (deleteRequestPendingRef.current) return
       const targets = files.filter((file) => targetIds.has(file.id))
-      if (targets.length === 0) return
+      if (targets.length === 0 || targets.some((file) => file.usage !== 'unreferenced')) return
 
       deleteRequestPendingRef.current = true
       setDeleteRequestPending(true)
@@ -965,7 +1011,10 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
                   <FileToolbar
                     selectedCount={selectedIds.size}
                     batchDeleteLabel={batchDeleteLabel}
-                    deleteDisabled={deleteRequestPending}
+                    deleteDisabled={
+                      deleteRequestPending ||
+                      files.some((file) => selectedIds.has(file.id) && file.usage !== 'unreferenced')
+                    }
                     onBatchDelete={() => handleDelete()}
                   />
                 )}

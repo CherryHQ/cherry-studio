@@ -2,19 +2,26 @@
 import '@data/services/ProviderRegistryService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import * as dataChange from '@data/dataApiDataChange'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { fileRefService } from '@data/services/FileRefService'
 import { providerService } from '@data/services/ProviderService'
 import { getSingleFileRefId } from '@data/services/utils/singleFileRef'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 
 const rowFor = (dbh: ReturnType<typeof setupTestDatabase>, providerId: string) =>
   dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId))
 
 describe('ProviderService logo (key/file columns)', () => {
   const dbh = setupTestDatabase()
+
+  afterEach(() => vi.restoreAllMocks())
 
   it('round-trips a preset-key logo set on create', async () => {
     const created = providerService.create({
@@ -85,6 +92,71 @@ describe('ProviderService logo (key/file columns)', () => {
 
     const logoRefs = (providerId: string) =>
       dbh.db.select().from(providerLogoFileRefTable).where(eq(providerLogoFileRefTable.sourceId, providerId))
+
+    it.each(['default', 'key', 'file'] as const)(
+      'publishes committed file usage changes when switching an upload to %s',
+      async (kind) => {
+        await seedFileEntry(FILE_ID)
+        await seedFileEntry(FILE_ID_2)
+        providerService.create({ providerId: 'p-notify', name: 'P' })
+        providerService.update('p-notify', { logo: { kind: 'file', fileId: FILE_ID } })
+        const effects: DataApiDataChangeEffect[] = []
+        vi.spyOn(dataChange, 'notifyDataApiDataChange').mockImplementation((batch) => {
+          expect(dbh.sqlite.inTransaction).toBe(false)
+          expect(fileRefService.countByEntryIds([FILE_ID]).get(FILE_ID)).toBeUndefined()
+          effects.push(...batch)
+        })
+
+        providerService.update('p-notify', {
+          logo: kind === 'file' ? { kind, fileId: FILE_ID_2 } : kind === 'key' ? { kind, key: 'icon:openai' } : { kind }
+        })
+
+        expect(fileEntryService.listCursor({ usage: 'unreferenced' }).items.map((entry) => entry.id)).toContain(FILE_ID)
+        expect(fileEntryService.listCursor({ usage: 'other' }).items.map((entry) => entry.id)).toEqual(
+          kind === 'file' ? [FILE_ID_2] : []
+        )
+        for (const endpoint of ['/files/entries', '/files/entries/ref-counts']) {
+          expect(effects).toContainEqual({
+            endpoint,
+            kind: endpoint === '/files/entries' ? 'membership' : 'projection',
+            entityIds: kind === 'file' ? [FILE_ID, FILE_ID_2] : [FILE_ID]
+          })
+        }
+      }
+    )
+
+    it('preserves the logo reference and publishes nothing when its update rolls back', async () => {
+      await seedFileEntry(FILE_ID)
+      providerService.create({ providerId: 'p-rollback', name: 'P' })
+      providerService.update('p-rollback', { logo: { kind: 'file', fileId: FILE_ID } })
+      const notify = vi.spyOn(dataChange, 'notifyDataApiDataChange')
+      const dbService = application.get('DbService')
+      const withWriteTx = dbService.withWriteTx.bind(dbService)
+      vi.spyOn(dbService, 'withWriteTx').mockImplementationOnce((fn) =>
+        withWriteTx((tx) => {
+          fn(tx)
+          throw new Error('abort logo update')
+        })
+      )
+
+      expect(() => providerService.update('p-rollback', { logo: { kind: 'default' } })).toThrow('abort logo update')
+      expect(getSingleFileRefId(providerLogoFileRefTable, 'p-rollback')).toBe(FILE_ID)
+      expect(notify.mock.calls).toEqual([])
+    })
+
+    it('does not invalidate file views for an unchanged logo or an unrelated provider edit', async () => {
+      await seedFileEntry(FILE_ID)
+      providerService.create({ providerId: 'p-noop', name: 'P' })
+      providerService.update('p-noop', { logo: { kind: 'file', fileId: FILE_ID } })
+      const notify = vi.spyOn(dataChange, 'notifyDataApiDataChange')
+
+      providerService.update('p-noop', { logo: { kind: 'file', fileId: FILE_ID } })
+      providerService.update('p-noop', { name: 'Renamed' })
+
+      expect(providerService.getByProviderId('p-noop').name).toBe('Renamed')
+      expect(getSingleFileRefId(providerLogoFileRefTable, 'p-noop')).toBe(FILE_ID)
+      expect(notify.mock.calls).toEqual([])
+    })
 
     it('binds an uploaded logo to the slot ref, nulls logoKey, and resolves logoSrc on read-back', async () => {
       await seedFileEntry(FILE_ID)

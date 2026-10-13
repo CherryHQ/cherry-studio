@@ -119,6 +119,18 @@ describe('internal/entry/lifecycle', () => {
   }
 
   describe('trash', () => {
+    it('preserves referenced files while a mixed batch trashes only unreferenced entries', async () => {
+      const referenced = await makeInternal()
+      const unreferenced = await makeInternal()
+      await seedPersistentRef(referenced)
+      expect(() => trash(deps, referenced)).toThrow()
+      const result = batchTrash(deps, [referenced, unreferenced])
+      expect(result.succeeded).toEqual([unreferenced])
+      expect(result.failed.map(({ id }) => id)).toEqual([referenced])
+      expect(fileEntryService.getById(referenced)).not.toHaveProperty('deletedAt')
+      expect(fileEntryService.getById(unreferenced)).toHaveProperty('deletedAt')
+    })
+
     it('marks an internal entry as trashed', async () => {
       const id = await makeInternal()
       trash(deps, id)
@@ -157,16 +169,19 @@ describe('internal/entry/lifecycle', () => {
   })
 
   describe('restore', () => {
-    it('clears deletedAt on a trashed internal entry', async () => {
-      const id = await makeInternal()
+    it('restores an auto-policy file as an independently retained library file', async () => {
+      const { id } = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([1]),
+        name: 'recovered',
+        ext: 'txt',
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
       trash(deps, id)
       await restore(deps, id)
-      const entry = fileEntryService.getById(id)
-      // After restore, deletedAt is absent (undefined) on the BO.
-      expect(entry.origin).toBe('internal')
-      if (entry.origin === 'internal') {
-        expect(entry.deletedAt).toBeUndefined()
-      }
+      expect(fileEntryService.getById(id)).toMatchObject({ origin: 'internal', cleanupPolicy: 'manual' })
+      expect(fileEntryService.getById(id)).not.toHaveProperty('deletedAt')
+      expect(fileEntryService.findCleanupCandidates({ graceMs: 0, limit: 100 })).toEqual([])
     })
 
     it('throws on an external entry', async () => {

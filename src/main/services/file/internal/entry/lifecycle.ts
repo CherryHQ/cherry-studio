@@ -35,6 +35,7 @@ function trashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): void {
   if (entry.origin !== 'internal' || entry.deletedAt != null) {
     throw DataApiErrorFactory.notFound('FileEntry', id)
   }
+  assertUnreferenced(deps, tx, id, 'move file to Recycle Bin')
   deps.fileEntryService.updateTx(tx, id, { deletedAt: Date.now() })
 }
 
@@ -47,7 +48,7 @@ function restoreTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntr
   if (entry.origin !== 'internal' || entry.deletedAt == null) {
     throw DataApiErrorFactory.notFound('FileEntry', id)
   }
-  return deps.fileEntryService.updateTx(tx, id, { deletedAt: null })
+  return deps.fileEntryService.updateTx(tx, id, { deletedAt: null, cleanupPolicy: 'manual' })
 }
 
 export async function restore(deps: FileManagerDeps, id: FileEntryId): Promise<FileEntry> {

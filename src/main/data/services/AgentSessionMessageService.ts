@@ -20,6 +20,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionReadModelEffects, agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
+import { changedFileRefEffects, fileRefSourceReadModelEffects } from '@data/services/FileRefService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
@@ -54,7 +55,7 @@ import {
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import {
   AGENT_SESSION_MESSAGE_SEARCH_ROLES,
   type CherryMessagePart,
@@ -209,6 +210,7 @@ type SaveAgentSessionMessageOptions =
 type SavedAgentSessionMessage = {
   entity: AgentSessionMessageEntity
   dataChange: 'membership' | 'projection'
+  fileEffects: DataApiDataChangeEffect[]
   activityTimestamp: number | null
 }
 
@@ -216,7 +218,13 @@ function replaceAgentSessionMessageFileRefsTx(
   tx: DbOrTx,
   messageId: string,
   data: AgentSessionMessageEntity['data']
-): void {
+): DataApiDataChangeEffect[] {
+  const before = tx
+    .select({ id: agentSessionMessageFileRefTable.fileEntryId })
+    .from(agentSessionMessageFileRefTable)
+    .where(eq(agentSessionMessageFileRefTable.sourceId, messageId))
+    .all()
+    .map((row) => row.id)
   tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
 
   const ids = [
@@ -227,7 +235,7 @@ function replaceAgentSessionMessageFileRefsTx(
         .filter((id): id is string => Boolean(id))
     )
   ]
-  if (ids.length === 0) return
+  if (ids.length === 0) return changedFileRefEffects(before, [])
 
   const existingIds = new Set<string>()
   for (let index = 0; index < ids.length; index += SQLITE_INARRAY_CHUNK) {
@@ -263,6 +271,10 @@ function replaceAgentSessionMessageFileRefsTx(
       .values(rows.slice(index, index + SQLITE_INARRAY_CHUNK))
       .run()
   }
+  return changedFileRefEffects(
+    before,
+    rows.map((row) => row.fileEntryId)
+  )
 }
 
 function terminalResultData(
@@ -337,10 +349,16 @@ export class AgentSessionMessageService {
     sessionId: string,
     target: { messageId: string; version: string },
     prefix: readonly SessionMessageRow[]
-  ): void {
+  ): DataApiDataChangeEffect[] {
     const snapshot = this.readEditSnapshotTx(tx, sessionId, target.messageId)
     if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
-    for (const row of snapshot.rows.slice(snapshot.prefix.length)) {
+    const removed = snapshot.rows.slice(snapshot.prefix.length)
+    const fileEffects = fileRefSourceReadModelEffects(
+      tx,
+      'agent_session_message',
+      removed.map((row) => row.id)
+    )
+    for (const row of removed) {
       this.deleteSessionMessageTx(tx, sessionId, row.id)
     }
     for (const row of prefix) {
@@ -349,6 +367,7 @@ export class AgentSessionMessageService {
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, row.id)))
         .run()
     }
+    return fileEffects
   }
 
   hasRuntimeResumeToken(sessionId: string, resumeToken: string): boolean {
@@ -787,14 +806,20 @@ export class AgentSessionMessageService {
       throw DataApiErrorFactory.resourceLocked('Message', messageId, 'an in-flight Session delivery')
     }
 
+    let fileEffects: DataApiDataChangeEffect[] = []
     const result = withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          fileEffects = fileRefSourceReadModelEffects(tx, 'agent_session_message', [messageId])
+          return this.deleteSessionMessageTx(tx, sessionId, messageId)
+        }),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
     notifyDataApiDataChange([
+      ...fileEffects,
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
     ])
   }
@@ -812,6 +837,7 @@ export class AgentSessionMessageService {
     messageId: string,
     dto: UpdateAgentSessionMessageDto
   ): AgentSessionMessageEntity {
+    let fileEffects: DataApiDataChangeEffect[] = []
     const message = application.get('DbService').withWriteTx((tx) => {
       this.assertActiveSession(tx, sessionId)
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
@@ -828,11 +854,12 @@ export class AgentSessionMessageService {
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
-      replaceAgentSessionMessageFileRefsTx(tx, messageId, mergedData)
+      fileEffects = replaceAgentSessionMessageFileRefsTx(tx, messageId, mergedData)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
     notifyDataApiDataChange([
+      ...fileEffects,
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
     ])
     return message
@@ -1090,7 +1117,7 @@ export class AgentSessionMessageService {
             .run(),
         defaultHandlersFor('Message', String(existingRow.id))
       )
-      replaceAgentSessionMessageFileRefsTx(db, existingRow.id, message.data)
+      const fileEffects = replaceAgentSessionMessageFileRefsTx(db, existingRow.id, message.data)
 
       return {
         entity: this.rowToEntity({
@@ -1111,6 +1138,7 @@ export class AgentSessionMessageService {
           updatedAt: updatedAtMs
         }),
         dataChange: 'projection',
+        fileEffects,
         activityTimestamp
       }
     }
@@ -1135,10 +1163,11 @@ export class AgentSessionMessageService {
     }
 
     const [saved] = db.insert(sessionMessagesTable).values(insertData).returning().all()
-    replaceAgentSessionMessageFileRefsTx(db, saved.id, message.data)
+    const fileEffects = replaceAgentSessionMessageFileRefsTx(db, saved.id, message.data)
     return {
       entity: this.rowToEntity(saved),
       dataChange: 'membership',
+      fileEffects,
       activityTimestamp: isConversationActivityRole(message.role) ? timestampMs : null
     }
   }
@@ -1164,6 +1193,7 @@ export class AgentSessionMessageService {
     const timestampMs = Date.now()
     if (db) return this.saveMessageTx(db, params, timestampMs).entity
     const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    if (result.fileEffects.length > 0) notifyDataApiDataChange(result.fileEffects)
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
@@ -1188,9 +1218,12 @@ export class AgentSessionMessageService {
     params: CreateAgentSessionMessagesDto,
     expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
   ): AgentSessionMessageEntity[] {
-    const { entities: saved, activityTimestamp } = application
-      .get('DbService')
-      .withWriteTx((tx) => this.saveMessagesWithActivityTx(tx, params, expectedAgent))
+    const {
+      entities: saved,
+      activityTimestamp,
+      fileEffects
+    } = application.get('DbService').withWriteTx((tx) => this.saveMessagesWithActivityTx(tx, params, expectedAgent))
+    if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
     for (const entity of saved) {
       if (entity.role === 'assistant') {
         aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: entity.id })
@@ -1205,16 +1238,23 @@ export class AgentSessionMessageService {
   saveMessagesTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string },
+    fileEffects?: DataApiDataChangeEffect[]
   ): AgentSessionMessageEntity[] {
-    return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
+    const result = this.saveMessagesWithActivityTx(tx, params, expectedAgent)
+    fileEffects?.push(...result.fileEffects)
+    return result.entities
   }
 
   private saveMessagesWithActivityTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
     expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
-  ): { entities: AgentSessionMessageEntity[]; activityTimestamp: number | null } {
+  ): {
+    entities: AgentSessionMessageEntity[]
+    activityTimestamp: number | null
+    fileEffects: DataApiDataChangeEffect[]
+  } {
     const { sessionId, runtimeResumeToken, messages } = params
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
     const timestampMs = Date.now()
@@ -1234,7 +1274,11 @@ export class AgentSessionMessageService {
     if (activityTimestamp !== null) {
       agentSessionService.advanceLastActivityAtTx(tx, sessionId, activityTimestamp)
     }
-    return { entities: saved.map((result) => result.entity), activityTimestamp }
+    return {
+      entities: saved.map((result) => result.entity),
+      activityTimestamp,
+      fileEffects: saved.flatMap((result) => result.fileEffects)
+    }
   }
 
   /**
@@ -1966,6 +2010,11 @@ export class AgentSessionMessageService {
   ): void {
     if (changes.length === 0 && activitySessionIds.length === 0) return
     notifyDataApiDataChange([
+      ...fileRefSourceReadModelEffects(
+        application.get('DbService').getDb(),
+        'agent_session_message',
+        changes.filter((change) => change.kind === 'membership').map((change) => change.messageId)
+      ),
       ...agentSessionReadModelEffects(activitySessionIds, 'projection'),
       ...changes.map(({ sessionId, messageId, kind }) => ({
         endpoint: '/agent-sessions/:sessionId/messages' as const,
@@ -2015,6 +2064,7 @@ export class AgentSessionMessageService {
     messageId: string,
     parts: AgentSessionMessageEntity['data']['parts']
   ): AgentSessionMessageEntity {
+    let fileEffects: DataApiDataChangeEffect[] = []
     const saved = application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
@@ -2027,12 +2077,13 @@ export class AgentSessionMessageService {
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
-      replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
+      fileEffects = replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
 
     notifyDataApiDataChange([
+      ...fileEffects,
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',

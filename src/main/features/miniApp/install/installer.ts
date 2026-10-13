@@ -15,6 +15,7 @@ import { eq } from 'drizzle-orm'
 import { application } from '@application'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
+import { fileRefSourceReadModelEffects } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { notifyDataApiDataChange } from '@main/data/dataApiDataChange'
 import { getAppLanguage } from '@main/i18n'
@@ -653,11 +654,16 @@ export async function uninstallMiniApp(appId: string): Promise<void> {
       // Rows go first (everything cascades off the mini_app row), leaving a window
       // where the directory has nothing behind it — a crash there strands the appId.
       writePublishJournal({ kind: 'uninstall', appId })
-      application.get('DbService').withWriteTx((tx) => {
+      const fileEffects = application.get('DbService').withWriteTx((tx) => {
+        const effects = [
+          ...fileRefSourceReadModelEffects(tx, 'mini_app_logo', [appId]),
+          ...fileRefSourceReadModelEffects(tx, 'mini_app_file', [appId])
+        ]
         tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId)).run()
+        return effects
       })
       // Committed: the launcher must drop the entry even if a tree below refuses to delete.
-      notifyDataApiDataChange([{ endpoint: '/mini-apps', kind: 'membership' }])
+      notifyDataApiDataChange([{ endpoint: '/mini-apps', kind: 'membership' }, ...fileEffects])
       // The app's OWN data too, or a reinstall of the same appId reads back the previous
       // owner's `storage.json` — the one leak a fresh install must never have.
       let swept = true

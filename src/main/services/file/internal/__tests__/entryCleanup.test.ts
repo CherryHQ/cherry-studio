@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -269,12 +269,33 @@ describe('entryCleanup', () => {
     expect(fileEntryService.findById(id)).not.toBeNull()
   })
 
-  it('reclaims trashed auto entries', async () => {
-    const id = nthId(5)
-    await seedInternal(id, 'delete_when_unreferenced', { deletedAt: Date.now() })
+  it('preserves an entry moved to the Recycle Bin after cleanup discovery', async () => {
+    const id = nthId(44)
+    await seedInternal(id, 'delete_when_unreferenced')
+    const original = fileEntryService.findCleanupCandidates.bind(fileEntryService)
+    const spy = vi.spyOn(fileEntryService, 'findCleanupCandidates').mockImplementationOnce((options) => {
+      const candidates = original(options)
+      fileEntryService.update(id, { deletedAt: Date.now() })
+      return candidates
+    })
     const report = await runEntryCleanup(makeDeps())
-    expect(report.deleted).toBe(1)
-    expect(fileEntryService.findById(id)).toBeNull()
+    spy.mockRestore()
+    expect(report.deleted).toBe(0)
+    expect(fileEntryService.getById(id)).toHaveProperty('deletedAt')
+    expect((await stat(path.join(filesDir, `${id}.txt`))).isFile()).toBe(true)
+  })
+
+  it.each([0, 90 * 24 * HOUR])('leaves trash purging to the Recycle Bin even after %i ms', async (trashAgeMs) => {
+    const id = nthId(5)
+    const deletedAt = Date.now() - trashAgeMs
+    await seedInternal(id, 'delete_when_unreferenced', {
+      ageMs: trashAgeMs + 2 * HOUR,
+      deletedAt
+    })
+    const report = await runEntryCleanup(makeDeps())
+    expect(report.deleted).toBe(0)
+    expect(fileEntryService.getById(id)).toMatchObject({ deletedAt })
+    expect(await readFile(path.join(filesDir, `${id}.txt`), 'utf8')).toBe('x')
   })
 
   it('reclaims external auto entries DB-only, leaving the on-disk file untouched', async () => {

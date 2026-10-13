@@ -54,13 +54,15 @@ describe('createBuiltinSupportSession', () => {
     expect(mocks.notifyDataApiDataChange).toHaveBeenCalledWith([
       { endpoint: '/agents', kind: 'membership', entityIds: [CHERRY_SUPPORT_AGENT_ID] }
     ])
-    expect(mocks.notifyDataApiDataChange).toHaveBeenCalledWith([
-      { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
-      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' },
-      { endpoint: '/agent-workspaces', kind: 'membership' }
-    ])
+    expect(mocks.notifyDataApiDataChange).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
+        { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+        { endpoint: '/agent-sessions/latest' },
+        { endpoint: '/agent-workspaces', kind: 'membership' }
+      ])
+    )
   })
 
   it('reuses the active Cherry Support role but creates a new session for every request', () => {

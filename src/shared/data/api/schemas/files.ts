@@ -72,6 +72,7 @@ import { FileTypeSchema } from '@shared/types/file'
 export interface FileEntryRefCount {
   entryId: FileEntryId
   refCount: number
+  conversationRefCount: number
 }
 
 // ─── Pagination & batch caps ───
@@ -94,6 +95,7 @@ export const ListFilesQuerySchema = z
     origin: FileEntryOriginSchema.optional(),
     inTrash: z.boolean().optional(),
     fileType: FileTypeSchema.optional(),
+    usage: z.enum(['conversation', 'other', 'unreferenced']).optional(),
     sortBy: z.enum(['name', 'createdAt', 'updatedAt', 'size', 'ext']).optional(),
     sortOrder: z.enum(['asc', 'desc']).optional(),
     cursor: z.string().optional(),

@@ -4,6 +4,7 @@ import { lstat, mkdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
@@ -150,10 +151,12 @@ export class AgentSessionForkOperations {
       signal.throwIfAborted()
       await closeSource()
       signal.throwIfAborted()
-      return database.withWriteTx((tx) => {
-        agentSessionMessageService.replaceEditTailTx(tx, sessionId, target, prefix)
-        return persist(tx, nativeSessionId)
+      const { result, fileEffects } = database.withWriteTx((tx) => {
+        const fileEffects = agentSessionMessageService.replaceEditTailTx(tx, sessionId, target, prefix)
+        return { result: persist(tx, nativeSessionId), fileEffects }
       })
+      if (fileEffects.length > 0) notifyDataApiDataChange(fileEffects)
+      return result
     } catch (error) {
       if (resources && !this.hasPublishedResources(resources)) {
         await this.cleanup(resources).catch((cleanupError) =>

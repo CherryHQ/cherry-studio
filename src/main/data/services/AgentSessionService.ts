@@ -19,6 +19,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -145,12 +146,21 @@ export function agentSessionReadModelEffects(
       .map((row) => row.id)
   )
   const conversationIds = entityIds.filter((id) => !backgroundIds.has(id))
-  if (conversationIds.length === 0) return [{ endpoint: '/agent-sessions/:sessionId', entityIds }]
+  const fileEffects: DataApiDataChangeEffect[] =
+    kind === 'membership'
+      ? [
+          { endpoint: '/files/entries', kind: 'membership' },
+          { endpoint: '/files/entries/stats' },
+          { endpoint: '/files/entries/ref-counts', kind: 'projection' }
+        ]
+      : []
+  if (conversationIds.length === 0) return [{ endpoint: '/agent-sessions/:sessionId', entityIds }, ...fileEffects]
   return [
     { endpoint: '/agent-sessions', kind, entityIds: conversationIds },
     { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: conversationIds },
     { endpoint: '/agent-sessions/:sessionId', entityIds },
-    { endpoint: '/agent-sessions/latest' }
+    { endpoint: '/agent-sessions/latest' },
+    ...fileEffects
   ]
 }
 
@@ -1085,10 +1095,9 @@ export class AgentSessionService {
         and(inArray(sessionsTable.id, trashedIds), isNotNull(sessionsTable.taskScheduleId))!
       )
     }
-    tx.update(sessionsTable)
-      .set({ deletedAt: options.deletedAt ?? Date.now() })
-      .where(inArray(sessionsTable.id, trashedIds))
-      .run()
+    const deletedAt = options.deletedAt ?? Date.now()
+    tx.update(sessionsTable).set({ deletedAt }).where(inArray(sessionsTable.id, trashedIds)).run()
+    fileEntryService.setConversationFilesTrashTx(tx, 'session', trashedIds, deletedAt)
     pinService.purgeForEntitiesTx(tx, 'session', trashedIds)
     return { trashedIds, taskScheduleIds, deliveryResults }
   }
@@ -1117,25 +1126,28 @@ export class AgentSessionService {
    * a different one and stay in the Recycle Bin.
    */
   restoreTrashedWithAgentTx(tx: DbOrTx, agentId: string, trashedAt: number): string[] {
-    return tx
+    const ids = tx
       .update(sessionsTable)
       .set({ deletedAt: null })
       .where(and(eq(sessionsTable.agentId, agentId), eq(sessionsTable.deletedAt, trashedAt)))
       .returning({ id: sessionsTable.id })
       .all()
       .map((row) => row.id)
+    fileEntryService.setConversationFilesTrashTx(tx, 'session', ids, null)
+    return ids
   }
 
   restore(id: string): AgentSessionEntity {
-    const db = application.get('DbService').getDb()
-
-    const [row] = db
-      .update(sessionsTable)
-      .set({ deletedAt: null })
-      .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
-      .returning({ id: sessionsTable.id })
-      .all()
-    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    application.get('DbService').withWriteTx((tx) => {
+      const [row] = tx
+        .update(sessionsTable)
+        .set({ deletedAt: null })
+        .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
+        .returning({ id: sessionsTable.id })
+        .all()
+      if (!row) throw DataApiErrorFactory.notFound('Session', id)
+      fileEntryService.setConversationFilesTrashTx(tx, 'session', [id], null)
+    })
 
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored session', { id })
@@ -1191,6 +1203,7 @@ export class AgentSessionService {
     const systemWorkspaceIds = rows
       .filter((row) => row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
       .map((row) => row.workspace.id)
+    fileEntryService.setConversationFilesTrashTx(tx, 'session', purgedIds, Date.now())
     tx.delete(sessionsTable).where(inArray(sessionsTable.id, purgedIds)).run()
     pinService.purgeForEntitiesTx(tx, 'session', purgedIds)
     for (const workspaceId of systemWorkspaceIds) agentWorkspaceService.deleteByIdTx(tx, workspaceId)
@@ -1237,14 +1250,13 @@ export class AgentSessionService {
   }
 
   deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {
-    const deletedSessions = tx
-      .delete(sessionsTable)
+    const ids = tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
       .where(eq(sessionsTable.workspaceId, workspaceId))
-      .returning({ id: sessionsTable.id })
       .all()
-    const sessionIds = deletedSessions.map((session) => session.id)
-    pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
-    return sessionIds
+      .map((row) => row.id)
+    return this.deleteByIdsTx(tx, ids)
   }
 
   deleteByAgentId(agentId: string, options: { permanent?: boolean } = {}): DeleteAgentSessionsResult {
@@ -1409,6 +1421,9 @@ export class AgentSessionService {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
+    const deletedAt = Date.now()
+    tx.update(sessionsTable).set({ deletedAt }).where(inArray(sessionsTable.id, uniqueIds)).run()
+    fileEntryService.setConversationFilesTrashTx(tx, 'session', uniqueIds, deletedAt)
     const rows = tx
       .delete(sessionsTable)
       .where(inArray(sessionsTable.id, uniqueIds))
