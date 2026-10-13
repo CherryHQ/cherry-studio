@@ -462,7 +462,7 @@ prepared 阶段仍可能被 driver 写入，copy.cancel 只通过 operation.requ
 
 锁定运行时依赖 `@vscode/fs-copyfile@3.0.0` 并更新 lockfile。该发布包包含源代码和 node-gyp 构建脚本，不自带所有目标的预编译 `.node`。按实际平台配置 `pnpm-workspace.yaml` 的构建许可，明确接入原生依赖构建和打包，不只在开发机器上装一次。
 
-`pnpm rebuild:electron` 和 `before-pack.js` 在 Windows/macOS 显式构建该包，Linux 使用其 Node 实现；`.node` 文件列入 `asarUnpack`。Windows 的上游 `binding.gyp` 要求与目标架构及 MSVC toolset 匹配的 Spectre-mitigated libraries。缺少它们会报 MSB8040，应安装对应 Visual Studio 组件，不在项目中关闭 SpectreMitigation。当前开发机的原生构建因该缺项失败，实际 NTFS/ReFS、APFS 和 Linux reflink 行为仍须平台验证；普通复制路径和故障注入测试不能替代这些验证。
+`pnpm rebuild:electron` 和 `before-pack.js` 在 Windows/macOS 显式构建该包，Linux 使用其 Node 实现；`.node` 文件列入 `asarUnpack`。Windows 的上游 `binding.gyp` 要求与目标架构及 MSVC toolset 匹配的 Spectre-mitigated libraries。缺少它们会报 MSB8040，应在 Visual Studio Installer 的“单个组件”中安装匹配版本和架构的 MSVC Spectre 库，不在项目中关闭 SpectreMitigation。安装后可运行 `pnpm exec electron-rebuild --force --only @vscode/fs-copyfile` 重建，并重启 Electron 验证加载。
 
 | 项目 | 必须完成的工作 |
 | --- | --- |
@@ -473,7 +473,7 @@ prepared 阶段仍可能被 driver 写入，copy.cancel 只通过 operation.requ
 | Windows 工具链 | 3.0.0 binding.gyp 启用了 Spectre mitigation，CI 工具链需有对应 MSVC 库；不能靠静默关闭编译选项绕开 |
 | Windows 长路径 | 原生实现使用 `GetTempFileNameW` 和固定长度缓冲；应向上游修复长路径，再验证长源/目标、UNC 和深目录 |
 
-当前隔离评估在本机 Windows 构建遇到 MSB8040，缺少 Spectre 库，因此还不能宣称此环境已验证原生绑定。该事实是实现阶段的构建前置条件，不影响先完成本文设计。
+本机 Windows x64 已补齐 MSVC 14.43 对应 Spectre 库，原生重建成功，并在 Electron 44.4.0 开发实例中验证绑定加载。通过实际 IPC 创建副本时，NTFS 上 FORCE 返回 `ENOTSUP`，两份文件均回退普通复制，统计为 `clonedFiles=0`、`copiedFiles=2`，无 `native_unavailable`。同时通过隐藏文件保留、`.git`/`node_modules` 排除、双向独立写入、显式删除副本及保留源文件检查。此结果覆盖开发环境的原生加载与 NTFS 降级；ReFS/APFS/Linux reflink 的真实克隆、发布安装包内加载及三种 runtime 的用户项目新 cwd 验证仍待完成。
 
 上游暂未解决长路径时，可以在准确识别这项限制后绕过原生克隆使用普通复制，并显式记录原因。不能把所有 EINVAL 归为长路径。发布前应优先补上游修复或可追踪的包补丁，并测试其余路径不受影响。
 
