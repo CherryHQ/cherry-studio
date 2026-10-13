@@ -2337,6 +2337,57 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).not.toContain('<thinking')
     })
 
+    it('strips trailing tool-protocol closing fragments from prose-headed parentless text blocks', () => {
+      const { adapter, parts } = createAdapter()
+      const leaked = '继续补「以前的信息」——米哈游原神早期风波/事件史。\n\n</parameter>\n</tool_calls>'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: leaked } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('继续补「以前的信息」')
+      expect(text).not.toContain('</parameter>')
+      expect(text).not.toContain('</tool_calls>')
+    })
+
+    it('strips tool-protocol closing fragments that arrive in a later text delta', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'confirmModal escapes…\n\n' }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '</parameter>\n</tool_calls>' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('confirmModal escapes…\n\n')
+      expect(text).not.toContain('</parameter>')
+    })
+
     it('suppresses parentless scratchpad wrapper text outside compaction windows', () => {
       const { adapter, parts } = createAdapter()
       const leakedThinking = '<thinking>internal reasoning about the session</thinking>'

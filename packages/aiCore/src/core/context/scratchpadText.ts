@@ -460,3 +460,22 @@ export function stripModelScratchpadBlocks(raw: string): string {
   out = unmaskCodeFences(out, fences)
   return out.replace(/\n{3,}/g, '\n\n').trim()
 }
+
+/** Closing-only pseudo tool-call markup sometimes appended after visible prose in parentless text blocks. */
+const TRAILING_TOOL_PROTOCOL_CLOSE_RE =
+  /(?:\s*<\/(?:(?:\uFF5C\uFF5C|\|\|)DSML(?:\uFF5C\uFF5C|\|\|)\s*)?(?:parameter|invoke|tool_calls|tool_result)\b[^>]*>\s*)+$/iu
+
+/** Strips a trailing run of tool-protocol closing tags; does not touch tags in fences or inline code. */
+export function stripTrailingToolProtocolClosingFragments(raw: string): string {
+  if (!raw) return raw
+  const { text: fenceMasked, fences } = maskCodeFences(raw)
+  const { text: inlineMasked, spans } = maskInlineCodeSpans(fenceMasked)
+  let out = inlineMasked
+  let previous: string
+  do {
+    previous = out
+    out = out.replace(TRAILING_TOOL_PROTOCOL_CLOSE_RE, '')
+  } while (out !== previous)
+  out = unmaskInlineCodeSpans(out, spans)
+  return unmaskCodeFences(out, fences)
+}

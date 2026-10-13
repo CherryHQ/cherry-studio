@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   stripKnownModelScratchpadBlocks,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
+  stripTrailingToolProtocolClosingFragments,
   stripModelScratchpadBlocks,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
@@ -221,6 +222,21 @@ Example:
     expect(textStartsWithModelScratchpadTag(tag)).toBe(false)
     expect(stripModelScratchpadBlocks(tag)).toBe(tag)
     expect(performance.now() - started).toBeLessThan(200)
+  })
+
+  it('strips trailing tool-protocol closing fragments after visible prose', () => {
+    const input = '继续补「以前的信息」。\n\n</parameter>\n</tool_calls>'
+    expect(stripTrailingToolProtocolClosingFragments(input)).toBe('继续补「以前的信息」。')
+  })
+
+  it('strips trailing DSML-style closing fragments', () => {
+    const input = 'Console encoding issue…\n</｜｜DSML｜｜parameter>\n</｜｜DSML｜｜invoke>\n</｜｜DSML｜｜tool_calls>'
+    expect(stripTrailingToolProtocolClosingFragments(input)).toBe('Console encoding issue…')
+  })
+
+  it('preserves closing tags inside inline code when stripping trailing tool-protocol fragments', () => {
+    const input = 'Use `</parameter>` in examples.\n\n</tool_calls>'
+    expect(stripTrailingToolProtocolClosingFragments(input)).toBe('Use `</parameter>` in examples.')
   })
 
   it('unwraps a whole summary block that quotes summary tags inside a fenced example', () => {

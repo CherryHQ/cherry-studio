@@ -38,6 +38,7 @@ export {
   stripKnownModelScratchpadBlocks,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripModelScratchpadBlocks,
+  stripTrailingToolProtocolClosingFragments,
   shouldDeferScratchpadStripping,
   textEndsWithPartialFenceMarker,
   textHasUnclosedCodeFence,

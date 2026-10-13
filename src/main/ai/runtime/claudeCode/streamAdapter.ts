@@ -38,6 +38,7 @@ import type {
 import {
   shouldDeferScratchpadStripping,
   stripKnownModelScratchpadBlocksPreservingCodeFences,
+  stripTrailingToolProtocolClosingFragments,
   textHasUnclosedCodeFence,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
@@ -1157,6 +1158,11 @@ export class ClaudeCodeStreamAdapter {
       if (!text) return
     }
 
+    if (ctx.filterParentlessScratchpadText) {
+      text = stripTrailingToolProtocolClosingFragments(text)
+      if (!text) return
+    }
+
     if (!ctx.textPartStarted) {
       ctx.sink.enqueue({
         type: 'text-start',
@@ -1310,7 +1316,8 @@ export class ClaudeCodeStreamAdapter {
       return blockText
     }
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(blockText)
-    return this.trimAfterScratchpadStrip(blockText, stripped)
+    const visible = this.trimAfterScratchpadStrip(blockText, stripped)
+    return stripTrailingToolProtocolClosingFragments(visible)
   }
 
   /** Trim separator whitespace only when scratchpad stripping actually changed the text. */
