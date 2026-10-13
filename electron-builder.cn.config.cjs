@@ -12,6 +12,7 @@ module.exports = async function createChinaEditionConfig({ packageMetadata }) {
     publish: {
       provider: 'generic',
       url: 'https://releases.cherry-ai.com',
+      useMultipleRangeRequest: false,
       channel: getReleaseChannel(version, CHINA_EDITION)
     }
   }

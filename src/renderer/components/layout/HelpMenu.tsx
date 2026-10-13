@@ -1,4 +1,4 @@
-import { BookOpen, CircleQuestionMark, MessageSquareText, Sparkles, Stethoscope } from 'lucide-react'
+import { BookOpen, CircleQuestionMark, FileArchive, MessageSquareText, Sparkles, Stethoscope } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -133,6 +133,17 @@ export function HelpMenu({
               icon={<BookOpen size={16} />}
               label={t('help.guide')}
               onClick={() => runAfterClose(openDocs)}
+            />
+            <MenuItem
+              size="sm"
+              className="h-8"
+              icon={<FileArchive size={16} />}
+              label={t('settings.about.feedback.diagnostics.title')}
+              onClick={() =>
+                runAfterClose(async () => {
+                  await DoctorPopup.show({ initialPanel: 'report' })
+                })
+              }
             />
             <MenuItem
               size="sm"

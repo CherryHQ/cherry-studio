@@ -11,22 +11,26 @@ import type {
   ToolDefinition
 } from '@earendil-works/pi-coding-agent'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
+import { fetch as nodeFetch } from 'undici'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
-import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
+import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
 import {
   getBinarySearchDirs,
@@ -44,9 +48,12 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
+import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
@@ -59,34 +66,27 @@ import type {
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../types'
-import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
+import { createPiApprovalExtension } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
+import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import {
   materializePiProviderStream,
   type PiProviderInjection,
   resolvePiProviderInjectionForSession,
   usesPiGateway
 } from './modelInjection'
-import { createPiCodeModeTools } from './piCodeMode'
 import {
   capturePiConnectionSnapshot,
   type PiConnectionSnapshot,
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
-import {
-  buildMcpToolDefinitions,
-  buildPiMcpToolName,
-  type PiMcpToolBridge,
-  warmMcpToolCatalogs
-} from './piMcpToolAdapter'
-import { loadPiAiCompat, loadPiSdk } from './piSdk'
+import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
+import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
-import { PiStreamAdapter } from './piStreamAdapter'
+import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
-const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
-const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
 
 function quoteShellWord(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`
@@ -127,7 +127,6 @@ const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   )
 )
 const PI_APPROVAL_REQUIRED_TOOLS = new Set([
-  PI_TOOL_EXEC_TOOL_NAME,
   ...listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
     buildPiMcpToolName(serverName, toolName)
   )
@@ -168,9 +167,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   private readonly providerSpans = new Set<Span>()
   private readonly toolSpans = new Map<string, Span>()
-  private readonly adapter = new PiStreamAdapter({ enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) })
+  private readonly adapter = new PiStreamAdapter(
+    { enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) },
+    (name) => this.resolveMcpToolMetadata(name)
+  )
+  private mcpServerSnapshots: PiConnectionSnapshot['mcpServerSnapshots'] = new Map()
   private session?: AgentSession
-  private mcpBridge?: PiMcpToolBridge
   private unsubscribe?: () => void
   private resumeToken?: string
   private lastStopReason?: string
@@ -188,7 +190,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private traceContext?: AgentRuntimeTraceContext
   private _usageCapture?: AgentSessionUsageCapture
-  private apiProviderSourceId?: string
   private promptRunActive = false
   /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
    *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
@@ -236,10 +237,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     )
     // Gateway startup and first-key creation change its fingerprint, so settle them before the
     // authoritative snapshot. The actual injection is resolved again from that snapshot below.
-    if (usesPiGateway(discoverySnapshot.provider)) {
+    if (usesPiGateway(discoverySnapshot.provider, discoverySnapshot.model)) {
       await resolveInjection(discoverySnapshot)
     }
-    await warmMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
+    await warmAgentMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
@@ -255,7 +256,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // pi has no native permission modes; the approval extension enforces them.
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
-    this.disabledTools = normalizeDisabledTools(agent.disabledTools)
+    this.mcpServerSnapshots = initialSnapshot.mcpServerSnapshots
+    this.disabledTools = normalizeDisabledTools(agent.disabledTools, initialSnapshot)
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
@@ -268,8 +270,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const providerConfig = withPiInvocationCapture(
       materializedProvider.providerConfig,
       withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment),
-      (message, metrics) => this.recordProviderInvocation(message, metrics),
-      (model) => this.startProviderSpan(model)
+      (message, metrics, pricingSnapshot) => this.recordProviderInvocation(message, metrics, pricingSnapshot),
+      (model) => this.startProviderSpan(model),
+      (model) => this.captureInvocationPricing(model.id)
     )
 
     // Cherry owns the credential + model registry: in-memory only, never pi's
@@ -282,13 +285,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       api: runtimeApi,
       models: providerConfig.models?.map((model) => ({ ...model, api: runtimeApi }))
     }
-    const authStorage = pi.AuthStorage.inMemory()
-    authStorage.setRuntimeApiKey(runtimeProviderName, injection.apiKey)
-    const modelRegistry = pi.ModelRegistry.inMemory(authStorage)
-    modelRegistry.registerProvider(runtimeProviderName, isolatedProviderConfig)
-    this.apiProviderSourceId = `provider:${runtimeProviderName}`
+    const { InMemoryCredentialStore } = await loadPiAi()
+    const modelRuntime = await pi.ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      refreshOnCreate: false
+    })
+    modelRuntime.registerProvider(runtimeProviderName, isolatedProviderConfig)
+    await modelRuntime.setRuntimeApiKey(runtimeProviderName, injection.apiKey)
     try {
-      const model = modelRegistry.find(runtimeProviderName, injection.modelId)
+      const model = modelRuntime.getModel(runtimeProviderName, injection.modelId)
       if (!model)
         throw new Error(`pi model ${runtimeProviderName}/${injection.modelId} could not be resolved after injection`)
 
@@ -296,7 +302,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
       const shellPath = resolvePiShellPath()
-      const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
+      const settingsManager = pi.SettingsManager.inMemory(
+        {
+          ...(shellPath ? { shellPath } : {}),
+          defaultTools: ['read', 'bash', 'edit', 'write', '+codemode', '+tool_search']
+        },
+        { projectTrusted: true }
+      )
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
 
@@ -331,7 +343,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         getPermissionMode: () => this.permissionMode,
-        isDisabled: (toolName: string) => this.disabledTools.has(toolName),
+        isDisabled: (toolName: string) => this.isToolDisabled(toolName),
         additionalReadOnlyRoots: additionalSkillPaths,
         // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
         // disabledTools hard-blocks every class at fire-time.
@@ -339,7 +351,19 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         approvalRequiredTools: PI_APPROVAL_REQUIRED_TOOLS,
         nonBypassableApprovalTools: PI_NON_BYPASSABLE_APPROVAL_TOOLS
       }
-      const authorizeTool = createPiToolAuthorizer(approvalContext)
+      const mountedServers = resolveMountedMcpServers(agent, {
+        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        channelLinked: linkedChannel !== null
+      })
+      const mcpServers = buildAgentMcpServers(
+        session,
+        agent,
+        mountedServers,
+        initialSnapshot.mcpServerSnapshots,
+        linkedChannel,
+        agentDataPath,
+        this.input.knowledgeBaseIds
+      )
       const resourceLoader = new pi.DefaultResourceLoader({
         cwd: workspacePath,
         agentDir,
@@ -361,7 +385,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         additionalSkillPaths,
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
-          createPiApprovalExtension(approvalContext)
+          createPiApprovalExtension(approvalContext),
+          pi.createCodemodeExtension({ models: false }),
+          pi.createToolSearchExtension(),
+          createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log')),
+          await loadPiVccExtension(application.getPath('feature.agents.pi.root', 'pi-vcc-config.json'))
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
@@ -372,28 +400,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       const sessionManager = this.resolveSessionManager(pi, workspacePath, sessionDir)
 
-      // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
-      // assistant tools, and user-configured servers all cross the same protocol adapter.
-      const mountedServers = resolveMountedMcpServers(agent, {
-        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
-        channelLinked: linkedChannel !== null
-      })
-      this.mcpBridge = await buildMcpToolDefinitions(
-        buildAgentMcpServers(
-          session,
-          agent,
-          mountedServers,
-          initialSnapshot.mcpServerSnapshots,
-          linkedChannel,
-          agentDataPath,
-          this.input.knowledgeBaseIds
-        )
-      )
-      const customTools = createPiCodeModeTools(
-        this.mcpBridge.tools,
-        (toolName) => this.disabledTools.has(toolName),
-        authorizeTool
-      )
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
@@ -418,15 +424,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const created = await pi.createAgentSession({
         cwd: workspacePath,
         agentDir,
-        authStorage,
-        modelRegistry,
+        modelRuntime,
         settingsManager,
         sessionManager,
         resourceLoader,
         model,
-        // pi treats `tools` as the complete active-tool allowlist, not just a built-in selector.
-        tools: [...PI_BUILTIN_TOOL_NAMES, ...customTools.map((tool) => tool.name)],
-        customTools: [managedBashTool, ...customTools],
+        customTools: [managedBashTool],
         // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
         // them live so a mid-session disable is enforced.
         ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
@@ -434,18 +437,35 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const piSession = created.session
 
       this.session = piSession
+      await piSession.bindExtensions({})
       this.unsubscribe = piSession.subscribe((event) => this.handlePiEvent(event))
       this.maybeEmitResumeToken()
       return this
     } catch (error) {
-      const bridge = this.mcpBridge
-      this.mcpBridge = undefined
-      const cleanup = await Promise.allSettled([bridge?.close(), this.unregisterApiProvider()])
+      const cleanup = await Promise.allSettled([
+        this.session?.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
+      ])
+      this.session?.dispose()
+      this.session = undefined
       for (const result of cleanup) {
         if (result.status === 'rejected') logger.warn('Pi startup cleanup failed', { error: result.reason })
       }
       throw error
     }
+  }
+
+  private resolveMcpToolMetadata(name: string) {
+    return resolvePiMcpToolMetadata(this.session?.getToolDefinition(name), this.mcpServerSnapshots)
+  }
+
+  private isToolDisabled(name: string): boolean {
+    if (this.disabledTools.has(name)) return true
+    const tool = this.resolveMcpToolMetadata(name)
+    return (
+      tool !== undefined &&
+      (this.disabledTools.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
+        this.disabledTools.has(`mcp__${tool.serverId}__${tool.name}`))
+    )
   }
 
   /** Pi allocates session IDs before lazily flushing history, so an unflushed ID can still initialize. */
@@ -567,7 +587,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // Changing the permission mode can alter admission for the current tool loop, so defer it until
     // pi is idle. Disabled tools only tighten policy and still apply immediately below.
     const applicablePermissionMode = this.session?.isStreaming ? this.permissionMode : nextPermissionMode
-    const nextDisabledTools = normalizeDisabledTools(agent.disabledTools)
+    const nextDisabledTools = normalizeDisabledTools(agent.disabledTools, snapshot)
     const applicableDisabledTools = this.session?.isStreaming
       ? new Set([...this.disabledTools, ...nextDisabledTools])
       : nextDisabledTools
@@ -611,14 +631,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // closing queue.
     this.unsubscribe?.()
     this.unsubscribe = undefined
-    await this.session?.abort()
-    this.session?.dispose()
-    this.session = undefined
-    this.endOpenTraceSpans('pi connection closed')
-    await this.unregisterApiProvider()
-    await this.mcpBridge?.close()
-    this.mcpBridge = undefined
-    this.eventQueue.close()
+    try {
+      await this.session?.abort()
+    } finally {
+      try {
+        await this.session?.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
+      } finally {
+        this.session?.dispose()
+        this.session = undefined
+        this.endOpenTraceSpans('pi connection closed')
+        this.eventQueue.close()
+      }
+    }
   }
 
   private handlePiEvent(event: AgentSessionEvent): void {
@@ -710,16 +734,33 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.lastAgentError = undefined
   }
 
-  private async unregisterApiProvider(): Promise<void> {
-    const sourceId = this.apiProviderSourceId
-    if (!sourceId) return
-    this.apiProviderSourceId = undefined
-    const compat = await loadPiAiCompat()
-    compat.unregisterApiProviders(sourceId)
+  /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
+  private captureInvocationPricing(apiModelId: string): AiUsagePricingSnapshot | null {
+    const capture = this._usageCapture
+    if (capture?.owner !== 'agent-sdk') return null
+    const frozen = capture.frozenModels.find((model) => model.aliases.includes(apiModelId))
+    if (!frozen) return null
+    try {
+      const provider = providerService.getByProviderId(capture.providerId)
+      const modelId = parseUniqueModelId(frozen.modelId as UniqueModelId).modelId
+      const model = modelService.getByKey(provider.id, modelId)
+      return createAiUsageCaptureContext({
+        providerId: provider.id,
+        modelId,
+        pricing: model.pricing,
+        billing: provider.settings.billing
+      }).pricingSnapshot
+    } catch (error) {
+      logger.warn('Could not capture Pi invocation pricing', { error })
+      return null
+    }
   }
 
-  /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
-  private recordProviderInvocation(message: AssistantMessage, metrics?: PiInvocationMetrics): void {
+  private recordProviderInvocation(
+    message: AssistantMessage,
+    metrics?: PiInvocationMetrics,
+    pricingSnapshot?: AiUsagePricingSnapshot | null
+  ): void {
     if (this.closed) return
     if (this._usageCapture?.owner !== 'agent-sdk') return
     if (message.stopReason === 'error' || message.stopReason === 'aborted') return
@@ -739,6 +780,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       invocation: {
         requestId,
         model: message.responseModel?.trim() || message.model || this.modelId,
+        pricingSnapshot,
         messageAssociation: 'current-turn',
         usage: {
           inputTokens,
@@ -910,12 +952,18 @@ interface PiInvocationMetrics {
 function withPiInvocationCapture(
   config: ProviderConfig,
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  onComplete: (message: AssistantMessage, metrics?: PiInvocationMetrics) => void,
-  startTrace: (model: { provider?: string; id?: string }) => PiProviderSpanObserver | undefined
+  onComplete: (
+    message: AssistantMessage,
+    metrics: PiInvocationMetrics,
+    pricingSnapshot: AiUsagePricingSnapshot | null
+  ) => void,
+  startTrace: (model: { provider?: string; id?: string }) => PiProviderSpanObserver | undefined,
+  capturePricing: (model: { id: string }) => AiUsagePricingSnapshot | null
 ): ProviderConfig {
   return {
     ...config,
     streamSimple: (model, context, options) => {
+      const pricingSnapshot = capturePricing(model)
       const traceObserver = startTrace(model)
       let stream: ReturnType<typeof streamSimple>
       try {
@@ -950,10 +998,14 @@ function withPiInvocationCapture(
           traceObserver?.complete(message)
           const timeCompletionMs = Math.max(0, Date.now() - streamStartedAt)
           const timeFirstTokenMs = firstTokenAt !== undefined ? Math.max(0, firstTokenAt - streamStartedAt) : undefined
-          onComplete(message, {
-            ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
-            timeCompletionMs
-          })
+          onComplete(
+            message,
+            {
+              ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
+              timeCompletionMs
+            },
+            pricingSnapshot
+          )
         },
         (error) => traceObserver?.error(error)
       )
@@ -979,7 +1031,7 @@ function withPiRequestEnvironment(
     return streamSimple(model, context, {
       ...options,
       env: { ...options?.env, ...proxyEnvironment, ...providerEnvironment },
-      ...(!usesAuthenticatedNodeProxy && { fetch: customFetch })
+      fetch: usesAuthenticatedNodeProxy ? (nodeFetch as unknown as typeof globalThis.fetch) : customFetch
     })
   }
 }
@@ -989,11 +1041,53 @@ function finiteTokenCount(value: number | undefined): number {
 }
 
 /**
- * Alias only known pi built-ins from legacy Claude casing (`Bash` → `bash`). Custom and MCP ids are
- * runtime-native and case-sensitive, so preserve them exactly or their hard block silently misses.
+ * Preserve stored blocks across legacy built-in aliases and Pi's native MCP identifier changes.
  */
-function normalizeDisabledTools(disabledTools: string[] | undefined | null): Set<string> {
-  return new Set((disabledTools ?? []).map((tool) => PI_BUILTIN_TOOL_ALIASES.get(tool.toLowerCase()) ?? tool))
+function normalizeDisabledTools(
+  disabledTools: string[] | undefined | null,
+  snapshot: PiConnectionSnapshot
+): Set<string> {
+  const disabled = new Set((disabledTools ?? []).map(normalizePiDisabledToolId))
+  const unresolved = new Set([...disabled].filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX)))
+  const legacyTools: Array<{ ids: string[]; nameAlias?: string; piName: string }> = listBuiltinToolPolicies({
+    mountedServers: new Set(Object.values(CHERRY_MCP_SERVER))
+  }).map((tool) => ({
+    ids: [legacyDisabledToolId(tool.serverName, tool.toolName)],
+    piName: buildPiMcpToolName(tool.serverName, tool.toolName)
+  }))
+  const catalog = application.get('McpCatalogService')
+  for (const [namespace, server] of snapshot.mcpServerSnapshots) {
+    if (!server) continue
+    const tools = catalog.listTools(server.id, { includeDisabled: false })
+    const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
+    for (const tool of tools) {
+      const name = buildPiMcpToolName(server.id, tool.name)
+      const piName = buildPiMcpToolName(server.id, tool.name, names.indexOf(name) !== names.lastIndexOf(name))
+      legacyTools.push({
+        ids: [legacyDisabledToolId(namespace, tool.name), legacyDisabledToolId(server.id, tool.name)],
+        nameAlias: legacyDisabledToolId(server.name, tool.name),
+        piName
+      })
+      if (
+        disabled.has(buildFunctionCallToolName(server.name, tool.name)) ||
+        disabled.has(`mcp__${server.id}__${tool.name}`)
+      ) {
+        disabled.add(piName)
+      }
+    }
+  }
+  for (const id of unresolved) {
+    // DSH used the configured namespace; display-name aliases are only safe when unambiguous.
+    const exact = legacyTools.filter((tool) => tool.ids.includes(id))
+    const matches = exact.length ? exact : legacyTools.filter((tool) => tool.nameAlias === id)
+    const piNames = new Set(matches.map((tool) => tool.piName))
+    if (piNames.size !== 1) continue
+    for (const name of piNames) disabled.add(name)
+    unresolved.delete(id)
+  }
+  assertLegacyDisabledToolsResolved(unresolved)
+  // Sanitizing raw aliases can accidentally block another tool whose name collides.
+  return disabled
 }
 
 function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
