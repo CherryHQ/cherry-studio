@@ -1,6 +1,5 @@
 import { vi } from 'vitest'
 
-import type { FileManager } from '@main/services/file/FileManager'
 import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import type { FileUrlString } from '@shared/types/file'
 
@@ -53,8 +52,8 @@ const mockFileManager = {
   getById: vi.fn(),
   getUrl: vi.fn((id: FileEntryId): FileUrlString => `file:///mock/files/${id}.webp` as FileUrlString),
   findInternalByContentHash: vi.fn((_contentHash: ContentHash) => []),
-  inspectOrphanFiles: vi.fn<FileManager['inspectOrphanFiles']>(async () => emptyOrphanFileReport()),
-  cleanupOrphanFiles: vi.fn<FileManager['cleanupOrphanFiles']>(async () => emptyOrphanFileReport())
+  inspectOrphanFiles: vi.fn(async (_options?: { readonly bypassSafetyThreshold?: boolean }) => emptyOrphanFileReport()),
+  cleanupOrphanFiles: vi.fn(async (_options?: { readonly bypassSafetyThreshold?: boolean }) => emptyOrphanFileReport())
 }
 
 export const MockMainFileManagerExport = {

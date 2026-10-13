@@ -146,6 +146,7 @@
 | [File Entry Cleanup](./references/file/file-entry-cleanup.md) | Scan-based cleanup of unreferenced file entries using the per-entry cleanup policy |
 | [FileManager Architecture](./references/file/file-manager-architecture.md) | Current FileManager storage, lifecycle, atomic-write, watcher, dangling-cache, and orphan-cleanup behavior |
 | [Fuzzy Search for Directory Listings](./references/file/fuzzy-search.md) | Current list and fuzzy-search behavior for the legacy directory-listing IPC methods |
+| [Upload Integrity](./references/file/upload-integrity.md) | Implementation plan for native mobile SHA-256, verified upload completion, and restart-safe integrity checks |
 
 ### i18n
 
