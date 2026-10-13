@@ -269,6 +269,26 @@ describe('host summarizer', () => {
     expect(lastPrompt).not.toContain('My name is Li')
   })
 
+  it('tells the summarizer which session is compacting', async () => {
+    const sessionIds: string[] = []
+    const { model } = scriptedModel([[...textParts('a', 'Noted.'), finish('stop')]])
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      compaction: {
+        reserveTokens: 16_384,
+        keepRecentTokens: 1,
+        summarize: async ({ sessionId }) => {
+          sessionIds.push(sessionId)
+          return 'HOST-SUMMARY'
+        }
+      }
+    })
+    await session.prompt('My name is Li')
+    await session.compact()
+
+    expect(sessionIds).toEqual([session.sessionId])
+  })
+
   it('hands the summarizer messages the AI SDK accepts, even after a reply that failed mid tool call', async () => {
     const { model } = scriptedModel([
       [

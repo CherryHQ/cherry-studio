@@ -5,6 +5,8 @@ import { convertToLlm, type ExtensionFactory } from '@earendil-works/pi-coding-a
 import type { CompactionReason } from './sessionEvents'
 
 export interface CompactionSummaryRequest {
+  /** The compacting session's Pi session id; for a subagent, the id `SubagentPort.configure` received. */
+  sessionId: string
   reason: CompactionReason
   sessionId: string
   model: Model<Api>
@@ -44,6 +46,7 @@ export function compactionSummaryExtension(
       const { preparation, signal } = event
       try {
         const summary = await summarize({
+          sessionId: ctx.sessionManager.getSessionId(),
           reason: event.reason,
           sessionId: ctx.sessionManager.getSessionId(),
           model: ctx.model!,
