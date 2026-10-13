@@ -5782,7 +5782,6 @@
   "settings.voice.recognition.language": "Ngôn ngữ nhận dạng",
   "settings.voice.recognition.model": "Mô hình nhận dạng",
   "settings.voice.recognition.title": "Nhận dạng giọng nói",
-  "settings.voice.recommended": "Đề xuất · {{name}}",
   "settings.voice.resources.open_settings": "Mở cài đặt giọng nói hệ thống",
   "settings.voice.speech.language": "Ngôn ngữ giọng nói",
   "settings.voice.speech.language_default": "Mặc định của ngôn ngữ · {{name}}",

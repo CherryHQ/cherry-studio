@@ -5782,7 +5782,6 @@
   "settings.voice.recognition.language": "Limba de recunoaștere",
   "settings.voice.recognition.model": "Model de recunoaștere",
   "settings.voice.recognition.title": "Recunoaștere vocală",
-  "settings.voice.recommended": "Recomandată · {{name}}",
   "settings.voice.resources.open_settings": "Deschide setările vocale de sistem",
   "settings.voice.speech.language": "Limba vorbirii",
   "settings.voice.speech.language_default": "Vocea implicită a limbii · {{name}}",

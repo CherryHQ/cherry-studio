@@ -5782,7 +5782,6 @@
   "settings.voice.recognition.language": "Язык распознавания",
   "settings.voice.recognition.model": "Модель распознавания",
   "settings.voice.recognition.title": "Распознавание речи",
-  "settings.voice.recommended": "Рекомендуемый · {{name}}",
   "settings.voice.resources.open_settings": "Открыть системные настройки голоса",
   "settings.voice.speech.language": "Язык речи",
   "settings.voice.speech.language_default": "По умолчанию для языка · {{name}}",

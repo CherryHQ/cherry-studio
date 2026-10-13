@@ -5782,7 +5782,6 @@
   "settings.voice.recognition.language": "Erkennungssprache",
   "settings.voice.recognition.model": "Erkennungsmodell",
   "settings.voice.recognition.title": "Spracherkennung",
-  "settings.voice.recommended": "Empfohlen · {{name}}",
   "settings.voice.resources.open_settings": "Systemspracheinstellungen öffnen",
   "settings.voice.speech.language": "Ausgabesprache",
   "settings.voice.speech.language_default": "Sprachstandard · {{name}}",

@@ -5782,7 +5782,6 @@
   "settings.voice.recognition.language": "認識言語",
   "settings.voice.recognition.model": "認識モデル",
   "settings.voice.recognition.title": "音声認識",
-  "settings.voice.recommended": "推奨 · {{name}}",
   "settings.voice.resources.open_settings": "システムの音声設定を開く",
   "settings.voice.speech.language": "読み上げ言語",
   "settings.voice.speech.language_default": "言語のデフォルト · {{name}}",

@@ -5782,7 +5782,6 @@
   "settings.voice.recognition.language": "Γλώσσα αναγνώρισης",
   "settings.voice.recognition.model": "Μοντέλο αναγνώρισης",
   "settings.voice.recognition.title": "Αναγνώριση ομιλίας",
-  "settings.voice.recommended": "Προτεινόμενη · {{name}}",
   "settings.voice.resources.open_settings": "Άνοιγμα ρυθμίσεων φωνής συστήματος",
   "settings.voice.speech.language": "Γλώσσα ομιλίας",
   "settings.voice.speech.language_default": "Προεπιλογή γλώσσας · {{name}}",

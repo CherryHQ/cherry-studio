@@ -5782,7 +5782,6 @@
   "settings.voice.recognition.language": "识别语言",
   "settings.voice.recognition.model": "识别模型",
   "settings.voice.recognition.title": "语音识别",
-  "settings.voice.recommended": "推荐 · {{name}}",
   "settings.voice.resources.open_settings": "打开系统语音设置",
   "settings.voice.speech.language": "朗读语言",
   "settings.voice.speech.language_default": "语言默认 · {{name}}",
