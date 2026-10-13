@@ -596,10 +596,10 @@ function describeFetchRequest(
 
 /** Content-Type Fetch would send when the caller did not set the header explicitly. */
 export function getEffectiveFetchRequestContentType(
-  requestHeaders: Record<string, string>,
+  requestHeaders: Record<string, string> | undefined,
   body: unknown
 ): string | undefined {
-  const fromHeader = getHeaderValue(requestHeaders, 'content-type')
+  const fromHeader = getHeaderValue(requestHeaders ?? {}, 'content-type')
   if (fromHeader) return fromHeader
   if (typeof body === 'string') return 'text/plain;charset=UTF-8'
   if (body instanceof URLSearchParams) return 'application/x-www-form-urlencoded'
