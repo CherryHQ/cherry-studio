@@ -51,7 +51,7 @@ const electron = vi.hoisted(() => ({
   displays: [] as unknown[],
   cursorDisplay: undefined as unknown,
   primaryDisplay: undefined as unknown,
-  app: { getName: vi.fn(() => 'Product'), focus: vi.fn(), hide: vi.fn() },
+  app: { getName: vi.fn(() => 'Product'), focus: vi.fn(), hide: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
   browserWindows: [] as unknown[],
   clipboard: { write: vi.fn<(items: { data: Record<string, Blob> }[]) => Promise<void>>(async () => {}) },
   dialog: { showSaveDialog: vi.fn(), showMessageBox: vi.fn() },
@@ -373,6 +373,83 @@ describe('ScreenshotOverlayService', () => {
   })
 
   describe('chat delivery', () => {
+    it('uses the most recently focused chat rather than the most recently registered chat', async () => {
+      singleDisplaySetup()
+      const first = createFakeWindow()
+      const second = createFakeWindow()
+      container.windows.set('first', first)
+      container.windows.set('second', second)
+      electron.browserWindows = [first]
+      service.setChatTarget('first', 'first-draft')
+      service.setChatTarget('second', 'second-draft')
+      const focusListener = electron.app.on.mock.calls.find(([event]) => event === 'browser-window-focus')![1]
+      focusListener({}, second)
+      electron.browserWindows = []
+      await service.startCapture()
+      const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: '' })
+      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'screenshot.chat_attachment')!
+      expect(delivery[0]).toBe('second')
+      expect(delivery[2].scopeKey).toBe('second-draft')
+      service.receiveChatResult('second', delivery[2].deliveryId, true)
+      await sending
+    })
+
+    it('delivers a global shortcut capture to the last focused chat while another app is active', async () => {
+      singleDisplaySetup()
+      const chat = createFakeWindow()
+      container.windows.set('chat', chat)
+      electron.browserWindows = [chat]
+      service.setChatTarget('chat', 'draft')
+      electron.browserWindows = []
+      await service.startCapture()
+      expect(container.openCalls[0].args.initData.canSendToChat).toBe(true)
+      const sending = service.sendToChat({ pngBytes: PNG_BYTES, text: 'From another app' })
+      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'screenshot.chat_attachment')!
+      expect(delivery[0]).toBe('chat')
+      expect(delivery[2].scopeKey).toBe('draft')
+      service.receiveChatResult('chat', delivery[2].deliveryId, true)
+      await sending
+    })
+
+    it('does not use a closed last-focused chat for a global capture', async () => {
+      singleDisplaySetup()
+      const chat = createFakeWindow()
+      container.windows.set('chat', chat)
+      electron.browserWindows = [chat]
+      service.setChatTarget('chat', 'draft')
+      electron.browserWindows = []
+      chat.isDestroyed.mockReturnValue(true)
+      await service.startCapture()
+      expect(container.openCalls[0].args.initData.canSendToChat).toBe(false)
+    })
+
+    it.each([false, true])(
+      'hides the in-app source before capture and restores it (capture failure: %s)',
+      async (fails) => {
+        singleDisplaySetup()
+        const chat = createFakeWindow()
+        let visible = true
+        chat.hide.mockImplementation(() => {
+          visible = false
+        })
+        chat.show.mockImplementation(() => {
+          visible = true
+        })
+        container.windows.set('chat', chat)
+        capture.captureAllMonitors.mockImplementation(() => {
+          expect(visible).toBe(false)
+          if (fails) throw new Error('capture failed')
+          return new Map([[1, makeCapture()]])
+        })
+        await service.startCapture('chat')
+        if (!fails) {
+          expect(visible).toBe(false)
+          service.dismiss()
+        }
+        expect(visible).toBe(true)
+      }
+    )
+
     it('does not use another chat when the shortcut source has no composer', async () => {
       singleDisplaySetup()
       const focused = createFakeWindow()

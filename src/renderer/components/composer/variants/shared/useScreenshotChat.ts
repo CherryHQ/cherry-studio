@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
+import { useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -35,17 +36,19 @@ export function useScreenshotChat({
 }) {
   const { t } = useTranslation()
   const isActiveTab = useIsActiveTab()
+  const closeQuickPanel = useOptionalQuickPanel()?.close
   const [enabled] = usePreference('feature.screenshot.enabled')
   const target = useMemo(
     () => JSON.stringify([scopeKey, editingId, active, isActiveTab, crypto.randomUUID()]),
     [scopeKey, editingId, active, isActiveTab]
   )
   const startScreenshot = useCallback(() => {
+    closeQuickPanel?.('screenshot')
     void ipcApi.request('screenshot.capture').catch((error) => {
       logger.error('Failed to start screenshot capture', error)
       toast.error(t('common.error'))
     })
-  }, [t])
+  }, [closeQuickPanel, t])
   useEffect(() => {
     if (!active || !isActiveTab) return
     void ipcApi
@@ -66,6 +69,7 @@ export function useScreenshotChat({
     if (acceptedDeliveryId === deliveryId) return report(true)
     if (!active || !isActiveTab) return
     if (destination !== target || isBlocked()) return report(false)
+    closeQuickPanel?.('screenshot')
     const parsed = AbsoluteFilePathSchema.safeParse(path)
     if (!parsed.success || !actionsRef.current.appendText(text)) return report(false)
     setFiles((previous) => [

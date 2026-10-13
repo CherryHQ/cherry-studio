@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { rmSync, writeFileSync } from 'node:fs'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import dayjs from 'dayjs'
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, type Display, nativeImage, screen } from 'electron'
@@ -123,6 +124,8 @@ export class ScreenshotOverlayService extends BaseService {
   /** Monotonic session id; a callback carrying an older one must not act. */
   private sessionGeneration = 0
   private chatTargets = new Map<WindowId, string>()
+  private lastChatWindowId: WindowId | null = null
+  private hiddenSourceWindow: BrowserWindow | null = null
   private captureChatTarget: { windowId: WindowId; scopeKey: string } | null = null
   private chatDelivery: {
     payload: ScreenshotEventSchemas['screenshot.chat_attachment']
@@ -132,7 +135,13 @@ export class ScreenshotOverlayService extends BaseService {
 
   public setChatTarget(windowId: WindowId, scopeKey: string | null): void {
     if (scopeKey === null) this.chatTargets.delete(windowId)
-    else this.chatTargets.set(windowId, scopeKey)
+    else {
+      this.chatTargets.set(windowId, scopeKey)
+      const focused = BrowserWindow.getFocusedWindow()
+      if (focused && application.get('WindowManager').getWindowId(focused) === windowId) {
+        this.lastChatWindowId = windowId
+      }
+    }
   }
 
   public async sendToChat(result: ScreenshotResultData & { text: string }): Promise<void> {
@@ -236,6 +245,12 @@ export class ScreenshotOverlayService extends BaseService {
 
   protected onInit(): void {
     const windowManager = application.get('WindowManager')
+    const rememberChatWindow = (_event: Electron.Event, window: BrowserWindow) => {
+      const id = windowManager.getWindowId(window)
+      if (id && this.chatTargets.has(id)) this.lastChatWindowId = id
+    }
+    app.on('browser-window-focus', rememberChatWindow)
+    this.registerDisposable(() => app.removeListener('browser-window-focus', rememberChatWindow))
     this.registerDisposable(
       windowManager.onWindowCreatedByType(WindowType.Screenshot, ({ id, window }) => {
         // No declarative equivalent in WindowBehavior, and a macOS panel window can
@@ -323,14 +338,26 @@ export class ScreenshotOverlayService extends BaseService {
       const generation = ++this.sessionGeneration
       const manager = application.get('WindowManager')
       const focusedWindow = BrowserWindow.getFocusedWindow()
-      const preferredId = sourceWindowId ?? (focusedWindow && manager.getWindowId(focusedWindow))
-      const targetId = preferredId && this.chatTargets.has(preferredId) ? preferredId : undefined
+      const preferredId = sourceWindowId ?? (focusedWindow ? manager.getWindowId(focusedWindow) : this.lastChatWindowId)
+      const targetWindow = preferredId && manager.getWindow(preferredId)
+      const targetId =
+        preferredId && targetWindow && !targetWindow.isDestroyed() && this.chatTargets.has(preferredId)
+          ? preferredId
+          : undefined
       this.captureChatTarget = targetId ? { windowId: targetId, scopeKey: this.chatTargets.get(targetId)! } : null
 
       const t0 = performance.now()
       this.overlaysCreated = 0
 
       try {
+        const sourceWindow = sourceWindowId && manager.getWindow(sourceWindowId)
+        if (sourceWindow && !sourceWindow.isDestroyed() && sourceWindow.isVisible() && !sourceWindow.isMinimized()) {
+          this.hiddenSourceWindow = sourceWindow
+          sourceWindow.hide()
+          // Give the desktop compositor time to remove the source before freezing the display.
+          await delay(150)
+          if (generation !== this.sessionGeneration) return
+        }
         // Started before the capture so the enumeration — hundreds of milliseconds of
         // native work — overlaps the PNG encode and the window opening rather than
         // following them. It runs off the main thread; see listWindowsOffThread.
@@ -819,6 +846,9 @@ export class ScreenshotOverlayService extends BaseService {
     this.chatDelivery?.settle?.(false)
     this.chatDelivery = null
     this.captureChatTarget = null
+    const sourceWindow = this.hiddenSourceWindow
+    this.hiddenSourceWindow = null
+    if (sourceWindow && !sourceWindow.isDestroyed()) sourceWindow.show()
     // Makes any callback still in flight a no-op; it cannot make timers disappear,
     // which is what the loop below is for.
     this.sessionGeneration++
