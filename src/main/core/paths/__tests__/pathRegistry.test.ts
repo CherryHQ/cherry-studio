@@ -65,6 +65,16 @@ describe('buildPathRegistry', () => {
     expect(shouldAutoEnsure('app.utility_process')).toBe(false)
   })
 
+  it('keeps the packaged FFmpeg directories read-only under app resources', () => {
+    const registry = buildPathRegistry()
+    const ffmpegRoot = path.join('/mock/app', 'resources', 'binaries', `${process.platform}-${process.arch}`, 'ffmpeg')
+
+    expect(registry['feature.file_processing.ffmpeg.bin']).toBe(path.join(ffmpegRoot, 'bin'))
+    expect(registry['feature.file_processing.ffmpeg.lib']).toBe(path.join(ffmpegRoot, 'lib'))
+    expect(shouldAutoEnsure('feature.file_processing.ffmpeg.bin')).toBe(false)
+    expect(shouldAutoEnsure('feature.file_processing.ffmpeg.lib')).toBe(false)
+  })
+
   it('keeps pi runtime state under the Agents data directory', () => {
     const registry = buildPathRegistry()
     const piRoot = path.join('/mock/userData', 'Data', 'Agents', '.pi')

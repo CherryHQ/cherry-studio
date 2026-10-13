@@ -105,6 +105,21 @@ export function buildPathRegistry() {
       `darwin-${process.arch}`,
       'selection-panel.node'
     ),
+    // Linux DT_RPATH is $ORIGIN/../lib, so the LGPL tree stays under ffmpeg/{bin,lib}.
+    'feature.file_processing.ffmpeg.bin': path.join(
+      appRootResources,
+      'binaries',
+      `${process.platform}-${process.arch}`,
+      'ffmpeg',
+      'bin'
+    ),
+    'feature.file_processing.ffmpeg.lib': path.join(
+      appRootResources,
+      'binaries',
+      `${process.platform}-${process.arch}`,
+      'ffmpeg',
+      'lib'
+    ),
 
     'feature.remote_access.identity_file': path.join(appUserDataRuntime, 'remote-identity.enc'),
 
@@ -381,6 +396,9 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
+  // Packaged Linux FFmpeg directories. The downloader materializes them.
+  'feature.file_processing.ffmpeg.bin',
+  'feature.file_processing.ffmpeg.lib',
   'feature.selection.native_panel_file',
   'app.utility_process',
   'app.session.webview',
