@@ -11,10 +11,9 @@ const logger = loggerService.withContext('Utils:Rtk')
 
 const RTK_MIN_VERSION = '0.23.0'
 const REWRITE_TIMEOUT_MS = 3000
-// Keep the Bash hook's wait short while allowing slow wrappers to finish in the background.
-// A hung backend still needs a ceiling so availability can be retried.
+// Keep the Bash hook's inline wait short; run one probe cycle at a time.
+// Release the gate only when the resolution settles.
 const PROBE_INLINE_WAIT_MS = 3000
-const PROBE_TOTAL_BUDGET_MS = 30_000
 const PROBE_EXEC_TIMEOUT_MS = 12_000
 const RTK_PROBE_TTL_MS = 60_000
 const RTK_PROBE_RETRY_MS = 5_000
@@ -29,7 +28,7 @@ type ProbeOutcome =
   | { kind: 'definite'; state: 'batch'; execution: null; path: string }
   | { kind: 'definite'; state: 'old'; execution: null; version: string }
   | { kind: 'definite'; state: 'available'; execution: RtkExecution; version?: string }
-  | { kind: 'indeterminate'; reason: 'budget' | 'error'; error?: string }
+  | { kind: 'indeterminate'; reason: 'error'; error: string }
 
 let cachedProbe: { checkedAt: number; execution: RtkExecution | null; kind: ProbeOutcome['kind'] } | null = null
 let probePromise: Promise<RtkExecution | null> | null = null
@@ -86,7 +85,7 @@ async function resolveRtk(): Promise<ProbeOutcome> {
 
 async function probeRtk(): Promise<ProbeOutcome> {
   try {
-    return (await withTimeout(resolveRtk(), PROBE_TOTAL_BUDGET_MS)) ?? { kind: 'indeterminate', reason: 'budget' }
+    return await resolveRtk()
   } catch (error) {
     return { kind: 'indeterminate', reason: 'error', error: error instanceof Error ? error.message : String(error) }
   }
@@ -111,14 +110,7 @@ function cacheOutcome(outcome: ProbeOutcome): RtkExecution | null {
     }
   } else {
     const logLevel = previous?.kind === 'indeterminate' ? 'debug' : 'warn'
-    if (outcome.reason === 'budget') {
-      logger[logLevel](
-        `rtk availability probe exceeded ${PROBE_TOTAL_BUDGET_MS}ms; command rewrite skipped, retrying in ${RTK_PROBE_RETRY_MS}ms`,
-        { inlineWaitMs: PROBE_INLINE_WAIT_MS }
-      )
-    } else {
-      logger[logLevel](`rtk availability probe failed; retrying in ${RTK_PROBE_RETRY_MS}ms`, { error: outcome.error })
-    }
+    logger[logLevel](`rtk availability probe failed; retrying in ${RTK_PROBE_RETRY_MS}ms`, { error: outcome.error })
   }
   const execution = outcome.kind === 'definite' ? outcome.execution : (previous?.execution ?? null)
   cachedProbe = { checkedAt: Date.now(), execution, kind: outcome.kind }
@@ -139,7 +131,12 @@ async function getRtkExecution(): Promise<RtkExecution | null> {
   if (probeOutlivedInline || cachedProbe?.kind === 'indeterminate') return cachedProbe?.execution ?? null
   const execution = await withTimeout(probePromise, PROBE_INLINE_WAIT_MS)
   if (execution !== undefined) return execution
-  probeOutlivedInline = true
+  if (!probeOutlivedInline) {
+    probeOutlivedInline = true
+    logger.warn(
+      `rtk availability probe is slower than the ${PROBE_INLINE_WAIT_MS}ms inline budget; probe keeps running`
+    )
+  }
   return cachedProbe?.execution ?? null
 }
 
