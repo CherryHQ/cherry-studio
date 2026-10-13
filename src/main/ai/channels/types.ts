@@ -1,3 +1,5 @@
+import type { ChannelStatus } from '@shared/data/types/channel'
+
 // Channel log & status types
 export type ChannelLogLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -8,8 +10,4 @@ export type ChannelLogEntry = {
   channelId: string
 }
 
-export type ChannelStatusEvent = {
-  channelId: string
-  connected: boolean
-  error?: string
-}
+export type ChannelStatusEvent = ChannelStatus

@@ -8,11 +8,11 @@
  * are pinned here so a regression to either is caught at the chokepoint.
  */
 
-import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { DanglingCache } from '../../danglingCache'
+import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+
 import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
 
@@ -32,7 +32,7 @@ const externalEntry: FileEntry = {
 } as unknown as FileEntry
 
 const internalEntry: FileEntry = {
-  id: '019606a0-0000-7000-8000-0000000000ff' as FileEntryId,
+  id: '019606a0-0000-7000-8000-0000000000ff',
   origin: 'internal',
   name: 'file',
   ext: 'txt',
@@ -54,7 +54,7 @@ function makeDeps(): FileManagerDeps {
       subscribe: vi.fn(() => () => {}),
       onDanglingStateChanged: vi.fn(() => ({ dispose: () => {} })),
       clear: vi.fn()
-    } as unknown as DanglingCache,
+    },
     fileEntryService: {} as never,
     fileRefService: {} as never,
     versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
@@ -63,7 +63,7 @@ function makeDeps(): FileManagerDeps {
 }
 
 function errnoErr(code: string): NodeJS.ErrnoException {
-  return Object.assign(new Error(code), { code }) as NodeJS.ErrnoException
+  return Object.assign(new Error(code), { code })
 }
 
 describe('observeExternalAccess', () => {

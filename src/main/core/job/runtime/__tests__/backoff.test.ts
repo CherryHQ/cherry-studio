@@ -3,9 +3,10 @@
  * kinds and the `maxDelayMs` clamping behavior.
  */
 
+import { describe, expect, it } from 'vitest'
+
 import { computeBackoff } from '@main/core/job/runtime/backoff'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
-import { describe, expect, it } from 'vitest'
 
 function policy(partial: Partial<RetryPolicy> & Pick<RetryPolicy, 'backoff'>): RetryPolicy {
   return {

@@ -1,8 +1,9 @@
-import { ipcApi } from '@renderer/ipc'
 import React from 'react'
 import { useSWRConfig } from 'swr'
 import useSWRImmutable from 'swr/immutable'
 import { v4 as uuid } from 'uuid'
+
+import { ipcApi } from '@renderer/ipc'
 
 export interface CitationPreviewSession {
   load(url: string): Promise<void>

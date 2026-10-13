@@ -1,7 +1,8 @@
+import { app } from 'electron'
+
 import { application } from '@application'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import { app } from 'electron'
 
 import deDE from './locales/de-de.json'
 import elGR from './locales/el-gr.json'
@@ -12,6 +13,7 @@ import JaJP from './locales/ja-jp.json'
 import ptPT from './locales/pt-pt.json'
 import roRO from './locales/ro-ro.json'
 import RuRu from './locales/ru-ru.json'
+import trTR from './locales/tr-tr.json'
 import viVN from './locales/vi-vn.json'
 import ZhCn from './locales/zh-cn.json'
 import ZhTw from './locales/zh-tw.json'
@@ -29,12 +31,29 @@ const locales = Object.fromEntries(
     ['fr-FR', frFR],
     ['pt-PT', ptPT],
     ['ro-RO', roRO],
-    ['vi-VN', viVN]
+    ['vi-VN', viVN],
+    ['tr-TR', trTR]
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
 /** Every language main carries a catalog for — the source of truth other modules should key off of. */
 export const SUPPORTED_LANGUAGES = Object.keys(locales) as LanguageVarious[]
+
+export const resolveSystemLanguage = (locale: string): LanguageVarious => {
+  const normalizedLocale = locale.toLowerCase()
+  const exactMatch = SUPPORTED_LANGUAGES.find((supported) => supported.toLowerCase() === normalizedLocale)
+  if (exactMatch) return exactMatch
+
+  const language = normalizedLocale.split('-')[0]
+  if (language === 'zh') {
+    try {
+      return new Intl.Locale(locale).maximize().script === 'Hant' ? 'zh-TW' : 'zh-CN'
+    } catch {
+      return 'zh-CN'
+    }
+  }
+  return SUPPORTED_LANGUAGES.find((supported) => supported.toLowerCase().split('-')[0] === language) ?? defaultLanguage
+}
 
 export const getAppLanguage = (): LanguageVarious => {
   const language = application.get('PreferenceService').get('app.language')
@@ -44,7 +63,7 @@ export const getAppLanguage = (): LanguageVarious => {
     return language
   }
 
-  return (Object.keys(locales).includes(appLocale) ? appLocale : defaultLanguage) as LanguageVarious
+  return resolveSystemLanguage(appLocale)
 }
 
 /**

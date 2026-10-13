@@ -1,10 +1,11 @@
-import type { AgentType } from '@shared/data/types/agent'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentType } from '@shared/data/types/agent'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
@@ -34,7 +35,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: (options?: { enabled?: boolean }) => {
     modelHook.useDefaultModel(options)
     return { defaultModel: modelHook.defaultModel }
-  }
+  },
+  useModels: () => ({ models: modelHook.defaultModel?.isEnabled ? [modelHook.defaultModel] : [] })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -43,7 +45,8 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: (agentType: AgentType | undefined) => (model: Model, provider?: Provider) =>
-    modelHook.agentModelFilter(agentType, model, provider)
+    modelHook.agentModelFilter(agentType, model, provider),
+  useAgentModelDisabled: () => () => false
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
@@ -88,6 +91,7 @@ vi.mock('../steps/BasicInfoStep', async () => {
             }}>
             fill pi basic
           </button>
+
           <button
             type="button"
             onClick={() => {
@@ -95,14 +99,6 @@ vi.mock('../steps/BasicInfoStep', async () => {
               form.setValue('modelId', null)
             }}>
             switch to pi
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              form.setValue('agentType', 'dsh')
-              form.setValue('modelId', null)
-            }}>
-            switch to dsh
           </button>
         </>
       )
@@ -376,7 +372,7 @@ describe('ResourceCreateWizard', () => {
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
 
-  it.each(['pi', 'dsh'] as const)(
+  it.each(['pi'] as const)(
     'reselects a compatible default model after switching an agent to the %s runtime',
     async (agentType) => {
       const user = userEvent.setup()

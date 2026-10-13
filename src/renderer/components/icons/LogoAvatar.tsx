@@ -1,19 +1,22 @@
+import type { FC } from 'react'
+
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarImage } from '@cherrystudio/ui'
-import type { FC } from 'react'
 
 interface Props {
   logo: string | object | undefined
   size?: number
   shape?: 'circle' | 'rounded'
   className?: string
+  /** Accessible name for URL logos. Pass `""` when the image is decorative. */
+  alt?: string
 }
 
 /**
  * Renders either a CompoundIcon avatar or a plain image avatar,
  * depending on whether the logo is a CompoundIcon or a string URL.
  */
-const LogoAvatar: FC<Props> = ({ logo, size = 32, shape = 'rounded', className }) => {
+const LogoAvatar: FC<Props> = ({ logo, size = 32, shape = 'rounded', className, alt }) => {
   if (!logo) return null
 
   const borderClass = 'border border-border'
@@ -27,7 +30,7 @@ const LogoAvatar: FC<Props> = ({ logo, size = 32, shape = 'rounded', className }
     <Avatar
       className={`${borderClass} ${shape === 'circle' ? 'rounded-full' : 'rounded-[20%]'} ${className ?? ''}`.trim()}
       style={{ width: size, height: size }}>
-      <AvatarImage src={logo} />
+      <AvatarImage alt={alt} src={logo} />
     </Avatar>
   )
 }

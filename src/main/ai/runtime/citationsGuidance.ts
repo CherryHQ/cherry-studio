@@ -5,7 +5,7 @@
  * scope is non-empty — a static binding or a per-turn composer selection).
  * Mirrors the assistant-path `CITATIONS_SYSTEM_PROMPT`
  * (`../aiSdk/prompts/citations.ts`); the `[cite:id]` markers are resolved by
- * the renderer against the message's own tool results.
+ * the renderer against the tool results of the message and earlier turns.
  */
 
 import { toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'

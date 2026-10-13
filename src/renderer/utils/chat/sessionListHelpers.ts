@@ -295,12 +295,7 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   }
 
   if (mode === 'agent') {
-    const pinnedResolver = createPinnedGroupResolver<T>({
-      isPinned: (session) => session.pinned === true,
-      group: { id: SESSION_PINNED_GROUP_ID, label: pinnedGroupLabel } satisfies ResourceListGroup
-    })
-
-    return composeResourceListGroupResolvers(pinnedResolver, (session) => {
+    return (session) => {
       const agentId = session.agentId
       if (!agentId) {
         return { id: SESSION_UNKNOWN_AGENT_GROUP_ID, label: labels.agent.unknown }
@@ -310,7 +305,7 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
       return agent
         ? { id: getSessionAgentGroupId(agent.id), label: agent.name }
         : { id: SESSION_UNKNOWN_AGENT_GROUP_ID, label: labels.agent.unknown }
-    })
+    }
   }
 
   const pinnedResolver = createPinnedGroupResolver<T>({
@@ -369,18 +364,27 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
     })
   }
 
+  if (options.mode === 'agent') {
+    return sessions
+      .map((session, index) => ({ session, index, rank: getAgentGroupRank(session, options.agentRankById) }))
+      .sort((a, b) => {
+        if (a.rank !== b.rank) return a.rank - b.rank
+        const aPinned = isPinned(a.session)
+        const bPinned = isPinned(b.session)
+        if (aPinned !== bPinned) return aPinned ? -1 : 1
+        if (aPinned && bPinned) return a.index - b.index
+        return compareResourceOrderKey(a.session.orderKey, b.session.orderKey) || a.index - b.index
+      })
+      .map(({ session }) => session)
+  }
+
   return sortRankedResourceItems(sessions, {
     getRank: (session) => {
       if (session.pinned === true) return 0
 
-      let displayRank: number
-      if (options.mode === 'workdir' && isSystemWorkspaceSession(session)) {
-        displayRank = NO_PROJECT_GROUP_RANK
-      } else if (options.mode === 'agent') {
-        displayRank = getAgentGroupRank(session, options.agentRankById)
-      } else {
-        displayRank = getWorkdirGroupRank(session, options.workdirDisplay)
-      }
+      const displayRank = isSystemWorkspaceSession(session)
+        ? NO_PROJECT_GROUP_RANK
+        : getWorkdirGroupRank(session, options.workdirDisplay)
 
       return displayRank >= UNKNOWN_GROUP_RANK ? displayRank : displayRank + 1
     },

@@ -1,5 +1,6 @@
-import { isMcpContentBlock } from '@shared/utils/mcp'
 import { describe, expect, it } from 'vitest'
+
+import { isMcpContentBlock } from '@shared/utils/mcp'
 
 describe('isMcpContentBlock', () => {
   it.each([

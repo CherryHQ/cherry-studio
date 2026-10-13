@@ -1,6 +1,23 @@
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 
 /**
+ * Separator in the custom-model path Antigravity CLI carries (`gemini-api://<providerId>/models/<apiModelId>`).
+ * The producer (`main/services/codeCli/antigravity.ts`) and the gateway route that parses it back
+ * (`main/features/apiGateway/routes/gemini.ts`) must agree, so neither may hardcode it.
+ */
+export const ANTIGRAVITY_MODEL_PATH_SEPARATOR = '/models/'
+
+/**
+ * The origin a client uses to reach the gateway, derived from its bind host.
+ * A bind host is not a connect target: `0.0.0.0`/`::` mean "every interface" and must become a
+ * loopback address, and an IPv6 literal needs brackets or the URL is malformed.
+ */
+export function gatewayClientOrigin(host: string, port: number): string {
+  const reachable = host === '0.0.0.0' ? '127.0.0.1' : host === '::' ? '::1' : host
+  return `http://${reachable.includes(':') ? `[${reachable}]` : reachable}:${port}`
+}
+
+/**
  * Build the gateway-addressable model id the gateway routes expect: `providerId:apiModelId`
  * (single colon, `apiModelId` — NOT the `::`-separated internal `UniqueModelId`). The gateway
  * splits on the first `:` (see `apiGateway/proxyStream.ts`) and advertises the same shape from

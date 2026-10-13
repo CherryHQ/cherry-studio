@@ -1,3 +1,7 @@
+import type { TFunction } from 'i18next'
+import { Check } from 'lucide-react'
+import { useId } from 'react'
+
 import {
   Item,
   ItemActions,
@@ -10,13 +14,10 @@ import {
   RadioGroupItem
 } from '@cherrystudio/ui'
 import { type IconComponent, PiCli } from '@cherrystudio/ui/icons'
-import { ClaudeCode, Deepseek } from '@cherrystudio/ui/icons/providers'
+import { ClaudeCode } from '@cherrystudio/ui/icons/providers'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
-import type { TFunction } from 'i18next'
-import { Check } from 'lucide-react'
-import { useId } from 'react'
 
 /**
  * Shared presentation for the agent runtimes.
@@ -28,23 +29,19 @@ import { useId } from 'react'
 
 const RUNTIME_ICONS = {
   'claude-code': ClaudeCode,
-  pi: PiCli,
-  dsh: Deepseek
+  pi: PiCli
 } satisfies Record<AgentType, IconComponent>
 
 const COMPACT_RUNTIME_ICON_CLASS: Record<AgentType, string> = {
   'claude-code': 'size-6',
-  pi: 'size-4',
-  dsh: 'size-7'
+  pi: 'size-4'
 }
 
 const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
   // t('library.config.agent.field.runtime.option_description.claude_code')
   'claude-code': 'library.config.agent.field.runtime.option_description.claude_code',
   // t('library.config.agent.field.runtime.option_description.pi')
-  pi: 'library.config.agent.field.runtime.option_description.pi',
-  // t('library.config.agent.field.runtime.option_description.dsh')
-  dsh: 'library.config.agent.field.runtime.option_description.dsh'
+  pi: 'library.config.agent.field.runtime.option_description.pi'
 }
 
 const RUNTIMES = Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]

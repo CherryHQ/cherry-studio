@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react'
+
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ReactNode } from 'react'
 
 import type { TraceNode } from './traceNode'
 
@@ -40,7 +41,7 @@ interface SpanPresenter {
   build: (node: TraceNode, t: Translate) => SpanView
 }
 
-const attrsOf = (node: TraceNode): Record<string, unknown> => (node.attributes ?? {}) as Record<string, unknown>
+const attrsOf = (node: TraceNode): Record<string, unknown> => node.attributes ?? {}
 const str = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined)
 
 /** Common tab set for spans without bespoke tabs: inputs / outputs / raw. */

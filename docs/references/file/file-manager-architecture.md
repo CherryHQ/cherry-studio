@@ -286,13 +286,15 @@ Three related passes have distinct jobs:
 | File sweep | Removes old UUID-named blobs without a DB row and old `*.tmp-<uuid>` residue |
 
 The file sweep ignores non-files and candidates newer than five minutes. It plans before deleting
-and aborts large plans when at least 20 files or 10 MiB are involved and the planned candidates
-exceed half of the candidate count or bytes. A pending staged restore makes all passes stand aside.
+and rechecks database ownership and intake protection before unlinking each file. Default sweeps
+abort plans involving at least 20 files or 10 MiB when the planned count or bytes exceed half of
+the candidate population. A pending staged restore makes all passes stand aside.
 
 FileManager runs entry cleanup on startup and on its idle-gated interval. The file sweep shares the
 idle tick with a seven-day floor. Cache Cleanup calls `inspectOrphanFiles()` for preview and
 `cleanupOrphanFiles()` for execution. The legacy `runSweep()` channel composes entry cleanup, file
-sweep, and DB reporting, but currently has no renderer caller.
+sweep, and DB reporting, but currently has no renderer caller. Cache Cleanup explicitly bypasses
+volume thresholds for both preview and execution; all per-file and pending-restore guards remain active.
 
 ## 11. DanglingCache
 

@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { describe, expect, it } from 'vitest'
 
 import { planKnowledgeItemSource } from '../sourcePlanning'
 
@@ -65,5 +66,26 @@ describe('planKnowledgeItemSource', () => {
     const item = createFileItem('/docs/source.pdf')
     item.data.indexedRelativePath = 'source.md' as PosixRelativeFilePath
     expect(planKnowledgeItemSource(createBase(), item)).toEqual({ kind: 'index-documents' })
+  })
+
+  it('reprocesses a pinned artifact when a reindex just re-acquired the source over it', () => {
+    const item = createFileItem('/docs/source.pdf')
+    item.data.indexedRelativePath = 'source.md' as PosixRelativeFilePath
+    expect(planKnowledgeItemSource(createBase(), item, { forceFileReprocess: true })).toEqual({
+      kind: 'needsFileProcessing'
+    })
+  })
+
+  it('does not invent file processing for a reindexed file the processor never handled', () => {
+    expect(
+      planKnowledgeItemSource(createBase(null), createFileItem('/docs/source.pdf'), {
+        forceFileReprocess: true
+      })
+    ).toEqual({ kind: 'index-documents' })
+    expect(
+      planKnowledgeItemSource(createBase(), createFileItem('/docs/source.docx'), {
+        forceFileReprocess: true
+      })
+    ).toEqual({ kind: 'index-documents' })
   })
 })

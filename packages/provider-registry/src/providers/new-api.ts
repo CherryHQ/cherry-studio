@@ -27,6 +27,7 @@ const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
 export default defineProvider({
   id: 'new-api',
   name: 'New API',
+  availableInEditions: ['global', 'cn'],
   // Self-hosted: only the default endpoint carries the placeholder host. A
   // baseUrl here would override the user's single host on every other endpoint.
   endpointConfigs: {
@@ -38,14 +39,17 @@ export default defineProvider({
       baseUrl: 'http://localhost:3000',
       reasoningFormat: { type: 'openai-chat' }
     },
-    // `newapi` on every endpoint, so all four route through the NewAPI adapter and get the
-    // per-route version segment. Left inferred, these two resolve to the plain `openai` / `google`
-    // adapters, which read the host verbatim: `/responses` with no `/v1`, and `/v1/…:generateContent`
-    // when the user typed `/v1`.
+    // Relay endpoints need newapi's version-prefix routing, not the generic adapter's verbatim host.
     'openai-responses': {
       adapterFamily: 'newapi'
     },
     'google-generate-content': {
+      adapterFamily: 'newapi'
+    },
+    'openai-image-generation': {
+      adapterFamily: 'newapi'
+    },
+    'openai-image-edit': {
       adapterFamily: 'newapi'
     }
   },

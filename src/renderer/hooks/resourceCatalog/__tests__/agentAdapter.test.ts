@@ -26,15 +26,13 @@ describe('useAgentMutationsById', () => {
     })
   })
 
-  it('refreshes agent list and details after scoped mutations', () => {
+  it('uses DataApi only for the scoped update mutation', () => {
     renderHook(() => useAgentMutationsById('agent-1'))
 
     expect(useMutationMock).toHaveBeenCalledWith('PATCH', '/agents/agent-1', {
       refresh: expect.any(Function)
     })
-    expect(useMutationMock).toHaveBeenCalledWith('DELETE', '/agents/agent-1', {
-      refresh: ['/agents', '/agents/*', '/pins']
-    })
+    expect(useMutationMock).toHaveBeenCalledTimes(1)
   })
 
   it('additionally refreshes /skills only when the PATCH body includes skillUpdates', () => {

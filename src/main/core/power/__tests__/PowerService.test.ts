@@ -1,7 +1,9 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { BrowserWindow } from 'electron'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const PREF_KEY = 'app.power.prevent_sleep_when_busy'
 
@@ -81,11 +83,13 @@ vi.mock('electron', () => ({
     removeListener: vi.fn(),
     removeAllListeners: vi.fn()
   },
-  BrowserWindow: vi.fn(() => ({
-    destroy: windowDestroy,
-    isDestroyed: windowIsDestroyed,
-    getNativeWindowHandle
-  })),
+  BrowserWindow: vi.fn(function BrowserWindowMock() {
+    return {
+      destroy: windowDestroy,
+      isDestroyed: windowIsDestroyed,
+      getNativeWindowHandle
+    }
+  }),
   powerMonitor: {
     on: powerMonitorOn,
     removeListener: powerMonitorRemoveListener,
@@ -266,6 +270,28 @@ describe('PowerService', () => {
     beforeEach(() => {
       platformMock.isMac = false
       platformMock.isWin = true
+    })
+
+    it('keeps power management available without a window when the native addon is blocked', async () => {
+      vi.doMock('@paymoapp/electron-shutdown-handler', () => {
+        throw new Error('An Application Control policy has blocked this file.')
+      })
+      try {
+        MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, true)
+        const service = await createInitedService()
+
+        expect(BrowserWindow).not.toHaveBeenCalled()
+        fire('suspend')
+        expect(service.getPowerPhase()).toBe('suspended')
+        const hold = service.preventSleep('job:blocked-addon')
+        expect(service.isPreventingSleep()).toBe(true)
+        hold.dispose()
+        expect(service.isPreventingSleep()).toBe(false)
+      } finally {
+        vi.doMock('@paymoapp/electron-shutdown-handler', () => ({
+          default: { on: shutdownHandlerOn, setWindowHandle, releaseShutdown, blockShutdown }
+        }))
+      }
     })
 
     it('blocks shutdown, then runs handlers, releases the block and quits', async () => {

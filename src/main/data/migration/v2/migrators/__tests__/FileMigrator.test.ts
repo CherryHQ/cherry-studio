@@ -2,9 +2,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { FileEntrySchema } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerWarnMock } = vi.hoisted(() => ({
   loggerWarnMock: vi.fn()
@@ -75,8 +76,9 @@ function useRealFilesDir(realFs: typeof fs, ext: string) {
   vi.mocked(fs.existsSync).mockImplementation(realFs.existsSync)
   vi.mocked(fs.renameSync).mockImplementation(realFs.renameSync)
   vi.mocked(fs.unlinkSync).mockImplementation(realFs.unlinkSync)
-  vi.mocked(application.getPath).mockImplementation(((_key: string, filename?: string) =>
-    path.join(filesDir, filename ?? '')) as never)
+  vi.mocked(application.getPath).mockImplementation((_key: string, filename?: string) =>
+    path.join(filesDir, filename ?? '')
+  )
 
   return { userData, filesDir, row }
 }
@@ -788,7 +790,7 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
     const realFs = await vi.importActual<typeof fs>('node:fs')
     const { userData, filesDir, row } = useRealFilesDir(realFs, '.exe ')
     const copySpy = vi.spyOn(fs, 'copyFileSync').mockImplementationOnce((_src, tmp) => {
-      realFs.writeFileSync(tmp as string, 'pay')
+      realFs.writeFileSync(tmp, 'pay')
       throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
     })
 

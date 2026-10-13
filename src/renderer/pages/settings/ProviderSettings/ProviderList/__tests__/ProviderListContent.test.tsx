@@ -1,7 +1,8 @@
 import { closestCenter } from '@dnd-kit/core'
-import type { Provider } from '@shared/data/types/provider'
 import { act, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Provider } from '@shared/data/types/provider'
 
 // Capture every <ReorderableList> mount's `items` prop so we can assert the
 // grouped path feeds the full cache (C1 regression).

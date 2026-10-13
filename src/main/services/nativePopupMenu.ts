@@ -1,3 +1,6 @@
+import type { BrowserWindow as BrowserWindowType, IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, Menu } from 'electron'
+
 import { loggerService } from '@logger'
 import { type NativeMenuItem, toElectronMenuTemplate } from '@main/services/menu/adapters/nativeMenuAdapter'
 import type {
@@ -8,8 +11,6 @@ import type {
   ResolvedMenuItem
 } from '@shared/types/command'
 import { type CommandId, findCommandDefinition } from '@shared/utils/command'
-import type { BrowserWindow as BrowserWindowType, IpcMainInvokeEvent } from 'electron'
-import { BrowserWindow, Menu } from 'electron'
 
 const logger = loggerService.withContext('nativePopupMenu')
 

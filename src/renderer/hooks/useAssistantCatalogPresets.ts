@@ -1,3 +1,4 @@
+import { matchesPinyinInitials } from '@renderer/utils/pinyin'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId } from '@shared/data/types/model'
 
@@ -59,9 +60,9 @@ function normalizePresets(value: unknown): AssistantCatalogPreset[] {
   return value.filter((preset): preset is AssistantCatalogPreset => {
     return Boolean(
       preset &&
-        typeof preset === 'object' &&
-        typeof (preset as AssistantCatalogPreset).id === 'string' &&
-        typeof (preset as AssistantCatalogPreset).name === 'string'
+      typeof preset === 'object' &&
+      typeof (preset as AssistantCatalogPreset).id === 'string' &&
+      typeof (preset as AssistantCatalogPreset).name === 'string'
     )
   })
 }
@@ -111,9 +112,11 @@ export function filterAssistantCatalogPresets(
     if (!getPresetGroups(preset).includes(activeTab)) return false
     if (!keyword) return true
 
-    return [preset.name, preset.description, preset.prompt]
-      .filter(Boolean)
-      .some((text) => text?.toLowerCase().includes(keyword))
+    return (
+      [preset.name, preset.description, preset.prompt]
+        .filter(Boolean)
+        .some((text) => text?.toLowerCase().includes(keyword)) || matchesPinyinInitials(preset.name, keyword)
+    )
   })
 }
 

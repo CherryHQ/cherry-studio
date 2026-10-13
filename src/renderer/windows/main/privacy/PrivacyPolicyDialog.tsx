@@ -1,3 +1,7 @@
+import { LoaderCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -14,9 +18,6 @@ import { joinPath } from '@renderer/utils/path'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
-import { LoaderCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('PrivacyPolicyDialog')
 
@@ -101,7 +102,7 @@ export function PrivacyPolicyDialog({
               className="block h-full w-full border-0 bg-transparent"
             />
           ) : (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               {!loadFailed && <LoaderCircle className="size-4 animate-spin" />}
               <span>{loadFailed ? t('privacy_policy.load_failed') : t('common.loading')}</span>
             </div>

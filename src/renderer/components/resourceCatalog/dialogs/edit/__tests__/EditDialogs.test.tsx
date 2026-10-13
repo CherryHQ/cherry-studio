@@ -1,13 +1,14 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { toast } from '@renderer/services/toast'
-import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import type { Assistant } from '@shared/data/types/assistant'
 
 const {
   bindPromptMock,
@@ -16,6 +17,7 @@ const {
   createPromptMock,
   createGroupMock,
   fetchGenerateMock,
+  invalidateCacheMock,
   installedSkillsState,
   ipcRequestMock,
   knowledgeBasesState,
@@ -37,6 +39,7 @@ const {
   createPromptMock: vi.fn(),
   createGroupMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
+  invalidateCacheMock: vi.fn(),
   installedSkillsState: {
     current: {
       skills: [
@@ -61,7 +64,7 @@ const {
       }
     ]
   },
-  mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
+  mcpStatusState: { current: {} },
   openSettingsTabMock: vi.fn(),
   promptCatalogState: {
     current: {
@@ -262,6 +265,7 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useDataChange: vi.fn(),
+  useInvalidateCache: () => invalidateCacheMock,
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: knowledgeBasesState.current, total: knowledgeBasesState.current.length }],
@@ -345,10 +349,14 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',
           'library.config.agent.field.description.placeholder': 'Describe this agent',
+          'agent.tasks.timeout.label': 'Maximum Execution Time',
+          'agent.tasks.intervalUnit': 'minutes',
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
           'library.config.agent.field.model.hint': 'Primary agent model.',
+          'library.config.agent.field.model.hint.claude_code': 'Pins the opus alias (ANTHROPIC_MODEL).',
           'library.config.agent.field.model.label': 'Model',
+          'library.config.agent.field.model.label.claude_code': 'Model (Opus)',
           'library.config.agent.field.name.hint': 'Shown in the selector.',
           'library.config.agent.field.name.label': 'Name',
           'library.config.agent.field.name.placeholder': 'Name this agent',
@@ -374,6 +382,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
           'agent.tools.builtin.bash.description': 'Run shell commands',
           'agent.tools.builtin.bash.label': 'Run shell commands',
+          'agent.tools.builtin.codemode.label': 'Code Mode',
           'agent.tools.builtin.read.description': 'Read files',
           'agent.tools.builtin.read.label': 'Read files',
           'library.config.agent.model_config': 'Model',
@@ -383,10 +392,13 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.context_inherited': 'Following the global settings',
           'library.config.basic.context_count': 'Recent messages kept',
           'library.config.basic.context_truncate_threshold': 'Tool-output truncation threshold',
+          'library.config.basic.context_compress_enabled': 'Compress the context when it fills up',
+          'library.config.basic.context_compress_threshold': 'Compression trigger threshold',
           'library.config.basic.context_count_unlimited': 'Unlimited',
           'library.config.basic.custom_params': 'Custom parameters',
           'library.config.basic.custom_params_add': 'Add parameter',
           'library.config.basic.custom_params_name': 'Parameter name',
+          'library.config.basic.custom_params_value': 'Parameter value',
           'library.config.basic.default_value': 'Model default',
           'library.config.basic.field.model.hint': 'Default chat model.',
           'library.config.basic.field.name.hint': 'Shown in the selector.',
@@ -1067,7 +1079,8 @@ describe('edit dialogs', () => {
     })
     fireEvent.change(instructionsInput, { target: { value: 'Updated instructions {{model_name}}' } })
     selectTab('Basic')
-    const modelTrigger = screen.getByRole('button', { name: 'Model' })
+    // The trigger is named by its visible label, which is Claude Code's opus slot on this agent.
+    const modelTrigger = screen.getByRole('button', { name: 'Model (Opus)' })
     expect(modelTrigger).toHaveTextContent('Old Model')
     expect(modelTrigger).not.toHaveTextContent('Provider')
     fireEvent.click(modelTrigger)
@@ -1088,6 +1101,61 @@ describe('edit dialogs', () => {
         })
       })
     )
+  })
+
+  // The three model tiers pin Claude Code's opus / sonnet / haiku aliases rather than
+  // being three parallel work tiers, and the sonnet slot has nothing to do with Plan mode.
+  // Each label therefore carries a help trigger naming the variable it becomes.
+  it('explains what each agent model slot is wired to', () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    selectTab('Basic')
+    expectHelpTrigger('Model (Opus)', 'Pins the opus alias (ANTHROPIC_MODEL).')
+    expectHelpTrigger('Plan model', 'Plan model.')
+    expectHelpTrigger('Small model', 'Small model.')
+  })
+
+  // Only Claude Code reads ANTHROPIC_DEFAULT_*_MODEL, so a Pi agent must not be told
+  // that its primary model pins an `opus` alias it does not have.
+  it('names no Claude Code alias on a runtime that has no model tiers', () => {
+    render(<AgentEditDialog open resource={{ ...AGENT, type: 'pi' }} onOpenChange={vi.fn()} />)
+
+    selectTab('Basic')
+    expectHelpTrigger('Model', 'Primary agent model.')
+    expect(screen.queryByRole('button', { name: 'Model (Opus) Help' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Plan model Help' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Small model Help' })).not.toBeInTheDocument()
+  })
+
+  it('persists a heartbeat timeout edit independently of the interval', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+    const field = screen.getByLabelText('Maximum Execution Time (minutes)')
+    expect(field).toHaveValue('2')
+
+    await user.clear(field)
+    await user.type(field, '10')
+    await user.tab()
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: { configuration: { heartbeat_timeout_minutes: 10 } }
+      })
+    )
+  })
+
+  // The heartbeat is turned off by its switch, so an emptied interval is a retype,
+  // not a value — a persisted 0 would be a heartbeat interval of zero minutes.
+  it('does not persist a zero heartbeat interval when the field is cleared', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    const field = screen.getByLabelText('Heartbeat interval')
+    await user.clear(field)
+    await user.tab()
+
+    expect(field).toHaveValue('30')
+    expect(updateAgentMock).not.toHaveBeenCalled()
   })
 
   it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
@@ -1187,7 +1255,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original instructions',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
 
     await waitFor(() =>
@@ -1321,6 +1390,59 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('names custom parameter value inputs for screen-reader users', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: {
+            ...ASSISTANT.settings,
+            customParameters: [
+              { name: 'stop', type: 'string', value: 'END' },
+              { name: '', type: 'number', value: 0 }
+            ]
+          }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+
+    expect(await screen.findByRole('textbox', { name: 'Parameter value: stop' })).toHaveValue('END')
+    expect(screen.getByRole('spinbutton', { name: 'Parameter value' })).toHaveValue('0')
+  })
+
+  // `-` and `1e` are viable prefixes the field holds without reporting them, so the
+  // last thing the live callback saw was the clear that preceded them. Abandoning
+  // such an edit has to settle back to what it started from, not keep that clear.
+  it('restores a custom numeric parameter abandoned mid-keystroke', async () => {
+    const user = userEvent.setup()
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: {
+            ...ASSISTANT.settings,
+            customParameters: [{ name: 'temperature', type: 'number', value: 5 }]
+          }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+
+    const input = await screen.findByRole('spinbutton', { name: 'Parameter value: temperature' })
+    await user.clear(input)
+    await user.type(input, '-')
+    await user.tab()
+
+    expect(input).toHaveValue('5')
+  })
+
   it('names the context override for what it does and states what is inherited while off', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
@@ -1338,6 +1460,24 @@ describe('edit dialogs', () => {
 
     expect(await screen.findByLabelText('Tool-output truncation threshold')).toBeInTheDocument()
     expect(screen.queryByText('Following the global settings')).not.toBeInTheDocument()
+  })
+
+  // The compression trigger is a three-state override: empty means inherit, and the
+  // unit is a standing label on the field rather than part of any value.
+  it('offers the compression trigger as an inheritable field carrying its unit', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Customize context management' }))
+    const compress = await screen.findByRole('switch', { name: 'Compress the context when it fills up' })
+    if (compress.getAttribute('aria-checked') !== 'true') fireEvent.click(compress)
+
+    const threshold = await screen.findByRole('spinbutton', { name: 'Compression trigger threshold' })
+    expect(threshold).toHaveValue('')
+    expect(threshold).toHaveAttribute('aria-valuemin', '20')
+    expect(threshold).toHaveAttribute('aria-valuemax', '100')
+    expect(screen.getByText('%')).toBeVisible()
   })
 
   it('keeps the message limit outside the override, since scope is not an overflow policy', async () => {
@@ -1358,7 +1498,7 @@ describe('edit dialogs', () => {
 
     const input = await screen.findByLabelText('Recent messages kept')
     // No stored override → unlimited, shown as an empty field with a placeholder.
-    expect(input).toHaveValue(null)
+    expect(input).toHaveValue('')
     expect(input).toHaveAttribute('placeholder', 'Unlimited')
     // The limit is one control, not a switch plus a number.
     expect(screen.queryByRole('switch', { name: 'Recent messages kept' })).not.toBeInTheDocument()
@@ -1366,7 +1506,7 @@ describe('edit dialogs', () => {
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: '5' } })
     fireEvent.blur(input)
-    expect(input).toHaveValue(5)
+    expect(input).toHaveValue('5')
   })
 
   it('repairs invalid legacy max tokens when enabling the limit', async () => {
@@ -1396,6 +1536,33 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('normalizes unsafe max tokens before auto-save persistence', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: { ...ASSISTANT.settings, enableMaxTokens: true }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+    const maxTokensInput = await screen.findByRole('spinbutton', { name: 'Max tokens' })
+
+    fireEvent.focus(maxTokensInput)
+    fireEvent.change(maxTokensInput, { target: { value: String(Number.MAX_SAFE_INTEGER + 1) } })
+    fireEvent.blur(maxTokensInput)
+
+    expect(maxTokensInput).toHaveValue(String(Number.MAX_SAFE_INTEGER))
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: { settings: { maxTokens: Number.MAX_SAFE_INTEGER } }
+      })
+    )
+  })
+
   it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {
     render(
       <AssistantEditDialog
@@ -1419,14 +1586,17 @@ describe('edit dialogs', () => {
 
     fireEvent.click(maxToolCallsSwitch)
     const maxToolCallsInput = await screen.findByDisplayValue('20')
-    expect(maxToolCallsInput).toHaveAttribute('min', '1')
-    expect(maxToolCallsInput).toHaveAttribute('max', '1000')
+
+    fireEvent.focus(maxToolCallsInput)
+    fireEvent.change(maxToolCallsInput, { target: { value: '0' } })
+    fireEvent.blur(maxToolCallsInput)
+    expect(maxToolCallsInput).toHaveValue('1')
 
     fireEvent.focus(maxToolCallsInput)
     fireEvent.change(maxToolCallsInput, { target: { value: '1001' } })
     fireEvent.blur(maxToolCallsInput)
 
-    expect(maxToolCallsInput).toHaveValue(1000)
+    expect(maxToolCallsInput).toHaveValue('1000')
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
@@ -1453,7 +1623,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original prompt',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
 
@@ -1475,7 +1646,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('You are a Prompt Generator.'),
       content: 'Alpha Assistant',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
     expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
       'Create a useful system prompt from the supplied name or title.'
@@ -1554,6 +1726,38 @@ describe('edit dialogs', () => {
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['bash'] }) })
+    )
+  })
+
+  it('keeps old MCP restrictions until the user explicitly removes them, preserving file restrictions', async () => {
+    const user = userEvent.setup()
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...PI_AGENT, disabledTools: ['read', 'legacy-dsh:mcp__unknown__tool'] }}
+        onOpenChange={vi.fn()}
+      />
+    )
+    await user.click(screen.getByRole('tab', { name: 'MCP' }))
+    expect(screen.getByText('mcp__unknown__tool')).toBeVisible()
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'library.config.tools.legacy_restrictions.remove' }))
+    await waitFor(() => expect(screen.queryByText('mcp__unknown__tool')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['read'] }) })
+    )
+  })
+
+  it('lets users enable Code Mode when its legacy tool was disabled', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={{ ...PI_AGENT, disabledTools: ['tool_exec'] }} onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('tab', { name: 'Built-in tools' }))
+    const toggle = screen.getByRole('switch', { name: 'Code Mode' })
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: [] }) })
     )
   })
 
