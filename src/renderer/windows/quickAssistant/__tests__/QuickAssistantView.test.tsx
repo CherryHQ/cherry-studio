@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as PlatformModule from '@renderer/utils/platform'
+
 import QuickAssistantView from '../QuickAssistantView'
 
 const quickConversation = vi.hoisted(() => ({
@@ -26,7 +28,7 @@ const runtime = vi.hoisted(() => ({
 const platform = vi.hoisted(() => ({ isMac: true }))
 
 vi.mock('@renderer/utils/platform', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/utils/platform')>()),
+  ...(await importOriginal<typeof PlatformModule>()),
   get isMac() {
     return platform.isMac
   }
