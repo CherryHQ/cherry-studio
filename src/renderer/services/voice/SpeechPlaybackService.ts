@@ -135,6 +135,8 @@ export class SpeechPlaybackService {
   private readonly runs = new Map<string, PlaybackRun>()
   private snapshot: SpeechPlaybackSnapshot = IDLE_SNAPSHOT
   private visibleRun?: PlaybackRun
+  // Completion can clear visibility without superseding a pending admission.
+  private visibilityToken = Symbol()
   private initialization?: Promise<void>
   private unsubscribeState?: () => void
   private unsubscribeCommands?: () => void
@@ -233,7 +235,7 @@ export class SpeechPlaybackService {
       this.publishStartFailure(input.sourceLabel, plan.chunks.length, reason)
       throw new VoiceDomainError(reason)
     }
-    const deferredVisibleRun = input.trigger === 'auto_read' ? this.visibleRun : undefined
+    const deferredVisibilityToken = input.trigger === 'auto_read' && this.visibleRun ? this.visibilityToken : undefined
     const operation = this.voice.generateSpeech(this.speechInput(input, preferences, plan.chunks, 0))
     const run: PlaybackRun = {
       generation,
@@ -258,13 +260,14 @@ export class SpeechPlaybackService {
     }
     startedRun = run
     this.runs.set(run.sessionId, run)
-    if (!deferredVisibleRun) {
+    if (deferredVisibilityToken === undefined) {
+      this.visibilityToken = Symbol()
       this.visibleRun = run
       this.publish(run)
     }
 
     try {
-      await this.finishGeneration(run, operation, deferredVisibleRun)
+      await this.finishGeneration(run, operation, deferredVisibilityToken)
       return { status: 'started' }
     } catch (error) {
       const reason = run.stopped || run.generation !== this.lifecycleGeneration ? 'aborted' : errorReason(error)
@@ -358,18 +361,22 @@ export class SpeechPlaybackService {
   private async finishGeneration(
     run: PlaybackRun,
     operation: VoiceOperation<unknown>,
-    claimVisibilityFrom?: PlaybackRun
+    claimVisibilityWith?: symbol
   ): Promise<void> {
     run.materializing = true
     try {
       const result = (await operation.result) as Awaited<ReturnType<PlaybackVoiceService['generateSpeech']>['result']>
+      if (run.operation === operation) run.operation = undefined
       this.assertCurrent(run)
-      if (claimVisibilityFrom) {
-        if (this.visibleRun !== claimVisibilityFrom) throw new VoiceDomainError('aborted')
+      if (claimVisibilityWith !== undefined) {
+        if (this.visibilityToken !== claimVisibilityWith) {
+          await this.terminate(run, false)
+          throw new VoiceDomainError('aborted')
+        }
+        this.visibilityToken = Symbol()
         this.visibleRun = run
         this.publish(run)
       }
-      if (run.operation === operation) run.operation = undefined
       if (result.resolved) {
         run.modelId = result.resolved.modelId
         run.voice = result.resolved.voice
