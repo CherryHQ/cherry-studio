@@ -1,5 +1,3 @@
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
-
 export const DEFAULT_MAX_KEEP_ALIVE_MINI_APPS = 10
 
 export const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
@@ -10,10 +8,6 @@ export function miniAppIdFromTabUrl(url: string | undefined): string | null {
   return id || null
 }
 
-export function canPresentMiniAppSplit(primary: Tab, secondary?: Tab): boolean {
-  const primaryId = miniAppIdFromTabUrl(primary.url)
-  return (
-    primaryId !== null &&
-    (!secondary || (miniAppIdFromTabUrl(secondary.url) !== null && miniAppIdFromTabUrl(secondary.url) !== primaryId))
-  )
+export function miniAppResourceKey(appId: string): string {
+  return `miniapp:${appId}`
 }

@@ -150,8 +150,7 @@ describe('SubWindowAppShell', () => {
         icon: '🍒',
         type: 'route',
         isPinned: true,
-        metadata: undefined,
-        transferId: undefined
+        metadata: undefined
       })
     })
     expect(openTab).toHaveBeenCalledOnce()

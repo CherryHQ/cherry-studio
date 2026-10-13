@@ -1,7 +1,6 @@
 import { createContext, use } from 'react'
 
 import type { Tab, TabType } from '@shared/data/cache/cacheValueTypes'
-import type { TabTransfer } from '@shared/ipc/schemas/tab'
 
 /**
  * Options for opening a tab
@@ -9,7 +8,8 @@ import type { TabTransfer } from '@shared/ipc/schemas/tab'
 export interface OpenTabOptions {
   /** Force open a new tab even if one with the same URL exists */
   forceNew?: boolean
-  placement?: 'primary' | 'secondary'
+  /** Open or reuse a background tab without changing the active tab. */
+  activate?: boolean
   /** Tab title (defaults to URL path) */
   title?: string
   /** Tab type (defaults to 'route') */
@@ -33,9 +33,6 @@ export interface TabsContextValue {
   activeTabId: string
   activeTab: Tab | undefined
   isLoading: boolean
-  secondaryPane: { tabId: string | null } | null
-  openSecondaryPane: () => void
-  closeSecondaryPane: () => void
 
   // Basic operations
   addTab: (tab: Tab) => void
@@ -59,7 +56,7 @@ export interface TabsContextValue {
   detachTab: (tabId: string) => void
 
   // Attach (from detached window)
-  attachTab: (tabData: TabTransfer) => void
+  attachTab: (tabData: Tab) => void
 }
 
 export const TabsContext = createContext<TabsContextValue | null>(null)

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 
 import { cacheService } from '@renderer/data/CacheService'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
 import type { MiniAppInput } from '@renderer/utils/miniAppDescriptor'
@@ -26,15 +27,18 @@ function openExternalMiniAppUrl(url: string) {
 export const useMiniAppPopup = () => {
   const tabs = useOptionalTabsContext()
   const openTab = tabs?.openTab
+  const [, setSplit] = useCache('mini_app.split')
   const openMiniAppInSplit = useCallback(
     (app: MiniApp) => {
-      openTab?.(`/app/mini-app/${app.appId}`, {
+      if (!openTab) return
+      const tabId = openTab(`/app/mini-app/${app.appId}`, {
         title: app.name,
         icon: app.logoSrc ?? app.logo,
-        placement: 'secondary'
+        activate: false
       })
+      setSplit({ tabId })
     },
-    [openTab]
+    [openTab, setSplit]
   )
   const openSmartMiniApp = useCallback(
     (config: MiniAppInput) => {
@@ -48,7 +52,7 @@ export const useMiniAppPopup = () => {
     },
     [openTab]
   )
-  const openSplit = useCallback(() => tabs?.openSecondaryPane(), [tabs])
-  const closeSplit = useCallback(() => tabs?.closeSecondaryPane(), [tabs])
+  const openSplit = useCallback(() => setSplit({ tabId: null }), [setSplit])
+  const closeSplit = useCallback(() => setSplit(null), [setSplit])
   return { openMiniAppInSplit, openSmartMiniApp, openSplit, closeSplit }
 }

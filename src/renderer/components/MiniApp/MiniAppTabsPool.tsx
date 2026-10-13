@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useCommandContextKey } from '@renderer/hooks/command'
 import { useMiniAppRuntime, useMiniAppRuntimeBinding } from '@renderer/hooks/useMiniAppRuntime'
 import { ipcApi } from '@renderer/ipc'
-import { miniAppWebviewService, type MiniAppResource } from '@renderer/services/MiniAppWebviewService'
+import { webviewRuntimeService, type WebviewResource } from '@renderer/services/WebviewRuntimeService'
 import { cn } from '@renderer/utils/style'
 
 import WebviewContainer from './WebviewContainer'
@@ -15,30 +15,32 @@ function MiniAppGuest({
   split,
   onFocusChange
 }: {
-  resource: MiniAppResource
+  resource: WebviewResource
   secondary: boolean
   split: boolean
   onFocusChange: (appId: string, focused: boolean) => void
 }) {
-  const { app, instance, visible, element } = resource
+  const { key, source, instance, visible, element } = resource
+  const appId = key.slice('miniapp:'.length)
+  const kind = source.partition === 'persist:webview' ? 'site' : 'app'
   const bind = useCallback(
-    (appId: string, guest: WebviewTag | null) => miniAppWebviewService.bind(appId, instance, guest),
-    [instance]
+    (_appId: string, guest: WebviewTag | null) => webviewRuntimeService.bind(key, instance, guest),
+    [key, instance]
   )
-  const loaded = useCallback((appId: string) => miniAppWebviewService.reportLoaded(appId, instance, true), [instance])
-  const loading = useCallback((appId: string) => miniAppWebviewService.reportLoaded(appId, instance, false), [instance])
+  const loaded = useCallback(() => webviewRuntimeService.reportLoaded(key, instance, true), [key, instance])
+  const loading = useCallback(() => webviewRuntimeService.reportLoaded(key, instance, false), [key, instance])
   useEffect(() => {
-    if (!element || app.kind !== 'app') return
-    void ipcApi.request('mini_app.runtime.set_visible', { appId: app.appId, visible }).catch(() => {})
-  }, [app.appId, app.kind, element, visible])
+    if (!element || kind !== 'app') return
+    void ipcApi.request('mini_app.runtime.set_visible', { appId: appId, visible }).catch(() => {})
+  }, [appId, kind, element, visible])
   return (
     <div
       className={cn('absolute top-0 bottom-0 h-full', split ? 'w-1/2' : 'w-full', secondary ? 'left-1/2' : 'left-0')}
       style={{ display: visible ? 'block' : 'none' }}>
       <WebviewContainer
-        appid={app.appId}
-        url={app.url}
-        kind={app.kind}
+        appid={appId}
+        url={source.src}
+        kind={kind}
         onSetRefCallback={bind}
         onLoadedCallback={loaded}
         onLoadingCallback={loading}
@@ -57,7 +59,7 @@ export default function MiniAppTabsPool() {
   }, [])
   useCommandContextKey(
     'webview.focused',
-    resources.some((resource) => resource.visible && resource.app.appId === focusedAppId)
+    resources.some((resource) => resource.visible && resource.key === `miniapp:${focusedAppId}`)
   )
   return (
     <div
@@ -69,7 +71,7 @@ export default function MiniAppTabsPool() {
         <MiniAppGuest
           key={resource.instance}
           resource={resource}
-          secondary={resource.app.appId === splitMiniAppId}
+          secondary={resource.key === `miniapp:${splitMiniAppId}`}
           split={splitOpen}
           onFocusChange={handleFocus}
         />

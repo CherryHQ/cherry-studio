@@ -133,16 +133,6 @@ vi.mock('@renderer/utils/miniAppKeepAlive', async () => {
   return actual
 })
 
-vi.mock('@renderer/services/MiniAppWebviewService', () => ({
-  clearWebviewState: mocks.clearWebviewState,
-  clearAllWebviewStates: vi.fn(),
-  getWebviewLoaded: vi.fn(() => false),
-  setWebviewLoaded: vi.fn(),
-  onWebviewStateChange: vi.fn(() => () => {}),
-  waitForWebviewLoaded: vi.fn(() => Promise.resolve(false)),
-  getLoadedAppIds: vi.fn(() => [])
-}))
-
 import { AppShell } from '../AppShell'
 
 afterEach(() => {

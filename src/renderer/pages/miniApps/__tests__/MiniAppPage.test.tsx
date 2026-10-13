@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -34,11 +34,6 @@ const mocks = vi.hoisted(() => ({
   splitOpen: false,
   splitMiniAppId: '',
   updateTab: vi.fn(),
-  setWebviewLoaded: vi.fn(),
-  webviewLoaded: true,
-  webviewElements: new Map<string, Electron.WebviewTag>(),
-  webviewElementListeners: new Map<string, Set<() => void>>(),
-  webviewStateListeners: new Set<(loaded: boolean) => void>(),
   isActiveTab: true,
   currentTab: {
     id: 'launchpad-tab',
@@ -133,22 +128,6 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
-vi.mock('@renderer/services/MiniAppWebviewService', () => ({
-  getWebviewElement: (appId: string) => mocks.webviewElements.get(appId) ?? null,
-  getWebviewLoaded: () => mocks.webviewLoaded,
-  onWebviewElementChange: (appId: string, listener: () => void) => {
-    const listeners = mocks.webviewElementListeners.get(appId) ?? new Set<() => void>()
-    listeners.add(listener)
-    mocks.webviewElementListeners.set(appId, listeners)
-    return () => listeners.delete(listener)
-  },
-  onWebviewStateChange: (_appId: string, listener: (loaded: boolean) => void) => {
-    mocks.webviewStateListeners.add(listener)
-    return () => mocks.webviewStateListeners.delete(listener)
-  },
-  setWebviewLoaded: mocks.setWebviewLoaded
-}))
-
 vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ appId: mocks.appId })
 }))
@@ -184,10 +163,6 @@ describe('MiniAppPage', () => {
     mocks.openedKeepAliveMiniApps = []
     mocks.splitOpen = false
     mocks.splitMiniAppId = ''
-    mocks.webviewLoaded = true
-    mocks.webviewElements.clear()
-    mocks.webviewElementListeners.clear()
-    mocks.webviewStateListeners.clear()
     mocks.isActiveTab = true
     mocks.currentTab = {
       id: 'launchpad-tab',
@@ -235,86 +210,6 @@ describe('MiniAppPage', () => {
 
     await waitFor(() => expect(screen.getByTestId('beat-loader')).toBeInTheDocument())
     expect(screen.queryByText('miniApp.error.not_found')).not.toBeInTheDocument()
-  })
-
-  it('reloads the current mini app page without resetting it to the configured home URL', async () => {
-    const reload = vi.fn()
-    const webview = {
-      src: 'https://chat.openai.com/c/123',
-      reload,
-      isConnected: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn()
-    }
-    mocks.webviewElements.set('chatgpt', webview as unknown as Electron.WebviewTag)
-
-    const { getByTestId } = render(<MiniAppPage />)
-    fireEvent.click(getByTestId('minimal-toolbar'))
-
-    expect(reload).toHaveBeenCalledOnce()
-    expect(webview.src).toBe('https://chat.openai.com/c/123')
-  })
-  it('does not call WebView methods before the mini app has finished loading', () => {
-    mocks.webviewLoaded = false
-    const reload = vi.fn()
-    const webview = {
-      src: 'https://chat.openai.com',
-      reload,
-      isConnected: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn()
-    }
-    mocks.webviewElements.set('chatgpt', webview as unknown as Electron.WebviewTag)
-
-    const { getByTestId } = render(<MiniAppPage />)
-    fireEvent.click(getByTestId('minimal-toolbar'))
-
-    expect(reload).not.toHaveBeenCalled()
-    expect(mocks.setWebviewLoaded).not.toHaveBeenCalled()
-  })
-
-  it('drops a stale WebView after LRU eviction and waits for its replacement to load', async () => {
-    const staleReload = vi.fn()
-    const staleWebview = {
-      src: 'https://chat.openai.com/c/123',
-      reload: staleReload,
-      isConnected: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn()
-    }
-    const replacementReload = vi.fn()
-    const replacementWebview = {
-      src: 'https://chat.openai.com/c/123',
-      reload: replacementReload,
-      isConnected: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn()
-    }
-    mocks.webviewElements.set('chatgpt', staleWebview as unknown as Electron.WebviewTag)
-
-    const { getByTestId } = render(<MiniAppPage />)
-
-    act(() => {
-      mocks.webviewLoaded = false
-      staleWebview.isConnected = false
-      mocks.webviewElements.delete('chatgpt')
-      mocks.webviewStateListeners.forEach((listener) => listener(false))
-    })
-    fireEvent.click(getByTestId('minimal-toolbar'))
-
-    expect(staleReload).not.toHaveBeenCalled()
-    expect(replacementReload).not.toHaveBeenCalled()
-
-    mocks.webviewElements.set('chatgpt', replacementWebview as unknown as Electron.WebviewTag)
-    act(() => {
-      mocks.webviewLoaded = true
-      mocks.webviewStateListeners.forEach((listener) => listener(true))
-    })
-    await waitFor(() => expect(replacementWebview.addEventListener).toHaveBeenCalled())
-    fireEvent.click(getByTestId('minimal-toolbar'))
-
-    expect(staleReload).not.toHaveBeenCalled()
-    expect(replacementReload).toHaveBeenCalledOnce()
   })
 
   it('gives the host Find shortcut to exactly one pane while split', async () => {

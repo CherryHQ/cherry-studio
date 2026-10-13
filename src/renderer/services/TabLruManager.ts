@@ -53,11 +53,7 @@ export class TabLruManager {
    * @param activeTabId 当前活动标签 ID
    * @returns 需要休眠的标签 ID 数组
    */
-  checkAndGetDormantCandidates(
-    tabs: Tab[],
-    activeTabId: string,
-    visibleTabIds: ReadonlySet<string> = new Set([activeTabId])
-  ): string[] {
+  checkAndGetDormantCandidates(tabs: Tab[], activeTabId: string): string[] {
     const activeTabs = tabs.filter((t) => !t.isDormant)
     const activeCount = activeTabs.length
 
@@ -69,8 +65,8 @@ export class TabLruManager {
     const isHardCapTriggered = activeCount > this.hardCap
 
     const candidates = isHardCapTriggered
-      ? this.getHardCapCandidates(activeTabs, activeTabId).filter((tab) => !visibleTabIds.has(tab.id))
-      : this.getLRUCandidates(activeTabs, activeTabId).filter((tab) => !visibleTabIds.has(tab.id))
+      ? this.getHardCapCandidates(activeTabs, activeTabId)
+      : this.getLRUCandidates(activeTabs, activeTabId)
 
     let toHibernateCount = activeCount - this.softCap
 

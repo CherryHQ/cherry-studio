@@ -27,14 +27,6 @@ describe('TabLruManager', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
-  it('protects both visible panes even above the hard cap', () => {
-    const manager = new TabLruManager({ softCap: 1, hardCap: 2 })
-    const tabs = [createTab('primary'), createTab('secondary', { lastAccessTime: 0 }), createTab('background')]
-    expect(manager.checkAndGetDormantCandidates(tabs, 'primary', new Set(['primary', 'secondary']))).toEqual([
-      'background'
-    ])
-  })
-
   describe('checkAndGetDormantCandidates', () => {
     describe('when under soft cap', () => {
       it('should return empty array when active tabs <= softCap', () => {

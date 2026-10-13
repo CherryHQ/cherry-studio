@@ -15,7 +15,6 @@ import type { Tab, TabType } from '../data/cache/cacheValueTypes'
  */
 export type SubWindowInitData = {
   tabId: string
-  transferId?: string
   metadata?: Tab['metadata']
   url: string
   title?: string

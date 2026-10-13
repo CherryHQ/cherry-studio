@@ -32,7 +32,6 @@ vi.mock('@application', () => ({ application: applicationMock }))
 
 import {
   acknowledgeMainWindowNavigation,
-  cancelPendingTabTransfer,
   isAllowedRoute,
   markMainRendererReadyForTabAttach,
   openRouteInMainWindow,
@@ -186,17 +185,6 @@ describe('mainWindowNavigation', () => {
       // `tab.attached` listener — the event must not be dropped.
       expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith()
-    })
-
-    it('does not deliver an expired transfer after renderer readiness recovers', () => {
-      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
-      openTabInMainWindow({ ...tab, transferId: 'expired' })
-      cancelPendingTabTransfer('expired')
-      openTabInMainWindow({ ...tab, id: 'survivor', transferId: 'current' })
-      markMainRendererReadyForTabAttach('main-1')
-      expect(ipcApiServiceMock.send.mock.calls).toEqual([
-        ['main-1', 'tab.attached', { ...tab, id: 'survivor', transferId: 'current' }]
-      ])
     })
 
     it('flushes queued tabs once the renderer reports ready', () => {

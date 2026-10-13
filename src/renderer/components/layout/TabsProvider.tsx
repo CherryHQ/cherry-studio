@@ -20,7 +20,6 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
-import type { TabTransfer } from '@shared/ipc/schemas/tab'
 
 const logger = loggerService.withContext('TabsProvider')
 
@@ -201,15 +200,13 @@ type TabsProviderProps = {
   initialDefaultTab?: Tab | null
   includePinnedTabs?: boolean
   closeWindowOnEmpty?: boolean
-  canPresentSecondary?: (primary: Tab, secondary?: Tab) => boolean
 }
 
 export function TabsProvider({
   children,
   initialDefaultTab = DEFAULT_TAB,
   includePinnedTabs = true,
-  closeWindowOnEmpty = false,
-  canPresentSecondary = () => true
+  closeWindowOnEmpty = false
 }: TabsProviderProps) {
   // Route-derived tab titles are localized, so recompute them on language change.
   const { i18n } = useTranslation()
@@ -321,51 +318,19 @@ export function TabsProvider({
     projectedTabsRef.current = tabs
   }, [tabs])
 
-  const [secondarySelection, setSecondarySelection] = useState<{ tabId: string | null } | null>(null)
-  const secondaryRef = useRef(secondarySelection)
-  const setSecondary = useCallback((next: { tabId: string | null } | null) => {
-    secondaryRef.current = next
-    setSecondarySelection(next)
+  const applyTabLimit = useCallback((nextTabs: Tab[], nextActiveTabId: string) => {
+    const awake = nextTabs.map((tab) =>
+      tab.id === nextActiveTabId && tab.isDormant ? { ...tab, isDormant: false } : tab
+    )
+    const hibernatedIds = new Set(lruManagerRef.current!.checkAndGetDormantCandidates(awake, nextActiveTabId))
+    const prepared = awake.map((tab) => hibernateTab(tab, hibernatedIds))
+    projectedTabsRef.current = prepared
+    return prepared
   }, [])
-  const closeSecondaryPane = useCallback(() => setSecondary(null), [setSecondary])
-  const openSecondaryPane = useCallback(() => setSecondary({ tabId: null }), [setSecondary])
-  const visibleSecondary = useCallback(
-    (nextTabs: Tab[], primaryId: string) => {
-      const selection = secondaryRef.current
-      const primary = nextTabs.find((tab) => tab.id === primaryId)
-      const secondary = nextTabs.find((tab) => tab.id === selection?.tabId)
-      if (!selection || !primary || (selection.tabId && !secondary) || secondary?.id === primaryId) return null
-      return canPresentSecondary(primary, secondary) ? selection : null
-    },
-    [canPresentSecondary]
-  )
-  const secondaryPane = visibleSecondary(tabs, activeTabId)
-
-  const prepareTabsForCommit = useCallback(
-    (nextTabs: Tab[], nextActiveTabId: string) => {
-      const selection = secondaryRef.current
-      if (
-        selection?.tabId &&
-        (!nextTabs.some((tab) => tab.id === selection.tabId) || selection.tabId === nextActiveTabId)
-      ) {
-        setSecondary(null)
-      }
-      const secondary = visibleSecondary(nextTabs, nextActiveTabId)
-      const visible = new Set([nextActiveTabId, ...(secondary?.tabId ? [secondary.tabId] : [])])
-      const awake = nextTabs.map((tab) => (visible.has(tab.id) && tab.isDormant ? { ...tab, isDormant: false } : tab))
-      const hibernatedIds = new Set(
-        lruManagerRef.current!.checkAndGetDormantCandidates(awake, nextActiveTabId, visible)
-      )
-      const prepared = awake.map((tab) => hibernateTab(tab, hibernatedIds))
-      projectedTabsRef.current = prepared
-      return prepared
-    },
-    [setSecondary, visibleSecondary]
-  )
 
   const commitTabs = useCallback(
     (nextTabs: Tab[], primaryId: string) => {
-      const prepared = prepareTabsForCommit(nextTabs, primaryId)
+      const prepared = applyTabLimit(nextTabs, primaryId)
       const normal = prepared.filter((tab) => !storesPinned(tab))
       setNormalTabs((prev) => (isEqual(prev, normal) ? prev : normal))
       if (includePinnedTabs) {
@@ -374,17 +339,17 @@ export function TabsProvider({
       }
       setActiveTabId(primaryId)
     },
-    [prepareTabsForCommit, storesPinned, includePinnedTabs, setPinnedTabs, setActiveTabId]
+    [applyTabLimit, storesPinned, includePinnedTabs, setPinnedTabs, setActiveTabId]
   )
 
-  // Reconcile external persisted-cache changes through the same visible-page budget.
+  // Reconcile external persisted-cache changes through the same route-page budget.
   useEffect(() => {
-    const prepared = prepareTabsForCommit(tabs, activeTabId)
+    const prepared = applyTabLimit(tabs, activeTabId)
     if (prepared.every((tab, index) => tab === tabs[index])) return
     const changed = prepared.filter((tab, index) => tab !== tabs[index])
     if (changed.some((tab) => !storesPinned(tab))) setNormalTabs(prepared.filter((tab) => !storesPinned(tab)))
     if (includePinnedTabs && changed.some(storesPinned)) setPinnedTabs(prepared.filter(storesPinned))
-  }, [tabs, activeTabId, secondarySelection, prepareTabsForCommit, storesPinned, includePinnedTabs, setPinnedTabs])
+  }, [tabs, activeTabId, applyTabLimit, storesPinned, includePinnedTabs, setPinnedTabs])
 
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {
@@ -422,9 +387,8 @@ export function TabsProvider({
   )
 
   const addTab = useCallback(
-    (tab: Tab, placement: 'primary' | 'secondary' = 'primary') => {
-      const primaryId = placement === 'secondary' ? activeTabIdRef.current : tab.id
-      if (placement === 'secondary') setSecondary({ tabId: tab.id })
+    (tab: Tab, activate = true) => {
+      const primaryId = activate ? tab.id : activeTabIdRef.current
       const exists = projectedTabsRef.current.some((item) => item.id === tab.id)
       const refreshed = { ...tab, lastAccessTime: Date.now(), isDormant: false }
       const next = exists
@@ -432,7 +396,7 @@ export function TabsProvider({
         : [...projectedTabsRef.current, refreshed]
       commitTabs(next, primaryId)
     },
-    [commitTabs, setSecondary]
+    [commitTabs]
   )
 
   const closeTabs = useCallback(
@@ -494,12 +458,12 @@ export function TabsProvider({
    */
   const openTab = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned, placement = 'primary' } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned, activate = true } = options
 
       if (!forceNew) {
         const existingTab = projectedTabsRef.current.find((t) => t.type === type && t.url === url)
         if (existingTab) {
-          addTab(existingTab, placement)
+          addTab(existingTab, activate)
           return existingTab.id
         }
       }
@@ -516,7 +480,7 @@ export function TabsProvider({
         isDormant: false
       }
 
-      addTab(newTab, placement)
+      addTab(newTab, activate)
       return newTab.id
     },
     [addTab]
@@ -613,53 +577,16 @@ export function TabsProvider({
   /**
    * Attach a tab from detached window
    */
-  const pendingReceipts = useRef(new Map<string, { tabId: string; created: boolean }>())
-  const [receiptVersion, setReceiptVersion] = useState(0)
   const attachTab = useCallback(
-    (tabData: TabTransfer) => {
-      const { transferId, ...tab } = tabData
-      const exists = projectedTabsRef.current.find((t) => t.id === tab.id)
-      if (transferId) {
-        pendingReceipts.current.set(transferId, { tabId: tab.id, created: !exists })
-        setReceiptVersion((version) => version + 1)
+    (tab: Tab) => {
+      if (projectedTabsRef.current.some((existing) => existing.id === tab.id)) {
+        setActiveTab(tab.id)
+      } else {
+        addTab(tab)
       }
-      if (exists) {
-        setActiveTab(tabData.id)
-        logger.info('Tab already exists, activating', { tabId: tabData.id })
-        return
-      }
-
-      // Restore tab with updated timestamp. addTab applies the shared awake budget
-      // before the attached route can be committed.
-      const restoredTab: Tab = {
-        ...tab,
-        lastAccessTime: Date.now(),
-        isDormant: false
-      }
-
-      addTab(restoredTab)
-      logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
     },
     [addTab, setActiveTab]
   )
-
-  useEffect(() => {
-    for (const [transferId, { tabId, created }] of pendingReceipts.current) {
-      if (!tabs.some((tab) => tab.id === tabId)) continue
-      pendingReceipts.current.delete(transferId)
-      void ipcApi
-        .request('tab.received', { transferId, tabId })
-        .then((accepted) => {
-          if (!accepted && created) closeTabs([tabId])
-        })
-        .catch((error) => logger.error('Tab receipt failed', error))
-    }
-    if (!includePinnedTabs)
-      void ipcApi.request(
-        'tab.sync_owners',
-        tabs.map((tab) => tab.id)
-      )
-  }, [tabs, includePinnedTabs, receiptVersion, closeTabs])
 
   // Listen for tab attach requests (from Main Process)
   useIpcOn('tab.attached', (tabData) => attachTab(tabData))
@@ -677,9 +604,6 @@ export function TabsProvider({
     activeTabId,
     activeTab,
     isLoading: false,
-    secondaryPane,
-    openSecondaryPane,
-    closeSecondaryPane,
 
     // Basic operations
     addTab,

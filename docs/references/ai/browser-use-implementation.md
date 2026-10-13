@@ -1241,16 +1241,24 @@ an instance token so a retired guest cannot overwrite a reopened app's readiness
 
 MiniApp pages, including split selections and transient apps, open through tabs. The secondary pane
 references a tab ID; collapsing it preserves that tab. A window shares one guest per app ID until
-its last tab closes, all owners become dormant, or capacity evicts an unprotected background guest.
+its last tab closes or capacity evicts an unprotected background guest. Route-page dormancy does
+not release the guest: TabLruManager controls React page caching only.
 Both visible panes are exempt from eviction. Evicted background guests remain absent until shown
 again. Pool DOM order stays stable while recency changes; the pool lives outside page Activities.
 Catalog deletion and runtime eviction close all matching tabs; region/edition filtering does not.
 
-Main and detached windows use the same tab strip and resource projection. A transfer closes only
-the selected source tab after the destination acknowledges its committed tab. Timeout preserves the
-source, removes queued delivery and closes a failed detached destination; expired receipts reject
-newly materialized tabs. Other tabs in a detached window remain usable, and closing its last tab
-closes that window. Window-local tab closure does not invoke global app shutdown or clear storage.
+Renderer `WebviewRuntimeService` owns MiniApp guest records, loading state and capacity eviction.
+It consumes resource keys, sources, visibility and eviction protection, without importing Tab or
+MiniApp business types. MiniApp binding derives these inputs from the full tab list; split selection
+is renderer-local layout state. MiniAppTabsPool renders the resulting records outside Activity,
+while WebviewContainer retains local-app preparation and business preferences. Ordinary Browser
+and Agent guest residency are not yet migrated to this resource service.
+
+Main and detached windows use the same tab strip and resource projection. Returning a tab removes
+only the selected source tab after the existing delivery IPC succeeds; other tabs remain usable,
+and removing the last tab closes the detached window. Delivery does not wait for a destination
+renderer receipt, so this is not a transactional cross-window transfer. Window-local tab closure
+does not invoke global app shutdown or clear storage.
 
 `useWebviewNavigation` binds navigation state to the concrete guest and revision. It shares back /
 forward state, main-frame URL tracking and address draft preservation across both toolbars. Guest

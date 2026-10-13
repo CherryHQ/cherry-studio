@@ -150,6 +150,7 @@ export type UseCacheSchema = {
 
   // MiniApp management
   'mini_app.detected_region': MiniAppRegion | null
+  'mini_app.split': { tabId: string | null } | null
 
   // Topic management
   'topic.renaming': string[]
@@ -239,6 +240,7 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // MiniApp management
   'mini_app.detected_region': null,
+  'mini_app.split': null,
 
   // Topic management
   'topic.renaming': [],

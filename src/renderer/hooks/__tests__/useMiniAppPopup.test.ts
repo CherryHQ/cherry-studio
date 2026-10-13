@@ -3,7 +3,6 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMiniAppPopup } from '../useMiniAppPopup'
-import { createMiniApp } from './fixtures/miniApp'
 
 const mocks = vi.hoisted(() => ({ openTab: vi.fn(), request: vi.fn(async () => {}), hasContext: true }))
 vi.mock('@renderer/hooks/tab', () => ({
@@ -17,12 +16,6 @@ beforeEach(() => {
 })
 
 describe('MiniApp navigation', () => {
-  it('opens a real background tab when selecting the secondary pane', () => {
-    const { result } = renderHook(useMiniAppPopup)
-    act(() => result.current.openMiniAppInSplit(createMiniApp('b')))
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/b', expect.objectContaining({ placement: 'secondary' }))
-  })
-
   it('publishes the latest transient descriptor for detached windows before opening its tab', () => {
     const { result } = renderHook(useMiniAppPopup)
     const config = { appId: 'transient', name: 'Preview', url: 'https://example.com/one' }

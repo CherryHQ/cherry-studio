@@ -12,7 +12,6 @@ import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
-import { canPresentMiniAppSplit } from '@renderer/utils/miniAppKeepAlive'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 
 // Headless behavior leaf inside the providers: the shared window runtime (same route
@@ -42,11 +41,7 @@ function SubWindowApp(): React.ReactElement {
         <CodeStyleProvider>
           <CommandContextKeyProvider>
             <CommandProvider>
-              <TabsProvider
-                canPresentSecondary={canPresentMiniAppSplit}
-                initialDefaultTab={null}
-                includePinnedTabs={false}
-                closeWindowOnEmpty>
+              <TabsProvider initialDefaultTab={null} includePinnedTabs={false} closeWindowOnEmpty>
                 <SubWindowAppShell />
                 <SubWindowRuntime />
                 <ConversationNotificationRuntime />

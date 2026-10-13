@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto'
-
 import { BrowserWindow, ipcMain, type IpcMainEvent, nativeImage, nativeTheme } from 'electron'
 
 import { application } from '@application'
@@ -10,7 +8,7 @@ import { validateSender } from '@main/core/security/validateSender'
 import { syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
-import { cancelPendingTabTransfer, openTabInMainWindow } from '@main/services/mainWindowNavigation'
+import { openTabInMainWindow } from '@main/services/mainWindowNavigation'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -186,7 +184,6 @@ export class SubWindowService extends BaseService {
     x?: number
     y?: number
     metadata?: Tab['metadata']
-    transferId?: string
   }): string {
     const wm = application.get('WindowManager')
     const { id: tabId, url, title, icon, type, isPinned, x, y } = payload
@@ -202,8 +199,7 @@ export class SubWindowService extends BaseService {
       ...(icon && { icon }),
       type: type === 'route' || type === 'webview' ? type : 'route',
       isPinned,
-      metadata: payload.metadata,
-      transferId: payload.transferId
+      metadata: payload.metadata
     }
 
     // Dynamic options injected per-call (registry carries platform-static defaults only).
@@ -269,84 +265,15 @@ export class SubWindowService extends BaseService {
     return senderId != null && application.get('WindowManager').getWindowType(senderId) === WindowType.SubWindow
   }
 
-  private readonly transfers = new Map<
-    string,
-    {
-      tabId: string
-      windowId?: string
-      finish: (error?: Error) => void
-    }
-  >()
-
-  private transfer(tabId: string, deliver: (transferId: string) => string): Promise<void> {
-    if ([...this.transfers.values()].some((pending) => pending.tabId === tabId)) {
-      return Promise.reject(new Error('Tab transfer is already pending'))
-    }
-    const transferId = randomUUID()
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => finish(new Error('Tab transfer timed out')), 10_000)
-      timer.unref()
-      const finish = (error?: Error) => {
-        clearTimeout(timer)
-        this.transfers.delete(transferId)
-        if (error) {
-          cancelPendingTabTransfer(transferId)
-          reject(error)
-        } else resolve()
-      }
-      const pending = { tabId, windowId: undefined as string | undefined, finish }
-      this.transfers.set(transferId, pending)
-      try {
-        pending.windowId = deliver(transferId)
-      } catch (error) {
-        finish(error as Error)
-      }
-    })
+  public detachTab(payload: Parameters<SubWindowService['createWindow']>[0]): void {
+    const windowId = this.createWindow(payload)
+    application.get('WindowManager').getWindow(windowId)?.show()
   }
 
-  public detachTab(payload: Parameters<SubWindowService['createWindow']>[0]): Promise<void> {
-    let windowId: string | undefined
-    return this.transfer(payload.id, (transferId) => {
-      windowId = this.createWindow({ ...payload, transferId })
-      return windowId
-    })
-      .then(() => {
-        if (windowId) application.get('WindowManager').getWindow(windowId)?.show()
-      })
-      .catch((error) => {
-        if (windowId) application.get('WindowManager').close(windowId)
-        throw error
-      })
-  }
-
-  public attachTab(tab: Tab, senderId: WindowId | null): Promise<void> {
-    if (!this.isSubWindowSender(senderId)) return Promise.reject(new Error('Only a detached window can return a tab'))
-    return this.transfer(tab.id, (transferId) => {
-      openTabInMainWindow({ ...tab, transferId })
-      const wm = application.get('WindowManager')
-      const main = wm.getWindowsByType(WindowType.Main)[0]
-      const id = main && wm.getWindowId(main)
-      if (!id) throw new Error('Main window is unavailable')
-      return id
-    })
-  }
-
-  public receiveTab(payload: { transferId: string; tabId: string }, senderId: WindowId | null): boolean {
-    const pending = this.transfers.get(payload.transferId)
-    if (!pending || pending.windowId !== senderId || pending.tabId !== payload.tabId) return false
-    pending.finish()
-    return true
-  }
-
-  public syncTabOwners(ids: string[], senderId: WindowId | null): void {
-    if (!this.isSubWindowSender(senderId)) return
-    for (const [id, owner] of this.tabIdToWindowId)
-      if (owner === senderId && !ids.includes(id)) this.tabIdToWindowId.delete(id)
-    for (const id of ids) this.tabIdToWindowId.set(id, senderId)
-  }
-
-  protected async onStop(): Promise<void> {
-    for (const transfer of this.transfers.values()) transfer.finish(new Error('Tab service stopped'))
+  public attachTab(tab: Tab, senderId: WindowId | null): void {
+    if (!this.isSubWindowSender(senderId)) throw new Error('Only a detached window can return a tab')
+    openTabInMainWindow(tab)
+    this.tabIdToWindowId.delete(tab.id)
   }
 
   /**
