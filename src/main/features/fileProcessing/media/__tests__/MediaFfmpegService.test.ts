@@ -232,6 +232,25 @@ describe('MediaFfmpegService dispatch', () => {
     )
   })
 
+  it('dispatches scene detection through the utility-process contract', async () => {
+    runtime.request.mockResolvedValue({ changes: [] })
+    await expect(
+      service!.detectSceneChanges({
+        filePath: '/clip.mp4',
+        durationMs: 1_000,
+        sampleFps: 8,
+        scoreThreshold: 0.3,
+        scanEdgePx: 160,
+        maxCandidates: 16
+      })
+    ).resolves.toEqual({ changes: [] })
+    expect(runtime.request).toHaveBeenCalledWith(
+      'detectSceneChanges',
+      expect.objectContaining({ filePath: '/clip.mp4', sampleFps: 8, pidRegistryPath: expect.any(String) }),
+      { signal: undefined }
+    )
+  })
+
   it.each(['worker crash', 'caller abort'])('waits for an orphaned child to exit after %s', async (failureMode) => {
     const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
     const exited = waitForExit(child)
