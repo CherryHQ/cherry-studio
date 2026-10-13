@@ -6,6 +6,7 @@ import { Button, Input } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { DictationErrorCategory, DictationPhase } from '@renderer/services/voice'
 import type { Model } from '@shared/data/types/model'
@@ -83,6 +84,16 @@ const InputBar = ({
 
   const markDictationTarget = () => {
     if (dictationTargetId) voiceTargetManager.markCurrent(dictationTargetId)
+  }
+
+  const insertRecovery = () => {
+    if (
+      !dictationTargetId ||
+      !voiceTargetManager.markCurrent(dictationTargetId) ||
+      dictationService.insertRecovery() === 'unavailable'
+    ) {
+      toast.error(t('settings.voice.status.operation_failed'))
+    }
   }
 
   const dictationStatus =
@@ -200,7 +211,7 @@ const InputBar = ({
             variant="ghost"
             size="icon-sm"
             aria-label={t('settings.voice.action.insert_recovery')}
-            onClick={() => dictationService.insertRecovery()}>
+            onClick={insertRecovery}>
             <CornerDownLeft className="size-4" />
           </Button>
           <Button
