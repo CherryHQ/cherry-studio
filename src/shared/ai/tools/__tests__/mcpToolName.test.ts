@@ -4,6 +4,7 @@ import {
   buildFunctionCallToolName,
   buildMcpToolName,
   generateMcpToolFunctionName,
+  migrateAgentDisabledToolsForServerRename,
   migrateDisabledToolsForServerRename,
   parseFunctionCallToolName,
   toCamelCase,
@@ -470,5 +471,109 @@ describe('migrateDisabledToolsForServerRename', () => {
 
   it('returns undefined for non-renames', () => {
     expect(migrateDisabledToolsForServerRename(['mcp__docs__run'], 'docs', 'docs')).toBeUndefined()
+  })
+})
+
+describe('migrateAgentDisabledToolsForServerRename', () => {
+  const RESERVED = ['skills', 'assistant', 'agent-memory']
+
+  it('leaves rules alone when the agent does not mount the renamed server', () => {
+    // Two servers named `docs` exist and the agent mounts neither `srv-b`: renaming `srv-b`
+    // must not steal `mcp__docs__run`, which belongs to the mounted server or to nothing.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__docs__run', 'mcp__other__run'], {
+        mountedServers: [{ mcpId: 'srv-a', name: 'docs' }],
+        renamedServerId: 'srv-b',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toBeUndefined()
+  })
+
+  it('keeps the first claimant of a duplicate name and migrates only the renamed server', () => {
+    // A and B are both named `docs`; A mounts first and claims `docs`, B falls back to its id.
+    // Renaming B to `github` rewrites B's id-keyed rule onto `github` and leaves A's `docs`
+    // denial — and `other`'s — untouched.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__docs__run', 'mcp__srv-b__run', 'mcp__other__run'], {
+        mountedServers: [
+          { mcpId: 'srv-a', name: 'docs' },
+          { mcpId: 'srv-b', name: 'docs' }
+        ],
+        renamedServerId: 'srv-b',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__docs__run', 'mcp__github__run', 'mcp__other__run'])
+  })
+
+  it('rewrites onto the post-rename allocation, including the id fallback for reserved names', () => {
+    // Renaming `docs` onto the reserved `skills` key: the allocator falls back to the server
+    // id, so the saved rule must follow to `mcp__<id>__run`, not onto the unwritable name.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__docs__run', 'mcp__other__run'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
+        renamedServerId: 'srv-1',
+        toName: 'skills',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__srv-1__run', 'mcp__other__run'])
+  })
+
+  it('keeps id-keyed rules that still resolve after a name-keyed fallback appears', () => {
+    // Renaming into a name claimed by a sibling keeps the renamed server on its id; its saved
+    // id-keyed rules already name the pair exactly and the key is unchanged.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__srv-1__run'], {
+        mountedServers: [
+          { mcpId: 'srv-1', name: 'docs' },
+          { mcpId: 'srv-2', name: 'github' }
+        ],
+        renamedServerId: 'srv-1',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toBeUndefined()
+  })
+
+  it('copies lossy-hashed entries onto the new lossy base, keeping the original', () => {
+    // `Old server` registers lossy (`mcp__oldServer__run_<hash>`); the hash binds the old pair,
+    // so the rename copies the entry onto the new lossy base and keeps the original (which can
+    // simultaneously be another server's exact denial). The runtime's stripped-base lookup
+    // resolves the copy onto the renamed pair.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__oldServer__run_4f7413c24ae4', 'mcp__Old server__other'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'Old server' }],
+        renamedServerId: 'srv-1',
+        toName: 'New server',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__oldServer__run_4f7413c24ae4', 'mcp__newServer__run_4f7413c24ae4', 'mcp__New server__other'])
+  })
+
+  it('truncates the copied lossy base to the allocator cap with the hash tail intact', () => {
+    // A long tool name truncates the base at 50 chars; the copy must land on the same
+    // truncated base the runtime indexes for the renamed pair.
+    const longTool = 'a'.repeat(40)
+    const entry = `mcp__oldServer__${longTool.slice(0, 34)}_4f7413c24ae4`
+    expect(
+      migrateAgentDisabledToolsForServerRename([entry], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'Old server' }],
+        renamedServerId: 'srv-1',
+        toName: 'New server',
+        reservedKeys: RESERVED
+      })
+    ).toEqual([entry, `mcp__newServer__${longTool.slice(0, 34)}_4f7413c24ae4`])
+  })
+
+  it('returns undefined when nothing changed', () => {
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__other__run'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
+        renamedServerId: 'srv-1',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toBeUndefined()
   })
 })

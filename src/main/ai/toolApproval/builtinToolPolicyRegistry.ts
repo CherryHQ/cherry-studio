@@ -37,22 +37,17 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+// Shared home (with the other built-in MCP server names) so the data layer can reserve these
+// keys when mirroring the runtime's server-key allocation; re-exported to keep this registry
+// the policy-side canonical import path.
+import { CHERRY_MCP_SERVER } from '@shared/utils/mcp'
 
 import { listBrowserToolPolicies } from './browserToolPolicy'
 
+export { CHERRY_MCP_SERVER }
+
 export type BuiltinToolApproval = 'auto' | 'required'
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
-
-/** The Cherry-owned MCP servers. Which of them a session mounts is the runtime's call. */
-export const CHERRY_MCP_SERVER = {
-  CHERRY_TOOLS: 'cherry-tools',
-  BROWSER: 'browser',
-  AGENT_MEMORY: 'agent-memory',
-  SKILLS: 'skills',
-  MCP_MANAGER: 'mcp-manager',
-  ASSISTANT: 'assistant',
-  ASSISTANT_FILES: 'assistant-files'
-} as const
 
 export interface BuiltinToolPolicyEntry {
   readonly serverName: string

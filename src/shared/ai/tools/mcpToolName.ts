@@ -322,3 +322,118 @@ export function migrateDisabledToolsForServerRename(
   })
   return changed ? migrated : undefined
 }
+
+/** One mounted server a key allocation sees: the mounted reference (id) and its configured name. */
+export interface MountedServerRef {
+  mcpId: string
+  name?: string
+}
+
+/**
+ * Allocate each mounted server's runtime record key — the exact policy the agent runtime applies
+ * when registering servers (built-ins and mounted ids reserved up front, configured name when
+ * free, id fallback otherwise, allocation order breaking duplicate-name ties). Shared single
+ * source so rename migration derives the same old and new identities the runtime will register,
+ * instead of re-guessing them from the raw configured names.
+ */
+export function allocateMountedServerKeys(
+  servers: ReadonlyArray<MountedServerRef>,
+  reservedKeys: readonly string[]
+): Map<string, string> {
+  const taken = new Set<string>(reservedKeys)
+  const keys = new Map<string, string>()
+  for (const { mcpId, name } of servers) {
+    const serverName = name && !taken.has(sanitizeAgentServerKey(name)) ? name : mcpId
+    const key = sanitizeAgentServerKey(serverName) || sanitizeAgentServerKey(mcpId)
+    taken.add(key)
+    keys.set(mcpId, key)
+  }
+  return keys
+}
+
+export interface AgentServerRenameMigrationInput {
+  /**
+   * This agent's mounted servers with their configured (pre-rename) names, in mount order —
+   * allocation order decides who owns a duplicated name.
+   */
+  mountedServers: ReadonlyArray<MountedServerRef>
+  /** The server being renamed; must be one of `mountedServers` for the rules to be touched. */
+  renamedServerId: string
+  /** The name the server takes on. */
+  toName: string
+  /** Keys no user server may claim (built-in server names plus the sanitized mounted ids). */
+  reservedKeys: readonly string[]
+}
+
+/**
+ * Migrate one agent's saved denial rules after a mounted server was renamed. Unlike
+ * {@link migrateDisabledToolsForServerRename} (server-level rules keyed by the configured name),
+ * agent rules follow the runtime allocation: only the renamed server's own rules move, and onto
+ * the key the allocator will actually hand out after the rename — the id when the new name is
+ * reserved or taken by a sibling. An agent that does not mount the renamed server keeps its
+ * rules untouched: duplicate names are accepted, so a bare name match would steal a denial
+ * owned by a different server and let the originally disabled tool execute.
+ *
+ * Lossy-hashed entries (`mcp__<camelized old name>__<tool>_<hash>`) cannot be rewritten onto
+ * the pair — the hash binds the old name. They are copied onto the new lossy base with the
+ * hash tail intact: the runtime's stripped-base lookup indexes
+ * `buildDshCherryToolName(<new key>, tool).slice(0, 50)` for every live tool, which is exactly
+ * what the tail-stripped copy lands on. Copying (not replacing) keeps the original string's
+ * registered candidates: it can simultaneously be another mounted server's exact denial.
+ * Entries whose saved form was truncated before the tool part can be isolated (truncation cut
+ * into the server segment, or the retained prefix is shorter than the renamed base) are
+ * unrecoverable and pass through unchanged.
+ */
+export function migrateAgentDisabledToolsForServerRename(
+  disabledTools: readonly string[],
+  input: AgentServerRenameMigrationInput
+): string[] | undefined {
+  const fromKey = allocateMountedServerKeys(input.mountedServers, input.reservedKeys).get(input.renamedServerId)
+  // Not mounted here: nothing of this server's is owned by the agent.
+  if (fromKey === undefined) return undefined
+  const toKey = allocateMountedServerKeys(
+    input.mountedServers.map((server) =>
+      server.mcpId === input.renamedServerId ? { ...server, name: input.toName } : server
+    ),
+    input.reservedKeys
+  ).get(input.renamedServerId)
+  if (toKey === undefined || toKey === fromKey) return undefined
+
+  const fromLossy = toCamelCase(fromKey)
+  // The lossy form only carries separate information when normalization changed the name
+  // (`Old server` → `oldServer`); otherwise every entry already sits on the plain key.
+  const lossyApplies = fromLossy !== fromKey
+  const toLossy = toCamelCase(toKey)
+
+  let changed = false
+  const seen = new Set(disabledTools)
+  const migrated: string[] = []
+  for (const entry of disabledTools) {
+    let replacement: string | undefined
+    let keepOriginal = false
+    if (entry.startsWith('mcp__')) {
+      const rest = entry.slice('mcp__'.length)
+      const delimiterIndex = rest.indexOf('__')
+      if (delimiterIndex > 0) {
+        const serverPart = rest.slice(0, delimiterIndex)
+        const toolPart = rest.slice(delimiterIndex + 2)
+        if (serverPart === fromKey) {
+          replacement = `mcp__${toKey}__${toolPart}`
+        } else if (lossyApplies && serverPart === fromLossy && /_[0-9a-f]{12}$/.test(toolPart)) {
+          const tailIndex = toolPart.length - 13
+          replacement = `mcp__${toLossy}__${toolPart.slice(0, tailIndex)}`.slice(0, 50) + toolPart.slice(tailIndex)
+          keepOriginal = true
+        }
+      }
+    }
+    if (replacement !== undefined && replacement !== entry && !seen.has(replacement)) {
+      seen.add(replacement)
+      changed = true
+      if (keepOriginal) migrated.push(entry)
+      migrated.push(replacement)
+      continue
+    }
+    migrated.push(entry)
+  }
+  return changed ? migrated : undefined
+}

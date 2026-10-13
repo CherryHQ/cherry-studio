@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { McpServerService, mcpServerService } from '@data/services/McpServerService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
@@ -185,6 +186,7 @@ describe('McpServerService', () => {
           disabledTools: ['mcp__other__run']
         }
       ])
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-1' })
 
       mcpServerService.update('srv-1', { name: 'github' })
 
@@ -192,7 +194,73 @@ describe('McpServerService', () => {
       // The `docs`-keyed rule follows the rename; the other server's rule is untouched.
       expect(renamed.disabledTools).toEqual(['mcp__github__run', 'mcp__other__run'])
       const [untouched] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-2'))
+      // agent-2 does not mount the server: a name match alone must never steal its rules.
       expect(untouched.disabledTools).toEqual(['mcp__other__run'])
+    })
+
+    it('leaves rules of agents that mount a same-named sibling untouched when the unmounted server is renamed', async () => {
+      // Duplicate names are accepted: `srv-a` and `srv-b` are both named `docs` and the agent
+      // mounts only `srv-a`. Renaming unmounted `srv-b` must not rewrite the agent's
+      // `mcp__docs__run`, which names the mounted server's tool.
+      await seedServer({ id: 'srv-a', name: 'docs' })
+      await seedServer({ id: 'srv-b', name: 'docs' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'mounts-a',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run', 'mcp__other__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-a' })
+
+      mcpServerService.update('srv-b', { name: 'github' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__other__run'])
+    })
+
+    it('follows the post-rename allocation when the new name is reserved', async () => {
+      // `skills` is a built-in key: the runtime falls back to the server id, so the saved rule
+      // must follow onto `mcp__<id>__run`, not onto a name no tool will ever register under.
+      await seedServer({ id: 'srv-1', name: 'docs' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-1' })
+
+      mcpServerService.update('srv-1', { name: 'skills' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      expect(agent.disabledTools).toEqual(['mcp__srv-1__run'])
+    })
+
+    it('copies lossy-hashed rules onto the new lossy base when a normalized name is renamed', async () => {
+      // `Old server` registers lossy (`mcp__oldServer__run_<hash>`); the hash binds the old
+      // name, so the rename copies the entry onto the new lossy base and keeps the original.
+      await seedServer({ id: 'srv-1', name: 'Old server' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__oldServer__run_4f7413c24ae4']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-1' })
+
+      mcpServerService.update('srv-1', { name: 'New server' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      expect(agent.disabledTools).toEqual(['mcp__oldServer__run_4f7413c24ae4', 'mcp__newServer__run_4f7413c24ae4'])
     })
 
     it('should throw NOT_FOUND when updating non-existent server', () => {

@@ -10,14 +10,19 @@ import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
-import { migrateDisabledToolsForServerRename } from '@shared/ai/tools/mcpToolName'
+import {
+  migrateAgentDisabledToolsForServerRename,
+  migrateDisabledToolsForServerRename,
+  sanitizeAgentServerKey
+} from '@shared/ai/tools/mcpToolName'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
+import { BuiltinMcpServerNames, CHERRY_MCP_SERVER } from '@shared/utils/mcp'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -174,7 +179,7 @@ export class McpServerService {
       // A rename reallocates the server's runtime record key, orphaning saved
       // `mcp__<old-key>__<tool>` denial rules: the exact-match policy would let the previously
       // disabled tool execute under the new identity. Migrate the server's own rules and every
-      // agent's in the same transaction.
+      // mounting agent's in the same transaction.
       if (dto.name !== undefined && dto.name !== existing.name) {
         const migratedServerRules = migrateDisabledToolsForServerRename(
           existing.disabledTools ?? [],
@@ -183,9 +188,44 @@ export class McpServerService {
         )
         if (migratedServerRules) updates.disabledTools = migratedServerRules
 
-        const agents = tx.select().from(agentTable).all()
+        // Only agents that mount the renamed server carry its denial rules. Duplicate names are
+        // accepted, so a blanket name match would steal a rule owned by a different server —
+        // including one still exposing the tool the rule was written for.
+        const mountedBy = tx
+          .select({ agentId: agentMcpServerTable.agentId })
+          .from(agentMcpServerTable)
+          .where(eq(agentMcpServerTable.mcpServerId, id))
+          .all()
+        const mountedAgentIds = new Set(mountedBy.map(({ agentId }) => agentId))
+        const agents = mountedAgentIds.size > 0 ? tx.select().from(agentTable).all() : []
         for (const agent of agents) {
-          const migrated = migrateDisabledToolsForServerRename(agent.disabledTools ?? [], existing.name, name)
+          if (!mountedAgentIds.has(agent.id)) continue
+          // Pre-rename mount list with configured names: allocation order decides who owns a
+          // duplicated name, mirroring resolveMountedAgentMcpServers.
+          const mountedServers = tx
+            .select({ mcpServerId: agentMcpServerTable.mcpServerId })
+            .from(agentMcpServerTable)
+            .where(eq(agentMcpServerTable.agentId, agent.id))
+            .orderBy(asc(agentMcpServerTable.createdAt))
+            .all()
+            .flatMap(({ mcpServerId }) => {
+              const [mountedRow] = tx
+                .select({ name: mcpServerTable.name })
+                .from(mcpServerTable)
+                .where(eq(mcpServerTable.id, mcpServerId))
+                .limit(1)
+                .all()
+              return mountedRow ? [{ mcpId: mcpServerId, name: mountedRow.name }] : [{ mcpId: mcpServerId }]
+            })
+          const migrated = migrateAgentDisabledToolsForServerRename(agent.disabledTools ?? [], {
+            mountedServers,
+            renamedServerId: id,
+            toName: name,
+            reservedKeys: [
+              ...Object.values(CHERRY_MCP_SERVER),
+              ...mountedServers.map(({ mcpId }) => sanitizeAgentServerKey(mcpId))
+            ]
+          })
           if (migrated) {
             tx.update(agentTable).set({ disabledTools: migrated }).where(eq(agentTable.id, agent.id)).run()
             logger.info('Migrated disabled tool rules for renamed MCP server', {

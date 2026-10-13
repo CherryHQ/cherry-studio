@@ -18,7 +18,7 @@ import { createMcpManagerServer } from '@main/ai/mcp/servers/mcpManager'
 import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { sanitizeAgentServerKey } from '@shared/ai/tools/mcpToolName'
+import { allocateMountedServerKeys, sanitizeAgentServerKey } from '@shared/ai/tools/mcpToolName'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -72,13 +72,15 @@ export function resolveMountedAgentMcpServers(
   mcpServerSnapshots?: McpServerSnapshotMap
 ): Array<{ mcpId: string; legacyServer: McpServerEntity; key: string }> {
   // Built-in entries are added first; a user server must never take their keys.
-  const takenServerNames = new Set<string>(Object.values(CHERRY_MCP_SERVER))
   // Mounted ids are reserved in their sanitized form before any name allocation so an id
   // fallback can never collide with another mounted server's configured name (and vice versa):
   // each server keeps its own key even when names and ids cross-import each other.
-  for (const mcpId of agent.mcps ?? []) takenServerNames.add(sanitizeAgentServerKey(mcpId))
+  const reservedKeys: string[] = [
+    ...Object.values(CHERRY_MCP_SERVER),
+    ...(agent.mcps ?? []).map((mcpId) => sanitizeAgentServerKey(mcpId))
+  ]
 
-  const resolved: Array<{ mcpId: string; legacyServer: McpServerEntity; key: string }> = []
+  const resolvedServers: Array<{ mcpId: string; legacyServer: McpServerEntity; name?: string }> = []
   for (const mcpId of agent.mcps ?? []) {
     try {
       const serverSnapshot = mcpServerSnapshots?.get(mcpId)
@@ -93,18 +95,13 @@ export function resolveMountedAgentMcpServers(
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
       if (!legacyServer) throw new Error(`MCP server not found: ${mcpId}`)
-      const serverName =
-        legacyServer.name && !takenServerNames.has(sanitizeAgentServerKey(legacyServer.name))
-          ? legacyServer.name
-          : mcpId
-      const key = sanitizeAgentServerKey(serverName) || sanitizeAgentServerKey(mcpId)
-      takenServerNames.add(key)
-      resolved.push({ mcpId, legacyServer, key })
+      resolvedServers.push({ mcpId, legacyServer, name: legacyServer.name })
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
     }
   }
-  return resolved
+  const keys = allocateMountedServerKeys(resolvedServers, reservedKeys)
+  return resolvedServers.map(({ mcpId, legacyServer }) => ({ mcpId, legacyServer, key: keys.get(mcpId) ?? mcpId }))
 }
 
 /**
