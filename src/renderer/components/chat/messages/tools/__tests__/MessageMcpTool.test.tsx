@@ -69,6 +69,7 @@ const createMcpToolResponse = (overrides: Partial<McpToolResponse> = {}): McpToo
 
 describe('MessageMcpTool', () => {
   beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 405 })))
     // An abort handler is available, so the removed v1 ActionsBar *would* have
     // rendered its destructive abort button — making the absence assertion meaningful.
     mockActions.mockReturnValue({ abortTool: vi.fn() })
@@ -82,7 +83,10 @@ describe('MessageMcpTool', () => {
     mockIsToolAutoApproved.mockReturnValue(false)
   })
 
-  afterEach(() => vi.clearAllMocks())
+  afterEach(() => {
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
 
   it('renders nothing while awaiting approval (the composer owns that surface)', () => {
     mockApproval.mockReturnValue({

@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -16,6 +16,8 @@ const Harness = (props: { toolName: string; input?: unknown; output?: unknown })
 )
 
 describe('UnknownToolRenderer', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 405 }))))
+  afterEach(() => vi.unstubAllGlobals())
   it('renders inline MCP image content blocks as data URLs alongside the text', () => {
     render(
       <Harness
@@ -43,7 +45,7 @@ describe('UnknownToolRenderer', () => {
     expect(screen.getByText('No painting model is configured.')).toBeInTheDocument()
   })
 
-  it('previews image URLs from MCP text while retaining the other result text', () => {
+  it('previews image URLs from MCP text while retaining the other result text', async () => {
     render(
       <Harness
         toolName="mcp__images__generate"
@@ -55,7 +57,10 @@ describe('UnknownToolRenderer', () => {
         }}
       />
     )
-    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/result.png?signature=abc')
+    expect(await screen.findByRole('img', { name: 'message.tools.sections.output' })).toHaveAttribute(
+      'src',
+      'https://example.com/result.png?signature=abc'
+    )
     expect(screen.getByText('Generated an image')).toBeInTheDocument()
     expect(screen.queryByText('https://example.com/result.png?signature=abc')).not.toBeInTheDocument()
   })

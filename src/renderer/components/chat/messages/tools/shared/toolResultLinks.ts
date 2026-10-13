@@ -4,6 +4,7 @@ import mime from 'mime/lite'
 export interface ToolResultLinkData {
   url: string
   isImage: boolean
+  mimeType?: string
   name?: string
 }
 
@@ -28,7 +29,12 @@ export function getToolResultLinks(content: TextContent | ResourceLink): ToolRes
     if (typeof item !== 'string' || /\s/.test(item) || !URL.canParse(item)) return null
     const url = new URL(item)
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
-    links.push({ url: item, isImage: (mimeType ?? mime.getType(url.pathname))?.startsWith('image/') ?? false, name })
+    links.push({
+      url: item,
+      isImage: (mimeType ?? mime.getType(url.pathname))?.startsWith('image/') ?? false,
+      mimeType,
+      name
+    })
   }
   return links
 }
