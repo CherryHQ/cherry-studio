@@ -166,9 +166,8 @@ describe('goal inside a subagent', () => {
     for (const part of goalResults) expect(outputText(part.output)).toMatch(/belong to the main agent/)
   })
 
-  // Breaks when a subagent's session_start subscribes to the approval port too: on a port with a single
-  // listener the fork's subscription replaces the parent's, and the parent's denial goes unheard. Breaks
-  // too when session_shutdown keeps the subscription: the host would hold every rebuilt session's listener.
+  // Breaks when a fork subscribes to a single-listener approval port, displacing the parent's (its denial
+  // goes unheard), or when session_shutdown keeps the subscription (the host would hold every listener).
   it("a fork does not take the parent's approval listener, which the parent releases at shutdown", async () => {
     const { port, tool, listening } = approvals('denied', { defaults: { maxGoalRounds: 2 } })
     const { model } = routedModel((call) => {

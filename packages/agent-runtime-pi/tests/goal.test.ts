@@ -1,11 +1,9 @@
 import type { AgentSession, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createGoalExtension } from '../src'
 import {
   askAtTurnEnd,
   crashedTranscript,
-  goalModel,
   goalNotices,
   goalPort,
   goalSession,
@@ -20,11 +18,10 @@ import {
   roundStart,
   say,
   snapshots,
-  toolCall,
   working
 } from './goalSupport'
-import { recordingSubagentPort, routedModel, subagentCall } from './subagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort, tempDir, textParts } from './support'
+import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './subagentSupport'
+import { finish, tempDir, textParts } from './support'
 import { textOf, toolResults } from './toolResults'
 
 /** One round per command or resume, so command tests see a settled goal. */
@@ -38,10 +35,10 @@ describe('goal tools', () => {
       calls
     } = await goalSession([
       () => [
-        toolCall('c1', 'create_goal', { objective: 'Ship the docs gate', max_goal_rounds: 5 }),
+        toolCallPart('c1', 'create_goal', { objective: 'Ship the docs gate', max_goal_rounds: 5 }),
         finish('tool-calls')
       ],
-      () => [toolCall('c2', 'get_goal', {}), finish('tool-calls')],
+      () => [toolCallPart('c2', 'get_goal', {}), finish('tool-calls')],
       () => say('Started.')
     ])
     await s.prompt('Please make every docs gate pass')
@@ -60,9 +57,9 @@ describe('goal tools', () => {
 
   it('rejects a stale revision and returns the current view instead of applying the change', async () => {
     const { session: s, calls } = await goalSession([
-      () => [toolCall('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
+      () => [toolCallPart('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
       (prompt) => [
-        toolCall('c2', 'update_goal', {
+        toolCallPart('c2', 'update_goal', {
           goal_id: readGoal(prompt).goal!.id,
           revision: 1,
           action: 'edit',
@@ -71,7 +68,7 @@ describe('goal tools', () => {
         finish('tool-calls')
       ],
       (prompt) => [
-        toolCall('c3', 'update_goal', {
+        toolCallPart('c3', 'update_goal', {
           goal_id: readGoal(prompt).goal!.id,
           revision: 1,
           action: 'complete',
@@ -93,8 +90,8 @@ describe('goal tools', () => {
 
   it('refuses a second goal while one is unfinished', async () => {
     const { session: s } = await goalSession([
-      () => [toolCall('c1', 'create_goal', { objective: 'first' }), finish('tool-calls')],
-      () => [toolCall('c2', 'create_goal', { objective: 'second' }), finish('tool-calls')],
+      () => [toolCallPart('c1', 'create_goal', { objective: 'first' }), finish('tool-calls')],
+      () => [toolCallPart('c2', 'create_goal', { objective: 'second' }), finish('tool-calls')],
       () => say('ok')
     ])
     await s.prompt('go')
@@ -106,11 +103,11 @@ describe('goal tools', () => {
   it('treats empty strings and zero as omitted optional fields', async () => {
     const { session: s, calls } = await goalSession([
       () => [
-        toolCall('c1', 'create_goal', { objective: 'g', max_goal_rounds: 0, budget_tokens: 0 }),
+        toolCallPart('c1', 'create_goal', { objective: 'g', max_goal_rounds: 0, budget_tokens: 0 }),
         finish('tool-calls')
       ],
       (prompt) => [
-        toolCall('c2', 'update_goal', {
+        toolCallPart('c2', 'update_goal', {
           goal_id: readGoal(prompt).goal!.id,
           revision: readGoal(prompt).goal!.revision,
           action: 'pause',
@@ -133,7 +130,7 @@ describe('goal tools', () => {
 
   it('rejects a negative round cap instead of treating it as omitted', async () => {
     const { session: s, host } = await goalSession([
-      () => [toolCall('c1', 'create_goal', { objective: 'g', max_goal_rounds: -1 }), finish('tool-calls')],
+      () => [toolCallPart('c1', 'create_goal', { objective: 'g', max_goal_rounds: -1 }), finish('tool-calls')],
       () => say('ok')
     ])
     await s.prompt('go')
@@ -145,9 +142,9 @@ describe('goal tools', () => {
 
   it('refuses an edit that changes nothing and appends no snapshot', async () => {
     const { session: s, host } = await goalSession([
-      () => [toolCall('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
+      () => [toolCallPart('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
       (prompt) => [
-        toolCall('c2', 'update_goal', { goal_id: readGoal(prompt).goal!.id, revision: 1, action: 'edit' }),
+        toolCallPart('c2', 'update_goal', { goal_id: readGoal(prompt).goal!.id, revision: 1, action: 'edit' }),
         finish('tool-calls')
       ],
       () => say('ok')
@@ -166,9 +163,9 @@ describe('goal tools', () => {
       host,
       calls
     } = await goalSession([
-      () => [toolCall('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
+      () => [toolCallPart('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
       (prompt) => [
-        toolCall('c2', 'update_goal', { goal_id: readGoal(prompt).goal!.id, revision: 1, action: 'resume' }),
+        toolCallPart('c2', 'update_goal', { goal_id: readGoal(prompt).goal!.id, revision: 1, action: 'resume' }),
         finish('tool-calls')
       ],
       () => say('ok')
@@ -214,17 +211,21 @@ describe('/goal command', () => {
     expect(calls).toHaveLength(0)
   })
 
+  // Breaks when the edit path checks a fixed cap instead of the host's ceiling.
   it('reports a cap above the ceiling and an empty objective as errors', async () => {
-    const { session: s, host } = await goalSession([working], confirmEachRound)
+    const { session: s, host } = await goalSession(
+      [working],
+      goalPort({ defaults: { autonomy: () => 'confirm-each-round', maxGoalRounds: 10, maxGoalRoundsCeiling: 50 } })
+    )
     await promptIdle(s, '/goal Fix it')
     expect(lastSnapshot(host.entries)).toMatchObject({ objective: 'Fix it' })
     const before = lastSnapshot(host.entries)!
-    await s.prompt('/goal rounds 2000')
+    await s.prompt('/goal rounds 60')
     expect(goalNotices(host.entries).at(-1)).toEqual({
-      text: expect.stringMatching(/between 1 and 1000/),
+      text: expect.stringMatching(/between 1 and 50/),
       level: 'error'
     })
-    expect(lastSnapshot(host.entries)).toMatchObject({ revision: before.revision, maxGoalRounds: 100 })
+    expect(lastSnapshot(host.entries)).toMatchObject({ revision: before.revision, maxGoalRounds: 10 })
     await s.prompt('/goal edit    ')
     expect(notices(host.entries).at(-1)).toMatch(/1-4000/)
   })
@@ -288,6 +289,17 @@ describe('/goal command', () => {
     )
   })
 
+  // Breaks when the status prints the cost as a raw float sum, such as $0.000060599999999999996.
+  it('shows the cost in the status text at a fixed precision', async () => {
+    const { session: s, host } = await goalSession(
+      [() => [...textParts('t', 'done'), finish('stop', 40_000, 1_000)]],
+      confirmEachRound
+    )
+    await promptIdle(s, '/goal Fix it')
+    await s.prompt('/goal')
+    expect(notices(host.entries).at(-1)).toMatch(/· Cost: \$0\.0420$/)
+  })
+
   it('clearing writes a tombstone, after which the goal is gone', async () => {
     const { session: s, host } = await goalSession([working], confirmEachRound)
     await promptIdle(s, '/goal Fix it')
@@ -329,6 +341,29 @@ describe('/goal command', () => {
     await held.started(2)
     await s.prompt('/goal clear')
     expect(held.aborted(2)).toBe(false)
+    held.release()
+    await run
+  })
+
+  // Breaks when clear decides on the abort after it disarmed the goal: the cleared goal's round would run on.
+  it('clearing an active goal stops its round', async () => {
+    const { session: s, held } = await heldGoalSession()
+    await s.prompt('/goal Fix it')
+    await held.started(1)
+    await promptIdle(s, '/goal clear')
+    expect(held.aborted(1)).toBe(true)
+  })
+
+  // Breaks when the command aborts any turn of an active goal: one restored from the transcript is
+  // not armed, so the user's own turn would be cut off.
+  it.each(['pause', 'clear'])('/goal %s on a goal that is not armed leaves the running turn alone', async (command) => {
+    const cwd = tempDir('cwd')
+    const transcript = await crashedTranscript('Keep working', goalPort(), cwd)
+    const { session: s, held } = await heldGoalSession(goalPort(), { cwd, transcript })
+    const run = s.prompt('hello')
+    await held.started(1)
+    await s.prompt(`/goal ${command}`)
+    expect(held.aborted(1)).toBe(false)
     held.release()
     await run
   })
@@ -391,18 +426,10 @@ describe('goal continuation', () => {
 
   // Breaks when a round counts at its reservation instead of its admission.
   it('does not count a round that a later extension vetoed', async () => {
-    const { model, calls } = goalModel([working])
-    const host = hostStore()
-    const { session: s } = await createTestSession({
-      port: streamTextPort(model).port,
-      extensionFactories: [
-        createGoalExtension(goalPort()),
-        (pi) => {
-          pi.on('agent_before_settle', () => ({ continue: false }))
-        }
-      ],
-      onEvent: host.onEvent
-    })
+    const veto: ExtensionFactory = (pi) => {
+      pi.on('agent_before_settle', () => ({ continue: false }))
+    }
+    const { session: s, host, calls } = await goalSession([working], goalPort(), { laterExtensions: [veto] })
     await promptIdle(s, '/goal Keep working')
 
     expect(calls).toHaveLength(1)
@@ -411,6 +438,56 @@ describe('goal continuation', () => {
       roundsStarted: 1,
       lastStop: { code: 'continuation_rejected' }
     })
+  })
+
+  // Breaks when the continuation replaces the entries an earlier extension proposed at the same settle.
+  it('keeps what an earlier extension adds at the settle the goal continues', async () => {
+    let added = false
+    const noteAtFirstSettle: ExtensionFactory = (pi) => {
+      pi.on('agent_before_settle', () => {
+        if (added) return undefined
+        added = true
+        const note = {
+          type: 'custom_message' as const,
+          customType: 'test.note',
+          content: 'NOTE-MARKER',
+          display: false
+        }
+        return { entries: [note], continue: true }
+      })
+    }
+    const {
+      session: s,
+      host,
+      calls
+    } = await goalSession([working], goalPort({ defaults: { maxGoalRounds: 2 } }), {
+      extensionFactories: [noteAtFirstSettle]
+    })
+    await promptIdle(s, '/goal Keep working')
+
+    expect(rounds(host.entries).map((round) => round.round)).toEqual([1, 2])
+    expect(calls).toHaveLength(2)
+    expect(JSON.stringify(calls[1].prompt)).toContain('NOTE-MARKER')
+  })
+
+  // Breaks when the goal yields to any pending message: Pi does not continue for an extension's
+  // message sent without triggerTurn, so the run would end with the goal active, armed and idle.
+  it('does not yield to an extension message that starts no turn', async () => {
+    let sent = false
+    const noteAtFirstSettle: ExtensionFactory = (pi) => {
+      pi.on('agent_before_settle', () => {
+        if (sent) return
+        sent = true
+        pi.sendMessage({ customType: 'test.note', content: 'NOTE-MARKER', display: false }, { triggerTurn: false })
+      })
+    }
+    const { session: s, host } = await goalSession([working], goalPort({ defaults: { maxGoalRounds: 2 } }), {
+      extensionFactories: [noteAtFirstSettle]
+    })
+    await promptIdle(s, '/goal Keep working')
+
+    expect(rounds(host.entries).map((round) => round.round)).toEqual([1, 2])
+    expect(lastSnapshot(host.entries)).toMatchObject({ lastStop: { code: 'round_limit' } })
   })
 
   // Breaks without spec §6.2 step 7: Pi would send the round before the waiting message, or the goal would end there.
@@ -512,7 +589,7 @@ describe('goal continuation', () => {
 
   it('a goal the model creates in a human turn continues in that run', async () => {
     const { session: s, host } = await goalSession(
-      [() => [toolCall('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')], working],
+      [() => [toolCallPart('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')], working],
       goalPort({ defaults: { maxGoalRounds: 2 } })
     )
     await s.prompt('please do g')
@@ -528,7 +605,7 @@ describe('goal continuation', () => {
       host,
       held
     } = await heldGoalSession(goalPort({ defaults: { maxGoalRounds: 2 } }), {}, [
-      () => [toolCall('look', 'get_goal', {}), finish('tool-calls')],
+      () => [toolCallPart('look', 'get_goal', {}), finish('tool-calls')],
       working
     ])
     const run = s.prompt('hello')
@@ -546,15 +623,15 @@ describe('goal continuation', () => {
   it('refuses create, edit, pause and resume in a goal round', async () => {
     const { session: s } = await goalSession(
       [
-        () => [toolCall('g', 'get_goal', {}), finish('tool-calls')],
+        () => [toolCallPart('g', 'get_goal', {}), finish('tool-calls')],
         (prompt) => {
           const { goal } = readGoal(prompt)
           const ref = { goal_id: goal!.id, revision: goal!.revision }
           return [
-            toolCall('create', 'create_goal', { objective: 'another' }),
-            toolCall('edit', 'update_goal', { ...ref, action: 'edit', objective: 'changed' }),
-            toolCall('pause', 'update_goal', { ...ref, action: 'pause' }),
-            toolCall('resume', 'update_goal', { ...ref, action: 'resume' }),
+            toolCallPart('create', 'create_goal', { objective: 'another' }),
+            toolCallPart('edit', 'update_goal', { ...ref, action: 'edit', objective: 'changed' }),
+            toolCallPart('pause', 'update_goal', { ...ref, action: 'pause' }),
+            toolCallPart('resume', 'update_goal', { ...ref, action: 'resume' }),
             finish('tool-calls')
           ]
         },
