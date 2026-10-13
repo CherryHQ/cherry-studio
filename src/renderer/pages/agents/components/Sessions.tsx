@@ -23,6 +23,7 @@ import {
   SessionListOptionsMenu
 } from '@renderer/components/chat/resourceList/base'
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
+import { SessionHoverPreviewGroup } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
@@ -2175,29 +2176,31 @@ const Sessions = ({
         )}
       </ResourceList.Header>
       {refreshError && <ResourceRefreshErrorBanner onRetry={handleRetry} retrying={listValidating} />}
-      <SessionListBody
-        activeSessionId={activeSessionId}
-        channelTypeMap={channelTypeMap}
-        displayMode={displayMode}
-        error={listError}
-        isDraggable={isDraggableMode && !isRightPanel}
-        isValidating={listValidating}
-        listRef={listRef}
-        onDeleteSession={handleDeleteSession}
-        onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
-        onOpenInNewWindow={openSessionInNewWindow}
-        onOpenRenameDialog={handleOpenRenameSessionDialog}
-        onRetry={handleRetry}
-        onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
-        onTogglePin={handleToggleSessionPin}
-        onToggleSidebar={handleToggleSessionSidebar}
-        panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
-        sidebarSessionFavoriteIdSet={sidebarSessionFavoriteIdSet}
-        sessionMenuActions={sessionMenuActions}
-        setActiveSessionId={handleSelectSession}
-      />
+      <SessionHoverPreviewGroup enabled={dataEnabled}>
+        <SessionListBody
+          activeSessionId={activeSessionId}
+          channelTypeMap={channelTypeMap}
+          displayMode={displayMode}
+          error={listError}
+          isDraggable={isDraggableMode && !isRightPanel}
+          isValidating={listValidating}
+          listRef={listRef}
+          onDeleteSession={handleDeleteSession}
+          onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
+          onOpenInNewWindow={openSessionInNewWindow}
+          onOpenRenameDialog={handleOpenRenameSessionDialog}
+          onRetry={handleRetry}
+          onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
+          onTogglePin={handleToggleSessionPin}
+          onToggleSidebar={handleToggleSessionSidebar}
+          panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
+          sidebarSessionFavoriteIdSet={sidebarSessionFavoriteIdSet}
+          sessionMenuActions={sessionMenuActions}
+          setActiveSessionId={handleSelectSession}
+        />
+      </SessionHoverPreviewGroup>
       {(historyLoading || isLoadingMore || hasMore) && visibleGroupedSessions.length > 0 && (
-        <div className="shrink-0 px-3 py-2 text-center text-[11px] text-foreground-tertiary">{t('common.loading')}</div>
+        <div className="text-foreground-tertiary shrink-0 px-3 py-2 text-center text-[11px]">{t('common.loading')}</div>
       )}
       <EditNameDialog
         open={!!renamingSession}
@@ -2349,7 +2352,7 @@ function SessionListBody({
         </ResourceList.ErrorState>
       }
       emptyFallback={
-        <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center break-words px-5 py-10 text-center text-muted-foreground text-xs">
+        <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
           {t('agent.session.empty.title')}
         </div>
       }

@@ -318,7 +318,12 @@ describe('PaintingPage showcase', () => {
     fireEvent.click(screen.getByRole('button', { name: 'paintings.prompt_dock.expand' }))
 
     expect(screen.getByTestId('painting-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('painting-prompt-dock')).toBeInTheDocument()
+    const dock = screen.getByTestId('painting-prompt-dock')
+    // The sizing boundary must include the dock's padding and its collapse control.
+    expect(dock).toHaveAttribute('data-composer-dock-surface')
+    const stage = dock.closest('[data-composer-stage]')
+    expect(stage).toContainElement(screen.getByTestId('painting-artboard'))
+    expect(dock).toContainElement(screen.getByRole('button', { name: 'paintings.prompt_dock.minimize' }))
     expect(screen.queryByTestId('painting-prompt-dock-collapsed')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'paintings.prompt_dock.minimize' }))

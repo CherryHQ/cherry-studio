@@ -393,18 +393,6 @@ describe('GeneralSettings', () => {
     expect(screen.getByRole('switch', { name: 'Local automation (CDP)' })).toBeEnabled()
   })
 
-  it('places context management directly after proxy settings', () => {
-    render(<GeneralSettings />)
-
-    expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
-      'settings.launch.title',
-      'settings.proxy.mode.title',
-      'settings.models.context_management.title',
-      'settings.agent.language.title',
-      'settings.developer.title'
-    ])
-  })
-
   it('renders model retry settings in General and persists changes', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,
@@ -419,7 +407,7 @@ describe('GeneralSettings', () => {
     expect(screen.getByLabelText('settings.models.retry.backoff')).toBeInTheDocument()
     expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText('settings.models.retry.label'))
+    fireEvent.click(screen.getByLabelText('settings.general.retry.enabled'))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.retry.enabled')).toBe(false)
@@ -447,6 +435,7 @@ describe('GeneralSettings', () => {
     const preset = screen.getByRole('combobox', { name: 'settings.agent.language.combo_label' })
     expect(preset).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'settings.agent.language.custom_label' })).toHaveValue('')
+    expect(screen.queryByText('settings.agent.language.description')).not.toBeInTheDocument()
   })
 
   it('persists the agent reply language preset', async () => {

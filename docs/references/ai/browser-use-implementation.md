@@ -977,7 +977,7 @@ must be reported as unsupported; no fabricated `newTabId`. Closing/resetting the
 an explicit host operation, never direct destruction by borrowed-session disposal.
 
 Mount the pane-backed MCP through `buildAgentMcpServers` and `resolveMountedMcpServers`, using the
-shared path consumed by Claude Code, Pi and Dsh. Runtime connection signatures include effective
+shared path consumed by Claude Code and Pi. Runtime connection signatures include effective
 browser enablement so cached sessions refresh their tool surface. The persistent browser grant
 auto-approves the declared browser tools only; unknown tool names never inherit approval. When this
 capability is mounted, exclude a duplicate bridge to the legacy `@cherry/browser` preset for that
@@ -1167,7 +1167,7 @@ Both runtimes exclude legacy in-memory browser bindings, including when browser 
 
 Browser settings owns one persistent grant, `app.browser.agent_control.enabled`, defaulting to on
 when unset. Existing saved choices are preserved.
-Once enabled, all declared browser tools run without per-action approval in Claude, Pi and DSH.
+Once enabled, all declared browser tools run without per-action approval in Claude and Pi.
 The grant stays enabled across sessions until the user turns it off; there is no per-tool permission
 dialog or configuration. Runtime gates and queued dispatch recheck revocation, including in Full Access.
 The Agent browser group opt-out remains independent. Disabling Agent control leaves manual browsing available.
@@ -1209,7 +1209,7 @@ guest host and navigation state. Both products compose `WebviewHost`; MiniApp re
 |---|---|---|---|
 | Guest host | [WebviewContainer](../../../src/renderer/components/MiniApp/WebviewContainer.tsx) | [WebviewHost](../../../src/renderer/components/WebviewHost.tsx), composed by `WebviewBrowser` | Shared element creation, event cleanup, focus/keyboard forwarding and preference application |
 | Navigation toolbar | `MinimalToolbar` | `WebviewNavigation` | Separate product controls; shared `useWebviewNavigation` for guest-bound navigation and address drafts |
-| Page lifetime | `MiniAppTabsPool` owns keep-alive and split-pane placement | Browser tab or Agent pane owns the guest | Separate product ownership |
+| Page lifetime | `TabsProvider` owns pages; MiniApp layout owns split selection; `WebviewRuntimeService` owns window-local guests; `MiniAppTabsPool` renders resources | Browser tab or Agent pane owns the guest | Separate product ownership |
 | Page search | `WebviewSearch` | `WebviewSearch` | Shared |
 | Annotation controls | Hidden | `WebviewAnnotationControls` in Agent panes only; hidden in standalone tabs | Requires a conversation receiver (`onAnnotationSaved`) |
 | Annotation accessibility capture | [annotationExport](../../../src/main/services/webview/annotationExport.ts) borrows a guest lease | `BrowserSessionService` / `GuestSession` | Shared debugger ownership and capture engine |
@@ -1236,8 +1236,33 @@ ordinary website popup handler.
 Host event subscriptions follow the concrete guest, while React Effect Events read current
 callbacks without replaying readiness on preference or callback changes. The MiniApp adapter waits
 for runtime preparation and remounts that preparation state when app identity changes. Its loaded
-callback timer is cancelled on a new full navigation or eviction. The pool still owns placement,
-keep-alive, visibility reporting and focused-pane context.
+callback timer is cancelled on a new full navigation or eviction. MiniApp resource callbacks carry
+an instance token so a retired guest cannot overwrite a reopened app's readiness or element.
+A loaded guest remains usable during normal navigation, including aborted requests; only a new
+resource or a changed source URL resets readiness. Pool disposal runs in layout cleanup before
+a replacement pool synchronizes its resources.
+
+MiniApp pages and transient apps open through tabs. The secondary pane selects an app ID without
+opening or reusing a tab. A window shares one guest per app ID across tabs and the visible split
+pane. Collapsing split releases a split-only guest; an independently opened tab keeps its guest.
+Closing the last consumer releases the guest. Route-page dormancy does not release tab-owned
+guests: TabLruManager controls React page caching only.
+Both visible panes are exempt from eviction. Evicted background guests remain absent until shown
+again. Pool DOM order stays stable while recency changes; the pool lives outside page Activities.
+Catalog deletion and runtime eviction clear the matching split selection and close all matching tabs; region/edition filtering does not.
+
+Renderer `WebviewRuntimeService` owns MiniApp guest records, loading state and capacity eviction.
+It consumes resource keys, sources, visibility and eviction protection, without importing Tab or
+MiniApp business types. MiniApp binding derives these inputs from the full tab list and the visible
+split app; split selection is renderer-local layout state. MiniAppTabsPool renders the resulting records outside Activity,
+while WebviewContainer retains local-app preparation and business preferences. Ordinary Browser
+and Agent guest residency are not yet migrated to this resource service.
+
+Detached windows retain their single-tab title bar and use the same guest resource projection.
+Returning to main delivers the tab and closes its source window; delivery failure preserves the
+source window. Delivery does not wait for a destination renderer receipt, so this is not a
+transactional cross-window transfer. Window-local tab closure does not invoke global app shutdown
+or clear storage.
 
 `useWebviewNavigation` binds navigation state to the concrete guest and revision. It shares back /
 forward state, main-frame URL tracking and address draft preservation across both toolbars. Guest
