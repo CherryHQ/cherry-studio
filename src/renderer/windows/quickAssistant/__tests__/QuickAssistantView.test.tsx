@@ -207,32 +207,64 @@ describe('QuickAssistantView', () => {
     offsetHeight.mockRestore()
   })
 
-  it('makes room for an open popover but not for a tooltip', async () => {
+  /** A Radix popper as it portals into the body; `state` is what its content reports. */
+  const mountPopper = (state: string) => {
+    const wrapper = document.createElement('div')
+    wrapper.setAttribute('data-radix-popper-content-wrapper', '')
+    const content = document.createElement('div')
+    content.setAttribute('data-state', state)
+    wrapper.appendChild(content)
+    document.body.appendChild(wrapper)
+    return { wrapper, content }
+  }
+  const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+  const hideCalls = () => runtime.ipcRequest.mock.calls.filter(([route]) => route === 'quick_assistant.hide').length
+
+  it('makes room for an open popover, and frees it once the popover closes even if kept mounted', async () => {
     platform.isMac = false
     const offsetHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(135)
     render(<QuickAssistantView draggable={false} />)
     await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'bar', contentHeight: 135 }))
 
-    // The assistant/model pickers and the response-settings popover all portal here.
-    const tooltip = document.createElement('div')
-    tooltip.setAttribute('data-radix-popper-content-wrapper', '')
-    tooltip.innerHTML = '<span role="tooltip">hint</span>'
-    // act() flushes the observer's state update, so a wrong reaction would be visible here.
-    await act(async () => {
-      document.body.appendChild(tooltip)
-      await new Promise((resolve) => setTimeout(resolve, 20))
-    })
+    // Tooltips share the popper wrapper but report a different state and need no room.
+    const tooltip = mountPopper('delayed-open')
+    await settle()
     expect(lastSetView()).toMatchObject({ view: 'bar' })
 
-    const popover = document.createElement('div')
-    popover.setAttribute('data-radix-popper-content-wrapper', '')
-    document.body.appendChild(popover)
+    const picker = mountPopper('open')
     await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'quick-panel', contentHeight: 560 }))
 
-    popover.remove()
-    tooltip.remove()
+    // The assistant/model pickers stay mounted while closed; the bar must not stay grown.
+    picker.content.setAttribute('data-state', 'closed')
     await waitFor(() => expect(lastSetView()).toMatchObject({ view: 'bar', contentHeight: 135 }))
+
+    picker.wrapper.remove()
+    tooltip.wrapper.remove()
     offsetHeight.mockRestore()
+  })
+
+  it('leaves Escape to an open popover and handles it again once nothing is open', async () => {
+    render(<QuickAssistantView draggable={false} />)
+    const picker = mountPopper('open')
+    // Radix dismisses from a document capture listener, so by our bubble phase the picker
+    // already reads closed — and a kept-mounted closed picker still prevents every Escape.
+    const radixDismiss = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      picker.content.setAttribute('data-state', 'closed')
+    }
+    document.addEventListener('keydown', radixDismiss, true)
+    const input = screen.getByRole('textbox', { name: 'message' })
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(hideCalls()).toBe(0)
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(hideCalls()).toBe(1)
+
+    document.removeEventListener('keydown', radixDismiss, true)
+    picker.wrapper.remove()
+    await settle()
   })
 
   it('lets clicks through only over the transparent macOS headroom', () => {

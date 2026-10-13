@@ -1535,7 +1535,9 @@ const ChatComposerInner = ({
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
-    scopeKey: selectedKnowledgeBasesScopeKey,
+    // Keyed on the stream it drains into, not the draft scope: quick assistant keeps one
+    // draft across temporary topics, and a leftover follow-up must not send into the next one.
+    scopeKey: `${streamScopeKey}:${selectedAssistantId ?? 'no-assistant'}`,
     isFulfilled,
     markSeen,
     onDrain: sendQueuedPayload

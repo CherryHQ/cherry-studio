@@ -2015,6 +2015,23 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
+  it('does not carry a queued follow-up into the next topic of a shared draft scope', async () => {
+    // Quick assistant keeps one draft scope across temporary topics. A follow-up queued on
+    // an aborted turn never drains there, so it must not drain into the next conversation.
+    mocks.topicPending = true
+    const view = render(
+      <ChatComposer topic={topic} scopeKey="queue-scope-shared" topicId="queue-topic-a" onSend={vi.fn()} />
+    )
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued on A', tokens: [] })
+    })
+    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+
+    view.rerender(<ChatComposer topic={topic} scopeKey="queue-scope-shared" topicId="queue-topic-b" onSend={vi.fn()} />)
+
+    await waitFor(() => expect(mocks.surfaceProps?.queueContent).toBeUndefined())
+  })
+
   it('restores queued knowledge selection from the user-message parts', async () => {
     const knowledgeBase = {
       id: 'kb-1',

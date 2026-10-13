@@ -41,19 +41,20 @@ type QuickWindowView = QuickView | 'quick-panel'
 const prefersReducedMotion = () =>
   typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-/** Whether a popover (assistant/model picker, response settings…) is open in this window. */
+/**
+ * Whether a popover (assistant/model picker, response settings…) is open in this window.
+ * Keyed on Radix's `data-state`: kept-mounted pickers stay in the DOM while closed, and
+ * tooltips report `delayed-open`/`instant-open` instead.
+ */
+const isFloatingOverlayOpen = () =>
+  document.querySelector('[data-radix-popper-content-wrapper] > [data-state="open"]') !== null
+
 function useFloatingOverlayOpen(): boolean {
   const [open, setOpen] = useState(false)
   useEffect(() => {
-    // Radix portals every popover in a popper wrapper; tooltips share it but need no room.
-    const update = () =>
-      setOpen(
-        [...document.querySelectorAll('[data-radix-popper-content-wrapper]')].some(
-          (wrapper) => !wrapper.querySelector('[role="tooltip"]')
-        )
-      )
+    const update = () => setOpen(isFloatingOverlayOpen())
     const observer = new MutationObserver(update)
-    observer.observe(document.body, { childList: true, subtree: true })
+    observer.observe(document.body, { childList: true, subtree: true, attributeFilter: ['data-state'] })
     update()
     return () => observer.disconnect()
   }, [])
@@ -168,11 +169,22 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
   }, [collapse, handleCloseWindow, isLoading, stop, view])
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') handleEsc()
+    // An open popover owns Escape. Sampled ahead of Radix's document-capture dismiss, which
+    // has closed it by the bubble phase; `defaultPrevented` can't tell either, since a
+    // closed kept-mounted picker still prevents every Escape.
+    let popoverOwnsEscape = false
+    const onKeyDownCapture = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') popoverOwnsEscape = isFloatingOverlayOpen()
     }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !popoverOwnsEscape) handleEsc()
+    }
+    window.addEventListener('keydown', onKeyDownCapture, true)
     document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDownCapture, true)
+      document.removeEventListener('keydown', onKeyDown)
+    }
   }, [handleEsc])
 
   useIpcOn('quick_assistant.shown', () => {
