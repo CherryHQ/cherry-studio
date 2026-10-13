@@ -1,10 +1,10 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 import '@renderer/assets/styles/vendor/katex.css'
-
-import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { memo, useDeferredValue, useId } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { StaticMarkdown } from '@renderer/components/markdown'
 
 interface MarkdownEditorProps {
   value: string
@@ -22,9 +22,7 @@ interface MarkdownPreviewProps {
 
 const MarkdownPreview = memo(({ id, value, fallback }: MarkdownPreviewProps) => (
   <div className="markdown flex-1 overflow-auto bg-background p-3">
-    <Markdown id={id} plugins={{ cjk: defaultMarkdownPlugins.cjk, math: withMath() }}>
-      {value || fallback}
-    </Markdown>
+    <StaticMarkdown id={id}>{value || fallback}</StaticMarkdown>
   </div>
 ))
 

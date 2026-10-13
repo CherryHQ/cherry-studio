@@ -91,6 +91,15 @@ Anti-pattern: `while (true)` (cannot be cancelled), `await sleep(N)` without sig
 
 Generic metadata is not a substitute for a domain relationship. A stable reference to an entity owned by another domain must be maintained through lifecycle APIs owned by that entity's service, with database constraints when the relationship topology permits. When constraints would create circular foreign keys, follow the application-level [soft-reference pattern](../data/database-patterns.md#circular-foreign-key-references) instead. For example, the non-circular `agent.task` sticky-session relationship uses the constrained `agent_session.taskScheduleId` relation maintained by `AgentSessionService`, not a session id in schedule metadata.
 
+## Enqueue observer (`onEnqueued`)
+
+`onEnqueued?(snapshot: Readonly<JobSnapshot>): void` is a synchronous observer
+called for a newly committed job before dispatch or delayed arming. It can
+publish business read-model changes while a job is still queued. `enqueueTx`
+defers it to the post-commit microtask and re-reads the persisted snapshot;
+rolled-back inserts and idempotency hits do not call it. Exceptions are logged
+and do not prevent dispatch. Keep the observer synchronous and short.
+
 ## Settled event (`onSettled`)
 
 `onSettled?(event: JobSettledEvent<TPayload>)` fires once when a job reaches a terminal state (errors are caught + logged, never propagated). The event is a projection of the persisted terminal snapshot — no `jobService.getById` reverse lookup needed:
@@ -156,7 +165,7 @@ A few invariants govern recovery decisions; the matrix above abstracts over them
 - **In-flight rows are never touched by recovery.** Everything above describes *prior-process* leftovers. A job the **current** process is still executing (tracked in `JobManager.inFlightExecuted`) is excluded before any strategy or the `cancelRequested` override, so it is neither reset/re-dispatched (`retry` / `singleton`) nor cancelled mid-flight (`abandon` / `cancelRequested`) — this prevents a job started during the startup quiet window from running twice (#16291). The exclusion is scoped to the current process: crash leftovers from a previous process are not in that set and recover normally.
 - **`isScheduleOverdue` has three branches** (relevant when picking `catchUpPolicy: 'after-startup'`):
   - **`cron`** triggers compare `nextRun ≤ now()` from the persisted column.
-  - **`interval`** triggers compare `lastRun + intervalMs ≤ now()` (SchedulerService does not maintain `nextRun` for interval schedules — `lastRun` is the canonical anchor).
+  - **`interval`** triggers compare persisted `nextRun ≤ now()`. Rows written before interval due times were persisted fall back to `(lastRun ?? createdAt) + intervalMs`, so upgrades do not lose catch-up detection.
   - **`once`** triggers are never considered overdue: the timer is either still pending (it will fire) or has already fired and the schedule has self-cleaned. Make-up enqueues for `once` would double-fire, so the branch returns `false` unconditionally. Startup recovery enforces the complementary invariant: natural `once` fires persist `lastRun` clamped to no earlier than `trigger.at` (the once timer elapses on the monotonic clock, so an unclamped wall-clock read can land at `at - 1`), and `armSchedule` skips rows with `lastRun >= trigger.at` instead of re-arming them, while a never-fired past-due `once` still re-arms and fires immediately. This is a recovery-side guard, not strict exactly-once delivery — a crash between a fire's enqueue and its `markFired` write can still replay the one-shot on the next startup.
 
 ## 5. Error codes

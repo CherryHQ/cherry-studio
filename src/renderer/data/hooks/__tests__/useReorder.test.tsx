@@ -1,9 +1,10 @@
-import type * as RendererConstantModule from '@renderer/utils/platform'
-import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import React from 'react'
 import useSWR, { unstable_serialize } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as RendererConstantModule from '@renderer/utils/platform'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 
 import { createSWRTestWrapper } from './testUtils'
 
@@ -158,6 +159,44 @@ describe('useReorder - move()', () => {
 
     const orderCall = patchMock.mock.calls.find(([p]) => p === `${COLLECTION}/c/order`)
     expect(orderCall?.[1]).toMatchObject({ body: { before: 'a' } })
+  })
+})
+
+describe('useReorder - template collection paths', () => {
+  it('resolves collection params for cache access and reorder mutations', async () => {
+    const template = '/prompt-bindings/:targetType/:targetId' as const
+    const resolved = '/prompt-bindings/assistant/assistant-1'
+    const initial: Item[] = [{ id: 'a' }, { id: 'b' }]
+    const { Wrapper, cache } = createSWRTestWrapper([[[resolved], initial]])
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderHook(
+      () => {
+        useSWR([resolved], ([path]) => getMock(path, {}) as Promise<Item[]>, {
+          revalidateOnMount: false,
+          revalidateIfStale: false,
+          revalidateOnFocus: false,
+          revalidateOnReconnect: false
+        })
+        return useReorder(template, {
+          params: { targetType: 'assistant', targetId: 'assistant-1' },
+          revalidateOnSuccess: false
+        })
+      },
+      { wrapper: Wrapper }
+    )
+
+    await act(async () => {
+      await result.current.move('b', { position: 'first' })
+    })
+
+    expect(patchMock).toHaveBeenCalledWith(`${resolved}/b/order`, {
+      body: { position: 'first' },
+      query: undefined
+    })
+    const cached = cache.get(unstable_serialize([resolved]))?.data
+    expect(cached).toBeDefined()
+    expect((cached as Item[]).map((item) => item.id)).toEqual(['b', 'a'])
   })
 })
 

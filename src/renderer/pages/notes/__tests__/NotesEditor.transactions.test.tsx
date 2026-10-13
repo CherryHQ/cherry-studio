@@ -1,7 +1,8 @@
-import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type RefObject, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 
@@ -10,7 +11,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({

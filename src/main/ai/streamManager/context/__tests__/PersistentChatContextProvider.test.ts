@@ -1,3 +1,6 @@
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -5,11 +8,9 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { aiStreamAdmissionReasons, type AiStreamOpenRequest } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startAiChildTurnSpan } from '../../../observability'
 import { AiStreamAdmissionError } from '../../admission'
@@ -127,7 +128,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         topicId: 'topic-1',
         parentAnchorId: 'a1',
         userMessageParts: [{ type: 'text', text: 'actually, change direction' }]
-      } as AiStreamOpenRequest,
+      },
       { hasLiveStream: false }
     )
 
@@ -404,6 +405,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'steer-continuation',
         topicId: 'topic-1',
         userMessageId: 'u2',
+        serviceTier: 'flex',
         fastMode: false
       } satisfies MainSteerContinuationRequest,
       { hasLiveStream: false }
@@ -412,6 +414,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(resolveAssistantModelId).not.toHaveBeenCalled()
     expect(resolveModels).toHaveBeenLastCalledWith([MODEL_ID], MODEL_ID)
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-selected-for-steer'])
+    expect(prepared.models[0].request.serviceTier).toBe('flex')
 
     // A fresh assistant placeholder is created under u2 — no new user row.
     const children = messageService.getChildrenByParentId('u2')
@@ -444,7 +447,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         topicId: 'topic-1',
         parentAnchorId: 'u1',
         userMessageParts: [{ type: 'text', text: 'retry from before' }]
-      } as AiStreamOpenRequest,
+      },
       { hasLiveStream: false }
     )
 
@@ -498,6 +501,51 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(messageService.getChildrenByParentId(userMessageId)[0].modelId).toBe(selectedModelId)
   })
 
+  it('keeps a composer single-model snapshot on the default regeneration policy', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        mentionedModelIds: [MODEL_ID],
+        userMessageParts: [{ type: 'text', text: 'ordinary single-model question' }]
+      },
+      { hasLiveStream: false }
+    )
+    const reserved = prepared.reservedMessages!.find((message) => message.role === 'assistant')!
+    expect(messageService.getById(reserved.id).data.modelSelection).toBe('default')
+  })
+
+  it.each(['default', 'explicit'] as const)(
+    'retains %s model selection through reservation and stream completion',
+    async (modelSelection) => {
+      const request = { trigger: 'regenerate-message' as const, topicId: 'topic-1', parentAnchorId: 'u1' }
+      const prepared = await provider.prepareDispatch(
+        makeSubscriber(),
+        modelSelection === 'explicit'
+          ? { ...request, mentionedModelIds: [MODEL_ID], appendToLiveGroupMessageId: 'a1' }
+          : request,
+        { hasLiveStream: false }
+      )
+      const reserved = prepared.reservedMessages!.find((message) => message.role === 'assistant')!
+      expect(reserved.metadata?.modelSelection).toBe(modelSelection)
+      expect(messageService.getById(reserved.id).data.modelSelection).toBe(modelSelection)
+
+      const listener = prepared.listeners.find((entry) => entry instanceof PersistenceListener)!
+      await listener.onDone({
+        status: 'success',
+        modelId: MODEL_ID,
+        finalMessage: { id: reserved.id, role: 'assistant', parts: [{ type: 'text', text: 'completed answer' }] }
+      })
+
+      expect(messageService.getById(reserved.id)).toMatchObject({
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'completed answer' }], modelSelection }
+      })
+    }
+  )
+
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
     // Two @-mentioned models → two assistant placeholders sharing one siblings group.
     // All placeholders share the container traceId now; assert the per-model row and span
@@ -539,7 +587,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         parentAnchorId: 'u1',
         mentionedModelIds: [MODEL_A, MODEL_B],
         userMessageParts: [{ type: 'text', text: 'ask both models' }]
-      } as AiStreamOpenRequest,
+      },
       { hasLiveStream: false }
     )
 
@@ -563,6 +611,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(phB?.modelId).toBe(MODEL_B)
     expect(phA?.siblingsGroupId).toBe(42)
     expect(phB?.siblingsGroupId).toBe(42)
+    expect(phA?.data.modelSelection).toBe('explicit')
+    expect(phB?.data.modelSelection).toBe('explicit')
     expect(prepared.models[0].request.messageId).toBe(phA?.id)
     expect(prepared.models[1].request.messageId).toBe(phB?.id)
 
@@ -817,7 +867,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
           topicId: 'topic-1',
           role: 'assistant',
           data: {
-            turnOptions: { reasoningEffort: 'high', fastMode: true },
+            turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true },
             parts: [
               { type: 'text', text: 'let me call a tool' },
               {
@@ -901,7 +951,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       | undefined
     expect(toolPart?.state).toBe('approval-responded')
     expect(toolPart?.approval).toEqual({ id: APPROVAL_ID, approved: true })
-    expect(anchor.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
+    expect(anchor.data.turnOptions).toEqual({ reasoningEffort: 'high', serviceTier: 'flex', fastMode: true })
   })
 
   it("reuses the anchor's model and re-anchors history on the assistant row (no new placeholder)", async () => {
@@ -937,6 +987,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       spans: []
     })
     expect(prepared.models[0].request.reasoningEffort).toBe('high')
+    expect(prepared.models[0].request.serviceTier).toBe('flex')
     expect(prepared.models[0].request.fastMode).toBe(true)
 
     // No placeholder row was created — the path to the anchor is unchanged.

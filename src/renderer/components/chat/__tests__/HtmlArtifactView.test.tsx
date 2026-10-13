@@ -8,7 +8,6 @@ import { ScrollOwnershipProvider } from '../messages/list/ScrollOwnershipContext
 
 const mocks = vi.hoisted(() => ({
   createTempFile: vi.fn(),
-  htmlPreviewRestrictedCsp: "default-src 'none'",
   resizeObserverCallbacks: [] as ResizeObserverCallback[],
   CodeViewer: vi.fn(({ value }) => <pre data-testid="code-viewer">{value}</pre>),
   HtmlPreviewFrame: vi.fn(
@@ -67,11 +66,13 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@renderer/components/CodeViewer', () => ({ default: mocks.CodeViewer }))
 vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsPopup', () => ({ default: mocks.HtmlArtifactsPopup }))
-vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', () => ({
-  HTML_PREVIEW_RESTRICTED_CSP: mocks.htmlPreviewRestrictedCsp,
-  injectHtmlPreviewHeadElement: (html: string, element: string) => `${element}${html}`,
-  default: mocks.HtmlPreviewFrame
-}))
+vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    default: mocks.HtmlPreviewFrame
+  }
+})
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ error: mocks.loggerError })
@@ -261,6 +262,33 @@ describe('HtmlArtifactView', () => {
     expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
   })
 
+  it('maximizes an interactive fragment into the webview popup regardless of kind', async () => {
+    // Regression lock for the content-only outlet tier: a kind-based guard would route an
+    // active fragment back to the script-less frame in the maximize popup (pre-R2 behavior).
+    const html = '<div><script>fragmentWidget()</script></div>'
+
+    render(<HtmlArtifactView html={html} title="Preview" kind="fragment" />)
+
+    // Inline (non-consented) surface stays script-less for a fragment...
+    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    // ...but the maximize popup (the explicit viewing action) opens the webview tier.
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+    expect(mocks.HtmlArtifactsPopup).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        canCapturePreview: false,
+        html,
+        open: true,
+        title: 'Preview'
+      }),
+      undefined
+    )
+  })
+
   it('opens static HTML in the existing artifacts popup with a restricted iframe', async () => {
     const html = '<main><style>h1 { color: red; }</style><h1>Hello</h1></main>'
     const onSave = vi.fn()
@@ -414,6 +442,14 @@ describe('HtmlArtifactView', () => {
     expect(instrumentedHtml).toContain('element.clientHeight + 1')
     expect(instrumentedHtml).toContain("style.overscrollBehaviorY === 'contain'")
     expect(instrumentedHtml).toContain('element.scrollHeight - 1')
+    expect(instrumentedHtml).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
+    expect(instrumentedHtml).toContain('let scrollbarRoot = null')
+    expect(instrumentedHtml).toContain('const applyScrollbarGutter = () => {')
+    expect(instrumentedHtml).toContain(
+      'const nextScrollbarRoot = document.scrollingElement ?? document.documentElement'
+    )
+    expect(instrumentedHtml).toContain("scrollbarRoot.style.scrollbarGutter = 'stable'")
+    expect(instrumentedHtml).toContain("document.addEventListener('DOMContentLoaded', applyScrollbarGutter, true)")
   })
 
   it('routes webview boundary wheels through the scroll runtime', () => {
@@ -447,7 +483,8 @@ describe('HtmlArtifactView', () => {
       expect.objectContaining({
         html,
         sandbox: 'allow-same-origin',
-        csp: expect.stringContaining("default-src 'none'")
+        csp: expect.stringContaining("default-src 'none'"),
+        stableScrollbarGutter: true
       }),
       undefined
     )
@@ -540,6 +577,120 @@ describe('HtmlArtifactView', () => {
       act(() => callback([], {} as ResizeObserver))
       expect(surface).toHaveStyle({ height: '221px' })
     }
+  })
+
+  it('stabilizes at the natural height when bare text extends below the last element', () => {
+    render(<HtmlArtifactView html="<task-notification>Task done.</task-notification>  trailing text" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.margin = '8px'
+    const notice = frameDocument.createElement('task-notification')
+    notice.textContent = 'Task a6034e1f3607dfc0b completed.\nTask output file: /private/tmp/long-task-output.path'
+    body.replaceChildren(notice)
+    body.append('  在 macOS 的系统演进中……')
+
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height) || 0
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 135 })
+    Object.defineProperty(documentElement, 'scrollHeight', { configurable: true, get: () => 135 })
+    // Element measurement stops at the <task-notification> box (91px); the bare text node after it
+    // reaches 127px. Without the whole-body range the surface flips 99↔135 under the observer.
+    vi.spyOn(notice, 'getBoundingClientRect').mockReturnValue({ bottom: 91, height: 40, width: 300 } as DOMRect)
+    // jsdom keeps each iframe in its own realm, so the frame's Range constructor differs from the
+    // host global; mock the one getIframeContentHeight actually calls createRange() on.
+    const frameRange = (iframe.contentWindow as unknown as { Range: typeof Range }).Range
+    const rangePrototype = frameRange.prototype as Range & { getBoundingClientRect?: unknown }
+    const originalRangeGetBoundingClientRect = rangePrototype.getBoundingClientRect
+    Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: vi.fn(() => ({ bottom: 127, height: 30, width: 300 }) as DOMRect)
+    })
+
+    try {
+      fireEvent.load(iframe)
+      expect(surface).toHaveStyle({ height: '135px' })
+
+      for (const callback of mocks.resizeObserverCallbacks) {
+        act(() => callback([], {} as ResizeObserver))
+        expect(surface).toHaveStyle({ height: '135px' })
+      }
+    } finally {
+      if (originalRangeGetBoundingClientRect === undefined) {
+        delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+      }
+    }
+  })
+
+  it('uses the scroll height directly for scrollable content without sweeping every element', () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const setPreviewContentHeight = createPreviewContentHeightController()
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const body = iframe.contentDocument?.body
+    if (!body) throw new Error('Expected iframe body')
+
+    const sweepSpy = vi.spyOn(body, 'querySelectorAll')
+
+    setPreviewContentHeight(1200)
+
+    expect(surface).toHaveStyle({ height: '576px' })
+    expect(sweepSpy).not.toHaveBeenCalled()
+  })
+
+  it('re-measures on DOM mutations without rebuilding observers', async () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    const body = frameDocument?.body
+    if (!frameDocument || !body) throw new Error('Expected iframe document')
+
+    const content = frameDocument.createElement('main')
+    body.replaceChildren(content)
+    body.style.margin = '0'
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height) || 240
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 0 })
+    Object.defineProperty(frameDocument.documentElement, 'scrollHeight', { configurable: true, get: () => 0 })
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({ bottom: 180, height: 180, width: 100 } as DOMRect)
+
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '180px' })
+
+    const observeSpy = vi.spyOn(ResizeObserver.prototype, 'observe')
+    const tall = frameDocument.createElement('div')
+    vi.spyOn(tall, 'getBoundingClientRect').mockReturnValue({ bottom: 300, height: 300, width: 100 } as DOMRect)
+
+    await act(async () => {
+      content.appendChild(tall)
+    })
+
+    // The mutation re-measured through syncHeight with the new content bottom.
+    expect(surface).toHaveStyle({ height: '300px' })
+
+    // Count only observer activity from here on: a size-neutral mutation must
+    // re-measure without rebuilding observers.
+    observeSpy.mockClear()
+    const idle = frameDocument.createElement('span')
+    vi.spyOn(idle, 'getBoundingClientRect').mockReturnValue({ bottom: 300, height: 0, width: 0 } as DOMRect)
+
+    await act(async () => {
+      content.appendChild(idle)
+    })
+
+    expect(surface).toHaveStyle({ height: '300px' })
+    expect(observeSpy).not.toHaveBeenCalled()
   })
 
   it('renders a streaming fragment as a restricted DOM preview without controls', () => {

@@ -21,6 +21,12 @@ Two independent main-process lifecycle services:
 - Need cron only (heartbeat-style, no persistence) → `schedulerService.registerSchedule()` directly
 - Need recurring service-internal GC / self-check → `BaseService.registerInterval` (project convention, not SchedulerService)
 
+### Persistent automatic calendar
+
+`jobScheduleTable.nextRun` means the next **automatic** fire, not the most recent request to run. JobManager persists SchedulerService's value as soon as a cron, interval, or once trigger is armed and advances it after natural fires. Pausing, replacing a trigger before re-arm, or consuming a once trigger clears it; resuming computes a new value. `triggerJobScheduleNow*` is an extra run and updates only `lastRun`, preserving the automatic calendar.
+
+For chained intervals, SchedulerService installs the next timeout after the callback settles. A query made from the tail of that callback predicts `now + interval`; the installed timeout follows immediately after the final synchronous persistence write.
+
 ## DB-driven dispatch
 
 `jobTable` is the **single source of truth**. Memory state (handlers Map, queues Map, AbortControllers) is a derived view that JobManager rebuilds on every startup.
@@ -119,7 +125,7 @@ await createSnapshot()
 
 **Blocked while paused** (autonomous writes): dispatch claims (entry check + post-mutex re-check), schedule fire callbacks (crons are additionally paused at the croner layer so `limit` quotas survive the window), GC / delayed-promotion ticks, delayed/retry promotion fires, and new startup-recovery steps — a started step (one schedule's `onMissed` + catch-up enqueue, atomic) runs to completion and is awaited by drain.
 
-**Allowed while paused** (request-driven): `enqueue` / `enqueueTx` (rows land at rest and the snapshot captures them), `cancel` / `cancelMany`, schedule mutations, and `triggerJobScheduleNow*` — forced onto its direct-enqueue fallback (row lands `pending` + `markFired`; `true` still means "row persisted").
+**Allowed while paused** (request-driven): `enqueue` / `enqueueTx` (rows land at rest and the snapshot captures them), `cancel` / `cancelMany`, schedule mutations, and `triggerJobScheduleNow*` — forced onto its direct-enqueue fallback (row lands `pending` and only `lastRun` changes; `true` still means "row persisted").
 
 Missed cron fires are skipped, not caught up (croner semantics). A suppressed `once` fire is re-armed on release from the recorded id set — exactly once; never rebuild by scanning "enabled ∧ missing scheduler entry", which also matches historical completed one-shots.
 

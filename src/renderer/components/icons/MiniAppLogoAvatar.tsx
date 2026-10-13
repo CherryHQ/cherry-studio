@@ -8,6 +8,8 @@ interface Props {
   logo: string | undefined
   size?: number
   className?: string
+  /** Accessible name for URL logos. Pass `""` when the image is decorative. */
+  alt?: string
 }
 
 /**
@@ -15,13 +17,13 @@ interface Props {
  * brand icon path (with a size-stable placeholder while the icon chunk loads);
  * anything else renders as an image URL via LogoAvatar's string path.
  */
-const MiniAppLogoAvatar: FC<Props> = ({ logo, size = 32, className }) => {
+const MiniAppLogoAvatar: FC<Props> = ({ logo, size = 32, className, alt }) => {
   const logoRef = getMiniAppsLogoRef(logo)
   const Icon = useMiniAppLogo(logo)
   if (logoRef && !Icon) {
     return <span className="inline-block shrink-0" style={{ width: size, height: size }} />
   }
-  return <LogoAvatar logo={Icon ?? logo} size={size} className={className} />
+  return <LogoAvatar logo={Icon ?? logo} size={size} className={className} alt={alt} />
 }
 
 export default MiniAppLogoAvatar

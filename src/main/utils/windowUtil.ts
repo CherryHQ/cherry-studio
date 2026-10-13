@@ -1,5 +1,6 @@
-import { isDev, isWin } from '@main/core/platform'
 import type { BrowserWindow } from 'electron'
+
+import { isDev, isWin } from '@main/core/platform'
 
 // see: https://www.electronjs.org/zh/docs/latest/api/base-window#winsetbackgroundmaterialmaterial-windows
 const WINDOWS_11_22H2_BUILD = 22621

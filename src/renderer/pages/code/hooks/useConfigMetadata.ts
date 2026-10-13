@@ -1,14 +1,16 @@
+import { useCallback, useMemo } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
-import { isCherryAIProvider, isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
-import { useCallback, useMemo } from 'react'
+import { isAgentOnlyProvider, isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 import { CLI_TOOL_PROVIDER_MAP } from '../constants/cliTools'
 import { modelSupportsCliTool } from '../utils/modelSupport'
@@ -28,7 +30,11 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   const modelById = useMemo(() => new Map(allModels.map((m) => [m.id, m])), [allModels])
   const gatewayProviderIds = useMemo(
     () =>
-      new Set(providers.filter((provider) => provider.isEnabled && !isExternalCliProvider(provider)).map((p) => p.id)),
+      new Set(
+        providers
+          .filter((provider) => provider.isEnabled && !isAgentOnlyProvider(provider, getAppEdition()))
+          .map((provider) => provider.id)
+      ),
     [providers]
   )
   const gatewayModelsById = useMemo(
@@ -43,17 +49,18 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   const defaultGatewayModelId =
     defaultModelId && gatewayModelsById.has(defaultModelId as Model['id']) ? (defaultModelId as Model['id']) : undefined
 
+  const filterProvidersForTool = useCallback((toolId: CodeCli, providers: Provider[]): Provider[] => {
+    const filterFn = CLI_TOOL_PROVIDER_MAP[toolId]
+    // Exclude login-based providers (Claude Code / Codex OAuth, etc.): they carry no API
+    // key/baseUrl to inject into the CLI config, and their "own login" is already surfaced by
+    // the synthetic own-login card. `isLoginBasedProvider` keeps api-key-capable mixed providers.
+    return filterFn
+      ? filterFn(providers).filter((p) => p.isEnabled && !isCherryAIProvider(p) && !isLoginBasedProvider(p))
+      : []
+  }, [])
   const filterProviders = useCallback(
-    (providers: Provider[]): Provider[] => {
-      const filterFn = CLI_TOOL_PROVIDER_MAP[selectedCliTool]
-      // Exclude login-based providers (Claude Code / Codex OAuth, etc.): they carry no API
-      // key/baseUrl to inject into the CLI config, and their "own login" is already surfaced by
-      // the synthetic own-login card. `isLoginBasedProvider` keeps api-key-capable mixed providers.
-      return filterFn
-        ? filterFn(providers).filter((p) => p.isEnabled && !isCherryAIProvider(p) && !isLoginBasedProvider(p))
-        : []
-    },
-    [selectedCliTool]
+    (providers: Provider[]): Provider[] => filterProvidersForTool(selectedCliTool, providers),
+    [filterProvidersForTool, selectedCliTool]
   )
 
   /** Build a model filter scoped to one provider (for the edit panel's picker). */
@@ -65,12 +72,12 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
         // regardless of the CLI tool — drop the per-tool endpoint gate and the single-provider scope,
         // keeping only what the gateway can route (same predicate as its /v1/models listing).
         if (isApiGatewayProviderId(providerId)) {
-          return isGatewayRoutableModel(model)
+          return gatewayProviderIds.has(model.providerId) && isGatewayRoutableModel(model)
         }
         if (!modelSupportsCliTool(selectedCliTool, model)) return false
         return model.providerId === providerId
       },
-    [selectedCliTool]
+    [gatewayProviderIds, selectedCliTool]
   )
 
   const resolveProviderMetaForTool = useCallback(
@@ -108,10 +115,12 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
 
   return {
     filterProviders,
+    filterProvidersForTool,
     makeModelFilter,
     resolveProviderMeta,
     resolveProviderMetaForTool,
     gatewayModelsById,
+    modelById,
     defaultGatewayModelId,
     isGatewayModelsLoading
   }

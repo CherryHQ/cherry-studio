@@ -1,6 +1,7 @@
+import { createContext, use, useEffect } from 'react'
+
 import { platform } from '@renderer/utils/platform'
 import type { ContextReader, ContextValue } from '@shared/types/command'
-import { createContext, use, useEffect } from 'react'
 
 export type RendererCommandContextKey =
   | 'platform'
@@ -10,6 +11,7 @@ export type RendererCommandContextKey =
   | 'chat.active'
   | 'topic.exists'
   | 'input.composing'
+  | 'webview.focused'
 
 export type RegisterContextKey = (key: RendererCommandContextKey, value: ContextValue) => () => void
 

@@ -81,7 +81,6 @@ reference for that Main-side design.
 │       • MessageServiceBackend  (SQLite tree)                 │
 │       • TemporaryChatBackend   (in-memory)                   │
 │       • AgentSessionMessageBackend (agent-session DB)        │
-│       • TranslationBackend     (translate row)               │
 │    2. WebContentsListener → ai.stream.done/error events      │
 │       other notification listeners (channel / SSE)          │
 │    3. TraceFlushListener → TraceStorageService.saveSpans    │
@@ -203,8 +202,7 @@ src/main/ai/streamManager/
     ├── PersistenceBackend.ts          strategy interface + runtime-only stats input
     └── backends/
         ├── MessageServiceBackend.ts   finalize a SQLite pending placeholder
-        ├── TemporaryChatBackend.ts    append to in-memory topic
-        └── TranslationBackend.ts      attach `data-translation` part to a target message
+        └── TemporaryChatBackend.ts    append to in-memory topic
 ```
 
 Agent session persistence is implemented under `agentSession/persistence`
@@ -268,6 +266,21 @@ them by `terminalPhase` (`persistence` → notification → `cleanup`), and then
 `onChunk` keeps a synchronous contract (the execution loop can't `await`
 a listener) so it inlines the loop instead of going through
 `dispatchToListeners`, but the dead-listener cleanup is the same.
+
+Consumers that gate further admission on `onDone` (the channel completion
+sentinel, for example) must be `cleanup`-phased: unphased listeners run
+before the runtime terminal listener marks the session idle, so a follow-up
+they release would be refused as busy. Every admission path — `dispatch()`
+(renderer opens, approval continues, steer continuations),
+`startAgentSessionRun`, and the delivery service's `dispatchOne` — awaits
+`whenTerminalDispatchSettled(topicId)` under the dispatch lock, so a
+follow-up released by one cleanup listener (or a renderer submit landing
+right after its `done` chunk) cannot evict the stream while later cleanup
+listeners are still running — the stale-generation guard
+would otherwise skip that stream's terminal lifecycle (`done` status
+broadcast and `onConversationCompleted`). The inverse invariant follows:
+a terminal listener must never await the topic's dispatch lock, or the
+admission waiting on that dispatch would deadlock with it.
 
 ### PersistenceListener — strategy pattern
 
@@ -460,6 +473,8 @@ class AiStreamManager {
     prompt?: string
     messages?: CherryUIMessage[]
     listener: StreamListener | StreamListener[]
+    reasoningEffort?: ReasoningEffortOption
+    callOverrides?: CallOverrides                          // the only sampling channel here
   }): SendResult
 
   // ── Subscription management ───────────────────────────────────────
@@ -470,6 +485,7 @@ class AiStreamManager {
 
   // ── Control ───────────────────────────────────────────────────────
   abort(topicId: string, reason: string): void
+  abortAndDrain(topicId: string, reason: string): Promise<void>
   hasLiveStream(topicId: string): boolean
   // Queue a steer user row persisted while a turn was live; the running turn
   // yields and `onExecutionDone` chains a `steer-continuation` to answer it.
@@ -564,32 +580,49 @@ const stream: ReadableStream<UIMessageChunk> = await aiService.streamText({
 timeout it aborts `exec.abortController`, which the upstream request is
 already wired to.
 
-**Step 3 — `pipeStreamLoop` tees the chunk stream.**
+**Step 3 — `pipeStreamLoop` isolates source errors before teeing the stream.**
 
 `pipeStreamLoop` is the shared chunk-pipe primitive (the one
-`AiStreamManager.runExecutionLoop` uses). It `tee()`s the stream into two
-independent branches:
+`AiStreamManager.runExecutionLoop` uses). It forwards the source through a
+`TransformStream` using `pipeTo({ preventAbort: true, preventClose: true })`.
+The forwarding task records upstream errors separately and closes the boundary
+normally when it settles. This preserves already-forwarded chunks in consumer
+queues even when the upstream stream fails. The boundary's readable side is
+then split with `tee()` into two independent branches:
 
 | Branch | Consumer | Purpose |
 |---|---|---|
 | Broadcast | `onChunk(topicId, modelId, chunk)` per chunk | Buffer into `exec.buffer` (ring), fan out to every listener |
 | Accumulator | `readUIMessageStream` | Each yielded snapshot is written to `exec.finalMessage`; at stream end it's the final message |
 
-The accumulator reader is **not** cancelled directly on abort —
-`Agent.stream` honours the same signal upstream and propagates `done`
-through `tee()`, so the accumulator drains naturally. Cancelling the
-accumulator reader directly would race AI SDK's internal
-`controller.close()` and produce an `ERR_INVALID_STATE`
-unhandledRejection.
+Abort and broadcast callback failures stop source forwarding and cancel the
+broadcast reader. The boundary closes normally and the accumulator drains;
+this does not depend on the source closing itself in response to the request
+signal. The SDK output reader is **not** cancelled directly, because that can
+race its internal `controller.close()` and produce an `ERR_INVALID_STATE`
+unhandled rejection. `broadcastCompletedAt` is recorded before accumulator drain.
+
+Provider `error` chunks are captured by broadcast and omitted from the
+accumulator input: the SDK also calls `onError` for those chunks, even though
+they do not interrupt accumulation. SDK parsing failures are recorded separately
+as `accumulationError`; they preserve the last valid snapshot and do not stop
+broadcasting subsequent chunks. They do not repair a malformed chunk sequence
+or recover later content into the persisted message. A run with an accumulation
+failure cannot finish successfully. Existing source/provider errors and user
+cancellation take precedence over this diagnostic.
+
+No synthetic `finish` chunk is needed. On paused/error persistence,
+`finalizeInterruptedParts` terminalizes open text, reasoning, tool and task parts.
 
 **Step 4 — terminal dispatch.**
 
 | Exit path | Handler | Behaviour |
 |---|---|---|
 | Normal end | `onExecutionDone` | `exec.status = 'done'`, finalMessage persisted as `success` |
-| `signal.aborted` + `exec.status === 'aborted'` | `onExecutionPaused` | (Possibly partial) finalMessage persisted as `paused` |
+| `signal.aborted`, without a thrown failure | `onExecutionPaused` | Promote streaming execution to aborted if necessary; persist partial finalMessage as `paused` |
 | `streamErrorText` (in-stream `error` chunk) | `onExecutionError` | Error part folded into finalMessage, persisted as `error` |
-| Pre-stream or broadcast throw | `onExecutionError` | Same — error part folded, persisted |
+| Pre-stream, upstream or broadcast throw | `onExecutionError` | Same — error part folded, persisted |
+| Accumulation failure without another terminal cause | `onExecutionError` | Last valid snapshot persisted as `error`, with failure source `host` and reason `internal` |
 
 ## Write quiesce (pause / drainInFlight)
 
@@ -601,6 +634,11 @@ the contract — `AiStreamManager`, `AgentSessionRuntimeService`, and channel in
 (`ChannelManager` → `ChannelMessageHandler`) — each exposing
 `pause(reason?): Disposable` + `drainInFlight({ timeoutMs }) → { stragglerIds }`
 (empty = clean) + an advisory read-only `listActiveWork()`.
+
+BackupManager delegates Agent-specific participants to `AgentLifecycleService`; its
+`pauseIngress` / `drainIngress` pair covers Channel intake and lifecycle commands,
+and `pauseExecution` covers Delivery and Runtime. Global Stream and Job holds remain
+BackupManager-owned. See [Agent Lifecycle](./agent-lifecycle.md#backup-and-shutdown).
 
 Orchestration order (grandfather-free, per #16850) — the channel step MUST fully complete
 before the AI writers are paused:
@@ -630,7 +668,7 @@ AiStreamManager specifics:
 | Gate = dispatch admission | Checked inside the `withDispatchLock` callback (post-mutex re-check), BEFORE `prepareDispatch` writes the user/pending-assistant rows. `dispatch()` returns `{ mode: 'blocked', reason: 'paused' }`; `startAgentSessionRun` throws. Unlike JobManager, the AI gate rejects by design — a new turn is an execution start, not data at rest. |
 | Steer continuations suppressed, not rejected | `startNextChatTurn` returns before consuming the steer queue and records the topic; the last hold's disposal re-kicks it. The `steer-continuation` trigger is exempt from the `dispatch()` gate (it only originates from the gated `startNextChatTurn`; a grandfathered launch is drained via `inFlightChatContinuations`). |
 | Not gated | `send()` / `startRuntimeTurn()` (a continuation past its upstream gate must reach them), `streamPrompt()` (renderer-driven callers are covered by the restore UI block; chunks-only prompt streams write nothing), and `AiService.embedMany` (never routes through this manager) — knowledge indexing keeps working while quiesced. |
-| Drain wait-set | Gate-admitted `dispatchStreamRequest` promises until `manager.send()` hands them off to the stream registry; this covers async `prepareDispatch` work such as agent-session `validateSession()`. Then executions of streams carrying a `persistence:*` listener — listener-derived, not lifecycle-derived: chunks-only prompt streams (API gateway, orphan translate) are excluded, while a translate-with-persist carries a `TranslationBackend` persistence listener and IS drained. Plus in-flight steer-continuation launches and `TopicNamingService.inFlightWrites()` — the summary renames are spawned detached (`void backend.afterPersist(...)`), so a loopPromise settles before their DB write lands; the registry closes that gap. The set can grow while draining (an admission opens a stream, a settling loop spawns a naming write, or a grandfathered continuation opens a stream), so the drain is a fixed point over promise identities, bounded by `timeoutMs`. |
+| Drain wait-set | Gate-admitted `dispatchStreamRequest` promises until `manager.send()` hands them off to the stream registry; this covers async `prepareDispatch` work such as agent-session `validateSession()`. Then executions of streams carrying a `persistence:*` listener — listener-derived, not lifecycle-derived; chunks-only prompt streams (API gateway and translate) are excluded. Plus in-flight steer-continuation launches and `TopicNamingService.inFlightWrites()` — the summary renames are spawned detached (`void backend.afterPersist(...)`), so a loopPromise settles before their DB write lands; the registry closes that gap. The set can grow while draining (an admission opens a stream, a settling loop spawns a naming write, or a grandfathered continuation opens a stream), so the drain is a fixed point over promise identities, bounded by `timeoutMs`. |
 | Timeout | Never rejects; stragglers are not aborted (the orchestrator decides — see the job overview for why an abort would poison the snapshot). |
 
 `AgentSessionRuntimeService` gates its two autonomous turn starters (`startNextTurn` /
@@ -739,7 +777,7 @@ duplicated; the rest are stream-manager-specific.
 | Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `pendingTurns`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `ai.tool.respond_approval`; a live agent runtime resolves its registry entry, while MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
 | Reconnect | `ai.stream.attach` on mount | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, or the final row is returned; attach never changes runtime state |
-| Abort — user stop | `ai.stream.abort` | per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done` | partial persisted as **`paused`**; topic status → `aborted` (or `awaiting-approval` if an exec had it set) |
+| Abort — user stop | `ai.stream.abort` | `abortAndDrain` holds the topic dispatch lock; per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done`; then Agent runtime close settles | partial persists as **`paused`** and the request resolves before the next same-topic dispatch is admitted |
 | Abort — no subscribers | last `WebContentsListener` dies + `backgroundMode === 'abort'` | `onChunk` prunes dead listeners; `listeners.size === 0` → auto `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** — never silently `success` or leaked |
 | Multi-window | window B opens a live topic | B sends `ai.stream.attach` → compact replay + its own `WebContentsListener`; each chunk fans out to A and B | both windows render the same chunks in sync |
 | Channel / Agent | `AiStreamManager.send` in-process (no IPC) | scenario differs only by listener composition (table below) | per-listener effect |
@@ -762,7 +800,12 @@ listener composition:
 | Channel bot reply | `ChannelAdapterListener` + agent-session persistence listener | IM send + agents DB |
 | Channel + user both watching | above + `WebContentsListener(B)` | parallel fan-out |
 | API server SSE | `SseListener` + `PersistenceListener` | SSE push + persist |
-| Translate | `WebContentsListener` + `PersistenceListener(TranslationBackend)` | live overlay + writes `data-translation` part on success |
+| Translate | `WebContentsListener` | streams text to the renderer; the caller owns the result and Home persists through `ChatWrite` |
+
+`translate.open` deliberately carries no `PersistenceListener`: it is a
+chunks-only prompt stream with no message target. See
+[Text Translation](./translation.md) for the renderer/Main boundary and Home's
+`data-translation` write path.
 
 ## IPC contract
 
@@ -773,7 +816,7 @@ listener composition:
 | `ai.stream.open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode? }` | Open / inject; provider routes by topicId |
 | `ai.stream.attach` | `{ topicId }` | `AiStreamAttachResponse` | Subscribe; returns compact replay when streaming |
 | `ai.stream.detach` | `{ topicId }` | void | Unsubscribe (stream continues) |
-| `ai.stream.abort` | `{ topicId }` | void | Stop current generation |
+| `ai.stream.abort` | `{ topicId }` | void | Stop current generation; resolves after terminal persistence and Agent runtime close settle |
 
 > Topic status snapshots need no dedicated IPC: a new window pulls every
 > `topic.stream.statuses.${topicId}` entry via `Cache_GetAllShared` on
@@ -934,11 +977,20 @@ entry is evicted; subsequent `attach` returns `not-found` and the
 renderer reads from the DB through `useQuery` (PersistenceListener has
 already written by then).
 
-If the user stops and immediately retries on the same topic, `send`
-takes the start branch: `evictStream` first clears the grace-period
-remnant (cancels the cleanup timer and drops the entry from
-`activeStreams`), then the new stream is created — the old never blocks
-the new.
+After a naturally terminal stream, or after an awaited user Stop has crossed its
+teardown barrier, a same-topic retry takes the start branch: `evictStream` first
+clears the grace-period remnant (cancels the cleanup timer and drops the entry
+from `activeStreams`), then creates the new stream. The grace-period entry never
+blocks the new generation; an in-progress user Stop intentionally does, through
+the topic dispatch lock, until terminal persistence and, for Agent sessions,
+runtime teardown settle. See [IPC Transport → User Stop](./ipc-transport.md#user-stop) for why the
+Renderer sends and awaits an explicit abort request even after calling AI SDK's
+`stop()`.
+
+**Terminal freshness invariant.** After awaiting terminal listener
+dispatch, the manager must re-check `activeStreams.get(topicId) === stream`
+before any topic-level side effect. Listener delivery for the old stream
+still completes, but a stale callback cannot mutate its replacement.
 
 ## Edge case cheat sheet
 

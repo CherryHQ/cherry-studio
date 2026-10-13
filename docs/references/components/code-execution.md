@@ -87,7 +87,7 @@ default and must remain an explicit user setting.
 The UI contract is covered by:
 
 ```bash
-pnpm test src/renderer/components/CodeBlockView/__tests__/CodeBlockView.test.tsx
+pnpm test:renderer src/renderer/components/CodeBlockView/__tests__/CodeBlockView.test.tsx
 ```
 
 Changes to the service or worker also require a manual run that covers initial

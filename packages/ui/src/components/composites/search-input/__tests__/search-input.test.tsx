@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -81,5 +80,13 @@ describe('SearchInput', () => {
     const group = container.querySelector('[data-slot="input-group"]')
     expect(group).toHaveClass('h-7')
     expect(group).not.toHaveClass('h-9')
+  })
+
+  it('applies containerClassName to the input group, overriding the size height', () => {
+    const { container } = render(<SearchInput size="sm" containerClassName="h-8" value="" onChange={() => {}} />)
+
+    const group = container.querySelector('[data-slot="input-group"]')
+    expect(group).toHaveClass('h-8')
+    expect(group).not.toHaveClass('h-7')
   })
 })

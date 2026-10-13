@@ -20,12 +20,14 @@ export const REFERENCE_DOMAINS: readonly string[] = [
   'ipc',
   'job-and-scheduler',
   'knowledge',
-  'lan-transfer',
   'lifecycle',
   'logging',
+  'memory',
+  'mini-app',
   'provider-model',
   'security',
   'testing',
+  'utility-process',
   'window-manager'
 ]
 

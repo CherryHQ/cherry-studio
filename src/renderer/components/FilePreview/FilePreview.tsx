@@ -1,3 +1,9 @@
+import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
+import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { ErrorBoundary } from 'react-error-boundary'
+import { useTranslation } from 'react-i18next'
+
+import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
@@ -6,16 +12,10 @@ import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
-import { ErrorBoundary } from 'react-error-boundary'
-import { useTranslation } from 'react-i18next'
 
-import { FilePreviewLayout } from './FilePreviewLayout'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
-import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
-import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewType } from './types'
+import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewPluginProps, FilePreviewType } from './types'
 
 const logger = loggerService.withContext('FilePreview')
 const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
@@ -67,7 +67,7 @@ function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
   const openablePath = kind === 'unsupported' ? filePath : undefined
   const handleOpenWithDefaultApp = () => {
     if (!openablePath) return
-    void safeOpen(createFilePathHandle(openablePath)).catch(() => toast.error(t('file_preview.unsupported.open_error')))
+    void safeOpen(createFilePathHandle(openablePath)).catch(() => toast.error(t('file_preview.open_error')))
   }
 
   return (
@@ -92,7 +92,7 @@ function FilePreviewLoading() {
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
-        <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+        <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="size-4 animate-spin" aria-hidden />
           <span>{t('file_preview.loading')}</span>
         </div>
@@ -109,54 +109,46 @@ interface FilePreviewPluginRendererProps {
   fileName: string
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
-  plugin: FilePreviewPlugin
+  onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
+  plugin: PreloadedFilePreviewPlugin
   refreshKey: number
   type: FilePreviewType
 }
 
-interface FilePreviewShellProps {
-  children: ReactNode
-  header?: ReactNode
+interface PreloadedFilePreviewPlugin {
+  descriptor: FilePreviewPlugin
+  modulePromise: ReturnType<FilePreviewPlugin['load']>
 }
 
-function FilePreviewShell({ children, header }: FilePreviewShellProps) {
-  if (header === undefined) return children
-
-  return (
-    <FilePreviewToolbarPortalProvider>
-      <FilePreviewLayout.Frame>
-        <div
-          data-testid="file-preview-header"
-          className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
-          <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
-          <FilePreviewToolbarPortalHost />
-        </div>
-        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
-      </FilePreviewLayout.Frame>
-    </FilePreviewToolbarPortalProvider>
-  )
+function preloadFilePreviewPlugin(descriptor: FilePreviewPlugin): PreloadedFilePreviewPlugin {
+  const modulePromise = Promise.resolve().then(() => descriptor.load())
+  // React.lazy observes the original rejection only when metadata accepts this candidate.
+  void modulePromise.catch(() => {})
+  return { descriptor, modulePromise }
 }
 
 function FilePreviewPluginRenderer({
   fileName,
   filePath,
   metadata,
+  onSelectionReference,
   plugin,
   refreshKey,
   type
 }: FilePreviewPluginRendererProps) {
-  const PluginPreview = useMemo(() => lazy(plugin.load), [plugin])
+  const PluginPreview = useMemo(() => lazy(() => plugin.modulePromise), [plugin])
 
   return (
     <ErrorBoundary
-      key={`${plugin.id}:${filePath}:${refreshKey}`}
+      key={`${plugin.descriptor.id}:${filePath}:${refreshKey}`}
       FallbackComponent={PluginErrorFallback}
-      onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.id}`, error)}>
+      onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error)}>
       <Suspense fallback={<FilePreviewLoading />}>
         <PluginPreview
           filePath={filePath}
           fileName={fileName}
           metadata={metadata}
+          onSelectionReference={onSelectionReference}
           refreshKey={refreshKey}
           type={type}
         />
@@ -170,6 +162,8 @@ export interface FilePreviewProps {
   header?: ReactNode
   refreshKey?: number
   type?: FilePreviewType
+  /** See {@link FilePreviewPluginProps.onSelectionReference}; forwarded to the active plugin as-is. */
+  onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
 }
 
 interface NormalizedFilePreviewTarget {
@@ -184,12 +178,18 @@ type FilePreviewResolution =
   | {
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
-      plugin: FilePreviewPlugin | null
+      plugin: PreloadedFilePreviewPlugin | null
       requestKey: string
       status: 'ready'
     }
 
-export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }: FilePreviewProps) {
+export function FilePreview({
+  filePath,
+  header,
+  refreshKey = 0,
+  type = 'file',
+  onSelectionReference
+}: FilePreviewProps) {
   const file = useMemo(() => {
     try {
       const normalizedPath = normalizeFilePreviewPath(filePath)
@@ -209,7 +209,10 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
 
     void (async () => {
       try {
-        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        const metadataPromise = ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        const candidateDescriptor = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
+        const candidatePlugin = candidateDescriptor ? preloadFilePreviewPlugin(candidateDescriptor) : null
+        const metadata = await metadataPromise
         if (cancelled) return
 
         if (!metadata) {
@@ -222,12 +225,12 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
           return
         }
 
-        let plugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
-        if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.id)) {
+        let plugin = candidatePlugin
+        if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.descriptor.id)) {
           const isText = metadata.type === 'text'
 
           if (!plugin && isText) {
-            plugin = textFilePreviewPlugin
+            plugin = preloadFilePreviewPlugin(textFilePreviewPlugin)
           } else if (plugin && !isText) {
             plugin = null
           }
@@ -259,6 +262,7 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
       <FilePreviewPluginRenderer
         {...resolution.file}
         metadata={resolution.metadata}
+        onSelectionReference={onSelectionReference}
         plugin={resolution.plugin}
         refreshKey={refreshKey}
         type={type}
@@ -268,5 +272,5 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
     preview = <FilePreviewState kind="unsupported" filePath={resolution.file.filePath} />
   }
 
-  return <FilePreviewShell header={header}>{preview}</FilePreviewShell>
+  return <FilePreviewLayout.Shell header={header}>{preview}</FilePreviewLayout.Shell>
 }

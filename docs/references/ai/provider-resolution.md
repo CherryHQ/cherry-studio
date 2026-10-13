@@ -84,14 +84,18 @@ Variants registered today (declared in each provider extension's
 
 `ollama` has no registered variant, so an `ollama-chat` endpoint resolves
 to the base `ollama`. Likewise there is **no `openai-responses` variant**
-(the base already is). `azure-anthropic` is not reached through the suffix
+(the base already is) — and the standalone `open-responses` extension
+(`@ai-sdk/open-responses`, the minimal dialect for subset Responses servers —
+see [Adapter Family](./adapter-family.md)) is deliberately NOT named
+`openai-responses`, or this suffix probe would silently reroute every
+`adapterFamily: 'openai'` responses endpoint onto it. `azure-anthropic` is not reached through the suffix
 rule — it is selected inside `buildAzureConfig` when the model is a Claude
 model (see below). `resolveProviderVariant(baseId, endpointType)` is
 idempotent when the base id is already a variant.
 
 ## Provider config
 
-`providerToAiSdkConfig(provider, model, { resolvedEndpoint? })`
+`providerToAiSdkConfig(provider, model, { apiKeyOverride?, resolvedEndpoint? })`
 (`src/main/ai/provider/config.ts`) returns
 `{ providerId: AppProviderId, providerSettings: AppProviderSettingsMap[id] }`.
 The standard request path passes its already-resolved endpoint into this
@@ -99,6 +103,24 @@ function, which then calls `resolveAiSdkProviderId` and dispatches through an
 ordered `{ match, build }` table to build the provider-specific settings
 object (apiKey, baseURL, organization, headers, ...). Direct callers may omit
 the option and let the function resolve the endpoint itself.
+
+`resolveSdkConfig` (`src/main/ai/provider/sdkConfig.ts`) wraps it with the wire
+model id and the `providerOptions` namespace. It is the modality-agnostic
+transport core: `AiService`'s embedding, rerank and image verbs call it
+directly, and the chat pipeline (`buildAgentParams`) layers tools, prompt and
+context on top of it. Compression-model resolution also uses this core,
+including wire model normalization, before binding its owning conversation
+to the summary model.
+
+**Builders never read request context.** A config is a function of the
+provider, the model, the endpoint and the credential. When a provider's
+protocol needs something per request, the builder *declares* it and the chat
+pipeline fulfils it — OpenCode Go/Zen requires `x-opencode-session`, so
+`buildOpenCodeGoConfig` sets `ProviderConfig.conversationHeader` and
+`buildAgentOptions` fills it from `request.conversation.id`. Only chat
+requests (`AiChatRequest`) carry a conversation; embedding, rerank and image
+requests have no such field, so nothing below the caller has to derive or
+default one.
 
 The builder table (`config.ts`, first match wins):
 

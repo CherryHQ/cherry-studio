@@ -2,9 +2,8 @@ import { Editor } from '@tiptap/core'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { serializeComposerDocument } from '../composerDraft'
-import { createComposerInputAdapter } from '../composerInputAdapter'
+import { createComposerInputAdapter, updateComposerToken } from '../composerInputAdapter'
 import { createComposerEditorPreset } from '../composerPreset'
-import { insertMcpPromptSegments } from '../tools/definitions/mcpPromptTool'
 
 describe('createComposerInputAdapter', () => {
   let editor: Editor | undefined
@@ -18,6 +17,28 @@ describe('createComposerInputAdapter', () => {
     editor = new Editor({ extensions: createComposerEditorPreset({}), content: '' })
     return editor
   }
+
+  it('updates an existing annotation in place without duplicating or resurrecting a removed token', () => {
+    const editor = createEditor()
+    const adapter = createComposerInputAdapter(editor)
+    const token = { id: 'annotation-1', kind: 'webviewAnnotation' as const, label: 'Old', promptText: 'Old note' }
+    adapter.insertText('Before ')
+    adapter.insertToken!(token)
+    adapter.insertText('after')
+    const selection = editor.state.selection.toJSON()
+
+    updateComposerToken(editor, { ...token, label: 'Revised', promptText: 'Revised note' })
+
+    const draft = serializeComposerDocument(editor)
+    expect(draft.text).toBe('Before Revised note after')
+    expect(draft.tokens).toMatchObject([{ id: 'annotation-1', label: 'Revised', promptText: 'Revised note' }])
+    expect(draft.tokens).toHaveLength(1)
+    expect(editor.state.selection.toJSON()).toEqual(selection)
+
+    editor.commands.clearContent()
+    updateComposerToken(editor, token)
+    expect(serializeComposerDocument(editor)).toEqual({ text: '', tokens: [] })
+  })
 
   it('turns ${name} into an editable field by default (quick phrases rely on it)', () => {
     const adapter = createComposerInputAdapter(createEditor())
@@ -37,51 +58,15 @@ describe('createComposerInputAdapter', () => {
     expect(draft.tokens).toEqual([])
     expect(draft.text).toBe('echo ${HOME}')
   })
-})
 
-describe('insertMcpPromptSegments through the real adapter', () => {
-  let editor: Editor | undefined
+  it('reports the selected text end to toolbar-opened quick panels', () => {
+    const currentEditor = createEditor()
+    currentEditor.commands.setContent('prefix selected suffix')
+    currentEditor.commands.setTextSelection({ from: 8, to: 16 })
 
-  afterEach(() => {
-    editor?.destroy()
-    editor = undefined
-  })
+    const adapter = createComposerInputAdapter(currentEditor)
 
-  it('makes a field of the declared argument only, leaving the server’s own ${...} as text', () => {
-    editor = new Editor({ extensions: createComposerEditorPreset({}), content: '' })
-
-    insertMcpPromptSegments(
-      [
-        { type: 'text', value: 'Review in ' },
-        { type: 'argument', name: 'language' },
-        { type: 'text', value: ', then run echo ${HOME} and ${{ github.sha }}' }
-      ],
-      createComposerInputAdapter(editor)
-    )
-
-    const draft = serializeComposerDocument(editor)
-    // Exactly one field, and it is the argument the prompt declared — not the shell or Actions
-    // expression the server wrote, which stay literal text.
-    expect(draft.tokens.map((token) => [token.kind, token.label])).toEqual([['promptVariable', 'language']])
-    expect(draft.text).toContain('echo ${HOME}')
-    expect(draft.text).toContain('${{ github.sha }}')
-  })
-
-  it('reproduces the server’s text exactly, with no separator inserted around a chip', () => {
-    editor = new Editor({ extensions: createComposerEditorPreset({}), content: '' })
-
-    insertMcpPromptSegments(
-      [
-        { type: 'text', value: 'Hello ' },
-        { type: 'argument', name: 'name' },
-        { type: 'text', value: '! Ping ' },
-        { type: 'argument', name: 'other' },
-        { type: 'text', value: '.' }
-      ],
-      createComposerInputAdapter(editor)
-    )
-
-    // An appended separator would render `Hello ${name} !` and `${name} ${other}` here.
-    expect(serializeComposerDocument(editor).text).toBe('Hello ${name}! Ping ${other}.')
+    expect(adapter.getCursorOffset?.()).toBe(7)
+    expect(adapter.getSelectionEndOffset?.()).toBe(15)
   })
 })

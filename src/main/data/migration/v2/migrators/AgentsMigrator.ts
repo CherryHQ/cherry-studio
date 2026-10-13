@@ -1,3 +1,9 @@
+import path from 'path'
+
+import { eq, inArray, sql } from 'drizzle-orm'
+import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -22,10 +28,6 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
-import { eq, inArray, sql } from 'drizzle-orm'
-import path from 'path'
-import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
-import * as z from 'zod'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
@@ -129,8 +131,24 @@ export class AgentsMigrator extends BaseMigrator {
       }
     }
 
-    this.sourceSchemaInfo = reader.inspectSchema()
-    this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
+    try {
+      this.sourceSchemaInfo = reader.inspectSchema()
+      this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+      if (code !== 'SQLITE_NOTADB') throw error
+
+      logger.warn('Legacy agents database is not a valid SQLite database; skipping database import', {
+        dbPath,
+        code
+      })
+      this.sourceDbPath = null
+      return {
+        success: true,
+        itemCount: 0,
+        warningMessages: [{ key: 'migration.completed.agent_database_unreadable' }]
+      }
+    }
 
     // Debug: Log schema detection results
     logger.info('AgentsMigrator prepare:', {
@@ -684,7 +702,7 @@ export class AgentsMigrator extends BaseMigrator {
   /**
    * Migrate v1 `scheduled_tasks` + `channel_task_subscriptions` into v2
    * `job_schedule` + `agent_channel_task`. v1 `task_run_logs` are intentionally
-   * discarded — see breaking-changes/2026-05-19-agent-task-migration.md.
+   * discarded.
    */
   private async migrateScheduledTasksTs(db: MigrationContext['db']): Promise<void> {
     // Idempotency on retry: drop any partial agent.task schedules from a

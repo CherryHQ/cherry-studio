@@ -1,15 +1,17 @@
-import type { DetectedWindow } from '@shared/types/screenshot'
 import { render, screen } from '@testing-library/react'
 import { createElement } from 'react'
 import { describe, expect, it } from 'vitest'
 
+import type { DetectedWindow } from '@shared/types/screenshot'
+
 import { OcrTextOverlay } from '../components/OcrTextOverlay'
-import { mergeLine } from '../hooks/useOcr'
+import { Toolbar } from '../components/Toolbar'
+import type { SelectionRect } from '../types'
 import { buildAnnotation, isSignificantAnnotation } from '../utils/annotation'
 import { findWindowAtPoint } from '../utils/findWindowAtPoint'
 
 function makeWindow(overrides: Partial<DetectedWindow>): DetectedWindow {
-  return { title: 'w', appName: 'app', x: 0, y: 0, width: 100, height: 100, ...overrides }
+  return { title: 'w', x: 0, y: 0, width: 100, height: 100, ...overrides }
 }
 
 describe('findWindowAtPoint', () => {
@@ -114,22 +116,51 @@ describe('isSignificantAnnotation', () => {
   })
 })
 
+describe('Toolbar placement', () => {
+  const noop = () => {}
+  const actions = {
+    activeTool: null,
+    canUndo: false,
+    canRedo: false,
+    onToolChange: noop,
+    onUndo: noop,
+    onRedo: noop,
+    onOk: noop,
+    onSave: noop,
+    onCancel: noop
+  }
+
+  function renderToolbar(selection: SelectionRect, logicalHeight: number) {
+    const { container } = render(createElement(Toolbar, { selection, logicalHeight, ...actions }))
+    return container.firstElementChild as HTMLElement
+  }
+
+  it('keeps the toolbar on screen when the selection covers the whole display', () => {
+    // Neither below (no room left) nor above (the selection starts at y=0) fits, and these
+    // are the only controls a full-screen capture has — off-screen means Esc or nothing.
+    const top = Number.parseFloat(renderToolbar({ x: 0, y: 0, width: 1440, height: 900 }, 900).style.top)
+    expect(top).toBeGreaterThanOrEqual(0)
+    // 80 = toolbar + gap + property panel, the stack the toolbar reserves room for.
+    expect(top + 80).toBeLessThanOrEqual(900)
+  })
+
+  it('hangs below a selection that has room underneath it', () => {
+    expect(renderToolbar({ x: 0, y: 0, width: 400, height: 300 }, 900).style.top).toBe('308px')
+  })
+})
+
 describe('OCR text layer placement', () => {
-  it('puts a line on the pixels its glyphs occupy, not on the detector padding', () => {
-    // A 300×30 physical-pixel run at (120, 90) in the crop, as the detector reports it:
-    // grown by 0.4 of its own height per vertical side and 0.6 per horizontal side.
-    const detected = { text: 'sample', box: { x: 102, y: 78, width: 336, height: 54 }, confidence: 0.9 }
+  it('places crop-relative glyph bounds at the selection origin on a HiDPI display', () => {
+    const line = { text: 'sample', box: { x: 120, y: 90, width: 300, height: 30 } }
     const bounds = { x: 40, y: 30, width: 500, height: 200 }
 
-    render(createElement(OcrTextOverlay, { bounds, lines: [mergeLine([detected])], scaleFactor: 2 }))
+    render(createElement(OcrTextOverlay, { bounds, lines: [line], scaleFactor: 2 }))
 
     const span = screen.getByText('sample')
     const container = span.parentElement as HTMLElement
     // The container carries the crop origin; the span's offsets are region-relative.
     expect(container.style.left).toBe('40px')
     expect(container.style.top).toBe('30px')
-    // 120/2 and 90/2. Taking the padded box at face value would place the line at 51 / 39
-    // and give it a 27px height — the text layer sitting up and to the left of the words.
     expect(span.style.left).toBe('60px')
     expect(span.style.top).toBe('45px')
     expect(span.style.height).toBe('15px')

@@ -6,8 +6,11 @@
 
 import { loggerService } from '@logger'
 import { topicService } from '@main/data/services/TopicService'
+import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { ServiceTierSelection } from '@shared/data/types/model'
+import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspace'
@@ -43,12 +46,18 @@ export interface MainSteerContinuationRequest {
   userMessageId: string
   /** Selection captured with the original busy submit. */
   reasoningEffort?: ReasoningEffortOption
+  /** Provider request tier captured with the original busy submit. */
+  serviceTier?: ServiceTierSelection
   /** Fast selection captured with the original busy submit. */
   fastMode: boolean
 }
 
 export type MainDispatchRequest = (
   | AiStreamOpenRequest
+  | (Omit<Extract<AiStreamOpenRequest, { trigger: 'submit-message' }>, 'trigger'> & {
+      trigger: 'edit-agent-message'
+      editTarget: AgentSessionEditTarget
+    })
   | MainContinueConversationRequest
   | MainSteerContinuationRequest
 ) & {
@@ -59,7 +68,8 @@ export type MainDispatchRequest = (
   headless?: boolean
   /** Main-only durable user row accepted by the cross-session delivery path. */
   agentDeliveryMessage?: AgentSessionMessageEntity
-  /** Main-only queue policy: never redirect this delivery into the currently-running turn. */
+  /** Trusted main-process sender identity for targeted MCP interaction requests. */
+  interactionWindowId?: WindowId
 }
 
 const logger = loggerService.withContext('chatContextDispatch')
@@ -119,6 +129,9 @@ export async function dispatchStreamRequest(
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
   }
+  for (const model of prepared.models) {
+    model.request.interactionWindowId = req.interactionWindowId
+  }
 
   // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an
   // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
@@ -128,6 +141,7 @@ export async function dispatchStreamRequest(
       req.topicId,
       prepared.pendingSteerUserMessageId,
       prepared.pendingSteerReasoningEffort,
+      prepared.pendingSteerServiceTier,
       prepared.pendingSteerFastMode === true
     )
   } else if (

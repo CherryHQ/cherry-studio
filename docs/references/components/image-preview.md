@@ -93,6 +93,6 @@ renders DOT to SVG locally, and sends the result through the shared SVG path.
 ## Verification
 
 ```bash
-pnpm test src/renderer/components/Preview
-pnpm test src/renderer/components/CodeBlockView
+pnpm test:renderer src/renderer/components/Preview
+pnpm test:renderer src/renderer/components/CodeBlockView
 ```

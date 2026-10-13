@@ -1,4 +1,4 @@
-export const CACHE_CLEANUP_GROUPS = ['normal_cache', 'site_data', 'orphaned_data', 'legacy_v1'] as const
+export const CACHE_CLEANUP_GROUPS = ['normal_cache', 'site_data', 'orphaned_data', 'logs', 'legacy_v1'] as const
 
 export type CacheCleanupGroup = (typeof CACHE_CLEANUP_GROUPS)[number]
 

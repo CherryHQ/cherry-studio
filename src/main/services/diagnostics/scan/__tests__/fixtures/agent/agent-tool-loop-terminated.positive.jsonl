@@ -1,0 +1,2 @@
+{"level":"error","message":"agentLoop error No tool output found for tool call call_0abc123","module":"AgentSessionRuntimeService","process":"main","timestamp":"2026-08-20 12:00:00"}
+{"level":"error","message":"ToolLoopTerminalError: tool loop exceeded its termination guard","timestamp":"2026-08-19 12:00:00"}

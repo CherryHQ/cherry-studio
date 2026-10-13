@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -8,9 +9,8 @@ let resumePreview: (() => void) | undefined
 let pendingPreview: Promise<void> | undefined
 let previewReady = false
 
-vi.mock('@cherrystudio/ui', () => ({
-  defaultMarkdownPlugins: { cjk: [] },
-  Markdown: ({ children }: { children: string }) => {
+vi.mock('@renderer/components/markdown', () => ({
+  StaticMarkdown: ({ children }: { children: string }) => {
     if (children === 'updated notes' && !previewReady) {
       pendingPreview ??= new Promise<void>((resolve) => {
         resumePreview = () => {
@@ -22,8 +22,7 @@ vi.mock('@cherrystudio/ui', () => ({
     }
 
     return <div>{children}</div>
-  },
-  withMath: () => []
+  }
 }))
 
 function ControlledMarkdownEditor() {
@@ -33,10 +32,13 @@ function ControlledMarkdownEditor() {
 
 describe('MarkdownEditor', () => {
   it('updates the textarea while the deferred preview is still rendering', async () => {
+    const user = userEvent.setup()
     render(<ControlledMarkdownEditor />)
 
     const textarea = screen.getByRole('textbox')
-    fireEvent.change(textarea, { target: { value: 'updated notes' } })
+    await user.click(textarea)
+    await user.keyboard('{Control>}a{/Control}')
+    await user.paste('updated notes')
 
     expect(textarea).toHaveValue('updated notes')
     expect(screen.getByText('initial notes')).toBeVisible()
