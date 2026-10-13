@@ -1,5 +1,5 @@
 import { Copy, CornerDownLeft, LoaderCircle, Mic, RotateCcw, Square, Trash2, X } from 'lucide-react'
-import React, { useRef, useSyncExternalStore } from 'react'
+import React, { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Input } from '@cherrystudio/ui'
@@ -71,9 +71,10 @@ const InputBar = ({
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
   const dictation = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
-  if (!loading) {
-    setTimeoutTimer('focus', () => resolvedInputRef.current?.focus(), 0)
-  }
+  useEffect(() => {
+    if (loading) return undefined
+    return setTimeoutTimer('focus', () => resolvedInputRef.current?.focus(), 0)
+  }, [loading, resolvedInputRef, setTimeoutTimer])
 
   const startDictation = () => {
     if (!dictationTargetId || !voiceTargetManager.markCurrent(dictationTargetId)) return

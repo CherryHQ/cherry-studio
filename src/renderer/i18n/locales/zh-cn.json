@@ -5805,7 +5805,6 @@
   "settings.voice.recognition.language": "识别语言",
   "settings.voice.recognition.model": "识别模型",
   "settings.voice.recognition.title": "语音识别",
-  "settings.voice.recommended": "推荐 · {{name}}",
   "settings.voice.resources.open_settings": "打开系统语音设置",
   "settings.voice.resources.remove_description": "删除后，使用此模型的语音识别将不可用，直到重新下载。你选择的模型会保留。",
   "settings.voice.resources.remove_title": "删除语音识别模型？",

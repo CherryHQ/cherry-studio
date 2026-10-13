@@ -5805,7 +5805,6 @@
   "settings.voice.recognition.language": "Ngôn ngữ nhận dạng",
   "settings.voice.recognition.model": "Mô hình nhận dạng",
   "settings.voice.recognition.title": "Nhận dạng giọng nói",
-  "settings.voice.recommended": "Đề xuất · {{name}}",
   "settings.voice.resources.open_settings": "Mở cài đặt giọng nói hệ thống",
   "settings.voice.resources.remove_description": "Nhận dạng bằng mô hình này sẽ không khả dụng cho đến khi tải lại. Lựa chọn mô hình của bạn sẽ được giữ nguyên.",
   "settings.voice.resources.remove_title": "Xóa mô hình nhận dạng giọng nói?",

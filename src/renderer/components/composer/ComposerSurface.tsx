@@ -108,6 +108,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         if (nextText.length > COMPOSER_INPUT_MAX_LENGTH) return false
         const nextPosition = range.from + normalizedText.length
         selectionRef.current = { start: nextPosition, end: nextPosition }
+        intentRef.current.preservePlainText = true
         onTextChangeRef.current(nextText)
         return true
       }

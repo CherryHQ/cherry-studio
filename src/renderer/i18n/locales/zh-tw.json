@@ -5805,7 +5805,6 @@
   "settings.voice.recognition.language": "辨識語言",
   "settings.voice.recognition.model": "辨識模型",
   "settings.voice.recognition.title": "語音辨識",
-  "settings.voice.recommended": "推薦 · {{name}}",
   "settings.voice.resources.open_settings": "開啟系統語音設定",
   "settings.voice.resources.remove_description": "刪除後，使用此模型的語音辨識將無法使用，直到重新下載。你選擇的模型會保留。",
   "settings.voice.resources.remove_title": "刪除語音辨識模型？",
