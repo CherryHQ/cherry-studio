@@ -148,8 +148,7 @@ function hook(kind: 'PreToolUse' | 'SubagentStart'): HookCallback {
     builtinRole: undefined,
     mountedServers: new Set(['cherry-tools']),
     pluginDirectories: new Map(),
-    supportsImages: false,
-    agentsMdLoader: { createPreToolUseHook: () => async () => ({}) } as never
+    supportsImages: false
   })
   const [matcher] = table?.[kind] ?? []
   const [found] = matcher?.hooks ?? []
