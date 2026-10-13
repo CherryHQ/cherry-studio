@@ -139,3 +139,49 @@ describe('claude-code reclaimOrphanSessions', () => {
     await expect(claudeDriver().reclaimOrphanSessions!(new Set(), OPTIONS)).resolves.toEqual({ removed: [] })
   })
 })
+
+describe('claude-code reclaimPurgedSessions', () => {
+  const projects = 'feature.agents.claude.projects'
+
+  function claudeDriver() {
+    runtimeDriverRegistry.clearForTest()
+    registerRuntimeDrivers()
+    const driver = runtimeDriverRegistry.getAgentSessionDriver('claude-code')
+    if (!driver?.reclaimPurgedSessions) throw new Error('claude-code driver missing reclaimPurgedSessions')
+    return driver
+  }
+
+  afterEach(() => runtimeDriverRegistry.clearForTest())
+
+  it('immediately removes only the named fresh transcript and directory while another token keeps the project', async () => {
+    const projectDir = path.join(root, projects, '-tmp-work')
+    const purged = seedFile(`${projects}/-tmp-work/purged.jsonl`, NOW / 1000)
+    const subagent = seedFile(`${projects}/-tmp-work/purged/agent-1.jsonl`, NOW / 1000)
+    const other = seedFile(`${projects}/-tmp-work/other.jsonl`, NOW / 1000)
+
+    await claudeDriver().reclaimPurgedSessions!(new Set(['purged']))
+
+    expect(existsSync(purged)).toBe(false)
+    expect(existsSync(subagent)).toBe(false)
+    expect(existsSync(other)).toBe(true)
+    expect(existsSync(projectDir)).toBe(true)
+  })
+
+  it('removes the project directory when its last token is reclaimed', async () => {
+    const projectDir = path.join(root, projects, '-tmp-work')
+    seedFile(`${projects}/-tmp-work/purged.jsonl`)
+    seedFile(`${projects}/-tmp-work/purged/agent-1.jsonl`)
+
+    await claudeDriver().reclaimPurgedSessions!(new Set(['purged']))
+
+    expect(existsSync(projectDir)).toBe(false)
+  })
+
+  it('no-ops for an empty token set or a missing root', async () => {
+    const untouched = seedFile(`${projects}/-tmp-work/other.jsonl`)
+    await claudeDriver().reclaimPurgedSessions!(new Set())
+    expect(existsSync(untouched)).toBe(true)
+    rmSync(path.join(root, projects), { recursive: true })
+    await expect(claudeDriver().reclaimPurgedSessions!(new Set(['purged']))).resolves.toEqual({ removed: [] })
+  })
+})
