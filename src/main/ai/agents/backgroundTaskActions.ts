@@ -9,6 +9,7 @@ import { sanitizeChannelOutput } from '@main/ai/channels'
 
 import {
   getDetachedBackgroundTask,
+  hasLiveGroupEvidence,
   hasUnownedLiveGroup,
   listDetachedBackgroundTasks,
   startDetachedBackgroundTask,
@@ -85,9 +86,18 @@ export async function listLiveDetachedBackgroundTasks(): Promise<Array<{ agentId
   const perAgent = await Promise.all(
     agentIds.map(async (agentId) => {
       const records = await listDetachedBackgroundTasks(storageDirFor(agentId)).catch(() => [])
-      return records
-        .filter((record) => record.status === 'running' || record.status === 'unknown')
-        .map((record) => ({ agentId, id: record.id, pid: record.pid }))
+      return (
+        records
+          // A record reconciles to `unknown` for two very different reasons: real work this app can
+          // no longer attribute, and an exit that happened while it was closed. Only the first may
+          // block — the second has no process left to strand, and holding it here would refuse every
+          // restore until the record is deleted by hand, since Stop rejects `unknown` and the panel
+          // hides its controls.
+          .filter(
+            (record) => record.status === 'running' || (record.status === 'unknown' && hasLiveGroupEvidence(record))
+          )
+          .map((record) => ({ agentId, id: record.id, pid: record.pid }))
+      )
     })
   )
   return perAgent.flat()

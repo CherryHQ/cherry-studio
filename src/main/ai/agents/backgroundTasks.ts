@@ -42,6 +42,8 @@ interface OwnedGroup {
   pgid: number
   /** Verified members: pid → the start stamp they were verified under. */
   members: Map<number, string>
+  /** Whether this app has reaped the leader it spawned; its pid is the OS's to reuse from then on. */
+  leaderReaped: boolean
 }
 
 /** Accounts for the group's live members that can be verified as this task's own work. */
@@ -66,7 +68,11 @@ function trackVerifiedMembers(taskId: string, storageDir?: string): void {
  * Returns whether a seed was established.
  */
 function adoptGroupLeader(owned: OwnedGroup, live: Array<GroupMember>): boolean {
-  if (owned.members.size > 0) return false
+  // While the spawned leader is unreaped the OS cannot hand its pid to anyone else, so a live
+  // process reading at that number still is the supervisor. Once it is reaped the number is in
+  // circulation again, and adopting whatever sits there vouches for a group that is not this
+  // task's — which is what lets Stop/Kill or a purge signal unrelated work.
+  if (owned.leaderReaped || owned.members.size > 0) return false
   for (const member of live) {
     if (member.pid === owned.pgid) {
       owned.members.set(member.pid, member.lstart)
@@ -364,7 +370,7 @@ export async function startDetachedBackgroundTask(
     if (record.pid > 0) {
       const members = new Map<number, string>()
       if (record.pidStartTime) members.set(record.pid, record.pidStartTime)
-      ownedTaskGroups.set(id, { pgid: record.pid, members })
+      ownedTaskGroups.set(id, { pgid: record.pid, members, leaderReaped: false })
       // The stamp lookup is a one-shot call that can time out, and its result is the seed every
       // member is verified from: without one the task can never be owned, so Stop/Kill stays
       // refused while it runs, restart has no identity, and a purge cannot discover it. Recover it
@@ -424,6 +430,10 @@ export async function startDetachedBackgroundTask(
       observedCompletion = { status, exitCode, signal }
       if (settled) return
       settled = true
+      // The close/error event fires from this app's own reap of the leader, so the pid is free from
+      // here on even though the group may still be draining and the entry is still needed.
+      const owned = ownedTaskGroups.get(id)
+      if (owned) owned.leaderReaped = true
       void settleThroughGroupDrain()
     }
     child.on('error', (error) => {
@@ -497,7 +507,7 @@ export async function startDetachedBackgroundTask(
           // lives, never adopted from its presence in the group.
           const members = new Map<number, string>()
           if (record.pidStartTime) members.set(record.pid, record.pidStartTime)
-          ownedTaskGroups.set(id, { pgid: record.pid, members })
+          ownedTaskGroups.set(id, { pgid: record.pid, members, leaderReaped: false })
           if (observedCompletion) {
             const { status, exitCode, signal } = observedCompletion
             finalize(status, exitCode, signal)
@@ -557,6 +567,17 @@ export async function stopDetachedBackgroundTask(
 }
 
 /**
+ * The leader stamp the spawn could not capture but ownership has recovered since. A stop can be the
+ * first call to read the table successfully, and its seed would otherwise stay in memory: a task
+ * that ignores SIGTERM then keeps a running record with no identity on disk, so a restart cannot
+ * re-identify the leader and Stop/Kill and the permanent purge both refuse it.
+ */
+function recoveredLeaderStamp(taskId: string): string | undefined {
+  const owned = ownedTaskGroups.get(taskId)
+  return owned?.members.get(owned.pgid)
+}
+
+/**
  * Whether the record's process group may be signalled. It is asked twice by the stop below — once
  * before the record write and once after it — so nothing here may assume the process table it read
  * a moment ago still describes the same processes.
@@ -597,8 +618,12 @@ async function stopDetachedBackgroundTaskUnlocked(
     return undefined
   }
   const signal = force ? 'SIGKILL' : 'SIGTERM'
+  // Read after the identity check above, which can be the call that seeds the ownership the spawn
+  // could not: this write is the record's only identity after a restart. Already under the lock.
+  const pidStartTime = record.pidStartTime ?? recoveredLeaderStamp(record.id)
   const requested = {
     ...record,
+    pidStartTime,
     stopRequestedAt: new Date().toISOString(),
     stopSignal: signal,
     note: force ? t('background_task.note.kill_requested') : t('background_task.note.stop_requested')
@@ -740,6 +765,18 @@ function readGroupMembers(pgid: number): GroupMember[] | null {
  * free to hand the same one to an unrelated group, so after a restart such members cannot be
  * attributed to the task and must not be treated as its workers.
  */
+/**
+ * Whether the record's process evidence may still describe live work. A dead leader whose group
+ * reads back empty is a confirmed exit — the app simply was not running to write its sentinel —
+ * while a group still holding members, or a table that cannot be read at all, leaves it open.
+ */
+export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
+  if (record.pid <= 0) return false
+  if (isPidAlive(record.pid)) return true
+  if (process.platform === 'win32') return false
+  return groupHasLiveMember(record.pid)
+}
+
 export function hasUnownedLiveGroup(record: BackgroundTaskRecord): boolean {
   if (process.platform === 'win32' || record.pid <= 0) return false
   if (ownedTaskGroups.get(record.id)?.pgid === record.pid) return false
