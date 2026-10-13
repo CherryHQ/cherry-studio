@@ -6,6 +6,7 @@ import React, { Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRe
 import { useTranslation } from 'react-i18next'
 
 import { Button, Separator } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -115,8 +116,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const { quickModel: quickApiModel } = useDefaultModel()
-  const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
+  const { quickModel: quickApiModel, isQuickModelPending } = useDefaultModel()
+  const { assistant: chosenAssistant, model: chosenApiModel, isModelPending } = useAssistant(quickAssistantId ?? '')
   const isAssistantMode = Boolean(quickAssistantId)
   const currentAssistant = chosenAssistant
   const currentModel = selectedModel ?? (isAssistantMode ? chosenApiModel : quickApiModel)
@@ -318,6 +319,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       const text = launcherText ?? requestText
       if (isEmpty(text)) return
       if (!isTopicReady || !temporaryTopicId) return
+      if (!currentModel) return
 
       try {
         setFlowError(null)
@@ -326,14 +328,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           await persistTemporaryTopic(text)
           setSavedTopicId(temporaryTopicId)
         }
+        const parentAnchorId =
+          isSavedChat || saveOnSend ? (await dataApiService.get(`/topics/${temporaryTopicId}`)).activeNodeId : undefined
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
         const message = { text: [prompt, text].filter(Boolean).join('\n\n') }
         void sendMessage(message, {
           body: {
+            ...(parentAnchorId ? { parentAnchorId } : {}),
             ...((selectedModel || !isAssistantMode) && currentModel ? { mentionedModels: [currentModel.id] } : {}),
-            ...(effectiveReasoningEffort !== 'default' ? { reasoningEffort: effectiveReasoningEffort } : {})
+            reasoningEffort: effectiveReasoningEffort
           }
         })
       } catch (streamError) {
@@ -412,12 +417,22 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   useEffect(() => {
     if (!pendingLaunch || !isTopicReady || temporaryTopicId === pendingLaunch.previousTopicId) return
-    if (!currentModel && !currentAssistant) return
+    if (!currentModel && (isAssistantMode ? isModelPending : isQuickModelPending)) return
     setPendingLaunch(null)
-    submitLauncherChat(pendingLaunch)
+    if (currentModel) submitLauncherChat(pendingLaunch)
+    else focusInput()
     // submitLauncherChat is an Effect Event, not a reactive dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingLaunch, isTopicReady, temporaryTopicId, currentModel, currentAssistant])
+  }, [
+    pendingLaunch,
+    isTopicReady,
+    temporaryTopicId,
+    currentModel,
+    isAssistantMode,
+    isModelPending,
+    isQuickModelPending,
+    focusInput
+  ])
 
   const saveConversation = async () => {
     if (!temporaryTopicId) return
@@ -648,6 +663,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 {isLoading ? <Square className="size-4" /> : <ArrowUp className="size-4" />}
               </Button>
             </div>
+          )}
+          {route !== 'chat' && isLoading && (
+            <Button className="mt-3 self-end [-webkit-app-region:no-drag]" onClick={handlePause}>
+              <Square className="size-4" />
+              {t('common.stop')}
+            </Button>
           )}
           <Footer key="footer" {...baseFooterProps} onCopy={handleCopy} />
         </div>

@@ -27,16 +27,20 @@ interface PlatformFlags {
 const disableHardwareAccelerationMock = vi.fn()
 const appendSwitchMock = vi.fn()
 const hasSwitchMock = vi.fn()
+const getSwitchValueMock = vi.fn()
+const setDesktopNameMock = vi.fn()
 const bootConfigGetMock = vi.fn()
 
 function stubElectron() {
   vi.doMock('electron', () => ({
     __esModule: true,
     app: {
+      setDesktopName: setDesktopNameMock,
       disableHardwareAcceleration: disableHardwareAccelerationMock,
       commandLine: {
         appendSwitch: appendSwitchMock,
-        hasSwitch: hasSwitchMock
+        hasSwitch: hasSwitchMock,
+        getSwitchValue: getSwitchValueMock
       }
     }
   }))
@@ -76,6 +80,8 @@ beforeEach(() => {
   disableHardwareAccelerationMock.mockReset()
   appendSwitchMock.mockReset()
   hasSwitchMock.mockReset().mockReturnValue(false)
+  getSwitchValueMock.mockReset().mockReturnValue('')
+  setDesktopNameMock.mockReset()
   bootConfigGetMock.mockReset()
 })
 
@@ -123,6 +129,16 @@ describe('configureChromiumFlags', () => {
   })
 
   describe('platform-specific switches', () => {
+    it('uses the installed Flatpak desktop identity for GNOME shortcut consent', async () => {
+      vi.stubEnv('FLATPAK_ID', 'com.cherry_ai.CherryStudio')
+      stubConstants({ isLinux: true, isWin: false })
+      stubElectron()
+      stubBootConfig()
+      const { configureChromiumFlags } = await loadModule()
+      configureChromiumFlags()
+      expect(setDesktopNameMock).toHaveBeenCalledWith('com.cherry_ai.CherryStudio.desktop')
+    })
+
     it('Windows: appends wm-window-animations-disabled but no Linux switches', async () => {
       stubConstants({ isLinux: false, isWin: true })
       stubElectron()
@@ -161,7 +177,8 @@ describe('configureChromiumFlags', () => {
       const { configureChromiumFlags } = await loadModule()
       configureChromiumFlags()
 
-      expect(appendSwitchMock).toHaveBeenCalledWith('enable-features', 'GlobalShortcutsPortal')
+      const switches = new Map(appendSwitchMock.mock.calls.map(([key, value]) => [key, value]))
+      expect(switches.get('enable-features').split(',')).toContain('GlobalShortcutsPortal')
       expect(appendSwitchMock).toHaveBeenCalledWith('class', 'CherryStudio')
       expect(appendSwitchMock).toHaveBeenCalledWith('name', 'CherryStudio')
     })
@@ -268,8 +285,25 @@ describe('configureChromiumFlags', () => {
       const { configureChromiumFlags } = await loadModule()
       configureChromiumFlags()
 
-      expect(appendSwitchMock).toHaveBeenCalledWith('enable-features', UNCONDITIONAL_FEATURES)
+      const switches = new Map(appendSwitchMock.mock.calls.map(([key, value]) => [key, value]))
+      expect(switches.get('enable-features').split(',')).toEqual(
+        expect.arrayContaining([...UNCONDITIONAL_FEATURES.split(','), 'GlobalShortcutsPortal'])
+      )
     })
+  })
+
+  it('preserves user feature opt-ins while enabling the Wayland shortcut portal', async () => {
+    vi.stubEnv('XDG_SESSION_TYPE', 'wayland')
+    getSwitchValueMock.mockReturnValue('UserFeature,GlobalShortcutsPortal')
+    stubConstants({ isLinux: true, isWin: false })
+    stubElectron()
+    stubBootConfig()
+    const { configureChromiumFlags } = await loadModule()
+    configureChromiumFlags()
+    const switches = new Map(appendSwitchMock.mock.calls.map(([key, value]) => [key, value]))
+    const features = switches.get('enable-features').split(',')
+    expect(features).toContain('UserFeature')
+    expect(features.filter((feature: string) => feature === 'GlobalShortcutsPortal')).toHaveLength(1)
   })
 
   describe('all off baseline', () => {

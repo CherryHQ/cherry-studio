@@ -306,6 +306,11 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       maximizable: false,
       fullscreenable: false,
       platformOverrides: {
+        linux: {
+          // Electron does not support resizing transparent windows.
+          transparent: false,
+          backgroundColor: '#ffffff'
+        },
         mac: {
           type: 'panel',
           vibrancy: 'under-window',

@@ -162,7 +162,7 @@ export class ProtocolService extends BaseService {
   private handleProtocolUrl(url: string) {
     if (!url) return
 
-    if (!this.areServicesReady || !this.isMainRendererReady) {
+    if (!this.canDispatchProtocolUrl(url)) {
       this.pendingProtocolUrls.push(url)
       return
     }
@@ -171,13 +171,23 @@ export class ProtocolService extends BaseService {
   }
 
   private flushPendingProtocolUrls() {
-    if (!this.areServicesReady || !this.isMainRendererReady) {
+    if (!this.areServicesReady) {
       return
     }
 
     const pendingUrls = this.pendingProtocolUrls.splice(0)
     for (const url of pendingUrls) {
-      this.dispatchProtocolUrl(url)
+      this.handleProtocolUrl(url)
+    }
+  }
+
+  private canDispatchProtocolUrl(url: string): boolean {
+    if (!this.areServicesReady) return false
+    if (this.isMainRendererReady) return true
+    try {
+      return new URL(url).hostname.toLowerCase() === 'chat'
+    } catch {
+      return false
     }
   }
 

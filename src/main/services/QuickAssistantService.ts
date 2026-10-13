@@ -109,6 +109,7 @@ const logger = loggerService.withContext('QuickAssistantService')
 export class QuickAssistantService extends BaseService implements Activatable {
   private windowId: string | null = null
   private isPinnedQuickAssistant = false
+  private isFloatingChat = false
   // Fallback poll for the macOS NSPanel blur-event bug — see the
   // "Post-unpin focus poll" block above the file's constants for the full
   // rationale, trade-offs, and degradation modes.
@@ -200,6 +201,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       this.windowId = null
     }
     this.isPinnedQuickAssistant = false
+    this.isFloatingChat = false
     this.hasBlurredSinceShow = false
     this.stopPostUnpinFocusPoll()
   }
@@ -220,7 +222,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
       const onMainVisible = () => {
         const window = this.getQuickAssistant()
-        if (window) window.hide()
+        if (window && !this.isFloatingChat) window.hide()
       }
       const onMainClosed = () => {
         if (this.mainWindowRef === mainWindow) {
@@ -324,7 +326,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       // setPinQuickAssistant to decide whether the post-unpin focus poll
       // workaround is needed (see that method for the full rationale).
       this.hasBlurredSinceShow = true
-      if (!this.isPinnedQuickAssistant) {
+      if (!this.isPinnedQuickAssistant && !this.isFloatingChat) {
         this.hideQuickAssistant()
       }
     }
@@ -386,6 +388,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       requestId: randomUUID()
     }
     this.windowId = wm.open(WindowType.QuickAssistant, { initData: request })
+    this.isFloatingChat = true
     this.proceedShow(true)
   }
 

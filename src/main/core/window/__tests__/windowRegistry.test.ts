@@ -33,6 +33,14 @@ function resetPlatform(): void {
 }
 
 describe('mergeWindowOptions', () => {
+  it('keeps Linux floating chats resizable without unsupported transparent windows', () => {
+    platform.isLinux = true
+    const options = mergeWindowOptions(WindowType.QuickAssistant)
+    expect(options.resizable).toBe(true)
+    expect(options.transparent).toBe(false)
+    expect(options.frame).toBe(false)
+  })
+
   beforeEach(() => {
     resetPlatform()
   })

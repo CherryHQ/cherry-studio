@@ -435,6 +435,38 @@ describe('ProtocolService', () => {
       return call[1] as (event: unknown, argv: string[]) => void
     }
 
+    it('delivers queued floating chats after services initialize without waiting for Main', async () => {
+      await (service as any).onInit()
+      const handler = getSecondInstanceHandler()
+      handler({}, ['CherryStudio', 'cherrystudio://navigate/agents'])
+      handler({}, ['CherryStudio', 'cherrystudio://chat/new?prompt=hello&temporary=true&submit=false'])
+      expect(quickAssistantServiceMock.openChat).not.toHaveBeenCalled()
+      await (service as any).onAllReady()
+      expect(quickAssistantServiceMock.openChat).toHaveBeenCalledWith({
+        prompt: 'hello',
+        temporary: true,
+        submit: false
+      })
+      expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
+      service.onMainRendererReady('main-1')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledWith(new URL('cherrystudio://navigate/agents'))
+      expect(quickAssistantServiceMock.openChat).toHaveBeenCalledTimes(1)
+    })
+
+    it('delivers a floating chat after Main is destroyed without reopening Main', async () => {
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+      const destroyed = windowManagerMock.onWindowDestroyedByType.mock.calls[0][1] as () => void
+      destroyed()
+      getSecondInstanceHandler()({}, ['CherryStudio', 'cherrystudio://chat/new?temporary=true&submit=false'])
+      expect(quickAssistantServiceMock.openChat).toHaveBeenCalledWith({
+        prompt: '',
+        temporary: true,
+        submit: false
+      })
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+    })
+
     it('dispatches the URL when argv carries a cherrystudio:// deep link', async () => {
       await (service as any).onInit()
       await markProtocolHandlingReady()

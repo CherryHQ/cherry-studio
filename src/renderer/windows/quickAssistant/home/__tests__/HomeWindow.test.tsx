@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
+import type { Assistant } from '@renderer/types/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { QuickChatRequest } from '@shared/ipc/schemas/quickAssistant'
@@ -19,6 +21,8 @@ type TestModel = {
 
 const state = vi.hoisted(() => ({
   quickAssistantId: '',
+  assistant: undefined as Assistant | undefined,
+  assistantModel: undefined as TestModel | undefined,
   defaultTemporary: false,
   defaultModel: {
     id: 'cherryai::qwen',
@@ -107,7 +111,7 @@ vi.mock('@renderer/utils/platform', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({ assistant: undefined, model: undefined })
+  useAssistant: () => ({ assistant: state.assistant, model: state.assistantModel })
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -183,15 +187,31 @@ vi.mock('../components/FeatureMenus', () => ({
   default: vi.fn(
     ({
       ref,
-      onSendMessage
+      onSendMessage,
+      setRoute
     }: {
       ref?: React.RefObject<{ useFeature: () => void; resetSelectedIndex: () => void } | null>
       onSendMessage: () => void
+      setRoute: (route: 'summary' | 'explanation') => void
     }) => {
       if (ref) {
         ref.current = { useFeature: onSendMessage, resetSelectedIndex: vi.fn() }
       }
-      return <div data-testid="feature-menus" />
+      return (
+        <div data-testid="feature-menus">
+          {(['summary', 'explanation'] as const).map((route) => (
+            <button
+              type="button"
+              key={route}
+              onClick={() => {
+                setRoute(route)
+                onSendMessage()
+              }}>
+              {route}
+            </button>
+          ))}
+        </div>
+      )
     }
   )
 }))
@@ -250,6 +270,9 @@ describe('finalizeLiveMessages', () => {
 describe('HomeWindow', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
+    state.assistant = undefined
+    state.assistantModel = undefined
+    vi.mocked(dataApiService.get).mockResolvedValue({ activeNodeId: undefined })
     state.defaultTemporary = false
     state.quickModel = {
       id: 'anthropic::claude-sonnet',
@@ -292,7 +315,10 @@ describe('HomeWindow', () => {
     fireEvent.keyDown(input, { code: 'Enter', key: 'Enter' })
 
     await waitFor(() =>
-      expect(state.sendMessage).toHaveBeenCalledWith({ text: 'hello' }, { body: { mentionedModels: [quickModelId] } })
+      expect(state.sendMessage).toHaveBeenCalledWith(
+        { text: 'hello' },
+        { body: { mentionedModels: [quickModelId], reasoningEffort: 'default' } }
+      )
     )
   })
 
@@ -336,7 +362,7 @@ describe('HomeWindow', () => {
     await waitFor(() =>
       expect(state.sendMessage).toHaveBeenCalledWith(
         { text: 'where is paris' },
-        { body: { mentionedModels: [state.quickModel!.id] } }
+        { body: { mentionedModels: [state.quickModel!.id], reasoningEffort: 'default' } }
       )
     )
     expect(state.persistTemporaryTopic).toHaveBeenCalledWith('where is paris')
@@ -533,5 +559,83 @@ describe('HomeWindow', () => {
     await user.type(screen.getByTestId('quick-input'), 'c')
     expect(screen.getByTestId('quick-input')).toHaveValue('c')
     expect(clipboard).not.toHaveBeenCalled()
+  })
+  it.each([false, true])(
+    'anchors saved follow-ups to durable history, including after promotion (%s)',
+    async (temporary) => {
+      const user = userEvent.setup()
+      state.launchRequest = { kind: 'chat', requestId: 'context', prompt: 'first turn', temporary, submit: true }
+      const view = render(<HomeWindow />)
+      await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+      state.isPending = true
+      view.rerender(<HomeWindow />)
+      state.isPending = false
+      view.rerender(<HomeWindow />)
+      if (temporary) await user.click(screen.getByRole('button', { name: 'common.minimize' }))
+      await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('quickAssistant.chat.saved'))
+      vi.mocked(dataApiService.get).mockResolvedValue({ activeNodeId: 'persisted-answer' })
+      await user.type(screen.getByTestId('quick-input'), 'follow-up')
+      await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
+      await waitFor(() =>
+        expect(state.sendMessage).toHaveBeenLastCalledWith(
+          { text: 'follow-up' },
+          { body: expect.objectContaining({ parentAnchorId: 'persisted-answer' }) }
+        )
+      )
+    }
+  )
+
+  it('retains a launcher draft without saving or sending when its assistant has no model', async () => {
+    state.quickAssistantId = 'model-less'
+    state.assistant = { id: 'model-less', name: 'Assistant', modelId: null } as unknown as Assistant
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'no-model',
+      prompt: 'keep this draft',
+      temporary: false,
+      submit: true
+    }
+    const view = render(<HomeWindow />)
+    await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('keep this draft'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.delete' })).not.toBeDisabled())
+    expect(state.sendMessage).not.toHaveBeenCalled()
+    expect(state.persistTemporaryTopic).not.toHaveBeenCalled()
+    state.assistantModel = state.quickModel
+    view.rerender(<HomeWindow />)
+    expect(screen.getByTestId('quick-input')).toHaveValue('keep this draft')
+    expect(state.sendMessage).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'chat.input.send' }))
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledWith({ text: 'keep this draft' }, expect.anything()))
+  })
+
+  it('sends explicit Default reasoning instead of inheriting assistant high reasoning', async () => {
+    state.quickAssistantId = 'reasoning-assistant'
+    state.assistant = {
+      id: 'reasoning-assistant',
+      name: 'Assistant',
+      settings: { reasoning_effort: 'high' }
+    } as Assistant
+    state.assistantModel = state.quickModel
+    state.launchRequest = { kind: 'chat', requestId: 'reasoning', prompt: 'hello', temporary: true, submit: true }
+    render(<HomeWindow />)
+    await waitFor(() =>
+      expect(state.sendMessage).toHaveBeenCalledWith(
+        { text: 'hello' },
+        { body: expect.objectContaining({ reasoningEffort: 'default' }) }
+      )
+    )
+  })
+
+  it.each(['summary', 'explanation'])('offers Stop while %s is generating', async (route) => {
+    const user = userEvent.setup()
+    const view = render(<HomeWindow />)
+    await user.type(screen.getByTestId('quick-input'), 'some text')
+    await user.click(screen.getByRole('button', { name: route }))
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalled())
+    state.isPending = true
+    view.rerender(<HomeWindow />)
+    const stops = state.stopChat.mock.calls.length
+    await user.click(await screen.findByRole('button', { name: 'common.stop' }))
+    expect(state.stopChat).toHaveBeenCalledTimes(stops + 1)
   })
 })
