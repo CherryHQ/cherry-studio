@@ -17,7 +17,6 @@ import { clearWebviewState } from '@renderer/services/MiniAppWebviewService'
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { isLinux, isWin } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
-import { clearWebviewState } from '@renderer/services/MiniAppWebviewService'
 import type { SubWindowInitData } from '@shared/types/subWindow'
 
 import { SubWindowTitleBar } from './SubWindowTitleBar'
