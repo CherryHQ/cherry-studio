@@ -1,10 +1,11 @@
+import type { ComponentType, ReactNode } from 'react'
+
 import {
   EmptyState as UIEmptyState,
   type EmptyStatePreset,
   type EmptyStateProps as UIEmptyStateProps
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentType, ReactNode } from 'react'
 
 type EmptyStateIcon = ComponentType<{ size?: number; className?: string; strokeWidth?: number }>
 
@@ -66,8 +67,8 @@ export function EmptyState({
         className={cn('text-muted-foreground', iconClassName)}
       />
       <div className="flex flex-col items-center gap-2">
-        {title && <h3 className="m-0 font-medium text-base text-foreground">{title}</h3>}
-        {description && <p className="m-0 max-w-xs text-muted-foreground text-sm">{description}</p>}
+        {title && <h3 className="m-0 text-base font-medium text-foreground">{title}</h3>}
+        {description && <p className="m-0 max-w-xs text-sm text-muted-foreground">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-3">{actions}</div>}
     </div>

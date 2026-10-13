@@ -1,3 +1,6 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -10,11 +13,9 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { formatErrorMessage } from '@renderer/utils/error'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('JoplinSettings')
 
@@ -74,16 +75,16 @@ const JoplinSettings: FC = () => {
   }
 
   const handleJoplinHelpClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://joplinapp.org/help/apps/clipper')
+    void openExternalWebsite('https://joplinapp.org/help/apps/clipper')
   }
 
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.joplin.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-joplin-url" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.joplin.url')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <Input
             type="text"
             value={joplinUrl || ''}
@@ -95,7 +96,7 @@ const JoplinSettings: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-joplin-token" className="scroll-mt-6">
         <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
           <span>{t('settings.data.joplin.token')}</span>
           <InfoTooltip
@@ -105,7 +106,7 @@ const JoplinSettings: FC = () => {
             onClick={handleJoplinHelpClick}
           />
         </SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <RowFlex className="w-full min-w-0 items-center gap-1.25">
             <Input
               type="password"

@@ -24,6 +24,7 @@ export {
   type TooltipProps,
   TooltipProvider,
   TooltipRoot,
+  TooltipSurface,
   TooltipTrigger
 } from './primitives/tooltip'
 
@@ -91,9 +92,6 @@ export {
 } from './composites/code-editor'
 // DraggableList
 export { DraggableList, useDraggableReorder } from './composites/draggable-list'
-// EditableNumber
-export type { EditableNumberProps } from './composites/editable-number'
-export { default as EditableNumber } from './composites/editable-number'
 export {
   Form,
   FormControl,
@@ -186,6 +184,7 @@ export * from './primitives/field'
 export * from './primitives/hover-card'
 export * from './primitives/input'
 export * from './primitives/input-group'
+export * from './primitives/input-number'
 export * from './primitives/item'
 export * from './primitives/kbd'
 export * from './primitives/label'

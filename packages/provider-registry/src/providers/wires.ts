@@ -47,7 +47,7 @@ export function modeWire(
       key === 'auto' && options.autoEffort ? { operations, effortMap: { auto: options.autoEffort } } : { operations }
   }
 
-  return profile as ReasoningWireProfile
+  return profile
 }
 
 export { openaiResponsesSummaryWire } from '../reasoningProfiles'

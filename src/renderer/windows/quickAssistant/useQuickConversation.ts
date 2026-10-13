@@ -1,4 +1,6 @@
 import { useChat } from '@ai-sdk/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -11,7 +13,6 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useQuickConversation')
 
@@ -150,7 +151,7 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
     for (const message of [...chatMessages, ...allAssistants]) {
-      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
+      next[message.id] = message.parts ?? []
     }
     return next
   }, [allAssistants, chatMessages])

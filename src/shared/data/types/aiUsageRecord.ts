@@ -10,6 +10,7 @@
 import * as z from 'zod'
 
 import { CURRENCY, objectValues } from './model'
+import { BillingResolutionSchema } from './providerBilling'
 
 const FiniteNonnegativeNumberSchema = z.number().nonnegative().refine(Number.isFinite)
 const FiniteNonnegativeIntegerSchema = z.number().int().nonnegative().refine(Number.isSafeInteger)
@@ -34,6 +35,7 @@ export const AiUsageCostBreakdownSchema = z.strictObject({
 export type AiUsageCostBreakdown = z.infer<typeof AiUsageCostBreakdownSchema>
 
 export const AiUsagePricingSnapshotSchema = z.strictObject({
+  billing: BillingResolutionSchema.optional(),
   currency: z.enum(objectValues(CURRENCY)),
   inputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
   outputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
@@ -106,8 +108,9 @@ export type AiUsageRecordModality = z.infer<typeof AiUsageRecordModalitySchema>
  * User-facing source that produced the usage:
  * - `assistant`: regular chat topic owned by an assistant
  * - `agent`: agent session message
+ * - `mini-app`: locally installed mini app
  */
-export const AiUsageRecordSourceTypeSchema = z.enum(['assistant', 'agent'])
+export const AiUsageRecordSourceTypeSchema = z.enum(['assistant', 'agent', 'mini-app'])
 export type AiUsageRecordSourceType = z.infer<typeof AiUsageRecordSourceTypeSchema>
 
 export const AiUsageRecordEntrySchema = z.strictObject({

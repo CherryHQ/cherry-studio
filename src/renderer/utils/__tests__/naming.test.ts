@@ -1,6 +1,7 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
 import i18n from '@renderer/i18n/resolver'
 import type { Provider, SystemProvider } from '@renderer/types/provider'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import {
   firstLetter,
@@ -11,6 +12,7 @@ import {
   getFirstCharacter,
   getLeadingEmoji,
   getLowerBaseModelName,
+  getProviderDisplayNameById,
   isEmoji,
   removeLeadingEmoji,
   removeSpecialCharactersForTopicName,
@@ -371,6 +373,23 @@ describe('naming', () => {
         models: []
       }
       expect(getFancyProviderName(mockProvider)).toBe('好名字')
+    })
+  })
+
+  describe('getProviderDisplayNameById', () => {
+    it('uses the canonical label for a system provider id', () => {
+      expect(getProviderDisplayNameById('minimax')).toBe('MiniMax CN')
+    })
+
+    it.each([
+      ['openai-codex', 'OpenAI Codex'],
+      ['grok-cli', 'Grok CLI']
+    ])('uses the canonical label for the registry provider id %s', (providerId, expectedLabel) => {
+      expect(getProviderDisplayNameById(providerId)).toBe(expectedLabel)
+    })
+
+    it('preserves a custom provider id when metadata is unavailable', () => {
+      expect(getProviderDisplayNameById('my-custom')).toBe('my-custom')
     })
   })
 

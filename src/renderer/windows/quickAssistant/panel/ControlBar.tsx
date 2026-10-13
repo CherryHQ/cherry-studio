@@ -1,12 +1,13 @@
+import { Check, CircleArrowLeft, ExternalLink, Loader2, Pin, Save } from 'lucide-react'
+import type { ButtonHTMLAttributes, FC } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { Check, CircleArrowLeft, ExternalLink, Loader2, Pin, Save } from 'lucide-react'
-import type { ButtonHTMLAttributes, FC } from 'react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('QuickAssistantControlBar')
 

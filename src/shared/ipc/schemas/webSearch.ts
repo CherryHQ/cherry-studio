@@ -1,6 +1,7 @@
+import * as z from 'zod'
+
 import { WebSearchProviderIdSchema } from '@shared/data/presets/webSearchProviders'
 import type { WebSearchFetchUrlsRequest, WebSearchSearchKeywordsRequest } from '@shared/data/types/webSearch'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 

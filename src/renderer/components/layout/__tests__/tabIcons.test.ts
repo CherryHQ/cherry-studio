@@ -1,4 +1,3 @@
-import type { Tab } from '@renderer/hooks/tab'
 import {
   FileSearch,
   Folder,
@@ -12,6 +11,8 @@ import {
   Sparkles
 } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
+
+import type { Tab } from '@renderer/hooks/tab'
 
 import { getTabIcon } from '../tabIcons'
 
@@ -36,6 +37,7 @@ function webviewTab(url: string): Tab {
 describe('getTabIcon', () => {
   it.each([
     ['/app/agents', MousePointerClick],
+    ['/app/browser?url=https://example.com', Globe],
     ['/app/knowledge', FileSearch],
     ['/app/file-preview?path=%2Ftmp%2Freport.pdf', ScanSearch],
     ['/app/files', Folder],

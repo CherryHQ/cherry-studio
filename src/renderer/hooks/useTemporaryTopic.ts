@@ -21,11 +21,12 @@
  * Main-side leaks.
  */
 
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { Topic as TemporaryTopic } from '@shared/data/types/topic'
 import { clampSurrogateBoundary } from '@shared/utils/text'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTemporaryTopic')
 const TEMPORARY_TOPIC_NAME_MAX_LENGTH = 30

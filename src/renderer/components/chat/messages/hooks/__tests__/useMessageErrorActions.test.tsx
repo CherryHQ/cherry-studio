@@ -11,11 +11,6 @@ const mocks = vi.hoisted(() => ({
   showErrorDetailPopup: vi.fn()
 }))
 
-const routerState = vi.hoisted(() => ({
-  router: undefined as { navigate: ReturnType<typeof vi.fn> } | undefined,
-  openRoute: vi.fn()
-}))
-
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     deleteCasual: vi.fn((key: string) => mocks.cache.delete(key)),
@@ -37,14 +32,6 @@ vi.mock('@renderer/components/ErrorDetailModal', () => {
   return { showErrorDetailPopup: mocks.showErrorDetailPopup }
 })
 
-vi.mock('@tanstack/react-router', () => ({
-  useRouter: () => routerState.router
-}))
-
-vi.mock('@renderer/services/mainWindowNavigation', () => ({
-  openRoute: (...args: unknown[]) => routerState.openRoute(...args)
-}))
-
 const { cacheService } = await import('@data/CacheService')
 const { useMessageErrorActions } = await import('../useMessageErrorActions')
 const modulesEvaluatedDuringHookImport = {
@@ -57,8 +44,6 @@ describe('useMessageErrorActions', () => {
     mocks.cache.clear()
     mocks.classifyErrorByAI.mockReset()
     mocks.showErrorDetailPopup.mockReset()
-    routerState.router = { navigate: vi.fn() }
-    routerState.openRoute.mockReset()
     vi.clearAllMocks()
   })
 
@@ -73,7 +58,7 @@ describe('useMessageErrorActions', () => {
     const error = { message: 'provider unavailable', name: 'ProviderError', stack: '' }
     mocks.classifyErrorByAI.mockResolvedValueOnce('AI summary')
 
-    const { result } = renderHook(() => useMessageErrorActions())
+    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
 
     expect(modulesEvaluatedDuringHookImport).toEqual({ diagnosis: 0, errorDetail: 0 })
 
@@ -98,7 +83,7 @@ describe('useMessageErrorActions', () => {
     } satisfies MessageListItem
     mocks.classifyErrorByAI.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce('retry succeeded')
 
-    const { result } = renderHook(() => useMessageErrorActions())
+    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
 
     await expect(
       result.current.diagnoseMessageError?.({ message, partId: 'part-1', error, language: 'en-US' })
@@ -111,7 +96,7 @@ describe('useMessageErrorActions', () => {
     expect(mocks.classifyErrorByAI).toHaveBeenCalledTimes(2)
   })
 
-  it('forwards the injected diagnosis persistence capability to the popup', async () => {
+  it('keeps the Agent identity when its runtime error has no model fields', async () => {
     const message = {
       id: 'message-1',
       role: 'assistant',
@@ -120,37 +105,18 @@ describe('useMessageErrorActions', () => {
       status: 'error'
     } satisfies MessageListItem
     const error = { message: 'runtime failed', name: 'AgentRuntimeError', stack: '' }
-    const persistDiagnosis = vi.fn()
-    const { result } = renderHook(() => useMessageErrorActions({ persistDiagnosis }))
+    const diagnosticReport = { location: 'Agent conversation' }
+    const getDoctorSubject = () => ({ kind: 'agent' as const, agentId: 'agent-1' })
+    const { result } = renderHook(() => useMessageErrorActions({ diagnosticReport, getDoctorSubject }))
 
     await result.current.openErrorDetail?.({ message, partId: 'message-1-part-0', error })
 
     expect(mocks.showErrorDetailPopup).toHaveBeenCalledWith(
       expect.objectContaining({
-        blockId: 'message-1-part-0',
-        error,
-        onDiagnosisComplete: persistDiagnosis
+        subject: { kind: 'agent', agentId: 'agent-1' },
+        diagnosticReport,
+        error
       })
     )
-  })
-
-  it('navigates through the router when the surface has one', () => {
-    const { result } = renderHook(() => useMessageErrorActions())
-
-    void result.current.navigateErrorTarget?.('/settings/provider')
-
-    expect(routerState.router?.navigate).toHaveBeenCalledWith({ to: '/settings/provider' })
-    expect(routerState.openRoute).not.toHaveBeenCalled()
-  })
-
-  it('sends the user to the main window when the surface has no router', () => {
-    // The message list also renders in the quick assistant, which has no RouterProvider;
-    // reaching for one there used to throw the moment the link was clicked.
-    routerState.router = undefined
-    const { result } = renderHook(() => useMessageErrorActions())
-
-    void result.current.navigateErrorTarget?.('/settings/provider')
-
-    expect(routerState.openRoute).toHaveBeenCalledWith('/settings/provider')
   })
 })

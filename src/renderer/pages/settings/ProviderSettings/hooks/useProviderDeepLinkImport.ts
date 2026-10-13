@@ -1,3 +1,7 @@
+import { useNavigate } from '@tanstack/react-router'
+import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
@@ -5,9 +9,6 @@ import { toast } from '@renderer/services/toast'
 import type { ProviderType } from '@renderer/types/provider'
 import { validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import UrlSchemaInfoPopup from '../UrlSchemaInfoPopup'
 

@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom/vitest'
-
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -20,6 +19,17 @@ const runtime = vi.hoisted(() => ({
   quickPanelVisible: false,
   assistants: [] as { id: string; name: string }[],
   ipcHandlers: new Map<string, () => void>()
+}))
+
+// The bar's background depends on whether its frame is transparent, which is macOS-only.
+// A live binding, so a case can pick the platform instead of inheriting the host's.
+const platform = vi.hoisted(() => ({ isMac: true }))
+
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@renderer/utils/platform')>()),
+  get isMac() {
+    return platform.isMac
+  }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -149,6 +159,7 @@ describe('QuickAssistantView', () => {
     runtime.ipcRequest.mockReset()
     runtime.quickPanelVisible = false
     runtime.assistants = [{ id: 'first-assistant', name: 'Assistant first-assistant' }]
+    platform.isMac = true
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -263,6 +274,33 @@ describe('QuickAssistantView', () => {
     await user.click(screen.getByRole('button', { name: 'mock send' }))
 
     await waitFor(() => expect(screen.getByTestId('quick-messages')).toBeInTheDocument())
+  })
+
+  it('gives the bar an opaque surface where the window frame is not transparent', () => {
+    // Only the macOS window is created `transparent`. On every other platform the frame
+    // is opaque, so a see-through bar has nothing behind it to show and the controls lose
+    // their contrast (#20307).
+    platform.isMac = false
+    const { container } = render(<QuickAssistantView draggable={false} />)
+
+    const root = container.querySelector('[data-ui="quick-assistant.view"]')
+    expect(root).toHaveClass('bg-popover', 'text-popover-foreground')
+    expect(root).not.toHaveClass('bg-transparent')
+  })
+
+  it('keeps the conversation panel on the card surface off macOS', async () => {
+    // The panel carries its own opaque card; the non-mac bar fallback must not bleed into
+    // it, or the whole panel changes colour on Windows and Linux.
+    platform.isMac = false
+    quickConversation.send.mockReturnValue(true)
+    const { container } = render(<QuickAssistantView draggable={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'mock send' }))
+
+    await waitFor(() => expect(screen.getByTestId('quick-messages')).toBeInTheDocument())
+    const root = container.querySelector('[data-ui="quick-assistant.view"]')
+    expect(root).toHaveClass('bg-card', 'text-card-foreground')
+    expect(root).not.toHaveClass('bg-popover')
   })
 
   it('uses the sub-window hierarchy after a conversation starts', async () => {

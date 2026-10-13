@@ -1,5 +1,6 @@
-import { ButtonGroup } from '@cherrystudio/ui'
 import React, { memo } from 'react'
+
+import { ButtonGroup } from '@cherrystudio/ui'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'
@@ -9,16 +10,22 @@ import ProviderModelList from './ProviderModelList'
 import ProviderModelPullReconcile from './ProviderModelPullReconcile'
 
 interface ModelListProps {
+  scrollElement?: HTMLDivElement | null
   providerId: string
   modelPullGuideVersion?: number
+  onContinueApiSetup?: () => void
 }
 
 function ModelListContent({
+  scrollElement,
   providerId,
-  modelPullGuideVersion = 0
+  modelPullGuideVersion = 0,
+  onContinueApiSetup
 }: {
+  scrollElement?: HTMLDivElement | null
   providerId: string
   modelPullGuideVersion?: number
+  onContinueApiSetup?: () => void
 }) {
   const { isModelChecking } = useModelListHealthRun()
   const disabled = isModelChecking
@@ -26,8 +33,10 @@ function ModelListContent({
   return (
     <>
       <ProviderModelList
+        scrollElement={scrollElement}
         providerId={providerId}
         disabled={disabled}
+        onContinueApiSetup={onContinueApiSetup}
         actions={({ disabled: toolbarDisabled }) => (
           <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
             <ProviderModelPullReconcile
@@ -47,11 +56,21 @@ function ModelListContent({
   )
 }
 
-const ModelList: React.FC<ModelListProps> = ({ providerId, modelPullGuideVersion = 0 }) => {
+const ModelList: React.FC<ModelListProps> = ({
+  scrollElement,
+  providerId,
+  modelPullGuideVersion = 0,
+  onContinueApiSetup
+}) => {
   return (
     <div className={modelListClasses.cqRoot}>
       <section data-testid="provider-model-list" className={modelListClasses.section}>
-        <ModelListContent providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
+        <ModelListContent
+          scrollElement={scrollElement}
+          providerId={providerId}
+          modelPullGuideVersion={modelPullGuideVersion}
+          onContinueApiSetup={onContinueApiSetup}
+        />
       </section>
     </div>
   )

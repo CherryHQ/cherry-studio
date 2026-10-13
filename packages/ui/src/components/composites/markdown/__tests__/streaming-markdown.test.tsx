@@ -75,6 +75,21 @@ describe('StreamingMarkdown', () => {
     expect(alert?.textContent).toContain('Streaming alert')
   })
 
+  it('animates inline code text like surrounding prose', () => {
+    // Patch narrows streamdown's animate skip set to pre/svg/math, so inline code must get animate spans too.
+    const { container } = render(<StreamingMarkdown id="s5">{'run `npm i` now'}</StreamingMarkdown>)
+    const inlineCode = container.querySelector('p code')
+    expect(inlineCode).not.toBeNull()
+    expect(inlineCode?.querySelector('[data-sd-animate]')).not.toBeNull()
+  })
+
+  it('still skips fenced code blocks (pre stays in the skip set)', () => {
+    const { container } = render(<StreamingMarkdown id="s6">{'```js\nconst a = 1\n```'}</StreamingMarkdown>)
+    const pre = container.querySelector('pre')
+    expect(pre).not.toBeNull()
+    expect(pre?.querySelector('[data-sd-animate]')).toBeNull()
+  })
+
   it('defaults to opacity-only fadeIn (no lingering filter that alters text antialiasing)', () => {
     // blurIn ends at `filter: blur(0)`, which `animation-fill-mode: both`
     // keeps applied; a non-`none` filter drops subpixel AA so streamed bold/CJK
@@ -123,5 +138,42 @@ describe('StreamingMarkdown', () => {
 
     await user.click(screen.getByRole('button', { name: 'Copy table' }))
     expect(copied).toEqual([tableMarkdown])
+  })
+
+  it('reuses memoized blocks when content grows but plugin values are unchanged', () => {
+    // Catches: new-but-equal remark/rehype/components identities on each
+    // streaming tick forcing Streamdown to re-parse every settled block
+    // (JSON.stringify cache key + rehype walk) and freeze the renderer.
+    const rendered: string[] = []
+    function CountingParagraph({ children }: JSX.IntrinsicElements['p'] & ExtraProps) {
+      rendered.push(String(children))
+      return <p>{children}</p>
+    }
+    const remarkNoop = () => {}
+    const rehypeNoop = () => {}
+    const first = 'First paragraph\n\nSecond paragraph'
+    const { rerender } = render(
+      <StreamingMarkdown
+        id="stable-blocks"
+        animated={false}
+        components={{ p: CountingParagraph }}
+        remarkPlugins={[remarkNoop]}
+        rehypePlugins={[rehypeNoop]}>
+        {first}
+      </StreamingMarkdown>
+    )
+    expect(rendered).toEqual(['First paragraph', 'Second paragraph'])
+    rendered.length = 0
+    rerender(
+      <StreamingMarkdown
+        id="stable-blocks"
+        animated={false}
+        components={{ p: CountingParagraph }}
+        remarkPlugins={[remarkNoop]}
+        rehypePlugins={[rehypeNoop]}>
+        {`${first}\n\nThird paragraph`}
+      </StreamingMarkdown>
+    )
+    expect(rendered).toEqual(['Third paragraph'])
   })
 })

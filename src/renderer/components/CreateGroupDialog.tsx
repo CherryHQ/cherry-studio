@@ -1,3 +1,7 @@
+import type { FormEvent } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -9,9 +13,6 @@ import {
   Input
 } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { FormEvent } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export interface CreateGroupDialogProps {
   open: boolean

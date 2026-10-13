@@ -95,9 +95,8 @@ const baseProps = (): BarProps => ({
   onTargetChange: vi.fn(),
   detectedLanguage: null,
   isBidirectional: false,
-  bidirectionalPair: [english.langCode, chinese.langCode],
-  couldExchange: true,
-  onExchange: vi.fn()
+  showSourceControls: true,
+  bidirectionalPair: [english.langCode, chinese.langCode]
 })
 
 describe('TranslateLanguageBar', () => {
@@ -126,6 +125,44 @@ describe('TranslateLanguageBar', () => {
     expect(screen.getByText('translate.source_language')).toBeInTheDocument()
     expect(screen.getByText('translate.target_language')).toBeInTheDocument()
     expect(screen.getByText('English')).toBeInTheDocument()
+  })
+
+  it('renders only the target language control for single-direction text translation', () => {
+    const props = baseProps()
+    props.showSourceControls = false
+
+    render(<TranslateLanguageBar {...props} />)
+
+    expect(screen.queryByRole('button', { name: sourceLanguageButtonName })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.exchange.label' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: targetLanguageButtonName })).toBeInTheDocument()
+  })
+
+  it('labels the lone target control so it explains what is being selected', () => {
+    const props = baseProps()
+    props.showSourceControls = false
+
+    render(<TranslateLanguageBar {...props} />)
+
+    expect(screen.getByText('translate.translate_to')).toBeInTheDocument()
+    // The visible label is decorative: the control keeps its own accessible name.
+    expect(screen.getByRole('button', { name: 'translate.target_language 🇬🇧 English' })).toBeInTheDocument()
+  })
+
+  it('omits the target label when the source control already provides context', () => {
+    render(<TranslateLanguageBar {...baseProps()} />)
+
+    expect(screen.queryByText('translate.translate_to')).not.toBeInTheDocument()
+  })
+
+  it('omits the target label in bidirectional mode', () => {
+    const props = baseProps()
+    props.isBidirectional = true
+    props.showSourceControls = false
+
+    render(<TranslateLanguageBar {...props} />)
+
+    expect(screen.queryByText('translate.translate_to')).not.toBeInTheDocument()
   })
 
   it('opens source dropdown and calls onSourceChange on select', () => {
@@ -169,20 +206,12 @@ describe('TranslateLanguageBar', () => {
     expect(props.onSourceChange).toHaveBeenCalledWith('auto')
   })
 
-  it('invokes onExchange when swap button is clicked', () => {
-    const props = baseProps()
-    render(<TranslateLanguageBar {...props} />)
-    const swapButton = screen.getByRole('button', { name: 'translate.exchange.label' })
-    fireEvent.click(swapButton)
-    expect(props.onExchange).toHaveBeenCalled()
-  })
+  it('keeps PDF source and target controls without an unusable exchange button', () => {
+    render(<TranslateLanguageBar {...baseProps()} />)
 
-  it('disables swap button when couldExchange is false', () => {
-    const props = baseProps()
-    props.couldExchange = false
-    render(<TranslateLanguageBar {...props} />)
-    const swapButton = screen.getByRole('button', { name: 'translate.exchange.label' })
-    expect(swapButton).toHaveAttribute('disabled')
+    expect(screen.getByRole('button', { name: sourceLanguageButtonName })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: targetLanguageButtonName })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.exchange.label' })).not.toBeInTheDocument()
   })
 
   it('renders bidirectional pair display without the source dropdown', () => {

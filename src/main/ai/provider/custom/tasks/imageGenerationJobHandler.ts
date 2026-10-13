@@ -1,4 +1,5 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
+
 import { application } from '@application'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
@@ -9,6 +10,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Base64String } from '@shared/types/file'
 
 import { resolveProviderAiSdkConfig } from '../../config'
 import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
@@ -69,23 +71,6 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       ...config,
       modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
     }
-    // Built fresh every execution and held in memory only. Upstream persists this
-    // to job metadata so a resumed run can still attribute its cost; with
-    // `recovery: 'abandon'` no run outlives the process, so persisting it would be
-    // a write nobody reads — and would imply a durability this handler does not have.
-    const captureContext = createAiUsageCaptureContext({
-      providerId: provider.id,
-      providerName: provider.name,
-      modelId: sdkConfig.modelId,
-      modelName: model.name,
-      pricing: model.pricing,
-      trustProviderReportedCost: provider.reportsActualCost,
-      reportedCostCurrency: provider.reportedCostCurrency,
-      credentialReceipt,
-      source: input.source ?? null,
-      messageRef: null
-    })
-    const usageStartedAt = Date.now()
 
     const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
     if (!transport) {
@@ -97,7 +82,27 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     // No persisted-task resume branch: `recovery: 'abandon'` means a job never
     // outlives the process that enqueued it, so every execution starts at submit.
     let urls: string[]
-    const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
+    const submitInput = await buildSubmitInput(input, sdkConfig.modelId, ctx.signal)
+    // Built fresh every execution and held in memory only. Upstream persists this
+    // to job metadata so a resumed run can still attribute its cost; with
+    // `recovery: 'abandon'` no run outlives the process, so persisting it would be
+    // a write nobody reads — and would imply a durability this handler does not have.
+    const captureContext = createAiUsageCaptureContext({
+      providerId: provider.id,
+      providerName: provider.name,
+      modelId: sdkConfig.modelId,
+      modelName: model.name,
+      pricing: modelService.getByKey(providerId, modelId).pricing,
+      billing: providerService.getByProviderId(providerId).settings.billing,
+      billingModelId: modelId,
+      trustProviderReportedCost: provider.reportsActualCost,
+      reportedCostCurrency: provider.reportedCostCurrency,
+      credentialReceipt,
+      source: input.source ?? null,
+      messageRef: null
+    })
+    const usageStartedAt = Date.now()
+    const submit = await transport.submit(submitInput)
     if (submit.imageUrls) {
       urls = submit.imageUrls
     } else if (submit.taskId) {
@@ -150,6 +155,7 @@ async function buildSubmitInput(
     prompt: input.prompt,
     n: input.n,
     size: input.size as `${number}x${number}` | undefined,
+    aspectRatio: input.aspectRatio as `${number}:${number}` | undefined,
     seed: input.seed,
     files,
     mask,
@@ -197,7 +203,16 @@ async function pollUntilDone(
   }
 }
 
-/** Download result URLs (always non-empty — the caller guards) and persist each as an internal FileEntry. */
+/** Resolve a transport result to a base64 data URL: inline `data:` results (from
+ *  `b64_json`-style responses) are used as-is; anything else is downloaded. */
+async function resolveImageDataUrl(url: string): Promise<Base64String | null> {
+  if (url.startsWith('data:')) return url as Base64String
+  const downloaded = await downloadImageAsBase64(url)
+  if (!downloaded) return null
+  return `data:${downloaded.media_type || 'image/png'};base64,${downloaded.data}`
+}
+
+/** Persist result URLs (always non-empty — the caller guards) as internal FileEntries. */
 async function downloadAndPersistImageUrls(
   urls: string[],
   signal: AbortSignal,
@@ -207,15 +222,9 @@ async function downloadAndPersistImageUrls(
   const files: FileEntry[] = []
   for (const url of urls) {
     if (signal.aborted) throw createAbortError('Image generation aborted')
-    const downloaded = await downloadImageAsBase64(url)
-    if (!downloaded) continue
-    files.push(
-      await fileManager.createInternalEntry({
-        source: 'base64',
-        data: `data:${downloaded.media_type || 'image/png'};base64,${downloaded.data}`,
-        cleanupPolicy
-      })
-    )
+    const data = await resolveImageDataUrl(url)
+    if (!data) continue
+    files.push(await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy }))
   }
   // The remote generation succeeded (it returned URLs); surfacing a hard failure
   // when none could be downloaded avoids reporting a paid generation as an empty,

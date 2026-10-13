@@ -1,3 +1,4 @@
+import { gte } from 'semver'
 import { describe, expect, it } from 'vitest'
 
 import { buildGrokCliRequestHeaders, normalizeGrokModelId, rewriteGrokCliResponsesBody } from '../grokCli'
@@ -17,7 +18,7 @@ describe('rewriteGrokCliResponsesBody', () => {
     expect(out.input).toEqual([{ role: 'user', content: [{ type: 'input_text', text: 'hi' }] }])
   })
 
-  it('drops replayed reasoning items and empty-content turns', () => {
+  it('drops empty reasoning and empty-content turns', () => {
     const out = rewriteGrokCliResponsesBody({
       input: [
         { type: 'reasoning', summary: [] },
@@ -28,8 +29,9 @@ describe('rewriteGrokCliResponsesBody', () => {
     expect(out.input).toEqual([{ role: 'user', content: 'keep me' }])
   })
 
-  it('strips reasoning/cache knobs and the encrypted-reasoning include', () => {
+  it('strips unsupported legacy effort and cache retention without losing encrypted reasoning', () => {
     const out = rewriteGrokCliResponsesBody({
+      model: 'grok-build',
       reasoning: { effort: 'high' },
       prompt_cache_retention: '24h',
       include: ['reasoning.encrypted_content', 'file_search_call.results'],
@@ -37,14 +39,36 @@ describe('rewriteGrokCliResponsesBody', () => {
     })
     expect(out.reasoning).toBeUndefined()
     expect(out.prompt_cache_retention).toBeUndefined()
-    expect(out.include).toEqual(['file_search_call.results'])
+    expect(out.include).toEqual(['reasoning.encrypted_content', 'file_search_call.results'])
     expect(out.text).toEqual({ format: { type: 'json_object' } })
     expect(out.response_format).toBeUndefined()
   })
 
-  it('drops the include array entirely when only encrypted reasoning was requested', () => {
-    const out = rewriteGrokCliResponsesBody({ include: ['reasoning.encrypted_content'] })
-    expect(out.include).toBeUndefined()
+  it.each(['grok-build', 'grok-composer-2.5-fast'])('omits effort for legacy model %s', (model) => {
+    expect(rewriteGrokCliResponsesBody({ model, reasoning: { effort: 'high' } }).reasoning).toBeUndefined()
+  })
+
+  it.each(['low', 'medium', 'high', 'xhigh'])('keeps Grok 4.7 effort %s without OpenAI summary options', (effort) => {
+    const out = rewriteGrokCliResponsesBody({ model: 'grok-4.7', reasoning: { effort, summary: 'auto' } })
+    expect(out.reasoning).toEqual({ effort })
+  })
+
+  it('preserves opaque reasoning between tool calls and their results', () => {
+    const reasoning = { type: 'reasoning', id: 'rs_1', encrypted_content: 'opaque', summary: [] }
+    const call = { type: 'function_call', call_id: 'call_1', name: 'read', arguments: '{}' }
+    const result = { type: 'function_call_output', call_id: 'call_1', output: 'file content' }
+    const out = rewriteGrokCliResponsesBody({
+      model: 'grok-4.7',
+      input: [reasoning, call, result],
+      include: ['reasoning.encrypted_content', 'reasoning.encrypted_content']
+    })
+    expect(out.input).toEqual([reasoning, call, result])
+    expect(out.include).toEqual(['reasoning.encrypted_content'])
+    expect(out.store).toBe(false)
+  })
+
+  it('requests encrypted reasoning even when the SDK supplied no include', () => {
+    expect(rewriteGrokCliResponsesBody({ model: 'grok-4.7' }).include).toEqual(['reasoning.encrypted_content'])
   })
 })
 
@@ -64,6 +88,9 @@ describe('buildGrokCliRequestHeaders', () => {
     expect(headers.get('Authorization')).toBe('Bearer tok')
     expect(headers.get('x-grok-client-identifier')).toBe('cherry-studio')
     expect(headers.get('x-xai-token-auth')).toBe('xai-grok-cli')
+    expect(gte(headers.get('x-grok-client-version')!, '1.0.13')).toBe(true)
+    expect(headers.get('x-authenticateresponse')).toBe('authenticate-response')
+    expect(headers.get('x-grok-client-mode')).toBe('interactive')
     expect(headers.get('x-grok-model-override')).toBe('grok-build')
     expect(headers.get('content-type')).toBe('application/json')
   })

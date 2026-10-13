@@ -156,5 +156,5 @@ export function createMoonshotProvider(settings: MoonshotProviderSettings = {}):
     throw new NoSuchModelError({ modelId, modelType: 'imageModel' })
   }
 
-  return provider as MoonshotProvider
+  return provider
 }

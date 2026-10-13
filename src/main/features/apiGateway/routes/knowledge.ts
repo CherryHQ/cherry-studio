@@ -1,8 +1,9 @@
+import { Elysia } from 'elysia'
+
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ERROR_STATUS_MAP, ErrorCode } from '@shared/data/api/errors'
-import { Elysia } from 'elysia'
 
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import {
@@ -53,7 +54,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .post(
     '/search',
     async ({ body }) => {
-      const { query, knowledge_base_ids, document_count = 5 } = body
+      const { query, knowledge_base_ids, document_count } = body
 
       // Resolve target bases: the requested ids (must exist) or every base.
       let targetBases: { id: string; name: string }[]

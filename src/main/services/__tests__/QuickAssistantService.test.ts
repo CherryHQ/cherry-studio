@@ -1,6 +1,7 @@
-import { BaseService } from '@main/core/lifecycle'
 import { type Rectangle, screen } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 const { appGetMock, screenshotSessionRequestedByMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),

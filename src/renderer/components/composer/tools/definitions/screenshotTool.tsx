@@ -1,3 +1,7 @@
+import type { Dispatch, FC, SetStateAction } from 'react'
+import { useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { attachImageBytes } from '@renderer/components/composer/paste/pasteHandling'
@@ -8,9 +12,6 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { getFileExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { Dispatch, FC, SetStateAction } from 'react'
-import { useCallback, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('screenshotTool')
 

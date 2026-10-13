@@ -1,3 +1,5 @@
+import { useCallback, useMemo } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
@@ -13,17 +15,30 @@ import {
   type MessageListProviderValue,
   type MessageListState
 } from '@renderer/components/chat/messages/types'
+import { getMessageListItemModel } from '@renderer/components/chat/messages/utils/messageListItem'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { Assistant } from '@renderer/types/assistant'
+import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { useCallback, useMemo } from 'react'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 
 interface QuickMessageListParams {
   topic: Topic
   assistant?: Assistant
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+}
+
+const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
+  const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
+  return popup.show({ title, messages, processingMethod: '1' })
+}
+
+/** The panel only ever runs chat models, so an errored message is always a chat subject. */
+const getDoctorSubject = (message: MessageListItem): DoctorSubjectRef | undefined => {
+  const model = getMessageListItemModel(message)
+  return model ? { kind: 'chat', providerId: model.provider, modelId: model.id } : undefined
 }
 
 /**
@@ -55,8 +70,10 @@ export function useQuickMessageListProviderValue({
   } = useMessageListAdapterCapabilities({
     topicId: topic.id,
     topicName: topic.name,
+    exportToObsidian,
     messages,
-    partsByMessageId
+    partsByMessageId,
+    getDoctorSubject
   })
 
   const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(

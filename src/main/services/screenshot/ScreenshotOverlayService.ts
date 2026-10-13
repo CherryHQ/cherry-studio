@@ -1,14 +1,15 @@
 import { writeFileSync } from 'node:fs'
 
+import dayjs from 'dayjs'
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, type Display, nativeImage, screen } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import { isLocalModelReady } from '@main/services/localModel'
 import { MediaKind } from '@main/services/mediaProtocol'
 import { cropPng } from '@main/utils/image'
 import {
@@ -20,9 +21,8 @@ import {
 import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
-import dayjs from 'dayjs'
-import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
 
+import { isScreenshotOcrAvailable, recognizeScreenshotText } from './recognizeText'
 import { captureAllMonitors, listMonitors } from './screenCapture'
 import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapturePermissionError } from './types'
 import { listWindowsOffThread } from './windowEnumerator'
@@ -288,7 +288,7 @@ export class ScreenshotOverlayService extends BaseService {
         const primaryScaleFactor = screen.getPrimaryDisplay().scaleFactor
 
         const autoOcr = preferenceService.get('feature.screenshot.auto_ocr')
-        const ocrAvailable = isLocalModelReady('ocr')
+        const ocrAvailable = isScreenshotOcrAvailable()
 
         // Which overlay covers which display, for the snap-target push below.
         const snapOverlays: { windowId: WindowId; display: Display }[] = []
@@ -356,10 +356,10 @@ export class ScreenshotOverlayService extends BaseService {
 
           // Transparent first so the OS show animation is never visible.
           window.setOpacity(0)
-          // macOS drops this flag on hide(), and closing a pooled overlay only hides it —
-          // a recycled window would otherwise fail to cover a fullscreen Space.
+          // macOS drops the fullscreen-auxiliary collection behavior on hide(). Reapply it
+          // without joining every Space, so a stale capture cannot follow Space switches.
           if (isMac) {
-            window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+            window.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true, skipTransformProcessType: true })
           }
           // showMode 'manual' means nothing else ever shows this window, and setOpacity()
           // on a hidden one is a no-op. Inactive: only the cursor's overlay takes focus.
@@ -475,10 +475,8 @@ export class ScreenshotOverlayService extends BaseService {
   /**
    * Recognize text inside one region of an overlay's frozen capture.
    *
-   * Serialization is `OcrInferenceService`'s own `PQueue({ concurrency: 1 })`; this only
-   * has to make sure a superseded request produces nothing. The token is re-checked right
-   * before the recognition and again after it, so a request overtaken while it waited for
-   * its queue slot is dropped rather than painted over the newer result.
+   * Native OCR runs asynchronously; Paddle uses its inference worker. Only the latest
+   * request may publish lines, including across pooled-window sessions.
    */
   public async recognizeText(windowId: WindowId, mediaId: string, region: OcrRegion): Promise<OcrRecognitionResult> {
     const token = Symbol('ocr-request')
@@ -489,8 +487,8 @@ export class ScreenshotOverlayService extends BaseService {
     if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
     // Re-checked per request, never cached from initData: the user can delete the
-    // model in settings while the overlay is open.
-    if (!isLocalModelReady('ocr')) return { status: 'unavailable' }
+    // Paddle model in settings while the overlay is open.
+    if (!isScreenshotOcrAvailable()) return { status: 'unavailable' }
 
     const capture = this.sessionCaptures.get(mediaId)
     if (!capture) return { status: 'rejected' }
@@ -515,16 +513,14 @@ export class ScreenshotOverlayService extends BaseService {
       // Superseded while the crop ran: skip a recognition whose result nobody will use.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
 
-      const result = await application
-        .get('OcrInferenceService')
-        .recognize(ocrModelPaths(), { kind: 'bytes', imageBytes })
+      const result = await recognizeScreenshotText(imageBytes, clamped)
 
       // A pooled overlay's React tree survives into the next session, so a late
       // success would paint the previous capture's text onto the new one.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
       if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
-      return { status: 'ok', lines: result.lines }
+      return result
     } catch (error) {
       // Rethrown so the overlay shows its error state; logged here because the IPC
       // transport only serializes the error to the renderer, it never records it.
@@ -614,36 +610,45 @@ export class ScreenshotOverlayService extends BaseService {
   }
 
   /** Copy the overlay's result to the clipboard and end the session. */
-  public commit(result: ScreenshotResultData): void {
+  public async commit(result: ScreenshotResultData): Promise<void> {
+    const generation = this.sessionGeneration
+    // Both read before the clipboard write yields: a newer session may replace the
+    // requester by the time it resolves, and these bytes belong to the one that asked.
+    const requesterWindowId = this.requesterWindowId
     // Tracks decoding, not the clipboard write: the requester is handed the bytes
     // directly, so a busy clipboard must not cost it the capture.
     let decoded = false
     try {
-      const image = nativeImage.createFromBuffer(Buffer.from(result.pngBytes))
+      const bytes = Buffer.from(result.pngBytes)
       // createFromBuffer never throws — undecodable input yields an EMPTY image, and
       // writing that wipes the clipboard while the log still claims success.
-      if (image.isEmpty()) throw new Error('the result bytes could not be decoded')
+      if (nativeImage.createFromBuffer(bytes).isEmpty()) throw new Error('the result bytes could not be decoded')
       decoded = true
-      clipboard.writeImage(image)
+      await clipboard.write([new ClipboardItem({ 'image/png': new Blob([bytes]) })])
       logger.info('Screenshot copied to the clipboard')
     } catch (error) {
       logger.error('Failed to copy the screenshot to the clipboard', error as Error)
     }
 
-    // Read before dismiss(): cleanup() clears the session, this window included.
-    const requesterWindowId = this.requesterWindowId
+    // Ahead of the generation guard: the hand-back targets the window resolved above, so
+    // a session that got superseded mid-write still delivers the capture it took.
+    if (decoded && requesterWindowId) {
+      application.get('IpcApiService').send(requesterWindowId, 'screenshot.captured', result)
+    }
+
+    // The overlays come down whether or not the clipboard took it, but only for this
+    // session — the clipboard write yields, so a newer one may own them now.
+    if (generation !== this.sessionGeneration) return
 
     // Set before dismiss(): cleanup() fires onSessionEnded synchronously, and a listener
     // that settles an unfocused window would hide the requester before the focus() below
     // ever runs. A handed-back requester has nothing to settle.
     this.restoringRequesterFocus = decoded && requesterWindowId !== null
 
-    // Outside the try: the overlays come down whether or not the clipboard took it.
     this.dismiss()
 
     // After dismiss so the requester takes focus from a screen the overlays have left.
     if (decoded && requesterWindowId) {
-      application.get('IpcApiService').send(requesterWindowId, 'screenshot.captured', result)
       application.get('WindowManager').getWindow(requesterWindowId)?.focus()
     }
   }
@@ -856,9 +861,10 @@ export class ScreenshotOverlayService extends BaseService {
     for (const windowId of this.overlayWindowIds) {
       const window = windowManager.getWindow(windowId)
       if (!window || window.isDestroyed()) continue
-      // macOS drops the all-workspaces flag on hide(); the alwaysOnTop level is
-      // restored declaratively by the window type's reapplyAlwaysOnTop quirk.
-      window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+      // Restore fullscreen coverage after hide() without making the stale capture
+      // follow the user to another Space. The always-on-top level is restored by
+      // the window type's reapplyAlwaysOnTop quirk.
+      window.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true, skipTransformProcessType: true })
       window.setOpacity(0)
       // The active overlay must become the key window again or Esc and the next drag
       // land nowhere; the others stay unfocused, as at session start.
@@ -981,11 +987,14 @@ function matchCapture(
       return result
     }
 
-    // 3. Windows HiDPI: the native side reports physical pixels in the primary
-    //    display's grid while Electron reports DIP, so normalize before comparing.
-    if (primaryScaleFactor !== 1) {
-      const normX = Math.round(monitorInfo.x / primaryScaleFactor)
-      const normY = Math.round(monitorInfo.y / primaryScaleFactor)
+    // 3. Windows HiDPI: native origins can follow either the primary or the
+    //    monitor's physical-pixel grid, so normalize against both scales.
+    const scaleFactors = [primaryScaleFactor]
+    if (isWin && monitorInfo.scaleFactor !== primaryScaleFactor) scaleFactors.push(monitorInfo.scaleFactor)
+    for (const scaleFactor of scaleFactors) {
+      if (scaleFactor === 1) continue
+      const normX = Math.round(monitorInfo.x / scaleFactor)
+      const normY = Math.round(monitorInfo.y / scaleFactor)
       if (Math.abs(normX - display.bounds.x) <= 1 && Math.abs(normY - display.bounds.y) <= 1) return result
     }
   }

@@ -1,6 +1,7 @@
-import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import { type PropsWithChildren } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 
 import { useKnowledgePage } from '../KnowledgePageProvider'
 

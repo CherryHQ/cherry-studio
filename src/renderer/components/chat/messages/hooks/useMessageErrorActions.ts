@@ -1,9 +1,13 @@
+import { useCallback, useMemo } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
-import { useRouter } from '@tanstack/react-router'
-import { useCallback, useMemo } from 'react'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
+
+import type { MessageListItem } from '../types'
+import { getMessageListItemModel } from '../utils/messageListItem'
 
 const AI_CLASSIFY_TTL_MS = 60 * 60 * 1000
 const aiClassifyCacheKey = (message: string, language: string) => `error.classify.${message}:${language}`
@@ -11,14 +15,12 @@ const aiClassifyCacheKey = (message: string, language: string) => `error.classif
 type MessageErrorActions = Pick<MessageListActions, 'diagnoseMessageError' | 'openErrorDetail' | 'navigateErrorTarget'>
 
 interface MessageErrorActionOptions {
-  persistDiagnosis?: NonNullable<ErrorDetailContentProps['onDiagnosisComplete']>
+  diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
+  getDoctorSubject: (message: MessageListItem) => DoctorSubjectRef | undefined
 }
 
-export function useMessageErrorActions(options: MessageErrorActionOptions = {}): MessageErrorActions {
-  // The message list also renders in router-less windows (quick assistant), where
-  // `useRouter` yields undefined rather than throwing only because `warn` is off.
-  const router = useRouter({ warn: false }) as ReturnType<typeof useRouter> | undefined
-  const { persistDiagnosis } = options
+export function useMessageErrorActions(options: MessageErrorActionOptions): MessageErrorActions {
+  const { diagnosticReport, getDoctorSubject } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
     ({ error, language }) => {
@@ -44,27 +46,22 @@ export function useMessageErrorActions(options: MessageErrorActionOptions = {}):
   const openErrorDetail = useCallback<NonNullable<MessageListActions['openErrorDetail']>>(
     async (input) => {
       const { showErrorDetailPopup } = await import('@renderer/components/ErrorDetailModal')
+      const model = getMessageListItemModel(input.message)
       showErrorDetailPopup({
         error: input.error,
-        blockId: input.partId,
-        cachedDiagnosis: input.cachedDiagnosis,
-        diagnosisContext: input.diagnosisContext,
-        onDiagnosisComplete: persistDiagnosis
+        subject: getDoctorSubject(input.message),
+        incident: { topicId: input.message.topicId, messageId: input.message.id },
+        diagnosisContext: { providerId: model?.provider, modelId: model?.id },
+        localizedErrorMessage: input.localizedErrorMessage,
+        diagnosticReport
       })
     },
-    [persistDiagnosis]
+    [diagnosticReport, getDoctorSubject]
   )
 
-  const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
-    (target) => {
-      if (!router) {
-        openRoute(target)
-        return
-      }
-      void router.navigate({ to: target })
-    },
-    [router]
-  )
+  const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>((target) => {
+    openRoute(target)
+  }, [])
 
   return useMemo(
     () => ({

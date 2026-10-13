@@ -6,8 +6,9 @@
  * Cherry-owned root spans use `startAiTurnTrace`.
  */
 
-import { loggerService } from '@logger'
 import type { Span, Tracer } from '@opentelemetry/api'
+
+import { loggerService } from '@logger'
 
 import { observabilitySinks } from '../../sinks/ObservabilitySinkRegistry'
 import { AiSdkSpanAdapter } from './aiSdkSpanAdapter'

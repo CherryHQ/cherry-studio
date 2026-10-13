@@ -1,5 +1,6 @@
-import type { MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { TFunction } from 'i18next'
+
+import type { MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 
 type MessageDeleteUnavailableReason = Extract<MessageDeleteAvailability, { enabled: false }>['reason']
 

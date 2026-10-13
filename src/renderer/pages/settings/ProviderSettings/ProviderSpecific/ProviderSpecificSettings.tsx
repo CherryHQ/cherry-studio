@@ -1,5 +1,6 @@
-import { useProvider } from '@renderer/hooks/useProvider'
 import { Suspense } from 'react'
+
+import { useProvider } from '@renderer/hooks/useProvider'
 
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { PROVIDER_SPECIFIC_SETTINGS_REGISTRY, type ProviderSpecificPlacement } from './providerSpecificSettingsRegistry'

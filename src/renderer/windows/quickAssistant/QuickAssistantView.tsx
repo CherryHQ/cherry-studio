@@ -1,3 +1,7 @@
+import type { FC } from 'react'
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import { ChatConversationControls } from '@renderer/components/composer/variants/chat/ChatConversationControls'
@@ -9,10 +13,8 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { FC } from 'react'
-import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ControlBar from './panel/ControlBar'
 import { useQuickConversation } from './useQuickConversation'
@@ -62,9 +64,9 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
     conversationControlsSnapshot?.scopeKey === COMPOSER_SCOPE_KEY ? conversationControlsSnapshot : null
   const shouldLoadProviders = Boolean(
     activeConversationControlsSnapshot &&
-      (activeConversationControlsSnapshot.mentionedModels.length > 1 ||
-        activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 1 ||
-        activeConversationControlsSnapshot.lockedMentionedModels.length > 1)
+    (activeConversationControlsSnapshot.mentionedModels.length > 1 ||
+      activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 1 ||
+      activeConversationControlsSnapshot.lockedMentionedModels.length > 1)
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const conversation = useQuickConversation({ assistantId: activeAssistantId ?? undefined })
@@ -205,7 +207,13 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
         className={cn(
           'flex h-full w-full flex-col overflow-hidden',
           view === 'bar' && 'justify-end',
-          view === 'panel' ? 'rounded-[20px] bg-card text-card-foreground' : 'bg-transparent',
+          view === 'panel'
+            ? 'rounded-[20px] bg-card text-card-foreground'
+            : // Only the macOS window is `transparent` (see windowRegistry); elsewhere the
+              // frame is opaque, so a see-through bar composites against nothing (#20307).
+              isMac
+              ? 'bg-transparent'
+              : 'bg-popover text-popover-foreground',
           draggable ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]'
         )}>
         {view === 'panel' && (
@@ -255,7 +263,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
           className={cn('[-webkit-app-region:no-drag]', view === 'panel' && 'pb-2')}
           onFocusCapture={(event) => {
             const input = event.currentTarget.querySelector('[data-ui~="part:composer-input"]')
-            if (input?.contains(event.target as Node)) setComposerEngaged(true)
+            if (input?.contains(event.target)) setComposerEngaged(true)
           }}>
           {view === 'panel' ? (
             <ChatPlacementComposer

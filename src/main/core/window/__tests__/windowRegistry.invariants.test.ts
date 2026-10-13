@@ -27,6 +27,14 @@ describe('WINDOW_TYPE_REGISTRY behavior invariants', () => {
       ).toBe(true)
     }
   })
+
+  it('keeps screenshot overlays on their capture Space while allowing fullscreen coverage', () => {
+    expect(WINDOW_TYPE_REGISTRY[WindowType.Screenshot]?.behavior?.visibleOnAllWorkspaces).toEqual({
+      enabled: false,
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true
+    })
+  })
 })
 
 // The shared preload bundle is code-split, and Electron's sandbox blocks a preload from

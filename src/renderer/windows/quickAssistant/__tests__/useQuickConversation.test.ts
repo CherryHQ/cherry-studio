@@ -1,7 +1,8 @@
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import { finalizeLiveMessages, useQuickConversation } from '../useQuickConversation'
 
