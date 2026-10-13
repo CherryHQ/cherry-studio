@@ -87,7 +87,7 @@
     "vitest": "^5.0.1"
   },
   "peerDependencies": {
-    "@ai-sdk/google": "^3.0.113",
+    "@ai-sdk/google": "^3.0.132",
     "@ai-sdk/openai": "^3.0.109",
     "ai": "^6.0.116"
   },

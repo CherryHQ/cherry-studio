@@ -7,6 +7,8 @@ export default defineCreator({
   fetchModels: googleModels(),
   modelsDevProviders: ['google', 'google-vertex'],
   reasoningFamilies: [
+    { pattern: '^gemini-4(?:[.-]|$)', wireDialect: 'effort', template: true },
+    { pattern: '^gemini-4-argon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
     // Native-protocol dialect (google-generate-content). Gemini 2.x takes
     // `thinkingConfig.thinkingBudget` and hard-rejects the Gemini 3
     // `thinkingLevel` field, so the split is declared here rather than inferred
@@ -64,10 +66,42 @@ export default defineCreator({
     'text-embedding-005',
     'text-multilingual-embedding'
   ],
-  // Pre-3 Gemini rejects requests mixing its native tools with function
-  // declarations; Gemini 3 combines them (ai.google.dev function-calling).
-  serverToolFunctionMixing: ['gemini-3', 'gemini-flash-latest', 'gemini-pro-latest'],
+  // Gemini 3+ can combine native tools with function declarations.
+  serverToolFunctionMixing: ['gemini-3', 'gemini-4-argon', 'gemini-flash-latest', 'gemini-pro-latest'],
   models: [
+    {
+      id: 'gemini-4-argon',
+      name: 'Gemini 4 Argon',
+      family: 'gemini-4',
+      capabilities: [
+        'reasoning',
+        'function-call',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'audio', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 1048576,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }],
+        defaultEffort: 'medium',
+        wireDialect: 'effort'
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    },
     {
       id: 'gemini-2-5-flash-image',
       name: 'gemini-2.5-flash-image',

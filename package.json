@@ -173,7 +173,7 @@
     "@ai-sdk/cohere": "^3.0.30",
     "@ai-sdk/devtools": "^0.0.17",
     "@ai-sdk/gateway": "^3.0.104",
-    "@ai-sdk/google": "3.0.113",
+    "@ai-sdk/google": "3.0.132",
     "@ai-sdk/google-vertex": "^4.0.188",
     "@ai-sdk/groq": "^3.0.35",
     "@ai-sdk/huggingface": "^1.0.74",
