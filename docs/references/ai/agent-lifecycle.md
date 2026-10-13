@@ -9,7 +9,7 @@ sources:
   - src/main/data/services/AgentTaskService.ts
   - src/main/ai/agents/AgentJobsService.ts
   - src/main/ai/agents/agentOrphanSweep.ts
-  - src/main/ai/agents/agentWorkspaceArchive.ts
+  - src/main/ai/agents/agentWorkspaceStorage.ts
   - src/main/ai/agents/AgentWorkspaceStorageService.ts
   - src/main/data/services/AgentWorkspaceService.ts
   - src/main/utils/file/pathIdentity.ts
@@ -34,6 +34,7 @@ Lifecycle IPC / Trash purge / BackupManager
             ├─ AgentSessionDeliveryService: queue drain and wakeups
             ├─ AiStreamManager: dispatch admission and abort/drain
             ├─ AgentSessionRuntimeService: runtime close barriers
+            ├─ AgentWorkspaceStorageService: storage conversion and recovery
             └─ ChannelManager: reconcile current connection intent
 ```
 
@@ -72,7 +73,8 @@ existing sticky-binding detachment policy.
 
 ## Admission and concurrency
 
-Archive rejects unsettled generation, including terminal persistence. Agent-only
+Archive rejects unsettled generation, including terminal persistence and runtime
+background work. Idle connections and warm preloads can be closed and drained. Agent-only
 archive checks its associated Sessions too; retaining Sessions is not permission
 to interrupt their generation.
 
@@ -158,8 +160,9 @@ are retained unchanged. Compression uses an `.archiving` directory and a tempora
 archive; the original contents are removed only after the archive is validated
 and published. Failures retain the files for a later lifecycle sweep to retry.
 Linked or special files prevent compression rather than being silently omitted.
-Archive shutdown also drains pending Claude idle-prewarm preparation before filesystem
-work starts, including preparations that have not created a runtime connection yet.
+Archive shutdown drains pending Claude idle-prewarm preparation and subprocess disposal
+before filesystem work starts, including idle or replaced entries already detached
+from the warm-query map. Failed disposal remains tracked and blocks conversion until retried.
 
 Workspace registration and storage reclamation share `AgentWorkspaceStorageService`
 in the AI domain. Registration enters through `ai.agent.workspace.register` IPC;
@@ -178,20 +181,38 @@ archive and restore paths. Missing components and stale claims beneath a file re
 protected. Distinct names on case-sensitive filesystems remain independent. Protected directories remain intact
 even after the owning system Session is permanently removed. Session and Agent restore reject storage conflicts before activating database rows; a skipped reservation is never treated as a successful restore.
 
-Restore extracts into a unique child of `.restoring`, records the prepared directory
-identity and archive digest in `.restore.json`, and publishes the directory before
-restoring the Session's database state. A file or an unknown directory at the destination
-is a conflict: the archive is preserved and the Session stays trashed. The record
-recognizes a published restore after interruption; mere path existence does not.
-Retry sweeps require the same provenance before replacing an existing archive.
-Agent restore prepares all Sessions archived together with that Agent before its
-single database transaction. Archives are removed only after activation commits;
-cleanup failures retain the record for a later lifecycle sweep. Managed `.archiving`
-residue is removed before the archive and receipt so another archive/restore cycle
-can proceed; a cleanup failure retains the backup. Interrupted archive
-and restore artifacts remain claimed while the workspace row exists. Explicit
-purge and retention cleanup remove both the workspace and its archive artifacts;
-the orphan sweep reclaims residue after their database rows have disappeared.
+`AgentWorkspaceStorageService` owns every storage transition; `agentWorkspaceStorage`
+provides validated filesystem primitives. Session `deletedAt` determines visibility,
+while the sibling `.storage.json` durably records the operation ID, Session ID,
+direction, phase, directory identity, and archive digest. Each intent is fsynced and
+atomically published before its destructive step. Recovery verifies the recorded
+copy rather than treating mere path existence as success.
+
+| Operation | Durable phases | Authoritative copy |
+|---|---|---|
+| Archive | staging → packing → publishing | Original or `.archiving` until a verified archive is published |
+| Restore | preparing → prepared → published → committed | Archive or pending directory until publication; backup retained until DB activation commits |
+| Purge | deleting | Deletion intent retained until all artifacts are removed |
+
+Restore extracts into a unique child of `.restoring` and publishes the prepared
+directory before restoring the Session's database state. Agent restore prepares
+all Sessions archived together with that Agent before its single database
+transaction. A conflicting destination or invalid source leaves the Session trashed.
+DB failure preserves the published restore and its backup for an explicit retry.
+
+Lifecycle sweep resumes the recorded direction. An archived Session with a restore
+record stays archived: sweep may finish safe filesystem preparation but never
+activates the row or recompresses its source. An active Session allows restore
+cleanup to finish. A new explicit archive can settle a published restore and then
+archive the current live files. Backup deletion follows a committed restore record;
+interruption even after backup removal can finish cleanup on the next sweep.
+
+All operation artifacts remain claimed while their workspace row exists. Purge and
+retention cleanup write deletion intent after DB deletion and confirm producer
+shutdown before removal. Orphan sweep reclaims each workspace's artifacts as one
+group, preserves the group if any member is fresh or claimed by a user workspace,
+and removes the operation record last. Runtime JSONL remains owned by the existing
+driver orphan sweep and resume-token claims.
 
 ## Backup and shutdown
 

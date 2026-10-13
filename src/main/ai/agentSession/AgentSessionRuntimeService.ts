@@ -1242,6 +1242,11 @@ export class AgentSessionRuntimeService extends BaseService {
     return isAgentSessionRuntimeBusy(entry.runtimeState)
   }
 
+  isSessionBusyForArchive(sessionId: string): boolean {
+    const entry = this.entries.get(sessionId)
+    return this.isSessionBusy(sessionId) || Boolean(entry && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
+  }
+
   /** Turn-local notification authority. Undefined lets the resolver use the linked source channel. */
   getTurnTrustedNotifyChannels(sessionId: string): readonly NotifyChannel[] | undefined {
     const entry = this.entries.get(sessionId)

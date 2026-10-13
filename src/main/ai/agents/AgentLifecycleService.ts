@@ -1,5 +1,3 @@
-import { existsSync } from 'node:fs'
-
 import { application } from '@application'
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import type { DbOrTx } from '@data/db/types'
@@ -9,7 +7,6 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   ReusableAgentSessionPlaceholdersResponse,
@@ -18,13 +15,6 @@ import type {
 
 import { buildAgentSessionTopicId } from '../agentSession/topic'
 import { sweepAgentOrphans } from './agentOrphanSweep'
-import {
-  archiveSystemWorkspace,
-  finalizeSystemWorkspaceRestore,
-  hasWorkspaceRestore,
-  purgeSystemWorkspace,
-  restoreSystemWorkspace
-} from './agentWorkspaceArchive'
 import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
 import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
 
@@ -92,8 +82,8 @@ export class AgentLifecycleService extends BaseService {
           const workspaces = agentSessionService
             .listSystemWorkspaceSessions(agentSessionService.listIdsByAgent(agentId))
             .filter((workspace) => workspace.deletedAt !== null && workspace.deletedAt === workspace.agentDeletedAt)
-          const { agent, scheduleIds, restoredSessionIds } = await this.withRestoredWorkspaces(
-            workspaces.map((workspace) => workspace.path),
+          const { agent, scheduleIds, restoredSessionIds } = await agentWorkspaceStorageService.restoreWorkspaces(
+            workspaces,
             () =>
               application.get('DbService').withWriteTx((tx) => {
                 const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId)
@@ -138,10 +128,7 @@ export class AgentLifecycleService extends BaseService {
         const workspaces = agentSessionService
           .listSystemWorkspaceSessions([id])
           .filter((workspace) => workspace.deletedAt !== null)
-        return this.withRestoredWorkspaces(
-          workspaces.map((workspace) => workspace.path),
-          () => agentSessionService.restore(id)
-        )
+        return agentWorkspaceStorageService.restoreWorkspaces(workspaces, () => agentSessionService.restore(id))
       })
     )
   }
@@ -194,18 +181,13 @@ export class AgentLifecycleService extends BaseService {
         signal?.throwIfAborted()
         await this.sessionLocks.runExclusive(id, async () => {
           for (const workspace of agentSessionService.listSystemWorkspaceSessions([id])) {
-            if (workspace.deletedAt !== null) await this.finishDeletion([id], [])
-            else if (hasWorkspaceRestore(workspace.path)) {
-              try {
-                await agentWorkspaceStorageService.withSystemWorkspaceStorage(workspace.path, () =>
-                  finalizeSystemWorkspaceRestore(
-                    application.getPath('feature.agents.system_workspaces'),
-                    workspace.path
-                  )
-                )
-              } catch (error) {
-                logger.warn('Workspace restore cleanup retained for retry', { workspace: workspace.path, error })
-              }
+            try {
+              await agentWorkspaceStorageService.reconcileWorkspace(
+                workspace,
+                workspace.deletedAt === null ? 'active' : 'archived'
+              )
+            } catch (error) {
+              logger.warn('Workspace storage operation retained for retry', { workspace: workspace.path, error })
             }
           }
         })
@@ -360,9 +342,7 @@ export class AgentLifecycleService extends BaseService {
                 .get('DbService')
                 .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
         agentSessionService.notifyPurged(purgedIds)
-        await this.removePurgedSystemWorkspaces(
-          workspaces.filter(({ id }) => purgedIds.includes(id)).map(({ path }) => path)
-        )
+        await this.removePurgedSystemWorkspaces(workspaces.filter(({ id }) => purgedIds.includes(id)))
         return { purgedIds, hasMore: sessionIds.length === limit }
       } finally {
         for (const release of releases.reverse()) release()
@@ -378,12 +358,15 @@ export class AgentLifecycleService extends BaseService {
     targetState: 'active' | 'trashed' = 'trashed'
   ): Promise<{ deletedIds: string[] }> {
     const deleteSessions = async () => {
+      const workspaces = agentSessionService.listSystemWorkspaceSessions(ids)
       const result = agentSessionService.deleteByIdsWithImpact(ids, {
         permanent,
         ...(targetState === 'active' ? { targetState } : {})
       })
       await this.finishDeletion(result.deletedIds, result.deliveryResults)
-      await this.removePurgedSystemWorkspaces(result.purgedSystemWorkspacePaths)
+      await this.removePurgedSystemWorkspaces(
+        workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
+      )
       return { deletedIds: result.deletedIds }
     }
     if (permanent && targetState === 'trashed')
@@ -420,6 +403,7 @@ export class AgentLifecycleService extends BaseService {
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
     if (permanent && agentService.getLifecycleState(agentId) !== targetState) return { deleted: false }
     const deleteAgent = async () => {
+      const workspaces = agentSessionService.listSystemWorkspaceSessions(agentSessionService.listIdsByAgent(agentId))
       const { result, scheduleIds } = application.get('DbService').withWriteTx((tx) => {
         const result = agentService.deleteAgentStateTx(tx, agentId, { deleteSessions, permanent, targetState })
         const { scheduleIds, deletedSchedules } = result.deleted
@@ -442,7 +426,9 @@ export class AgentLifecycleService extends BaseService {
         result.deliveryResults,
         deleteSessions ? [] : result.affectedSessionIds
       )
-      await this.removePurgedSystemWorkspaces(result.purgedSystemWorkspacePaths)
+      await this.removePurgedSystemWorkspaces(
+        workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
+      )
       return {
         deleted: result.deleted,
         ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
@@ -456,61 +442,21 @@ export class AgentLifecycleService extends BaseService {
     )
   }
 
-  private async withRestoredWorkspaces<T>(paths: string[], activate: () => T): Promise<T> {
-    if (paths.length === 0) return activate()
-    paths = [...new Set(paths)].sort()
-    const root = application.getPath('feature.agents.system_workspaces')
-    if (!existsSync(root)) return activate()
-    const release = agentWorkspaceStorageService.reserveWorkspaceStorage(
-      paths.flatMap((workspace) => agentWorkspaceStorageService.workspaceStoragePaths(workspace)),
-      paths
-    )
-    if (!release) {
-      throw DataApiErrorFactory.conflict('Workspace storage is in use; cannot safely restore this session', 'Workspace')
-    }
-    try {
-      const published: string[] = []
-      for (const workspace of paths) {
-        const result = await restoreSystemWorkspace(root, workspace)
-        if (result.kind === 'published') published.push(workspace)
-      }
-      const result = activate()
-      for (const workspace of published) {
-        try {
-          await finalizeSystemWorkspaceRestore(root, workspace)
-        } catch (error) {
-          logger.warn('Workspace restore cleanup retained for retry', { workspace, error })
-        }
-      }
-      return result
-    } finally {
-      release()
-    }
-  }
-
-  private async removePurgedSystemWorkspaces(paths: string[]): Promise<void> {
-    if (paths.length === 0) return
-    const root = application.getPath('feature.agents.system_workspaces')
-    for (const workspacePath of paths) {
+  private async removePurgedSystemWorkspaces(workspaces: Array<{ id: string; path: string }>): Promise<void> {
+    for (const workspace of workspaces) {
       try {
-        await agentWorkspaceStorageService.withSystemWorkspaceStorage(workspacePath, () =>
-          purgeSystemWorkspace(root, workspacePath)
-        )
+        await agentWorkspaceStorageService.purgeWorkspace(workspace)
       } catch (error) {
-        logger.warn('Failed to remove purged Agent Session workspace', { workspacePath, error })
+        logger.warn('Failed to remove purged Agent Session workspace', { workspacePath: workspace.path, error })
       }
     }
   }
 
   private async archiveSystemWorkspaces(ids: string[]): Promise<void> {
-    const root = application.getPath('feature.agents.system_workspaces')
     for (const workspace of agentSessionService.listSystemWorkspaceSessions(ids)) {
       if (workspace.deletedAt === null) continue
       try {
-        await agentWorkspaceStorageService.withSystemWorkspaceStorage(workspace.path, async () => {
-          await application.get('AgentSessionRuntimeService').closeSessionForArchive(workspace.id)
-          await archiveSystemWorkspace(root, workspace.path)
-        })
+        await agentWorkspaceStorageService.archiveWorkspace(workspace)
       } catch (error) {
         logger.warn('Failed to archive system workspace; retained for retry', { workspacePath: workspace.path, error })
       }
@@ -609,7 +555,7 @@ export class AgentLifecycleService extends BaseService {
     const runtime = application.get('AgentSessionRuntimeService')
     const busySessionIds = sessionIds.filter(
       (sessionId) =>
-        manager.hasUnsettledTopicWork(buildAgentSessionTopicId(sessionId)) || runtime.isSessionBusy(sessionId)
+        manager.hasUnsettledTopicWork(buildAgentSessionTopicId(sessionId)) || runtime.isSessionBusyForArchive(sessionId)
     )
     if (busySessionIds.length > 0) throw new AgentSessionArchiveBusyError(busySessionIds)
   }

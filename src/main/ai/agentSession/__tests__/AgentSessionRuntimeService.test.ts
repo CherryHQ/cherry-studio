@@ -2833,6 +2833,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.isSessionBusyForArchive('session-1')).toBe(true)
       service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeDefined()
       expect(entry.runtimeState.execution.kind).not.toBe('autonomous-turn')
@@ -2844,6 +2845,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.isSessionBusyForArchive('session-1')).toBe(false)
       expect(entry.runtimeState.execution.kind).not.toBe('autonomous-turn')
       service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeUndefined()

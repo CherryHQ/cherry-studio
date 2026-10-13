@@ -18,10 +18,11 @@ import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 
 import { AgentLifecycleService } from '../AgentLifecycleService'
 import { sweepAgentOrphans } from '../agentOrphanSweep'
-import * as workspaceArchive from '../agentWorkspaceArchive'
+import * as workspaceArchive from '../agentWorkspaceStorage'
 import { agentWorkspaceStorageService } from '../AgentWorkspaceStorageService'
 
 const mocks = vi.hoisted(() => ({
+  busyForArchive: vi.fn().mockReturnValue(false),
   closeSession: vi.fn().mockResolvedValue(undefined),
   closeSessionForArchive: vi.fn().mockResolvedValue(undefined)
 }))
@@ -40,6 +41,7 @@ vi.mock('@application', async () => {
       cancelSessionForks: async () => {},
       recoverSessionForks: async () => {},
       isSessionBusy: () => false,
+      isSessionBusyForArchive: mocks.busyForArchive,
       closeSession: mocks.closeSession,
       closeSessionForArchive: mocks.closeSessionForArchive
     },
@@ -60,6 +62,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   beforeEach(async () => {
     BaseService.resetInstances()
     mocks.closeSession.mockResolvedValue(undefined)
+    mocks.busyForArchive.mockReturnValue(false)
     mocks.closeSessionForArchive.mockResolvedValue(undefined)
     root = await mkdtemp(path.join(os.tmpdir(), 'lifecycle-workspace-'))
     const getPath = vi.mocked(application.getPath).getMockImplementation()!
@@ -240,11 +243,11 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     else await lifecycle.archiveSessions(['system'])
     const entered = Promise.withResolvers<void>()
     const resume = Promise.withResolvers<void>()
-    const restoreFiles = workspaceArchive.restoreSystemWorkspace
-    vi.spyOn(workspaceArchive, 'restoreSystemWorkspace').mockImplementationOnce(async (root, workspace) => {
+    const restoreFiles = workspaceArchive.unpackWorkspaceArchive
+    vi.spyOn(workspaceArchive, 'unpackWorkspaceArchive').mockImplementationOnce(async (archive, workspace) => {
       entered.resolve()
       await resume.promise
-      return restoreFiles(root, workspace)
+      return restoreFiles(archive, workspace)
     })
     const restoring = mode === 'agent' ? lifecycle.restoreAgent('agent') : lifecycle.restoreSession('system')
     await entered.promise
@@ -374,6 +377,16 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     ).toBe(true)
   })
 
+  it('rejects archive while background work still owns the workspace', async () => {
+    mocks.busyForArchive.mockReturnValue(true)
+    await expect(lifecycle.archiveSessions(['system'])).rejects.toThrow('unsettled work')
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+    ).toBeNull()
+    expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
+    expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
+  })
+
   it('keeps the directory if runtime shutdown fails', async () => {
     mocks.closeSession.mockRejectedValueOnce(new Error('runtime still holds files'))
     await lifecycle.archiveSessions(['system'])
@@ -447,10 +460,41 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     ).toBeNull()
   })
 
+  it.each(['archive', 'pending'] as const)(
+    'sweep preserves %s restore intent after interruption without activating the session',
+    async (source) => {
+      const parent = workspacePath(root, 'system')
+      if (source === 'pending')
+        vi.spyOn(workspaceArchive, 'packWorkspaceDirectory').mockRejectedValueOnce(new Error('disk full'))
+      await lifecycle.archiveSessions(['system'])
+      const write = workspaceArchive.writeWorkspaceStorageRecord
+      const interruption = vi
+        .spyOn(workspaceArchive, 'writeWorkspaceStorageRecord')
+        .mockImplementation(async (target, record) => {
+          await write(target, record)
+          if (record.operation === 'restore' && record.phase === 'prepared') throw new Error('process interrupted')
+        })
+      await expect(lifecycle.restoreSession('system')).rejects.toThrow('process interrupted')
+      interruption.mockRestore()
+      await lifecycle.sweepOrphans()
+      await lifecycle.sweepOrphans()
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+      ).not.toBeNull()
+      expect(JSON.parse(await readFile(`${parent}.storage.json`, 'utf8')).operation).toBe('restore')
+      expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
+      await lifecycle.restoreSession('system')
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+      ).toBeNull()
+      expect(existsSync(`${parent}.storage.json`)).toBe(false)
+    }
+  )
+
   it('retries failed cleanup after activation through the orphan sweep', async () => {
     const parent = workspacePath(root, 'system')
     await lifecycle.archiveSessions(['system'])
-    vi.spyOn(workspaceArchive, 'finalizeSystemWorkspaceRestore').mockRejectedValueOnce(new Error('cleanup interrupted'))
+    vi.spyOn(workspaceArchive, 'removeWorkspaceArtifact').mockRejectedValueOnce(new Error('cleanup interrupted'))
     await lifecycle.restoreSession('system')
     expect(existsSync(`${parent}.tar.gz`)).toBe(true)
     expect(
@@ -458,7 +502,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     ).toBeNull()
     await lifecycle.sweepOrphans()
     expect(existsSync(`${parent}.tar.gz`)).toBe(false)
-    expect(existsSync(`${parent}.restore.json`)).toBe(false)
+    expect(existsSync(`${parent}.storage.json`)).toBe(false)
     expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
   })
 
@@ -467,11 +511,11 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     await lifecycle.archiveSessions(['system'])
     const entered = Promise.withResolvers<void>()
     const resume = Promise.withResolvers<void>()
-    const finalize = workspaceArchive.finalizeSystemWorkspaceRestore
-    vi.spyOn(workspaceArchive, 'finalizeSystemWorkspaceRestore').mockImplementationOnce(async (root, workspace) => {
+    const finalize = workspaceArchive.removeWorkspaceArtifact
+    vi.spyOn(workspaceArchive, 'removeWorkspaceArtifact').mockImplementationOnce(async (root, workspace, identity) => {
       entered.resolve()
       await resume.promise
-      await finalize(root, workspace)
+      await finalize(root, workspace, identity)
     })
     const restoring = lifecycle.restoreSession('system')
     await entered.promise
@@ -481,7 +525,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
       ).toBeNull()
       expect(existsSync(`${parent}.tar.gz`)).toBe(true)
       await expect(registerWorkspace(`${parent}.restoring`)).rejects.toThrow()
-      await expect(registerWorkspace(`${parent}.restore.json`)).rejects.toThrow()
+      await expect(registerWorkspace(`${parent}.storage.json`)).rejects.toThrow()
     } finally {
       resume.resolve()
       await restoring

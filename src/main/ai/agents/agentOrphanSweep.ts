@@ -11,7 +11,7 @@ import { listEntries, reclaimStale } from '@main/ai/runtime/orphanSessionReclaim
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 
-import { WORKSPACE_ARCHIVE_SUFFIXES } from './agentWorkspaceArchive'
+import { WORKSPACE_STORAGE_SUFFIXES } from './agentWorkspaceStorage'
 import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
 
 const logger = loggerService.withContext('AgentOrphanSweep')
@@ -75,7 +75,7 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       .select({ path: agentWorkspaceTable.path })
       .from(agentWorkspaceTable)
       .all()
-      .flatMap((row) => ['', ...WORKSPACE_ARCHIVE_SUFFIXES].map((suffix) => path.resolve(`${row.path}${suffix}`)))
+      .map((row) => path.resolve(row.path))
   )
 
   const removed: string[] = []
@@ -93,25 +93,28 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
   for (const dateEntry of await listEntries(workspacesRoot)) {
     if (!dateEntry.isDirectory()) continue
     const dateDir = path.resolve(workspacesRoot, dateEntry.name)
+    const candidates = new Set<string>()
     for (const sessionEntry of await listEntries(dateDir)) {
       signal?.throwIfAborted()
       if (
         !sessionEntry.isDirectory() &&
-        !WORKSPACE_ARCHIVE_SUFFIXES.some((suffix) => sessionEntry.name.endsWith(suffix))
+        !WORKSPACE_STORAGE_SUFFIXES.some((suffix) => sessionEntry.name.endsWith(suffix))
       )
         continue
       const sessionDir = path.resolve(dateDir, sessionEntry.name)
-      if (claimedWorkspaces.has(sessionDir)) continue
-      const suffix = WORKSPACE_ARCHIVE_SUFFIXES.find((suffix) => sessionDir.endsWith(suffix))
+      const suffix = WORKSPACE_STORAGE_SUFFIXES.find((suffix) => sessionDir.endsWith(suffix))
       const workspace = suffix ? sessionDir.slice(0, -suffix.length) : sessionDir
-      if (
-        await agentWorkspaceStorageService.withSystemWorkspaceStorage(
-          workspace,
-          () => reclaim(sessionDir, removed, options),
-          true
-        )
-      )
-        workspaceDirs++
+      if (!claimedWorkspaces.has(workspace)) candidates.add(workspace)
+    }
+    for (const workspace of candidates) {
+      signal?.throwIfAborted()
+      try {
+        const artifacts = await agentWorkspaceStorageService.reclaimOrphanWorkspace(workspace, options)
+        removed.push(...artifacts)
+        if (artifacts.length) workspaceDirs++
+      } catch (error) {
+        logger.warn('Workspace orphan cleanup retained for retry', { workspace, error })
+      }
     }
     const release = agentWorkspaceStorageService.reserveWorkspaceStorage([dateDir])
     if (release) {

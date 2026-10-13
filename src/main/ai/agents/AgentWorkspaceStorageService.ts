@@ -4,10 +4,19 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { loggerService } from '@logger'
+import { newestMtimeMs } from '@main/ai/runtime/orphanSessionReclaim'
+import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 import { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from '@main/utils/file'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 
-import { WORKSPACE_ARCHIVE_SUFFIXES } from './agentWorkspaceArchive'
+import * as storage from './agentWorkspaceStorage'
+
+const logger = loggerService.withContext('AgentWorkspaceStorageService')
+type Workspace = { id: string; path: string }
+type ArchiveRecord = Extract<storage.WorkspaceStorageRecord, { operation: 'archive' }>
+type RestoreRecord = Extract<storage.WorkspaceStorageRecord, { operation: 'restore' }>
 
 function probeNameBehavior(directory: string): PathNameBehavior {
   const name = `.cherry-path-${randomUUID()}-Aa-é`
@@ -51,12 +60,10 @@ class AgentWorkspaceStorageService {
     if (!rootStat.isDirectory() || rootStat.isSymbolicLink())
       throw new Error('Workspace storage root must be a real directory')
     const root = realpathSync.native(managedRoot)
-    const owners = (typeof ownerPaths === 'string' ? [ownerPaths] : ownerPaths).map(nearestExistingRealPathSync)
+    const owners = (typeof ownerPaths === 'string' ? [ownerPaths] : ownerPaths).map((owner) => path.resolve(owner))
     const claims = agentWorkspaceService
       .listStorageClaims()
-      .filter(
-        (row) => row.type !== AGENT_WORKSPACE_TYPE.SYSTEM || !owners.includes(nearestExistingRealPathSync(row.path))
-      )
+      .filter((row) => row.type !== AGENT_WORKSPACE_TYPE.SYSTEM || !owners.includes(path.resolve(row.path)))
     const exactOverlap = createPathOverlapCheck(paths, new Map())
     if (claims.some((row) => exactOverlap(row.path))) return undefined
     const behaviors = new Map<string, PathNameBehavior>()
@@ -119,10 +126,10 @@ class AgentWorkspaceStorageService {
   }
 
   workspaceStoragePaths(workspace: string): string[] {
-    return ['', ...WORKSPACE_ARCHIVE_SUFFIXES].map((suffix) => `${workspace}${suffix}`)
+    return ['', ...storage.WORKSPACE_STORAGE_SUFFIXES].map((suffix) => `${workspace}${suffix}`)
   }
 
-  async withSystemWorkspaceStorage<T>(
+  private async withSystemWorkspaceStorage<T>(
     workspace: string,
     operation: () => Promise<T>,
     orphan = false
@@ -134,6 +141,289 @@ class AgentWorkspaceStorageService {
     } finally {
       release()
     }
+  }
+
+  async archiveWorkspace(workspace: Workspace): Promise<void> {
+    if (!existsSync(application.getPath('feature.agents.system_workspaces'))) await this.quiesce(workspace.id)
+    await this.withSystemWorkspaceStorage(workspace.path, async () => {
+      await this.quiesce(workspace.id)
+      const root = application.getPath('feature.agents.system_workspaces')
+      const state = await this.inspect(root, workspace)
+      if (!state) return
+      if (state.record?.operation === 'restore') await this.commitRestore(root, workspace.path, state.record)
+      else if (state.record?.operation === 'purge') throw new Error('Workspace deletion is pending')
+      await this.archive(root, workspace)
+    })
+  }
+
+  async restoreWorkspaces<T>(workspaces: Workspace[], activate: () => T): Promise<T> {
+    if (!workspaces.length) return activate()
+    const root = application.getPath('feature.agents.system_workspaces')
+    if (!existsSync(root)) {
+      for (const workspace of workspaces) await this.quiesce(workspace.id)
+      if (!existsSync(root)) return activate()
+    }
+    const paths = [...new Set(workspaces.map((workspace) => workspace.path))].sort()
+    const release = this.reserveWorkspaceStorage(
+      paths.flatMap((workspace) => this.workspaceStoragePaths(workspace)),
+      paths
+    )
+    if (!release)
+      throw DataApiErrorFactory.conflict('Workspace storage is in use; cannot safely restore this session', 'Workspace')
+    try {
+      const restored: Array<{ path: string; record: RestoreRecord }> = []
+      for (const workspace of workspaces) {
+        await this.quiesce(workspace.id)
+        const record = await this.restore(root, workspace)
+        if (record) restored.push({ path: workspace.path, record })
+      }
+      const result = activate()
+      for (const workspace of restored) {
+        try {
+          await this.commitRestore(root, workspace.path, workspace.record)
+        } catch (error) {
+          logger.warn('Workspace restore cleanup retained for retry', { workspace: workspace.path, error })
+        }
+      }
+      return result
+    } finally {
+      release()
+    }
+  }
+
+  async reconcileWorkspace(workspace: Workspace, lifecycle: 'active' | 'archived'): Promise<void> {
+    await this.withSystemWorkspaceStorage(workspace.path, async () => {
+      const root = application.getPath('feature.agents.system_workspaces')
+      const state = await this.inspect(root, workspace)
+      if (!state || (lifecycle === 'active' && !state.record)) return
+      if (lifecycle === 'archived') await this.quiesce(workspace.id)
+      if (state.record?.operation === 'restore') {
+        const record = await this.restore(root, workspace)
+        if (record && lifecycle === 'active') await this.commitRestore(root, workspace.path, record)
+      } else if (lifecycle === 'archived') await this.archive(root, workspace)
+      else throw new Error('Active session has an unfinished workspace storage operation')
+    })
+  }
+
+  async purgeWorkspace(workspace: Workspace): Promise<void> {
+    await this.withSystemWorkspaceStorage(workspace.path, () => this.purge(workspace), true)
+  }
+
+  async reclaimOrphanWorkspace(workspacePath: string, options: OrphanSessionReclaimOptions): Promise<string[]> {
+    return (
+      (await this.withSystemWorkspaceStorage(
+        workspacePath,
+        async () => {
+          const artifacts: string[] = []
+          for (const target of this.workspaceStoragePaths(workspacePath)) {
+            const newest = await newestMtimeMs(target)
+            if (newest === null) continue
+            if (options.now - newest <= options.freshnessGateMs) return []
+            artifacts.push(target)
+          }
+          if (artifacts.length) await this.purge({ id: path.basename(workspacePath), path: workspacePath })
+          return artifacts
+        },
+        true
+      )) ?? []
+    )
+  }
+
+  private async quiesce(sessionId: string): Promise<void> {
+    const runtime = application.get('AgentSessionRuntimeService')
+    await runtime.cancelSessionForks(sessionId)
+    await runtime.closeSessionForArchive(sessionId)
+  }
+
+  private async inspect(root: string, workspace: Workspace) {
+    const state = await storage.inspectWorkspaceStorage(root, workspace.path)
+    if (state?.record && state.record.sessionId !== workspace.id)
+      throw new Error('Workspace operation belongs to another session')
+    return state
+  }
+
+  private async archive(root: string, workspace: Workspace): Promise<void> {
+    const state = await this.inspect(root, workspace)
+    if (!state) return
+    let record = state.record
+    if (record && record.operation !== 'archive') throw new Error('Workspace has another pending storage operation')
+    if (!record) {
+      if (!state.directory && !state.pending) return
+      if (state.archive || (state.directory && state.pending))
+        throw new Error('Workspace storage has unverified copies')
+      record = {
+        version: 1,
+        operationId: randomUUID(),
+        sessionId: workspace.id,
+        operation: 'archive',
+        phase: 'staging',
+        directory: await storage.workspaceDirectoryIdentity(
+          root,
+          state.pending ? `${workspace.path}.archiving` : workspace.path
+        )
+      }
+      await storage.writeWorkspaceStorageRecord(workspace.path, record)
+    }
+    await this.finishArchive(root, workspace.path, record)
+  }
+
+  private async finishArchive(root: string, workspace: string, initial: ArchiveRecord): Promise<void> {
+    let record = initial
+    const pending = `${workspace}.archiving`
+    const temporary = `${workspace}.tar.gz.tmp`
+    const archive = `${workspace}.tar.gz`
+    if (record.phase === 'staging') {
+      if (await storage.workspaceStat(workspace)) {
+        await storage.assertWorkspaceDirectoryIdentity(root, workspace, record.directory)
+        await storage.moveWorkspacePath(root, workspace, pending)
+      } else await storage.assertWorkspaceDirectoryIdentity(root, pending, record.directory)
+      record = { ...record, phase: 'packing' }
+      await storage.writeWorkspaceStorageRecord(workspace, record)
+    }
+    if (record.phase === 'packing') {
+      await storage.assertWorkspaceDirectoryIdentity(root, pending, record.directory)
+      const archiveHash = await storage.packWorkspaceDirectory(pending, temporary)
+      record = { ...record, phase: 'publishing', archiveHash }
+      await storage.writeWorkspaceStorageRecord(workspace, record)
+    }
+    const published = await storage.workspaceStat(archive)
+    if (!published || (await storage.workspaceArchiveHash(archive)) !== record.archiveHash) {
+      if (published) {
+        throw new Error('Workspace archive changed')
+      }
+      await storage.assertWorkspaceArchiveHash(temporary, record.archiveHash!)
+      await storage.publishWorkspaceArchive(root, temporary, archive)
+    }
+    await storage.assertWorkspaceArchiveHash(archive, record.archiveHash!)
+    await storage.removeWorkspaceArtifact(root, pending, record.directory)
+    await storage.removeWorkspaceArtifact(root, temporary)
+    await storage.clearWorkspaceStorageRecord(workspace)
+  }
+
+  private async restore(root: string, workspace: Workspace): Promise<RestoreRecord | undefined> {
+    let state = await this.inspect(root, workspace)
+    if (!state) return undefined
+    let record = state.record
+    if (record?.operation === 'purge') throw new Error('Workspace deletion is pending')
+    if (record?.operation === 'archive' && record.phase === 'publishing') {
+      await this.finishArchive(root, workspace.path, record)
+      state = (await this.inspect(root, workspace))!
+      record = undefined
+    }
+    if (record?.operation !== 'restore') {
+      if (state.directory && state.pending) throw new Error('Workspace destination is occupied')
+      if ((state.directory || state.pending) && state.archive && !record)
+        throw new Error('Workspace destination is occupied')
+      if (!state.directory && !state.pending && !state.archive) return undefined
+      const source = state.pending ? 'pending' : state.directory ? 'directory' : 'archive'
+      if (source === 'archive') await storage.validateWorkspaceArchive(`${workspace.path}.tar.gz`)
+      if (record?.operation === 'archive') {
+        await storage.assertWorkspaceDirectoryIdentity(
+          root,
+          source === 'pending' ? `${workspace.path}.archiving` : workspace.path,
+          record.directory
+        )
+      }
+      record = {
+        version: 1,
+        operationId: randomUUID(),
+        sessionId: workspace.id,
+        operation: 'restore',
+        phase: 'preparing',
+        source,
+        ...(state.archive ? { archiveHash: await storage.workspaceArchiveHash(`${workspace.path}.tar.gz`) } : {}),
+        ...(source !== 'archive'
+          ? {
+              directory: await storage.workspaceDirectoryIdentity(
+                root,
+                source === 'pending' ? `${workspace.path}.archiving` : workspace.path
+              )
+            }
+          : {})
+      }
+      await storage.writeWorkspaceStorageRecord(workspace.path, record)
+    }
+    return this.finishRestore(root, workspace.path, record)
+  }
+
+  private async finishRestore(root: string, workspace: string, initial: RestoreRecord): Promise<RestoreRecord> {
+    let record = initial
+    const pending = `${workspace}.archiving`
+    const archive = `${workspace}.tar.gz`
+    const stage = path.join(`${workspace}.restoring`, record.operationId)
+    if (record.archiveHash && (record.phase !== 'committed' || (await storage.workspaceStat(archive))))
+      await storage.assertWorkspaceArchiveHash(archive, record.archiveHash)
+    if (record.phase === 'preparing') {
+      if (record.source === 'archive') {
+        if (await storage.workspaceStat(workspace)) throw new Error('Workspace destination is occupied')
+        await storage.ensureWorkspaceStage(root, stage)
+        await storage.clearWorkspaceStage(root, stage)
+        await storage.unpackWorkspaceArchive(archive, stage)
+        record = { ...record, phase: 'prepared', directory: await storage.workspaceDirectoryIdentity(root, stage) }
+      } else {
+        await storage.assertWorkspaceDirectoryIdentity(
+          root,
+          record.source === 'pending' ? pending : workspace,
+          record.directory!
+        )
+        record = { ...record, phase: record.source === 'directory' ? 'published' : 'prepared' }
+      }
+      await storage.writeWorkspaceStorageRecord(workspace, record)
+    }
+    if (record.phase === 'prepared') {
+      if (!(await storage.workspaceStat(workspace))) {
+        if (record.source === 'pending' && (await storage.workspaceStat(pending))) {
+          await storage.assertWorkspaceDirectoryIdentity(root, pending, record.directory!)
+          await storage.ensureWorkspaceStage(root, `${workspace}.restoring`)
+          await storage.moveWorkspacePath(root, pending, stage)
+        }
+        await storage.assertWorkspaceDirectoryIdentity(root, stage, record.directory!)
+        await storage.moveWorkspacePath(root, stage, workspace)
+      }
+      await storage.assertWorkspaceDirectoryIdentity(root, workspace, record.directory!)
+      record = { ...record, phase: 'published' }
+      await storage.writeWorkspaceStorageRecord(workspace, record)
+    }
+    await storage.assertWorkspaceDirectoryIdentity(root, workspace, record.directory!)
+    return record
+  }
+
+  private async commitRestore(root: string, workspace: string, initial: RestoreRecord): Promise<void> {
+    let record = await this.finishRestore(root, workspace, initial)
+    if (record.phase !== 'committed') {
+      record = { ...record, phase: 'committed' }
+      await storage.writeWorkspaceStorageRecord(workspace, record)
+    }
+    if (await storage.workspaceStat(`${workspace}.archiving`)) {
+      throw new Error('Workspace has unverified archive residue')
+    }
+    await storage.removeEmptyWorkspaceStage(`${workspace}.restoring`)
+    await storage.removeWorkspaceArtifact(root, `${workspace}.tar.gz.tmp`)
+    await storage.removeWorkspaceArtifact(root, `${workspace}.storage.json.tmp`)
+    await storage.removeWorkspaceArtifact(root, `${workspace}.tar.gz`)
+    await storage.clearWorkspaceStorageRecord(workspace)
+  }
+
+  private async purge(workspace: Workspace): Promise<void> {
+    const root = application.getPath('feature.agents.system_workspaces')
+    const state = await this.inspect(root, workspace)
+    if (!state || !this.workspaceStoragePaths(workspace.path).some(existsSync)) return
+    const record: storage.WorkspaceStorageRecord =
+      state.record?.operation === 'purge'
+        ? state.record
+        : {
+            version: 1,
+            operationId: randomUUID(),
+            sessionId: workspace.id,
+            operation: 'purge',
+            phase: 'deleting'
+          }
+    await storage.writeWorkspaceStorageRecord(workspace.path, record)
+    await this.quiesce(record.sessionId)
+    for (const target of this.workspaceStoragePaths(workspace.path)) {
+      if (target !== `${workspace.path}.storage.json`) await storage.removeWorkspaceArtifact(root, target)
+    }
+    await storage.clearWorkspaceStorageRecord(workspace.path)
   }
 }
 
