@@ -47,6 +47,18 @@ const nodeBin = `"${process.execPath}"`
 // design, so its pid staying alive says nothing about the work.
 const orphanWorkerCommand = `${nodeBin} -e "process.on('SIGTERM', () => {}); process.stdout.write(String(process.pid)); setInterval(() => {}, 60_000)" &`
 
+/**
+ * Removes the test's tree once nothing is writing into it. A completion still in flight drops its
+ * staging file after `rm`'s readdir but before its rmdir — which is ENOTEMPTY, and `force` only
+ * suppresses ENOENT — so the removal is retried until it lands.
+ */
+async function rmTaskDir(agentsRoot: string): Promise<void> {
+  await vi.waitFor(async () => await rm(agentsRoot, { recursive: true, force: true }), {
+    timeout: 10_000,
+    interval: 50
+  })
+}
+
 /** Waits for the shell to exit and returns the surviving worker's pid. */
 async function waitForOrphanedWorker(record: BackgroundTaskRecord): Promise<number> {
   await vi.waitFor(
@@ -106,7 +118,7 @@ describe('stopAllAgentBackgroundTasks', () => {
   })
 
   afterEach(async () => {
-    await rm(agentsRoot, { recursive: true, force: true })
+    await rmTaskDir(agentsRoot)
   })
 
   it.skipIf(process.platform === 'win32')(
@@ -325,7 +337,7 @@ describe('startAgentBackgroundTask / purgeAgentBackgroundTasks', () => {
   })
 
   afterEach(async () => {
-    await rm(agentsRoot, { recursive: true, force: true })
+    await rmTaskDir(agentsRoot)
     vi.mocked(agentService.getAgent).mockReturnValue(null)
   })
 
@@ -375,7 +387,7 @@ describe('stopAgentBackgroundTask', () => {
   })
 
   afterEach(async () => {
-    await rm(agentsRoot, { recursive: true, force: true })
+    await rmTaskDir(agentsRoot)
   })
 
   it.skipIf(process.platform === 'win32')(
