@@ -9,6 +9,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import type { useTimer } from '@renderer/hooks/useTimer'
 
+import { useComposerLayerActive } from './ComposerContext'
 import { getCompactComposerEditorMinHeight, getComposerEditorMinHeight } from './composerSizing'
 
 const COMPOSER_EDITOR_HEIGHT_TRANSITION_MS = 260
@@ -95,6 +96,7 @@ export function useComposerEditorFrameSizing({
   focusEditor,
   setTimeoutTimer
 }: ComposerEditorFrameSizingOptions) {
+  const layerActive = useComposerLayerActive()
   const minHeight = getComposerEditorMinHeight(fontSize)
   const compactMinHeight = getCompactComposerEditorMinHeight(fontSize)
   const [maxHeight, setMaxHeight] = useState(minHeight)
@@ -108,7 +110,7 @@ export function useComposerEditorFrameSizing({
 
   useLayoutEffect(() => {
     const frame = frameRef.current
-    if (!frame) return
+    if (!frame || !layerActive) return
     const stage = frame.closest<HTMLElement>('[data-composer-stage]')
     const surface =
       frame.closest<HTMLElement>('[data-composer-dock-surface]') ??
@@ -140,7 +142,7 @@ export function useComposerEditorFrameSizing({
       if (measurementFrame !== null) window.cancelAnimationFrame(measurementFrame)
       window.removeEventListener('resize', measure)
     }
-  }, [minHeight])
+  }, [layerActive, minHeight])
 
   const hasManualHeight = manualHeight !== null
   const hasCustomHeight = isExpanded || hasManualHeight
