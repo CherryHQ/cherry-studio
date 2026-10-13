@@ -83,10 +83,14 @@ export class ChannelAdapterListener implements StreamListener {
       this.delivered = false
       // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
       // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
-      // be redacted before they leave.
+      // be redacted before they leave. Queued behind `updateChain` like the terminal: the
+      // adapter keeps ONE live controller per chat, so an update emitted while a predecessor's
+      // finalize is still awaited would rewrite that predecessor's card content.
       const { text } = sanitizeChannelOutput(this.accumulatedText)
-      const update = this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
-      void update.catch(() => {})
+      const update = this.updateChain.then(() =>
+        this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
+      )
+      this.updateChain = update.catch(() => undefined)
     }
   }
 

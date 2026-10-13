@@ -25,17 +25,23 @@ function delta(text: string): UIMessageChunk {
   return { type: 'text-delta', id: 't', delta: text }
 }
 
+/** Live updates queue behind the chat's update chain — let the queued callback run. */
+async function flushLiveUpdate(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 describe('ChannelAdapterListener', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('accumulates text-delta via .delta and redacts secrets before live onTextUpdate', () => {
+  it('accumulates text-delta via .delta and redacts secrets before live onTextUpdate', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
     listener.onChunk(delta('here is the key: '))
     listener.onChunk(delta(SECRET))
+    await flushLiveUpdate()
 
     const lastCall = vi.mocked(adapter.onTextUpdate).mock.calls.at(-1)
     expect(lastCall?.[0]).toBe('chat-1')
@@ -56,7 +62,7 @@ describe('ChannelAdapterListener', () => {
     expect(vi.mocked(adapter.sendMessage).mock.calls[0][1]).toContain('[REDACTED]')
   })
 
-  it('withholds an incomplete citation marker from live updates', () => {
+  it('withholds an incomplete citation marker from live updates', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
@@ -65,16 +71,18 @@ describe('ChannelAdapterListener', () => {
     listener.onChunk(delta('te:source-'))
     listener.onChunk(delta('1]'))
     listener.onChunk(delta(' confirmed'))
+    await flushLiveUpdate()
 
     const updates = vi.mocked(adapter.onTextUpdate).mock.calls.map(([, text]) => text)
     expect(updates).toEqual(['Claim ', 'Claim', 'Claim', 'Claim', 'Claim confirmed'])
   })
 
-  it('does not withhold a trailing bracket sequence once it is ruled out as a citation', () => {
+  it('does not withhold a trailing bracket sequence once it is ruled out as a citation', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
     listener.onChunk(delta('Array [city'))
+    await flushLiveUpdate()
 
     expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city', undefined)
   })
@@ -281,6 +289,48 @@ describe('ChannelAdapterListener', () => {
     await Promise.all([predecessor, successor])
 
     expect(log).toEqual(['enter#1:On it.', 'leave#1:On it.', 'enter#2:Found it: 42', 'leave#2:Found it: 42'])
+  })
+
+  it('holds a wake’s live updates behind the predecessor’s still-running finalization', async () => {
+    // A native background wake emits chunks through the carried listener while the predecessor's
+    // Feishu finalize still owns the chat's single card controller. The wake's live onTextUpdate
+    // must queue behind that finalize — otherwise it rewrites the predecessor's card content and
+    // the reply is delivered twice in two shapes.
+    let releaseComplete!: () => void
+    const finalizeGate = new Promise<void>((resolve) => {
+      releaseComplete = resolve
+    })
+    const adapter = makeAdapter({
+      onStreamComplete: vi.fn(async () => {
+        await finalizeGate
+        return false
+      })
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'))
+    const predecessor = listener.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    // The predecessor's finalize has been invoked and is parked inside the adapter.
+    await vi.waitFor(() => expect(adapter.onStreamComplete).toHaveBeenCalledOnce())
+
+    // Wake output arrives through this listener during the predecessor's finalize.
+    listener.onChunk(delta('wake report'))
+    // Give an unserialized live update every chance to slip through before the gate opens
+    // (the predecessor's own live update is expected — only the wake's must be held back).
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(
+      vi.mocked(adapter.onTextUpdate).mock.calls.filter(([, text]) => String(text).includes('wake report'))
+    ).toEqual([])
+
+    releaseComplete()
+    await predecessor
+    // Once the finalize settles, the wake's live updates flow (and its own terminal follows).
+    await vi.waitFor(() =>
+      expect(vi.mocked(adapter.onTextUpdate).mock.calls.map(([, text]) => text)).toContain('wake report')
+    )
   })
 
   it('keeps two channel listeners’ terminal text separate when the first finalizes slowly', async () => {

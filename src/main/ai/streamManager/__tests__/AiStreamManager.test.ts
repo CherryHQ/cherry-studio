@@ -638,6 +638,58 @@ describe('AiStreamManager', () => {
     })
   })
 
+  // ── wake listener carry ─────────────────────────────────────────────
+
+  // A scheduled fire's (or channel chat's) channel listeners survive the inter-turn gap so the
+  // native background work's settlement wake can deliver its result — but an ordinary successor
+  // turn (a user follow-up, the next fire) must not inherit those recipients.
+  it('carries channel listeners into a wake turn but drops them from an ordinary successor turn', async () => {
+    const topicId = 'agent-session:s1'
+    const channelListener = new FakeListener('channel:ch1:chat-1:unthreaded')
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    // Ordinary successor: the channel recipients must not ride along.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    const successorListeners = mgr.inspect(topicId)?.listenerIds ?? []
+    expect(successorListeners).toContain('wc:win-1')
+    expect(successorListeners).not.toContain('channel:ch1:chat-1:unthreaded')
+  })
+
+  it('carries channel listeners into a receive-only wake turn', async () => {
+    const topicId = 'agent-session:s1'
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), new FakeListener('channel:ch1:chat-1:unthreaded')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    expect(mgr.inspect(topicId)?.listenerIds).toContain('channel:ch1:chat-1:unthreaded')
+  })
+
   // ── send (inject path) ─────────────────────────────────────────────
 
   describe('send (inject)', () => {

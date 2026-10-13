@@ -22,6 +22,7 @@ const {
   mockStartRun,
   mockBindTaskSessionReuse,
   mockIsSessionBusy,
+  mockHasPendingBackgroundWork,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
   mockAssertAgentStorageDirectory,
@@ -38,6 +39,7 @@ const {
     }),
     mockBindTaskSessionReuse: vi.fn(() => true),
     mockIsSessionBusy: vi.fn(() => false),
+    mockHasPendingBackgroundWork: vi.fn(() => false),
     mockUpdateJobScheduleTx: vi.fn(),
     mockSyncJobScheduleTimerById: vi.fn(),
     mockAssertAgentStorageDirectory: vi.fn(),
@@ -54,7 +56,10 @@ vi.mock('@application', async () => {
     AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
     AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse, syncHeartbeat: syncHeartbeatScheduleMock },
     // Gate that keeps a reusing fire off a session with a live turn.
-    AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy },
+    AgentSessionRuntimeService: {
+      isSessionBusy: mockIsSessionBusy,
+      hasPendingBackgroundWork: mockHasPendingBackgroundWork
+    },
     // An untrusted agent directory pauses its heartbeat schedule.
     JobManager: {
       ...mod.defaultServiceInstances.JobManager,
@@ -241,6 +246,7 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getByIdTx).mockReset()
     mockBindTaskSessionReuse.mockReset().mockReturnValue(true)
     mockIsSessionBusy.mockReset().mockReturnValue(false)
+    mockHasPendingBackgroundWork.mockReset().mockReturnValue(false)
     vi.mocked(readHeartbeat).mockReset()
     mockAssertAgentStorageDirectory.mockReset().mockResolvedValue(undefined)
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
@@ -697,6 +703,70 @@ describe('runAgentTask', () => {
     await promise
 
     expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ trustedNotifyChannels }))
+  })
+
+  // The spawning reply settles while native background work keeps running. The fire's channel
+  // listeners are the only route that work's settlement wake has to the subscribed chats, so they
+  // must stay attached while work is pending (an ordinary turn evicts them; the wake carries them).
+  it('keeps the subscribed-channel listeners attached while the fire’s background work is pending', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+    mockGetAdapter.mockImplementation(((channelId: string) =>
+      channelId === 'ch1'
+        ? {
+            channelId: 'ch1',
+            connected: true,
+            notifyChatIds: ['chat-1'],
+            sendMessage: vi.fn(async () => {}),
+            onTextUpdate: vi.fn(async () => {}),
+            onStreamComplete: vi.fn(async () => false)
+          }
+        : undefined) as never)
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.({ status: 'success' }))))
+    await expect(promise).resolves.toEqual({ result: 'Completed' })
+
+    const removedIds = mockRemoveListener.mock.calls.map(([, listenerId]) => listenerId)
+    expect(removedIds).toContain('agent-task:s1')
+    expect(removedIds).not.toContain('channel:ch1:chat-1:unthreaded')
+  })
+
+  it('removes the subscribed-channel listeners once no background work is pending', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+    mockGetAdapter.mockImplementation(((channelId: string) =>
+      channelId === 'ch1'
+        ? {
+            channelId: 'ch1',
+            connected: true,
+            notifyChatIds: ['chat-1'],
+            sendMessage: vi.fn(async () => {}),
+            onTextUpdate: vi.fn(async () => {}),
+            onStreamComplete: vi.fn(async () => false)
+          }
+        : undefined) as never)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.({ status: 'success' }))))
+    await expect(promise).resolves.toEqual({ result: 'Completed' })
+
+    const removedIds = mockRemoveListener.mock.calls.map(([, listenerId]) => listenerId)
+    expect(removedIds).toContain('agent-task:s1')
+    expect(removedIds).toContain('channel:ch1:chat-1:unthreaded')
   })
 
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly

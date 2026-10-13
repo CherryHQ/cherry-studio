@@ -290,6 +290,49 @@ describe('subagent settlement wake (incident replay)', () => {
     void service.closeSession('session-1')
   })
 
+  it('lets a settlement wake carry the channel listeners an ordinary successor turn would drop', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      },
+      occupancy: {}
+    }
+    const reader = service
+      .openTurnStream({
+        sessionId: 'session-1',
+        turnId: currentTurn(entry).turnId,
+        signal: new AbortController().signal
+      })
+      .getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+
+    handleRuntimeEvent({ type: 'background-work-state', active: true })
+    handleRuntimeEvent({ type: 'turn-complete' })
+    service.markTurnTerminal('session-1', 'success')
+
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    // The wake is the delivery route for the background work's result: it must opt into carrying
+    // the topic's IM-channel listeners (the stream manager drops them for ordinary successors).
+    expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ carryChannelListeners: true }))
+
+    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-end', id: 'w1' } })
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'finished' })
+    handleRuntimeEvent({ type: 'turn-complete' })
+    void service.closeSession('session-1')
+  })
+
   it('still acknowledges persistence for a turn whose execution a wake replaced mid-settle', async () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)

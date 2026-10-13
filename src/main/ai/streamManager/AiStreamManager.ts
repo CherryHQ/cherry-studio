@@ -154,6 +154,12 @@ export interface StartRuntimeTurnInput {
   listeners: StreamListener[]
   rootSpan?: Span
   abortController?: AbortController
+  /**
+   * Receive-only wake turns may carry the topic's IM-channel listeners (a scheduled fire's or
+   * channel chat's recipients delivering the background work's result). Ordinary successor turns
+   * must not inherit them.
+   */
+  carryChannelListeners?: boolean
 }
 
 // ── Inspection snapshots ────────────────────────────────────────────
@@ -945,9 +951,13 @@ export class AiStreamManager extends BaseService {
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
     const carriedListeners = existing
-      ? [...existing.listeners.values()].filter(
-          (listener) => !listener.id.startsWith('persistence:') && !listener.id.startsWith('agent-runtime:')
-        )
+      ? [...existing.listeners.values()].filter((listener) => {
+          if (listener.id.startsWith('persistence:') || listener.id.startsWith('agent-runtime:')) return false
+          // Channel recipients ride only into the wake that owes their chat a delivery — a user
+          // follow-up or the next scheduled fire starting its own turn must not inherit them.
+          if (listener.id.startsWith('channel:') && !input.carryChannelListeners) return false
+          return true
+        })
       : []
 
     if (existing) this.evictStream(input.topicId)

@@ -3299,6 +3299,9 @@ export class AgentSessionRuntimeService extends BaseService {
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       abortController: receiveOnlyTurn.abortController,
+      // The wake delivers the background work's result to whichever chat or scheduled fire spawned
+      // it — its channel listeners survived the inter-turn gap for exactly this turn.
+      carryChannelListeners: true,
       listeners: [
         this.createPersistenceListener(entry, syntheticMessage),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, assistantMessageId),
