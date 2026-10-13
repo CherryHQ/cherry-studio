@@ -775,6 +775,153 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
     expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'playing' }))
   })
 
+  it('stays paused and can resume when pause rejects the pending play promise', async () => {
+    const audio = new FakeAudio()
+    let rejectPlay!: (error: unknown) => void
+    audio.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPlay = reject
+        })
+    )
+    const { service, voice } = createHarness({ audio })
+    const starting = service.start(baseInput)
+    await vi.waitFor(() => expect(rejectPlay).toBeTypeOf('function'))
+
+    voice.emitCommand('pause')
+    rejectPlay(new DOMException('The play() request was interrupted by a call to pause().', 'AbortError'))
+    await starting
+
+    expect(service.getSnapshot()).toMatchObject({ phase: 'paused' })
+    expect(service.getSnapshot().error).toBeUndefined()
+    expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'failed' }))
+    expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'playing' }))
+    expect(service.canRetry(sessionId)).toBe(false)
+
+    voice.emitCommand('resume')
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
+    expect(audio.play).toHaveBeenCalledTimes(2)
+    expect(audio.paused).toBe(false)
+    expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'failed' }))
+  })
+
+  it('fails playback when a pending play rejects without an intentional pause', async () => {
+    const audio = new FakeAudio()
+    let rejectPlay!: (error: unknown) => void
+    audio.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPlay = reject
+        })
+    )
+    const { service, voice } = createHarness({ audio })
+    const starting = service.start(baseInput)
+    await vi.waitFor(() => expect(rejectPlay).toBeTypeOf('function'))
+
+    const failure = expect(starting).rejects.toMatchObject({ reason: 'operation_failed' })
+    rejectPlay(new DOMException('The play() request was interrupted by a call to pause().', 'AbortError'))
+    await failure
+
+    expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
+    expect(voice.updatePlayback).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'failed', reason: 'operation_failed' })
+    )
+    expect(service.canRetry(sessionId)).toBe(true)
+  })
+
+  it('fails paused playback when the pending play rejects with a genuine audio error', async () => {
+    const audio = new FakeAudio()
+    let rejectPlay!: (error: unknown) => void
+    audio.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPlay = reject
+        })
+    )
+    const { service, voice } = createHarness({ audio })
+    const starting = service.start(baseInput)
+    await vi.waitFor(() => expect(rejectPlay).toBeTypeOf('function'))
+
+    voice.emitCommand('pause')
+    const failure = expect(starting).rejects.toMatchObject({ reason: 'operation_failed' })
+    rejectPlay(new Error('decode failed'))
+    await failure
+
+    expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
+    expect(voice.updatePlayback).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'failed', reason: 'operation_failed' })
+    )
+  })
+
+  it('keeps a genuine audio failure when the paused play later rejects with AbortError', async () => {
+    const audio = new FakeAudio()
+    let rejectPlay!: (error: unknown) => void
+    audio.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPlay = reject
+        })
+    )
+    const { service, voice } = createHarness({ audio })
+    const starting = service.start(baseInput)
+    await vi.waitFor(() => expect(rejectPlay).toBeTypeOf('function'))
+
+    voice.emitCommand('pause')
+    audio.dispatchEvent(new Event('error'))
+    await vi.waitFor(() => expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' }))
+    const failure = expect(starting).rejects.toMatchObject({ reason: 'operation_failed' })
+    rejectPlay(new DOMException('The play() request was interrupted by a call to pause().', 'AbortError'))
+    await failure
+
+    expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
+    expect(voice.updatePlayback).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'failed', reason: 'operation_failed' })
+    )
+  })
+
+  it('does not resolve a stopped or torn-down play as paused when the pending play aborts', async () => {
+    const audio = new FakeAudio()
+    let rejectPlay!: (error: unknown) => void
+    audio.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPlay = reject
+        })
+    )
+    const { service, voice } = createHarness({ audio })
+    const starting = service.start(baseInput)
+    await vi.waitFor(() => expect(rejectPlay).toBeTypeOf('function'))
+    voice.emitCommand('pause')
+
+    const stopping = service.stop()
+    rejectPlay(new DOMException('The play() request was interrupted by a call to pause().', 'AbortError'))
+    await expect(starting).rejects.toMatchObject({ reason: 'aborted' })
+    await stopping
+    expect(service.getSnapshot().phase).toBe('idle')
+  })
+
+  it('does not resolve teardown of a paused pending play as a successful pause', async () => {
+    const audio = new FakeAudio()
+    let rejectPlay!: (error: unknown) => void
+    audio.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPlay = reject
+        })
+    )
+    const { service, voice } = createHarness({ audio })
+    const starting = service.start(baseInput)
+    await vi.waitFor(() => expect(rejectPlay).toBeTypeOf('function'))
+    voice.emitCommand('pause')
+
+    const tearingDown = service.teardown()
+    rejectPlay(new DOMException('The play() request was interrupted by a call to pause().', 'AbortError'))
+    await expect(starting).rejects.toMatchObject({ reason: 'aborted' })
+    await tearingDown
+    expect(service.getSnapshot().phase).toBe('idle')
+    expect(service.getSnapshot().error).toBeUndefined()
+  })
+
   it('keeps text, bytes, URLs, paths, and session identifiers out of its public snapshot', async () => {
     const textCanary = 'PRIVATE_TRANSCRIPT_/secret/audio.wav'
     const { service } = createHarness({ chunks: [textCanary] })
