@@ -7,12 +7,34 @@ import { mediaFfmpegProcess } from '../mediaFfmpegProcess'
 describe('mediaFfmpegProcess runtime paths', () => {
   it('resolves ffmpeg and ffprobe from the immutable packaged binary directory', () => {
     const platformKey = `${process.platform}-${process.arch}`
-    const executable = (name: string) => (process.platform === 'win32' ? `${name}.exe` : name)
-    const bundled = (name: string) => path.join('/mock/app.root.resources.binaries', platformKey, executable(name))
+    const root = path.join('/mock/app.root.resources.binaries', platformKey)
+    if (process.platform === 'linux') {
+      expect(mediaFfmpegProcess.createInitData?.()).toEqual({
+        ffmpegPath: '/mock/cherry.bin.ffmpeg.bin/ffmpeg',
+        ffprobePath: '/mock/cherry.bin.ffmpeg.bin/ffprobe',
+        linuxLibraryDir: '/mock/cherry.bin.ffmpeg.lib'
+      })
+      return
+    }
 
+    const executable = (name: string) => (process.platform === 'win32' ? `${name}.exe` : name)
     expect(mediaFfmpegProcess.createInitData?.()).toEqual({
-      ffmpegPath: bundled('ffmpeg'),
-      ffprobePath: bundled('ffprobe')
+      ffmpegPath: path.join(root, executable('ffmpeg')),
+      ffprobePath: path.join(root, executable('ffprobe'))
     })
+  })
+
+  it('resolves the Linux FFmpeg tree through the registered packaged directories', () => {
+    const original = Object.getOwnPropertyDescriptor(process, 'platform')
+    Object.defineProperty(process, 'platform', { value: 'linux' })
+    try {
+      expect(mediaFfmpegProcess.createInitData?.()).toEqual({
+        ffmpegPath: '/mock/cherry.bin.ffmpeg.bin/ffmpeg',
+        ffprobePath: '/mock/cherry.bin.ffmpeg.bin/ffprobe',
+        linuxLibraryDir: '/mock/cherry.bin.ffmpeg.lib'
+      })
+    } finally {
+      if (original) Object.defineProperty(process, 'platform', original)
+    }
   })
 })
