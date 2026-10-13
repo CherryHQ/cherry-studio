@@ -34,7 +34,6 @@ describe('runtime turn abort without session teardown', () => {
     expect((connection as any).closed).toBe(false)
   })
 
-
   it('cancels an in-flight manual Pi /compact turn instead of reporting a no-op stop', async () => {
     const connection = new PiRuntimeConnection(input)
     const session = {

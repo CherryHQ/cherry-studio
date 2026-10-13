@@ -680,7 +680,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private closePromise?: Promise<void>
 
   async close(): Promise<void> {
-
     // Repeat callers join the in-flight teardown (DSH parity): returning early would
     // let the host release the session while abort/dispose are still running.
     this.closed = true
