@@ -1318,6 +1318,65 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    // A1 finished cleanly and the steer was already injected, so the only thing left is launching
+    // A2. Persistence then reclassifies A1's row as `error` (its only content was a cardless tool
+    // such as EnterPlanMode), and dispatch forwards that classification with `isTopicDone=false`.
+    // The stored classification describes the row, not who owns the steer continuation — letting it
+    // drive settlement replaces the transition with `idle`, which discards the accepted steer inputs
+    // and the buffered post-steer chunks and never launches A2.
+    it('still launches the steer continuation when persistence downgrades the source turn', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: { close: vi.fn(), send: vi.fn(), events: [] },
+        occupancy: {}
+      }
+      entry.runtimeState.execution = {
+        ...entry.runtimeState.execution,
+        stream: 'open',
+        admission: 'admitted'
+      }
+
+      const sourceTurnId = entry.currentTurn.turnId
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: userMessage('user-2'), systemReminder: true }]
+      })
+      expect(entry.runtimeState.execution.kind).toBe('steer-transition')
+      expect(entry.runtimeState.execution).toMatchObject({ sourceStream: 'awaiting-persistence' })
+
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+
+      const downgraded = {
+        error: { name: 'AgentRuntimeError', message: 'This turn produced no output.', stack: null },
+        failure: { message: 'This turn produced no output.', retryable: false, failure: {} }
+      }
+      const onTurnTerminal = vi.fn()
+      service.onTurnTerminal(onTurnTerminal)
+      void terminalListener(handle).onError({ error: downgraded.error, isTopicDone: false, downgradedTo: downgraded })
+
+      await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-2'))
+      const continuation = entry.currentTurn
+      expect(continuation.turnId).not.toBe(sourceTurnId)
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'steer-transition',
+        continuationTurn: continuation
+      })
+      expect(entry.runtimeState.lastTerminal).toBe('error')
+      // The steer still carries the work onto a new row, so subscribers must not finalize on this
+      // one — the stored status reflects the downgrade, the boundary does not.
+      expect(onTurnTerminal).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        assistantMessageId: 'assistant-1',
+        status: 'error',
+        boundary: 'row-roll'
+      })
+      void service.closeSession('session-1')
+    })
+
     it('requeues a steer-undelivered follow-up with its enqueue-time snapshot', async () => {
       const service = new AgentSessionRuntimeService()
       const priorSnapshot = {

@@ -253,6 +253,55 @@ describe('agentSessionRuntimeState', () => {
     ])
   })
 
+  it('launches the steer continuation when the source turn is merely downgraded, not failed', () => {
+    // Persistence reclassifies an already-settled success as `error` (its only content was a
+    // cardless tool). That is the row's stored classification, not a runtime failure — letting it
+    // settle the transition drops the accepted inputs and the buffered chunks instead of launching
+    // the continuation that owns them.
+    const original = turn('assistant-1')
+    const continuation = turn('assistant-2')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(original)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: original }).state
+    state = transitionAgentSessionRuntime(state, { type: 'steer-boundary', inputs: [], headless: false }).state
+    const settled = transitionAgentSessionRuntime(state, {
+      type: 'turn-terminal',
+      turn: original,
+      status: 'error',
+      downgraded: true
+    })
+    expect(settled.state.execution).toMatchObject({ kind: 'steer-transition', sourceStream: 'settled' })
+    expect(settled.state.launch).toEqual({ kind: 'scheduled', target: 'steer-continuation' })
+    expect(settled.effects).toContainEqual({ type: 'schedule-launch', target: 'steer-continuation' })
+    expect(settled.state.lastTerminal).toBe('error')
+
+    // The buffered chunks survive and the continuation still flushes into its own turn.
+    state = transitionAgentSessionRuntime(settled.state, {
+      type: 'buffer-chunk',
+      chunk: { type: 'text-delta', id: 'text-1', delta: 'continued' }
+    }).state
+    state = transitionAgentSessionRuntime(state, { type: 'continuation-turn-created', turn: continuation }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: continuation }).state
+    const flushed = transitionAgentSessionRuntime(state, { type: 'flush-transition' })
+    expect(flushed.state.execution).toMatchObject({ kind: 'turn', turn: continuation })
+    expect(flushed.effects).toEqual([
+      {
+        type: 'deliver-buffer',
+        turn: continuation,
+        chunks: [{ type: 'text-delta', id: 'text-1', delta: 'continued' }]
+      }
+    ])
+  })
+
+  it('still discards the steer when the source turn genuinely failed', () => {
+    const original = turn('assistant-1')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(original)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: original }).state
+    state = transitionAgentSessionRuntime(state, { type: 'steer-boundary', inputs: [], headless: false }).state
+    const failed = transitionAgentSessionRuntime(state, { type: 'turn-terminal', turn: original, status: 'error' })
+    expect(failed.state.execution).toEqual({ kind: 'idle', lastTurn: original })
+    expect(failed.effects).toEqual([])
+  })
+
   it.each([false, true])('latches early steer completion and waits for subagents when present (%s)', (background) => {
     const original = turn('assistant-1')
     const continuation = turn('assistant-2')

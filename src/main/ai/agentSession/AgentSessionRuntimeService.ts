@@ -334,7 +334,9 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 
   onError(result: StreamErrorResult): void {
     if (this.skipsTurnRelease(result)) return
-    this.service.markTurnTerminal(this.sessionId, 'error', this.turnId)
+    // `downgraded` separates the row's stored classification from continuation settlement: the
+    // state machine may not let a storage reclassification discard an in-flight steer.
+    this.service.markTurnTerminal(this.sessionId, 'error', this.turnId, { downgraded: !!result.downgradedTo })
   }
 
   /**
@@ -1032,7 +1034,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus, expectedTurnId?: string): void {
+  markTurnTerminal(
+    sessionId: string,
+    status: AgentSessionRuntimeTerminalStatus,
+    expectedTurnId?: string,
+    options?: { downgraded?: boolean }
+  ): void {
     const entry = this.entries.get(sessionId)
     if (!entry) {
       // closeSession may remove the runtime before AiStreamManager publishes the terminal callback.
@@ -1041,10 +1048,12 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
     const completedTurn = this.currentTurn(entry)
+    // A downgraded source turn is still a row roll: the steer continuation carries the work onward,
+    // so subscribers must not finalize on this row. Only the stored status reflects the downgrade.
     const isRowRoll =
       entry.runtimeState.execution.kind === 'steer-transition' &&
       entry.runtimeState.execution.sourceTurn === completedTurn &&
-      status === 'success'
+      (status === 'success' || options?.downgraded === true)
     if (expectedTurnId) {
       const execution = entry.runtimeState.execution
       const executionOwnsTurn =
@@ -1056,7 +1065,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
     if (completedTurn) {
-      this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
+      this.applyRuntimeStateEvent(entry, {
+        type: 'turn-terminal',
+        turn: completedTurn,
+        status,
+        ...(options?.downgraded ? { downgraded: true } : {})
+      })
       this._onTurnTerminal.fire({
         sessionId: entry.sessionId,
         assistantMessageId: completedTurn.assistantMessageId,
