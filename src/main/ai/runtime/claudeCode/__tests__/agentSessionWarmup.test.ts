@@ -256,6 +256,29 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(warmRequest.connectionRebuildSignature).toBe(current.config.rebuildSignature)
   })
 
+  it.each([
+    { change: 'adding', before: [], after: ['/workspace/extra'] },
+    { change: 'removing', before: ['/workspace/extra'], after: [] }
+  ])('invalidates a materialized connection after $change an additional directory', async ({ before, after }) => {
+    const session = mocks.getSessionById()
+    mocks.getSessionById.mockReturnValue({
+      ...session,
+      workspace: { ...session.workspace, additionalDirectories: before }
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const unchanged = await deriveConnectionConfig('session-1')
+    if (!request || !unchanged.ok) throw new Error('expected connection config')
+    expect(unchanged.config.rebuildSignature).toBe(request.connectionConfig.rebuildSignature)
+
+    mocks.getSessionById.mockReturnValue({
+      ...session,
+      workspace: { ...session.workspace, additionalDirectories: after }
+    })
+    const changed = await deriveConnectionConfig('session-1')
+    if (!changed.ok) throw new Error('expected changed connection config')
+    expect(changed.config.rebuildSignature).not.toBe(request.connectionConfig.rebuildSignature)
+  })
+
   it('passes native image support from the captured connection model into settings', async () => {
     mocks.getModelByKey.mockReturnValue({
       id: 'model-1',

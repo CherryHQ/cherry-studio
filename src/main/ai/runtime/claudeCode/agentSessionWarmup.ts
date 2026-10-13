@@ -394,6 +394,7 @@ async function deriveConnectionConfigFromSnapshot(
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
+    additionalDirectories: session.workspace.additionalDirectories,
     // Rebuild fact: language change invalidates the warm connection so the new
     // language instruction is baked into the next prompt and prompt cache. This
     // trades cache preservation for correctness — first turn after change pays
