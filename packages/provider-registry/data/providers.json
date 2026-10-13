@@ -864,6 +864,49 @@
     },
     {
       "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "LivePair - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://livepairai.com/v1/agent",
+          "modelsApiUrls": {
+            "default": "https://livepairai.com/v1/agent/models"
+          },
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoning_effort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://livepairai.com/v1/agent"
+        }
+      },
+      "id": "livepair",
+      "metadata": {
+        "website": {
+          "apiKey": "https://livepairai.com/settings",
+          "docs": "https://livepairai.com/docs/openai-compatible",
+          "models": "https://livepairai.com/v1/agent/models",
+          "official": "https://livepairai.com"
+        }
+      },
+      "name": "LivePair"
+    },
+    {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
       "endpointConfigs": {
@@ -2718,5 +2761,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "932c0006165e4fcb"
+  "version": "875fa4323bd70263"
 }

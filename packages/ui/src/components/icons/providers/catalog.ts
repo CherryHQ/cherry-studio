@@ -4,12 +4,13 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-10-11T15:18:33.533Z
+ * Generated at: 2026-10-13T16:39:14.851Z
  * Total icons: 164
  */
 import { type CompoundIcon } from '../types'
-import { MinTop3Icon } from './3min-top'
+import { type ProviderIconKey } from './meta-catalog'
 import { Ai302Icon } from './302ai'
+import { MinTop3Icon } from './3min-top'
 import { AbacusIcon } from './abacus'
 import { AiOnlyIcon } from './ai-only'
 import { AiStudioIcon } from './ai-studio'
@@ -91,13 +92,13 @@ import { LeptonIcon } from './lepton'
 import { LingxiIcon } from './lingxi'
 import { LiquidIcon } from './liquid'
 import { LitellmIcon } from './litellm/litellm'
+import { LivepairIcon } from './livepair/livepair'
 import { LmstudioIcon } from './lmstudio'
 import { LongcatIcon } from './longcat'
 import { MacosIcon } from './macos'
 import { McpIcon } from './mcp'
 import { McpsoIcon } from './mcpso'
 import { MetaIcon } from './meta'
-import { type ProviderIconKey } from './meta-catalog'
 import { MetasoIcon } from './metaso'
 import { MineruIcon } from './mineru'
 import { MinimaxIcon } from './minimax'
@@ -258,6 +259,7 @@ export const PROVIDER_ICON_CATALOG = {
   lingxi: LingxiIcon,
   liquid: LiquidIcon,
   litellm: LitellmIcon,
+  livepair: LivepairIcon,
   lmstudio: LmstudioIcon,
   longcat: LongcatIcon,
   macos: MacosIcon,
@@ -304,8 +306,8 @@ export const PROVIDER_ICON_CATALOG = {
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
-  serply: SerplyIcon,
   sensetime: SensetimeIcon,
+  serply: SerplyIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
   smithery: SmitheryIcon,
