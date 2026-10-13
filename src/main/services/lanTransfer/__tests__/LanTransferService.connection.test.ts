@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import type * as NetModule from 'node:net'
-import { createConnection } from 'node:net'
+import { createConnection, Socket } from 'node:net'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,19 +29,21 @@ vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn(), removeHandler: vi.fn() }
 }))
 
-class TestSocket extends EventEmitter {
+class TestSocket extends Socket {
   destroyed = false
   writable = true
   messages: string[] = []
   connectCallback?: () => void
   timeoutCallback?: () => void
-  setKeepAlive() {}
+  setKeepAlive() {
+    return this
+  }
   setTimeout(_ms: number, callback?: () => void) {
     if (callback) this.timeoutCallback = callback
     return this
   }
-  write(message: string) {
-    this.messages.push(message)
+  write(message: string | Uint8Array) {
+    this.messages.push(typeof message === 'string' ? message : Buffer.from(message).toString())
     return true
   }
   destroy() {
@@ -68,12 +70,12 @@ describe('LAN connection ownership', () => {
     BaseService.resetInstances()
     sockets = []
     network.browser = Object.assign(new EventEmitter(), { start() {}, stop() {} })
-    vi.mocked(createConnection).mockImplementation(((_options: unknown, callback: () => void) => {
+    vi.mocked(createConnection).mockImplementation((_options, callback) => {
       const socket = new TestSocket()
       socket.connectCallback = callback
       sockets.push(socket)
       return socket
-    }) as typeof createConnection)
+    })
     service = new LanTransferService()
     await service._doInit()
     service.startDiscovery()
