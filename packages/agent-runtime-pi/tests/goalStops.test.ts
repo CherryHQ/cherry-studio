@@ -1,21 +1,27 @@
+import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
-import { defineTool } from '@earendil-works/pi-coding-agent'
+import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
+import { createAskUserExtension } from '../src'
 import {
+  approvals,
   askAtTurnEnd,
+  crashedTranscript,
   goalPort,
   goalSession,
+  heldGoalSession,
   lastSnapshot,
   notices,
   promptIdle,
   rounds,
   roundStart,
   say,
+  snapshots,
   toolCall,
   working
 } from './goalSupport'
-import { finish, MODEL, textParts } from './support'
+import { finish, MODEL, tempDir, textParts } from './support'
 import { textOf, toolResults } from './toolResults'
 
 describe('goal caps and budgets', () => {
@@ -267,5 +273,171 @@ describe('goal no-progress detection', () => {
     const reads = toolResults(s).filter((result) => result.toolName === 'read')
     // Each read ran and returned its file; a blocked one would carry the block reason instead.
     expect(reads.map(textOf)).toEqual(['contents of a.md', 'contents of a.md', 'contents of b.md', 'contents of a.md'])
+  })
+})
+
+/** Every round asks one question, then replies. */
+const askEachRound = [
+  (prompt: LanguageModelV3Prompt, call: number) =>
+    roundStart(prompt) === undefined
+      ? say(`reply ${call}`)
+      : [
+          toolCall(`q${call}`, 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Which?',
+                header: 'Pick',
+                options: [
+                  { label: 'A', description: 'a' },
+                  { label: 'B', description: 'b' }
+                ]
+              }
+            ]
+          }),
+          finish('tool-calls')
+        ]
+]
+
+describe('goal stops for people, errors and aborts', () => {
+  it.each([
+    ['denied', 'approval_denied'],
+    ['unavailable', 'awaiting_approval']
+  ] as const)('an approval %s in a goal round blocks the goal with %s when that round ends', async (kind, code) => {
+    const { port, tool } = approvals(kind)
+    const {
+      session: s,
+      host,
+      calls
+    } = await goalSession(
+      [
+        (prompt, call) =>
+          roundStart(prompt) === undefined
+            ? say(`reply ${call}`)
+            : [toolCall(`k${call}`, 'risky', {}), finish('tool-calls')]
+      ],
+      port,
+      { tools: [tool] }
+    )
+    await promptIdle(s, '/goal Keep working')
+
+    expect(calls).toHaveLength(2)
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'blocked', roundsStarted: 1, lastStop: { code } })
+  })
+
+  // Breaks when an approval event outside a goal round stops the goal: the goal would end before round 1.
+  it('an approval denied in a human turn does not stop the goal', async () => {
+    const { port, tool } = approvals('denied', { defaults: { maxGoalRounds: 2 } })
+    const { session: s, host } = await goalSession(
+      [
+        () => [toolCall('c1', 'create_goal', { objective: 'g' }), toolCall('k1', 'risky', {}), finish('tool-calls')],
+        working
+      ],
+      port,
+      { tools: [tool] }
+    )
+    await promptIdle(s, 'please do g')
+    expect(rounds(host.entries).map((round) => round.round)).toEqual([1, 2])
+    expect(lastSnapshot(host.entries)).toMatchObject({ lastStop: { code: 'round_limit' } })
+  })
+
+  it('a question the user dismisses in a goal round blocks the goal with needs_user_input', async () => {
+    const { session: s, host } = await goalSession(askEachRound, goalPort(), {
+      extensionFactories: [createAskUserExtension({ ask: async () => ({ status: 'declined' }) })]
+    })
+    await promptIdle(s, '/goal Keep working')
+    expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 1, lastStop: { code: 'needs_user_input' } })
+  })
+
+  it('a question nobody can answer does not stop the goal', async () => {
+    const { session: s, host } = await goalSession(askEachRound, goalPort({ defaults: { maxGoalRounds: 3 } }), {
+      extensionFactories: [createAskUserExtension({ ask: async () => ({ status: 'unavailable' }) })]
+    })
+    await promptIdle(s, '/goal Keep working')
+    expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 3, lastStop: { code: 'round_limit' } })
+  })
+
+  it('a failed model request blocks the goal with provider_error and the provider message', async () => {
+    const { session: s, host } = await goalSession([
+      (_prompt, call) => (call === 2 ? [{ type: 'error', error: new Error('upstream exploded') }] : say('one'))
+    ])
+    await promptIdle(s, '/goal Keep working')
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'blocked',
+      roundsStarted: 2,
+      lastStop: { code: 'provider_error', message: 'upstream exploded' }
+    })
+  })
+
+  // Breaks when any failing turn stops an active goal: one restored from the transcript is not
+  // armed, so an unrelated human turn that fails would mark it blocked.
+  it('a failed model request in a human turn leaves an unarmed goal alone', async () => {
+    const cwd = tempDir('cwd')
+    const transcript = await crashedTranscript('Keep working', goalPort(), cwd)
+    const {
+      session: s,
+      host,
+      calls
+    } = await goalSession([() => [{ type: 'error', error: new Error('upstream exploded') }]], goalPort(), {
+      cwd,
+      transcript
+    })
+    await promptIdle(s, 'hello')
+    await s.prompt('/goal')
+
+    expect(calls).toHaveLength(1)
+    expect(snapshots(host.entries)).toEqual([])
+    expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
+  })
+
+  // Breaks when the abort is handled only at agent_before_settle, which Pi skips after session.abort():
+  // the goal would stay armed, and the next message's settle would start round 2.
+  it('aborting the run pauses the goal, and the next message does not continue it', async () => {
+    const { session: s, host, held } = await heldGoalSession()
+    await s.prompt('/goal Keep working')
+    await held.started(1)
+    await s.abort()
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'paused',
+      roundsStarted: 1,
+      lastStop: { code: 'aborted' }
+    })
+
+    held.release()
+    await s.prompt('hello')
+    expect(rounds(host.entries)).toHaveLength(1)
+    expect(held.calls.length).toBe(2)
+  })
+
+  // Breaks when continuation_rejected wins over the abort: an abort during the settle leaves the
+  // goal's next round reserved, and the goal would end blocked instead of paused.
+  it('aborting while the goal continues the run pauses it', async () => {
+    const user: { session?: AgentSession } = {}
+    const abortAtSettle: ExtensionFactory = (pi) => {
+      pi.on('agent_before_settle', () => {
+        // Not awaited: abort() waits for the run, which waits for this handler.
+        void user.session!.abort()
+      })
+    }
+    const { session: s, host, calls } = await goalSession([working], goalPort(), { laterExtensions: [abortAtSettle] })
+    user.session = s
+    await promptIdle(s, '/goal Keep working')
+    expect(calls).toHaveLength(1)
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'paused',
+      roundsStarted: 1,
+      lastStop: { code: 'aborted' }
+    })
+  })
+
+  // Breaks when decide() never asks the port: the goal would open round 2 while subagents still run.
+  it('a host reporting running subagents ends the goal after the round with waiting_subagents', async () => {
+    const { session: s, host, calls } = await goalSession([working], goalPort({ hasRunningSubagents: () => true }))
+    await promptIdle(s, '/goal Keep working')
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'blocked',
+      roundsStarted: 1,
+      lastStop: { code: 'waiting_subagents' }
+    })
+    expect(calls).toHaveLength(1)
   })
 })

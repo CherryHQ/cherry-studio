@@ -1,5 +1,6 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3Prompt, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import { Type } from '@earendil-works/pi-ai'
+import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { type LanguageModel, simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 
@@ -8,6 +9,7 @@ import {
   GOAL_NOTICE_TYPE,
   GOAL_ROUND_TYPE,
   GOAL_STATE_TYPE,
+  type GoalApprovalEvent,
   type GoalCleared,
   type GoalNotice,
   type GoalPort,
@@ -118,19 +120,25 @@ export function heldModel(scripts: Parameters<typeof goalModel>[0] = [() => say(
   }
 }
 
-type GoalSessionOptions = Omit<TestSessionOptions<undefined>, 'port' | 'onEvent'>
+type GoalSessionOptions = Omit<TestSessionOptions<undefined>, 'port' | 'onEvent'> & {
+  /** Loaded after the goal extension, so their settle handlers run after its decision. */
+  laterExtensions?: ExtensionFactory[]
+}
 
-/** A session on `model` with the goal extension loaded after `extra.extensionFactories`, and a host store. */
+/**
+ * A session on `model` with the goal extension loaded between `extra.extensionFactories` and
+ * `extra.laterExtensions`, and a host store.
+ */
 export async function openGoalSession(
   model: LanguageModel,
   port: GoalPort = goalPort(),
-  extra: GoalSessionOptions = {}
+  { laterExtensions = [], ...extra }: GoalSessionOptions = {}
 ) {
   const host = hostStore()
   const runtime = await createTestSession({
     ...extra,
     port: streamTextPort(model).port,
-    extensionFactories: [...(extra.extensionFactories ?? []), createGoalExtension(port)],
+    extensionFactories: [...(extra.extensionFactories ?? []), createGoalExtension(port), ...laterExtensions],
     onEvent: host.onEvent
   })
   return { ...runtime, host }
@@ -178,6 +186,32 @@ export async function crashedTranscript(objective: string, port: GoalPort, cwd: 
   await session.prompt(`/goal ${objective}`)
   await held.started(1)
   return plain(host.entries)
+}
+
+/**
+ * A port with a single approval listener, and a tool that reports `kind` for its own call, as the
+ * host's approval layer would.
+ */
+export function approvals(kind: GoalApprovalEvent['kind'], overrides: Parameters<typeof goalPort>[0] = {}) {
+  let listener: ((event: GoalApprovalEvent) => void) | undefined
+  const port = goalPort({
+    ...overrides,
+    onApproval: (next) => {
+      listener = next
+      return () => (listener = undefined)
+    }
+  })
+  const tool = defineTool({
+    name: 'risky',
+    label: 'Risky',
+    description: 'Needs approval',
+    parameters: Type.Object({}),
+    async execute(id) {
+      listener?.({ kind, toolCallId: id })
+      return { content: [{ type: 'text', text: `approval ${kind}` }], details: undefined, isError: true }
+    }
+  })
+  return { port, tool }
 }
 
 /** Every `cherry.goal` entry in order: snapshots and clear tombstones. */
