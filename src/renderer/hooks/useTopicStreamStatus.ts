@@ -20,6 +20,7 @@ interface TopicStreamStatusView {
    */
   awaitingApprovalAnchors: ActiveExecution[]
   isPending: boolean
+  lastCompletedAt: number | null
   /**
    * `done` AND this window's `lastSeenCompletion` does not match the
    * authoritative `lastCompletedAt`. Read-receipt model: per-completion
@@ -54,7 +55,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     }
   }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
-  return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
+  return { status, activeExecutions, awaitingApprovalAnchors, isPending, lastCompletedAt, isFulfilled, markSeen }
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {
