@@ -222,13 +222,25 @@ export function isBareVertexApiHost(host: string): boolean {
 }
 
 /**
+ * Endpoint segment names recognised when stripping a pasted Ollama URL, so that
+ * proxy mount prefixes such as `/api/ollama` survive normalisation.
+ */
+const OLLAMA_ENDPOINT_SEGMENT =
+  '(?:v1|api|chat|completions|generate|embeddings|tags|show|create|copy|delete|pull|push|ps|version|models|blobs)'
+
+/** Matches up to three trailing recognised endpoint segments, e.g. `/api/chat`, `/v1/chat/completions`. */
+const TRAILING_OLLAMA_ENDPOINT_REGEX = new RegExp(
+  `\\/(?:${OLLAMA_ENDPOINT_SEGMENT})(?:\\/${OLLAMA_ENDPOINT_SEGMENT}){0,2}$`
+)
+
+/**
  * Normalise an Ollama base URL to exactly one `/api` suffix.
  *
- * Strips a trailing `/v1`, `/api` or `/chat` segment together with any single
- * trailing endpoint segment (e.g. `/api/chat`, `/api/generate`) before
- * appending `/api`, so a pasted documented endpoint does not double up.
+ * Strips trailing recognised endpoint segments (`/v1`, `/api`, `/chat`, `/api/generate`,
+ * `/v1/chat/completions`, ...) before appending `/api`, so a pasted documented endpoint
+ * does not double up. Unrecognised segments are proxy mount prefixes and are preserved.
  */
 export function formatOllamaApiHost(host: string): string {
-  const normalizedHost = withoutTrailingSlash(host).replace(/\/(?:v1|api|chat)(?:\/[^/]*)?$/, '')
+  const normalizedHost = withoutTrailingSlash(host).replace(TRAILING_OLLAMA_ENDPOINT_REGEX, '')
   return formatApiHost(normalizedHost + '/api', false)
 }

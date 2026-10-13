@@ -400,13 +400,19 @@ describe('api', () => {
       'http://localhost:11434/api/show',
       'http://localhost:11434/api/tags',
       'http://localhost:11434/api/chat/',
-      'http://localhost:11434/v1/chat'
+      'http://localhost:11434/v1/chat',
+      'http://localhost:11434/v1/chat/completions',
+      'http://localhost:11434/v1/models'
     ])('normalises %s to exactly one /api base', (host) => {
       expect(formatOllamaApiHost(host)).toBe('http://localhost:11434/api')
     })
 
     it('keeps a path-scoped proxy prefix intact', () => {
       expect(formatOllamaApiHost('https://proxy.example.com/ollama/api')).toBe('https://proxy.example.com/ollama/api')
+    })
+
+    it('does not treat a proxy mount segment as an endpoint', () => {
+      expect(formatOllamaApiHost('https://proxy.example.com/api/ollama')).toBe('https://proxy.example.com/api/ollama/api')
     })
   })
 })
