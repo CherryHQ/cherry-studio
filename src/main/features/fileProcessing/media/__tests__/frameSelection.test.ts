@@ -263,6 +263,23 @@ describe('planAnalysisFrameTimestamps', () => {
     expect(timestamps.length).toBeLessThanOrEqual(9)
   })
 
+  it('retains a covered internal anchor when a higher-ranked cut is within one sample before it', () => {
+    expect(
+      planAnalysisFrameTimestamps({
+        durationMs: 60_000,
+        maxFrames: 9,
+        targetIntervalMs: 4_000,
+        sceneChanges: [
+          { timestampMs: 5_000, score: 0.99 },
+          { timestampMs: 30_000, score: 0.9 },
+          { timestampMs: 50_000, score: 0.8 },
+          { timestampMs: 11_880, score: 0.7 },
+          { timestampMs: 12_050, score: 0.4 }
+        ]
+      })
+    ).toEqual([0, 5_000, 11_990, 23_980, 30_000, 35_970, 47_960, 50_000, 59_950])
+  })
+
   it('covers a long clip from start to end inside a strict frame budget', () => {
     const durationMs = 30 * 60 * 1000
     const timestamps = planAnalysisFrameTimestamps({

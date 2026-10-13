@@ -174,6 +174,8 @@ function selectDistributedScenes(
       }
       if (anchor >= timestampMs) {
         covered = true
+        // A lower-ranked cut must not move an anchor that already covers a higher-ranked cut.
+        if (anchor !== 0 && anchor !== lastMs) claimedAnchors.add(nearestIndex)
         return false
       }
       // Ranked order is score-descending, so the first valid snap keeps the anchor.
