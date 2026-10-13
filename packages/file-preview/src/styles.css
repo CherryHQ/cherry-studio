@@ -1,0 +1,45 @@
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@import '../../ui/src/styles/theme.css';
+@import 'tw-animate-css';
+
+@source './*.tsx';
+@source './plugins/*/*.tsx';
+@source '../../ui/src/components/primitives/button.tsx';
+@source '../../ui/src/components/primitives/context-menu.tsx';
+@source '../../ui/src/components/primitives/dialog.tsx';
+@source '../../ui/src/components/primitives/input.tsx';
+@source '../../ui/src/components/primitives/tooltip.tsx';
+@source '../../ui/src/components/primitives/tabs.tsx';
+@source '../../ui/src/components/composites/empty-state/index.tsx';
+@source '../../ui/src/components/composites/scrollbar/index.tsx';
+@source '../../ui/src/components/composites/image-preview/*.tsx';
+@custom-variant dark (&:is(.dark *));
+@custom-variant no-hover (@media (hover: none));
+
+@layer base {
+  .file-preview-root,
+  .file-preview-root * {
+    box-sizing: border-box;
+  }
+  .file-preview-root button,
+  .file-preview-root input {
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+  }
+  .file-preview-root button {
+    cursor: pointer;
+  }
+  .file-preview-root button:disabled {
+    cursor: default;
+  }
+  .file-preview-root .selectable {
+    user-select: text;
+  }
+}
