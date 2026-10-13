@@ -2139,6 +2139,34 @@ describe('a heading whose label nests another link', () => {
     expect(headingIds(content)).toHaveLength(2)
   })
 
+  it('reads a link label before the text that follows it', () => {
+    // The label was queued while the scan read on, so the text after the link was appended before
+    // the label's own text: `# [Alpha](url) Beta` keyed on the base `beta-alpha` while the renderer
+    // reads `Alpha Beta`, and the two headings collided on an id neither of them carried.
+    const content = `# [Alpha](url) Beta\n${'filler\n\n'.repeat(3200)}# Alpha Beta\n`
+    const chunks = chunksOf(content)
+
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+    expect(headingIds(content)).toEqual(['doc--alpha-beta', 'doc--alpha-beta-1'])
+  })
+
+  it('stops reading labels once their nesting passes the budget', () => {
+    // A label nested in another costs a scan of the label it sits in, so a heading whose labels
+    // nest 64K deep cost the scan its length squared — 14 seconds on the renderer main thread, on
+    // a line well past the long-line budget but read before the fallback is decided. Past the
+    // budget the run is read as the text it was written as, which is what the renderer prints.
+    const content = `# ${'['.repeat(65_536)}x](y)${']'.repeat(65_535)}\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks).toHaveLength(1)
+    expect(window.longLines).toBe(true)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
   it('does not exhaust the call stack on a deeply nested bracket run', () => {
     // Each label used to be read by a recursive call, so a heading whose label nests another label
     // thousands deep exhausted the stack. The line is far past the long-line budget, but the split

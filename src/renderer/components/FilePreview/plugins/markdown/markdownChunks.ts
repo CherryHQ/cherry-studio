@@ -807,6 +807,15 @@ function holdsLink(source: string): boolean {
 }
 
 /**
+ * The label content a heading's inline scan reads before it stops descending into labels. A label
+ * nested in another costs a scan of the label it sits in, so nesting `d` deep costs `d` scans of
+ * the heading — quadratic on a heading whose labels nest thousands deep, and the input is already
+ * pathological by then. Past the budget a bracket run is read as the literal text it was written
+ * as, which is what the renderer prints for a run that deep anyway.
+ */
+const MAX_HEADING_LABEL_CHARS = 64 * 1024
+
+/**
  * The plain text a heading's inline source renders — the text the renderer numbers the heading's
  * id from. A link renders its label while its destination stays out of the text, an image with a
  * destination and a raw tag or comment render none at all, and an autolink renders its URL. What
@@ -815,6 +824,8 @@ function holdsLink(source: string): boolean {
  */
 function headingRenderedText(source: string): string {
   let text = ''
+  // Label content read so far, against the budget below.
+  let labelChars = 0
   // The inline segments still to be read, innermost first. A link's label is queued here rather
   // than read by a recursive call: a heading whose label nests another label tens of thousands deep
   // would exhaust the call stack, and the renderer has no budget left for it either way.
@@ -885,14 +896,28 @@ function headingRenderedText(source: string): string {
           : -1
         // A link the label holds forbids the one around it, which leaves the outer brackets as text
         // — so the scan moves one character and reads the inner link where it stands. An image is
-        // allowed inside a label, so only a link decides this.
+        // allowed inside a label, so only a link decides this. Past the label budget the run is
+        // read as the text it was written as, because nesting labels costs a scan of the label each
+        // one sits in, and a heading that deep is already past what the preview renders as text.
+        if (labelChars + (label.end - open) > MAX_HEADING_LABEL_CHARS) {
+          text += segment.slice(index, label.end)
+          index = label.end
+          continue
+        }
         const nested = label.closed && holdsLink(segment.slice(open + 1, label.end - 1))
         if (label.closed && !nested && follow >= label.end) {
           // A link renders its label; an image renders none once it has a destination, while one
           // without is the literal text the parser leaves standing. A label cannot hold a link, so
           // reading it is one level deep and never recurses again.
-          if (character !== '!' || follow === label.end)
+          if (character !== '!' || follow === label.end) {
+            labelChars += label.end - open
+            // The label is read where the link stands and the rest of the segment after it, so the
+            // text keeps its document order: the remainder is queued first, then the label, and
+            // this segment stops here rather than reading on past the link it just found.
+            pending.push({ text: segment.slice(follow), label: false })
             pending.push({ text: segment.slice(open + 1, label.end - 1), label: true })
+            break
+          }
           index = follow
         } else if (nested) {
           text += character
