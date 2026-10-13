@@ -183,6 +183,25 @@ describe('goal limit rules', () => {
     }
   )
 
+  // Breaks when editGoal re-activates on any raised limit: the goal would be active without capacity.
+  it('raising only the cap leaves a budget_exhausted goal blocked while the budget stays crossed', () => {
+    let goal = admitRound(createGoal('g', limits, { maxGoalRounds: 1, budget: { tokens: 50 } }, 1), 'wrap-up', 2)
+    goal = stopGoal(recordUsage(goal, { tokens: 60, usd: 0 }, true), { code: 'budget_exhausted' }, 3)
+    expect(editGoal(goal, { maxGoalRounds: 5 }, 1000, 4)).toMatchObject({
+      phase: 'blocked',
+      lastStop: { code: 'budget_exhausted' }
+    })
+  })
+
+  it('raising only the budget leaves a round_limit goal blocked while no round is left', () => {
+    let goal = admitRound(createGoal('g', limits, { maxGoalRounds: 1, budget: { tokens: 50 } }, 1), 'wrap-up', 2)
+    goal = stopGoal(recordUsage(goal, { tokens: 60, usd: 0 }, true), { code: 'round_limit' }, 3)
+    expect(editGoal(goal, { budget: { tokens: 100 } }, 1000, 4)).toMatchObject({
+      phase: 'blocked',
+      lastStop: { code: 'round_limit' }
+    })
+  })
+
   it.each(['paused_by_user', 'aborted'] as const)(
     'raising the cap does not re-activate a goal paused by %s',
     (code) => {
