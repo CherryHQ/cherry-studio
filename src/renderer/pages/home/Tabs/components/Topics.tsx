@@ -4,7 +4,7 @@ import type { RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { Tooltip, TooltipProvider } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
@@ -1234,7 +1234,7 @@ export function Topics({
         if (assistantIconType === 'none') return undefined
 
         return (
-          <span className="flex size-6 items-center justify-center rounded-full bg-background-subtle text-muted-foreground">
+          <span className="text-muted-foreground flex size-6 items-center justify-center rounded-full bg-background-subtle">
             <Unlink aria-hidden="true" />
           </span>
         )
@@ -1611,33 +1611,35 @@ export function Topics({
 
         {refreshError && <ResourceRefreshErrorBanner onRetry={refetchTopics} retrying={isRefreshing} />}
 
-        <TopicListBody
-          activeTopic={activeTopic}
-          assistantMoveTargets={assistantMoveTargets}
-          displayMode={displayMode}
-          exportMenuOptions={exportMenuOptions}
-          isNewlyRenamed={isNewlyRenamed}
-          isRenaming={isRenaming}
-          listRef={listRef}
-          notesPath={notesPath}
-          onAutoRename={handleAutoRename}
-          onClearMessages={handleClearMessages}
-          onDeleteFromMenu={handleDeleteTopicFromMenu}
-          onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
-          onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
-          onMoveToAssistant={handleMoveTopicToAssistant}
-          onPinTopic={handlePinTopic}
-          onToggleSidebar={handleToggleTopicSidebar}
-          onRequestTopicImageAction={handleTopicImageAction}
-          onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
-          onSwitchTopic={setActiveTopic}
-          panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
-          sidebarTopicFavoriteIdSet={sidebarTopicFavoriteIdSet}
-          topicsLength={topics.length}
-          variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
-        />
+        <TooltipProvider>
+          <TopicListBody
+            activeTopic={activeTopic}
+            assistantMoveTargets={assistantMoveTargets}
+            displayMode={displayMode}
+            exportMenuOptions={exportMenuOptions}
+            isNewlyRenamed={isNewlyRenamed}
+            isRenaming={isRenaming}
+            listRef={listRef}
+            notesPath={notesPath}
+            onAutoRename={handleAutoRename}
+            onClearMessages={handleClearMessages}
+            onDeleteFromMenu={handleDeleteTopicFromMenu}
+            onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
+            onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
+            onMoveToAssistant={handleMoveTopicToAssistant}
+            onPinTopic={handlePinTopic}
+            onToggleSidebar={handleToggleTopicSidebar}
+            onRequestTopicImageAction={handleTopicImageAction}
+            onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
+            onSwitchTopic={setActiveTopic}
+            panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
+            sidebarTopicFavoriteIdSet={sidebarTopicFavoriteIdSet}
+            topicsLength={topics.length}
+            variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
+          />
+        </TooltipProvider>
         {historyLoading && visibleFilteredTopics.length > 0 && (
-          <div className="shrink-0 px-3 py-2 text-center text-[11px] text-foreground-tertiary">
+          <div className="text-foreground-tertiary shrink-0 px-3 py-2 text-center text-[11px]">
             {t('common.loading')}
           </div>
         )}
@@ -1822,7 +1824,7 @@ function TopicListBody(props: TopicListBodyProps) {
       draggable={variant === 'draggable'}
       errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
       emptyFallback={
-        <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center break-words px-5 py-10 text-center text-muted-foreground text-xs">
+        <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
           {t('chat.topics.empty.title')}
         </div>
       }
@@ -1870,6 +1872,16 @@ const TopicRow = memo(function TopicRow({
   const streamStatus = useTopicListStreamStatus(topic.id)
   const topicDisplayName = topic.name.trim() ? topic.name : t('chat.conversation.new')
   const topicName = topicDisplayName.replace('`', '')
+  // The row truncates its title, so the hover card carries the full name plus when the
+  // conversation was last active.
+  const hoverCard = (
+    <div className="flex max-w-72 flex-col gap-0.5 text-left">
+      <span className="font-medium">{topicName}</span>
+      <span className="font-normal">
+        {t('chat.topics.hover.last_activity', { time: dayjs(topic.lastActivityAt).format('YYYY-MM-DD HH:mm') })}
+      </span>
+    </div>
+  )
   const nameAnimationClassName = isRenaming(topic.id)
     ? 'animation-shimmer'
     : isNewlyRenamed(topic.id)
@@ -1948,23 +1960,30 @@ const TopicRow = memo(function TopicRow({
         onClick={(event) => event.stopPropagation()}
       />
       {!rowState.renaming && (
-        <ResourceList.ItemTitle
-          fade
-          title={topicName}
-          className={cn(
-            nameAnimationClassName,
-            // The stream indicator is an absolute overlay (keeps no flex space),
-            // so the title needs a standing yield for its dot zone; on hover the
-            // overlay fades out, the standing yield closes, and the in-flow action rail expands.
-            // The draft indicator needs no yield — it stays in flow and reserves its own space.
-            hasTopicStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
-          )}
-          onDoubleClick={(event) => {
-            event.stopPropagation()
-            startInlineRename()
-          }}>
-          {topicName}
-        </ResourceList.ItemTitle>
+        <Tooltip
+          content={hoverCard}
+          placement="right"
+          sideOffset={4}
+          delay={500}
+          className="data-[state=closed]:invisible data-[state=instant-open]:animate-none"
+          asChild>
+          <ResourceList.ItemTitle
+            fade
+            className={cn(
+              nameAnimationClassName,
+              // The stream indicator is an absolute overlay (keeps no flex space),
+              // so the title needs a standing yield for its dot zone; on hover the
+              // overlay fades out, the standing yield closes, and the in-flow action rail expands.
+              // The draft indicator needs no yield — it stays in flow and reserves its own space.
+              hasTopicStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
+            )}
+            onDoubleClick={(event) => {
+              event.stopPropagation()
+              startInlineRename()
+            }}>
+            {topicName}
+          </ResourceList.ItemTitle>
+        </Tooltip>
       )}
       {!rowState.renaming && (
         <TopicTrailingStatus
@@ -2067,7 +2086,7 @@ const TopicDraftIndicator = ({ topicId, label }: { topicId: string; label: strin
 
   return (
     <span aria-label={label} className={TOPIC_DRAFT_INDICATOR_CLASS} role="img">
-      <FilePenLine aria-hidden="true" className="size-3 text-foreground-tertiary" />
+      <FilePenLine aria-hidden="true" className="text-foreground-tertiary size-3" />
     </span>
   )
 }

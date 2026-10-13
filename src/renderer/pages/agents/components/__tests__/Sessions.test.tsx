@@ -710,6 +710,7 @@ vi.mock('react-i18next', () => ({
         'selector.common.sort_label': 'Sort',
         'selector.common.unpin': 'Unpin'
       }
+      if (key === 'agent.session.hover.last_activity') return `Last activity: ${options?.time ?? ''}`
       return labels[key] ?? key
     }
   })
@@ -1051,6 +1052,54 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().workdir).toContain('session:workspace:ws-b')
     view.rerender(<SessionsForTest key="expanded-project-a-workspace" />)
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('shows the full name, last activity and work directory on a task hover card', async () => {
+    const user = userEvent.setup()
+    const source = {
+      ...(sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource']),
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'A task name long enough that the truncated row can never show it in full',
+          createdAt: '2026-01-02T08:15:00.000Z',
+          updatedAt: '2026-01-03T09:20:00.000Z',
+          lastActivityAt: '2026-03-05T06:30:00.000Z'
+        })
+      ]
+    }
+    render(<SessionsForTest agentSessionsSource={source} />)
+
+    await user.hover(screen.getByText('A task name long enough that the truncated row can never show it in full'))
+    const hoverCard = await screen.findByRole('tooltip', undefined, { timeout: 3000 })
+
+    expect(hoverCard).toHaveTextContent('A task name long enough that the truncated row can never show it in full')
+    expect(hoverCard).toHaveTextContent('Last activity: 2026-03-05 06:30')
+    // Last activity, not creation or last update.
+    expect(hoverCard).not.toHaveTextContent('2026-01-02')
+    expect(hoverCard).not.toHaveTextContent('2026-01-03')
+    expect(hoverCard).toHaveTextContent('Embedded Project A')
+  })
+
+  it('drops the work directory line when a task runs without one', async () => {
+    const user = userEvent.setup()
+    const source = {
+      ...(sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource']),
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'System workspace task',
+          workspace: makeWorkspace('', { id: 'ws-system', name: '', type: 'system' })
+        })
+      ]
+    }
+    render(<SessionsForTest agentSessionsSource={source} />)
+
+    await user.hover(screen.getByText('System workspace task'))
+    const hoverCard = await screen.findByRole('tooltip', undefined, { timeout: 3000 })
+
+    expect(hoverCard).toHaveTextContent('System workspace task')
+    expect(hoverCard.querySelector('svg')).toBeNull()
   })
 
   it('never paints a workdir group as selected, collapsed or not', () => {

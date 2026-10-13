@@ -169,6 +169,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const React = require('react')
   // Real implementation: its filtering/normalization contract is what callers
   // are tested against, and a stub would drift from it.
+  const { TooltipProvider } = await import('@cherrystudio/ui/components/primitives/tooltip')
   const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
@@ -215,6 +216,7 @@ vi.mock('@cherrystudio/ui', async () => {
         )
       )
     },
+    TooltipProvider,
     NormalTooltip: ({ children }) => children,
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
