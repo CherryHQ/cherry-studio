@@ -71,7 +71,7 @@ describe('goal state transitions', () => {
       'approval_denied',
       'awaiting_approval',
       'needs_user_input',
-      'waiting_children',
+      'waiting_subagents',
       'provider_error',
       'continuation_rejected',
       'unsupported_model'
