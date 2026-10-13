@@ -35,7 +35,10 @@ export function resolvePath(_base: string, _relative: string): string {
 /** Returns a platform-folded comparison key, not a path to use for filesystem I/O. */
 export function normalizePathForComparison(value: string): string {
   const resolved = path.resolve(value)
-  return isMac || isWin ? resolved.toLowerCase() : resolved
+  if (isMac || isWin) {
+    return resolved.normalize('NFC').toLowerCase()
+  }
+  return resolved
 }
 
 /**

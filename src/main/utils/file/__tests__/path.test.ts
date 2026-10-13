@@ -90,6 +90,29 @@ describe('canonicalizePathForContainment', () => {
   })
 })
 
+describe('normalizePathForComparison', () => {
+  it.runIf(process.platform === 'darwin' || process.platform === 'win32')(
+    'folds unicode-equivalent path spellings on case-insensitive hosts',
+    async () => {
+      vi.resetModules()
+      vi.doMock('@main/core/platform', () => ({
+        isMac: true,
+        isWin: false,
+        isLinux: false,
+        isDev: false,
+        isPortable: false,
+        isDarwinX64: false,
+        isWinArm64: false
+      }))
+      const { normalizePathForComparison: normalize } = await import('../path')
+      const base = path.join(tmpdir(), 'unicode-lock')
+      expect(normalize(path.join(base, 'café.txt'))).toBe(normalize(path.join(base, 'cafe\u0301.txt')))
+      vi.doUnmock('@main/core/platform')
+      vi.resetModules()
+    }
+  )
+})
+
 describe('isPathInside', () => {
   it('returns true when child is directly inside parent', () => {
     expect(isPathInside('/foo/bar/baz.txt', '/foo/bar')).toBe(true)
