@@ -786,6 +786,79 @@ describe('JobManager integration', () => {
     })
   })
 
+  describe('timeout cancellation', () => {
+    for (const [afterGrace, maxAttempts] of [
+      [false, 3],
+      [true, 3],
+      [false, 1]
+    ] as const) {
+      it(`settles a cancellation after timeout (afterGrace=${afterGrace}, maxAttempts=${maxAttempts})`, async () => {
+        let markEntered!: () => void
+        let releaseReader!: () => void
+        const entered = new Promise<void>((resolve) => {
+          markEntered = resolve
+        })
+        const reader = new Promise<void>((resolve) => {
+          releaseReader = resolve
+        })
+        const settledStatuses: string[] = []
+        const handler: JobHandler = {
+          recovery: 'retry',
+          defaultTimeoutMs: 50,
+          cancelTimeoutMs: 100,
+          defaultRetryPolicy: { maxAttempts, backoff: 'fixed', baseDelayMs: 200, maxDelayMs: 200 },
+          async execute(ctx) {
+            markEntered()
+            await reader
+            ctx.signal.throwIfAborted()
+            return { ok: true }
+          },
+          onSettled(event) {
+            settledStatuses.push(event.status)
+          }
+        }
+        const { scheduler, jobManager } = await bootstrapManager({
+          handlers: [['timeout.cancel', handler]],
+          keepFakeTimers: true
+        })
+        try {
+          const handle = jobManager.enqueue('timeout.cancel' as never, {} as never)
+          let finished: JobSnapshot | undefined
+          void handle.finished.then((snapshot) => {
+            finished = snapshot
+          })
+          await entered
+          await vi.advanceTimersByTimeAsync(50)
+          const cancel = jobManager.cancel(handle.id, 'user cancellation after timeout')
+          if (afterGrace) {
+            await vi.advanceTimersByTimeAsync(100)
+            expect(await cancel).toEqual({ outcome: 'timed-out' })
+            expect(jobService.getById(handle.id)?.status).toBe('cancelled')
+          }
+          releaseReader()
+          await drainAllQueues(jobManager)
+          if (!afterGrace) expect(await cancel).toEqual({ outcome: 'cancelled' })
+          await vi.advanceTimersByTimeAsync(200)
+          await drainAllQueues(jobManager)
+          expect(jobService.getById(handle.id)).toMatchObject({
+            status: 'cancelled',
+            attempt: 0,
+            cancelRequested: true
+          })
+          expect(finished?.status).toBe('cancelled')
+          expect(finished?.error?.code).toBe('JOB_CANCELLED')
+          expect(settledStatuses).toEqual(['cancelled'])
+          expect(scheduler.has(`retry:${handle.id}:1`)).toBe(false)
+        } finally {
+          releaseReader()
+          await drainAllQueues(jobManager)
+          await teardownManager(scheduler, jobManager)
+          vi.useRealTimers()
+        }
+      })
+    }
+  })
+
   describe('graceful shutdown', () => {
     it('aborts in-flight handlers and resolves the finished promise quickly', async () => {
       const { scheduler, jobManager } = await bootstrapManager({
