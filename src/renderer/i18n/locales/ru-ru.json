@@ -5787,6 +5787,7 @@
   "settings.voice.resources.remove_description": "Распознавание с этой моделью будет недоступно до повторной загрузки. Ваш выбор модели сохранится.",
   "settings.voice.resources.remove_title": "Удалить модель распознавания речи?",
   "settings.voice.speech.language": "Язык речи",
+  "settings.voice.speech.language_default": "По умолчанию для языка · {{name}}",
   "settings.voice.speech.model": "Модель речи",
   "settings.voice.speech.sample": "Здравствуйте, это пример голоса для чтения ваших ответов.",
   "settings.voice.speech.speed": "Скорость речи",

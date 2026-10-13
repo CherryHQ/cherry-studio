@@ -87,7 +87,9 @@ describe('Windows system speech settings', () => {
     const preview = screen.getByRole('button', { name: 'Preview voice' })
     await waitFor(() => expect(preview).toBeEnabled())
     expect(screen.queryByRole('combobox', { name: 'Speech model' })).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Recommended · Microsoft Huihui')
+    expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent(
+      'Language default · Microsoft Huihui'
+    )
     await userEvent.setup().click(preview)
     expect(voice.speechStart).toHaveBeenCalledWith(
       expect.objectContaining({ sourceLabel: 'preview', trigger: 'manual' })

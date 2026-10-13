@@ -19,6 +19,9 @@ enum SystemSpeechHelper {
 
     private static func execute(_ command: ValidatedCommand) async throws {
         switch command {
+        case let .resolveVoice(locale):
+            let result = ResolveVoiceResult(voice: AppleTts.defaultVoice(locale: locale))
+            write(SuccessEnvelope(value: ResolveVoiceSuccess(result: result)))
         case let .capabilities(locale):
             let apple = await AppleAsr.capabilities(locale: locale)
             let result = CapabilitiesResult(

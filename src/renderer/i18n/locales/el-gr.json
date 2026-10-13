@@ -5787,6 +5787,7 @@
   "settings.voice.resources.remove_description": "Η αναγνώριση με αυτό το μοντέλο δεν θα είναι διαθέσιμη μέχρι να το κατεβάσετε ξανά. Η επιλογή μοντέλου θα διατηρηθεί.",
   "settings.voice.resources.remove_title": "Κατάργηση μοντέλου αναγνώρισης ομιλίας;",
   "settings.voice.speech.language": "Γλώσσα ομιλίας",
+  "settings.voice.speech.language_default": "Προεπιλογή γλώσσας · {{name}}",
   "settings.voice.speech.model": "Μοντέλο ομιλίας",
   "settings.voice.speech.sample": "Γεια σας, αυτή είναι η φωνή που διαβάζει τις απαντήσεις σας.",
   "settings.voice.speech.speed": "Ταχύτητα ομιλίας",

@@ -5787,6 +5787,7 @@
   "settings.voice.resources.remove_description": "Nhận dạng bằng mô hình này sẽ không khả dụng cho đến khi tải lại. Lựa chọn mô hình của bạn sẽ được giữ nguyên.",
   "settings.voice.resources.remove_title": "Xóa mô hình nhận dạng giọng nói?",
   "settings.voice.speech.language": "Ngôn ngữ giọng nói",
+  "settings.voice.speech.language_default": "Mặc định của ngôn ngữ · {{name}}",
   "settings.voice.speech.model": "Mô hình giọng nói",
   "settings.voice.speech.sample": "Xin chào, đây là giọng nói dùng để đọc các câu trả lời của bạn.",
   "settings.voice.speech.speed": "Tốc độ nói",

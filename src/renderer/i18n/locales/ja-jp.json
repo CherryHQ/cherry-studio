@@ -5787,6 +5787,7 @@
   "settings.voice.resources.remove_description": "再ダウンロードするまで、このモデルでの音声認識は使用できません。モデルの選択は保持されます。",
   "settings.voice.resources.remove_title": "音声認識モデルを削除しますか？",
   "settings.voice.speech.language": "読み上げ言語",
+  "settings.voice.speech.language_default": "言語のデフォルト · {{name}}",
   "settings.voice.speech.model": "音声モデル",
   "settings.voice.speech.sample": "こんにちは。これは返信の読み上げに使用する音声です。",
   "settings.voice.speech.speed": "読み上げ速度",
