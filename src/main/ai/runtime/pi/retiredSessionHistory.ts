@@ -54,6 +54,7 @@ async function importHistory(sessionId: string): Promise<void> {
   const manager = sdk.SessionManager.inMemory(history.workspacePath, { id: migration.resumeToken })
   const anchors = new Map<string, RuntimeForkAnchor>()
   const excludedMessageIds: string[] = []
+  const pendingMessageIds = new Set<string>()
   const orderedMessages: typeof history.messages = []
   let queuedMessages: typeof history.messages = []
   let boundaryExclusions = new Set<string>()
@@ -64,24 +65,28 @@ async function importHistory(sessionId: string): Promise<void> {
       queuedMessages.push(row)
       continue
     }
-    boundaryExclusions = new Set(
-      RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor).data?.excludedMessageIds ?? []
-    )
+    const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+    boundaryExclusions = new Set(anchor.data?.excludedMessageIds ?? [])
+    if (row.status !== 'success' && !anchor.success) {
+      for (const message of queuedMessages) {
+        if (message.role === 'user' && message.status === 'success' && !message.deliveryStatus) {
+          pendingMessageIds.add(message.id)
+        }
+      }
+    }
     orderedMessages.push(...queuedMessages.filter((message) => !boundaryExclusions.has(message.id)), row)
     queuedMessages = queuedMessages.filter((message) => boundaryExclusions.has(message.id))
   }
-  // Ordinary FIFO inputs are saved as successful before dispatch; without a following
-  // assistant boundary or consumption receipt, retain them for explicit user handling.
-  const pendingMessageIds = new Set(
-    queuedMessages
-      .filter((message) => message.role === 'user' && message.status === 'success' && !message.deliveryStatus)
-      .map((message) => message.id)
-  )
-  orderedMessages.push(
-    ...queuedMessages.filter((message) => !boundaryExclusions.has(message.id) && !pendingMessageIds.has(message.id))
-  )
+  // Saving a FIFO input is not a consumption receipt; keep unacknowledged tail inputs pending.
+  for (const message of queuedMessages) {
+    if (message.role === 'user' && message.status === 'success' && !message.deliveryStatus) {
+      pendingMessageIds.add(message.id)
+    }
+  }
+  orderedMessages.push(...queuedMessages.filter((message) => !boundaryExclusions.has(message.id)))
   for (const row of orderedMessages) {
     if (
+      pendingMessageIds.has(row.id) ||
       row.status === 'pending' ||
       row.status === 'streaming' ||
       (row.deliveryStatus && row.deliveryStatus !== 'consumed')

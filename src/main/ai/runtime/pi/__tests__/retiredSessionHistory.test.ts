@@ -516,7 +516,11 @@ describe('retired DSH session migration', () => {
     ).toBe('pending')
   })
 
-  it('retains successful FIFO follow-ups as pending after crash recovery, including in later forks', async () => {
+  it.each([
+    { createdAt: 35, completedAfterCrash: false },
+    { createdAt: 45, completedAfterCrash: false },
+    { createdAt: 35, completedAfterCrash: true }
+  ])('retains uncertain inputs ($createdAt/$completedAfterCrash)', async ({ createdAt, completedAfterCrash }) => {
     dbh.db
       .update(agentSessionMessageTable)
       .set({ status: 'pending' })
@@ -529,7 +533,7 @@ describe('retired DSH session migration', () => {
         sessionId: 'conversation',
         role: 'user',
         status: 'success',
-        createdAt: 45,
+        createdAt,
         data: { parts: [{ type: 'text', text: 'Unconsumed FIFO prompt' }] }
       })
       .run()
@@ -544,6 +548,29 @@ describe('retired DSH session migration', () => {
     expect(
       dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'assistant-2')).get()?.status
     ).toBe('error')
+    if (completedAfterCrash) {
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values([
+          {
+            id: 'user-after-restart',
+            sessionId: 'conversation',
+            role: 'user',
+            status: 'success',
+            createdAt: 50,
+            data: { parts: [{ type: 'text', text: 'Confirmed turn after restart' }] }
+          },
+          {
+            id: 'assistant-after-restart',
+            sessionId: 'conversation',
+            role: 'assistant',
+            status: 'success',
+            createdAt: 55,
+            data: { parts: [{ type: 'text', text: 'Confirmed answer after restart' }] }
+          }
+        ])
+        .run()
+    }
 
     seeder.run(dbh.db)
     await ensureRetiredSessionHistory('conversation')
@@ -554,7 +581,19 @@ describe('retired DSH session migration', () => {
       .get()!
     const file = resolveResumeTokenSessionFile(retained.runtimeResumeToken!, path.join(directory, 'sessions'))!
     const manager = SessionManager.open(file, path.dirname(file), directory)
+    expect(JSON.stringify(manager.buildContextEntries())).toContain('cherry-pi-928')
     expect(JSON.stringify(manager.buildContextEntries())).not.toContain('Unconsumed FIFO prompt')
+    expect(JSON.stringify(manager.buildContextEntries())).not.toContain('Second turn')
+    if (completedAfterCrash) {
+      expect(JSON.stringify(manager.buildContextEntries())).toContain('Confirmed turn after restart')
+      expect(JSON.stringify(manager.buildContextEntries())).toContain('Confirmed answer after restart')
+    }
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'user-2')).get()
+    ).toMatchObject({
+      status: 'pending',
+      data: { parts: [{ type: 'text', text: 'Second turn' }] }
+    })
     expect(retained).toMatchObject({
       status: 'pending',
       data: queued.data,
@@ -592,7 +631,11 @@ describe('retired DSH session migration', () => {
         data: {
           parts: [{ type: 'text', text: answer }],
           runtimeAnchor: {
-            checkpoint: { runtime: 'pi', runtimeSessionId: retained.runtimeResumeToken!, leafId: manager.getLeafId()! }
+            checkpoint: {
+              runtime: 'pi',
+              runtimeSessionId: retained.runtimeResumeToken!,
+              leafId: manager.getLeafId()!
+            }
           }
         }
       })
@@ -614,14 +657,25 @@ describe('retired DSH session migration', () => {
       )
       expect(context).toContain(answer)
       expect(context).not.toContain('Unconsumed FIFO prompt')
+      expect(context).not.toContain('Second turn')
       expect(JSON.stringify(rows)).toContain(answer)
       expect(JSON.stringify(rows)).not.toContain('Unconsumed FIFO prompt')
+      expect(JSON.stringify(rows)).not.toContain('Second turn')
     } finally {
       runtimeDriverRegistry.clearForTest()
     }
   })
 
-  it('imports a trailing input with an explicit consumption receipt', async () => {
+  it.each([35, 45])('imports an input with an explicit consumption receipt at %s', async (createdAt) => {
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ status: 'pending' })
+      .where(eq(agentSessionMessageTable.id, 'assistant-2'))
+      .run()
+    agentSessionMessageService.resolveCrashOrphanedMessages(
+      agentSessionMessageService.findCrashOrphanedAssistantMessages(),
+      ['conversation']
+    )
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
@@ -630,7 +684,7 @@ describe('retired DSH session migration', () => {
         role: 'user',
         status: 'success',
         deliveryStatus: 'consumed',
-        createdAt: 45,
+        createdAt,
         data: { parts: [{ type: 'text', text: 'Acknowledged steering input' }] }
       })
       .run()
