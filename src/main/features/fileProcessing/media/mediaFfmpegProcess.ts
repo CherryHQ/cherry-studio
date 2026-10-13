@@ -49,11 +49,31 @@ export interface MediaExtractFramesResult {
   frames: Array<{ path: string; timestampMs: number }>
 }
 
+export interface MediaDetectSceneChangesInput {
+  filePath: string
+  durationMs: number
+  sampleFps: number
+  scoreThreshold: number
+  scanEdgePx: number
+  maxCandidates: number
+  pidRegistryPath?: string
+}
+
+export interface MediaSceneChange {
+  timestampMs: number
+  score: number
+}
+
+export interface MediaDetectSceneChangesResult {
+  changes: MediaSceneChange[]
+}
+
 export type MediaFfmpegContract = {
   methods: {
     probe: UtilityProcessMethod<MediaProbeInput, ClassifiedMediaProbe>
     extractAudio: UtilityProcessMethod<MediaExtractAudioInput, MediaExtractAudioResult>
     extractFrames: UtilityProcessMethod<MediaExtractFramesInput, MediaExtractFramesResult>
+    detectSceneChanges: UtilityProcessMethod<MediaDetectSceneChangesInput, MediaDetectSceneChangesResult>
   }
 }
 
