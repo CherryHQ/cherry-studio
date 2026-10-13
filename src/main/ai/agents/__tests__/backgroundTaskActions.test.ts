@@ -43,12 +43,12 @@ import {
 const nodeBin = `"${process.execPath}"`
 
 // A worker that outlives its shell: it installs a SIGTERM handler, prints its pid, and keeps
-// running inside the detached group after the shell (group leader) exits.
+// running inside the detached group after the shell exits. The supervisor outlives the shell by
+// design, so its pid staying alive says nothing about the work.
 const orphanWorkerCommand = `${nodeBin} -e "process.on('SIGTERM', () => {}); process.stdout.write(String(process.pid)); setInterval(() => {}, 60_000)" &`
 
-/** Waits for the shell (group leader) to exit and returns the surviving worker's pid. */
+/** Waits for the shell to exit and returns the surviving worker's pid. */
 async function waitForOrphanedWorker(record: BackgroundTaskRecord): Promise<number> {
-  await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
   await vi.waitFor(
     async () => {
       expect((await readFile(record.logFile, 'utf8')).trim()).toMatch(/^\d+$/)

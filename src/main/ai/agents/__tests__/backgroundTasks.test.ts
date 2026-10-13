@@ -53,6 +53,7 @@ import {
   BACKGROUND_TASK_SENTINEL_EXT,
   MAX_BACKGROUND_TASK_COMMAND_LENGTH,
   type BackgroundTaskRecord,
+  POSIX_DETACHED_TASK_SUPERVISOR,
   WINDOWS_DETACHED_TASK_RUNNER,
   buildDetachedBackgroundTaskSpawn,
   getDetachedBackgroundTask,
@@ -119,11 +120,23 @@ describe('backgroundTasks', () => {
       expect(options.env?.ELECTRON_RUN_AS_NODE).toBe('1')
     })
 
-    it.skipIf(process.platform === 'win32')('runs the command in a shell on POSIX', () => {
+    it.skipIf(process.platform === 'win32')('runs the command under the group supervisor on POSIX', () => {
       const { file, args, options } = buildDetachedBackgroundTaskSpawn('echo hi', '/workspace', 7, 7)
-      expect(file).toBe('echo hi')
-      expect(args).toEqual([])
-      expect(options.shell).toBe(true)
+      // The supervisor leads the group, so the recorded pid is its own and the group it leads is
+      // the task's for as long as it lives. It must ignore the stop signals: they are addressed to
+      // the work, and an anchor that abandoned the group would strand the members it vouches for.
+      expect(file).toBe(process.execPath)
+      expect(args[0]).toBe('-e')
+      expect(args[1]).toBe(POSIX_DETACHED_TASK_SUPERVISOR)
+      expect(args[2]).toBe('echo hi')
+      expect(options.shell).toBeUndefined()
+      // The stop signals are the work's, not the anchor's: a supervisor that died on SIGTERM
+      // would strand the members it exists to vouch for.
+      expect(POSIX_DETACHED_TASK_SUPERVISOR).toContain("'SIGTERM'")
+      expect(POSIX_DETACHED_TASK_SUPERVISOR).toContain('process.on(ignored, () => {})')
+      // No unref on the drain poll: an unref'd timer would let the anchor exit before its first
+      // tick, while the group still holds live members.
+      expect(POSIX_DETACHED_TASK_SUPERVISOR).not.toContain('poll.unref')
     })
   })
 
@@ -342,9 +355,11 @@ describe('backgroundTasks', () => {
     // A real group member that exits before its leader, so the group is empty at the leader's close.
     const memberDiesFirstCommand = `${nodeBin} -e "require('child_process').spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 300)'])"`
 
-    /** Waits for the shell (group leader) to exit and returns the surviving worker's pid. */
+    /**
+     * Waits for the command's shell to exit — the supervisor outlives it by design — and returns
+     * the surviving worker's pid.
+     */
     async function waitForOrphanedWorker(record: BackgroundTaskRecord): Promise<number> {
-      await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
       await vi.waitFor(
         async () => {
           expect((await readFile(record.logFile, 'utf8')).trim()).toMatch(/^\d+$/)
@@ -357,13 +372,13 @@ describe('backgroundTasks', () => {
     }
 
     it.skipIf(process.platform === 'win32')(
-      'keeps a task controllable while its group holds a live member after the leader exits',
+      'keeps a task controllable while its group holds a live member after the shell exits',
       async () => {
         const record = await startDetachedBackgroundTask({ storageDir, command: orphanWorkerCommand, cwd: storageDir })
         const workerPid = await waitForOrphanedWorker(record)
 
         try {
-          // The leader is gone but the work is not: the record must not read as terminal,
+          // The shell is gone but the work is not: the record must not read as terminal,
           // or every control path (kill, UI, purge) would turn its back on the survivor.
           const task = await getDetachedBackgroundTask(storageDir, record.id)
           expect(task?.status).toBe('running')
@@ -389,7 +404,7 @@ describe('backgroundTasks', () => {
     )
 
     it.skipIf(process.platform === 'win32')(
-      'finalizes a task whose group empties together with its leader',
+      'finalizes a task whose group empties together with its shell',
       async () => {
         const onExit = vi.fn()
         await startDetachedBackgroundTask({ storageDir, command: memberDiesFirstCommand, cwd: storageDir, onExit })
@@ -402,9 +417,9 @@ describe('backgroundTasks', () => {
     )
 
     it.skipIf(process.platform === 'win32')(
-      'finalizes with the leader completion once its backgrounded worker drains',
+      'finalizes with the shell completion once its backgrounded worker drains',
       async () => {
-        // `sleep 1 &`: the shell closes while its worker holds the group open (the log is a
+        // `... &`: the shell closes while its worker holds the group open (the log is a
         // file, so nothing holds the close back), and that one close handler is the only exit
         // observation. It must survive and land — with the shell's own exit code, not an
         // invented descendant one — once the worker exits.
@@ -417,7 +432,7 @@ describe('backgroundTasks', () => {
         })
         try {
           // The backgrounded worker publishes its own pid at its own pace, and a loaded runner can
-          // hold that write well past the leader's exit — an unsynchronized read of the empty log
+          // hold that write well past the shell's exit — an unsynchronized read of the empty log
           // would parse pid 0 and then wait on it until the deadline. The wait is on the
           // publication itself (waitForOrphanedWorker), never on elapsed time.
           const workerPid = await waitForOrphanedWorker(record)
@@ -501,6 +516,52 @@ describe('backgroundTasks', () => {
             if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
           } catch {
             // already gone
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32')(
+      'does not adopt a foreign group that took the pgid before the task was recorded',
+      async () => {
+        // The task's shell exits while an unrelated group already holds its pgid — the reuse that
+        // a reaped leader leaves behind. Whatever then sits in the group is not the task's, and
+        // adopting it at close would let Stop/Kill or a permanent agent deletion terminate work
+        // this app never started.
+        const foreignPid = 4_194_303
+        let record: BackgroundTaskRecord | undefined
+        const killSpy = vi.spyOn(process, 'kill')
+        try {
+          // The command exits on its own, so the close event — the moment the old code took the
+          // group's live members as the task's own — is what this test drives.
+          record = await startDetachedBackgroundTask({
+            storageDir,
+            command: `${nodeBin} -e "setTimeout(() => {}, 1_200)"`,
+            cwd: storageDir
+          })
+          expect(isPidAlive(record.pid)).toBe(true)
+          // From here the OS reports the task's pgid as a group this app never started. setpgid
+          // refuses across sessions, so the table carries the model; the pid is one the OS will
+          // never hand out, so nothing real is ever signalled.
+          psSteer.read = (args) =>
+            args[0] === '-axwwo' ? `${record!.pid} ${foreignPid} 1 S Mon Jan  1 00:00:00 2001\n` : null
+
+          // The shell is gone and the foreign group holds the number: the task must stay running
+          // — it has live members by number only — and unattributable.
+          await vi.waitFor(() => expect(isPidAlive(record!.pid)).toBe(false), { timeout: 10_000 })
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+
+          // No group signal may reach the worker that only shares the number.
+          await expect(stopDetachedBackgroundTask(storageDir, record.id, true)).resolves.toBeUndefined()
+          expect(killSpy.mock.calls.filter(([pid]) => pid < 0)).toEqual([])
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+        } finally {
+          psSteer.read = null
+          killSpy.mockRestore()
+          try {
+            if (record) process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // already drained
           }
         }
       }
@@ -589,13 +650,13 @@ describe('backgroundTasks', () => {
         const workerPid = await readWorkerPid(pidFile)
         // The shell is gone but the task is not: this app has watched the member it left behind,
         // and Stop still reaches it — that is the working state the guard must leave intact.
-        await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
         expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
 
         // A member present by number only is exactly what a group that took the drained pgid
         // leaves behind: live work in the recorded group that nothing ties to the task. A foreign
         // group cannot be pushed into the pgid for real — setpgid refuses across sessions — so
-        // this table is where the replacement group is modelled.
+        // this table is where the replacement group is modelled. The supervisor's own row is
+        // omitted, which is the state a fully drained pgid hands to the next owner.
         psSteer.read = (args) => (args[0] === '-axwwo' ? `${record.pid} 4194303 1 S Mon Jan  1 00:00:00 2001\n` : null)
 
         try {
@@ -623,11 +684,10 @@ describe('backgroundTasks', () => {
         cwd: storageDir
       })
       const workerPid = await readWorkerPid(pidFile)
-      await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
 
       try {
         // The guard must not cost legitimate leaderless control: every live member here is work
-        // this task started and this app has been watching since it appeared.
+        // this task started, inside the group the supervisor still leads.
         expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
         expect((await stopDetachedBackgroundTask(storageDir, record.id, true))?.status).toBe('stopped')
         await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
@@ -639,6 +699,76 @@ describe('backgroundTasks', () => {
         }
       }
     })
+
+    // A verified worker can fork a child and exit between two 250-ms pulses. The child stays in
+    // the task's group but is reparented, so a parent-chain walk never reaches it — and a stop
+    // that can only verify through a live parent returns without signalling while the task still
+    // runs, which also makes permanent agent deletion throw.
+    it.skipIf(process.platform === 'win32')(
+      'keeps stopping a worker forked by a worker that has since exited',
+      async () => {
+        const pidFile = path.join(storageDir, 'handoff.pid')
+        // Both processes are plain scripts on disk: nesting `-e` inside the shell command would
+        // need quoting the POSIX shell cannot parse.
+        await writeFile(path.join(storageDir, 'grandchild.cjs'), 'setInterval(() => {}, 60_000)\n')
+        // The worker waits past the command's own exit — so the close event observes an empty
+        // group — then forks the grandchild, publishes both pids, and exits between two pulses.
+        // The grandchild is left reparented, with no parent in the group table to walk from.
+        await writeFile(
+          path.join(storageDir, 'worker.cjs'),
+          [
+            "const { spawn } = require('node:child_process')",
+            "const fs = require('node:fs')",
+            '// Script form, so the pid file and the grandchild script are argv[2] and argv[3].',
+            'setTimeout(() => {',
+            "  const grand = spawn(process.execPath, [process.argv[3]], { stdio: 'ignore' })",
+            "  grand.on('error', (e) => fs.writeFileSync(process.argv[2], 'error ' + e.message))",
+            '  grand.unref()',
+            "  fs.writeFileSync(process.argv[2], [process.pid, grand.pid].join(' '))",
+            '  process.exit(0)',
+            '}, 2_000)'
+          ].join('\n') + '\n'
+        )
+        // The command's shell backgrounds the worker and exits at once, so the close event — the
+        // moment the old code took the group's live members as the task's own — observes a group
+        // with nothing left in it. The worker is still in the group, and only then does it fork the
+        // grandchild and exit between two pulses.
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} "${path.join(storageDir, 'worker.cjs')}" "${pidFile}" "${path.join(storageDir, 'grandchild.cjs')}" &`,
+          cwd: storageDir
+        })
+        let workerPid = 0
+        let grandchildPid = 0
+        await vi.waitFor(
+          async () => {
+            const [worker, grandchild] = (await readFile(pidFile, 'utf8')).trim().split(/\s+/).map(Number)
+            expect(Number.isInteger(worker) && worker > 0).toBe(true)
+            expect(Number.isInteger(grandchild) && grandchild > 0).toBe(true)
+            workerPid = worker
+            grandchildPid = grandchild
+          },
+          { timeout: 10_000 }
+        )
+        // The intermediate worker has exited: only the reparented grandchild holds the group open.
+        await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+        await vi.waitFor(() => expect(isPidAlive(grandchildPid)).toBe(true), { timeout: 10_000 })
+
+        try {
+          // The handoff must not cost the task its controls: the record stays running and Stop
+          // reaches the group, or the task would be unkillable and its agent undeletable.
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+          expect((await stopDetachedBackgroundTask(storageDir, record.id, true))?.status).toBe('stopped')
+          await vi.waitFor(() => expect(isPidAlive(grandchildPid)).toBe(false), { timeout: 10_000 })
+        } finally {
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // already drained
+          }
+        }
+      }
+    )
 
     it.skipIf(process.platform === 'win32')(
       'refuses to signal through a leader the OS handed to another process',

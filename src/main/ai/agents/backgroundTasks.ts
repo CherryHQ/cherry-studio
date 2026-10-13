@@ -54,26 +54,12 @@ function trackVerifiedMembers(taskId: string): void {
 }
 
 /**
- * Accounts for every live member of the group, whatever its parentage: called only where the group
- * membership provably is the task's own — the leader's close, when nothing that outlived it could
- * have come from anywhere else.
- */
-function trackAllLiveMembers(taskId: string): void {
-  const owned = ownedTaskGroups.get(taskId)
-  if (!owned) return
-  const live = readGroupMembers(owned.pgid)
-  if (!live) return
-  for (const member of live) owned.members.set(member.pid, member.lstart)
-}
-
-/**
- * Adds the verifiable members of `live` to the group's verified set. While the leader this app
- * spawned (matched by its start stamp, not just its pid) is alive, everything in its group is its
- * own work: a process only joins a group inside its own session, so a live leader holds every
- * member to its descent. Once the leader is gone that argument is spent, and a member is the
- * task's only through a parent this app has already verified — which is also what refuses a
- * replacement group that took the pgid after the task's own members drained: nothing in it traces
- * back to anything this app verified.
+ * Adds the verifiable members of `live` to the group's verified set. The supervisor this app
+ * spawned is the session and group leader, and it stays alive until the group holds no other live
+ * member — so while it lives, its own start stamp vouches for every member of the group, including
+ * one forked by a worker that has since exited, which no parent-chain walk could reach. Once it is
+ * gone the group is empty, so the only members left to account for belong to a group that took the
+ * drained pgid: nothing in it traces back to anything this app verified, and it is refused.
  */
 function verifyMembers(owned: OwnedGroup, live: Array<GroupMember>): void {
   const byPid = new Map(live.map((member) => [member.pid, member]))
@@ -184,6 +170,56 @@ export const WINDOWS_DETACHED_TASK_RUNNER = [
   `task.on('exit', (code) => process.exit(code ?? 1))`
 ].join(';')
 
+/**
+ * POSIX keeps the task's identity in one long-lived anchor. The command runs in a shell that is a
+ * child of this supervisor, so the supervisor is the session and group leader, and it exits only
+ * once the group holds no other live member. A process joins a group by inheriting it from a parent
+ * already in it — `setpgid` across sessions is refused — so a live anchor holds every member of the
+ * group to the task's own descent, including a worker forked by another worker that has since
+ * exited, which no parent-chain walk can reach. Once the anchor exits the group is empty, so its
+ * number is free for the OS to reuse with nothing of the task's left to adopt.
+ *
+ * The stop signals are deliberately ignored: they are addressed to the work, and an anchor that
+ * abandoned the group on SIGTERM would strand the very members it exists to vouch for.
+ */
+export const POSIX_DETACHED_TASK_SUPERVISOR = `
+const { spawn, execFileSync } = require('node:child_process')
+const self = process.pid
+const pgid = self
+for (const ignored of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+  try { process.on(ignored, () => {}) } catch (error) {}
+}
+const task = spawn(process.argv[1], { shell: true, stdio: 'inherit' })
+task.on('error', () => process.exit(1))
+task.on('exit', (code, signal) => {
+  const status = signal ? 1 : (code == null ? 1 : code)
+  // Deliberately not unref'd: this process has nothing else to do, and an unref'd timer would let
+  // it exit on the spot — before the first poll — with the group still holding live members.
+  const poll = setInterval(() => {
+    let live = 0
+    try {
+      const table = execFileSync('ps', ['-axwwo', 'pgid=,pid=,ppid=,state='], { encoding: 'utf8', timeout: 5000 })
+      for (const row of table.split('\\n')) {
+        const fields = row.trim().split(/\\s+/)
+        if (fields.length < 4) continue
+        if (Number(fields[0]) !== pgid) continue
+        // This process and its own children — the command's shell and this very probe — are the
+        // anchor's, not the work's. Counting them would keep the anchor alive forever.
+        if (Number(fields[1]) === self || Number(fields[2]) === self) continue
+        if (!fields[3] || fields[3].startsWith('Z')) continue
+        live++
+      }
+    } catch (error) {
+      return
+    }
+    if (live === 0) {
+      clearInterval(poll)
+      process.exit(status)
+    }
+  }, 250)
+})
+`
+
 export interface DetachedBackgroundTaskSpawn {
   file: string
   args: string[]
@@ -213,7 +249,9 @@ export function buildDetachedBackgroundTaskSpawn(
       options: { ...options, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }
     }
   }
-  return { file: command, args: [], options: { ...options, shell: true } }
+  // The supervisor is the session leader, so the pid this app records is its own and the group it
+  // leads holds the command and everything the command forks.
+  return { file: process.execPath, args: ['-e', POSIX_DETACHED_TASK_SUPERVISOR, command], options }
 }
 
 /**
@@ -324,11 +362,10 @@ export async function startDetachedBackgroundTask(
       finalize('failed', null, null)
     })
     // 'close' rather than 'exit': it waits for the task's stdio to drain, so the final log
-    // bytes are readable by the time completion is published. The members that outlived the leader
-    // are still provably its own at this instant — nothing outside its session could have joined
-    // the group — so their identity is taken here, before the leader is gone as evidence.
+    // bytes are readable by the time completion is published. The supervisor holds the group until
+    // it is empty, so this fires only once nothing of the task's is left — and a worker forked
+    // between two pulses was still inside the group the supervisor vouched for while it lived.
     child.on('close', (code, signal) => {
-      trackAllLiveMembers(id)
       finalize(code === 0 ? 'completed' : 'failed', code, signal)
     })
 
@@ -386,15 +423,12 @@ export async function startDetachedBackgroundTask(
           // This record is real and reads `running`, so it owes the completion `settled` spent
           // before it existed — otherwise the task never reports and the record sits at `running`.
           settled = false
-          // Ownership returns before any replay: a live group member keeps it — the group, not
-          // the leader, is the task — so the leader's close event having fired must not suppress
-          // it, or a leaderless group folds to `unknown` and loses Stop/Kill. The drain-gated
-          // settle releases it again once the group is empty. Whatever still holds the group here
-          // survived the cleanup kill this call just sent, so it is taken as the task's own.
+          // Ownership returns before any replay, but only the supervisor's own stamp seeds it: a
+          // worker that survived the cleanup kill is verified through the supervisor while it
+          // lives, never adopted from its presence in the group.
           const members = new Map<number, string>()
           if (record.pidStartTime) members.set(record.pid, record.pidStartTime)
           ownedTaskGroups.set(id, { pgid: record.pid, members })
-          trackAllLiveMembers(id)
           if (observedCompletion) {
             const { status, exitCode, signal } = observedCompletion
             finalize(status, exitCode, signal)
@@ -577,14 +611,16 @@ function getPidStartTime(pid: number): string | undefined {
 }
 
 /**
- * Whether the process group still holds a member the OS schedules. A group kill answers EPERM
- * both when every member has exited unreaped and when every live member fails the credential
- * check (a setuid `sudo` the task exec'd), so the exit is only proven once nothing is alive.
- * An unreadable table is not an empty group: nothing about the task has been established.
+ * Whether the process group still holds a member the OS schedules other than the supervisor this
+ * app spawned — the anchor outlives its command on purpose, so it is never the work. A group kill
+ * answers EPERM both when every member has exited unreaped and when every live member fails the
+ * credential check (a setuid `sudo` the task exec'd), so the exit is only proven once nothing but
+ * the anchor is left. An unreadable table is not an empty group: nothing about the task has been
+ * established.
  */
 function groupIsEmpty(pgid: number): boolean {
   const members = readGroupMembers(pgid)
-  return members !== null && members.length === 0
+  return members !== null && members.every((member) => member.pid === pgid)
 }
 
 function groupHasLiveMember(pgid: number): boolean {
@@ -644,13 +680,18 @@ export function hasUnownedLiveGroup(record: BackgroundTaskRecord): boolean {
 /**
  * Bounded wait for the group's last member to disappear. Group-signal delivery is per member:
  * a survivor failing the credential check keeps the group alive after a successful kill, so
- * only an empty group proves the task has ended.
+ * only an empty group proves the task has ended. One empty reading is not enough — a worker the
+ * command's shell backgrounded takes a moment to appear in the table — so the group has to read
+ * empty twice in a row before it counts as drained.
  */
 async function waitForGroupDrain(pgid: number): Promise<boolean> {
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
-  while (!groupIsEmpty(pgid)) {
+  let emptyReadings = 0
+  while (emptyReadings < 2) {
+    if (groupHasLiveMember(pgid)) emptyReadings = 0
+    else emptyReadings++
     if (Date.now() >= deadline) return false
-    await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+    if (emptyReadings < 2) await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
   }
   return true
 }
