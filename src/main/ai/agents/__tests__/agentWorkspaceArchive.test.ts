@@ -18,7 +18,7 @@ async function restoreSystemWorkspace(root: string, workspace: string) {
   await finalizeSystemWorkspaceRestore(root, workspace)
 }
 
-describe('system workspace archives', () => {
+describe(`system workspace archives (${process.platform})`, () => {
   let root: string
   let workspace: string
 

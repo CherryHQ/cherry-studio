@@ -219,6 +219,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
 
   it.each(['session', 'agent'] as const)('holds the storage reservation throughout %s restoration', async (mode) => {
     const parent = workspacePath(root, 'system')
+    const caseAlias = existsSync(workspacePath(root, 'SYSTEM'))
     if (mode === 'agent') await lifecycle.archiveAgent('agent', { archiveSessions: true })
     else await lifecycle.archiveSessions(['system'])
     const entered = Promise.withResolvers<void>()
@@ -234,6 +235,10 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     try {
       await expect(registerWorkspace(path.join(`${parent}.restoring`, 'project'))).rejects.toThrow()
       await expect(registerWorkspace(path.join(parent, 'project'))).rejects.toThrow()
+      const variant = path.join(`${parent}.RESTORING`, 'project')
+      const registration = registerWorkspace(variant)
+      if (caseAlias) await expect(registration).rejects.toThrow()
+      else expect((await registration).path).toBe(variant)
       expect(
         dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
       ).not.toBeNull()
