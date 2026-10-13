@@ -45,7 +45,8 @@ const selectMockState = vi.hoisted(() => ({
 }))
 const preferencesMock = vi.hoisted(() => ({
   defaultDocumentProcessor: null as string | null,
-  defaultImageProcessor: null as string | null
+  defaultImageProcessor: null as string | null,
+  defaultVideoVisionModel: null as string | null
 }))
 const overridesMock = vi.hoisted(() => ({ value: {} }))
 
@@ -61,6 +62,50 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [{ id: 'openai', name: 'OpenAI' }] })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (modelId?: string | null) => ({
+    model:
+      modelId === 'openai::gpt-4o'
+        ? {
+            id: modelId,
+            providerId: 'openai',
+            apiModelId: 'gpt-4o',
+            name: 'GPT-4o',
+            capabilities: ['image_recognition'],
+            supportsStreaming: true,
+            isEnabled: true,
+            isHidden: false
+          }
+        : undefined
+  })
+}))
+
+vi.mock('@renderer/components/DefaultModelSelector', () => ({
+  DefaultModelSelector: ({
+    model,
+    onSelect,
+    placeholder
+  }: {
+    model?: { id: string; name: string }
+    onSelect: (model: { id: string; name: string } | undefined) => void
+    placeholder: string
+  }) => (
+    <div>
+      <span>{model?.name ?? placeholder}</span>
+      <button type="button" onClick={() => onSelect({ id: 'openai::gpt-4o', name: 'GPT-4o' })}>
+        select-video-vision-model
+      </button>
+      <button type="button" onClick={() => onSelect(undefined)}>
+        clear-video-vision-model
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -275,6 +320,7 @@ describe('processing settings pages', () => {
     MockCacheUtils.resetMocks()
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
+    preferencesMock.defaultVideoVisionModel = null
     overridesMock.value = {}
     comboboxMockState.onChange = undefined
     comboboxMockState.options = []
@@ -321,6 +367,22 @@ describe('processing settings pages', () => {
       })
     })
     expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toBeInTheDocument()
+  })
+
+  it('shows the saved video vision model and persists selecting or clearing it', async () => {
+    preferencesMock.defaultVideoVisionModel = 'openai::gpt-4o'
+    const user = userEvent.setup()
+
+    render(<OcrSettings />)
+
+    expect(await screen.findByText('settings.tool.file_processing.video_vision.title')).toBeInTheDocument()
+    expect(screen.getByText('GPT-4o')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'select-video-vision-model' }))
+    expect(setPreferencesMock).toHaveBeenLastCalledWith({ defaultVideoVisionModel: 'openai::gpt-4o' })
+
+    await user.click(screen.getByRole('button', { name: 'clear-video-vision-model' }))
+    expect(setPreferencesMock).toHaveBeenLastCalledWith({ defaultVideoVisionModel: null })
   })
 
   it('selects a document processor and makes it the document-to-markdown default', async () => {
