@@ -146,7 +146,7 @@ Fixed npm presets that require lifecycle scripts must list the exact packages in
 
 To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/binaryManager/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
 
-Linux FFmpeg is the exception to the flat layout. Its shared LGPL tree stays under `ffmpeg/` (`bin/`, `lib/`, `licenses/`, `SOURCE.txt`, `manifest.json`) because `DT_RPATH` is `$ORIGIN/../lib`. BinaryManager copies that tree into `cherry.bin/ffmpeg/`, chmods `bin/ffmpeg` and `bin/ffprobe`, and still publishes `.ffmpeg-version` only after the tree is in place. Darwin and Windows FFmpeg stay flat files in `cherry.bin`.
+FFmpeg is not a BinaryManager extraction target. The media runtime reads `resources/binaries/<platform>-<arch>/` directly. Darwin and Windows are flat `ffmpeg` and `ffprobe` files in that directory. Linux keeps the shared LGPL tree under `ffmpeg/` (`bin/`, `lib/`, `licenses/`, `SOURCE.txt`, `manifest.json`) because `DT_RPATH` is `$ORIGIN/../lib`, and only Linux receives that `lib` directory.
 
 `scripts/download-binaries.js` fills `resources/binaries/<platform>-<arch>/`, which is what the app extracts from at boot. During packaging (`before-pack.js` passes `--packaging`) it downloads there directly.
 

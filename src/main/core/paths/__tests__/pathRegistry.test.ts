@@ -248,16 +248,6 @@ describe('buildPathRegistry', () => {
     expect(shouldAutoEnsure('feature.mini_app.builtin')).toBe(false)
   })
 
-  it('keeps the Linux FFmpeg runtime under cherry.bin without creating it on lookup', () => {
-    const registry = buildPathRegistry()
-
-    expect(registry['cherry.bin.ffmpeg.bin']).toBe(path.join(registry['cherry.bin'], 'ffmpeg', 'bin'))
-    expect(registry['cherry.bin.ffmpeg.lib']).toBe(path.join(registry['cherry.bin'], 'ffmpeg', 'lib'))
-    expect(shouldAutoEnsure('cherry.bin.ffmpeg.bin')).toBe(false)
-    expect(shouldAutoEnsure('cherry.bin.ffmpeg.lib')).toBe(false)
-    expect(shouldAutoEnsure('cherry.bin')).toBe(true)
-  })
-
   it('keeps Antigravity session data in a Cherry-owned isolated directory', () => {
     const registry = buildPathRegistry()
 

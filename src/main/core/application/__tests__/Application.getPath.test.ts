@@ -40,8 +40,6 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
         'feature.notes.data': '/mock/userData/Data/Notes',
         'feature.agents.system_workspaces': '/mock/userData/Data/Agents/system',
         'cherry.bin': '/mock/home/.cherrystudio/bin',
-        'cherry.bin.ffmpeg.bin': '/mock/home/.cherrystudio/bin/ffmpeg/bin',
-        'cherry.bin.ffmpeg.lib': '/mock/home/.cherrystudio/bin/ffmpeg/lib',
         // Cherry-owned files (auto-ensure dirname only)
         'feature.copilot.token_file': '/mock/home/.cherrystudio/config/.copilot_token',
         'app.database.file': '/mock/userData/Data/cherrystudio.sqlite',
@@ -182,13 +180,6 @@ describe('Application.getPath', () => {
       app.getPath('cherry.bin')
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
       expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/home/.cherrystudio/bin', { recursive: true })
-    })
-
-    it('does not mkdir installer-owned Linux FFmpeg directories while resolving them', () => {
-      expect(app.getPath('cherry.bin.ffmpeg.bin', 'ffmpeg')).toBe('/mock/home/.cherrystudio/bin/ffmpeg/bin/ffmpeg')
-      expect(app.getPath('cherry.bin.ffmpeg.bin', 'ffprobe')).toBe('/mock/home/.cherrystudio/bin/ffmpeg/bin/ffprobe')
-      expect(app.getPath('cherry.bin.ffmpeg.lib')).toBe('/mock/home/.cherrystudio/bin/ffmpeg/lib')
-      expect(fs.mkdirSync).not.toHaveBeenCalled()
     })
 
     it('returns the path even when mkdir throws, and caches the failed attempt', () => {
