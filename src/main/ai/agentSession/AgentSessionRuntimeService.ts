@@ -2008,7 +2008,10 @@ export class AgentSessionRuntimeService extends BaseService {
         providerName: capture.providerName,
         modelId,
         modelName: frozenModel?.modelName ?? invocation.model,
-        pricingSnapshot: frozenModel?.pricingSnapshot ?? null,
+        pricingSnapshot:
+          invocation.pricingSnapshot === undefined
+            ? (frozenModel?.pricingSnapshot ?? null)
+            : invocation.pricingSnapshot,
         credentialReceipt: capture.credentialReceipt,
         source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
         messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null
