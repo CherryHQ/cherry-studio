@@ -565,8 +565,13 @@ export class SpeechPlaybackService {
 
   private async completeReleasedRun(run: PlaybackRun): Promise<void> {
     try {
-      await this.report(run, 'completed')
+      const state = await this.report(run, 'completed')
       this.assertCurrent(run)
+      if (state.phase !== 'idle' && state.sessionId === run.sessionId) {
+        // Ignored completion reports retain Main ownership; cleanup failures must remain retryable.
+        await this.terminate(run, true).catch(() => undefined)
+        return
+      }
       this.releaseRun(run, true)
     } catch (error) {
       const reason = errorReason(error)
