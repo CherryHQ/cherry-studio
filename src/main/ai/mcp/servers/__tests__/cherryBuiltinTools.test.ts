@@ -715,6 +715,29 @@ describe('cherryBuiltinTools', () => {
     expect(generateImage).not.toHaveBeenCalled()
   })
 
+  it('keeps MCP discovery and unrelated tools usable when painting capabilities are unavailable', async () => {
+    getPreference.mockReturnValue('vertexai::imagen-3.0-generate-002')
+    getImageGenerationSupport.mockRejectedValue(new Error('VertexAI requires iam-gcp auth configuration.'))
+    searchKeywords.mockResolvedValue(webResponse())
+
+    const tools = await listCherryBuiltinToolsRaw()
+    expect(tools.map(({ name }) => name)).toEqual(expect.arrayContaining(['web_search', 'web_fetch', 'generate_image']))
+    const search = await callCherryBuiltinTool('web_search', { query: 'hello' }, signal)
+    expect(search.isError).toBeFalsy()
+    expect(textOf(search)).toContain('about A')
+    const painting = await callCherryBuiltinTool('generate_image', { prompt: 'a cat' }, signal)
+    expect(textOf(painting)).toContain('No painting model is configured')
+    expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('preserves cancellation when listing painting capabilities', async () => {
+    getPreference.mockReturnValue('vertexai::imagen-3.0-generate-002')
+    const aborted = new DOMException('Cancelled', 'AbortError')
+    getImageGenerationSupport.mockRejectedValue(aborted)
+
+    await expect(listCherryBuiltinToolsRaw()).rejects.toBe(aborted)
+  })
+
   it('propagates AbortError from generate_image instead of converting it to an MCP error', async () => {
     getPreference.mockReturnValue('openai::dall-e-3')
     generateImage.mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))

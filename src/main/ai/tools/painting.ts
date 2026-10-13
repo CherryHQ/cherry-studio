@@ -118,9 +118,15 @@ export async function resolveConfiguredPaintingModel(): Promise<ConfiguredPainti
     throw error
   }
 
-  return {
-    uniqueModelId,
-    support: await application.get('AiService').getImageGenerationSupport(uniqueModelId)
+  try {
+    return {
+      uniqueModelId,
+      support: await application.get('AiService').getImageGenerationSupport(uniqueModelId)
+    }
+  } catch (error) {
+    if (isAbortError(error)) throw error
+    logger.warn('Failed to resolve painting model capabilities', { uniqueModelId, error })
+    return null
   }
 }
 

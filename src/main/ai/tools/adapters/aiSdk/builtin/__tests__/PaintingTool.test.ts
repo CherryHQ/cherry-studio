@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 
 import type { ToolExecutionOptions } from 'ai'
 import type { Tool } from 'ai'
+import { jsonSchema } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
@@ -9,6 +10,9 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 
+import { makeModel } from '../../../../../__tests__/fixtures'
+import { resolveTools } from '../../../../../runtime/aiSdk/params/buildAgentParams'
+import { registry } from '../../registry'
 import type { ToolApplyScope } from '../../types'
 
 const { getPreference, getModelByKey, getImageGenerationSupport, generateImage, fileRead } = vi.hoisted(() => ({
@@ -241,6 +245,55 @@ describe('generate_image', () => {
     expect(result).toEqual({ error: PAINTING_MODEL_NOT_CONFIGURED_NOTE })
     expect(getImageGenerationSupport).not.toHaveBeenCalled()
     expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('keeps unrelated chat tools available when painting capability lookup fails', async () => {
+    getPreference.mockReturnValue('vertexai::imagen-3.0-generate-002')
+    getImageGenerationSupport.mockRejectedValue(new Error('VertexAI requires iam-gcp auth configuration.'))
+    const textTool: Tool = { inputSchema: jsonSchema({ type: 'object', properties: {} }) }
+    registry.register(entry)
+    registry.register({
+      name: 'test_text_tool',
+      namespace: 'test',
+      description: 'Text tool',
+      defer: 'never',
+      tool: textTool
+    })
+    try {
+      const result = await resolveTools(
+        { conversation: { id: 'text-chat', topicId: 'topic' } },
+        { settings: { enableGenerateImage: true } } as Assistant,
+        makeModel(),
+        false,
+        [],
+        undefined,
+        { mcpToolIds: new Set(), mcpResourceServerIds: new Set(), hasAnyKnowledgeBase: false }
+      )
+      expect(result.tools).toHaveProperty('test_text_tool')
+      expect(result.tools).not.toHaveProperty('generate_image')
+      expect(result.deferredEntries.map(({ name }) => name)).not.toContain('generate_image')
+    } finally {
+      registry.deregister(entry.name)
+      registry.deregister('test_text_tool')
+    }
+  })
+
+  it('reports an unavailable painting model when capability lookup fails during execution', async () => {
+    getPreference.mockReturnValue('vertexai::imagen-3.0-generate-002')
+    getImageGenerationSupport.mockRejectedValue(new Error('VertexAI requires iam-gcp auth configuration.'))
+
+    await expect(generateImageFromPrompt({ prompt: 'a cat' })).resolves.toEqual({
+      error: PAINTING_MODEL_NOT_CONFIGURED_NOTE
+    })
+    expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('preserves cancellation from painting capability lookup', async () => {
+    getPreference.mockReturnValue('vertexai::imagen-3.0-generate-002')
+    const aborted = new DOMException('Cancelled', 'AbortError')
+    getImageGenerationSupport.mockRejectedValue(aborted)
+
+    await expect(generateImageFromPrompt({ prompt: 'a cat' })).rejects.toBe(aborted)
   })
 
   it('returns an error discriminant when generation fails', async () => {
