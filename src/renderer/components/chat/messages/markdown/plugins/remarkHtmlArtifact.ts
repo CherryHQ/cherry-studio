@@ -132,6 +132,8 @@ function scanContainerBoundaries(value: string, depth: { count: number }): Conta
 
 interface PairedContainerClose {
   index: number
+  /** The html node hosting the matched close, narrowed at the scan site. */
+  closeNode: Html
   closeEnd: number
 }
 
@@ -152,7 +154,7 @@ function findPairedContainerClose(
     const child = children[index]
     if (child?.type !== 'html') continue
     const scan = scanContainerBoundaries(child.value, depth)
-    if (scan.closed) return { index, closeEnd: scan.closeEnd ?? child.value.length }
+    if (scan.closed) return { index, closeNode: child, closeEnd: scan.closeEnd ?? child.value.length }
   }
   return undefined
 }
@@ -299,7 +301,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         // Exempt only the matched boundaries; the body re-enters normal processing so nested
         // disclosures pair and inner artifacts/documents keep their existing paths.
         const openBoundary = items[index]
-        const closeNode = items[paired.index]
+        const closeNode = paired.closeNode
         if (openBoundary) children.push(openBoundary)
         processRange(items, index + 1, paired.index)
         // The close can share its node with the NEXT disclosure's opening (`</details>` and
