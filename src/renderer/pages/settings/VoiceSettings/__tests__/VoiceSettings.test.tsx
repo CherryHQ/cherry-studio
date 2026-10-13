@@ -10,6 +10,7 @@ import { type SpeechPlaybackSnapshot, VoiceDomainError } from '@renderer/service
 import { SpeechPlaybackService } from '@renderer/services/voice/SpeechPlaybackService'
 import { VoiceService } from '@renderer/services/voice/VoiceService'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID, VoiceResourceOperation } from '@shared/ai/localVoice'
+import type { VoicePlaybackState, VoiceSessionEvent } from '@shared/ipc/schemas/voice'
 
 vi.unmock('@cherrystudio/ui')
 
@@ -881,16 +882,25 @@ describe('VoiceSettings', () => {
     expect(voice.speechStop).toHaveBeenCalledOnce()
   })
 
-  it('stops a pending preview through the playback service and never plays its late output', async () => {
+  it.each(['stop', 'interruption'] as const)('restarts preview after %s cancels pending playback', async (mode) => {
     const generating = deferred<void>()
     const output = deferred<void>()
     const audioPlay = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined)
-    const ipc = { request: vi.fn(), on: vi.fn(() => () => undefined) }
+    let onSessionEvent: ((event: VoiceSessionEvent) => void) | undefined
+    const ipc = {
+      request: vi.fn(),
+      on: vi.fn((_channel: string, listener: (event: VoiceSessionEvent) => void) => {
+        onSessionEvent = listener
+        return () => {
+          onSessionEvent = undefined
+        }
+      })
+    }
     let first = true
     let revision = 0
-    const playbackState = {
+    const playbackState: VoicePlaybackState = {
       attemptId: 1,
       commandRevision: 0,
       synthesis: 'completed',
@@ -904,6 +914,14 @@ describe('VoiceSettings', () => {
       if (route === 'ai.speech.generate') {
         if (first) {
           first = false
+          onSessionEvent?.({
+            type: 'state',
+            phase: 'generating',
+            revision: ++revision,
+            sessionId: input.sessionId,
+            source: 'playback',
+            playback: { ...playbackState, synthesis: 'generating', observed: 'empty', pendingCommand: null }
+          })
           generating.resolve()
           await output.promise
         }
@@ -942,9 +960,13 @@ describe('VoiceSettings', () => {
       const { user, play } = await renderPreviewTest()
       await user.click(play)
       await generating.promise
-      await user.click(screen.getByRole('button', { name: 'Stop' }))
+      if (mode === 'stop') await user.click(screen.getByRole('button', { name: 'Stop' }))
       await act(async () => {
-        output.resolve()
+        if (mode === 'interruption') {
+          onSessionEvent?.({ type: 'interruption', revision: ++revision })
+          onSessionEvent?.({ type: 'state', phase: 'idle', revision: ++revision })
+          output.reject(new VoiceDomainError('aborted'))
+        } else output.resolve()
         await voice.speechStart.mock.results[0].value.catch(() => undefined)
       })
       expect(audioPlay).not.toHaveBeenCalled()

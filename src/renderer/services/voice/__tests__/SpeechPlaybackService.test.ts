@@ -319,6 +319,55 @@ describe('SpeechPlaybackService planning and playback', () => {
     await service.stop()
   })
 
+  it('cleans an aborted start without clearing playback started during cleanup', async () => {
+    const { service, voice, audios } = createHarness()
+    const generation = Promise.withResolvers<never>()
+    voice.generateSpeech.mockReturnValueOnce({ sessionId, requestId, result: generation.promise })
+    const starting = service.start({ ...baseInput, sourceLabel: 'preview' })
+    const aborted = expect(starting).rejects.toMatchObject({ reason: 'aborted' })
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('generating'))
+    await voice.discardSession(sessionId)
+
+    const cleanup = Promise.withResolvers<void>()
+    voice.discardSession.mockReturnValueOnce(cleanup.promise)
+    generation.reject(new VoiceDomainError('aborted'))
+    await vi.waitFor(() => expect(voice.discardSession).toHaveBeenCalledTimes(2))
+
+    const nextSessionId = '00000000-0000-4000-8000-000000000015'
+    const generateSpeech = voice.generateSpeech.getMockImplementation()!
+    voice.generateSpeech.mockImplementationOnce((input) => generateSpeech({ ...input, sessionId: nextSessionId }))
+    await service.start({ ...baseInput, sourceLabel: 'selection' })
+    cleanup.resolve()
+    await aborted
+
+    expect(service.getSnapshot()).toMatchObject({ phase: 'playing', sourceLabel: 'selection' })
+    expect(voice.getSnapshot()).toMatchObject({ phase: 'playing', sessionId: nextSessionId })
+    expect(audios[0].paused).toBe(false)
+    await service.stop()
+    expect(service.getSnapshot().phase).toBe('idle')
+  })
+
+  it('allows Stop to retry failed cleanup after Main aborts a start and closes its session', async () => {
+    const { service, voice } = createHarness()
+    const generation = Promise.withResolvers<never>()
+    voice.generateSpeech.mockReturnValueOnce({ sessionId, requestId, result: generation.promise })
+    const starting = service.start({ ...baseInput, sourceLabel: 'preview' })
+    const failed = expect(starting).rejects.toMatchObject({ reason: 'operation_failed' })
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('generating'))
+    await voice.discardSession(sessionId)
+
+    voice.discardSession.mockRejectedValueOnce(new VoiceDomainError('operation_failed'))
+    generation.reject(new VoiceDomainError('aborted'))
+    await failed
+    expect(service.getSnapshot().phase).not.toBe('idle')
+
+    await service.stop()
+    expect(service.getSnapshot().phase).toBe('idle')
+    await service.start({ ...baseInput, sourceLabel: 'preview' })
+    expect(service.getSnapshot()).toMatchObject({ phase: 'playing', sourceLabel: 'preview' })
+    await service.stop()
+  })
+
   it('uses centrally resolved speech preferences instead of caller parameters', async () => {
     const { service, voice } = createHarness()
 
