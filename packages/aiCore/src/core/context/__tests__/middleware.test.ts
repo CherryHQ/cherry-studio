@@ -461,7 +461,7 @@ describe('onBeforeCompress flow', () => {
     })
 
     expect(onBeforeCompress).toHaveBeenCalledTimes(1)
-    // Hook result is re-evaluated (now under budget) and replaces the history.
+    // The hook's result replaces the history as-is.
     expect(result.prompt).toEqual([
       { role: 'system', content: 'You are helpful.' },
       { role: 'user', content: [{ type: 'text', text: 'condensed history' }] }
@@ -499,6 +499,94 @@ describe('onBeforeCompress flow', () => {
 
     expect(onBeforeCompress).not.toHaveBeenCalled()
     expect(result.prompt).toEqual(longPrompt)
+  })
+
+  // Reported usage covers only the call that produced it; the next step also
+  // carries the tool results and replies appended since.
+  it('adds what the history grew by since the last call to its reported usage', async () => {
+    const onBeforeCompress = vi.fn().mockReturnValue(null)
+    const middleware = createContextMiddleware({ contextWindow: 1_000, onBeforeCompress })
+    const transform = assertDefined(middleware.transformParams, 'transformParams')
+    const model = createMockModel({ inputTokens: 900 })
+
+    const step1 = makeConversation(1)
+    await transform({ params: { prompt: step1 }, type: 'generate', model })
+    await assertDefined(
+      middleware.wrapGenerate,
+      'wrapGenerate'
+    )({
+      doGenerate: () => model.doGenerate({ prompt: [] }),
+      doStream: () => model.doStream({ prompt: [] }),
+      params: { prompt: [] },
+      model
+    })
+    expect(onBeforeCompress).not.toHaveBeenCalled()
+
+    const step2: LanguageModelV3Prompt = [
+      ...step1,
+      { role: 'user', content: [{ type: 'text', text: 'z'.repeat(2_000) }] }
+    ]
+    await transform({ params: { prompt: step2 }, type: 'generate', model })
+
+    expect(onBeforeCompress).toHaveBeenCalledTimes(1)
+    expect(onBeforeCompress.mock.calls[0][1].currentTokens).toBeGreaterThan(1_000)
+  })
+
+  // In-flight drops are never persisted: every call re-sends the full history,
+  // so skipping a check after a drop sent the over-budget prompt every other call.
+  it('checks every call, including the one right after a drop', async () => {
+    const middleware = createContextMiddleware({ contextWindow: 100, onBeforeCompress: () => null })
+    const transform = assertDefined(middleware.transformParams, 'transformParams')
+    const model = createMockModel()
+    const prompt = makeConversation(10)
+
+    const first = await transform({ params: { prompt }, type: 'generate', model })
+    const second = await transform({ params: { prompt }, type: 'generate', model })
+
+    expect(first.prompt.length).toBeLessThan(prompt.length)
+    expect(second.prompt.length).toBeLessThan(prompt.length)
+  })
+
+  // A mechanical re-cut keeps only the last turn, which can open the
+  // conversation on an assistant or tool message.
+  it('sends the hook result as-is even when it is still over budget', async () => {
+    const middleware = createContextMiddleware({
+      contextWindow: 10,
+      onBeforeCompress: (history: ContextMessage[]) => history.slice(-3)
+    })
+    const prompt = makeConversation(10)
+
+    const result = await assertDefined(
+      middleware.transformParams,
+      'transformParams'
+    )({ params: { prompt }, type: 'generate', model: createMockModel() })
+
+    expect(result.prompt).toEqual([prompt[0], ...prompt.slice(-3)])
+  })
+
+  it('does not price an attached image by its payload size', async () => {
+    const onBeforeCompress = vi.fn().mockReturnValue(null)
+    const middleware = createContextMiddleware({ contextWindow: 5_000, onBeforeCompress })
+    const prompt: LanguageModelV3Prompt = [
+      { role: 'system', content: 'You are helpful.' },
+      { role: 'user', content: [{ type: 'text', text: 'earlier question' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'earlier answer' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'what is this?' },
+          { type: 'file', data: 'A'.repeat(1_000_000), mediaType: 'image/png' }
+        ]
+      }
+    ]
+
+    const result = await assertDefined(
+      middleware.transformParams,
+      'transformParams'
+    )({ params: { prompt }, type: 'generate', model: createMockModel() })
+
+    expect(onBeforeCompress).not.toHaveBeenCalled()
+    expect(result.prompt).toEqual(prompt)
   })
 })
 

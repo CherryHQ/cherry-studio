@@ -239,6 +239,34 @@ describe('trimOversizedToolOutputs', () => {
     })
   })
 
+  describe('tool_invoke dispatch', () => {
+    const invokePart = (target: string, output: unknown) =>
+      toolPart(output, { type: 'tool-tool_invoke', input: { name: target, params: {} } })
+
+    it('leaves a part untrimmed when it dispatches a no-codec truncatable:false builtin', async () => {
+      registryGetAllMock.mockReturnValue([{ name: 'browser_snapshot', truncatable: false }])
+      const parts = [invokePart('browser_snapshot', BIG)]
+      expect(await trimOversizedToolOutputs(parts)).toBe(parts)
+      expect(persistMock).not.toHaveBeenCalled()
+    })
+
+    it('routes a part dispatching a codec builtin through the codec lane', async () => {
+      registryGetAllMock.mockReturnValue([{ name: 'web_fetch', codec: makeEntitiesCodec({ contentKey: 'content' }) }])
+      const items = [{ id: 'cite-0', url: 'https://a.example', title: 'A', content: BIG }]
+      const [trimmed] = await trimOversizedToolOutputs([invokePart('web_fetch', items)])
+
+      expect(persistMock).toHaveBeenCalledWith(BIG)
+      const ref = (trimmed as { output: { $persistedToolOutput: Record<string, unknown> } }).output.$persistedToolOutput
+      expect(ref.shape).toBe('entities')
+    })
+
+    it('still trims whole-text when it dispatches a tool outside the builtin registry (MCP)', async () => {
+      const [trimmed] = await trimOversizedToolOutputs([invokePart('mcp__s1__read', BIG)])
+      const ref = (trimmed as { output: { $persistedToolOutput: Record<string, unknown> } }).output.$persistedToolOutput
+      expect(ref).toMatchObject({ shape: 'text', totalChars: BIG.length })
+    })
+  })
+
   describe('assistant override (P2-D)', () => {
     // Global threshold is THRESHOLD (2000) and BIG is ~9000 chars.
     it('does not trim when the assistant raises the threshold above the output size', async () => {

@@ -400,6 +400,93 @@ describe('context-management override (P2-D)', () => {
   })
 })
 
+// `maxMessages: null` (no limit, beats a finite global) and an absent key (inherit)
+// must stay distinct from hydrate to diff, or a save flips one into the other.
+describe('explicit unlimited message limit', () => {
+  const withContextSettings = (contextSettings: NonNullable<AssistantSettings['contextSettings']>) =>
+    createAssistant({ settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings } })
+
+  it('hydrates only an explicitly stored null as unlimited', () => {
+    const stored = withContextSettings({ maxMessages: null })
+    const baseline = initialAssistantFormState(stored)
+    expect(baseline).toMatchObject({
+      contextMaxMessages: null,
+      contextMaxMessagesUnlimited: true
+    })
+    // Opening and closing the dialog without an edit must not write anything back.
+    expect(diffAssistantUpdate(baseline, baseline, stored)).toBeNull()
+
+    for (const inherited of [createAssistant(), withContextSettings({ truncateThreshold: 4000 })]) {
+      expect(initialAssistantFormState(inherited).contextMaxMessagesUnlimited).toBe(false)
+    }
+    expect(initialAssistantFormState(withContextSettings({ maxMessages: 5 }))).toMatchObject({
+      contextMaxMessages: 5,
+      contextMaxMessagesUnlimited: false
+    })
+  })
+
+  it('keeps maxMessages: null when the override is toggled on', () => {
+    const assistant = withContextSettings({ maxMessages: null })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, contextOverrideEnabled: true }
+
+    const contextSettings = diffAssistantUpdate(form, baseline, assistant)?.dto.settings?.contextSettings
+    expect(contextSettings).toHaveProperty('maxMessages', null)
+  })
+
+  it('keeps maxMessages: null when a sibling override field is edited', () => {
+    const assistant = withContextSettings({ truncateThreshold: 4000, maxMessages: null })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, contextTruncateThreshold: 9000 }
+
+    const contextSettings = diffAssistantUpdate(form, baseline, assistant)?.dto.settings?.contextSettings
+    expect(contextSettings).toHaveProperty('truncateThreshold', 9000)
+    expect(contextSettings).toHaveProperty('maxMessages', null)
+  })
+
+  it('keeps maxMessages: null alone when the override is turned off', () => {
+    const assistant = withContextSettings({ truncateThreshold: 4000, maxMessages: null })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, contextOverrideEnabled: false }
+
+    expect(diffAssistantUpdate(form, baseline, assistant)?.dto.settings?.contextSettings).toStrictEqual({
+      maxMessages: null
+    })
+  })
+
+  it.each([
+    ['absent', createAssistant()],
+    ['finite', withContextSettings({ maxMessages: 5 })]
+  ])('stores an explicit null when unlimited is switched on from %s', (_state, assistant) => {
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, contextMaxMessages: null, contextMaxMessagesUnlimited: true }
+
+    expect(diffAssistantUpdate(form, baseline, assistant)?.dto.settings?.contextSettings).toStrictEqual({
+      maxMessages: null
+    })
+
+    const overridden = { ...form, contextOverrideEnabled: true }
+    expect(diffAssistantUpdate(overridden, baseline, assistant)?.dto.settings?.contextSettings).toHaveProperty(
+      'maxMessages',
+      null
+    )
+  })
+
+  it('omits maxMessages when unlimited is switched off with an empty field', () => {
+    const assistant = withContextSettings({ truncateThreshold: 4000, maxMessages: null })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, contextMaxMessagesUnlimited: false }
+
+    const contextSettings = diffAssistantUpdate(form, baseline, assistant)?.dto.settings?.contextSettings
+    expect(contextSettings).toHaveProperty('truncateThreshold', 4000)
+    expect(contextSettings).not.toHaveProperty('maxMessages')
+
+    // With the override off there is nothing left to store.
+    const overrideOff = { ...form, contextOverrideEnabled: false }
+    expect(diffAssistantUpdate(overrideOff, baseline, assistant)?.dto.settings?.contextSettings).toBeNull()
+  })
+})
+
 describe('diffAssistantSaveIntent', () => {
   it('wraps update diffs for the edit dialog save handler', () => {
     const assistant = createAssistant({ groupId: '11111111-1111-4111-8111-111111111111' })

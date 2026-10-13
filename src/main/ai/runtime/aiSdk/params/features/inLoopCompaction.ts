@@ -169,7 +169,6 @@ export const inLoopCompactionFeature: RequestFeature = {
       contextWindow,
       resolveRequestedMaxOutputTokens(
         scope.request.callOverrides?.maxOutputTokens,
-        undefined,
         scope.assistant,
         scope.model,
         scope.endpointType

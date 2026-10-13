@@ -1,3 +1,5 @@
+import type { ContextMessage } from './types'
+
 /**
  * A fast, zero-dependency token estimator.
  * While exact token counting requires model-specific tokenizers (like `tiktoken` or Anthropic's tokenizer),
@@ -26,11 +28,26 @@ export function estimate(text: string): number {
 }
 
 /**
- * Estimates tokens for an array of messages or a single object by serializing it.
+ * Flat cost per media attachment: providers meter images and files by their
+ * own rules, never by payload characters.
  */
-export function estimateObject(obj: unknown): number {
-  if (typeof obj === 'string') {
-    return estimate(obj)
+const ATTACHMENT_TOKENS = 1_000
+
+/**
+ * Estimates what an IR history costs the model: text, tool-call arguments and
+ * reasoning, plus a flat cost per attachment.
+ *
+ * Serializing whole messages over-counts several-fold — adapter pass-through
+ * fields (`_userContent`, `_mmToolContent`, …) repeat the same content, and
+ * media payloads are not text.
+ */
+export function estimateMessages(messages: readonly ContextMessage[]): number {
+  let total = 0
+  for (const message of messages) {
+    total += estimate(message.content)
+    for (const call of message.tool_calls ?? []) total += estimate(call.function.name + call.function.arguments)
+    if (message.thinking) total += estimate(message.thinking.thinking)
+    total += (message.attachments?.length ?? 0) * ATTACHMENT_TOKENS
   }
-  return estimate(JSON.stringify(obj))
+  return total
 }

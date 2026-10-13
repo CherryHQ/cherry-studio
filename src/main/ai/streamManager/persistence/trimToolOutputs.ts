@@ -27,6 +27,7 @@ import { loggerService } from '@logger'
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
 import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
 import { extractPersistableText, persistToolOutputText, spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
+import { resolveInvokedToolName } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { registry } from '@main/ai/tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '@main/ai/tools/adapters/aiSdk/types'
 import {
@@ -124,7 +125,7 @@ export async function trimOversizedToolOutputs(
     const part = parts[index]
     if (!isToolUIPart(part) || part.state !== 'output-available') continue
     if (isPersistedToolOutput(part.output) || isDeferredToolOutput(part.output)) continue
-    const entry = builtins.get(getToolName(part))
+    const entry = builtins.get(resolveInvokedToolName(getToolName(part), part.input))
     if (!entry?.codec && entry?.truncatable === false) continue
 
     try {

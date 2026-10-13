@@ -105,6 +105,7 @@ type AssistantEditFormValues = {
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
   contextMaxMessages: number | null
+  contextMaxMessagesUnlimited: boolean
   contextCompressThresholdPercent: number | null
   contextCompressModelId: string | null
   knowledgeBaseIds: string[]
@@ -147,6 +148,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
     contextMaxMessages: form.contextMaxMessages,
+    contextMaxMessagesUnlimited: form.contextMaxMessagesUnlimited,
     contextCompressThresholdPercent: form.contextCompressThresholdPercent,
     contextCompressModelId: form.contextCompressModelId,
     knowledgeBaseIds: [...form.knowledgeBaseIds],
@@ -188,6 +190,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
     contextMaxMessages: values.contextMaxMessages,
+    contextMaxMessagesUnlimited: values.contextMaxMessagesUnlimited,
     contextCompressThresholdPercent: values.contextCompressThresholdPercent,
     contextCompressModelId: values.contextCompressModelId,
     knowledgeBaseIds: values.knowledgeBaseIds,
@@ -953,6 +956,11 @@ function ContextManagementFields({
     form.setValue('contextOverrideEnabled', checked, { shouldDirty: true })
   }
 
+  const onUnlimitedToggle = (checked: boolean) => {
+    if (checked) form.setValue('contextMaxMessages', null, { shouldDirty: true })
+    form.setValue('contextMaxMessagesUnlimited', checked, { shouldDirty: true })
+  }
+
   return (
     <>
       <FormField
@@ -960,17 +968,31 @@ function ContextManagementFields({
         name="contextMaxMessages"
         render={({ field }) => (
           <FormItem>
-            <FieldLabelWithHelp
-              label={t('library.config.basic.context_count')}
-              help={t('library.config.basic.field.context_count.hint')}
-            />
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <FieldLabelWithHelp
+                  label={t('library.config.basic.context_count')}
+                  help={t('library.config.basic.field.context_count.hint')}
+                />
+              </div>
+              <label className="flex shrink-0 cursor-pointer items-center gap-2 text-muted-foreground text-xs">
+                {t('library.config.basic.context_count_unlimited')}
+                <Switch
+                  size="sm"
+                  checked={values.contextMaxMessagesUnlimited}
+                  onCheckedChange={onUnlimitedToggle}
+                  aria-label={t('library.config.basic.context_count_unlimited')}
+                />
+              </label>
+            </div>
             <FormControl>
               {/* Outside the override group: scope is not an overflow policy. */}
               <InputNumber
                 min={1}
                 step={1}
+                disabled={values.contextMaxMessagesUnlimited}
                 placeholder={
-                  globalDefaults.maxMessages === null
+                  values.contextMaxMessagesUnlimited || globalDefaults.maxMessages === null
                     ? t('library.config.basic.context_count_unlimited')
                     : t('library.config.basic.context_count_follow_global', { count: globalDefaults.maxMessages })
                 }

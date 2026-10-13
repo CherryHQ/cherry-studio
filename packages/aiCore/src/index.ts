@@ -73,6 +73,7 @@ export {
   computeHeadTailExcerpt,
   ContextPrompts,
   createContextMiddleware,
+  estimateMessages,
   groupIntoTurns,
   Offloader,
   PERSISTED_OUTPUT_TAG,

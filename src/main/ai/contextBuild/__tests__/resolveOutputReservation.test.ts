@@ -24,46 +24,50 @@ function makeAssistant(settings: Partial<Assistant['settings']>): Assistant {
   return { id: 'a1', settings: { ...DEFAULT_ASSISTANT_SETTINGS, ...settings } } as Assistant
 }
 
+const customMaxOutputTokens = (value: number): Assistant['settings']['customParameters'] => [
+  { name: 'maxOutputTokens', type: 'number', value }
+]
+
 describe('resolveRequestedMaxOutputTokens', () => {
   const model = makeModel()
 
   it('uses the model limit for Anthropic Messages when assistant max tokens are disabled', () => {
     const assistant = makeAssistant({ enableMaxTokens: false, maxTokens: 4_096 })
 
-    expect(
-      resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-    ).toBe(64_000)
+    expect(resolveRequestedMaxOutputTokens(undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(64_000)
   })
 
   it('uses an enabled assistant limit before the Anthropic model default', () => {
     const assistant = makeAssistant({ enableMaxTokens: true, maxTokens: 16_000 })
 
-    expect(
-      resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-    ).toBe(16_000)
+    expect(resolveRequestedMaxOutputTokens(undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(16_000)
   })
 
   it('uses a custom parameter before the assistant limit', () => {
-    const assistant = makeAssistant({ enableMaxTokens: true, maxTokens: 16_000 })
+    const assistant = makeAssistant({
+      enableMaxTokens: true,
+      maxTokens: 16_000,
+      customParameters: customMaxOutputTokens(24_000)
+    })
 
-    expect(resolveRequestedMaxOutputTokens(undefined, 24_000, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(
-      24_000
-    )
+    expect(resolveRequestedMaxOutputTokens(undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(24_000)
   })
 
   it('gives the per-request override highest precedence', () => {
-    const assistant = makeAssistant({ enableMaxTokens: true, maxTokens: 16_000 })
+    const assistant = makeAssistant({
+      enableMaxTokens: true,
+      maxTokens: 16_000,
+      customParameters: customMaxOutputTokens(24_000)
+    })
 
-    expect(resolveRequestedMaxOutputTokens(32_000, 24_000, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(
-      32_000
-    )
+    expect(resolveRequestedMaxOutputTokens(32_000, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(32_000)
   })
 
   // The distinction the whole input-room calculation rests on: no max_tokens on
   // the wire means nothing is billed against the window, so nothing is reserved.
   it('does not use the model limit as an automatic cap for non-Anthropic endpoints', () => {
     expect(
-      resolveRequestedMaxOutputTokens(undefined, undefined, undefined, model, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      resolveRequestedMaxOutputTokens(undefined, undefined, model, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     ).toBeUndefined()
   })
 })
@@ -99,6 +103,17 @@ describe('resolveOutputReservation', () => {
       .mockReturnValueOnce({ endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
 
     expect(resolveOutputReservation('a1', [makeModel(), makeModel({ maxOutputTokens: 32_000 })])).toBe(32_000)
+  })
+
+  // Runs before buildAgentParams, so it must find the custom parameter itself or it
+  // sizes history for a smaller reply than the one requested.
+  it('counts the assistant maxOutputTokens custom parameter', () => {
+    endpoint(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    mockGetAssistantById.mockReturnValue(
+      makeAssistant({ enableMaxTokens: false, customParameters: customMaxOutputTokens(24_000) })
+    )
+
+    expect(resolveOutputReservation('a1', [makeModel()])).toBe(24_000)
   })
 
   // A deleted assistant or an unreachable provider row must not fail the turn —

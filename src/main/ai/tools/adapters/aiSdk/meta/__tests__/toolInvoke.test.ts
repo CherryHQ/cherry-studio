@@ -4,7 +4,7 @@ import * as z from 'zod'
 
 import { ToolRegistry } from '../../registry'
 import type { ToolEntry } from '../../types'
-import { createToolInvokeTool, TOOL_INVOKE_TOOL_NAME } from '../toolInvoke'
+import { createToolInvokeTool, resolveInvokedToolName, TOOL_INVOKE_TOOL_NAME } from '../toolInvoke'
 
 const innerExecute = vi.fn()
 const innerToModelOutput = vi.fn()
@@ -333,5 +333,29 @@ describe('tool_invoke meta-tool', () => {
       expect(await schema.validate!({ params: {} })).toMatchObject({ success: false })
       expect(await schema.validate!({ name: 1 })).toMatchObject({ success: false })
     })
+  })
+})
+
+describe('resolveInvokedToolName', () => {
+  it('returns the dispatched tool name for a valid tool_invoke input', () => {
+    expect(resolveInvokedToolName(TOOL_INVOKE_TOOL_NAME, { name: 'web_search', params: { query: 'x' } })).toBe(
+      'web_search'
+    )
+    expect(resolveInvokedToolName(TOOL_INVOKE_TOOL_NAME, { name: 'kb_list' })).toBe('kb_list')
+  })
+
+  it('returns any other tool name unchanged, even when its input carries a `name`', () => {
+    expect(resolveInvokedToolName('web_search', { name: 'something_else' })).toBe('web_search')
+  })
+
+  it.each([
+    ['undefined', undefined],
+    ['null', null],
+    ['a string', 'web_search'],
+    ['a missing name', {}],
+    ['a non-string name', { name: 1 }],
+    ['non-object params', { name: 'web_search', params: 'x' }]
+  ])('falls back to tool_invoke for malformed input (%s)', (_label, input) => {
+    expect(resolveInvokedToolName(TOOL_INVOKE_TOOL_NAME, input)).toBe(TOOL_INVOKE_TOOL_NAME)
   })
 })

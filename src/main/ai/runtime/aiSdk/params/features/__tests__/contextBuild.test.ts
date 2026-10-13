@@ -27,6 +27,9 @@ vi.mock('@data/services/MessageService', () => ({ messageService: { getById: get
 vi.mock('@main/ai/contextBuild/persistedOutputAdapter', () => ({
   createFileManagerStorageAdapter: adapterFactoryMock
 }))
+vi.mock('@main/data/services/TemporaryChatService', () => ({
+  temporaryChatService: { hasTopic: (id: string) => id.startsWith('temp:') }
+}))
 
 import type { RequestScope } from '../../scope'
 import {
@@ -78,7 +81,7 @@ function makeScope(overrides: ScopeOverrides = {}): RequestScope {
   return {
     registry: { getAll: () => overrides.entries ?? [] },
     model: { id: 'test-model', contextWindow: 200_000, ...overrides.model },
-    request: { ...overrides.request },
+    request: { conversation: { id: 'topic-1', topicId: 'topic-1' }, ...overrides.request },
     requestContext: { requestId: 'anchor-1', persistedOutputPaths: new Set<string>(), ...overrides.requestContext },
     contextSettings: overrides.contextSettings ?? DEFAULT_CONTEXT_SETTINGS,
     compressionModel: overrides.compressionModel ?? null,
@@ -185,6 +188,24 @@ describe('buildContextOptions → createMiddleware', () => {
     const out = await runTransform(makePrompt('kb__search', BIG), scope)
     expect(toolOutput(out).value).toBe('x'.repeat(BIG))
     expect(fs.readdirSync(tmpDir)).toHaveLength(0)
+  })
+
+  it('keeps that exemption when the tool is dispatched through tool_invoke', async () => {
+    const scope = makeScope({ entries: [{ name: 'kb__search', truncatable: false }] })
+    const prompt = makePrompt('tool_invoke', BIG).map((m) =>
+      m.role === 'assistant'
+        ? {
+            ...m,
+            content: m.content.map((p) =>
+              p.type === 'tool-call' && p.toolCallId === 'c1'
+                ? { ...p, input: { name: 'kb__search', params: { q: 'x' } } }
+                : p
+            )
+          }
+        : m
+    ) as LanguageModelV3Prompt
+    const out = await runTransform(prompt, scope)
+    expect(toolOutput(out).value).toBe('x'.repeat(BIG))
   })
 
   it('round-trips a user-ending prompt under the threshold losslessly, including historical reasoning', async () => {
@@ -447,11 +468,30 @@ describe('buildContextOptions — compression wiring', () => {
     expect(buildContextOptions(compressOff)!.onBeforeCompress).toBeUndefined()
   })
 
-  // The Janitor re-estimates after this hook and returns early once under
-  // budget, so it will NOT re-run `ensureValidHistory` — whatever the fallback
-  // returns goes to the provider as-is. Dropping a single message could cut
-  // between `assistant(tool_call)` and its `tool` results and leave an orphan,
-  // which strict providers reject.
+  it('gives temporary chats the sliding-window guard even when a compression model resolves', () => {
+    const scope = makeScope({
+      compressionModel: {} as never,
+      request: { conversation: { id: 'temp:1', topicId: 'temp:1' } }
+    })
+    expect(buildContextOptions(scope)!.onBeforeCompress).toBeTypeOf('function')
+  })
+
+  // It used to compare against the raw window: far above the trigger the LLM
+  // lanes use, and blind to the reply's share.
+  it('budgets the fallback against the compaction trigger of the room left for input', () => {
+    const scope = makeScope({
+      contextSettings: {
+        ...DEFAULT_CONTEXT_SETTINGS,
+        compress: { ...DEFAULT_CONTEXT_SETTINGS.compress, thresholdPercent: 50 }
+      }
+    })
+    expect(buildContextOptions(scope)!.contextWindow).toBe(100_000)
+  })
+
+  // The Janitor sends this hook's result as-is, without re-running
+  // `ensureValidHistory`. Dropping a single message could cut between
+  // `assistant(tool_call)` and its `tool` results and leave an orphan, which
+  // strict providers reject.
   describe('sliding-window fallback is turn-atomic', () => {
     const fallback = () => {
       const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: null })
@@ -504,6 +544,37 @@ describe('buildContextOptions — compression wiring', () => {
     it('leaves history untouched when already under budget', () => {
       const history = toolHistory()
       expect(fallback()(history, { currentTokens: 100, limit: 1000 })).toBe(history)
+    })
+
+    // Strict providers reject a conversation that opens on an assistant row.
+    it('opens the window on a user row', () => {
+      const history = [
+        { role: 'user', content: 'q0' },
+        { role: 'assistant', content: 'x'.repeat(1_000) },
+        { role: 'user', content: 'q1' },
+        { role: 'assistant', content: 'y'.repeat(1_000) },
+        { role: 'user', content: 'q2' }
+      ] as never
+      const kept = fallback()(history, { currentTokens: 1_000, limit: 990 }) as Array<{ content: string }>
+      expect(kept.map((m) => m.content)).toEqual(['q1', 'y'.repeat(1_000), 'q2'])
+    })
+
+    it('keeps the newest user message and drops the oldest tool steps after it', () => {
+      const step = (id: string) => [
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [{ id, type: 'function', function: { name: 'f', arguments: '{}' } }]
+        },
+        { role: 'tool', content: 'r'.repeat(2_000), tool_call_id: id }
+      ]
+      const history = [{ role: 'user', content: 'do the task' }, ...step('c0'), ...step('c1'), ...step('c2')] as never
+      const kept = fallback()(history, { currentTokens: 2_000, limit: 1_000 }) as Array<{
+        role: string
+        tool_call_id?: string
+      }>
+      expect(kept.map((m) => m.role)).toEqual(['user', 'assistant', 'tool'])
+      expect(kept[2].tool_call_id).toBe('c2')
     })
   })
 

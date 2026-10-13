@@ -55,6 +55,11 @@ export async function resolveRequestContextSettings(
     // and compression silently switched off instead of using the current model.
     const compressId = contextSettings.compress.modelId?.trim() || model.id
     compressionModel = await resolveCompressionModel(compressId, conversation)
+    // A pick that no longer resolves (deleted or disabled model) reads as "Follow current
+    // model" in Settings; honour that instead of switching LLM compaction off.
+    if (!compressionModel && compressId !== model.id) {
+      compressionModel = await resolveCompressionModel(model.id, conversation)
+    }
   }
 
   return { contextSettings, compressionModel }

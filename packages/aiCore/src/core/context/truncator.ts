@@ -77,6 +77,12 @@ export interface TruncateOptions {
         codec?: EntityToolOutputCodec
       }
   >
+  /**
+   * Maps a tool call to the name its `perTool` policy is keyed by, e.g. a
+   * dispatcher meta-tool → the tool it ran. Receives the matching call's
+   * `toolName` and `input`; a result with no matching call uses its own `toolName`.
+   */
+  resolveToolName?: (toolName: string, input: unknown) => string
 }
 
 /**
@@ -88,14 +94,20 @@ export async function truncateToolResults(
   options: TruncateOptions,
   logger: ContextLogger = console
 ): Promise<LanguageModelV3Prompt> {
-  const { threshold, headChars = 0, tailChars = 1000, storage } = options
+  const { threshold, headChars = 0, tailChars = 1000, storage, resolveToolName } = options
 
   const offloader = storage ? new Offloader({ threshold, adapter: storage }) : null
   const policy = buildPolicyMap(options.perTool)
+  const calls = new Map<string, { toolName: string; input: unknown }>()
 
   const result: LanguageModelV3Prompt = []
 
   for (const msg of prompt) {
+    if (msg.role === 'assistant') {
+      for (const part of msg.content) {
+        if (part.type === 'tool-call') calls.set(part.toolCallId, { toolName: part.toolName, input: part.input })
+      }
+    }
     if (msg.role !== 'tool') {
       result.push(msg)
       continue
@@ -109,7 +121,10 @@ export async function truncateToolResults(
         continue
       }
 
-      const toolPolicy = policy.get(part.toolName)
+      const call = calls.get(part.toolCallId)
+      const toolPolicy = policy.get(
+        resolveToolName && call ? resolveToolName(call.toolName, call.input) : part.toolName
+      )
       if (toolPolicy?.preserve) {
         // Preserve = full bypass: no truncation, no storage write.
         newContent.push(part)

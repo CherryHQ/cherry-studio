@@ -33,6 +33,7 @@ export {
   type VFSStorageAdapter
 } from './offloader'
 export { ContextPrompts, PERSISTED_OUTPUT_TAG } from './prompts'
+export { estimateMessages } from './tokenUtils'
 export { type EntityToolOutputCodec, type TruncateOptions, truncateToolResults } from './truncator'
 export type {
   Attachment,

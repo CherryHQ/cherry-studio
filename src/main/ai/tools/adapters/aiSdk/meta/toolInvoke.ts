@@ -64,6 +64,16 @@ const toolInvokeInputSchema = jsonSchema<{ name: string; params?: Record<string,
 )
 
 /**
+ * The tool a call dispatches to: `tool_invoke` → its `input.name`; any other tool, or malformed
+ * input, → `toolName`. Lets name-keyed policies (truncation, persist trim) see through the dispatcher.
+ */
+export function resolveInvokedToolName(toolName: string, input: unknown): string {
+  if (toolName !== TOOL_INVOKE_TOOL_NAME) return toolName
+  const parsed = toolInvokeInputZod.safeParse(input)
+  return parsed.success ? parsed.data.name : toolName
+}
+
+/**
  * @param allowedNames per-request tool name set (the request's active inline ∪ deferred names).
  *   `tool_invoke` resolves against the process-wide registry, so without this scope a model could
  *   reach user-owned tools that `applies()` excluded for this request. Closed over here exactly as
