@@ -1,10 +1,10 @@
 import type { JSONContent } from '@tiptap/core'
 
-import { getFileExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 
+import { COMPOSER_INPUT_MAX_LENGTH } from './composerDraft'
 import {
   type ComposerTokenMarkerRule,
   createComposerPlainTextContent,
@@ -18,13 +18,6 @@ import type { ComposerDraftToken } from './tokens'
 /** Pasted text longer than this (in characters) is offered as a file attachment instead of inlined. */
 export const LONG_TEXT_PASTE_THRESHOLD = 1500
 export const PASTED_TEXT_FILE_EXTENSION = '.txt'
-
-export function hasSupportedClipboardImage(
-  files: readonly Pick<File, 'name' | 'type'>[],
-  supportedExts: readonly string[]
-) {
-  return files.some((file) => file.type.startsWith('image/') && supportedExts.includes(getFileExtension(file.name)))
-}
 
 interface ComposerPlainTextPasteOptions {
   inlineLongText?: boolean
@@ -85,6 +78,17 @@ function createKnowledgeBaseMarkerRule(
 
 export function createComposerPlainTextPasteContent(text: string): JSONContent[] {
   return createComposerPlainTextContent(text)
+}
+
+/**
+ * The part of `nextText` that still fits the composer. An insert that replaces a selection has to be
+ * measured against the draft without it, or text the insert removes is charged against the budget
+ * twice and an insertion that would fit is refused.
+ */
+export function getComposerInputTextWithinLimit(currentText: string, nextText: string, replacedText = ''): string {
+  const remainingLength = COMPOSER_INPUT_MAX_LENGTH - (currentText.length - replacedText.length)
+  if (remainingLength <= 0) return ''
+  return nextText.slice(0, remainingLength)
 }
 
 function getPrivateTokenMarker(token: ComposerClipboardToken, prefix: string) {
