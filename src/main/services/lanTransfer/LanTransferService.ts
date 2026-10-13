@@ -37,7 +37,7 @@ import {
   waitForFileComplete,
   waitForFileStartAck
 } from './handlers'
-import { ResponseManager } from './responseManager'
+import { ResponseManager } from './ResponseManager'
 import type { ActiveFileTransfer, ConnectionContext, FileTransferContext } from './types'
 
 const DISCOVERY_SERVICE_TYPE = 'cherrystudio'
@@ -81,6 +81,7 @@ export class LanTransferService extends BaseService {
   private dataHandler?: ReturnType<typeof createDataHandler>
   private responseManager = new ResponseManager()
   private isConnecting = false
+  private connectionAttempt?: AbortController
   private activeTransfer?: ActiveFileTransfer
   private lastConnectOptions?: LanTransferConnectPayload
   private consecutiveJsonErrors = 0
@@ -97,6 +98,8 @@ export class LanTransferService extends BaseService {
   }
 
   protected async onStop() {
+    this.connectionAttempt?.abort(new Error('LAN transfer service disposed'))
+    this.connectionAttempt = undefined
     // Clean up transfer resources first
     this.responseManager.rejectAll(new Error('LAN transfer service disposed'))
     cleanupTransfer(this.activeTransfer)
@@ -324,100 +327,130 @@ export class LanTransferService extends BaseService {
       throw new Error('Unable to resolve a reachable host for the peer')
     }
 
-    await this.disconnect()
+    const attempt = new AbortController()
+    this.connectionAttempt = attempt
     this.isConnecting = true
+    let cleanupAbortListener = () => {}
+    try {
+      await this.disconnectSocket()
+      attempt.signal.throwIfAborted()
 
-    return new Promise<LanHandshakeAckMessage>((resolve, reject) => {
-      const socket = createConnection({ host, port: peer.port as number }, () => {
-        logger.info(`Connected to LAN peer ${peer.name} (${host}:${peer.port})`)
-        socket.setKeepAlive(true, 30_000)
-        this.socket = socket
-        this.currentPeer = peer
-        this.attachSocketListeners(socket)
+      return await new Promise<LanHandshakeAckMessage>((resolve, reject) => {
+        const onAbort = () => reject(attempt.signal.reason)
+        attempt.signal.addEventListener('abort', onAbort, { once: true })
+        cleanupAbortListener = () => attempt.signal.removeEventListener('abort', onAbort)
+        const socket = createConnection({ host, port: peer.port as number }, () => {
+          if (this.socket !== socket || attempt.signal.aborted) return
+          try {
+            logger.info(`Connected to LAN peer ${peer.name} (${host}:${peer.port})`)
+            socket.setKeepAlive(true, 30_000)
+            this.currentPeer = peer
+            this.attachSocketListeners(socket)
 
-        this.responseManager.waitForResponse(
-          'handshake_ack',
-          options.timeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS,
-          (payload) => {
-            const ack = payload as LanHandshakeAckMessage
-            if (!ack.accepted) {
-              const message = ack.message || 'Handshake rejected by remote device'
-              logger.warn(`Handshake rejected by ${peer.name}: ${message}`)
-              this.broadcastClientEvent({
-                type: 'error',
-                message,
-                timestamp: Date.now()
-              })
-              reject(new Error(message))
-              void this.disconnect()
-              return
-            }
-            logger.info(`Handshake accepted by ${peer.name}`)
-            socket.setTimeout(0)
-            this.isConnecting = false
-            this.lastConnectOptions = options
-            sendTestPing(this.createConnectionContext())
-            resolve(ack)
-          },
-          (error) => {
-            this.isConnecting = false
+            this.responseManager.waitForResponse(
+              'handshake_ack',
+              options.timeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS,
+              (payload) => {
+                const ack = payload as LanHandshakeAckMessage
+                if (!ack.accepted) {
+                  const message = ack.message || 'Handshake rejected by remote device'
+                  logger.warn(`Handshake rejected by ${peer.name}: ${message}`)
+                  this.broadcastClientEvent({
+                    type: 'error',
+                    message,
+                    timestamp: Date.now()
+                  })
+                  reject(new Error(message))
+                  void this.disconnect()
+                  return
+                }
+                logger.info(`Handshake accepted by ${peer.name}`)
+                socket.setTimeout(0)
+                this.isConnecting = false
+                this.lastConnectOptions = options
+                sendTestPing(this.createConnectionContext())
+                resolve(ack)
+              },
+              (error) => {
+                this.isConnecting = false
+                reject(error)
+              }
+            )
+
+            const handshakeMessage = buildHandshakeMessage()
+            this.sendControlMessage(handshakeMessage)
+          } catch (error) {
             reject(error)
+            void this.disconnect()
           }
-        )
-
-        const handshakeMessage = buildHandshakeMessage()
-        this.sendControlMessage(handshakeMessage)
-      })
-
-      socket.setTimeout(options.timeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS, () => {
-        const error = new Error('Handshake timed out')
-        logger.error('LAN transfer socket timeout', error)
-        this.broadcastClientEvent({
-          type: 'error',
-          message: error.message,
-          timestamp: Date.now()
         })
-        reject(error)
-        socket.destroy(error)
-        void this.disconnect()
-      })
+        this.socket = socket
 
-      socket.once('error', (error) => {
-        logger.error('LAN transfer socket error', error)
-        const message = error instanceof Error ? error.message : String(error)
-        this.broadcastClientEvent({
-          type: 'error',
-          message,
-          timestamp: Date.now()
+        socket.setTimeout(options.timeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS, () => {
+          if (this.socket !== socket || attempt.signal.aborted) return
+          const error = new Error('Handshake timed out')
+          logger.error('LAN transfer socket timeout', error)
+          this.broadcastClientEvent({
+            type: 'error',
+            message: error.message,
+            timestamp: Date.now()
+          })
+          reject(error)
+          socket.destroy(error)
+          void this.disconnect()
         })
-        this.isConnecting = false
-        reject(error instanceof Error ? error : new Error(message))
-        void this.disconnect()
-      })
 
-      socket.once('close', () => {
-        logger.info('LAN transfer socket closed')
-        if (this.socket === socket) {
+        socket.once('error', (error) => {
+          if (this.socket !== socket || attempt.signal.aborted) return
+          logger.error('LAN transfer socket error', error)
+          const message = error instanceof Error ? error.message : String(error)
+          this.broadcastClientEvent({
+            type: 'error',
+            message,
+            timestamp: Date.now()
+          })
+          this.isConnecting = false
+          reject(error instanceof Error ? error : new Error(message))
+          void this.disconnect()
+        })
+
+        socket.once('close', () => {
+          if (this.socket !== socket) return
+          logger.info('LAN transfer socket closed')
           this.socket = null
           this.dataHandler?.resetBuffer()
           this.responseManager.rejectAll(new Error('LAN transfer socket closed'))
           this.currentPeer = undefined
           abortTransfer(this.activeTransfer, new Error('LAN transfer socket closed'))
-        }
-        this.isConnecting = false
-        this.broadcastClientEvent({
-          type: 'socket_closed',
-          reason: 'connection_closed',
-          timestamp: Date.now()
+          reject(new Error('LAN transfer socket closed'))
+          this.isConnecting = false
+          this.broadcastClientEvent({
+            type: 'socket_closed',
+            reason: 'connection_closed',
+            timestamp: Date.now()
+          })
         })
       })
-    })
+    } finally {
+      cleanupAbortListener()
+      if (this.connectionAttempt === attempt) {
+        this.connectionAttempt = undefined
+        this.isConnecting = false
+      }
+    }
   }
 
   /**
    * Disconnect from the current peer.
    */
   public async disconnect(): Promise<void> {
+    this.connectionAttempt?.abort(new Error('LAN transfer socket disconnected'))
+    this.connectionAttempt = undefined
+    this.isConnecting = false
+    await this.disconnectSocket()
+  }
+
+  private async disconnectSocket(): Promise<void> {
     const socket = this.socket
     if (!socket) {
       return
@@ -633,6 +666,7 @@ export class LanTransferService extends BaseService {
   private attachSocketListeners(socket: Socket): void {
     this.dataHandler = createDataHandler((line) => this.handleControlLine(line))
     socket.on('data', (chunk: Buffer) => {
+      if (this.socket !== socket) return
       try {
         this.dataHandler?.handleData(chunk)
       } catch (error) {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ResponseManager } from '../responseManager'
+import { ResponseManager } from '../ResponseManager'
 
 describe('ResponseManager', () => {
   let manager: ResponseManager
