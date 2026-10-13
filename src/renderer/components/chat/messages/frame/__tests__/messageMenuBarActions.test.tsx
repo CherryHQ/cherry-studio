@@ -1081,6 +1081,28 @@ describe('messageMenuBarActions', () => {
     expect(getMessageTitle).not.toHaveBeenCalled()
   })
 
+  it('sanitizes the message-derived title before handing it to the save dialog', async () => {
+    const saveImage = vi.fn(async () => true)
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    vi.mocked(exportService.captureScrollableAsDataUrl).mockResolvedValue('data:image/png;base64,AAAA')
+    vi.mocked(getMessageTitle).mockResolvedValue('**bold** start: a/b?')
+
+    const context = createActionContext({
+      actions: { saveImage },
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await expect(executeMessageMenuBarAction('export.image', context)).resolves.toBe(true)
+
+    expect(saveImage).toHaveBeenCalledWith('__bold__ start_ a_b_', 'data:image/png;base64,AAAA')
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
   it('copies user composer tokens through rich clipboard when available', async () => {
     const copyText = vi.fn()
     const copyRichContent = vi.fn()

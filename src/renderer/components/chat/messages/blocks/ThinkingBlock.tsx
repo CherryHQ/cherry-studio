@@ -2,7 +2,7 @@ import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState }
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
-import { type MarkdownSource } from '@cherrystudio/ui'
+import { type MarkdownSource, Scrollbar } from '@cherrystudio/ui'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
@@ -12,8 +12,8 @@ import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
 
 const THINKING_PREVIEW_MIN_DURATION_MS = 1000
-export const THINKING_CONTENT_PANEL_CLASSNAME =
-  'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto overscroll-contain rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground'
+const THINKING_CONTENT_PANEL_CLASSNAME =
+  'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground'
 
 function getThinkingPreviewKey(preview: string): string {
   return preview
@@ -155,9 +155,13 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
           }
         />
       </div>
-      <div id={contentId} hidden={!isExpanded} className={THINKING_CONTENT_PANEL_CLASSNAME}>
+      <Scrollbar
+        id={contentId}
+        hidden={!isExpanded}
+        autoHideScrollbar={false}
+        className={THINKING_CONTENT_PANEL_CLASSNAME}>
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
-      </div>
+      </Scrollbar>
     </div>
   )
 }

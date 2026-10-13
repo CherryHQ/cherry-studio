@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -62,6 +62,9 @@ describe('FileManager (integration)', () => {
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
       if (key === 'feature.files.data') {
         return filename ? path.join(internalRoot, filename) : internalRoot
+      }
+      if (key === 'feature.files.intakes') {
+        return path.join(tmp, 'intakes', filename ?? '')
       }
       return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
     })
@@ -606,6 +609,73 @@ describe('FileManager (integration)', () => {
     // lastRunAt is the sweep start time captured server-side.
     expect(typeof report.lastRunAt).toBe('number')
   })
+
+  it('retains volume limits for default sweeps while allowing cache cleanup to bypass them', async () => {
+    const orphanPaths = Array.from({ length: 25 }, (_, i) =>
+      path.join(internalRoot, `019606a0-0000-7000-8000-${String(i + 400).padStart(12, '0')}.txt`)
+    )
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    for (const orphanPath of orphanPaths) {
+      await writeFile(orphanPath, 'orphan')
+      await utimes(orphanPath, ancient, ancient)
+    }
+
+    expect(await fm.inspectOrphanFiles()).toMatchObject({ outcome: 'aborted', abortReason: 'count-fraction' })
+    expect(await fm.cleanupOrphanFiles()).toMatchObject({ outcome: 'aborted', actualDeleteCount: 0 })
+    expect(await fm.runSweep()).toMatchObject({
+      outcome: 'partial',
+      fsSweepIssue: expect.stringContaining('count-fraction')
+    })
+
+    const preview = await fm.inspectOrphanFiles({ bypassSafetyThreshold: true })
+    expect(preview).toMatchObject({
+      outcome: 'completed',
+      plannedDeleteCount: 25,
+      plannedDeleteBytes: 150,
+      actualDeleteCount: 0
+    })
+    for (const orphanPath of orphanPaths) {
+      expect(await readFile(orphanPath, 'utf8')).toBe('orphan')
+    }
+
+    const cleanup = await fm.cleanupOrphanFiles({ bypassSafetyThreshold: true })
+    expect(cleanup).toMatchObject({ outcome: 'completed', actualDeleteCount: 25, actualDeleteBytes: 150 })
+    for (const orphanPath of orphanPaths) {
+      await expect(stat(orphanPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+  })
+
+  it.each(['active', 'trashed'] as const)(
+    'keeps %s imported blobs whose extension looks like tmp residue',
+    async (state) => {
+      const ext = 'tmp-22222222-2222-4222-8222-aaaaaaaaaaaa'
+      const sourcePath = path.join(tmp, `keep.${ext}`)
+      await writeFile(sourcePath, 'retained payload')
+      const entry = await fm.createInternalEntry({
+        source: 'path',
+        path: AbsoluteFilePathSchema.parse(sourcePath),
+        cleanupPolicy: 'manual'
+      })
+      expect(entry.ext).toBe(ext)
+      if (state === 'trashed') await fm.trash(entry.id)
+      const retainedEntry = fileEntryService.getById(entry.id)
+      const physicalPath = fm.getPhysicalPath(entry.id)
+      const residuePath = `${physicalPath}.tmp-33333333-3333-4333-8333-bbbbbbbbbbbb`
+      await writeFile(residuePath, 'abandoned write')
+      const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+      await utimes(physicalPath, ancient, ancient)
+      await utimes(residuePath, ancient, ancient)
+
+      const preview = await fm.inspectOrphanFiles()
+      expect(preview).toMatchObject({ outcome: 'completed', plannedDeleteCount: 1, actualDeleteCount: 0 })
+      const report = await fm.runSweep()
+
+      expect(report.outcome).toBe('completed')
+      expect(await readFile(physicalPath, 'utf8')).toBe('retained payload')
+      expect(fileEntryService.getById(entry.id)).toEqual(retainedEntry)
+      await expect(stat(residuePath)).rejects.toThrow(/ENOENT/)
+    }
+  )
 
   it('INT-14a: a runDbSweep collapse propagates through to runSweep outcome="failed"', async () => {
     // Drive `runDbSweep` into its inner `'failed'` branch by spying on

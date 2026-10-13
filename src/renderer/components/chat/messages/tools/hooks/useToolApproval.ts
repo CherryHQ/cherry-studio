@@ -92,8 +92,7 @@ export function useToolApproval(
       try {
         await respondToolApproval({
           match,
-          approved,
-          reason: approved ? undefined : t('message.tools.denied', 'User denied tool execution')
+          approved
         })
       } catch (error) {
         setOptimisticSubmitted(false)

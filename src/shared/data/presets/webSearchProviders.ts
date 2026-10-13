@@ -195,6 +195,11 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
       }
     ]
   },
+  crawl4ai: {
+    name: 'Crawl4AI',
+    type: 'api',
+    capabilities: [{ feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }]
+  },
   parallel: {
     name: 'Parallel',
     type: 'api',

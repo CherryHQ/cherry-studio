@@ -9,6 +9,7 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
+import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
@@ -109,6 +110,7 @@ import {
 } from './agentSessionRuntimeState'
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
+import { recoverSessionDeliveries } from './recoverSessionDeliveries'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
@@ -269,6 +271,7 @@ type RuntimeStateEvent = AgentSessionRuntimeStateEvent<
 >
 
 type AgentSessionRuntimeEntry = {
+  interactionWindowId?: string
   sessionId: string
   topicId: string
   /** Container-level OTel trace id (one trace tree per session); the warm connection's traceparent. */
@@ -482,6 +485,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
     // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
     this.reconcileStalePendingMessages()
+    recoverSessionDeliveries()
+    for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
@@ -621,6 +626,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.agentId = input.agentId
       existing.agentType = input.agentType
       existing.modelId = input.modelId
+      existing.interactionWindowId = undefined
       existing.messageSnapshot = messageSnapshot
       this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
@@ -742,6 +748,8 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
       if (!agent?.model) return
+      if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
+        return
       if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
@@ -1465,7 +1473,12 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
-    const dispatched = toolApprovalRegistry.dispatch(approvalId, decision)
+    // A refusal that arrived here is the user's own answer, so drivers may attribute it to them.
+    // Registry/abort denials reach dispatch() directly and stay unmarked.
+    const dispatched = toolApprovalRegistry.dispatch(
+      approvalId,
+      decision.approved ? decision : { ...decision, reasonSource: 'user' }
+    )
     if (!dispatched) return false
 
     if (dispatched.presentation === 'stream') {
@@ -1803,6 +1816,15 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
+    const migration =
+      entry.agentType === 'pi'
+        ? getRetiredAgentSessionMigration(application.get('DbService').getDb(), entry.sessionId)
+        : undefined
+    if (migration) {
+      // Claim the Pi identity before a retry can finish importing and remove the migration marker.
+      entry.lastResumeToken = migration.resumeToken
+      return
+    }
     const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
     if (runtimeResumeToken && !entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken
   }
@@ -1898,6 +1920,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.publishBackgroundTasks(entry, event.tasks, connection)
         break
       case 'background-work-state':
+        if (event.active) this.getMcpInteractionHost(entry.sessionId)
         this.handleBackgroundWorkState(entry, event.active, connection, event.awaitingReply)
         break
       case 'background-task-event':
@@ -1916,8 +1939,8 @@ export class AgentSessionRuntimeService extends BaseService {
           break
         }
         // Runtime-generated content is already streaming. The autonomous execution state buffers
-        // chunks until its receive-only stream exists and owns the current user turn meanwhile — even
-        // an admitted one: dsh runs a queued goal round before the prompt it has already accepted.
+        // chunks until its receive-only stream exists and owns the current user turn meanwhile — the
+        // autonomous generation must own the connection until its content finishes.
         const turn = this.currentTurn(entry)
         const turnLive = turn !== undefined && this.isTurnLive(entry, turn)
         if (entry.runtimeState.execution.kind === 'steer-transition') break
@@ -2000,7 +2023,10 @@ export class AgentSessionRuntimeService extends BaseService {
         providerName: capture.providerName,
         modelId,
         modelName: frozenModel?.modelName ?? invocation.model,
-        pricingSnapshot: frozenModel?.pricingSnapshot ?? null,
+        pricingSnapshot:
+          invocation.pricingSnapshot === undefined
+            ? (frozenModel?.pricingSnapshot ?? null)
+            : invocation.pricingSnapshot,
         credentialReceipt: capture.credentialReceipt,
         source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
         messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null
@@ -2090,7 +2116,9 @@ export class AgentSessionRuntimeService extends BaseService {
       const read = async () => {
         const usage = await connection.getContextUsage?.()
         if (!usage) return
-        if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
+        // A reading belongs to the session, not the connection — persist even after the connection
+        // was replaced/closed mid-read (renderer filters stale-model readings via usage.model).
+        if (!this.isCurrentEntry(entry)) return
         this.persistContextUsage(entry, usage)
       }
 
@@ -2878,9 +2906,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /**
    * Runtime-generated content can arrive after a user turn's renderer stream opened but before the
-   * runtime produced anything for it — the prompt may not be admitted yet, or (dsh) a queued goal
-   * round runs ahead of the admitted prompt. Detach that empty execution, keep the turn object
-   * queued, and let the receive-only generation own the connection first.
+   * runtime admits the prompt. Detach that empty execution and keep the turn queued until the
+   * receive-only generation releases the connection.
    */
   private deferTurnForReceiveOnly(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     const execution = entry.runtimeState.execution
@@ -3172,6 +3199,15 @@ export class AgentSessionRuntimeService extends BaseService {
         new TraceFlushListener(entry.topicId)
       ]
     })
+  }
+
+  getMcpInteractionHost(sessionId: string): { windowId: string; topicId: string; model: string } | undefined {
+    const entry = this.entries.get(sessionId)
+    if (!entry || this.getInteractionState(sessionId).userResponse === 'unavailable') return undefined
+    const windowId = application.get('AiStreamManager').getInteractionWindow(entry.topicId) ?? entry.interactionWindowId
+    if (!windowId || !application.get('WindowManager').getWindow(windowId)) return undefined
+    entry.interactionWindowId = windowId
+    return { windowId, topicId: entry.topicId, model: entry.modelId }
   }
 
   getInteractionState(sessionId: string): AgentSessionInteractionState {

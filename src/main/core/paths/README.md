@@ -47,7 +47,7 @@ explicit cleanup. `external.*` → Cherry MUST NOT delete.
 Format: `/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/` (enforced by ESLint `data-schema-key/valid-key`)
 
 - At least 2 segments separated by `.`, each starts with a letter
-- Multi-word segments: `snake_case` (e.g. `crash_dumps`, `lan_transfer`)
+- Multi-word segments: `snake_case` (e.g. `crash_dumps`, `pdf_translation`)
 
 ### File vs Directory
 
