@@ -1,3 +1,4 @@
+import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -61,6 +62,35 @@ export async function purgeAgentBackgroundTasks<T>(agentId: string, runDeletion:
     await stopAllAgentBackgroundTasks(agentId)
     return runDeletion()
   })
+}
+
+/**
+ * Every detached task this app can still reach that has not reached a terminal state, across all
+ * agents. Restore replaces the whole `Data/Agents` tree wholesale, so a task listed here is one
+ * whose record and index row promotion would delete while its process keeps running: nothing
+ * could list, stop, or purge it afterwards. Read-only — unlike {@link stopAllAgentBackgroundTasks},
+ * it does not stop anything, because a restore that is going to delete the task's own storage is
+ * not made safe by stopping the task into it first.
+ */
+export async function listLiveDetachedBackgroundTasks(): Promise<Array<{ agentId: string; id: string; pid: number }>> {
+  let agentIds: string[]
+  try {
+    agentIds = (await readdir(application.getPath('feature.agents.data'), { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+  } catch {
+    return []
+  }
+
+  const perAgent = await Promise.all(
+    agentIds.map(async (agentId) => {
+      const records = await listDetachedBackgroundTasks(storageDirFor(agentId)).catch(() => [])
+      return records
+        .filter((record) => record.status === 'running' || record.status === 'unknown')
+        .map((record) => ({ agentId, id: record.id, pid: record.pid }))
+    })
+  )
+  return perAgent.flat()
 }
 
 export async function listAgentBackgroundTasks(agentId: string): Promise<BackgroundTaskRecord[]> {

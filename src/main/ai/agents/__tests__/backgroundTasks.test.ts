@@ -620,6 +620,53 @@ describe('backgroundTasks', () => {
       psSteer.read = null
     })
 
+    // The initial `ps -p` lookup that stamps the spawned leader is a one-shot call with a
+    // one-second timeout, so a loaded runner can fail it. The task is then alive and recorded
+    // while its identity was never established: the ownership map holds an empty member set, and
+    // `verifyMembers` can only extend from a member it has already verified. Every later probe
+    // succeeds and finds nothing to extend from, so Stop/Kill stays refused for the task's whole
+    // life, restart has no persisted stamp to re-identify it, and a permanent agent deletion
+    // cannot clean it up. Identity must be recoverable while the supervisor is verifiably alive.
+    it.skipIf(process.platform === 'win32')(
+      'recovers the identity of a task whose first ps lookup failed',
+      async () => {
+        // Fail the stamp lookup exactly once — the one at spawn — by throwing the way a timed-out
+        // or ENOENT `ps` does. Returning null would only delegate to the real table.
+        let stampLookups = 0
+        psSteer.read = (args) => {
+          if (args[0] === '-p') {
+            stampLookups++
+            if (stampLookups === 1) throw Object.assign(new Error('ps: command timed out'), { code: 'ETIMEDOUT' })
+          }
+          return null
+        }
+
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+          cwd: storageDir
+        })
+        // The start itself must not reject: the task is alive and its record was written.
+        expect(record.pidStartTime).toBeTruthy()
+        expect(isPidAlive(record.pid)).toBe(true)
+
+        try {
+          // Wait past the 250 ms poll interval, so any recovery the spawn set up has had its turn.
+          await new Promise((resolve) => setTimeout(resolve, 750))
+
+          expect((await stopDetachedBackgroundTask(storageDir, record.id, true))?.status).toBe('stopped')
+          await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+        } finally {
+          psSteer.read = null
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // already drained
+          }
+        }
+      }
+    )
+
     it.skipIf(process.platform === 'win32')(
       'stops a task whose start stamp ps padded for a single-digit day',
       async () => {

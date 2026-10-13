@@ -45,12 +45,56 @@ interface OwnedGroup {
 }
 
 /** Accounts for the group's live members that can be verified as this task's own work. */
-function trackVerifiedMembers(taskId: string): void {
+function trackVerifiedMembers(taskId: string, storageDir?: string): void {
   const owned = ownedTaskGroups.get(taskId)
   if (!owned) return
   const live = readGroupMembers(owned.pgid)
   if (!live) return
+  const adopted = adoptGroupLeader(owned, live)
   verifyMembers(owned, live)
+  // Persist what the spawn could not capture, so a later restart can re-identify the leader from
+  // the record alone and a permanent purge can still discover and stop the task.
+  if (adopted && storageDir) void persistPidStartTime(taskId, storageDir, owned)
+}
+
+/**
+ * Seeds the group's leader from the table when the spawn could not stamp it. Its start stamp is
+ * the seed every member is verified from, so without one `verifyMembers` can never extend and the
+ * task is permanently unownable: Stop/Kill stays refused while it runs, restart has no persisted
+ * identity, and a permanent purge cannot discover it. This recovers it while the leader is still
+ * alive in the group it leads — the one moment the numbers provably name this task's supervisor.
+ * Returns whether a seed was established.
+ */
+function adoptGroupLeader(owned: OwnedGroup, live: Array<GroupMember>): boolean {
+  if (owned.members.size > 0) return false
+  for (const member of live) {
+    if (member.pid === owned.pgid) {
+      owned.members.set(member.pid, member.lstart)
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Writes the recovered leader stamp back onto the record. Best-effort like every other index
+ * write — the in-memory ownership already holds it, so a failed write costs only the restart
+ * path, never the live one.
+ */
+async function persistPidStartTime(taskId: string, storageDir: string, owned: OwnedGroup): Promise<void> {
+  const stamp = owned.members.get(owned.pgid)
+  if (!stamp) return
+  try {
+    await withRecordLock(taskId, async () => {
+      const current = await readRecord(storageDir, `${taskId}${BACKGROUND_TASK_RECORD_EXT}`)
+      // A record already carrying a stamp needs no rewrite, and one that has settled terminal
+      // must not be pushed back to `running` by a late recovery.
+      if (!current || current.pidStartTime || current.status !== 'running') return
+      await writeRecord(storageDir, { ...current, pidStartTime: stamp })
+    })
+  } catch (error) {
+    logger.warn('Failed to persist the recovered background task identity', { taskId, error })
+  }
 }
 
 /**
@@ -91,6 +135,7 @@ function isGroupOwnershipVerified(taskId: string): boolean {
   if (!owned) return false
   const live = readGroupMembers(owned.pgid)
   if (!live) return false
+  adoptGroupLeader(owned, live)
   verifyMembers(owned, live)
   return live.every((member) => owned.members.get(member.pid) === member.lstart)
 }
@@ -320,6 +365,17 @@ export async function startDetachedBackgroundTask(
       const members = new Map<number, string>()
       if (record.pidStartTime) members.set(record.pid, record.pidStartTime)
       ownedTaskGroups.set(id, { pgid: record.pid, members })
+      // The stamp lookup is a one-shot call that can time out, and its result is the seed every
+      // member is verified from: without one the task can never be owned, so Stop/Kill stays
+      // refused while it runs, restart has no identity, and a purge cannot discover it. Recover it
+      // here, while the leader has just been spawned and provably leads the group it names.
+      if (!record.pidStartTime && process.platform !== 'win32') {
+        const owned = ownedTaskGroups.get(id)!
+        const live = readGroupMembers(record.pid)
+        if (live && adoptGroupLeader(owned, live)) {
+          record.pidStartTime = owned.members.get(record.pid)
+        }
+      }
     }
 
     // A spawn failure can emit both 'error' and 'close'; finalize guards so
@@ -329,7 +385,9 @@ export async function startDetachedBackgroundTask(
     // still tie it to one it has verified, and that tie is easiest to establish while its parent
     // lives. The Windows kill targets the pid tree instead, so there is nothing to verify there.
     const taking =
-      process.platform === 'win32' ? undefined : setInterval(() => trackVerifiedMembers(id), LEADERLESS_GROUP_POLL_MS)
+      process.platform === 'win32'
+        ? undefined
+        : setInterval(() => trackVerifiedMembers(id, input.storageDir), LEADERLESS_GROUP_POLL_MS)
     taking?.unref?.()
     let settled = false
     // The completion the leader's handler observed. A member it backgrounded (`sleep 1 &`) can
