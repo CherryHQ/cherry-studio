@@ -4,22 +4,53 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
+import type * as FileProcessorModule from '../fileProcessor'
+
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getByIdMock, ocrMock } = vi.hoisted(() => ({
+const { getByIdMock, mediaAnalysisMock, probeMock, ocrMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
+  mediaAnalysisMock: vi.fn<(file: { kind: 'entry'; entryId: string }, signal?: AbortSignal) => Promise<string>>(),
+  probeMock: vi.fn<
+    (
+      file: { kind: 'entry'; entryId: string },
+      signal?: AbortSignal
+    ) => Promise<{
+      durationMs: number
+      hasAudio: boolean
+      hasVideo: boolean
+      mime: string
+      kind: 'audio' | 'video' | 'unknown'
+    }>
+  >(),
   ocrMock: vi.fn<() => Promise<string>>()
 }))
 vi.mock('@application', () => ({
   application: {
-    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
+    get: (name: string) => {
+      if (name === 'FileProcessingService') return { ocrImage: ocrMock }
+      if (name === 'MediaAnalysisService') return { analyzeToCompactText: mediaAnalysisMock, probe: probeMock }
+      return { getById: getByIdMock, read: readMock }
+    }
   }
 }))
 
-const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
-vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
+const { readMock, resolveMock, materializerMode } = vi.hoisted(() => ({
+  readMock: vi.fn<(id: string, options: { encoding: 'base64' }) => Promise<{ content: string; mime: string }>>(),
+  resolveMock: vi.fn(),
+  materializerMode: { real: false }
+}))
+vi.mock('../fileProcessor', async () => {
+  const actual = await vi.importActual<typeof FileProcessorModule>('../fileProcessor')
+  return {
+    materializeNativeFilePart: (
+      part: Parameters<typeof actual.materializeNativeFilePart>[0],
+      options?: Parameters<typeof actual.materializeNativeFilePart>[1]
+    ) => (materializerMode.real ? actual.materializeNativeFilePart(part, options) : resolveMock(part, options))
+  }
+})
 
 const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string | null>>() }))
 vi.mock('../attachmentTextExtraction', () => ({
@@ -87,7 +118,10 @@ const run = (
 const textOf = (parts: UIMessage['parts']) =>
   parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text)
 
-afterEach(() => vi.clearAllMocks())
+afterEach(() => {
+  materializerMode.real = false
+  vi.clearAllMocks()
+})
 
 describe('prepareChatMessages — routing', () => {
   it('keeps a native image inline (no extraction)', async () => {
@@ -111,7 +145,27 @@ describe('prepareChatMessages — routing', () => {
 
     expect(out.parts).toEqual([expect.objectContaining({ type: 'file', filename: `media.${ext}`, mediaType })])
     expect(resolveMock).toHaveBeenCalledOnce()
+    expect(mediaAnalysisMock).not.toHaveBeenCalled()
+    expect(probeMock).not.toHaveBeenCalled()
     expect(extractMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps an ordinary audio file on the stored MIME instead of the UI hint', async () => {
+    materializerMode.real = true
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp3' })
+    readMock.mockResolvedValueOnce({ content: 'QVVESU8=', mime: 'audio/mpeg' })
+
+    const [out] = await run([fileWithEntry('e1', 'clip.mp3', 'video/webm')], ALL)
+
+    expect(out.parts).toEqual([
+      expect.objectContaining({
+        type: 'file',
+        filename: 'clip.mp3',
+        mediaType: 'audio/mpeg',
+        url: 'data:audio/mpeg;base64,QVVESU8='
+      })
+    ])
+    expect(probeMock).not.toHaveBeenCalled()
   })
 
   it('OCRs a legacy non-vision image without composer source metadata', async () => {
@@ -222,13 +276,244 @@ describe('prepareChatMessages — routing', () => {
   it.each([
     ['audio', 'mp3', 'audio/mpeg'],
     ['video', 'mp4', 'video/mp4']
-  ] as const)('notes a managed %s part the endpoint cannot process', async (kind, ext, mediaType) => {
+  ] as const)('analyzes a managed %s part the endpoint cannot process', async (_kind, ext, mediaType) => {
     getByIdMock.mockResolvedValueOnce({ ext })
+    mediaAnalysisMock.mockResolvedValueOnce('# Media analysis\n[0:00] compact result')
 
     const [out] = await run([fileWithEntry('e1', `media.${ext}`, mediaType)], NONE)
 
-    expect(textOf(out.parts)[0]).toContain(`can't process the attached ${kind} file`)
+    expect(textOf(out.parts)[0]).toBe(`Attached file "media.${ext}":\n# Media analysis\n[0:00] compact result`)
+    expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+    expect(probeMock).not.toHaveBeenCalled()
     expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['probe failed', 'unusable_media_analysis'])(
+    'degrades a non-native video to a clear note when media analysis fails: %s',
+    async (message) => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+      mediaAnalysisMock.mockRejectedValueOnce(new Error(message))
+
+      const [out] = await run([fileWithEntry('e1', 'media.mp4', 'video/mp4')], NONE)
+
+      expect(textOf(out.parts)[0]).toBe(
+        'Attached file "media.mp4":\nCould not analyze the attached video file "media.mp4".'
+      )
+      expect(resolveMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rethrows cancellation from media analysis', async () => {
+    const controller = new AbortController()
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+    mediaAnalysisMock.mockImplementationOnce(async () => {
+      controller.abort()
+      throw new DOMException('Aborted', 'AbortError')
+    })
+
+    const messages = [userMessage([fileWithEntry('e1', 'media.mp4', 'video/mp4')])] as UIMessage[]
+    await expect(
+      prepareChatMessages(messages, {
+        attachments: collectFileAttachments(messages),
+        nativeSupport: NONE,
+        isToolCapable: true,
+        signal: controller.signal
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  describe('ambiguous WebM', () => {
+    const audioOnly = {
+      durationMs: 1000,
+      hasAudio: true,
+      hasVideo: false,
+      mime: 'audio/webm',
+      kind: 'audio' as const
+    }
+    const withVideo = {
+      durationMs: 1000,
+      hasAudio: true,
+      hasVideo: true,
+      mime: 'video/webm',
+      kind: 'video' as const
+    }
+    const audioNative: NativeFileSupport = { image: false, pdf: false, audio: true, video: false }
+    const videoNative: NativeFileSupport = { image: false, pdf: false, audio: false, video: true }
+
+    it('keeps audio-only WebM native when the model accepts audio but not video', async () => {
+      materializerMode.real = true
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockResolvedValueOnce(audioOnly)
+      readMock.mockResolvedValueOnce({ content: 'QVVESU8=', mime: 'video/webm' })
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], audioNative)
+
+      expect(probeMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(out.parts).toEqual([
+        expect.objectContaining({
+          type: 'file',
+          filename: 'clip.webm',
+          mediaType: 'audio/webm',
+          url: 'data:audio/webm;base64,QVVESU8='
+        })
+      ])
+      expect(mediaAnalysisMock).not.toHaveBeenCalled()
+    })
+
+    it('dispatches a renamed Matroska container as the probed MIME', async () => {
+      materializerMode.real = true
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockResolvedValueOnce({
+        durationMs: 1000,
+        hasAudio: true,
+        hasVideo: false,
+        mime: 'audio/x-matroska',
+        kind: 'audio'
+      })
+      readMock.mockResolvedValueOnce({ content: 'TUFUUk9TS0E=', mime: 'video/webm' })
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], audioNative)
+
+      expect(out.parts).toEqual([
+        expect.objectContaining({
+          type: 'file',
+          filename: 'clip.webm',
+          mediaType: 'audio/x-matroska',
+          url: 'data:audio/x-matroska;base64,TUFUUk9TS0E='
+        })
+      ])
+      expect(mediaAnalysisMock).not.toHaveBeenCalled()
+    })
+
+    it('does not deliver audio-only WebM as native video', async () => {
+      getByIdMock.mockResolvedValueOnce({ ext: '.webm' })
+      probeMock.mockResolvedValueOnce(audioOnly)
+      mediaAnalysisMock.mockResolvedValueOnce('transcript')
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], videoNative)
+
+      expect(probeMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(resolveMock).not.toHaveBeenCalled()
+      expect(readMock).not.toHaveBeenCalled()
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(textOf(out.parts)[0]).toBe('Attached file "clip.webm":\ntranscript')
+    })
+
+    it('keeps video WebM native only when the model accepts video', async () => {
+      materializerMode.real = true
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockResolvedValueOnce(withVideo)
+      readMock.mockResolvedValueOnce({ content: 'VklERU8=', mime: 'audio/webm' })
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], videoNative)
+
+      expect(out.parts).toEqual([
+        expect.objectContaining({
+          type: 'file',
+          filename: 'clip.webm',
+          mediaType: 'video/webm',
+          url: 'data:video/webm;base64,VklERU8='
+        })
+      ])
+      expect(mediaAnalysisMock).not.toHaveBeenCalled()
+    })
+
+    it('analyzes video WebM when the model accepts audio but not video', async () => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockResolvedValueOnce(withVideo)
+      mediaAnalysisMock.mockResolvedValueOnce('frames')
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], audioNative)
+
+      expect(resolveMock).not.toHaveBeenCalled()
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(textOf(out.parts)[0]).toBe('Attached file "clip.webm":\nframes')
+    })
+
+    it('analyzes WebM for a model with no native audio or video support', async () => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockResolvedValueOnce(audioOnly)
+      mediaAnalysisMock.mockResolvedValueOnce('transcript')
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'audio/webm')], NONE)
+
+      expect(resolveMock).not.toHaveBeenCalled()
+      expect(textOf(out.parts)[0]).toBe('Attached file "clip.webm":\ntranscript')
+    })
+
+    it('does not analyze a WebM probe that finds neither audio nor video', async () => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockResolvedValueOnce({
+        durationMs: 0,
+        hasAudio: false,
+        hasVideo: false,
+        mime: 'application/octet-stream',
+        kind: 'unknown'
+      })
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], ALL)
+
+      expect(probeMock).toHaveBeenCalledOnce()
+      expect(resolveMock).not.toHaveBeenCalled()
+      expect(mediaAnalysisMock).not.toHaveBeenCalled()
+      expect(textOf(out.parts)[0]).toBe(
+        'Attached file "clip.webm":\nCannot read the attached file "clip.webm" as text (unsupported file type).'
+      )
+    })
+
+    it('rethrows cancellation from the WebM probe', async () => {
+      materializerMode.real = true
+      const controller = new AbortController()
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockImplementationOnce(async (_file, signal) => {
+        expect(signal).toBe(controller.signal)
+        controller.abort()
+        throw new DOMException('Aborted', 'AbortError')
+      })
+
+      const messages = [userMessage([fileWithEntry('e1', 'clip.webm', 'video/webm')])] as UIMessage[]
+      await expect(
+        prepareChatMessages(messages, {
+          attachments: collectFileAttachments(messages),
+          nativeSupport: NONE,
+          isToolCapable: true,
+          signal: controller.signal
+        })
+      ).rejects.toMatchObject({ name: 'AbortError' })
+      expect(mediaAnalysisMock).not.toHaveBeenCalled()
+      expect(resolveMock).not.toHaveBeenCalled()
+      expect(readMock).not.toHaveBeenCalled()
+    })
+
+    it('does not emit stored video/webm when audio-only WebM bytes cannot be read', async () => {
+      materializerMode.real = true
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockResolvedValueOnce(audioOnly)
+      readMock.mockRejectedValueOnce(new Error('unreadable /private/secret/clip.webm'))
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], audioNative)
+
+      const text = textOf(out.parts).join('\n')
+      expect(text).toBe('Attached file "clip.webm": [could not read this file].')
+      expect(text).not.toContain('video/webm')
+      expect(text).not.toContain('/private/secret')
+      expect(out.parts.some((part) => part.type === 'file')).toBe(false)
+    })
+
+    it('hides a WebM probe failure instead of inlining the error', async () => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockRejectedValueOnce(new Error('ffprobe failed for /private/secret/clip.webm'))
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], NONE)
+
+      const text = textOf(out.parts).join('\n')
+      expect(probeMock).toHaveBeenCalledOnce()
+      expect(text).toBe('Attached file "clip.webm": [could not read this file].')
+      expect(text).not.toContain('/private/secret')
+      expect(text).not.toContain('ffprobe')
+      expect(mediaAnalysisMock).not.toHaveBeenCalled()
+      expect(resolveMock).not.toHaveBeenCalled()
+    })
   })
 
   it('notes a binary/unsupported file instead of garbage-decoding it', async () => {
