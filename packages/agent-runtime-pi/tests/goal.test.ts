@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createGoalExtension } from '../src'
 import {
+  askAtTurnEnd,
   crashedTranscript,
   goalModel,
   goalNotices,
@@ -28,16 +29,6 @@ import { textOf, toolResults } from './toolResults'
 
 /** One round per command or resume, so command tests see a settled goal. */
 const confirmEachRound = goalPort({ defaults: { autonomy: () => 'confirm-each-round' } })
-
-/** Queues a user message at the first turn end; Pi takes it in within the same run. */
-function askAtFirstTurnEnd(s: AgentSession) {
-  let asked = false
-  s.subscribe((event) => {
-    if (event.type !== 'turn_end' || asked) return
-    asked = true
-    void s.prompt('a question from the user', { streamingBehavior: 'followUp' })
-  })
-}
 
 describe('goal tools', () => {
   it('lets the model create a goal in a human turn and read it back with the same id', async () => {
@@ -409,7 +400,7 @@ describe('goal continuation', () => {
   // Breaks when a human turn is looked for at turn_start (the user message is not on the branch yet): its reply would be billed.
   it('a user message taken in during a goal run is a human turn, not billed to the goal', async () => {
     const { session: s, host, calls } = await goalSession([working], goalPort({ defaults: { maxGoalRounds: 2 } }))
-    askAtFirstTurnEnd(s)
+    askAtTurnEnd(s, 1)
     await promptIdle(s, '/goal Keep working')
 
     expect(calls.map((call) => roundStart(call.prompt))).toEqual([1, undefined, 2])
@@ -443,7 +434,7 @@ describe('goal continuation', () => {
   // ends round 1, and the settle would start round 2 without a resume.
   it('in confirm-each-round mode a run that ran a goal round pauses, even when a user message ended it', async () => {
     const { session: s, host, calls } = await goalSession([working], confirmEachRound)
-    askAtFirstTurnEnd(s)
+    askAtTurnEnd(s, 1)
     await promptIdle(s, '/goal Keep working')
 
     expect(calls.map((call) => roundStart(call.prompt))).toEqual([1, undefined])
