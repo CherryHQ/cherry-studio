@@ -134,13 +134,13 @@ export function getComposerClipboardPasteOverride(
 
   for (const segment of fragment.segments) {
     if (segment.type === 'text') {
-      content.push(...createComposerPlainTextContent(segment.text))
+      for (const node of createComposerPlainTextContent(segment.text)) content.push(node)
       continue
     }
 
     const resolved = resolvePrivateClipboardToken(segment.token, options)
     if (!resolved) {
-      content.push(...createComposerPlainTextContent(segment.fallbackText))
+      for (const node of createComposerPlainTextContent(segment.fallbackText)) content.push(node)
       continue
     }
 

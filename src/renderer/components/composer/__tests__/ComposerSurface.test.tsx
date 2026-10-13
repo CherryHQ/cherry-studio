@@ -4172,6 +4172,52 @@ describe('ComposerSurface', () => {
     expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
   })
 
+  it.each(['private MIME', 'session cache'])('restores a 70,000-line draft and link token from %s', async (source) => {
+    const text = 'x\n'.repeat(70000)
+    const token = {
+      id: 'link-token-large-paste',
+      kind: 'link' as const,
+      label: 'example.com/docs',
+      promptText: 'https://example.com/docs'
+    }
+    const plainText = text + token.promptText
+    const fragment = createComposerClipboardFragment([
+      { type: 'text', text },
+      { type: 'token', token, fallbackText: token.promptText }
+    ])
+    if (source === 'session cache') await primeComposerClipboardSessionCache(plainText, fragment)
+    mocks.preferences['chat.input.paste_long_text_as_file'] = false
+    render(<ComposerSurface {...baseProps} supportedExts={['.txt']} />)
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const editor = new Editor({ element: null, extensions: createComposerEditorPreset() })
+
+    try {
+      act(() => {
+        mocks.editorOptions.handlePaste(
+          { dom: Object.assign(document.createElement('div'), { editor }) },
+          {
+            preventDefault: () => undefined,
+            clipboardData: {
+              files: [],
+              getData: (type: string) => {
+                if (type === 'text/plain') return plainText
+                if (type === COMPOSER_CLIPBOARD_FRAGMENT_MIME && source === 'private MIME') return fragment
+                return ''
+              }
+            }
+          }
+        )
+      })
+      expect(editor.getText({ blockSeparator: '\n' })).toBe(plainText)
+      const link = editor.state.doc.firstChild?.lastChild
+      expect(link?.type.name).toBe('composerToken')
+      expect(link?.attrs).toMatchObject(token)
+    } finally {
+      editor.destroy()
+    }
+  })
+
   it('matches the session cache across Windows clipboard line ending round-trips', async () => {
     const resolveSkillMarker = vi.fn((marker: string) =>
       marker === 'pdf'
