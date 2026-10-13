@@ -46,7 +46,7 @@ function parseFiniteSeconds(value: string | undefined): number | undefined {
 }
 
 export interface VideoTailProbePoint {
-  /** Video stream start plus its duration, in seconds on the container timeline. */
+  /** Stream start plus stream duration when that duration exists; otherwise format start plus format duration. */
   endSeconds: number
   /** `format.start_time`. Input `-ss` is relative to this, not the video stream start. */
   formatStartTimeSeconds: number
@@ -57,10 +57,16 @@ export function videoTailProbePoint(probe: FfprobeResult): VideoTailProbePoint |
   const video = (probe.streams ?? []).find((stream) => stream.codec_type === 'video' && !isAttachedPicture(stream))
   if (!video) return undefined
   const formatStartTimeSeconds = parseFiniteSeconds(probe.format?.start_time) ?? 0
-  const videoStartSeconds = parseFiniteSeconds(video.start_time) ?? formatStartTimeSeconds
-  const durationSeconds = parseFiniteSeconds(video.duration) ?? parseFiniteSeconds(probe.format?.duration)
-  if (durationSeconds == null || durationSeconds <= 0) return undefined
-  return { endSeconds: videoStartSeconds + durationSeconds, formatStartTimeSeconds }
+  const videoDurationSeconds = parseFiniteSeconds(video.duration)
+  if (videoDurationSeconds != null && videoDurationSeconds > 0) {
+    const videoStartSeconds = parseFiniteSeconds(video.start_time) ?? formatStartTimeSeconds
+    return { endSeconds: videoStartSeconds + videoDurationSeconds, formatStartTimeSeconds }
+  }
+  // An explicit non-positive stream duration is not a missing value, so it does not borrow the format duration.
+  if (videoDurationSeconds != null) return undefined
+  const formatDurationSeconds = parseFiniteSeconds(probe.format?.duration)
+  if (formatDurationSeconds == null || formatDurationSeconds <= 0) return undefined
+  return { endSeconds: formatStartTimeSeconds + formatDurationSeconds, formatStartTimeSeconds }
 }
 
 /** ffprobe interval covering the end of the video timeline, including a packet that starts earlier. */

@@ -1,7 +1,11 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import type { UtilityProcessMethod } from '@main/core/utilityProcess/types'
 import type { ClassifiedMediaProbe } from '@main/features/fileProcessing/media/probeClassification'
+import { toAsarUnpackedPath } from '@main/utils/asar'
+import { getBinaryName } from '@main/utils/binaryResolver'
 
 export interface MediaFfmpegInitData {
   ffmpegPath: string
@@ -82,18 +86,32 @@ export const mediaFfmpegProcess = defineUtilityProcess<MediaFfmpegContract, Medi
   entry: 'media-ffmpeg',
   cancellation: 'cooperative',
   idleTimeoutMs: 5 * 60 * 1000,
+  // The packaged tree is immutable. cherry.bin is filled later by Background extraction.
   createInitData: () => {
     if (process.platform === 'linux') {
+      const tree = packagedLinuxFfmpegTree()
       return {
-        ffmpegPath: application.getPath('cherry.bin.ffmpeg.bin', 'ffmpeg'),
-        ffprobePath: application.getPath('cherry.bin.ffmpeg.bin', 'ffprobe'),
-        linuxLibraryDir: application.getPath('cherry.bin.ffmpeg.lib')
+        ffmpegPath: path.join(tree, 'bin', 'ffmpeg'),
+        ffprobePath: path.join(tree, 'bin', 'ffprobe'),
+        linuxLibraryDir: path.join(tree, 'lib')
       }
     }
-    const suffix = process.platform === 'win32' ? '.exe' : ''
     return {
-      ffmpegPath: application.getPath('cherry.bin', `ffmpeg${suffix}`),
-      ffprobePath: application.getPath('cherry.bin', `ffprobe${suffix}`)
+      ffmpegPath: packagedMediaBinary('ffmpeg'),
+      ffprobePath: packagedMediaBinary('ffprobe')
     }
   }
 })
+
+function packagedPlatformDir(): string {
+  return path.join(application.getPath('app.root.resources.binaries'), `${process.platform}-${process.arch}`)
+}
+
+function packagedMediaBinary(name: string): string {
+  return toAsarUnpackedPath(path.join(packagedPlatformDir(), getBinaryName(name)))
+}
+
+/** Linux `DT_RPATH` is `$ORIGIN/../lib`, so the LGPL tree stays under `ffmpeg/`. */
+function packagedLinuxFfmpegTree(): string {
+  return toAsarUnpackedPath(path.join(packagedPlatformDir(), 'ffmpeg'))
+}
