@@ -104,8 +104,8 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
                 configured.onSessionCreated?.(session)
                 const entry = attach(session)
                 entries.set(session.sessionId, Promise.resolve({ status: 'confirmed', value: entry }))
-                if (!parent) childRelations.push({ child: entry, trigger: child.parentToolCallId })
-                publishChild(entry, child.parentToolCallId)
+                if (!parent) childRelations.push({ child: entry, trigger: child.continuedBy ?? child.parentToolCallId })
+                publishChild(entry, child.continuedBy ?? child.parentToolCallId)
               }
             }
           }
