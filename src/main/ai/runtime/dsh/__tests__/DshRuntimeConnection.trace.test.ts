@@ -42,7 +42,7 @@ const runtimeMocks = vi.hoisted(() => ({
   harnessOptions: undefined as Record<string, any> | undefined,
   getShellEnv: vi.fn(),
   resolveBun: vi.fn(),
-  getGatewayConfig: vi.fn()
+  getInternalGatewayOrigin: vi.fn()
 }))
 
 const baseSnapshot = () => ({
@@ -168,7 +168,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const get = result.application.getContainer().get.bind(result.application.getContainer())
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'ApiGatewayService') return { getCurrentConfig: runtimeMocks.getGatewayConfig }
+    if (name === 'ApiGatewayService') return { getInternalGatewayOrigin: runtimeMocks.getInternalGatewayOrigin }
     return get(name)
   })
   return result
@@ -223,7 +223,7 @@ beforeEach(() => {
   runtimeMocks.forkDshSession.mockReset().mockResolvedValue({ resumeToken: 'child', checkpoints: [], publish: [] })
   runtimeMocks.resolveInjection.mockReset().mockReturnValue(baseInjection())
   runtimeMocks.usesDshGateway.mockReset().mockReturnValue(false)
-  runtimeMocks.getGatewayConfig.mockReset().mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
+  runtimeMocks.getInternalGatewayOrigin.mockReset().mockReturnValue('http://127.0.0.1:23333')
   vi.mocked(DshBridgeServer).mockClear()
   spans.length = 0
   startSpan.mockClear()

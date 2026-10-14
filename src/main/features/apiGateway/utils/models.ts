@@ -9,6 +9,8 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isGatewayRoutableModel, isPublicGatewayRoutableModel } from '@shared/utils/model'
 import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
 
+import type { InternalGatewayFeature } from '../ApiGatewayService'
+
 const logger = loggerService.withContext('ApiGatewayModels')
 
 /**
@@ -96,7 +98,7 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
 /** Resolve a `providerId:apiModelId`; Cherry Cloud models require an authenticated internal request. */
 export async function resolveGatewayModelAddress(
   modelAddress: string,
-  internalFeature?: 'agent' | 'translate'
+  internalFeature?: InternalGatewayFeature
 ): Promise<ResolvedGatewayModelAddress> {
   const sepIdx = modelAddress.indexOf(':')
   if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {

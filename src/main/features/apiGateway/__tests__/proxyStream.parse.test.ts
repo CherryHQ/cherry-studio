@@ -15,7 +15,7 @@ const {
   mockStreamPrompt,
   mockGetProvider,
   mockListModels,
-  mockIsInternalAgentRequest,
+  mockGetInternalFeature,
   mockSyncEntitledModelsIfStale,
   mockExtractStreamOptions,
   mockExtractProviderOptions,
@@ -24,7 +24,7 @@ const {
   mockStreamPrompt: vi.fn(),
   mockGetProvider: vi.fn(),
   mockListModels: vi.fn(),
-  mockIsInternalAgentRequest: vi.fn(),
+  mockGetInternalFeature: vi.fn<(headers: Headers) => 'agent' | 'translate' | undefined>(),
   mockSyncEntitledModelsIfStale: vi.fn(),
   mockExtractStreamOptions: vi.fn(),
   mockExtractProviderOptions: vi.fn(),
@@ -43,9 +43,7 @@ vi.mock('@application', () => ({
         return {
           getAgentSessionId: vi.fn(),
           resolveAgentSessionUsage: vi.fn(),
-          isTranslationCredential: (headers: Headers, model: unknown) =>
-            translationGateway?.isTranslationCredential(headers, model) ?? false,
-          isInternalAgentRequest: mockIsInternalAgentRequest
+          getInternalFeature: mockGetInternalFeature
         }
       }
       if (name === 'CherryCloudService') {
@@ -83,7 +81,6 @@ vi.mock('../adapters', () => ({
   }
 }))
 
-import { ApiGatewayService } from '../ApiGatewayService'
 import { processMessage } from '../proxyStream'
 
 beforeEach(() => {
@@ -94,7 +91,7 @@ beforeEach(() => {
     throw new Error('Provider not found')
   })
   mockListModels.mockReturnValue([])
-  mockIsInternalAgentRequest.mockReturnValue(false)
+  mockGetInternalFeature.mockReturnValue(undefined)
   mockSyncEntitledModelsIfStale.mockResolvedValue({
     entitledModelIds: [`${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`],
     freeModelIds: [],
@@ -137,8 +134,6 @@ async function resolveValid(model: string): Promise<string | undefined> {
   await promise
   return uniqueModelId
 }
-
-let translationGateway: ApiGatewayService | undefined
 
 describe('processMessage model-id parsing', () => {
   it('rejects a missing model field', async () => {
@@ -273,10 +268,9 @@ describe('processMessage model-id parsing', () => {
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
-  it('routes Cherry Cloud messages authorized by the production usage-token gate', async () => {
+  it('routes Cherry Cloud messages for an internal Agent request with Agent admission', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-    const gatewayService = new ApiGatewayService()
-    mockIsInternalAgentRequest.mockImplementation((headers) => gatewayService.isInternalAgentRequest(headers))
+    mockGetInternalFeature.mockReturnValue('agent')
     const responsePromise = processMessage({
       params: {
         model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`,
@@ -285,11 +279,12 @@ describe('processMessage model-id parsing', () => {
       },
       inputFormat: 'anthropic',
       outputFormat: 'anthropic',
-      requestHeaders: new Headers(gatewayService.getAgentSessionUsageHeaders('session-1'))
+      requestHeaders: new Headers()
     })
 
     await vi.waitFor(() => expect(captured.opts).toBeDefined())
     expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free'))
+    expect(captured.opts).toMatchObject({ modelUsageFeature: 'agent', tokenUsageSource: 'agent' })
     expect(mockListModels).toHaveBeenCalledWith({ providerId: CHERRY_CLOUD_PROVIDER_ID, enabled: true })
     expect(mockSyncEntitledModelsIfStale).toHaveBeenCalledOnce()
     void captured.opts!.listener!.onDone({} as any)
@@ -299,7 +294,7 @@ describe('processMessage model-id parsing', () => {
 
   it('preserves Cherry Cloud permission refresh failures as retryable server errors', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockGetInternalFeature.mockReturnValue('agent')
     mockSyncEntitledModelsIfStale.mockRejectedValueOnce(new Error('control service unavailable'))
 
     await expect(
@@ -320,7 +315,7 @@ describe('processMessage model-id parsing', () => {
     'does not start inference after cancellation during permission refresh (stream=%s)',
     async (stream) => {
       mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-      mockIsInternalAgentRequest.mockReturnValue(true)
+      mockGetInternalFeature.mockReturnValue('agent')
       const refreshStarted = Promise.withResolvers<void>()
       const refresh = Promise.withResolvers<CherryCloudModelSyncResult>()
       mockSyncEntitledModelsIfStale.mockImplementationOnce(() => {
@@ -368,8 +363,9 @@ describe('processMessage model-id parsing', () => {
 })
 
 describe('PDF translation admission', () => {
-  it('routes a model-scoped translation credential with translate rather than agent admission', async () => {
+  it('routes the translate credential with translate rather than agent admission', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'translate-only', 'translate-only', CHERRY_CLOUD_MODEL_GROUP)
+    mockGetInternalFeature.mockReturnValue('translate')
     mockSyncEntitledModelsIfStale.mockResolvedValue({
       availableModelIdsByFeature: {
         agent: [],
@@ -378,47 +374,33 @@ describe('PDF translation admission', () => {
       },
       quotaExhaustedModelIds: []
     })
-    translationGateway = new ApiGatewayService()
-    const credential = translationGateway.createTranslationCredential(`${CHERRY_CLOUD_PROVIDER_ID}:translate-only`)
-    try {
-      const responsePromise = processMessage({
-        params: {
-          model: `${CHERRY_CLOUD_PROVIDER_ID}:translate-only`,
-          messages: [{ role: 'user', content: 'translate' }]
-        },
-        inputFormat: 'openai',
-        outputFormat: 'openai',
-        requestHeaders: new Headers({ authorization: `Bearer ${credential.apiKey}` })
-      })
-      await vi.waitFor(() => expect(captured.opts).toBeDefined())
-      expect(captured.opts).toMatchObject({ modelUsageFeature: 'translate' })
-      expect(captured.opts).not.toHaveProperty('tokenUsageSource', 'agent')
-      void captured.opts!.listener!.onDone({} as any)
-      await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
-    } finally {
-      credential.dispose()
-      translationGateway = undefined
-    }
+    const responsePromise = processMessage({
+      params: {
+        model: `${CHERRY_CLOUD_PROVIDER_ID}:translate-only`,
+        messages: [{ role: 'user', content: 'translate' }]
+      },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers()
+    })
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    expect(captured.opts).toMatchObject({ modelUsageFeature: 'translate' })
+    expect(captured.opts).not.toHaveProperty('tokenUsageSource', 'agent')
+    void captured.opts!.listener!.onDone({} as any)
+    await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
   })
-})
 
-it('rejects an Agent-only cloud model even with a valid translation credential', async () => {
-  mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-  translationGateway = new ApiGatewayService()
-  const address = `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`
-  const credential = translationGateway.createTranslationCredential(address)
-  try {
+  it('rejects an Agent-only cloud model for the translate credential', async () => {
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+    mockGetInternalFeature.mockReturnValue('translate')
     await expect(
       processMessage({
-        params: { model: address, messages: [] },
+        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
         inputFormat: 'openai',
         outputFormat: 'openai',
-        requestHeaders: new Headers({ authorization: `Bearer ${credential.apiKey}` })
+        requestHeaders: new Headers()
       })
     ).rejects.toMatchObject({ status: 400 })
     expect(mockStreamPrompt).not.toHaveBeenCalled()
-  } finally {
-    credential.dispose()
-    translationGateway = undefined
-  }
+  })
 })

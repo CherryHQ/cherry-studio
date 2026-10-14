@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'node:crypto'
 import { hostname, networkInterfaces } from 'node:os'
 
 import { Mutex } from 'async-mutex'
@@ -6,19 +5,25 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { InProcessUsageContext } from '@main/ai/types'
+import type { InProcessUsageContext, ModelUsageFeature } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { OutputFor } from '@shared/ipc/types'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
+import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
+import { isValidToken } from './middleware/auth'
 import { getInterfaceMetadata, getRemoteAddressOptions } from './remoteAddresses'
 import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
-const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
+const INTERNAL_GATEWAY_HOST = '127.0.0.1'
+const INTERNAL_GATEWAY_FEATURES = ['agent', 'translate'] as const
+
+/** Cherry-launched gateway consumers; each authenticates with its own in-memory key. */
+export type InternalGatewayFeature = Extract<ModelUsageFeature, (typeof INTERNAL_GATEWAY_FEATURES)[number]>
 
 @Injectable('ApiGatewayService')
 @ServicePhase(Phase.WhenReady)
@@ -26,11 +31,14 @@ const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
-  /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
-  private readonly internalUsageToken = uuidv4()
-  /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
-  private readonly internalRequestToken = uuidv4()
-  private readonly translationTokens = new Map<string, string>()
+  /** Never persisted or shown to the user; the key a request presents identifies its internal feature. */
+  private readonly internalApiKeys: Record<InternalGatewayFeature, string> = {
+    agent: `cs-internal-${uuidv4()}`,
+    translate: `cs-internal-${uuidv4()}`
+  }
+  /** Loopback listener for internal consumers, started on first use and independent of `enabled`. */
+  private internalGateway: Promise<ApiGateway> | null = null
+  private internalOrigin: string | undefined
   /** Latest persistent desired state. Its only source is the `enabled` preference. */
   private desiredEnabled = false
   /**
@@ -128,6 +136,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
     this.publishRunningState(false)
     logger.info('API Gateway deactivated')
+  }
+
+  protected async onStop(): Promise<void> {
+    const internalGateway = this.internalGateway
+    this.internalGateway = null
+    this.internalOrigin = undefined
+    await internalGateway?.then((gateway) => gateway.stop()).catch(() => undefined)
   }
 
   /**
@@ -378,37 +393,51 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  /** Job-scoped bearer credential, restricted to one PDF translation model. */
-  createTranslationCredential(modelAddress: string): { apiKey: string; dispose: () => void } {
-    const apiKey = uuidv4()
-    this.translationTokens.set(apiKey, modelAddress)
-    return {
-      apiKey,
-      dispose: () => {
-        this.translationTokens.delete(apiKey)
-      }
-    }
+  /**
+   * Base URL and credential for a Cherry-launched consumer of `feature`. Served by a dedicated loopback
+   * listener so internal traffic never depends on, or turns on, the user-facing gateway.
+   */
+  async ensureInternalGateway(feature: InternalGatewayFeature): Promise<{ baseUrl: string; apiKey: string }> {
+    this.internalGateway ??= this.startInternalGateway().catch((error: unknown) => {
+      this.internalGateway = null
+      throw error
+    })
+    await this.internalGateway
+    return { baseUrl: this.internalOrigin!, apiKey: this.internalApiKeys[feature] }
   }
 
-  isTranslationRequest(request: Request, modelAddress: unknown): boolean {
-    if (request.method !== 'POST' || new URL(request.url).pathname !== '/v1/chat/completions') return false
-    return this.isTranslationCredential(request.headers, modelAddress)
+  /** The internal listener's origin once started; read-only, for connection signatures. */
+  getInternalGatewayOrigin(): string | undefined {
+    return this.internalOrigin
   }
 
-  isTranslationCredential(headers: Headers, modelAddress: unknown): boolean {
-    const token = headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1]
-    return typeof modelAddress === 'string' && !!token && this.translationTokens.get(token) === modelAddress
+  private async startInternalGateway(): Promise<ApiGateway> {
+    const { ApiGateway } = await import('./server')
+    const gateway = new ApiGateway({ host: INTERNAL_GATEWAY_HOST, port: 0 })
+    await gateway.start()
+    this.internalOrigin = gatewayClientOrigin(INTERNAL_GATEWAY_HOST, gateway.getPort())
+    logger.info('Internal API gateway started', { origin: this.internalOrigin })
+    return gateway
   }
 
-  getInternalRequestToken(): string {
-    return this.internalRequestToken
+  private internalFeatureForKey(token: string): InternalGatewayFeature | undefined {
+    return INTERNAL_GATEWAY_FEATURES.find((feature) => isValidToken(token, this.internalApiKeys[feature]))
   }
 
-  isInternalRequestToken(candidate: string | undefined): boolean {
-    if (!candidate) return false
-    const expected = Buffer.from(this.internalRequestToken)
-    const received = Buffer.from(candidate)
-    return expected.length === received.length && timingSafeEqual(expected, received)
+  isInternalApiKey(token: string): boolean {
+    return this.internalFeatureForKey(token) !== undefined
+  }
+
+  /** The internal feature whose key authenticated the request; undefined for external callers. */
+  getInternalFeature(headers: Headers): InternalGatewayFeature | undefined {
+    const token =
+      headers.get('x-api-key')?.trim() ||
+      headers
+        .get('authorization')
+        ?.match(/^Bearer\s+(.+)$/i)?.[1]
+        ?.trim() ||
+      headers.get('x-goog-api-key')?.trim()
+    return token ? this.internalFeatureForKey(token) : undefined
   }
 
   getCurrentConfig(): ApiGatewayConfig {
@@ -433,30 +462,18 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return apiKey
   }
 
-  /**
-   * Headers injected only into the Claude Agent SDK subprocess that Cherry
-   * launches for this session. They let the HTTP gateway retain per-provider
-   * request records while attaching them to the owning agent.
-   */
+  /** Headers an internal Agent consumer sends so gateway hops are attributed to its session. */
   getAgentSessionUsageHeaders(sessionId: string): Record<string, string> {
-    return {
-      [AGENT_SESSION_ID_HEADER]: sessionId,
-      [INTERNAL_USAGE_TOKEN_HEADER]: this.internalUsageToken
-    }
+    return { [AGENT_SESSION_ID_HEADER]: sessionId }
   }
 
-  /** Process-local proof that the request came from a Cherry-launched SDK subprocess. */
-  isInternalAgentRequest(headers: Headers): boolean {
-    return headers.get(INTERNAL_USAGE_TOKEN_HEADER) === this.internalUsageToken
-  }
-
-  /** Validated Agent session id from the internal usage headers; undefined for external requests. */
+  /** Agent session id of an internal Agent request; undefined for every other caller. */
   getAgentSessionId(headers: Headers): string | undefined {
-    if (!this.isInternalAgentRequest(headers)) return undefined
+    if (this.getInternalFeature(headers) !== 'agent') return undefined
     return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
   }
 
-  /** Validate the process-local proof, then capture the reserved continuation or active turn. */
+  /** Capture the reserved continuation or active turn of the requesting Agent session. */
   resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
     const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined

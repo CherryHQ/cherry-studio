@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { getApiGatewayClientOrigin } from '@main/ai/runtime/agentApiGateway'
 import { mergeAgentLoopbackProxyBypass } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import type { Model } from '@shared/data/types/model'
@@ -9,13 +8,9 @@ import { usesDshGateway } from './modelInjection'
 
 /** Gateway bypass hostname: the gateway is local even on a non-default bind such as 127.0.0.2. */
 export function dshGatewayBypassRule(provider: Provider, model: Model): string | undefined {
-  if (!usesDshGateway(provider, model)) return undefined
-  const config = application.get('ApiGatewayService').getCurrentConfig()
-  try {
-    return new URL(getApiGatewayClientOrigin(config)).hostname
-  } catch {
-    return undefined
-  }
+  const origin = application.get('ApiGatewayService').getInternalGatewayOrigin()
+  if (!usesDshGateway(provider, model) || !origin) return undefined
+  return new URL(origin).hostname
 }
 
 /**

@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   findBySessionId: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   usesDshGateway: vi.fn(),
-  getGatewayConfig: vi.fn(),
+  getInternalGatewayOrigin: vi.fn(),
   gatewayFingerprint: 'gateway-1'
 }))
 
@@ -33,7 +33,7 @@ vi.mock('@application', async () => {
     if (name === 'McpRuntimeService') return { getConnectedServerInstructions: mocks.getInstructions }
     if (name === 'AgentSessionRuntimeService')
       return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
-    if (name === 'ApiGatewayService') return { getCurrentConfig: mocks.getGatewayConfig }
+    if (name === 'ApiGatewayService') return { getInternalGatewayOrigin: mocks.getInternalGatewayOrigin }
     return get(name)
   })
   return result
@@ -111,7 +111,7 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', null)
   mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
   mocks.usesDshGateway.mockReturnValue(false)
-  mocks.getGatewayConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
+  mocks.getInternalGatewayOrigin.mockReturnValue('http://127.0.0.1:23333')
   mocks.gatewayFingerprint = 'gateway-1'
 })
 
@@ -258,7 +258,7 @@ describe('captureDshConnectionSnapshot', () => {
     mocks.usesDshGateway.mockReturnValue(true)
     vi.stubEnv('HTTP_PROXY', 'http://proxy.corp.example:8080')
     const loopback = (await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
-    mocks.getGatewayConfig.mockReturnValue({ enabled: true, host: '127.0.0.2', port: 23333 })
+    mocks.getInternalGatewayOrigin.mockReturnValue('http://127.0.0.2:23333')
     expect((await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).not.toBe(loopback)
   })
   it('invalidates cached tools when Agent browser control changes', async () => {

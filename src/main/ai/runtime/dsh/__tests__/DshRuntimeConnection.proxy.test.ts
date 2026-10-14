@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   getShellEnv: vi.fn(),
   resolveBun: vi.fn(),
   usesDshGateway: vi.fn(),
-  getGatewayConfig: vi.fn()
+  getInternalGatewayOrigin: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -15,7 +15,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const get = result.application.getContainer().get.bind(result.application.getContainer())
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'ApiGatewayService') return { getCurrentConfig: mocks.getGatewayConfig }
+    if (name === 'ApiGatewayService') return { getInternalGatewayOrigin: mocks.getInternalGatewayOrigin }
     return get(name)
   })
   return result
@@ -145,7 +145,7 @@ beforeEach(() => {
   mocks.harnessOptions = undefined
   mocks.resolveBun.mockReset().mockResolvedValue('/bundled/bun')
   mocks.usesDshGateway.mockReset().mockReturnValue(true)
-  mocks.getGatewayConfig.mockReset().mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
+  mocks.getInternalGatewayOrigin.mockReset().mockReturnValue('http://127.0.0.1:23333')
   mocks.getShellEnv.mockReset().mockResolvedValue({
     PATH: ['/opt/homebrew/bin', '/usr/bin'].join(':'),
     HOME: '/Users/tester'
@@ -212,7 +212,7 @@ describe('DshRuntimeConnection proxy inheritance', () => {
     // F1: a gateway bound to 127.0.0.2 must stay direct even though it is not
     // in the default loopback set; the external provider must remain proxied.
     clearProxyEnv()
-    mocks.getGatewayConfig.mockReturnValue({ enabled: true, host: '127.0.0.2', port: 23333 })
+    mocks.getInternalGatewayOrigin.mockReturnValue('http://127.0.0.2:23333')
     vi.stubEnv('HTTP_PROXY', 'http://proxy.corp.example:8080')
     vi.stubEnv('HTTPS_PROXY', 'http://proxy.corp.example:8080')
 

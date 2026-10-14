@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiGatewayService } from '../../ApiGatewayService'
-
 /**
  * Integration tests that drive the real Elysia app via `app.handle(Request)`.
  *
@@ -16,16 +14,18 @@ import { ApiGatewayService } from '../../ApiGatewayService'
 const {
   mockGetModels,
   mockEstimateAnthropicRequestTokens,
-  mockIsInternalAgentRequest,
-  mockIsInternalRequestToken,
+  mockGetInternalFeature,
+  mockIsInternalApiKey,
   mockPreferenceGet,
   mockProcessMessage,
   mockResolveGatewayModelAddress
 } = vi.hoisted(() => ({
   mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
   mockEstimateAnthropicRequestTokens: vi.fn(async () => 42),
-  mockIsInternalAgentRequest: vi.fn((headers: Headers) => headers.get('x-test-internal-agent') === 'true'),
-  mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token'),
+  mockGetInternalFeature: vi.fn((headers: Headers) =>
+    headers.get('x-api-key') === 'internal-agent-key' ? ('agent' as const) : undefined
+  ),
+  mockIsInternalApiKey: vi.fn((token: string) => token === 'internal-agent-key'),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
@@ -39,12 +39,7 @@ vi.mock('@application', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: {
-      isInternalAgentRequest: mockIsInternalAgentRequest,
-      isInternalRequestToken: mockIsInternalRequestToken,
-      isTranslationRequest: (request: Request, model: unknown) =>
-        translationGateway?.isTranslationRequest(request, model) ?? false
-    }
+    ApiGatewayService: { getInternalFeature: mockGetInternalFeature, isInternalApiKey: mockIsInternalApiKey }
   }
   return mockApplicationFactory(overrides)
 })
@@ -101,8 +96,6 @@ function get(app: ReturnType<typeof buildApp>, path: string, headers: Record<str
 async function read(res: Response): Promise<{ status: number; body: any }> {
   return { status: res.status, body: await res.json() }
 }
-
-let translationGateway: ApiGatewayService | undefined
 
 describe('API gateway routes (integration)', () => {
   let app: ReturnType<typeof buildApp>
@@ -265,7 +258,7 @@ describe('API gateway routes (integration)', () => {
         app,
         '/v1/messages/count_tokens',
         { model: 'cherryai-subscription:claude', messages: [{ role: 'user', content: 'hello' }] },
-        { ...AUTH, 'x-test-internal-agent': 'true' }
+        { ...AUTH, 'x-api-key': 'internal-agent-key' }
       )
 
       expect(response.status).toBe(200)
@@ -273,7 +266,7 @@ describe('API gateway routes (integration)', () => {
       expect(mockEstimateAnthropicRequestTokens).toHaveBeenCalledWith(
         expect.objectContaining({ model: 'cherryai-subscription:claude' }),
         expect.any(AbortSignal),
-        true
+        'agent'
       )
     })
   })
@@ -349,7 +342,7 @@ describe('API gateway routes (integration)', () => {
       expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: false }))
     })
 
-    it('accepts Fast only with the process-local internal request token', async () => {
+    it('accepts Fast only from an internal consumer', async () => {
       await read(
         await post(
           app,
@@ -357,8 +350,8 @@ describe('API gateway routes (integration)', () => {
           { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
           {
             ...AUTH,
-            'x-cherry-fast-mode': 'true',
-            'x-cherry-internal-request-token': 'internal-request-token'
+            'x-api-key': 'internal-agent-key',
+            'x-cherry-fast-mode': 'true'
           }
         )
       )
@@ -539,7 +532,7 @@ describe('API gateway routes (integration)', () => {
     it('countTokens: preserves the internal Work identity for Cherry Cloud model resolution', async () => {
       const response = await post(app, '/v1beta/models/cherryai-subscription:gemini-2.5:countTokens', geminiBody, {
         ...AUTH,
-        'x-test-internal-agent': 'true'
+        'x-api-key': 'internal-agent-key'
       })
 
       expect(response.status).toBe(200)
@@ -676,28 +669,19 @@ describe('API gateway routes (integration)', () => {
   })
 })
 
-describe('PDF translation bearer authorization', () => {
-  it('accepts the leased model but refuses another model, endpoint, or revoked credential', async () => {
-    translationGateway = new ApiGatewayService()
-    const credential = translationGateway.createTranslationCredential('cherryai-subscription:translate-only')
+describe('internal consumer authorization', () => {
+  it('accepts an internal key without the user-facing API key', async () => {
     const app = buildApp()
-    const send = (model: string, path = '/v1/chat/completions') =>
+    const send = (authorization: string) =>
       app.handle(
-        new Request(`http://localhost${path}`, {
+        new Request('http://localhost/v1/chat/completions', {
           method: 'POST',
-          headers: { authorization: `Bearer ${credential.apiKey}`, 'content-type': 'application/json' },
-          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'translate' }], max_tokens: 16 })
+          headers: { authorization, 'content-type': 'application/json' },
+          body: JSON.stringify({ model: 'openai:gpt-4o', messages: [{ role: 'user', content: 'translate' }] })
         })
       )
-    try {
-      expect((await send('cherryai-subscription:translate-only')).status).toBe(200)
-      expect((await send('cherryai-subscription:other')).status).toBe(403)
-      expect((await send('cherryai-subscription:translate-only', '/v1/messages')).status).toBe(403)
-      credential.dispose()
-      expect((await send('cherryai-subscription:translate-only')).status).toBe(403)
-    } finally {
-      credential.dispose()
-      translationGateway = undefined
-    }
+
+    expect((await send('Bearer internal-agent-key')).status).toBe(200)
+    expect((await send('Bearer unknown-key')).status).toBe(403)
   })
 })

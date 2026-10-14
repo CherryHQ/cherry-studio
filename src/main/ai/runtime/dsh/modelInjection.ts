@@ -9,7 +9,6 @@
  * process environment.
  */
 
-import { application } from '@application'
 import type { ReasoningEffort } from '@cherrystudio/provider-registry'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
@@ -27,7 +26,7 @@ import { isLoginBasedProvider, matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { ApiGatewayNotRunningError, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
@@ -319,7 +318,6 @@ export async function resolveDshProviderInjectionFromSnapshot(
   reasoningEffort: ReasoningEffortOption = 'default'
 ): Promise<DshProviderInjection> {
   if (usesDshGateway(provider, model)) {
-    // Shared gateway sequence: consent (ApiGatewayNotRunningError), converge, materialize key.
     const gateway = await resolveApiGatewayRuntime(sessionId)
     return buildDshGatewayInjection(provider, model, gateway, reasoningEffort)
   }
@@ -369,8 +367,6 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
   // Unsupported beats missing-credential (parity with buildDshProviderInjection).
   if (resolveDshInjectionApi(provider, model) === undefined) {
     if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(providerId)
-    // Consent only (persisted intent) — no ensureRunning/ensureValidApiKey side effects here.
-    if (!application.get('ApiGatewayService').getCurrentConfig().enabled) throw new ApiGatewayNotRunningError()
     return
   }
   const apiKeys = providerService.getApiKeys(providerId, { enabled: true })

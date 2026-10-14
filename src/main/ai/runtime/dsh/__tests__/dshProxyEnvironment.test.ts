@@ -5,7 +5,7 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 const mocks = vi.hoisted(() => ({
-  getGatewayConfig: vi.fn(),
+  internalOrigin: undefined as string | undefined,
   usesDshGateway: vi.fn()
 }))
 
@@ -16,11 +16,12 @@ vi.mock('@application', async () => {
   result.application.get.mockImplementation((name: string) => {
     if (name === 'ApiGatewayService')
       return {
-        getCurrentConfig: mocks.getGatewayConfig,
-        isRunning: () => true,
-        ensureValidApiKey: async () => 'gateway-key',
-        getAgentSessionUsageHeaders: () => ({}),
-        getInternalRequestToken: () => 'internal-token'
+        ensureInternalGateway: async () => {
+          mocks.internalOrigin ??= 'http://127.0.0.1:40001'
+          return { baseUrl: mocks.internalOrigin, apiKey: 'agent-key' }
+        },
+        getInternalGatewayOrigin: () => mocks.internalOrigin,
+        getAgentSessionUsageHeaders: () => ({})
       }
     return get(name)
   })
@@ -41,7 +42,7 @@ const model = { id: 'deepseek::deepseek-chat' } as unknown as Model
 
 beforeEach(() => {
   mocks.usesDshGateway.mockReset().mockReturnValue(false)
-  mocks.getGatewayConfig.mockReset().mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
+  mocks.internalOrigin = undefined
 })
 
 describe('dshGatewayBypassRule', () => {
@@ -49,32 +50,18 @@ describe('dshGatewayBypassRule', () => {
     expect(dshGatewayBypassRule(provider, model)).toBeUndefined()
   })
 
-  it.each([
-    ['', 0, 'http://127.0.0.1:23333', '127.0.0.1'],
-    ['127.0.0.2', 24444, 'http://127.0.0.2:24444', '127.0.0.2'],
-    ['0.0.0.0', 24444, 'http://127.0.0.1:24444', '127.0.0.1'],
-    ['::', 24444, 'http://[::1]:24444', '[::1]'],
-    ['::2', 24444, 'http://[::2]:24444', '[::2]'],
-    ['gateway.local', 24444, 'http://gateway.local:24444', 'gateway.local']
-  ])('keeps the gateway route and proxy bypass aligned for %s:%i', async (host, port, origin, hostname) => {
+  it('keeps the gateway route and proxy bypass aligned on the internal listener', async () => {
     mocks.usesDshGateway.mockReturnValue(true)
-    mocks.getGatewayConfig.mockReturnValue({ enabled: true, host, port })
+    expect(dshGatewayBypassRule(provider, model)).toBeUndefined()
 
-    expect((await resolveApiGatewayRuntime('session-1')).baseUrl).toBe(origin)
+    const { baseUrl } = await resolveApiGatewayRuntime('session-1')
+    const hostname = new URL(baseUrl).hostname
     expect(dshGatewayBypassRule(provider, model)).toBe(hostname)
     expect(buildDshProxyEnvironment(provider, model, PROXY_ENV).NO_PROXY?.split(',')).toContain(hostname)
   })
 })
 
 describe('buildDshProxyEnvironment', () => {
-  it('adds a non-default gateway host to the bypass list', () => {
-    mocks.usesDshGateway.mockReturnValue(true)
-    mocks.getGatewayConfig.mockReturnValue({ enabled: true, host: '127.0.0.2', port: 23333 })
-    const env = buildDshProxyEnvironment(provider, model, { ...PROXY_ENV })
-    expect(String(env.NO_PROXY).split(',')).toContain('127.0.0.2')
-    expect(String(env.NO_PROXY).split(',')).toContain('127.0.0.1')
-  })
-
   it('never bypasses an external provider host on direct routes', () => {
     const env = buildDshProxyEnvironment(provider, model, { ...PROXY_ENV })
     expect(env.HTTP_PROXY).toBe('http://proxy.corp.example:8080')

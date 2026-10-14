@@ -459,12 +459,12 @@ describe('assertDshProviderUsable', () => {
     expect(mocks.resolveApiGatewayRuntime).not.toHaveBeenCalled()
   })
 
-  it('fails closed on the persisted intent when the gateway is disabled', async () => {
+  it('does not require the user-facing gateway to be enabled', async () => {
     mocks.getByProviderId.mockReturnValue(vertexProvider)
     mocks.getByKey.mockReturnValue(makeModel())
     mocks.getCurrentConfig.mockReturnValue({ enabled: false })
 
-    await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow(mocks.ApiGatewayNotRunningError)
+    await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).resolves.toBeUndefined()
   })
 
   it('still reports unsupported when the model is not gateway-routable either', async () => {

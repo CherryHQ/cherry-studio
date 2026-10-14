@@ -152,63 +152,69 @@ beforeEach(() => {
   mockStop.mockResolvedValue(undefined)
 })
 
-describe('ApiGatewayService reconcile', () => {
-  it('recognizes an internal agent request when the process-local token matches', () => {
-    const service = new ApiGatewayService()
-    const headers = new Headers(service.getAgentSessionUsageHeaders('session-1'))
+async function startInternalGateway(service: ApiGatewayService, feature: 'agent' | 'translate' = 'agent') {
+  const pending = service.ensureInternalGateway(feature)
+  await vi.waitFor(() => expect(startResolvers.length).toBeGreaterThan(0))
+  startResolvers.at(-1)!()
+  return pending
+}
 
-    expect(service.isInternalAgentRequest(headers)).toBe(true)
+describe('ApiGatewayService internal gateway', () => {
+  it('serves internal consumers from one loopback listener without enabling the user-facing gateway', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    const agent = await startInternalGateway(service, 'agent')
+    const translate = await service.ensureInternalGateway('translate')
+
+    expect(vi.mocked(ApiGateway)).toHaveBeenCalledOnce()
+    expect(vi.mocked(ApiGateway)).toHaveBeenCalledWith({ host: '127.0.0.1', port: 0 })
+    expect(translate.baseUrl).toBe(agent.baseUrl)
+    expect(service.getInternalGatewayOrigin()).toBe(agent.baseUrl)
+    expect(service.isActivated).toBe(false)
+    expect(captured.enabledPreference).toBe(false)
   })
 
-  it('rejects an internal agent request when the process-local token is wrong or missing', () => {
+  it('retries the internal listener after a failed start', async () => {
     const service = new ApiGatewayService()
-    const usageHeaders = service.getAgentSessionUsageHeaders('session-1')
+    rejectStart = true
+    await expect(service.ensureInternalGateway('agent')).rejects.toThrow('port in use')
 
-    expect(
-      service.isInternalAgentRequest(
-        new Headers({
-          ...usageHeaders,
-          'x-cherry-internal-usage-token': 'wrong-proof'
-        })
-      )
-    ).toBe(false)
-    expect(service.isInternalAgentRequest(new Headers())).toBe(false)
+    rejectStart = false
+    await expect(startInternalGateway(service)).resolves.toMatchObject({ baseUrl: expect.any(String) })
+    expect(vi.mocked(ApiGateway)).toHaveBeenCalledTimes(2)
   })
 
-  it('recognizes an internal agent request without a session id when the process-local token matches', () => {
+  it('identifies the internal feature from its key in every credential dialect', async () => {
     const service = new ApiGatewayService()
-    const headers = new Headers(service.getAgentSessionUsageHeaders('session-1'))
-    headers.delete('x-cherry-agent-session-id')
+    const agent = await startInternalGateway(service, 'agent')
+    const translate = await service.ensureInternalGateway('translate')
 
-    expect(service.isInternalAgentRequest(headers)).toBe(true)
+    expect(agent.apiKey).not.toBe(translate.apiKey)
+    expect(service.getInternalFeature(new Headers({ 'x-api-key': agent.apiKey }))).toBe('agent')
+    expect(service.getInternalFeature(new Headers({ authorization: `Bearer ${translate.apiKey}` }))).toBe('translate')
+    expect(service.getInternalFeature(new Headers({ 'x-goog-api-key': agent.apiKey }))).toBe('agent')
+    expect(service.getInternalFeature(new Headers({ 'x-api-key': 'existing-key' }))).toBeUndefined()
+    expect(service.getInternalFeature(new Headers())).toBeUndefined()
   })
 
-  it('accepts agent usage context only with its process-local proof', () => {
+  it('attributes usage to an Agent session only for internal Agent requests', async () => {
     const service = new ApiGatewayService()
-    const usageHeaders = service.getAgentSessionUsageHeaders('session-1')
+    const agent = await startInternalGateway(service, 'agent')
+    const translate = await service.ensureInternalGateway('translate')
+    const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
 
-    expect(service.resolveAgentSessionUsage(new Headers(usageHeaders))).toEqual({
+    expect(service.resolveAgentSessionUsage(new Headers({ ...sessionHeaders, 'x-api-key': agent.apiKey }))).toEqual({
       agentSessionId: 'session-1',
       source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
     })
     expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1')
-    expect(
-      service.resolveAgentSessionUsage(
-        new Headers({
-          ...usageHeaders,
-          'x-cherry-internal-usage-token': 'wrong-proof'
-        })
-      )
-    ).toBeUndefined()
-    expect(
-      service.resolveAgentSessionUsage(
-        new Headers({
-          'x-cherry-agent-session-id': 'session-1'
-        })
-      )
-    ).toBeUndefined()
+    expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': translate.apiKey }))).toBeUndefined()
+    expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': 'existing-key' }))).toBeUndefined()
   })
+})
 
+describe('ApiGatewayService reconcile', () => {
   // Regression for #18521: boot used to start the gateway whenever any agent existed, overriding a
   // user who had turned it off — and nothing else may override it either.
   it('stays stopped at boot when the preference is disabled', async () => {
@@ -750,33 +756,5 @@ describe('ApiGatewayService running-state publication', () => {
     expect(mockStop).not.toHaveBeenCalled()
     expect(mockStart).toHaveBeenCalledTimes(startsBefore)
     expect(service.isActivated).toBe(true)
-  })
-})
-
-describe('PDF translation credentials', () => {
-  it('authorizes only the leased model on chat completions and revokes it when disposed', () => {
-    const gateway = new ApiGatewayService()
-    const credential = gateway.createTranslationCredential('cherryai-subscription:translation-only')
-    const headers = new Headers({ authorization: `Bearer ${credential.apiKey}` })
-    const request = (path: string, method = 'POST') => new Request(`http://localhost${path}`, { method, headers })
-    expect(
-      gateway.isTranslationRequest(request('/v1/chat/completions'), 'cherryai-subscription:translation-only')
-    ).toBe(true)
-    expect(gateway.isTranslationRequest(request('/v1/chat/completions'), 'cherryai-subscription:other')).toBe(false)
-    expect(gateway.isTranslationRequest(request('/v1/models', 'GET'), 'cherryai-subscription:translation-only')).toBe(
-      false
-    )
-    expect(gateway.isTranslationRequest(request('/v1/messages'), 'cherryai-subscription:translation-only')).toBe(false)
-    expect(gateway.isInternalAgentRequest(headers)).toBe(false)
-    expect(
-      gateway.isTranslationCredential(
-        new Headers({ authorization: 'Bearer public-key' }),
-        'cherryai-subscription:translation-only'
-      )
-    ).toBe(false)
-    credential.dispose()
-    expect(
-      gateway.isTranslationRequest(request('/v1/chat/completions'), 'cherryai-subscription:translation-only')
-    ).toBe(false)
   })
 })
