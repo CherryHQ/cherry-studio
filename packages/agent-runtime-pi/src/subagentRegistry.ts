@@ -1,8 +1,17 @@
 import type { Usage } from '@earendil-works/pi-ai'
+import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 
 import type { AgentRuntimeSession } from './session'
-import type { SubagentOutcome, SubagentStopper } from './subagent'
-import { type RunResult, type RunStart, runSubagent, type SubagentInbox } from './subagentRun'
+import type { SubagentDetails, SubagentOutcome, SubagentStopper } from './subagent'
+import { type PendingDelivery, SUBAGENT_NOTIFICATION_TYPE, type SubagentNotificationDetails } from './subagentDelivery'
+import {
+  type RunResult,
+  type RunStart,
+  runSubagent,
+  SUBAGENT_TOOL_NAME,
+  type SubagentInbox,
+  zeroUsage
+} from './subagentRun'
 import type { AgentRuntimeEvent } from './transcriptTap'
 
 /** State entry of the parent: one snapshot per change of a subagent's run. */
@@ -99,6 +108,95 @@ const snapshot = (record: SubagentRecord, result?: RunResult): SubagentState => 
       })
 })
 
+const fromState = (state: SubagentState): SubagentRecord => ({
+  sessionId: state.sessionId,
+  parentToolCallId: state.parentToolCallId,
+  description: state.description,
+  fork: state.fork,
+  background: state.background,
+  modelKey: state.modelKey,
+  run: state.run,
+  status: state.status,
+  ...(state.outcome === undefined ? {} : { outcome: state.outcome }),
+  ...(state.stoppedBy === undefined ? {} : { stoppedBy: state.stoppedBy })
+})
+
+/**
+ * The parent's subagents as its branch records them (spec §4.3), least recently active first, and
+ * the run ends that never reached the parent. A run whose last snapshot is `running` was cut off
+ * with the session that held it: it is `interrupted`.
+ */
+export function restoreSubagents(
+  entries: readonly SessionEntry[],
+  parentModelKey: string
+): { records: SubagentRecord[]; undelivered: PendingDelivery[] } {
+  const calls = new Map<string, string>()
+  const records = new Map<string, SubagentRecord>()
+  const last = new Map<string, SubagentState>()
+  const delivered = new Set<string>()
+  const touch = <T>(map: Map<string, T>, key: string, value: T) => {
+    map.delete(key)
+    map.set(key, value)
+  }
+  for (const entry of entries) {
+    if (entry.type === 'message' && entry.message.role === 'assistant')
+      for (const block of entry.message.content)
+        if (block.type === 'toolCall' && block.name === SUBAGENT_TOOL_NAME)
+          calls.set(block.id, String(block.arguments.description ?? '').trim())
+    if (
+      entry.type === 'message' &&
+      entry.message.role === 'toolResult' &&
+      entry.message.toolName === SUBAGENT_TOOL_NAME
+    ) {
+      const details = entry.message.details as SubagentDetails | undefined
+      // A background launch wrote its snapshot before its result.
+      if (!details?.sessionId || records.has(details.sessionId)) continue
+      touch(records, details.sessionId, {
+        sessionId: details.sessionId,
+        parentToolCallId: entry.message.toolCallId,
+        description: calls.get(entry.message.toolCallId) ?? '',
+        fork: details.fork,
+        background: details.background,
+        modelKey: parentModelKey,
+        run: 1,
+        status: 'finished',
+        ...('outcome' in details ? { outcome: details.outcome } : {})
+      })
+    }
+    if (entry.type === 'custom' && entry.customType === SUBAGENT_STATE_TYPE) {
+      const state = entry.data as SubagentState
+      touch(last, state.sessionId, state)
+      touch(records, state.sessionId, fromState(state))
+    }
+    if (entry.type === 'custom_message' && entry.customType === SUBAGENT_NOTIFICATION_TYPE)
+      for (const item of (entry.details as SubagentNotificationDetails).subagents)
+        delivered.add(`${item.sessionId}:${item.run}`)
+  }
+  const undelivered: PendingDelivery[] = []
+  for (const state of last.values()) {
+    const record = records.get(state.sessionId)!
+    if (state.status === 'running') {
+      record.status = 'finished'
+      record.outcome = 'interrupted'
+    }
+    if (delivered.has(`${state.sessionId}:${state.run}`) || state.stoppedBy === 'model') continue
+    undelivered.push({
+      sessionId: state.sessionId,
+      run: state.run,
+      description: state.description,
+      outcome: record.outcome!,
+      ...(state.stoppedBy === undefined ? {} : { stoppedBy: state.stoppedBy }),
+      ...(state.report === undefined ? {} : { report: state.report }),
+      ...(state.reason === undefined ? {} : { reason: state.reason }),
+      ...(state.partial === undefined ? {} : { partial: state.partial }),
+      usage: state.usage ?? zeroUsage(),
+      // After a rebuild the user speaks first; the results ride with their message.
+      wake: false
+    })
+  }
+  return { records: [...records.values()], undelivered }
+}
+
 /** The parent's subagents: their state, live runs and the background cap. */
 export class SubagentRegistry {
   private readonly records = new Map<string, SubagentRecord>()
@@ -115,9 +213,19 @@ export class SubagentRegistry {
     return this.records.get(sessionId)
   }
 
+  /** Session start: the subagents the rebuilt branch records, least recently active first. */
+  restore(records: readonly SubagentRecord[]): void {
+    for (const record of records) this.track(record)
+  }
+
   /** The most recently active subagents first, at most 20. */
   recent(): SubagentRecord[] {
     return [...this.records.values()].reverse().slice(0, LISTED)
+  }
+
+  /** Background subagents running or awaiting an approval, the most recently active first. */
+  unfinished(): SubagentRecord[] {
+    return [...this.records.values()].reverse().filter((record) => record.background && record.status !== 'finished')
   }
 
   /** Stops a running subagent; resolves with its run's result once its end is recorded. */
