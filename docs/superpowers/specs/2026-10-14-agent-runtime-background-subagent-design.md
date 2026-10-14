@@ -574,3 +574,11 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 5. 4.4、13.5：`modelKey` 正是父会话当前模型时，宿主可以不返回 `model`，否则不做模型选择的宿主永远续接不了。
 6. 7.6：宿主经自己的请求 signal 中止（`outcome: 'aborted'`）也开启抑制期（探针 g）。
 7. 7.2：通知每行带完整 id，并定下各结局的行文。
+
+2026-10-15，整体审查后的修复（f35e4cdfa3..93acf7f23d 之后）：
+
+8. 10、11.5：`ToolApprovalEvent` 加可选的 `sessionId`。有它就按会话归属审批事件（子代理的拒绝不会停掉父会话的 goal），没有时仍按调用 id。
+9. 5.2、5.3、11.4：`stop_subagent` 和 `message_subagent` 的结果带结构化 `details`（`SubagentStopDetails`、`SubagentMessageDetails`，含 `sessionId`，已知用量时含 `usage`）；goal 按与通知相同的口径计入，不重复计数。
+10. 7.4、13.1：宿主在 `turn-complete` 里调 `AgentRuntimeSession.prompt` / `compact` 时，包等这次 settle 和期间 Pi 开出的运行都结束，再在锁内执行，结果如实 resolve 或 reject（Pi 会推迟 settle 派发期间的 prompt 并立即返回，原来会丢用户消息）。
+11. 7.5：不是由 prompt 开出的运行（如 `/goal resume`），settle 时队列非空就并入，包括只有静默项或重建恢复项的情况。
+
