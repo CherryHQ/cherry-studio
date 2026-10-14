@@ -27,8 +27,8 @@ export class ChannelAdapterListener implements StreamListener {
    * arrives on this same listener, and new output re-arms it.
    */
   private delivered = false
-  /** Attempt id of the execution whose terminal was last delivered. */
-  private deliveredAttemptId?: number
+  /** Attempt ids whose terminal was already handed to the adapter. */
+  private readonly deliveredAttempts = new Set<number>()
   /**
    * Tail of this listener's channel-update chain. A chain-hold gap and a background wake can both
    * carry one listener into a successor execution while its predecessor's finalize is still
@@ -68,21 +68,24 @@ export class ChannelAdapterListener implements StreamListener {
    * ships — that wake's text as part of the predecessor's reply.
    */
   private takeOwnText(attemptId: number | undefined): string {
-    const ceiling = attemptId ?? Number.POSITIVE_INFINITY
     let text = ''
     for (const [key, value] of this.pendingTextByAttempt) {
-      if (key > ceiling) continue
+      // Only this exact attempt's bucket: a newer terminal must not consume an older attempt's
+      // still-undelivered text. Untagged text has no other claimant, so any terminal may ship it.
+      if (key !== UNTAGGED_ATTEMPT && key !== attemptId) continue
       text += value
       this.pendingTextByAttempt.delete(key)
     }
     return text
   }
 
-  /** Text the given attempt owns: its own bucket plus older/untagged ones — never a newer attempt's. */
+  /** Text the given attempt owns: its own bucket plus untagged text — never a newer attempt's. */
   private ownedText(attemptId: number | undefined): string {
-    const ceiling = attemptId ?? Number.POSITIVE_INFINITY
     let text = ''
-    for (const [key, value] of this.pendingTextByAttempt) if (key <= ceiling) text += value
+    for (const [key, value] of this.pendingTextByAttempt) {
+      if (key !== UNTAGGED_ATTEMPT && key !== attemptId) continue
+      text += value
+    }
     return text
   }
 
@@ -125,14 +128,15 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   /**
-   * Whether this terminal owes the channel a delivery. Attempt ids are process-global monotonic,
-   * so a strictly newer one belongs to a successor execution (chain-hold carry-over, background
-   * wake) owing its own delivery even though a prior execution's terminal already fired; a replay
-   * of the settling execution's own id (payload-free held-topic close) stays deduplicated.
+   * Whether this terminal owes the channel a delivery. Fresh output re-arms delivery; beyond that,
+   * each attempt owes exactly one delivery of its own, so a late older terminal (a wake's terminal
+   * outran the foreground dispatch on a slower recipient) still ships, while a replay of a settled
+   * attempt (payload-free held-topic close) stays deduplicated.
    */
   private owesDelivery(attemptId: number | undefined): boolean {
     if (!this.delivered) return true
-    return attemptId !== undefined && (this.deliveredAttemptId === undefined || attemptId > this.deliveredAttemptId)
+    if (attemptId === undefined) return false
+    return !this.deliveredAttempts.has(attemptId)
   }
 
   private async finish(status: 'success' | 'paused', attemptId?: number): Promise<void> {
@@ -147,7 +151,7 @@ export class ChannelAdapterListener implements StreamListener {
     if (!this.owesDelivery(attemptId)) return
 
     this.delivered = true
-    if (attemptId !== undefined) this.deliveredAttemptId = attemptId
+    if (attemptId !== undefined) this.deliveredAttempts.add(attemptId)
     try {
       const handled = await this.completeStream(text, status)
       if (!handled && text) {
@@ -171,7 +175,7 @@ export class ChannelAdapterListener implements StreamListener {
     await this.updateChain
     if (!this.owesDelivery(result.attemptId)) return
     this.delivered = true
-    if (result.attemptId !== undefined) this.deliveredAttemptId = result.attemptId
+    if (result.attemptId !== undefined) this.deliveredAttempts.add(result.attemptId)
     try {
       const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
       const handled = await this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {

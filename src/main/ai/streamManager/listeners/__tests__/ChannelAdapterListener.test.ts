@@ -378,6 +378,53 @@ describe('ChannelAdapterListener', () => {
     expect(deliveredSecond).toEqual(['foreground', 'wake'])
   })
 
+  // The review's frozen-listener experiment: with two scheduled recipients, the wake's terminal
+  // can reach the second chat while its foreground terminal is still queued behind the first
+  // chat's slow fallback sendMessage (terminal dispatch awaits recipients one at a time, and the
+  // fallback is not part of the update chain). The second chat's wake terminal must ship only the
+  // wake's own text — never consume the foreground attempt's still-undelivered buffer.
+  it('keeps a slower recipient’s foreground text intact when a wake terminal outruns it', async () => {
+    const sentFirst: string[] = []
+    const sentSecond: string[] = []
+    let releaseFirstForeground!: () => void
+    const firstForegroundGate = new Promise<void>((resolve) => {
+      releaseFirstForeground = resolve
+    })
+    const adapterFor = (sink: string[], parkForeground: boolean) =>
+      makeAdapter({
+        onStreamComplete: vi.fn().mockResolvedValue(false),
+        sendMessage: vi.fn(async (_chatId: string, text: string) => {
+          sink.push(text)
+          if (parkForeground && text === 'foreground') await firstForegroundGate
+        })
+      })
+    const first = new ChannelAdapterListener(adapterFor(sentFirst, true), 'chat-1')
+    const second = new ChannelAdapterListener(adapterFor(sentSecond, false), 'chat-2')
+
+    for (const listener of [first, second]) listener.onChunk(delta('foreground'), undefined, undefined, 1)
+
+    // Terminal dispatch starts with the first recipient; its fallback sendMessage parks.
+    const firstForeground = first.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    await vi.waitFor(() => expect(sentFirst).toEqual(['foreground']))
+
+    // The wake streams through both carried listeners, and its terminal reaches the second
+    // recipient before the foreground terminal is ever dispatched to it.
+    for (const listener of [first, second]) listener.onChunk(delta('wake'), undefined, undefined, 2)
+    const terminals = [
+      second.onDone({ status: 'success', isTopicDone: false, attemptId: 2 }),
+      first.onDone({ status: 'success', isTopicDone: true, attemptId: 2 }),
+      second.onDone({ status: 'success', isTopicDone: true, attemptId: 1 })
+    ]
+    releaseFirstForeground()
+    await Promise.all([firstForeground, ...terminals])
+
+    // Each chat receives both attempts' texts as separate messages — whichever terminal order the
+    // dispatch produced — and never one combined foreground+wake message.
+    expect([...sentFirst].sort()).toEqual(['foreground', 'wake'])
+    expect([...sentSecond].sort()).toEqual(['foreground', 'wake'])
+    expect(sentSecond).not.toContain('foregroundwake')
+  })
+
   it('keeps two channel listeners’ terminal text separate when the first finalizes slowly', async () => {
     const firstText: string[] = []
     const secondText: string[] = []
