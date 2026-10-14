@@ -18,7 +18,10 @@ const state = vi.hoisted(() => ({
   existing: '',
   exit: '0',
   busy: false,
-  removeBlocked: false
+  removeBlocked: false,
+  china: false,
+  registry: 'https://registry.npmjs.org/',
+  env: {} as Record<string, string>
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -46,6 +49,7 @@ vi.mock('@application', async () => {
     IpcApiService: { broadcast: () => {} }
   })
 })
+vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina: async () => state.china } }))
 vi.mock('@main/utils/shellEnv', () => ({
   refreshShellEnv: async () => ({}),
   getRawShellEnv: async () => ({
@@ -53,7 +57,9 @@ vi.mock('@main/utils/shellEnv', () => ({
     INSTALL_ROOT: state.root,
     INSTALL_NAME: state.name,
     INSTALL_TARGET: state.target,
-    INSTALL_EXIT: state.exit
+    INSTALL_EXIT: state.exit,
+    INSTALL_REGISTRY: state.registry,
+    ...state.env
   })
 }))
 vi.mock('@main/utils/commandResolver', () => ({ findExecutableInEnv: async () => state.manager || null }))
@@ -69,6 +75,9 @@ describe('local agent system installation', () => {
     state.exit = '0'
     state.busy = false
     state.removeBlocked = false
+    state.china = false
+    state.registry = 'https://registry.npmjs.org/'
+    state.env = {}
     vi.mocked(application.getPath).mockImplementation((key) =>
       key === 'sys.home' ? state.root : path.join(state.root, 'cherry')
     )
@@ -76,8 +85,13 @@ describe('local agent system installation', () => {
       state.manager,
       `#!/usr/bin/env node
 const fs = require('fs'); const root = process.env.INSTALL_ROOT;
-if (process.argv[2] === 'root' || process.argv[2] === 'prefix') { process.stdout.write(process.env.INSTALL_TARGET); }
-else { fs.appendFileSync(root + '/calls', JSON.stringify(process.argv.slice(2)) + '\\n');
+if (process.argv[2] === 'tool' && process.argv[3] === 'dir') { process.stdout.write(process.env.INSTALL_TARGET); }
+else if (process.argv[2] === 'config') { process.stdout.write(process.env.INSTALL_REGISTRY); }
+else if (process.argv[2] === 'root' || process.argv[2] === 'prefix') { process.stdout.write(process.env.INSTALL_TARGET); }
+else {
+fs.appendFileSync(root + '/sources', (process.env.NPM_CONFIG_REGISTRY || process.env.UV_DEFAULT_INDEX || 'original') + '\\n');
+if (process.env.FAIL_MIRROR && (process.env.NPM_CONFIG_REGISTRY || process.env.UV_DEFAULT_INDEX)) process.exit(1);
+fs.appendFileSync(root + '/calls', JSON.stringify(process.argv.slice(2)) + '\\n');
 if (process.argv[2] === 'uninstall') { fs.unlinkSync(root + '/' + process.env.INSTALL_NAME); fs.rmSync(root + '/' + process.argv[4], {recursive:true}); }
 else if (process.env.INSTALL_EXIT === '0') fs.writeFileSync(root + '/' + process.env.INSTALL_NAME, 'installed');
 else process.stderr.write('installation failed');
@@ -98,6 +112,52 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
   afterEach(async () => {
     vi.unstubAllGlobals()
     await rm(state.root, { recursive: true, force: true })
+  })
+
+  it('uses a China mirror only for the install and falls back without changing system configuration', async () => {
+    state.china = true
+    state.env = { FAIL_MIRROR: '1' }
+    expect(await new LocalAgentInstallService().install('kilo')).toMatchObject({ ok: true })
+    expect(await readFile(path.join(state.root, 'sources'), 'utf8')).toBe('https://registry.npmmirror.com\noriginal\n')
+  })
+
+  it('preserves the npm registry from the user configuration', async () => {
+    state.china = true
+    state.registry = 'https://packages.example.com/'
+    expect(await new LocalAgentInstallService().install('kilo')).toMatchObject({ ok: true })
+    expect(await readFile(path.join(state.root, 'sources'), 'utf8')).toBe('original\n')
+  })
+
+  it('leaves installations outside China on the original source', async () => {
+    expect(await new LocalAgentInstallService().install('kilo')).toMatchObject({ ok: true })
+    expect(await readFile(path.join(state.root, 'sources'), 'utf8')).toBe('original\n')
+  })
+
+  it('falls back through Python mirrors to the original index', async () => {
+    state.china = true
+    state.name = 'hermes'
+    state.env = { FAIL_MIRROR: '1' }
+    expect(await new LocalAgentInstallService().installCli({ name: 'hermes' })).toMatchObject({ ok: true })
+    expect((await readFile(path.join(state.root, 'sources'), 'utf8')).trim().split('\n')).toEqual([
+      'https://pypi.tuna.tsinghua.edu.cn/simple',
+      'https://mirrors.cloud.tencent.com/pypi/simple',
+      'original'
+    ])
+  })
+
+  it.each(['env', 'file'])('preserves uv %s configuration', async (source) => {
+    state.china = true
+    state.name = 'hermes'
+    if (source === 'env') state.env = { UV_DEFAULT_INDEX: 'https://packages.example.com/simple' }
+    else
+      await writeFile(
+        application.getPath('external.uv.user_config_file'),
+        'index-url = "https://packages.example.com/simple"'
+      )
+    expect(await new LocalAgentInstallService().installCli({ name: 'hermes' })).toMatchObject({ ok: true })
+    expect(await readFile(path.join(state.root, 'sources'), 'utf8')).toBe(
+      source === 'env' ? 'https://packages.example.com/simple\n' : 'original\n'
+    )
   })
 
   it('reads a system package version without launching the agent and finds a newer release', async () => {

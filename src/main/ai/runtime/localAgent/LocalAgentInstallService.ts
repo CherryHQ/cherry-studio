@@ -1,5 +1,5 @@
 import type { ChildProcess } from 'node:child_process'
-import { realpath } from 'node:fs/promises'
+import { access, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import { valid, gt } from 'semver'
@@ -7,8 +7,10 @@ import { valid, gt } from 'semver'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { regionService } from '@main/services/RegionService'
 import { isPathWithin } from '@main/utils/binaryEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
+import { CHINA_NPM_REGISTRY, CHINA_PIP_INDEXES } from '@main/utils/packageRegistry'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import {
@@ -347,7 +349,17 @@ export class LocalAgentInstallService extends BaseService {
         manager: recipe.manager,
         package: recipe.package
       })
-      await this.run(command, recipe.args, env)
+      const environments = await this.installEnvironments(recipe.manager, command, env)
+      for (const [index, installEnv] of environments.entries()) {
+        try {
+          await this.run(command, recipe.args, installEnv, installEnv === env ? 15 * 60_000 : 3 * 60_000)
+          break
+        } catch (error) {
+          this.abort.signal.throwIfAborted()
+          if (index === environments.length - 1) throw error
+          logger.info('Agent package mirror failed; trying next source', { presetId, manager: recipe.manager })
+        }
+      }
       await refreshShellEnv()
       const detected = await this.detect(preset)
       application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
@@ -359,6 +371,39 @@ export class LocalAgentInstallService extends BaseService {
       logger.warn('System agent installation failed', { presetId, detail })
       return { ok: false, reason: 'failed', detail }
     }
+  }
+
+  private async installEnvironments(manager: 'npm' | 'uv', command: string, env: Record<string, string>) {
+    const signal = AbortSignal.any([this.abort.signal, AbortSignal.timeout(3000)])
+    const inChina = await regionService.isInChina(signal).catch(() => false)
+    this.abort.signal.throwIfAborted()
+    if (!inChina) return [env]
+    if (manager === 'npm') {
+      if (Object.keys(env).some((key) => key.toLowerCase() === 'npm_config_registry')) return [env]
+      const registry = await this.run(command, ['config', 'get', 'registry', '--global'], env, 8000).catch(() => '')
+      if (registry.trim().replace(/\/$/, '') !== 'https://registry.npmjs.org') return [env]
+      return [{ ...env, NPM_CONFIG_REGISTRY: CHINA_NPM_REGISTRY }, env]
+    }
+    // An existing uv configuration keeps ownership of index and authentication policy.
+    if (
+      Object.keys(env).some((key) =>
+        /^(UV_(INDEX|DEFAULT_INDEX|EXTRA_INDEX|CONFIG|NO_CONFIG|NO_INDEX|OFFLINE|FIND_LINKS)|PIP_|XDG_CONFIG)/i.test(
+          key
+        )
+      )
+    )
+      return [env]
+    if (['APPDATA', 'PROGRAMDATA'].some((key) => env[key] && env[key] !== process.env[key])) return [env]
+    const configured = await Promise.all(
+      ['external.uv.user_config_file' as const, 'external.uv.system_config_file' as const].map(async (key) =>
+        access(application.getPath(key)).then(
+          () => true,
+          (error: NodeJS.ErrnoException) => error.code !== 'ENOENT'
+        )
+      )
+    )
+    if (configured.some(Boolean)) return [env]
+    return [...CHINA_PIP_INDEXES.map((index) => ({ ...env, UV_DEFAULT_INDEX: index })), env]
   }
 
   private async fetchRegistry(): Promise<unknown> {

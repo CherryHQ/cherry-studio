@@ -23,6 +23,7 @@ import {
 } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
+import { CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX, CHINA_NPM_REGISTRY } from '@main/utils/packageRegistry'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
@@ -91,17 +92,6 @@ const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: '
 // killing it mid-download surfaces as a bogus "install failed".
 const MISE_COMMAND_TIMEOUT_MS = 120_000
 const MISE_INSTALL_TIMEOUT_MS = 15 * 60_000
-
-// Tried in order for China users who have not chosen an index themselves. A
-// mirror that has not synced a freshly published release fails the install
-// outright, and mirror lag is neither rare nor short: Tsinghua's PyPI sync has
-// stalled for over a day at a time, and the university mirrors that pull from
-// it stall with it. Tencent syncs independently, and pypi.org is the backstop.
-const CHINA_PIP_INDEXES = [
-  'https://pypi.tuna.tsinghua.edu.cn/simple',
-  'https://mirrors.cloud.tencent.com/pypi/simple'
-] as const
-const OFFICIAL_PIP_INDEX = 'https://pypi.org/simple'
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
@@ -950,7 +940,7 @@ export class BinaryManager extends BaseService {
     let usesDefaultChinaPipIndex = false
     if (inChina) {
       if (!env['NPM_CONFIG_REGISTRY']) {
-        env['NPM_CONFIG_REGISTRY'] = 'https://registry.npmmirror.com'
+        env['NPM_CONFIG_REGISTRY'] = CHINA_NPM_REGISTRY
       }
       if (!env['PIP_INDEX_URL']) {
         env['PIP_INDEX_URL'] = CHINA_PIP_INDEXES[0]

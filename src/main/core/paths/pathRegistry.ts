@@ -288,6 +288,16 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    'external.uv.user_config_file': path.join(
+      isWin ? app.getPath('appData') : path.join(sysHome, '.config'),
+      'uv',
+      'uv.toml'
+    ),
+    'external.uv.system_config_file': path.join(
+      isWin ? process.env.PROGRAMDATA || 'C:\\ProgramData' : '/etc',
+      'uv',
+      'uv.toml'
+    ),
     'external.acp.agents': isWin
       ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'Programs', 'ACP', 'agents')
       : path.join(sysHome, '.local', 'share', 'acp', 'agents'),
