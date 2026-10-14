@@ -1,4 +1,4 @@
-import type { mockMainLoggerService as MainLoggerServiceMock } from '@test-mocks/MainLoggerService'
+import type { MockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -60,7 +60,7 @@ const bootConfigGetMock = vi.fn()
 const bootConfigSetMock = vi.fn()
 const bootConfigPersistMock = vi.fn()
 const TASK_ID = '11111111-1111-4111-8111-111111111111'
-let mockMainLoggerService: typeof MainLoggerServiceMock
+let mockMainLoggerService: MockMainLoggerService
 
 function stubElectron(opts: ElectronStubOptions = {}) {
   const { isPackaged = true, exePath = '/mock/exe', userData = '/mock/userData' } = opts
@@ -149,7 +149,7 @@ async function loadModule() {
 
 beforeEach(async () => {
   vi.resetModules()
-  mockMainLoggerService = (await import('@logger')).loggerService as typeof MainLoggerServiceMock
+  mockMainLoggerService = (await import('@logger')).loggerService as unknown as MockMainLoggerService
   setPathMock.mockReset()
   cpSyncMock.mockReset()
   bootConfigGetMock.mockReset()
