@@ -43,6 +43,20 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('local agent settings navigation', () => {
+  it('keeps automatic authentication failures quiet and reports failures after a manual model refresh', async () => {
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId: 'claude', path: '/usr/local/bin/claude' }] as never
+      if (route === 'ai.local_agents.models') throw new Error('Authentication required')
+      return { models: [] } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.models', expect.anything()))
+    expect(screen.getByRole('button', { name: '检查连接' })).toBeEnabled()
+    expect(screen.queryByText('请先登录')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '刷新' }))
+    expect(await screen.findByText('请先登录')).toBeVisible()
+  })
+
   it('shows the installed version without checking a connection and offers the discovered upgrade', async () => {
     vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
       if (route === 'ai.local_agents.detect')

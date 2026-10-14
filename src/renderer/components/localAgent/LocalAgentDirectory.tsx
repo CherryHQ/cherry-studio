@@ -398,8 +398,9 @@ function LocalAgentDetails({
   >()
   const {
     catalog,
+    freshCatalog,
     loading: modelsLoading,
-    error: modelsError,
+    refreshError: modelsRefreshError,
     refresh: refreshModels
   } = useLocalAgentModelCatalog(
     preset?.id ?? agent?.id ?? 'custom-new',
@@ -659,7 +660,7 @@ function LocalAgentDetails({
       setBusyAction(undefined)
     }
   }
-  const feedbackMessage = result.message ?? modelsError
+  const feedbackMessage = result.message
   const classifiedError = feedbackMessage ? classifyLocalAgentError(feedbackMessage) : undefined
   const feedback = feedbackMessage && (
     <div
@@ -768,8 +769,11 @@ function LocalAgentDetails({
                       {initial.protocol === 'acp' && (
                         <LocalAgentLogin
                           config={initial}
-                          authMethods={catalog?.authMethods}
+                          authMethods={freshCatalog?.authMethods ?? catalog?.authMethods}
                           modelsLoading={modelsLoading}
+                          authenticationError={modelsRefreshError ?? (freshCatalog ? undefined : result.message)}
+                          sessionReady={!!freshCatalog && !modelsRefreshError}
+                          onRefresh={refreshModels}
                           available={!!(detection?.path || initial.executableOverride)}
                           disabled={busy || (!detection?.path && !initial.executableOverride)}
                           helpUrl={preset?.helpUrl}
@@ -778,15 +782,11 @@ function LocalAgentDetails({
                             const updated = await persistLocalRuntime(localRuntime)
                             if (!updated) throw new Error(t('common.error'))
                             try {
-                              const response = await ipcApi.request('ai.local_agents.check', localRuntime)
-                              setResult({
-                                ok: response.ok,
-                                message: response.ok ? t('local_agents.connected') : checkError(response)
-                              })
+                              setResult({ ok: true, message: t('local_agents.auth_completed') })
                               if (JSON.stringify(localRuntime.env) === JSON.stringify(initial.env))
                                 await refreshModels()
                             } catch (error) {
-                              toast.error(String(error))
+                              showError(error)
                             } finally {
                               await onSaved(updated.id)
                             }
@@ -910,6 +910,7 @@ function LocalAgentDetails({
                 )}
               </div>
             </AgentServiceCard>
+            {!editing && feedback}
             {(preset || agent) && !LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? ''] && (
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {t('local_agents.global_model_unavailable')}
@@ -918,6 +919,7 @@ function LocalAgentDetails({
             {(preset || agent) && (
               <LocalAgentModelList
                 models={modelSelection.models}
+                hint={LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? ''] ? t('local_agents.model_hint') : undefined}
                 groupFallback={agent?.name ?? preset?.name}
                 value={modelSelection.value}
                 disabled={busy || !LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? '']}
@@ -928,10 +930,6 @@ function LocalAgentDetails({
                 onSelect={selectModel}
               />
             )}
-            {(preset || agent) && LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? ''] && (
-              <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.model_hint')}</p>
-            )}
-            {!editing && feedback}
           </section>
         </div>
       </Scrollbar>

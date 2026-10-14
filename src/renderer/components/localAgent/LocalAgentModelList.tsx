@@ -1,4 +1,4 @@
-import { Check, RefreshCw, Search, X } from 'lucide-react'
+import { Check, Info, RefreshCw, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,6 +28,7 @@ export function LocalAgentModelList({
   models,
   showFollowCli = true,
   groupFallback,
+  hint,
   value,
   loaded,
   loading,
@@ -39,6 +40,7 @@ export function LocalAgentModelList({
   showFollowCli?: boolean
   models: LocalAgentModelOption[]
   groupFallback?: string
+  hint?: string
   value?: string
   loaded: boolean
   loading: boolean
@@ -84,6 +86,13 @@ export function LocalAgentModelList({
         <h2 id="local-agent-model-label" className="text-sm font-semibold">
           {t('settings.models.list_title')}
         </h2>
+        {hint && (
+          <Tooltip content={hint}>
+            <Button variant="ghost" className={iconButtonClass} aria-label={t('common.help')}>
+              <Info className="lucide-custom size-3 text-muted-foreground" />
+            </Button>
+          </Tooltip>
+        )}
         <span className="mr-1 ml-1 text-xs tabular-nums text-muted-foreground">{models.length}</span>
         {searchOpen || query ? (
           <InputGroup className="h-8 w-[min(38vw,220px)] min-w-36 rounded-[10px] border-border-subtle shadow-none">

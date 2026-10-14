@@ -1,15 +1,28 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
+import { LocalAgentConfigurationSchema } from '@shared/ai/localAgent'
 
 import { LocalAgentLogin } from '../LocalAgentLogin'
 
 vi.unmock('@cherrystudio/ui')
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: vi.fn((route, ...args) =>
+      route === 'ai.local_agents.auth_status'
+        ? statusRequest(LocalAgentConfigurationSchema.parse(args[0]))
+        : request(...args)
+    )
+  }
+}))
+const { request, statusRequest } = vi.hoisted(() => ({ request: vi.fn(), statusRequest: vi.fn() }))
 
 beforeEach(() => {
-  vi.resetAllMocks()
+  request.mockReset()
+  statusRequest.mockReset().mockResolvedValue('unsupported')
+  vi.mocked(ipcApi.request).mockClear()
 })
 
 const config = { protocol: 'acp' as const, enabled: true, args: [], env: {} }
@@ -21,25 +34,19 @@ const checked = {
 
 describe('ACP sign-in', () => {
   it('uses the advertised method and refreshes only after authentication succeeds', async () => {
-    vi.mocked(ipcApi.request).mockResolvedValueOnce(checked).mockResolvedValueOnce(undefined)
+    request.mockResolvedValueOnce(checked).mockResolvedValueOnce(undefined)
     const refreshed = vi.fn().mockResolvedValue(undefined)
     render(
       <LocalAgentLogin available modelsLoading={false} config={config} disabled={false} onAuthenticated={refreshed} />
     )
     fireEvent.click(await screen.findByRole('button', { name: '登录' }))
-    await waitFor(() => expect(refreshed).toHaveBeenCalledOnce())
-    expect(ipcApi.request).toHaveBeenLastCalledWith('ai.local_agents.authenticate', {
-      requestId: expect.any(String),
-      config,
-      methodId: 'native-google'
-    })
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: '登录' })).toBeVisible()
+    expect(refreshed).toHaveBeenCalledWith(config)
   })
 
   it('shows region rejection without reporting success', async () => {
-    vi.mocked(ipcApi.request)
-      .mockResolvedValueOnce(checked)
-      .mockRejectedValueOnce(new Error('Not currently available in your location'))
+    request.mockResolvedValueOnce(checked).mockRejectedValueOnce(new Error('Not currently available in your location'))
     const refreshed = vi.fn()
     render(
       <LocalAgentLogin available modelsLoading={false} config={config} disabled={false} onAuthenticated={refreshed} />
@@ -49,7 +56,7 @@ describe('ACP sign-in', () => {
     expect(refreshed).not.toHaveBeenCalled()
   })
   it('cancels an outstanding native login when the settings panel unmounts', async () => {
-    vi.mocked(ipcApi.request)
+    request
       .mockResolvedValueOnce(checked)
       .mockImplementationOnce(() => new Promise(() => {}))
       .mockResolvedValueOnce(undefined)
@@ -58,7 +65,7 @@ describe('ACP sign-in', () => {
       <LocalAgentLogin available modelsLoading={false} config={config} disabled={false} onAuthenticated={refreshed} />
     )
     fireEvent.click(await screen.findByRole('button', { name: '登录' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('请在浏览器中完成登录')
+    expect(await screen.findByRole('status')).toHaveTextContent('正在登录')
     const requestId = (
       vi.mocked(ipcApi.request).mock.calls[vi.mocked(ipcApi.request).mock.calls.length - 1][1] as { requestId: string }
     ).requestId
@@ -67,7 +74,7 @@ describe('ACP sign-in', () => {
     expect(refreshed).not.toHaveBeenCalled()
   })
   it('requires a masked API key and passes it to authentication and persistence without dropping existing environment', async () => {
-    vi.mocked(ipcApi.request)
+    request
       .mockResolvedValueOnce({
         ...checked,
         protocolInfo: { authMethods: [{ id: 'gemini-api-key', name: 'Gemini API key', type: 'agent' }] }
@@ -95,7 +102,7 @@ describe('ACP sign-in', () => {
         expect.objectContaining({ env: { KEEP: 'value', GEMINI_API_KEY: 'test-key-value' } })
       )
     )
-    expect(ipcApi.request).toHaveBeenLastCalledWith(
+    expect(ipcApi.request).toHaveBeenCalledWith(
       'ai.local_agents.authenticate',
       expect.objectContaining({
         config: expect.objectContaining({ env: { KEEP: 'value', GEMINI_API_KEY: 'test-key-value' } })
@@ -104,7 +111,7 @@ describe('ACP sign-in', () => {
   })
 
   it('requires project and region for Agent Platform ADC and clears a previously configured API key', async () => {
-    vi.mocked(ipcApi.request)
+    request
       .mockResolvedValueOnce({
         ...checked,
         protocolInfo: { authMethods: [{ id: 'agent-platform', name: 'Agent Platform', type: 'agent' }] }
@@ -164,5 +171,88 @@ describe('external authentication', () => {
     render(<LocalAgentLogin {...props} authMethods={[]} />)
     expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
     expect(ipcApi.request).not.toHaveBeenCalled()
+  })
+  it('detects an existing login without authentication, rechecks on focus and clears stale success on failure', async () => {
+    statusRequest.mockResolvedValue('signed-in')
+    render(<LocalAgentLogin {...props} authMethods={[{ id: 'cursor_login', name: 'Cursor', type: 'agent' }]} />)
+    expect(await screen.findByRole('button', { name: '已登录' })).toBeVisible()
+    expect(request).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: '已登录' }))
+    expect(screen.getByRole('heading', { name: '重新登录' })).toBeVisible()
+    expect(request).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: '取消' }))
+    statusRequest.mockRejectedValue(new Error('offline'))
+    fireEvent(window, new Event('focus'))
+    expect(await screen.findByRole('button', { name: '登录' })).toBeVisible()
+    statusRequest.mockResolvedValue('signed-out')
+    fireEvent(window, new Event('focus'))
+    await waitFor(() => expect(screen.queryByRole('button', { name: '已登录' })).not.toBeInTheDocument())
+  })
+
+  it('rechecks native status after authentication instead of remembering success', async () => {
+    statusRequest.mockResolvedValue('signed-out')
+    request.mockResolvedValue(undefined)
+    const onAuthenticated = async () => {
+      statusRequest.mockResolvedValue('signed-in')
+    }
+    render(
+      <LocalAgentLogin
+        {...props}
+        onAuthenticated={onAuthenticated}
+        authMethods={[{ id: 'login', name: 'Login', type: 'agent' }]}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: '登录' }))
+    expect(await screen.findByRole('button', { name: '已登录' })).toBeVisible()
+  })
+
+  it('uses live ACP session readiness for agents without a native account query and preserves the login action', async () => {
+    const loginProps = {
+      ...props,
+      config: { ...config, presetId: 'codebuddy-code' },
+      authMethods: [{ id: 'codebuddy-login', name: 'CodeBuddy Login', type: 'agent' as const }]
+    }
+    const { rerender } = render(<LocalAgentLogin {...loginProps} />)
+    expect(screen.getByRole('button', { name: '登录' })).toBeVisible()
+    rerender(<LocalAgentLogin {...loginProps} sessionReady />)
+    await userEvent.click(screen.getByRole('button', { name: '会话就绪' }))
+    expect(screen.getByRole('heading', { name: '重新登录' })).toBeVisible()
+    expect(request).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: '取消' }))
+    rerender(<LocalAgentLogin {...loginProps} sessionReady authenticationError="Authentication required" />)
+    expect(screen.getByRole('button', { name: '登录' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '会话就绪' })).not.toBeInTheDocument()
+    rerender(<LocalAgentLogin {...loginProps} sessionReady={false} />)
+    expect(screen.getByRole('button', { name: '登录' })).toBeVisible()
+  })
+
+  it('refreshes the ACP session when returning from external login without launching authentication', async () => {
+    const onRefresh = vi.fn().mockResolvedValue(undefined)
+    render(
+      <LocalAgentLogin
+        {...props}
+        onRefresh={onRefresh}
+        authMethods={[{ id: 'terminal-login', name: 'Terminal login', type: 'terminal' }]}
+      />
+    )
+    fireEvent(window, new Event('focus'))
+    await waitFor(() => expect(onRefresh).toHaveBeenCalled())
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('ignores a late status response for a different program', async () => {
+    let resolve!: (status: string) => void
+    statusRequest.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        })
+    )
+    const loginProps = { ...props, authMethods: [{ id: 'login', name: 'Login', type: 'agent' as const }] }
+    const { rerender } = render(<LocalAgentLogin {...loginProps} />)
+    rerender(<LocalAgentLogin {...loginProps} config={{ ...config, executableOverride: '/other/agent' }} />)
+    await act(async () => resolve('signed-in'))
+    expect(screen.getByRole('button', { name: '登录' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '已登录' })).not.toBeInTheDocument()
   })
 })

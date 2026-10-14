@@ -402,6 +402,10 @@ export const aiRequestSchemas = {
     input: z.object({ presetId: z.string().min(1), targetVersion: z.string().optional() }),
     output: LocalAgentInstallResultSchema
   }),
+  'ai.local_agents.auth_status': defineRoute({
+    input: LocalAgentConfigurationSchema,
+    output: z.enum(['signed-in', 'signed-out', 'unknown', 'unsupported'])
+  }),
   'ai.local_agents.authenticate': defineRoute({
     input: z.strictObject({ requestId: z.uuid(), config: LocalAgentConfigurationSchema, methodId: z.string().min(1) }),
     output: z.void()

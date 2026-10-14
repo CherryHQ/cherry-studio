@@ -1,16 +1,20 @@
-import { Loader2, LogIn } from 'lucide-react'
+import { CheckCircle2, Loader2, LogIn } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Tooltip } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import type { LocalAgentAuthMethod, LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { OutputFor } from '@shared/ipc/types'
 
 export function LocalAgentLogin({
   config,
   authMethods,
   modelsLoading,
+  authenticationError,
+  sessionReady = false,
+  onRefresh,
   available,
   disabled,
   helpUrl,
@@ -19,6 +23,9 @@ export function LocalAgentLogin({
   config: LocalAgentConfiguration
   authMethods?: LocalAgentAuthMethod[]
   modelsLoading: boolean
+  authenticationError?: string
+  sessionReady?: boolean
+  onRefresh?: () => Promise<void>
   available: boolean
   disabled: boolean
   helpUrl?: string
@@ -28,21 +35,55 @@ export function LocalAgentLogin({
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [discovered, setDiscovered] = useState<{ signature: string; methods: LocalAgentAuthMethod[] }>()
-  const signature = JSON.stringify([
-    config.protocol,
-    config.presetId,
-    config.executableOverride,
-    config.args,
-    config.env
-  ])
+  const signature = JSON.stringify({
+    protocol: config.protocol,
+    presetId: config.presetId,
+    executableOverride: config.executableOverride,
+    args: config.args,
+    env: config.env,
+    enabled: true
+  })
   const methods = authMethods ?? (discovered?.signature === signature ? discovered.methods : undefined)
   const usableMethods = methods?.filter((method) => method.type === 'agent' || helpUrl)
+  const canAuthenticate = !!usableMethods?.some((method) => method.type === 'agent')
+  const [authStatus, setAuthStatus] = useState<{
+    signature: string
+    status: OutputFor<'ai.local_agents.auth_status'>
+  }>()
+  const authFailed = !!authenticationError && classifyLocalAgentError(authenticationError).kind === 'authentication'
+  const status = authFailed ? 'signed-out' : authStatus?.signature === signature ? authStatus.status : 'unknown'
+  const signedIn = status === 'signed-in'
+  const ready = !authFailed && status !== 'signed-out' && sessionReady
+  const needsLogin = !signedIn && !ready
+  useEffect(() => {
+    if (!available || busy) return
+    let active = true
+    let pending = false
+    const refresh = async () => {
+      if (!canAuthenticate || pending) return
+      pending = true
+      const status = await ipcApi
+        .request('ai.local_agents.auth_status', JSON.parse(signature))
+        .catch(() => 'unknown' as const)
+      if (active) setAuthStatus({ signature, status })
+      pending = false
+    }
+    void refresh()
+    const onFocus = () => {
+      void refresh()
+      void onRefresh?.().catch(() => undefined)
+    }
+    window.addEventListener('focus', onFocus)
+    return () => {
+      active = false
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [available, canAuthenticate, busy, signature, authenticationError, onRefresh])
   useEffect(() => {
     if (!available || modelsLoading || authMethods !== undefined) return
     let active = true
-    const [protocol, presetId, executableOverride, args, env] = JSON.parse(signature)
     void ipcApi
-      .request('ai.local_agents.check', { protocol, presetId, executableOverride, args, env, enabled: true })
+      .request('ai.local_agents.check', JSON.parse(signature))
       .then((result) => {
         if (active && result.protocolInfo) setDiscovered({ signature, methods: result.protocolInfo.authMethods })
       })
@@ -73,7 +114,14 @@ export function LocalAgentLogin({
     setApiKey('')
     setMethod(undefined)
   }
-  useEffect(() => cancelRequest, [cancelRequest])
+  useEffect(() => {
+    setOpen(false)
+    setBusy(false)
+    setMethod(undefined)
+    setApiKey('')
+    setError(undefined)
+    return cancelRequest
+  }, [cancelRequest, signature])
   const showError = (failure: unknown) => {
     const { kind, message } = classifyLocalAgentError(failure)
     setError(
@@ -124,10 +172,14 @@ export function LocalAgentLogin({
       if (generation.current !== current) return
       request.current = undefined
       await onAuthenticated(nextConfig)
+      if (generation.current !== current) return
       setApiKey('')
       setOpen(false)
     } catch (failure) {
-      if (generation.current === current) showError(failure)
+      if (generation.current === current) {
+        setAuthStatus(undefined)
+        showError(failure)
+      }
     } finally {
       if (generation.current === current) {
         request.current = undefined
@@ -135,24 +187,39 @@ export function LocalAgentLogin({
       }
     }
   }
-  if (!available || !usableMethods?.some((method) => method.type === 'agent')) return null
+  if (!available || !canAuthenticate || !usableMethods) return null
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
-        disabled={disabled || busy}
-        onClick={() => {
-          if (usableMethods.length === 1) chooseMethod(usableMethods[0].id)
-          else {
-            setError(undefined)
-            setOpen(true)
-          }
-        }}>
-        <LogIn className="lucide-custom size-3.5 text-muted-foreground" />
-        {t('local_agents.sign_in')}
-      </Button>
+      <Tooltip
+        content={t(
+          signedIn
+            ? 'local_agents.reauthenticate'
+            : status === 'signed-out'
+              ? 'local_agents.sign_in_required'
+              : ready
+                ? 'local_agents.session_ready_hint'
+                : 'local_agents.auth_status_unknown'
+        )}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
+          disabled={disabled || busy}
+          onClick={() => {
+            if (needsLogin && usableMethods.length === 1) chooseMethod(usableMethods[0].id)
+            else {
+              setError(undefined)
+              setOpen(true)
+            }
+          }}>
+          {!needsLogin ? (
+            <CheckCircle2 className="lucide-custom size-3.5 text-muted-foreground" />
+          ) : (
+            <LogIn className="lucide-custom size-3.5 text-muted-foreground" />
+          )}
+          {t(signedIn ? 'local_agents.signed_in' : ready ? 'local_agents.session_ready' : 'local_agents.sign_in')}
+        </Button>
+      </Tooltip>
       <Dialog
         open={open}
         onOpenChange={(next) => {
@@ -161,12 +228,12 @@ export function LocalAgentLogin({
         }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>{t('local_agents.sign_in')}</DialogTitle>
+            <DialogTitle>{t(needsLogin ? 'local_agents.sign_in' : 'local_agents.reauthenticate')}</DialogTitle>
           </DialogHeader>
           {busy ? (
             <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
-              {t(request.current && !needsKey && !platform ? 'local_agents.auth_waiting' : 'common.loading')}
+              {t('local_agents.auth_waiting')}
             </p>
           ) : method ? (
             <div className="space-y-3">
