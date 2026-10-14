@@ -8,7 +8,12 @@ import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import type { AppProviderSettingsMap } from '@main/ai/types'
 import { resolveDefaultAsrModel } from '@main/ai/voice/voicePlatform'
 import { resolveProcessorConfigByFeature } from '@main/features/fileProcessing/config/resolveProcessorConfig'
-import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID, type LocalTranscriptionModelId } from '@shared/ai/localVoice'
+import {
+  APPLE_ASR_MODEL_ID,
+  FUNASR_MODEL_ID,
+  WINDOWS_ASR_MODEL_ID,
+  type LocalTranscriptionModelId
+} from '@shared/ai/localVoice'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { parseUniqueModelId, UniqueModelIdSchema, type UniqueModelId } from '@shared/data/types/model'
 import { DEFAULT_MEDIA_FRAME_BUDGET, MEDIA_PIPELINE_VERSION, type MediaFrameBudget } from '@shared/types/mediaAnalysis'
@@ -61,15 +66,16 @@ function resolveAsrExecutionConfig(): MediaAsrExecutionConfig | null {
   const preferences = application.get('PreferenceService')
   const rawModelId = preferences.get('feature.voice.recognition.model_id').trim()
   const explicit = rawModelId
-    ? rawModelId === APPLE_ASR_MODEL_ID || rawModelId === FUNASR_MODEL_ID
+    ? rawModelId === APPLE_ASR_MODEL_ID || rawModelId === WINDOWS_ASR_MODEL_ID || rawModelId === FUNASR_MODEL_ID
       ? rawModelId
       : null
     : undefined
-  if (explicit === null) throw new MediaAnalysisConfigError('unsupported_asr_model')
+  if (explicit === null) return null
 
   const modelId = resolveDefaultAsrModel(
     {
       platform: process.platform,
+      arch: process.arch,
       majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
     },
     explicit

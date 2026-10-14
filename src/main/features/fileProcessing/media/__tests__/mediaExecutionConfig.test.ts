@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID, WINDOWS_ASR_MODEL_ID } from '@shared/ai/localVoice'
 import { MEDIA_PIPELINE_VERSION } from '@shared/types/mediaAnalysis'
 
 const state = vi.hoisted(() => ({
@@ -30,6 +30,7 @@ import {
 } from '../mediaExecutionConfig'
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
+const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')
 const originalSystemVersion = Object.getOwnPropertyDescriptor(process, 'getSystemVersion')
 
 beforeEach(() => {
@@ -42,6 +43,7 @@ beforeEach(() => {
   })
   Object.defineProperty(process, 'platform', { configurable: true, value: 'darwin' })
   Object.defineProperty(process, 'getSystemVersion', { configurable: true, value: () => '26.0.0' })
+  if (originalArch) Object.defineProperty(process, 'arch', originalArch)
 })
 
 describe('resolveMediaExecutionConfig', () => {
@@ -62,10 +64,42 @@ describe('resolveMediaExecutionConfig', () => {
     await expect(resolveMediaExecutionConfig()).resolves.toMatchObject({ asr: { modelId: FUNASR_MODEL_ID } })
   })
 
-  it('rejects an unknown explicit ASR instead of falling back to a file processor', async () => {
+  it('forwards language to an explicit Windows ASR model', async () => {
+    state.preferences.set('feature.voice.recognition.model_id', WINDOWS_ASR_MODEL_ID)
+    state.preferences.set('feature.voice.recognition.language', 'zh-CN')
+    expect((await resolveMediaExecutionConfig()).asr).toEqual({
+      modelId: WINDOWS_ASR_MODEL_ID,
+      language: 'zh-CN'
+    })
+  })
+
+  it('uses the Windows x64 and Linux x64 platform defaults', async () => {
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+    Object.defineProperty(process, 'arch', { configurable: true, value: 'x64' })
+    expect((await resolveMediaExecutionConfig()).asr).toEqual({ modelId: WINDOWS_ASR_MODEL_ID })
+
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' })
+    expect((await resolveMediaExecutionConfig()).asr).toEqual({ modelId: FUNASR_MODEL_ID })
+  })
+
+  it('returns no ASR for an unknown explicit id and still resolves OCR', async () => {
     state.preferences.set('feature.voice.recognition.model_id', 'provider::whisper')
-    await expect(resolveMediaExecutionConfig()).rejects.toMatchObject({ code: 'unsupported_asr_model' })
-    expect(state.resolveProcessor).not.toHaveBeenCalled()
+    state.resolveProcessor.mockReturnValue({
+      id: 'system-ocr',
+      capabilities: [{ feature: 'image_to_text', modelId: 'ocr-model', apiHost: 'https://ocr.example' }],
+      options: { lang: 'en' }
+    })
+
+    const config = await resolveMediaExecutionConfig()
+
+    expect(config.asr).toBeNull()
+    expect(config.ocr?.identity).toEqual({
+      processorId: 'system-ocr',
+      modelId: 'ocr-model',
+      apiHost: 'https://ocr.example',
+      optionsJson: '{"lang":"en"}'
+    })
+    expect(config.vision).toBeNull()
   })
 })
 
@@ -105,6 +139,7 @@ describe('hashMediaExecutionConfig', () => {
 
 afterAll(() => {
   if (originalPlatform) Object.defineProperty(process, 'platform', originalPlatform)
+  if (originalArch) Object.defineProperty(process, 'arch', originalArch)
   if (originalSystemVersion) Object.defineProperty(process, 'getSystemVersion', originalSystemVersion)
   else delete (process as { getSystemVersion?: () => string }).getSystemVersion
 })
