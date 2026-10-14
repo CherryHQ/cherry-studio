@@ -89,74 +89,80 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       ? { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap }
       : undefined
 
-    // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
-    await application.get('TemporaryChatService').appendMessage(req.topicId, {
-      role: 'user',
-      data: { parts: req.userMessageParts },
-      status: 'success',
-      modelId: model.id
-    })
-
-    const prior = application.get('TemporaryChatService').listMessages(req.topicId)
-    const fullHistory: CherryUIMessage[] = prior.map((m) => ({
-      id: m.id,
-      role: toContentRole(m.role),
-      parts: m.data.parts ?? []
-    }))
-    // Same scope rule as the persistent provider, and likewise independent of
-    // the `enabled` kill-switch, which owns the overflow policy instead.
-    const contextSettings = resolveContextSettings({
-      globals: resolveGlobalContextSettings(),
-      assistant: assistant?.settings?.contextSettings
-    })
-    const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
-
-    const messageId = uuidv7()
-    const listeners: StreamListener[] = [
-      subscriber,
-      {
-        id: 'temporary-turn:' + messageId,
-        terminalPhase: 'cleanup',
-        onChunk: () => {},
-        onDone: () => application.get('TemporaryChatService').finishTurn(req.topicId),
-        onPaused: () => application.get('TemporaryChatService').finishTurn(req.topicId),
-        onError: () => application.get('TemporaryChatService').finishTurn(req.topicId),
-        isAlive: () => true
-      },
-      new PersistenceListener({
-        topicId: req.topicId,
-        modelId: model.id,
-        backend: new TemporaryChatBackend({ topicId: req.topicId, messageId, modelId: model.id, messageSnapshot }),
-        onPersistFailed: (error) =>
-          void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+    const temporary = application.get('TemporaryChatService')
+    const abortController = temporary.beginTurn(req.topicId)
+    try {
+      // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
+      await application.get('TemporaryChatService').appendMessage(req.topicId, {
+        role: 'user',
+        data: { parts: req.userMessageParts },
+        status: 'success',
+        modelId: model.id
       })
-    ]
 
-    const streamRequest: AiStreamRequest = {
-      conversation: { id: req.topicId, topicId: req.topicId },
-      trigger: 'submit-message',
-      assistantId,
-      uniqueModelId: model.id,
-      messageId,
-      messages: history,
-      knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
-      reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
-      serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined,
-      ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
-    }
+      const prior = application.get('TemporaryChatService').listMessages(req.topicId)
+      const fullHistory: CherryUIMessage[] = prior.map((m) => ({
+        id: m.id,
+        role: toContentRole(m.role),
+        parts: m.data.parts ?? []
+      }))
+      // Same scope rule as the persistent provider, and likewise independent of
+      // the `enabled` kill-switch, which owns the overflow policy instead.
+      const contextSettings = resolveContextSettings({
+        globals: resolveGlobalContextSettings(),
+        assistant: assistant?.settings?.contextSettings
+      })
+      const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
 
-    const abortController = application.get('TemporaryChatService').beginTurn(req.topicId)
-    return {
-      topicId: req.topicId,
-      models: [
+      const messageId = uuidv7()
+      const listeners: StreamListener[] = [
+        subscriber,
         {
+          id: 'temporary-turn:' + messageId,
+          terminalPhase: 'cleanup',
+          onChunk: () => {},
+          onDone: () => application.get('TemporaryChatService').finishTurn(req.topicId),
+          onPaused: () => application.get('TemporaryChatService').finishTurn(req.topicId),
+          onError: () => application.get('TemporaryChatService').finishTurn(req.topicId),
+          isAlive: () => true
+        },
+        new PersistenceListener({
+          topicId: req.topicId,
           modelId: model.id,
-          request: streamRequest,
-          abortController,
-          storeGeneratedFile: (part) => application.get('TemporaryChatService').storeGeneratedFile(req.topicId, part)
-        }
-      ],
-      listeners
+          backend: new TemporaryChatBackend({ topicId: req.topicId, messageId, modelId: model.id, messageSnapshot }),
+          onPersistFailed: (error) =>
+            void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+        })
+      ]
+
+      const streamRequest: AiStreamRequest = {
+        conversation: { id: req.topicId, topicId: req.topicId },
+        trigger: 'submit-message',
+        assistantId,
+        uniqueModelId: model.id,
+        messageId,
+        messages: history,
+        knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
+        reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
+        serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined,
+        ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
+      }
+
+      return {
+        topicId: req.topicId,
+        models: [
+          {
+            modelId: model.id,
+            request: streamRequest,
+            abortController,
+            storeGeneratedFile: (part) => application.get('TemporaryChatService').storeGeneratedFile(req.topicId, part)
+          }
+        ],
+        listeners
+      }
+    } catch (error) {
+      temporary.finishTurn(req.topicId)
+      throw error
     }
   }
 }

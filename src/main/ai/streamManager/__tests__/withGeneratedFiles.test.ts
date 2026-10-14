@@ -16,6 +16,8 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { topicService } from '@data/services/TopicService'
 import { TemporaryChatService } from '@main/ai/TemporaryChatService'
 import { BaseService } from '@main/core/lifecycle'
@@ -26,6 +28,7 @@ import { tryFileUrlToPath } from '@shared/utils/file'
 import { collectFileAttachments, prepareChatMessages } from '../../messages/attachmentRouting'
 import { materializeNativeFilePart } from '../../messages/fileProcessor'
 import { readFile as readAttachedFile } from '../../tools/adapters/aiSdk/builtin/ReadFileTool'
+import { temporaryChatContextProvider } from '../context/TemporaryChatContextProvider'
 import { pipeStreamLoop } from '../pipeStreamLoop'
 import { withGeneratedFiles } from '../withGeneratedFiles'
 
@@ -107,6 +110,150 @@ describe('generated conversation attachments', () => {
     expect(await manager.getById(entryId!)).toMatchObject({ ext: 'mp4', cleanupPolicy: 'delete_when_unreferenced' })
     expect((await manager.read(entryId!, { encoding: 'binary' })).content).toEqual(new Uint8Array(VIDEO))
     expect(await materializeNativeFilePart(part)).toMatchObject({ url: DATA_URL, mediaType: 'video/mp4' })
+  })
+
+  it.each([true, false])('routes local WebM by disk MIME with native video support = %s', async (video) => {
+    const topic = temporary.createTopic({})
+    const part = await temporary.storeGeneratedFile(topic.id, {
+      type: 'file',
+      mediaType: 'video/webm',
+      url: 'data:video/webm;base64,' + VIDEO.toString('base64')
+    })
+    const messages = [{ id: 'webm', role: 'user' as const, parts: [part] }]
+    const [prepared] = await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: { image: false, audio: false, video, pdf: false },
+      isToolCapable: false
+    })
+    if (video) {
+      expect(prepared.parts).toEqual([
+        expect.objectContaining({
+          type: 'file',
+          mediaType: 'video/webm',
+          url: 'data:video/webm;base64,' + VIDEO.toString('base64')
+        })
+      ])
+    } else {
+      expect(prepared.parts).toEqual([
+        { type: 'text', text: `Attached file "file":\nThis model can't process the attached video file "file".` }
+      ])
+    }
+  })
+
+  describe('temporary dispatch admission', () => {
+    beforeEach(() => {
+      dbh.db.insert(userProviderTable).values({ providerId: 'attachment-test', name: 'Test', orderKey: 'a0' }).run()
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'attachment-test::model',
+          providerId: 'attachment-test',
+          modelId: 'model',
+          name: 'Test model',
+          capabilities: [],
+          supportsStreaming: true,
+          orderKey: 'a0'
+        })
+        .run()
+    })
+
+    function submit(topicId: string, part: FileUIPart) {
+      return temporaryChatContextProvider.prepareDispatch(
+        {
+          id: 'test',
+          onChunk: () => {},
+          onDone: () => {},
+          onPaused: () => {},
+          onError: () => {},
+          isAlive: () => true
+        },
+        {
+          topicId,
+          trigger: 'submit-message',
+          mentionedModelIds: ['attachment-test::model'],
+          userMessageParts: [part]
+        },
+        { hasLiveStream: false }
+      )
+    }
+
+    async function attachment() {
+      const entry = await manager.createInternalEntry({
+        source: 'bytes',
+        data: VIDEO,
+        name: 'input',
+        ext: 'mp4',
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      return {
+        type: 'file' as const,
+        mediaType: 'video/mp4',
+        url: manager.getUrl(entry.id),
+        providerMetadata: { cherry: { fileEntryId: entry.id } }
+      }
+    }
+
+    it('keeps an admitted dispatch exclusive with promotion during the attachment copy', async () => {
+      const part = await attachment()
+      const topic = temporary.createTopic({})
+      const started = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const copy = fileUtils.copy
+      vi.spyOn(fileUtils, 'copy').mockImplementationOnce(async (...args) => {
+        started.resolve()
+        await release.promise
+        return copy(...args)
+      })
+      const dispatch = submit(topic.id, part)
+      await started.promise
+      const outcomes = Promise.allSettled([dispatch, temporary.persist(topic.id)])
+      release.resolve()
+      const [prepared, saved] = await outcomes
+      expect(prepared.status).toBe('fulfilled')
+      expect(saved).toMatchObject({
+        status: 'rejected',
+        reason: expect.objectContaining({ message: expect.stringContaining('turn is active') })
+      })
+      expect(temporary.listMessages(topic.id)).toHaveLength(1)
+      expect(dbh.db.select().from(topicTable).all()).toHaveLength(0)
+      temporary.finishTurn(topic.id)
+      await expect(temporary.persist(topic.id)).resolves.toEqual({ topicId: topic.id, messageCount: 1 })
+    })
+
+    it('rejects another dispatch before it appends a user message during the first copy', async () => {
+      const part = await attachment()
+      const topic = temporary.createTopic({})
+      const started = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const copy = fileUtils.copy
+      vi.spyOn(fileUtils, 'copy').mockImplementationOnce(async (...args) => {
+        started.resolve()
+        await release.promise
+        return copy(...args)
+      })
+      const first = submit(topic.id, part)
+      await started.promise
+      const second = submit(topic.id, part)
+      const outcomes = Promise.allSettled([first, second])
+      release.resolve()
+      const results = await outcomes
+      expect(results.map((result) => result.status).sort()).toEqual(['fulfilled', 'rejected'])
+      expect(temporary.listMessages(topic.id)).toHaveLength(1)
+      temporary.finishTurn(topic.id)
+    })
+
+    it('releases admission after a failed copy so a retry can run and later be saved', async () => {
+      const part = await attachment()
+      const topic = temporary.createTopic({})
+      vi.spyOn(fileUtils, 'copy').mockRejectedValueOnce(new Error('copy failed'))
+      await expect(submit(topic.id, part)).rejects.toThrow('copy failed')
+      expect(temporary.listMessages(topic.id)).toHaveLength(0)
+      const prepared = await submit(topic.id, part)
+      expect(prepared.models[0].abortController?.signal.aborted).toBe(false)
+      expect(temporary.listMessages(topic.id)).toHaveLength(1)
+      temporary.finishTurn(topic.id)
+      await expect(temporary.persist(topic.id)).resolves.toEqual({ topicId: topic.id, messageCount: 1 })
+    })
   })
 
   it('surfaces storage failures while preserving content received before the file', async () => {

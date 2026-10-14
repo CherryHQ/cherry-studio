@@ -26,6 +26,7 @@
 
 import { isAbortError } from '@ai-sdk/provider-utils'
 import type { UIMessage } from 'ai'
+import mime from 'mime'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -243,7 +244,13 @@ async function prepareChatMessage<T extends UIMessage>(
     const displayName = ref?.displayName ?? handle
     try {
       const bareExt = await getFileHandleExtension(file)
-      const fileType = getFileTypeByExt(bareExt)
+      let fileType = getFileTypeByExt(bareExt)
+      if (fileType === FILE_TYPE.OTHER && !ctx.keepUnroutableFileParts) {
+        const mediaKind = mime.getType(bareExt)?.split('/')[0]
+        if (mediaKind === FILE_TYPE.IMAGE || mediaKind === FILE_TYPE.AUDIO || mediaKind === FILE_TYPE.VIDEO) {
+          fileType = mediaKind
+        }
+      }
 
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
         if (!(await inlineNative(part))) {
