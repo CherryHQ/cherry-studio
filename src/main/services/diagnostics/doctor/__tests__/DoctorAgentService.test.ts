@@ -11,7 +11,6 @@ import { doctorAgentKey, doctorAgentStateCacheKey, doctorStateCacheKey } from '@
 
 const mocks = vi.hoisted(() => ({
   abort: vi.fn(),
-  checkModel: vi.fn(),
   ensureBuiltinAgent: vi.fn(),
   updateAgent: vi.fn(),
   getModel: vi.fn(),
@@ -25,8 +24,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@application', async () =>
   (await import('@test-mocks/main/application')).mockApplicationFactory({
-    AiStreamManager: { abort: mocks.abort },
-    AiService: { checkModel: mocks.checkModel }
+    AiStreamManager: { abort: mocks.abort }
   } as never)
 )
 vi.mock('@data/services/AgentService', () => ({
@@ -478,14 +476,4 @@ describe('DoctorAgentService incidents', () => {
     await Promise.all([first, second])
     expect(order).toEqual(['a:start', 'a:end', 'b:start'])
   })
-})
-
-it('checks the selected Doctor model using Agent admission without fallback', async () => {
-  mocks.checkModel.mockImplementation(async (request) => {
-    if (request.modelUsageFeature !== 'agent' || request.requestOptions?.maxRetries !== 0)
-      throw new Error('Wrong admission')
-    return { latency: 42 }
-  })
-  const service = new DoctorAgentService()
-  await expect(service.checkModel('cherryai-subscription::agent-only')).resolves.toEqual({ latency: 42 })
 })

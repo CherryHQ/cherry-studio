@@ -6,10 +6,8 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import type { RetryPolicy } from '../retryPolicy'
 
-const { getByProviderId, getByKey } = vi.hoisted(() => ({
-  getByProviderId: vi.fn(),
-  getByKey: vi.fn()
-}))
+const getByProviderId = vi.fn()
+const getByKey = vi.fn()
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: (...a: unknown[]) => getByProviderId(...a) }
 }))
@@ -64,7 +62,6 @@ function stubBuildAgentParams(modelId: string) {
 
 const baseArgs = {
   request: { messages: [] } as never,
-  modelUsageFeature: 'chat' as const,
   assistant: undefined,
   signal: undefined,
   primaryHasTools: false,
@@ -127,7 +124,6 @@ describe('buildFallbackModels', () => {
     })
     expect(resolveLanguageModel).toHaveBeenCalledWith('anthropic', {}, 'claude-x', [...plugins, usagePlugin])
     const buildOptions = buildAgentParams.mock.calls[0][0]
-    expect(buildOptions.modelUsageFeature).toBe('chat')
     expect(buildOptions.getRepairUsagePlugins()).toEqual([usagePlugin])
     // The fallback's own params are lifted as the per-fallback option override.
     expect(fallback?.options).toEqual({ temperature: 0.2, maxOutputTokens: 128 })

@@ -301,7 +301,7 @@ describe('processMessage model-id parsing', () => {
 })
 
 describe('PDF translation admission', () => {
-  it('routes a model-scoped translation credential with translate rather than agent admission', async () => {
+  it('routes a model-scoped translation credential without Agent attribution', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'translate-only', 'translate-only', CHERRY_CLOUD_MODEL_GROUP)
     translationGateway = new ApiGatewayService()
     const credential = translationGateway.createTranslationCredential(`${CHERRY_CLOUD_PROVIDER_ID}:translate-only`)
@@ -316,7 +316,7 @@ describe('PDF translation admission', () => {
         requestHeaders: new Headers({ authorization: `Bearer ${credential.apiKey}` })
       })
       await vi.waitFor(() => expect(captured.opts).toBeDefined())
-      expect(captured.opts).toMatchObject({ modelUsageFeature: 'translate' })
+      expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'translate-only'))
       expect(captured.opts).not.toHaveProperty('tokenUsageSource', 'agent')
       void captured.opts!.listener!.onDone({} as any)
       await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })

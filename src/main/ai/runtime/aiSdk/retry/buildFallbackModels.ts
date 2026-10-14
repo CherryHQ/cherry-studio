@@ -25,7 +25,7 @@ import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } f
 import type { Provider } from '@shared/data/types/provider'
 import { isAudioModel, isFunctionCallingModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
-import type { AiChatRequest, AppProviderSettingsMap, ModelUsageFeature } from '../../../types'
+import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
@@ -39,7 +39,6 @@ export interface BuildFallbackModelsArgs {
   // Base request shape accepted by `buildAgentParams`; kept `messages`-agnostic so
   // both streamText (UIMessage[]) and generateText (ModelMessage[]) requests fit.
   request: AiChatRequest & { messageId?: string }
-  modelUsageFeature: ModelUsageFeature
   assistant: Assistant | undefined
   signal: AbortSignal | undefined
   /** Primary model's stored UniqueModelId — fallbacks equal to it are dropped. */
@@ -159,7 +158,6 @@ async function resolveFallback(
     provider,
     model,
     assistant: args.assistant,
-    modelUsageFeature: args.modelUsageFeature,
     extraFeatures: args.extraFeatures,
     getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
   })
