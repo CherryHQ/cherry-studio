@@ -2,13 +2,16 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { pinHandlers } from '@data/api/handlers/pins'
 import { pinTable } from '@data/db/schemas/pin'
-import { PinService, pinService } from '@data/services/PinService'
+import { pinService } from '@data/services/PinService'
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { PinSchema } from '@shared/data/types/pin'
 
 const PIN_ID_MISSING = '11111111-1111-4111-8111-111111111111'
 const ENTITY_ID_1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
@@ -16,17 +19,12 @@ const ENTITY_ID_2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2'
 const ENTITY_ID_3 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3'
 const PREEXISTING_PIN_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const MODEL_ID = 'openai::gpt-4o'
-const AGENT_ID = 'agent_1700000000000_abc123xyz'
 
 describe('PinService', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
     notifyDataApiDataChangeMock.mockClear()
-  })
-
-  it('should export a module-level singleton of PinService', () => {
-    expect(pinService).toBeInstanceOf(PinService)
   })
 
   describe('pin', () => {
@@ -111,10 +109,21 @@ describe('PinService', () => {
       expect(rows[0]).toMatchObject({ entityType: 'model', entityId: MODEL_ID })
     })
 
-    it('should accept persisted non-UUID agent ids for agent pins', async () => {
-      const result = pinService.pin({ entityType: 'agent', entityId: AGENT_ID })
+    it('should pin, list and unpin the built-in support agent through the API', async () => {
+      const request = { body: { entityType: 'agent', entityId: CHERRY_SUPPORT_AGENT_ID } } as const
+      const pin = PinSchema.parse(await pinHandlers['/pins'].POST(request))
 
-      expect(result).toMatchObject({ entityType: 'agent', entityId: AGENT_ID })
+      expect(pin).toMatchObject({ entityType: 'agent', entityId: CHERRY_SUPPORT_AGENT_ID })
+      await expect(pinHandlers['/pins'].POST(request)).resolves.toEqual(pin)
+      expect(dbh.db.select().from(pinTable).all()).toHaveLength(1)
+      await expect(pinHandlers['/pins'].GET({ query: { entityType: 'agent' } })).resolves.toEqual([pin])
+
+      await pinHandlers['/pins/:id'].DELETE({ params: { id: pin.id } })
+      expect(dbh.db.select().from(pinTable).all()).toEqual([])
+
+      const repinned = PinSchema.parse(await pinHandlers['/pins'].POST(request))
+      expect(repinned).toMatchObject({ entityType: 'agent', entityId: CHERRY_SUPPORT_AGENT_ID })
+      expect(repinned.id).not.toBe(pin.id)
     })
 
     it('should publish agent session read-model effects for session pins', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { CreatePinSchema } from '@shared/data/api/schemas/pins'
 import { EntityIdSchema, EntityTypeSchema } from '@shared/data/types/entityType'
 import { PinSchema } from '@shared/data/types/pin'
@@ -21,11 +22,26 @@ describe('pin schemas', () => {
     expect(EntityTypeSchema.safeParse('agent').success).toBe(true)
   })
 
-  it('accepts UUID and UniqueModelId values through the shared entity id schema', () => {
-    expect(EntityIdSchema.safeParse(UUID_ENTITY_ID).success).toBe(true)
-    expect(EntityIdSchema.safeParse(MODEL_ENTITY_ID).success).toBe(true)
-    expect(EntityIdSchema.safeParse(AGENT_ENTITY_ID).success).toBe(true)
-    expect(EntityIdSchema.safeParse('not-a-uuid').success).toBe(false)
+  it.each([
+    UUID_ENTITY_ID,
+    '22222222-2222-5222-8222-222222222222',
+    '22222222-2222-7222-8222-222222222222',
+    MODEL_ENTITY_ID,
+    CHERRY_SUPPORT_AGENT_ID
+  ])('accepts supported entity id %s', (entityId) => {
+    expect(EntityIdSchema.safeParse(entityId).success).toBe(true)
+  })
+
+  it.each(['not-a-uuid', 'cherry-other', 'cherry-support-extra', ''])('rejects invalid entity id %s', (entityId) => {
+    expect(EntityIdSchema.safeParse(entityId).success).toBe(false)
+    expect(CreatePinSchema.safeParse({ entityType: 'agent', entityId }).success).toBe(false)
+    expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'agent', entityId }).success).toBe(false)
+  })
+
+  it('accepts the built-in support agent in both pin requests and responses', () => {
+    const entity = { entityType: 'agent', entityId: CHERRY_SUPPORT_AGENT_ID }
+    expect(CreatePinSchema.parse(entity)).toEqual(entity)
+    expect(PinSchema.parse({ ...PIN_BASE, ...entity })).toEqual({ ...PIN_BASE, ...entity })
   })
 
   it('uses a flat pin schema over the shared entity type and id schemas', () => {
