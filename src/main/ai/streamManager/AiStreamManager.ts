@@ -1246,9 +1246,10 @@ export class AiStreamManager extends BaseService {
   async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
     // A renderer Stop sends its abort twice (explicit abort + `sdkStop`'s transport signal). The
     // duplicate must join the running drain: once the lock releases it would capture — and cancel —
-    // the queued successor the first stop just resumed.
+    // the queued successor the first stop just resumed. Only hookless callers join: a `beforeAbort`
+    // (remote cancellation validating `expectedExecutionId`) owns its guard and its cancellation.
     const drainKey = `${topicId}\u0000${reason}`
-    const inFlight = this.drainingTopics.get(drainKey)
+    const inFlight = beforeAbort ? undefined : this.drainingTopics.get(drainKey)
     if (inFlight) return inFlight
     const draining = this.withDispatchLock(topicId, async () => {
       beforeAbort?.()
