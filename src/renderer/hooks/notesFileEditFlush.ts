@@ -128,9 +128,6 @@ export function registerNotesEditPreFlush(preFlush: () => void | Promise<void>):
 
 export function trackDepartingNotesFileWrite(chain: Promise<void>): void {
   departingWriteChains.add(chain)
-  void chain.finally(() => {
-    departingWriteChains.delete(chain)
-  })
 }
 
 export function trackPendingNotesImagePaste<T>(operation: Promise<T>): Promise<T> {
@@ -160,5 +157,7 @@ export async function flushAllNotesEdits(): Promise<void> {
   for (const preFlush of preFlushCallbacks) {
     await preFlush()
   }
-  await Promise.all([...[...flushCallbacks].map((flush) => flush()), ...[...departingWriteChains]])
+  const departing = [...departingWriteChains]
+  departingWriteChains.clear()
+  await Promise.all([...[...flushCallbacks].map((flush) => flush()), ...departing])
 }

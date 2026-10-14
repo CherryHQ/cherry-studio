@@ -337,7 +337,7 @@ export function useFileEditSession(
         if (trackDepartingWritesForRelocation) {
           trackDepartingNotesFileWrite(persistDepartingEdits)
         } else {
-          void persistDepartingEdits
+          void persistDepartingEdits.catch(() => undefined)
         }
       }
       modelRef.current = null

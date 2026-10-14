@@ -393,20 +393,21 @@ describe('notesRelocation', () => {
     'rejects an app-data destination that only differs by path segment casing',
     async () => {
       const source = path.join(tempRoot, 'source-notes-appdata-case')
-      const appDataRoot = path.join(tempRoot, 'AppData')
-      const target = path.join(tempRoot, 'appdata', 'notes-export')
+      const appDataRootOnDisk = path.join(tempRoot, 'AppData')
+      const targetOnDisk = path.join(appDataRootOnDisk, 'notes-export')
+      const appDataRootConfigured = path.join(tempRoot, 'appdata')
+      const targetConfigured = path.join(appDataRootConfigured, 'notes-export')
       fs.mkdirSync(source)
-      fs.mkdirSync(appDataRoot)
-      fs.mkdirSync(target, { recursive: true })
+      fs.mkdirSync(targetOnDisk, { recursive: true })
       fs.writeFileSync(path.join(source, 'note.md'), '# Note')
       vi.spyOn(application, 'getPath').mockImplementation((key: string) => {
         if (key === 'feature.notes.data') return defaultNotesDir
-        if (key === 'sys.appdata') return appDataRoot
+        if (key === 'sys.appdata') return appDataRootConfigured
         if (key === 'feature.files.data') return path.join(tempRoot, 'files')
         throw new Error(`unexpected path key: ${key}`)
       })
 
-      await expect(assertNotesRelocationPaths(source, target)).rejects.toThrow()
+      await expect(assertNotesRelocationPaths(source, targetConfigured)).rejects.toThrow()
     }
   )
 
