@@ -4,13 +4,24 @@ import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 
-import type { AgentRuntimeEvent, Subagent, SubagentPort, SubagentSessionOptions } from '@cherrystudio/agent-runtime-pi'
+import {
+  type AgentRuntimeEvent,
+  type Subagent,
+  SUBAGENT_STATE_TYPE,
+  type SubagentPort,
+  type SubagentSessionOptions,
+  type SubagentState,
+  type SubagentView,
+  type TranscriptEntry
+} from '../src'
 
 export interface RoutedCall {
   /** Role of the last prompt message: `user` on a new request, `tool` after tool results. */
   lastRole: string
   /** Text of every user message in the prompt, joined. */
   userText: string
+  /** Text of the last prompt message when it is a user message (a prompt or a notification). */
+  lastText: string
   options: LanguageModelV3CallOptions
 }
 
@@ -19,22 +30,52 @@ const userTextOf = (message: LanguageModelV3Message) =>
 
 /**
  * A mock that answers each call with the script `route` picks for it, so a parent and its
- * subagents can share one model (and one port) the way they do in production.
+ * subagents can share one model (and one port) the way they do in production. A route may wait
+ * (on a {@link gate}) before it answers; an abort still ends the request.
  */
-export function routedModel(route: (call: RoutedCall) => LanguageModelV3StreamPart[]) {
+export function routedModel(
+  route: (call: RoutedCall) => LanguageModelV3StreamPart[] | Promise<LanguageModelV3StreamPart[]>
+) {
   const calls: RoutedCall[] = []
   const model = new MockLanguageModelV3({
     doStream: async (options) => {
+      const last = options.prompt.at(-1)
       const call: RoutedCall = {
-        lastRole: options.prompt.at(-1)?.role ?? '',
+        lastRole: last?.role ?? '',
         userText: options.prompt.map(userTextOf).join('\n'),
+        lastText: last ? userTextOf(last) : '',
         options
       }
       calls.push(call)
-      return { stream: simulateReadableStream({ chunks: route(call) }) }
+      return { stream: simulateReadableStream({ chunks: await route(call) }) }
     }
   })
   return { model, calls }
+}
+
+/** Holds the requests that `wait()` on it until `open()`; `reached` resolves once one waits. */
+export function gate() {
+  let open!: () => void
+  const opened = new Promise<void>((resolve) => (open = resolve))
+  let arrive!: () => void
+  const reached = new Promise<void>((resolve) => (arrive = resolve))
+  return {
+    open,
+    reached,
+    wait: <T>(value: T): Promise<T> => {
+      arrive()
+      return opened.then(() => value)
+    }
+  }
+}
+
+/** Resolves once `check()` holds, polling; fails after `timeoutMs`. */
+export async function waitFor(check: () => boolean, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error('waitFor timed out')
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
 }
 
 export const toolCallPart = (toolCallId: string, toolName: string, input: object = {}): LanguageModelV3StreamPart => ({
@@ -44,8 +85,10 @@ export const toolCallPart = (toolCallId: string, toolName: string, input: object
   input: JSON.stringify(input)
 })
 
-export const subagentCall = (toolCallId: string, input: { description: string; prompt: string; fork?: boolean }) =>
-  toolCallPart(toolCallId, 'subagent', input)
+export const subagentCall = (
+  toolCallId: string,
+  input: { description: string; prompt: string; fork?: boolean; background?: boolean }
+) => toolCallPart(toolCallId, 'subagent', input)
 
 /** A host port that records each subagent it configures and the events and session that subagent gets. */
 export function recordingSubagentPort(
@@ -104,3 +147,13 @@ export const noteTool = defineTool({
     return { content: [{ type: 'text', text: 'noted' }], details: undefined }
   }
 })
+
+/** Every `cherry.subagent-state` snapshot in the parent's transcript, in order. */
+export const subagentStates = (entries: readonly TranscriptEntry[]): SubagentState[] =>
+  entries.flatMap((entry) =>
+    entry.kind === 'state' && entry.type === SUBAGENT_STATE_TYPE ? [entry.data as unknown as SubagentState] : []
+  )
+
+/** The lists the parent's `subagents` events carried, in order. */
+export const subagentViews = (events: readonly AgentRuntimeEvent[]): SubagentView[][] =>
+  events.flatMap((event) => (event.type === 'subagents' ? [event.subagents] : []))
