@@ -43,12 +43,11 @@ import {
 } from '@main/core/utilityProcess/__tests__/memoryProcessAdapter'
 import { SERVICE_NAME_PREFIX } from '@main/core/utilityProcess/protocol/constants'
 import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
-import type { UtilityProcessDefinition } from '@main/core/utilityProcess/types'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 
-import { embeddingInferenceProcess, ocrInferenceProcess } from '../inferenceProcess'
+import { asrInferenceProcess } from '../../capabilities/asr/AsrInferenceService'
+import { embeddingInferenceProcess, type InferenceProcessDefinition, ocrInferenceProcess } from '../inferenceProcess'
 import { InferenceServiceBase } from '../InferenceServiceBase'
-import type { InferenceInitData } from '../protocol'
 
 /**
  * The base owns three things after the process machinery moved into `core/utilityProcess`:
@@ -65,7 +64,7 @@ const HARDWARE_KEY = 'feature.local_model.hardware_acceleration.enabled'
 
 const initDataSeen: unknown[] = []
 let childStates: EchoChildState[]
-let definition: UtilityProcessDefinition<EchoContract, InferenceInitData>
+let definition: InferenceProcessDefinition<EchoContract>
 
 class TestInferenceService extends InferenceServiceBase<EchoContract> {
   constructor() {
@@ -122,9 +121,10 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, false)
   initDataSeen.length = 0
-  definition = echoDefinition({
-    createInitData: () => ({ appPath: '/app' })
-  }) as UtilityProcessDefinition<EchoContract, InferenceInitData>
+  definition = {
+    ...echoDefinition({ createInitData: () => ({ appPath: '/app' }) }),
+    resolveRuntimeProfile: embeddingInferenceProcess.resolveRuntimeProfile
+  } as InferenceProcessDefinition<EchoContract>
 })
 
 afterEach(() => {
@@ -156,7 +156,7 @@ describe('InferenceServiceBase dispatch', () => {
     await expect(second).resolves.toBe('pong')
   })
 
-  it.each([embeddingInferenceProcess, ocrInferenceProcess])(
+  it.each([embeddingInferenceProcess, ocrInferenceProcess, asrInferenceProcess])(
     '$id cancellation waits for exit before dispatching the next native operation',
     async (processDefinition) => {
       definition = { ...definition, cancellation: processDefinition.cancellation }
@@ -207,7 +207,7 @@ describe('InferenceServiceBase dispatch', () => {
     }
   )
 
-  it.each([embeddingInferenceProcess, ocrInferenceProcess])(
+  it.each([embeddingInferenceProcess, ocrInferenceProcess, asrInferenceProcess])(
     '$id skips a cancelled queued request without killing the active process',
     async (processDefinition) => {
       definition = { ...definition, cancellation: processDefinition.cancellation }
@@ -281,6 +281,32 @@ describe('InferenceServiceBase runtime staleness', () => {
       resolveProfile.mockRestore()
       await service.terminate()
     }
+  })
+
+  it('uses the process definition profile policy for staleness checks', async () => {
+    const profiles = await import('../inferenceAcceleration')
+    const hardwareProfile = profiles.resolveLocalInferenceProfile(true, { platform: 'darwin', arch: 'arm64' })
+    let profile = profiles.CPU_LOCAL_INFERENCE_PROFILE
+    definition = { ...definition, resolveRuntimeProfile: () => profile }
+    const { service, adapter } = await createService()
+
+    await service.ping()
+    profile = hardwareProfile
+    await service.ping()
+
+    expect(adapter.spawns).toHaveLength(2)
+  })
+
+  it('keeps a CPU-only runtime alive when the acceleration preference changes', async () => {
+    const { CPU_LOCAL_INFERENCE_PROFILE } = await import('../inferenceAcceleration')
+    definition = { ...definition, resolveRuntimeProfile: () => CPU_LOCAL_INFERENCE_PROFILE }
+    const { service, adapter } = await createService()
+
+    await service.ping()
+    MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, true)
+    await service.ping()
+
+    expect(adapter.spawns).toHaveLength(1)
   })
 })
 

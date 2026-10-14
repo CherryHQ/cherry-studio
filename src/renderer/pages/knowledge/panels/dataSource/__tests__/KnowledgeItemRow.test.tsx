@@ -180,6 +180,8 @@ vi.mock('react-i18next', () => ({
         'knowledge.data_source.status.embedding': '向量化中',
         'knowledge.data_source.status.chunking': '分块中',
         'knowledge.data_source.status.pending': '等待中',
+        'knowledge.data_source.status.reading': '读取文档中',
+        'knowledge.status.processing': '处理中',
         'knowledge.data_source.actions.preview_source': '预览原文',
         'knowledge.data_source.actions.view_chunks': '查看 Chunks',
         'knowledge.data_source.actions.reindex': '重新索引',
@@ -193,8 +195,7 @@ vi.mock('react-i18next', () => ({
         'knowledge.data_source.filters.url': '链接',
         'knowledge.data_source.table.select_row': '选择行',
         'knowledge.data_source.table.open_row': '打开行',
-        'common.more': '更多',
-        'knowledge.rag.file_processing': '文件处理'
+        'common.more': '更多'
       }
       return translations[key] ?? key
     }
@@ -286,10 +287,10 @@ describe('KnowledgeItemRow', () => {
     expect(screen.getByRole('button', { name: '查看 Chunks' })).toBeInTheDocument()
   })
 
-  it('renders the processing status label for in-flight items', () => {
+  it('renders the reading status label for in-flight items', () => {
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'reading' })} {...defaultHandlers} />)
 
-    expect(screen.getByText('文件处理')).toBeInTheDocument()
+    expect(screen.getByText('读取文档中')).toBeInTheDocument()
   })
 
   it('shows the embedding percentage next to the status label while embedding', () => {
@@ -299,6 +300,24 @@ describe('KnowledgeItemRow', () => {
 
     expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.embedding_progress.file-1')
     expect(screen.getByText('向量化中 42%')).toBeInTheDocument()
+  })
+
+  it('shows the mirrored file-processing percentage while processing', () => {
+    mockUseSharedCacheValue.mockReturnValue(42)
+
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'processing' })} {...defaultHandlers} />)
+
+    expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.file_processing_progress.file-1')
+    expect(screen.getByText('处理中 42%')).toBeInTheDocument()
+  })
+
+  it('shows the bare processing label while the document processor reports no progress', () => {
+    mockUseSharedCacheValue.mockReturnValue(undefined)
+
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'processing' })} {...defaultHandlers} />)
+
+    expect(screen.getByText('处理中')).toBeInTheDocument()
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument()
   })
 
   it('shows the bare embedding label while the job has not published a percentage yet', () => {
@@ -331,9 +350,9 @@ describe('KnowledgeItemRow', () => {
     expect(screen.getByText('等待中')).toBeInTheDocument()
   })
 
-  it('does not subscribe to the progress key at all for non-embedding rows', () => {
-    // The subscription lives in a child only mounted while embedding, so ordinary
-    // completed/failed rows never touch (or create) the shared-cache key.
+  it('does not subscribe to any progress key for rows outside the progress phases', () => {
+    // The subscriptions live in children only mounted while processing/embedding/preparing,
+    // so ordinary completed/failed rows never touch (or create) the shared-cache keys.
     mockUseSharedCacheValue.mockReturnValue(42)
 
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'completed' })} {...defaultHandlers} />)

@@ -132,16 +132,11 @@ const GeneralSettings: FC = () => {
   return (
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.launch.title')}</SettingTitle>
+        <SettingTitle>{t('settings.general.sections.startup')}</SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-general-launch-onboot" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
           <Switch checked={launchOnBoot} onCheckedChange={(checked) => void setLaunchOnBoot(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-general-launch-totray" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
-          <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-general-tray-show" className="scroll-mt-6">
@@ -149,19 +144,19 @@ const GeneralSettings: FC = () => {
           <Switch checked={tray} onCheckedChange={(checked) => updateTray(checked)} />
         </SettingRow>
         <SettingDivider />
+        <SettingRow id="setting-general-launch-totray" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
+          <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
+        </SettingRow>
+        <SettingDivider />
         <SettingRow id="setting-general-tray-onclose" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
           <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-general-prevent-sleep-when-busy" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
-          <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
-        </SettingRow>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.proxy.mode.title')}</SettingTitle>
+        <SettingTitle>{t('settings.general.sections.network')}</SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
@@ -218,72 +213,37 @@ const GeneralSettings: FC = () => {
             onCheckedChange={(checked) => void setAllowPrivateNetworkFetch(checked)}
           />
         </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.general.sections.runtime')}</SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-general-hardware-acceleration" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
         </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup theme={theme}>
-        <SettingRow id="setting-general-commit-attribution" className="scroll-mt-6 flex-nowrap">
-          <div className="min-w-0 flex-1">
-            <SettingRowTitle id="commit-attribution-title">
-              {t('settings.general.commit_attribution.title')}
-            </SettingRowTitle>
-            <SettingDescription>{t('settings.general.commit_attribution.description')}</SettingDescription>
-          </div>
-          <Switch
-            checked={commitAttribution}
-            onCheckedChange={(checked) => void setCommitAttribution(checked)}
-            aria-labelledby="commit-attribution-title"
-          />
+        <SettingDivider />
+        <SettingRow id="setting-general-prevent-sleep-when-busy" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
+          <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
         </SettingRow>
       </SettingGroup>
 
       <ContextManagementSettings />
 
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.agent.language.title')}</SettingTitle>
+        <SettingTitle>{t('settings.general.sections.retry')}</SettingTitle>
+        <SettingDescription>{t('settings.models.retry.description')}</SettingDescription>
         <SettingDivider />
-        <SettingRow id="setting-general-agent-language" className="scroll-mt-6 items-start gap-6">
-          <div className="min-w-0 flex-1">
-            <SettingRowTitle className="gap-1">
-              {t('settings.agent.language.label')}
-              <InfoTooltip content={t('settings.agent.language.description')} />
-            </SettingRowTitle>
-            <SettingDescription className="mt-1.5 leading-5">
-              {t('settings.agent.language.description')}
-            </SettingDescription>
-          </div>
-          <div className="w-[220px] shrink-0">
-            <AgentLanguageField
-              value={agentLanguage}
-              onChange={(next) => void setAgentLanguage(next)}
-              nullOptionLabel={t('settings.agent.language.follow_conversation')}
-              customPlaceholder={t('settings.agent.language.custom_placeholder')}
-              comboLabel={t('settings.agent.language.combo_label')}
-              inputLabel={t('settings.agent.language.custom_label')}
-            />
-          </div>
-        </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup theme={theme}>
-        <SettingRow id="setting-general-retry-enabled" className="scroll-mt-6 items-start gap-6">
-          <div className="min-w-0 flex-1">
-            <SettingRowTitle className="gap-1">
-              {t('settings.models.retry.label')}
-              <InfoTooltip content={t('settings.models.retry.tooltip')} />
-            </SettingRowTitle>
-            <SettingDescription className="mt-1.5 leading-5">
-              {t('settings.models.retry.description')}
-            </SettingDescription>
-          </div>
+        <SettingRow id="setting-general-retry-enabled" className="scroll-mt-6">
+          <SettingRowTitle className="gap-1">
+            {t('settings.general.retry.enabled')}
+            <InfoTooltip content={t('settings.models.retry.tooltip')} />
+          </SettingRowTitle>
           <Switch
             checked={retryEnabled}
             onCheckedChange={(checked) => void setRetryEnabled(checked)}
-            aria-label={t('settings.models.retry.label')}
+            aria-label={t('settings.general.retry.enabled')}
           />
         </SettingRow>
         {retryEnabled && (
@@ -348,7 +308,43 @@ const GeneralSettings: FC = () => {
       </SettingGroup>
 
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.developer.title')}</SettingTitle>
+        <SettingTitle>{t('settings.general.sections.agent')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-general-agent-language" className="scroll-mt-6 gap-x-6">
+          <SettingRowTitle className="gap-1">
+            {t('settings.agent.language.label')}
+            <InfoTooltip content={t('settings.agent.language.description')} />
+          </SettingRowTitle>
+          <div className="w-[448px] max-w-full min-w-0">
+            <AgentLanguageField
+              className="grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))]"
+              value={agentLanguage}
+              onChange={(next) => void setAgentLanguage(next)}
+              nullOptionLabel={t('settings.agent.language.follow_conversation')}
+              customPlaceholder={t('settings.agent.language.custom_placeholder')}
+              comboLabel={t('settings.agent.language.combo_label')}
+              inputLabel={t('settings.agent.language.custom_label')}
+            />
+          </div>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-general-commit-attribution" className="scroll-mt-6 flex-nowrap">
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle id="commit-attribution-title">
+              {t('settings.general.commit_attribution.title')}
+            </SettingRowTitle>
+            <SettingDescription>{t('settings.general.commit_attribution.description')}</SettingDescription>
+          </div>
+          <Switch
+            checked={commitAttribution}
+            onCheckedChange={(checked) => void setCommitAttribution(checked)}
+            aria-labelledby="commit-attribution-title"
+          />
+        </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.general.sections.developer')}</SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-general-enable-developer-mode" className="scroll-mt-6">
           <Flex className="items-center gap-1">

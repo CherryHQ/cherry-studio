@@ -5,6 +5,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 
 import { type ResourceListItemBase, useResourceListActions, useResourceListItemAccessors } from '../resourceList/base'
+import { useSessionHoverPreviewContextMenu } from '../resourceList/SessionHoverPreview'
 import { actionsToCommandMenuExtraItems } from './actionMenuItems'
 import type { ResolvedAction } from './actionTypes'
 
@@ -35,6 +36,7 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
 }: ResourceListActionContextMenuProps<T, TActionContext>) {
   const listActions = useResourceListActions()
   const { getItemId } = useResourceListItemAccessors<T>()
+  const onContextMenuOpenChange = useSessionHoverPreviewContextMenu(getItemId(item))
 
   const runAction = useCallback(
     async (action: ResolvedAction<TActionContext>) => {
@@ -79,6 +81,7 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
   return (
     <CommandContextMenu
       location="webcontents.context"
+      onOpenChange={onContextMenuOpenChange}
       extraItems={getActions ? EMPTY_EXTRA_ITEMS : extraItems}
       getExtraItems={getActions ? getExtraItems : undefined}>
       <span className="contents" onContextMenu={markActiveItem}>

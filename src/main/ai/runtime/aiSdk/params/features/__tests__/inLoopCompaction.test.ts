@@ -494,6 +494,18 @@ describe('inLoopCompactionFeature', () => {
     expect(result).toBeUndefined()
     expect(compactModelMessages).not.toHaveBeenCalled()
   })
+
+  it('does not compress a continuation response solely because its prompt was billed twice', async () => {
+    const prepareStep = getPrepareStep()
+    const messages = [userMessage(100), assistantMessage(100), toolMessage(100)]
+    const steps = [
+      {
+        usage: { inputTokens: 100_100, outputTokens: 200, totalTokens: 100_300 },
+        providerMetadata: { google: { initialPromptTokenCount: 50_000 } }
+      }
+    ]
+    expect(await prepareStep({ messages, steps } as any)).toBeUndefined()
+  })
 })
 
 // ---------------------------------------------------------------------------
