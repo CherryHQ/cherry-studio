@@ -16,7 +16,12 @@ vi.mock('@application', async () => {
 })
 
 import { listLiveDetachedBackgroundTasks } from '../backgroundTaskActions'
-import { getDetachedBackgroundTask, listDetachedBackgroundTasks, startDetachedBackgroundTask } from '../backgroundTasks'
+import {
+  getDetachedBackgroundTask,
+  isPidAlive,
+  listDetachedBackgroundTasks,
+  startDetachedBackgroundTask
+} from '../backgroundTasks'
 
 const nodeBin = `"${process.execPath}"`
 
@@ -47,7 +52,7 @@ describe('listLiveDetachedBackgroundTasks', () => {
   }, 15_000)
 
   /** Writes a running record the way the last session left it: no sentinel, status unsettled. */
-  async function writeRunningRecord(id: string, pid: number): Promise<void> {
+  async function writeRunningRecord(id: string, pid: number, pidStartTime?: string): Promise<void> {
     await writeFile(
       path.join(storageDir, `${id}.json`),
       JSON.stringify({
@@ -55,6 +60,7 @@ describe('listLiveDetachedBackgroundTasks', () => {
         name: id,
         command: 'true',
         pid,
+        ...(pidStartTime ? { pidStartTime } : {}),
         cwd: storageDir,
         startedAt: new Date().toISOString(),
         logFile: path.join(storageDir, `${id}.log`),
@@ -119,6 +125,29 @@ describe('listLiveDetachedBackgroundTasks', () => {
       // The precondition: reconciled without a sentinel, so it is neither running nor finished.
       expect((await getDetachedBackgroundTask(storageDir, 'bt-drained'))?.status).toBe('unknown')
       expect(await listLiveDetachedBackgroundTasks()).toEqual([])
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'does not report a recycled pid whose original group has drained, so restore is not blocked by an unrelated process',
+    async () => {
+      // A task that finished while Cherry was closed left no sentinel, and the OS has since handed
+      // its pid to an unrelated process: reconciliation reads the record `unknown`, which Stop and
+      // Kill refuse and the panel hides the controls of — so a restore refused here could never be
+      // unblocked. Only the recorded start stamp ties a live pid to the task, and the group the
+      // task actually led has drained; the occupant is not live task evidence.
+      const unrelated = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000)'], { stdio: 'ignore' })
+      try {
+        await vi.waitFor(() => expect(isPidAlive(unrelated.pid!)).toBe(true), { timeout: 10_000 })
+        // The precondition: nothing claims the old task's group — the occupant runs outside it.
+        await waitForGroupAbsent(unrelated.pid!)
+        await writeRunningRecord('bt-recycled-drained', unrelated.pid!, 'Mon Jan  1 00:00:00 2001')
+
+        expect((await getDetachedBackgroundTask(storageDir, 'bt-recycled-drained'))?.status).toBe('unknown')
+        expect(await listLiveDetachedBackgroundTasks()).toEqual([])
+      } finally {
+        unrelated.kill('SIGKILL')
+      }
     }
   )
 
