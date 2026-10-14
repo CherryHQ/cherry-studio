@@ -18,6 +18,7 @@ import { voiceRequestSchemas, type VoiceSessionEvent } from '@shared/ipc/schemas
 import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 import type * as LocalAdapters from '../localAdapters'
+import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
 
 // Pending synthesis takes the inspection lock before admission, so a manual read or
@@ -294,17 +295,19 @@ describe('voice admission coordination through the renderer coordinators', () =>
         language: 'en-US'
       })
     })
+    const audios: FakeAudio[] = []
     const playback = new SpeechPlaybackService({
       voice,
       ownerWindow: new EventTarget() as Window,
       createAudio: (url) => {
         const audio = new FakeAudio()
         audio.src = url
+        audios.push(audio)
         return audio as unknown as HTMLAudioElement
       }
     })
     cleanups.push(() => playback.teardown())
-    return { playback, voice, voiceOwner }
+    return { playback, voice, voiceOwner, audios, ipc }
   }
 
   function startPending(playback: InstanceType<typeof SpeechPlaybackService>, sourceEntityId: string) {
@@ -425,8 +428,8 @@ describe('voice admission coordination through the renderer coordinators', () =>
     expect(native.speech).toHaveBeenCalledTimes(1)
   })
 
-  it.each(['abort', 'teardown', 'power'] as const)(
-    'releases an unstarted playback lease when configuration is cancelled by %s',
+  it.each(['abort', 'remote-stop', 'teardown', 'power', 'paused-power'] as const)(
+    'allows the same preview consumer to restart after configuration is cancelled by %s',
     async (mode) => {
       let releaseConfiguration!: (value: ReturnType<typeof readySpeech>) => void
       native.resolveSpeech.mockImplementationOnce(
@@ -445,24 +448,54 @@ describe('voice admission coordination through the renderer coordinators', () =>
           })
       )
       const { playback, voiceOwner } = createPlayback()
+      const observer = createPlayback()
+      await observer.voice.initialize()
       const controller = new AbortController()
       const started = playback.start({
         text: 'configure me',
         trigger: 'manual',
-        sourceLabel: 'message',
-        sourceEntityId: 'message-1',
+        sourceLabel: 'preview',
+        sourceEntityId: 'voice-settings',
         signal: controller.signal
       })
+      const cancelled = started.catch((error: unknown) => error)
       await vi.waitFor(() => expect(native.resolveSpeech).toHaveBeenCalled())
+      const state = observer.voice.getSnapshot()
+      expect(state).toMatchObject({
+        phase: 'generating',
+        playback: { availableCommands: expect.arrayContaining(['stop']) }
+      })
+      if (state.phase === 'idle') throw new Error('Missing pending playback session')
 
       if (mode === 'abort') controller.abort()
-      else if (mode === 'teardown') await playback.teardown()
-      else powerEvents.emit('suspend')
+      else if (mode === 'remote-stop') {
+        await observer.voice.controlPlayback({ sessionId: state.sessionId, command: 'stop' })
+      } else if (mode === 'teardown') await playback.teardown()
+      else {
+        if (mode === 'paused-power') {
+          await observer.voice.controlPlayback({ sessionId: state.sessionId, command: 'pause' })
+          await vi.waitFor(() => expect(rootService.getState(voiceOwner).phase).toBe('paused'))
+        }
+        powerEvents.emit('suspend')
+      }
       releaseConfiguration?.(readySpeech())
 
-      await expect(started).rejects.toMatchObject({ reason: 'aborted' })
+      await expect(cancelled).resolves.toMatchObject({ reason: 'aborted' })
       expect(native.speech).not.toHaveBeenCalled()
       expect(rootService.getState(voiceOwner)).toMatchObject({ phase: 'idle' })
+      expect(playback.getSnapshot()).toMatchObject({ phase: 'idle' })
+
+      const next = playback.start({
+        text: 'next preview',
+        trigger: 'manual',
+        sourceLabel: 'preview',
+        sourceEntityId: 'voice-settings'
+      })
+      await vi.waitFor(() => expect(native.speech).toHaveBeenCalledOnce())
+      native.releases[0]?.()
+      await expect(next).resolves.toEqual({ status: 'started' })
+      expect(rootService.getState(voiceOwner)).toMatchObject({ phase: 'playing', trigger: 'manual' })
+      expect(playback.getSnapshot()).toMatchObject({ phase: 'playing', sourceLabel: 'preview' })
     }
   )
 
@@ -499,51 +532,201 @@ describe('voice admission coordination through the renderer coordinators', () =>
     expect(rootService.getState(voiceOwner)).toMatchObject({ phase: 'idle' })
   })
 
-  it('releases an unstarted playback lease when an inspection outlives configuration', async () => {
-    let releaseConfiguration!: (value: ReturnType<typeof readySpeech>) => void
-    native.resolveSpeech.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          releaseConfiguration = resolve
-        })
-    )
-    const voiceOwner = owner()
-    const input = {
-      sessionId: randomUUID(),
-      requestId: randomUUID(),
-      text: 'configure me',
-      preferenceResolution: true as const,
-      speed: 1,
-      trigger: 'manual' as const
+  it.each(['preparing', 'paused'] as const)(
+    'releases an unstarted %s playback when an inspection outlives configuration',
+    async (phase) => {
+      let releaseConfiguration!: (value: ReturnType<typeof readySpeech>) => void
+      native.resolveSpeech.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseConfiguration = resolve
+          })
+      )
+      const { playback, voice, voiceOwner } = createPlayback()
+      const started = playback.start({
+        text: 'configure me',
+        trigger: 'manual',
+        sourceLabel: 'preview',
+        sourceEntityId: 'preview'
+      })
+      const failed = expect(started).rejects.toMatchObject({ reason: 'busy' })
+      await vi.waitFor(() => expect(native.resolveSpeech).toHaveBeenCalledTimes(1))
+      if (phase === 'paused') await playback.pause()
+
+      let releaseInspection!: (value: ReturnType<typeof readySpeech>) => void
+      native.resolveSpeech.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseInspection = resolve
+          })
+      )
+      const inspection = voice.resolveSpeechConfiguration({ speed: 1 })
+      await vi.waitFor(() => expect(native.resolveSpeech).toHaveBeenCalledTimes(2))
+      releaseConfiguration(readySpeech())
+      const install = {
+        sessionId: randomUUID(),
+        requestId: randomUUID(),
+        modelId: APPLE_ASR_MODEL_ID,
+        language: 'en-US'
+      }
+      try {
+        await failed
+        expect(rootService.getState(voiceOwner).phase).toBe('idle')
+        expect(playback.getSnapshot()).toMatchObject({ phase: 'failed', error: 'busy' })
+        await expect(rootService.installAsset(voiceOwner, install)).rejects.toMatchObject({ reason: 'busy' })
+      } finally {
+        releaseInspection(readySpeech())
+        await inspection
+      }
+      await expect(rootService.installAsset(voiceOwner, install)).resolves.toBeUndefined()
+      native.speech.mockResolvedValue({ audio: wav(), mediaType: 'audio/wav' })
+      await playback.start({ text: 'restart', trigger: 'manual', sourceLabel: 'preview', sourceEntityId: 'preview' })
+      expect(playback.getSnapshot().phase).toBe('playing')
+      await playback.stop()
     }
-    const started = rootService.speech(voiceOwner, input)
-    await vi.waitFor(() => expect(native.resolveSpeech).toHaveBeenCalledTimes(1))
+  )
 
-    let releaseInspection!: (value: ReturnType<typeof readySpeech>) => void
-    native.resolveSpeech.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          releaseInspection = resolve
-        })
-    )
-    const inspection = rootService.resolveSpeech(voiceOwner, { speed: 1 })
-    await vi.waitFor(() => expect(native.resolveSpeech).toHaveBeenCalledTimes(2))
-    releaseConfiguration(readySpeech())
-
-    await expect(started).rejects.toMatchObject({ reason: 'busy' })
-    expect(native.speech).not.toHaveBeenCalled()
-    const install = {
-      sessionId: randomUUID(),
-      requestId: randomUUID(),
-      modelId: APPLE_ASR_MODEL_ID,
-      language: 'en-US'
-    }
-    await expect(rootService.installAsset(voiceOwner, install)).rejects.toMatchObject({ reason: 'busy' })
-
-    releaseInspection(readySpeech())
-    await inspection
-    await expect(rootService.installAsset(voiceOwner, install)).resolves.toBeUndefined()
+  it('retains an admitted busy synthesis failure until the same consumer stops it', async () => {
+    native.speech.mockRejectedValueOnce(new VoiceRuntimeError('busy'))
+    const { playback, voiceOwner } = createPlayback()
+    await expect(
+      playback.start({ text: 'start', trigger: 'manual', sourceLabel: 'preview', sourceEntityId: 'preview' })
+    ).rejects.toMatchObject({ reason: 'busy' })
+    expect(rootService.getState(voiceOwner)).toMatchObject({
+      phase: 'failed',
+      playback: { failure: { stage: 'synthesis' } }
+    })
+    expect(playback.getSnapshot()).toMatchObject({ phase: 'failed', error: 'busy' })
+    await playback.stop()
+    expect(rootService.getState(voiceOwner).phase).toBe('idle')
+    expect(playback.getSnapshot().phase).toBe('idle')
   })
+
+  it.each(['inspection', 'synthesis'] as const)(
+    'exposes failure during %s between chunks and lets the same consumer stop and restart',
+    async (stage) => {
+      native.speech.mockResolvedValue({ audio: wav(), mediaType: 'audio/wav' })
+      const { playback, voice, voiceOwner, audios } = createPlayback()
+      await playback.start({
+        text: 'A sentence to read aloud. '.repeat(180),
+        trigger: 'manual',
+        sourceLabel: 'document',
+        sourceEntityId: 'long-document'
+      })
+      expect(playback.getSnapshot()).toMatchObject({ phase: 'playing', progress: { completed: 0, total: 2 } })
+
+      const gate = Promise.withResolvers<ReturnType<typeof readySpeech>>()
+      let inspection: Promise<unknown> = Promise.resolve()
+      if (stage === 'inspection') {
+        native.resolveSpeech.mockReturnValueOnce(gate.promise)
+        inspection = voice.resolveSpeechConfiguration({ speed: 1 })
+        await vi.waitFor(() => expect(native.resolveSpeech).toHaveBeenCalledTimes(2))
+      } else {
+        native.speech.mockRejectedValueOnce(new Error('native synthesis failed'))
+      }
+
+      try {
+        audios[0].dispatchEvent(new Event('ended'))
+        const reason = stage === 'inspection' ? 'busy' : 'operation_failed'
+        await vi.waitFor(() => expect(playback.getSnapshot()).toMatchObject({ phase: 'failed', error: reason }))
+        expect(rootService.getState(voiceOwner)).toMatchObject({
+          phase: 'failed',
+          playback: {
+            failure: { stage: stage === 'inspection' ? 'playback' : 'synthesis', reason },
+            availableCommands: ['stop']
+          }
+        })
+        expect(audios[0].src).toBe('')
+        expect(playback.getSnapshot().progress).toEqual({ completed: 1, total: 2 })
+      } finally {
+        gate.resolve(readySpeech())
+        await inspection
+      }
+
+      await playback.stop()
+      expect(rootService.getState(voiceOwner).phase).toBe('idle')
+      expect(playback.getSnapshot().phase).toBe('idle')
+      await playback.start({
+        text: 'Read again after the failure.',
+        trigger: 'manual',
+        sourceLabel: 'message',
+        sourceEntityId: 'restarted-message'
+      })
+      expect(playback.getSnapshot().phase).toBe('playing')
+      audios.at(-1)!.dispatchEvent(new Event('ended'))
+      await vi.waitFor(() => expect(playback.getSnapshot().phase).toBe('idle'))
+      expect(rootService.getState(voiceOwner).phase).toBe('idle')
+    }
+  )
+
+  it.each(['pause', 'stop', 'replacement'] as const)(
+    'settles a rejected continuation after %s without reviving obsolete playback',
+    async (action) => {
+      native.speech.mockResolvedValue({ audio: wav(), mediaType: 'audio/wav' })
+      const { playback, voice, voiceOwner, audios, ipc } = createPlayback()
+      await playback.start({
+        text: 'A sentence to read aloud. '.repeat(180),
+        trigger: 'manual',
+        sourceLabel: 'document',
+        sourceEntityId: 'long-document'
+      })
+
+      const gate = Promise.withResolvers<ReturnType<typeof readySpeech>>()
+      native.resolveSpeech.mockReturnValueOnce(gate.promise)
+      const inspection = voice.resolveSpeechConfiguration({ speed: 1 })
+      await vi.waitFor(() => expect(native.resolveSpeech).toHaveBeenCalledTimes(2))
+      const rejected = Promise.withResolvers<void>()
+      const response = Promise.withResolvers<void>()
+      const generate = vi.spyOn(voice, 'generateSpeech')
+      const request = ipc.request
+      ipc.request = async (route, ...args) => {
+        try {
+          return await request(route, ...args)
+        } catch (error) {
+          if (route === 'ai.speech.generate') {
+            rejected.resolve()
+            await response.promise
+          }
+          throw error
+        }
+      }
+
+      try {
+        audios[0].dispatchEvent(new Event('ended'))
+        await rejected.promise
+        gate.resolve(readySpeech())
+        await inspection
+        if (action === 'replacement') {
+          await playback.start({
+            text: 'The replacement must remain audible.',
+            trigger: 'manual',
+            sourceLabel: 'message',
+            sourceEntityId: 'replacement-message'
+          })
+        } else {
+          await playback[action]()
+        }
+        response.resolve()
+        await expect(generate.mock.results[0].value.result).rejects.toMatchObject({ reason: 'busy' })
+        if (action === 'pause') {
+          await vi.waitFor(() => expect(playback.getSnapshot()).toMatchObject({ phase: 'failed', error: 'busy' }))
+          expect(rootService.getState(voiceOwner)).toMatchObject({ phase: 'failed' })
+          await playback.stop()
+        } else if (action === 'replacement') {
+          expect(playback.getSnapshot()).toMatchObject({ phase: 'playing', sourceLabel: 'message' })
+          expect(audios.at(-1)!.paused).toBe(false)
+          await playback.stop()
+        }
+        await vi.waitFor(() => expect(playback.getSnapshot().phase).toBe('idle'))
+        expect(rootService.getState(voiceOwner).phase).toBe('idle')
+        expect(audios.every((audio) => audio.src === '')).toBe(true)
+      } finally {
+        gate.resolve(readySpeech())
+        response.resolve()
+        await inspection
+      }
+    }
+  )
 
   it('stops the displaced playback when replacement configuration has no usable voice', async () => {
     const first = createPlayback()

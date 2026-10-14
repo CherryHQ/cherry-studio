@@ -145,6 +145,7 @@ export class VoiceSessionService extends BaseService {
   getState(owner: VoiceOwner): VoiceSessionState {
     this.requireAdmission()
     this.requireOwner(owner)
+    if (!this.hasSessionAccess(owner)) return { phase: 'idle', revision: this.voiceState.revision }
     return { ...this.voiceState }
   }
 
@@ -427,13 +428,13 @@ export class VoiceSessionService extends BaseService {
     const session = this.requireLeaseSession(owner, input.sessionId)
     if (!session.playback) throw new VoiceRuntimeError('invalid_request')
     const next = applyPlaybackReport(session.playback, input)
-    if (next === session.playback) return { ...this.voiceState }
+    if (next === session.playback) return this.getState(owner)
     if (input.phase === 'completed' && session.outputId) throw new VoiceRuntimeError('invalid_request')
     session.playback = next
     if (!next.pendingCommand) this.clearPlaybackTimeout(session)
     if (input.phase === 'completed' || input.phase === 'stopped') {
       await this.closeSession(session, input.phase === 'stopped')
-      return { ...this.voiceState }
+      return this.getState(owner)
     }
     return this.publishPlayback(session)
   }
@@ -445,7 +446,7 @@ export class VoiceSessionService extends BaseService {
       throw new VoiceRuntimeError('invalid_request')
     }
     const next = applyPlaybackCommand(session.playback, input.command, Boolean(session.outputId))
-    if (next === session.playback) return { ...this.voiceState }
+    if (next === session.playback) return this.getState(owner)
     session.playback = next
     this.publishPlayback(session)
     this.armPlaybackTimeout(session)
@@ -457,7 +458,7 @@ export class VoiceSessionService extends BaseService {
       this.publishPlayback(session)
       throw new VoiceRuntimeError('operation_failed')
     }
-    return { ...this.voiceState }
+    return this.getState(owner)
   }
 
   private publishPlayback(session: Session): VoiceSessionState {
@@ -581,6 +582,8 @@ export class VoiceSessionService extends BaseService {
       if (session.closed || powerEpoch !== this.powerEpoch) throw new VoiceRuntimeError('aborted')
       if (input.chunkIndex !== undefined && input.chunkIndex !== 0) throw new VoiceRuntimeError('invalid_request')
       this.acquireLease(session)
+      session.playback = beginPlaybackSynthesis(session.playback!)
+      this.publishPlayback(session)
       return session
     } catch (error) {
       await this.closeSession(session, true)
@@ -622,9 +625,13 @@ export class VoiceSessionService extends BaseService {
   private requireControlOwner(owner: VoiceOwner): void {
     this.requireAdmission()
     this.requireOwner(owner)
-    if (this.lease?.owner.windowId === owner.windowId && this.lease.owner.webContents === owner.webContents) return
+    if (!this.hasSessionAccess(owner)) throw new VoiceRuntimeError('forbidden_owner')
+  }
+
+  private hasSessionAccess(owner: VoiceOwner): boolean {
+    if (this.lease?.owner.windowId === owner.windowId && this.lease.owner.webContents === owner.webContents) return true
     const type = application.get('WindowManager').getWindowType(owner.windowId)
-    if (type !== WindowType.Main && type !== WindowType.SubWindow) throw new VoiceRuntimeError('forbidden_owner')
+    return type === WindowType.Main || type === WindowType.SubWindow
   }
 
   private assertOwner(session: Session, owner: VoiceOwner): void {
@@ -991,7 +998,7 @@ export class VoiceSessionService extends BaseService {
 
   private async abandonUnstartedPlayback(session: Session, requestId: string): Promise<void> {
     if (session.closed || this.lease !== session || session.requestId !== requestId || session.outputId) return
-    if (session.phase && session.phase !== 'paused') return
+    if (session.operation) return
     await this.closeSession(session, true)
   }
 
@@ -1124,11 +1131,12 @@ export class VoiceSessionService extends BaseService {
       ipc.broadcastToType(type, 'ai.voice.session_event', event)
     }
     const session = this.lease
-    if (!session || session.closed || session.phase === 'paused') return
-    if (session.preflightAbort && !session.phase) {
+    if (!session || session.closed) return
+    if (session.preflightAbort) {
       session.preflightAbort.abort(new VoiceRuntimeError('aborted'))
       return
     }
+    if (session.phase === 'paused') return
     if (session.kind === 'recording') {
       this.sendCommand(session, 'interrupt')
       return

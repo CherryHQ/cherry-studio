@@ -149,6 +149,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         input.setSelectionRange(nextPosition ?? 0, nextPosition ?? input.value.length)
       },
       onTextChange: updateText,
+      appendText: () => false,
       replaceDraft: (draft) => {
         selectionRef.current = { start: draft.text.length, end: draft.text.length }
         props.onTextChange(draft.text)
