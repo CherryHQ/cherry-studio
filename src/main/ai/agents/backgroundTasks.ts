@@ -772,7 +772,10 @@ function readGroupMembers(pgid: number): GroupMember[] | null {
  */
 export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
   if (record.pid <= 0) return false
-  if (isPidAlive(record.pid)) return true
+  // A live pid is only this task's work while its recorded start stamp matches: a task that
+  // finished while the app was closed leaves its pid free for an unrelated occupant. Group
+  // members stay conservative — unreadable or unattributed evidence still counts as live.
+  if (isPidAlive(record.pid) && !isRecycledPid(record)) return true
   if (process.platform === 'win32') return false
   return groupHasLiveMember(record.pid)
 }
