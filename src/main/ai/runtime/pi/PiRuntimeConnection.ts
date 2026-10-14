@@ -175,6 +175,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private turnInstructions?: string | null
   /** Variable values this turn resolved its instructions with; a replay reuses them, not live rows. */
   private turnPromptVariables?: PromptVariableInputs
+  /** Whether this connection materialized a pinned (replayed) prompt rather than the row's own. */
+  private replayingPrompt = false
   private disabledTools = new Set<string>()
   /** Tools baked out of the spawned SDK session. Re-enabling one in the row cannot restore its
    *  definition mid-connection, so the next fresh turn needs a rebuilt session. */
@@ -264,6 +266,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       : (initialSnapshot.agent.instructions ?? null)
     this.turnPromptVariables =
       this.input.promptPolicy?.promptVariables ?? capturePromptVariableInputs(initialSnapshot.agent.modelName ?? null)
+    this.replayingPrompt = this.input.promptPolicy !== undefined
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
@@ -640,11 +643,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     // A replay materializes its pinned prompt, so a row-matching signature does not prove this
     // connection materialized the row's prompt; the divergence rebuilds on the next fresh turn.
+    // The captured variable values are the same: a fallback replacing the primary mid-backoff
+    // changes `{{model_name}}` in the row while this turn must keep materializing the admitted
+    // value, so a later fresh turn sees the row's values as a mismatch and rebuilds.
     // A tool baked out of the spawned session is the same: the row can re-enable it, but its
     // definition is still absent here (agent-session-runtime.md), so only a rebuild restores it.
     if (
       snapshot.signature !== this.connectionSignature ||
       (snapshot.agent.instructions ?? null) !== this.turnInstructions ||
+      !promptVariablesEqual(snapshot.agent.modelName, this.turnPromptVariables, this.replayingPrompt) ||
       [...(this.bakedExclusions ?? [])].some((name) => !applicableDisabledTools.has(name))
     ) {
       return 'rebuild'
@@ -1158,6 +1165,26 @@ function normalizeDisabledTools(
 
 function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
   return left.size === right.size && [...left].every((value) => right.has(value))
+}
+
+/**
+ * Whether a fresh agent row resolves to the same prompt variables this connection materialized.
+ * Only a replay pins values: its turn must keep materializing what it was admitted with, so a row
+ * saved mid-backoff has to read as a divergence — otherwise a fresh turn would keep serving the
+ * replay's prompt until an unrelated rebuild. A non-replaying connection re-resolves from the row
+ * every turn, so its divergence is already the signature's job.
+ */
+function promptVariablesEqual(
+  agentModelName: string | null | undefined,
+  materialized: PromptVariableInputs | undefined,
+  replaying: boolean
+): boolean {
+  if (!replaying) return true
+  return (
+    (materialized?.username ?? 'Unknown Username') ===
+      (application.get('PreferenceService').get('app.user.name') || 'Unknown Username') &&
+    (materialized?.modelName ?? null) === (agentModelName ?? null)
+  )
 }
 
 /** pi triggers `manual` on `compact()`, `threshold`/`overflow` automatically — Cherry's

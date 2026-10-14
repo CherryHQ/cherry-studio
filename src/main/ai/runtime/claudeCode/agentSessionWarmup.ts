@@ -133,6 +133,8 @@ interface ConnectionMaterializationFacts {
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
   effectiveLanguage?: string | null
+  /** Variable values the materialized prompt resolved to; the baseline must fingerprint these, not the row's. */
+  promptVariables?: PromptVariableInputs
 }
 
 /**
@@ -406,9 +408,13 @@ async function deriveConnectionConfigFromSnapshot(
       materialized?.effectiveLanguage !== undefined ? materialized.effectiveLanguage : getEffectiveAgentLanguage(agent),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
-    // connection snapshots instead of invalidating this signature every turn.
-    promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
-    promptModelName: agent.modelName || null,
+    // connection snapshots instead of invalidating this signature every turn. These read what the
+    // prompt actually materialized with, so a row saved mid-backoff (model fallback replacing the
+    // primary) cannot mask the divergence a fresh turn must still rebuild on.
+    promptUserName: materialized
+      ? (materialized.promptVariables?.username ?? 'Unknown Username')
+      : application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
+    promptModelName: materialized ? (materialized.promptVariables?.modelName ?? null) : agent.modelName || null,
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
     computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
@@ -522,6 +528,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   const agentRow = agentService.getAgent(session.agentId)
   if (!agentRow?.model) return undefined
+  // Resolve the variable inputs before any await: `{{username}}` is a live preference read, so a
+  // save landing during route/settings/skill materialization would otherwise be baked into the
+  // installed prompt while the replay pins kept the admission-time value.
+  const promptVariables = pinned?.promptVariables ?? capturePromptVariableInputs(agentRow.modelName ?? null)
   const agent: AgentEntity = !pinned
     ? agentRow
     : {
@@ -594,7 +604,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
         effectiveLanguage,
-        promptVariables: pinned?.promptVariables
+        promptVariables
       },
       agent
     ),
@@ -621,7 +631,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       }),
-      effectiveLanguage
+      effectiveLanguage,
+      promptVariables
     }
   )
   const sdkModelId = route.modelIds.primary
@@ -638,7 +649,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   return {
     connectionConfig,
     capturedInstructions: agent.instructions ?? null,
-    capturedPromptVariables: pinned?.promptVariables ?? capturePromptVariableInputs(agent.modelName ?? null),
+    capturedPromptVariables: promptVariables,
     key: settings.warmQueryKey ?? session.id,
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,

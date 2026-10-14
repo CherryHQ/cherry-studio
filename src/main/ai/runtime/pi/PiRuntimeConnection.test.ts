@@ -1903,6 +1903,39 @@ describe('PiRuntimeConnection', () => {
     expect(prompt).not.toContain('Bob')
   })
 
+  // The pinned values are not just a render-time convenience: the inputs underneath the replay keep
+  // changing, so the next fresh turn has to see that this connection's prompt no longer matches.
+  it('rebuilds a fresh turn after the user renamed themselves under a replay', async () => {
+    // `app.user.name` is not an agent column, so it never moves the connection signature — the only
+    // thing that can record this divergence is a comparison against what was actually materialized.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.name', 'Alice')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      modelName: 'Pi Model',
+      instructions: 'Report for {{username}}.',
+      configuration: {}
+    })
+    mocks.replacePromptVariables.mockImplementation(
+      async (prompt: string, _modelName?: string, pinned?: { username?: string | null }) =>
+        prompt.replace(/{{username}}/g, pinned?.username ?? 'Bob')
+    )
+
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      promptPolicy: {
+        instructions: 'Report for {{username}}.',
+        promptVariables: { username: 'Alice', modelName: 'Pi Model' }
+      }
+    }).start()
+    expect(appendedSystemPrompt()).toContain('Report for Alice.')
+
+    // The user renames themselves while this replay is still live.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.name', 'Carol')
+
+    await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('rebuild')
+  })
+
   // A replay bakes the turn's pinned exclusions into the SDK session's `excludeTools`, but the
   // startup signature it stores comes from the row the user just saved — so a re-enabled tool is
   // "not disabled" everywhere the signature looks, while its definition is still absent from the

@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const { preferenceGet, buildPromptParts } = vi.hoisted(() => ({
-  preferenceGet: vi.fn((_key: string): string | undefined => undefined),
+  preferenceGet: vi.fn<(key: string) => string | undefined>(() => undefined),
   buildPromptParts: vi.fn(async () => ({ base: { kind: 'native' as const }, context: 'PERSONA' }))
 }))
 
