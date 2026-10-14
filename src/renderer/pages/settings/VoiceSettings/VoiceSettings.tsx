@@ -14,6 +14,7 @@ import {
   SelectValue,
   Switch
 } from '@cherrystudio/ui'
+import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import {
   SettingDescription,
@@ -52,6 +53,7 @@ import {
   type LocalVoiceModelId,
   type LocalTranscriptionModelId
 } from '@shared/ai/localVoice'
+import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import { defaultLanguage as fallbackSampleCatalog } from '@shared/utils/languages'
 
@@ -208,6 +210,10 @@ function VoiceSettings() {
     speechPlaybackService.getSnapshot
   )
   const [models, setModels] = useState<readonly LocalVoiceModelDescriptor[]>([])
+  const asrInstallationStatus = useSharedCacheSelector(
+    [LOCAL_MODEL_STATUS_CACHE_KEY],
+    ([snapshots]) => snapshots?.[LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr]?.status
+  )
   const [downloadableModelStatuses, setDownloadableModelStatuses] = useState<
     Partial<Record<LocalTranscriptionModelId, StatusState>>
   >({})
@@ -302,7 +308,7 @@ function VoiceSettings() {
     return () => {
       current = false
     }
-  }, [models, queryRevision])
+  }, [models, queryRevision, asrInstallationStatus])
 
   const configuredRecognitionModel =
     recognitionModel && isTranscriptionModelId(recognitionModel) ? recognitionModel : undefined
@@ -453,7 +459,8 @@ function VoiceSettings() {
     hasConfiguredRecognitionModel,
     recognitionLanguage,
     effectiveRecognitionLanguage,
-    queryRevision
+    queryRevision,
+    asrInstallationStatus
   ])
 
   useEffect(() => {
