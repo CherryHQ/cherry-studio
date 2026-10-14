@@ -30,12 +30,16 @@ function installComputerUseRuntime(context) {
         : 'open-computer-use'
   const source = path.join(nativeRoot, 'runtime', name)
   const executable = platform === 'darwin' ? path.join(source, 'Contents/MacOS/OpenComputerUse') : source
-  fs.accessSync(executable, platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
-  if (!fs.statSync(executable).isFile()) throw new Error(`Computer Use runtime is not a file: ${executable}`)
+  const executables =
+    platform === 'linux' ? [executable, path.join(nativeRoot, 'runtime/open-computer-use-wayland')] : [executable]
+  for (const file of executables) {
+    fs.accessSync(file, platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
+    if (!fs.statSync(file).isFile()) throw new Error(`Computer Use runtime is not a file: ${file}`)
+  }
 
   const destination = path.join(context.packager.getResourcesDir(context.appOutDir), 'computer-use')
   fs.mkdirSync(destination, { recursive: true })
-  fs.cpSync(source, path.join(destination, name), {
+  fs.cpSync(path.join(nativeRoot, 'runtime'), destination, {
     recursive: true,
     verbatimSymlinks: true
   })

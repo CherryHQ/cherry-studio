@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -27,12 +27,17 @@ function fixture(platform = 'darwin', arch = 'arm64') {
         : 'open-computer-use'
   const executable = platform === 'darwin' ? path.join(name, 'Contents/MacOS/OpenComputerUse') : name
   mkdirSync(path.join(sdk, 'dist'), { recursive: true })
-  writeFileSync(path.join(sdk, 'package.json'), JSON.stringify({ version: '0.1.1', main: 'dist/index.js' }))
+  writeFileSync(path.join(sdk, 'package.json'), JSON.stringify({ version: '0.1.4', main: 'dist/index.js' }))
   writeFileSync(path.join(sdk, 'dist/index.js'), '')
   mkdirSync(path.dirname(path.join(native, 'runtime', executable)), { recursive: true })
-  writeFileSync(path.join(native, 'package.json'), JSON.stringify({ version: '0.1.1' }))
+  writeFileSync(path.join(native, 'package.json'), JSON.stringify({ version: '0.1.4' }))
   writeFileSync(path.join(native, 'runtime', executable), `${platform}-${arch}`)
   chmodSync(path.join(native, 'runtime', executable), 0o755)
+  if (platform === 'linux') {
+    const helper = path.join(native, 'runtime/open-computer-use-wayland')
+    writeFileSync(helper, `wayland-${arch}`)
+    chmodSync(helper, 0o755)
+  }
   writeFileSync(path.join(native, 'LICENSE'), 'runtime license')
   writeFileSync(path.join(native, 'THIRD_PARTY_NOTICES.md'), 'runtime notices')
   if (platform === 'darwin') writeFileSync(path.join(native, 'runtime', name, 'Contents/Info.plist'), 'bundle identity')
@@ -71,6 +76,11 @@ describe('packaged Computer Use runtime', () => {
     expect(readFileSync(path.join(runtime, executable), 'utf8')).toBe(`${platform}-${arch}`)
     expect(readFileSync(path.join(runtime, 'LICENSE'), 'utf8')).toBe('runtime license')
     expect(readFileSync(path.join(runtime, 'THIRD_PARTY_NOTICES.md'), 'utf8')).toBe('runtime notices')
+    if (platform === 'linux') {
+      const helper = path.join(runtime, 'open-computer-use-wayland')
+      expect(readFileSync(helper, 'utf8')).toBe(`wayland-${arch}`)
+      if (process.platform !== 'win32') expect(statSync(helper).mode & 0o111).toBe(0o111)
+    }
     if (platform === 'darwin')
       expect(readFileSync(path.join(runtime, 'Cherry Computer Use.app/Contents/Info.plist'), 'utf8')).toBe(
         'bundle identity'
@@ -89,13 +99,19 @@ describe('packaged Computer Use runtime', () => {
   it('rejects a platform package from a different SDK version', () => {
     const { native, context } = fixture()
     writeFileSync(path.join(native, 'package.json'), JSON.stringify({ version: '0.1.0' }))
-    expect(() => installComputerUseRuntime(context)).toThrow(/must match SDK version 0.1.1/)
+    expect(() => installComputerUseRuntime(context)).toThrow(/must match SDK version 0.1.4/)
   })
 
   it('fails the build when the helper executable is missing', () => {
     const { native, executable, context } = fixture()
     rmSync(path.join(native, 'runtime', executable))
     expect(() => installComputerUseRuntime(context)).toThrow(/OpenComputerUse/)
+  })
+
+  it.each(['arm64', 'x64'])('rejects a Linux %s runtime without its Wayland helper', (arch) => {
+    const { native, context } = fixture('linux', arch)
+    rmSync(path.join(native, 'runtime/open-computer-use-wayland'))
+    expect(() => installComputerUseRuntime(context)).toThrow(/open-computer-use-wayland/)
   })
 
   it('does not substitute the host architecture for a missing target package', () => {
