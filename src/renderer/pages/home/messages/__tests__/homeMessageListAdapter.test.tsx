@@ -17,6 +17,7 @@ const exportActionsMock = vi.hoisted(() => ({
   saveTextFile: vi.fn(),
   saveImage: vi.fn()
 }))
+const useMessageExportActionsMock = vi.hoisted(() => vi.fn(() => exportActionsMock))
 
 const leafCapabilitiesMock = vi.hoisted(() => ({
   copyImage: vi.fn()
@@ -154,7 +155,7 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageErrorActions', () =>
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageExportActions', () => ({
-  useMessageExportActions: () => exportActionsMock
+  useMessageExportActions: useMessageExportActionsMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities', () => ({
@@ -347,6 +348,18 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         }
       }
     })
+  })
+
+  it('keeps Home exports on the injected Obsidian flow without an Agent workspace root', () => {
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
+
+    expect(useMessageExportActionsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        topicName: expect.any(String),
+        exportToObsidian: expect.any(Function),
+        workspacePath: undefined
+      })
+    )
   })
 
   it('loads translation languages only after the message menu requests them', async () => {

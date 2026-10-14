@@ -52,12 +52,17 @@ export function resolvePiMcpToolMetadata(
   }
 }
 
-function toolProviderMetadata(toolName: string, nativeTool?: ReturnType<typeof resolvePiMcpToolMetadata>) {
+function toolProviderMetadata(
+  toolName: string,
+  nativeTool?: ReturnType<typeof resolvePiMcpToolMetadata>,
+  parentToolCallId?: string
+) {
   const parsed = parseFunctionCallToolName(toolName)
   const serverName = parsed ? (CHERRY_SERVER_NAMES.get(parsed.serverPart) ?? parsed.serverPart) : undefined
   return {
     cherry: {
       transport: PI_TRANSPORT,
+      ...(parentToolCallId ? { parentToolCallId } : {}),
       tool:
         nativeTool ??
         (parsed
@@ -107,17 +112,16 @@ export class PiStreamAdapter {
         this.handleAssistantDelta(event.assistantMessageEvent)
         return
       case 'tool_execution_start':
-        this.handleToolStart(event.toolCallId, event.toolName, event.args)
+        this.handleToolStart(event.toolCallId, event.toolName, event.args, event.parentToolCallId)
         return
       case 'tool_execution_end':
-        this.handleToolEnd(event.toolCallId, event.toolName, event.result, event.isError)
+        this.handleToolEnd(event.toolCallId, event.toolName, event.result, event.isError, event.parentToolCallId)
         return
       case 'turn_end':
         this.handleTurnEnd(event.message)
         return
       default:
-        // tool_execution_update (no standard partial-output chunk in v1),
-        // agent_end, compaction_*, retry, queue_update, etc. are lifecycle
+        // tool_execution_update, agent_end, compaction_*, retry, queue_update, etc. are lifecycle
         // events handled by the connection or intentionally ignored.
         return
     }
@@ -158,7 +162,7 @@ export class PiStreamAdapter {
     }
   }
 
-  private handleToolStart(toolCallId: string, toolName: string, args: unknown): void {
+  private handleToolStart(toolCallId: string, toolName: string, args: unknown, parentToolCallId?: string): void {
     if (this.startedTools.has(toolCallId)) return
     this.startedTools.add(toolCallId)
     this.sink.enqueue({
@@ -167,7 +171,7 @@ export class PiStreamAdapter {
       toolName,
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
+      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName), parentToolCallId)
     })
     this.sink.enqueue({
       type: 'tool-input-available',
@@ -176,13 +180,19 @@ export class PiStreamAdapter {
       input: args ?? {},
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
+      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName), parentToolCallId)
     })
   }
 
-  private handleToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean): void {
+  private handleToolEnd(
+    toolCallId: string,
+    toolName: string,
+    result: unknown,
+    isError: boolean,
+    parentToolCallId?: string
+  ): void {
     // A tool result with no preceding start (defensive) still needs its input parts.
-    if (!this.startedTools.has(toolCallId)) this.handleToolStart(toolCallId, toolName, {})
+    if (!this.startedTools.has(toolCallId)) this.handleToolStart(toolCallId, toolName, {}, parentToolCallId)
     if (isError) {
       this.sink.enqueue({
         type: 'tool-output-error',
@@ -190,7 +200,7 @@ export class PiStreamAdapter {
         errorText: stringifyResult(result),
         dynamic: true,
         providerExecuted: true,
-        providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
+        providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName), parentToolCallId)
       })
       return
     }
@@ -200,7 +210,7 @@ export class PiStreamAdapter {
       output: projectPiToolOutput(toolName, result),
       dynamic: true,
       providerExecuted: true,
-      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
+      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName), parentToolCallId)
     })
   }
 

@@ -23,6 +23,7 @@ interface UseMessageListAdapterCapabilitiesOptions {
   topicId: string
   topicName: string
   exportToObsidian: ExportMessagesToObsidian
+  workspacePath?: string
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
@@ -42,6 +43,7 @@ export function useMessageListAdapterCapabilities({
   topicId,
   topicName,
   exportToObsidian,
+  workspacePath,
   messages,
   partsByMessageId,
   streamingLayers,
@@ -53,7 +55,7 @@ export function useMessageListAdapterCapabilities({
   const messageActivity = useMessageActivityState(topicId, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
-  const exportActions = useMessageExportActions({ topicName, exportToObsidian })
+  const exportActions = useMessageExportActions({ topicName, exportToObsidian, workspacePath })
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()

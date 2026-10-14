@@ -147,12 +147,14 @@ describe('cherry-tools builtin tools', () => {
     const tools = await listCherryTools(['kb-1'])
     expect(tools.map((t) => t.name)).toEqual(
       expect.arrayContaining([
+        'convert_to_document',
         'generate_image',
         'kb_list',
         'kb_manage',
         'kb_read',
         'kb_search',
         'report_artifacts',
+        'to_markdown',
         'web_fetch',
         'web_search'
       ])

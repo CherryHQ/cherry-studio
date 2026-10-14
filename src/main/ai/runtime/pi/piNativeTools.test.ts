@@ -227,13 +227,19 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
           output: { value: 42 },
           providerMetadata: expect.objectContaining({
             cherry: expect.objectContaining({
+              parentToolCallId: 'script',
               tool: expect.objectContaining({ serverId, serverName: binding, name: 'read_value' })
             })
           })
         })
       )
       expect(
-        events.some((event) => event.type === 'tool_execution_start' && event.toolName === `${nativePrefix}read_value`)
+        events.some(
+          (event) =>
+            event.type === 'tool_execution_start' &&
+            event.toolName === `${nativePrefix}read_value` &&
+            event.parentToolCallId === 'script'
+        )
       ).toBe(true)
     } finally {
       await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })

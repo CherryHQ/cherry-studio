@@ -9,7 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import type { PrintableDocumentPayload } from '@shared/ipc/schemas/print'
+import type { DocumentPrintPayload, PrintableDocumentPayload } from '@shared/ipc/schemas/print'
 import { sanitizeFilename } from '@shared/utils/file'
 
 const logger = loggerService.withContext('PrintService')
@@ -91,7 +91,7 @@ new Promise((resolve) => {
     if (frameTimeoutId) {
       window.clearTimeout(frameTimeoutId)
     }
-    resolve(undefined)
+    resolve(Array.from(document.images).every((image) => image.complete && image.naturalWidth > 0))
   }
 
   const finishAfterRenderFrame = () => {
@@ -104,11 +104,14 @@ new Promise((resolve) => {
 
   timeoutId = window.setTimeout(finish, ${PRINT_RENDER_READY_TIMEOUT_MS})
 
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(finishAfterRenderFrame, finishAfterRenderFrame)
-  } else {
-    finishAfterRenderFrame()
-  }
+  const imagesReady = Promise.all(Array.from(document.images, (image) => {
+    if (image.complete) return Promise.resolve()
+    return new Promise((done) => {
+      image.addEventListener('load', done, { once: true })
+      image.addEventListener('error', done, { once: true })
+    })
+  }))
+  Promise.all([document.fonts?.ready, imagesReady]).then(finishAfterRenderFrame, finishAfterRenderFrame)
 })`
 }
 
@@ -269,6 +272,65 @@ export function buildPrintableHtml({ title, markdown, sourcePath }: PrintableDoc
 }
 
 export class PrintService {
+  private readonly documentRenders = new Map<string, (error?: string) => void>()
+
+  completeDocumentRender(windowId: string, error?: string): void {
+    this.documentRenders.get(windowId)?.(error)
+  }
+
+  async toDocumentPdfBuffer(payload: DocumentPrintPayload, signal?: AbortSignal): Promise<Buffer> {
+    signal?.throwIfAborted()
+    const windowManager = application.get('WindowManager')
+    const windowId = windowManager.open(WindowType.DocumentPrint, { initData: payload })
+    const window = windowManager.getWindow(windowId)
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    let closed = false
+    const close = () => {
+      if (closed) return
+      closed = true
+      windowManager.close(windowId)
+    }
+    let cancel = () => {}
+    const interrupted = new Promise<never>((_resolve, reject) => {
+      cancel = () => {
+        close()
+        reject(signal?.reason ?? new Error('Document export cancelled'))
+      }
+      timeout = setTimeout(() => {
+        close()
+        reject(new Error('Document rendering or printing timed out'))
+      }, 30_000)
+    })
+    try {
+      if (!window) throw new Error('Document print window not found')
+      const rendered = new Promise<void>((resolve, reject) => {
+        this.documentRenders.set(windowId, (error) => (error ? reject(new Error(error)) : resolve()))
+      })
+      signal?.addEventListener('abort', cancel, { once: true })
+      if (signal?.aborted) cancel()
+      await Promise.race([rendered, interrupted])
+      signal?.throwIfAborted()
+      const data = await Promise.race([
+        window.webContents.printToPDF({
+          pageSize: 'A4',
+          preferCSSPageSize: true,
+          printBackground: true
+        }),
+        interrupted
+      ])
+      signal?.throwIfAborted()
+      return data
+    } catch (error) {
+      signal?.throwIfAborted()
+      throw error
+    } finally {
+      if (timeout) clearTimeout(timeout)
+      signal?.removeEventListener('abort', cancel)
+      this.documentRenders.delete(windowId)
+      close()
+    }
+  }
+
   private async openPrintWindow(
     payload: PrintableDocumentPayload
   ): Promise<{ windowId: string; window: BrowserWindow }> {
@@ -283,7 +345,8 @@ export class PrintService {
 
     try {
       await window.loadURL(toDataUrl(buildPrintableHtml(payload)))
-      await window.webContents.executeJavaScript(buildRendererReadyScript(), true)
+      const imagesReady = await window.webContents.executeJavaScript(buildRendererReadyScript(), true)
+      if (imagesReady === false) throw new Error('Document images could not be loaded before printing')
       return { windowId, window }
     } catch (error) {
       windowManager.close(windowId)
@@ -302,22 +365,34 @@ export class PrintService {
       return false
     }
 
-    const { windowId, window } = await this.openPrintWindow(payload)
-    const windowManager = application.get('WindowManager')
-
     try {
-      const pdfData = await window.webContents.printToPDF({
-        pageSize: 'A4',
-        preferCSSPageSize: true,
-        printBackground: true
-      })
+      const pdfData = await this.toPdfBuffer(payload)
       await fs.writeFile(filePath, pdfData)
       return true
     } catch (error) {
       logger.error('Failed to export printable document to PDF', error as Error)
       throw error
+    }
+  }
+
+  async toPdfBuffer(payload: PrintableDocumentPayload, signal?: AbortSignal): Promise<Buffer> {
+    signal?.throwIfAborted()
+    const { windowId, window } = await this.openPrintWindow(payload)
+    const windowManager = application.get('WindowManager')
+    const close = () => windowManager.close(windowId)
+    signal?.addEventListener('abort', close, { once: true })
+    try {
+      signal?.throwIfAborted()
+      const data = await window.webContents.printToPDF({
+        pageSize: 'A4',
+        preferCSSPageSize: true,
+        printBackground: true
+      })
+      signal?.throwIfAborted()
+      return data
     } finally {
-      windowManager.close(windowId)
+      signal?.removeEventListener('abort', close)
+      close()
     }
   }
 

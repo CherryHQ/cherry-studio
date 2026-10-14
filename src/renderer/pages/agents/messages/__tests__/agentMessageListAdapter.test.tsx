@@ -20,6 +20,7 @@ const exportActionsMock = vi.hoisted(() => ({
   exportMessageAsMarkdown: vi.fn(),
   exportToNotes: vi.fn(),
   exportToWord: vi.fn(),
+  exportToDocument: vi.fn(),
   exportToNotion: vi.fn(),
   exportToYuque: vi.fn(),
   exportToObsidian: vi.fn(),
@@ -399,6 +400,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.exportMessageAsMarkdown).toBe(exportActionsMock.exportMessageAsMarkdown)
     expect(value?.actions.exportToNotes).toBe(exportActionsMock.exportToNotes)
     expect(value?.actions.exportToWord).toBe(exportActionsMock.exportToWord)
+    expect(value?.actions.exportToDocument).toBe(exportActionsMock.exportToDocument)
     expect(value?.actions.exportToNotion).toBe(exportActionsMock.exportToNotion)
     expect(value?.actions.exportToYuque).toBe(exportActionsMock.exportToYuque)
     expect(value?.actions.exportToObsidian).toBe(exportActionsMock.exportToObsidian)
@@ -434,6 +436,13 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
     expect(value?.actions.bindMessageGroupRuntime).toEqual(expect.any(Function))
     expect(value?.actions.locateMessage).toEqual(expect.any(Function))
+    expect(useMessageExportActionsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        topicName: 'Agent session',
+        workspacePath: '/tmp/workspace',
+        exportToObsidian: expect.any(Function)
+      })
+    )
 
     void value?.actions.openPath?.('dist/report.md')
     expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.open_path', {

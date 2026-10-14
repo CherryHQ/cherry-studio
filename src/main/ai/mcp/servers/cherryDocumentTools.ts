@@ -9,6 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveLocalFile, resolveWorkspaceFile } from '@main/ai/channels'
 import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
+import { convertToDocumentToWorkspace } from '@main/ai/tools/convertToDocument'
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
 import { isSameOrInside, realpath } from '@main/utils/file'
 import {
@@ -17,6 +18,11 @@ import {
   toMarkdownInputSchema,
   toMarkdownOutputSchema
 } from '@shared/ai/builtinTools'
+import {
+  CONVERT_TO_DOCUMENT_DESCRIPTION,
+  CONVERT_TO_DOCUMENT_TOOL_NAME,
+  convertToDocumentInputSchema
+} from '@shared/ai/documentConversionTool'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 export interface CherryDocumentContext {
@@ -113,6 +119,15 @@ export function registerDocumentTools(server: McpServer, context: CherryDocument
       const outputPath = path.join(outputDirectory, `${randomUUID()}.md`)
       await writeFile(outputPath, markdown, { encoding: 'utf-8', flag: 'wx' })
       const output = toMarkdownOutputSchema.parse({ path: outputPath, chars: markdown.length })
+      return { content: [{ type: 'text', text: JSON.stringify(output) }] }
+    }
+  )
+
+  server.registerTool(
+    CONVERT_TO_DOCUMENT_TOOL_NAME,
+    { description: CONVERT_TO_DOCUMENT_DESCRIPTION, inputSchema: convertToDocumentInputSchema },
+    async (input, ctx) => {
+      const output = await convertToDocumentToWorkspace(context.workspacePath, input, ctx.mcpReq.signal)
       return { content: [{ type: 'text', text: JSON.stringify(output) }] }
     }
   )

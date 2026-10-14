@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react'
 
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { ipcApi } from '@renderer/ipc'
+import { exportDocument } from '@renderer/services/documentExport'
 import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
 import type {
   ExportMessages,
@@ -19,6 +19,7 @@ type MessageExportActions = Pick<
   | 'exportMessageAsMarkdown'
   | 'exportToNotes'
   | 'exportToWord'
+  | 'exportToDocument'
   | 'exportToNotion'
   | 'exportToYuque'
   | 'exportToObsidian'
@@ -29,11 +30,13 @@ type MessageExportActions = Pick<
 interface MessageExportActionParams {
   topicName?: string
   exportToObsidian: ExportMessagesToObsidian
+  workspacePath?: string
 }
 
 export function useMessageExportActions({
   topicName,
-  exportToObsidian: showObsidianExport
+  exportToObsidian: showObsidianExport,
+  workspacePath
 }: MessageExportActionParams): MessageExportActions & { exportMessages: ExportMessages } {
   const { notesPath } = useNotesSettings()
 
@@ -62,9 +65,16 @@ export function useMessageExportActions({
     return window.api.file.saveImage(fileName, dataUrl)
   }, [])
 
-  const exportToWord = useCallback(async (markdown: string, title: string) => {
-    await ipcApi.request('export.word.from_markdown', { markdown, fileName: title })
-  }, [])
+  const exportToWord = useCallback(
+    (markdown: string, title: string) =>
+      exportDocument({ markdown, defaultName: title, format: 'docx', assetRoot: workspacePath }),
+    [workspacePath]
+  )
+
+  const exportToDocument = useCallback<NonNullable<MessageListActions['exportToDocument']>>(
+    (markdown, title, format) => exportDocument({ markdown, defaultName: title, format, assetRoot: workspacePath }),
+    [workspacePath]
+  )
 
   const saveToKnowledge = useCallback(async (message: MessageExportView) => {
     const { default: SaveToKnowledgePopup } = await import('@renderer/components/SaveToKnowledgePopup')
@@ -134,6 +144,7 @@ export function useMessageExportActions({
       exportMessages,
       exportToNotes,
       exportToWord,
+      exportToDocument,
       exportToNotion,
       exportToYuque,
       exportToObsidian,
@@ -149,6 +160,7 @@ export function useMessageExportActions({
       exportToObsidian,
       exportToSiyuan,
       exportToWord,
+      exportToDocument,
       exportToYuque,
       saveImage,
       saveTextFile,
