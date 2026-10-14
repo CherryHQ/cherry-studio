@@ -34,7 +34,7 @@ describe('webSearchHandlers', () => {
 
     const result = await webSearchHandlers['web_search.search_keywords'](request, ctx)
 
-    expect(webSearchService.searchKeywords).toHaveBeenCalledWith(request)
+    expect(webSearchService.searchKeywords).toHaveBeenCalledWith(request, undefined, { fallback: false })
     expect(result).toBeUndefined()
   })
 
@@ -49,7 +49,7 @@ describe('webSearchHandlers', () => {
 
     const result = await webSearchHandlers['web_search.fetch_urls'](request, ctx)
 
-    expect(webSearchService.fetchUrls).toHaveBeenCalledWith(request)
+    expect(webSearchService.fetchUrls).toHaveBeenCalledWith(request, undefined, { fallback: false })
     expect(result).toBeUndefined()
   })
 

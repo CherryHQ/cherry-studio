@@ -1,3 +1,6 @@
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
@@ -12,8 +15,6 @@ import {
   resolveCommandShortcutPreference
 } from '@shared/utils/command'
 import { normalizeShortcutBinding } from '@shared/utils/shortcut'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useCommandContextReader } from './useCommandContext'
 
@@ -105,7 +106,7 @@ export const useCommandShortcuts = () => {
       const state = resolveCommandShortcutPreference(rule.command, currentValue, currentPlatform)
       if (!state) return
       const nextValue = buildNextPreference(state, currentValue, patch)
-      await setValues({ [rule.command]: nextValue } as Partial<Record<string, PreferenceShortcutType>>)
+      await setValues({ [rule.command]: nextValue })
     },
     [setValues, values]
   )

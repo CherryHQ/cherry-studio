@@ -435,17 +435,28 @@ describe('QuickPanelView', () => {
       expect(action).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: 'Item1' }))
     })
 
-    it('runs a pinned footer action in a read-only panel while ignoring regular rows', () => {
+    it('runs a footer action in a read-only panel while ignoring regular rows', () => {
       const statusAction = vi.fn()
       const footerAction = vi.fn()
       const list: QuickPanelListItem[] = [
-        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction },
-        { id: 'footer', label: 'Configure', icon: 'x', fixedToBottom: true, action: footerAction }
+        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction }
       ]
 
       renderOpenPanel({
         list,
-        panelOptions: { readOnly: true },
+        panelOptions: {
+          readOnly: true,
+          footerActions: [
+            {
+              id: 'footer',
+              label: 'Configure',
+              ariaLabel: 'Configure MCP servers',
+              tooltip: 'Configure MCP servers',
+              icon: 'x',
+              action: footerAction
+            }
+          ]
+        },
         triggerInfo: { type: 'button', position: 0 }
       })
 
@@ -453,22 +464,32 @@ describe('QuickPanelView', () => {
       fireEvent.click(screen.getByText('Server 1'))
       expect(statusAction).not.toHaveBeenCalled()
 
-      // The pinned footer keeps its action.
-      fireEvent.click(screen.getByText('Configure'))
+      fireEvent.click(screen.getByRole('button', { name: 'Configure MCP servers' }))
       expect(footerAction).toHaveBeenCalledTimes(1)
     })
 
-    it('lets keyboard reach the pinned footer action in a read-only panel', () => {
+    it('lets keyboard reach the footer action in a read-only panel', () => {
       const statusAction = vi.fn()
       const footerAction = vi.fn()
       const list: QuickPanelListItem[] = [
-        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction },
-        { id: 'footer', label: 'Configure', icon: 'x', fixedToBottom: true, action: footerAction }
+        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction }
       ]
 
       renderOpenPanel({
         list,
-        panelOptions: { readOnly: true },
+        panelOptions: {
+          readOnly: true,
+          footerActions: [
+            {
+              id: 'footer',
+              label: 'Configure',
+              ariaLabel: 'Configure MCP servers',
+              tooltip: 'Configure MCP servers',
+              icon: 'x',
+              action: footerAction
+            }
+          ]
+        },
         triggerInfo: { type: 'button', position: 0 }
       })
 
@@ -555,7 +576,7 @@ describe('QuickPanelView', () => {
       await waitFor(() => expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible'))
     })
 
-    it('removes the trigger slash when opening a child panel without filtering the child panel', async () => {
+    it('removes the whole trigger query when opening a child panel so the child starts unfiltered', async () => {
       const input = createInputAdapter('/Child')
       const childAction = vi.fn()
       const rootItem: QuickPanelListItem = {
@@ -570,7 +591,8 @@ describe('QuickPanelView', () => {
             symbol: 'child',
             parentPanel,
             queryAnchor,
-            triggerInfo: context.triggerInfo
+            triggerInfo: { type: 'button' },
+            trackInputQuery: true
           })
         }
       }
@@ -584,13 +606,52 @@ describe('QuickPanelView', () => {
 
       fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
 
-      expect(input.adapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 1 })
+      expect(input.adapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
+      expect(input.adapter.getText()).toBe('')
       await waitFor(() => expect(screen.getByText('Server 1')).toBeInTheDocument())
 
       fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
 
-      expect(input.adapter.deleteTriggerRange).toHaveBeenLastCalledWith({ from: 0, to: 5 })
       expect(childAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: '' }))
+    })
+
+    it('filters a child panel from text typed after it opens', async () => {
+      const input = createInputAdapter('/Child')
+      const rootItem: QuickPanelListItem = {
+        label: 'Root',
+        filterText: 'Root Child',
+        icon: 'root',
+        isMenu: true,
+        action: ({ context, parentPanel, queryAnchor }) => {
+          context.open({
+            title: 'Child Panel',
+            list: [
+              { label: 'Alpha', filterText: 'Alpha', icon: 'a' },
+              { label: 'Beta', filterText: 'Beta', icon: 'b' }
+            ],
+            symbol: 'child',
+            parentPanel,
+            queryAnchor,
+            triggerInfo: { type: 'button' },
+            trackInputQuery: true
+          })
+        }
+      }
+
+      renderOpenPanel({
+        input,
+        list: [rootItem],
+        symbol: '/',
+        triggerInfo: { type: 'input', position: 0, originalText: '/Child' }
+      })
+
+      fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
+      await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument())
+
+      input.setText('Beta')
+
+      await waitFor(() => expect(screen.queryByText('Alpha')).not.toBeInTheDocument())
+      expect(screen.getByText('Beta')).toBeInTheDocument()
     })
 
     it('does not filter non-root multi-select panels from composer input changes', async () => {

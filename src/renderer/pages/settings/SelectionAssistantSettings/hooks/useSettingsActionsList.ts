@@ -1,10 +1,11 @@
 import type { DropResult } from '@hello-pangea/dnd'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { popup } from '@renderer/services/popup'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { DEFAULT_SEARCH_ENGINES } from '../components/SelectionActionSearchModal'
 

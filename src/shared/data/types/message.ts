@@ -1,7 +1,3 @@
-import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
-import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type {
   DataUIPart,
   DynamicToolUIPart,
@@ -15,6 +11,12 @@ import type {
   UITools
 } from 'ai'
 import * as z from 'zod'
+
+import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
+import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
+import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
@@ -154,6 +156,8 @@ export interface AssistantTurnOptions {
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
+  /** Explicit multi-model or per-reply selection; default for ordinary single-model turns, absent on old replies. */
+  modelSelection?: 'default' | 'explicit'
   /** Main-authoritative request controls for resuming this assistant turn. */
   turnOptions?: AssistantTurnOptions
 }
@@ -187,6 +191,8 @@ export interface CherryUIMessageMetadata {
   siblingsGroupId?: number
   /** `UniqueModelId` (`providerId::modelId`) the assistant was generated with. */
   modelId?: string
+  /** Persisted model selection source used when regenerating this reply. */
+  modelSelection?: MessageData['modelSelection']
   /** Snapshot of the producing author (assistant|agent, model nested) captured at creation. */
   messageSnapshot?: MessageSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
@@ -215,6 +221,8 @@ export interface CherryUIMessageMetadata {
   stats?: MessageStats
   /** Trusted cross-session sender attribution and durable delivery lifecycle. */
   delivery?: AgentSessionDelivery
+  /** Why a runtime opened this assistant turn with no user message (goal round, background work). */
+  turnOrigin?: AutonomousTurnOrigin
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
@@ -404,6 +412,7 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  if (v.modelSelection !== undefined && v.modelSelection !== 'default' && v.modelSelection !== 'explicit') return false
   if (v.turnOptions !== undefined) {
     if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
     if (

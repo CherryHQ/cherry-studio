@@ -1,11 +1,13 @@
+import { ChevronDown, Library } from 'lucide-react'
+import { useMemo, useState } from 'react'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelectorRow } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '@renderer/components/SelectorShell'
 import { useListboxKeyboardNavigation } from '@renderer/hooks/useListboxKeyboardNavigation'
-import { ChevronDown, Library } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 
 const KNOWLEDGE_BASE_ROW_HEIGHT = 36
 const KNOWLEDGE_BASE_LIST_PADDING = 8
@@ -44,7 +46,7 @@ export const KnowledgeBaseSelector = ({
   const selectedOption = options.find((option) => option.value === value)
   const filteredOptions = useMemo(() => {
     const query = searchValue.trim().toLowerCase()
-    return query ? options.filter((option) => option.label.toLowerCase().includes(query)) : options
+    return query ? options.filter((option) => matchesSearchText(option.label, query)) : options
   }, [options, searchValue])
   const listHeight =
     filteredOptions.length > 0
@@ -81,7 +83,7 @@ export const KnowledgeBaseSelector = ({
           aria-label={ariaLabel}
           aria-invalid={invalid || undefined}
           className={cn(
-            'h-9 w-full min-w-0 justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
+            'h-9 w-full min-w-0 justify-between gap-2 rounded-md px-3 text-sm font-normal shadow-none',
             selectedOption ? 'text-foreground' : 'text-muted-foreground',
             invalid && 'aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-invalid:ring-error/40'
           )}>
@@ -142,7 +144,7 @@ export const KnowledgeBaseSelector = ({
               )
             })
           ) : (
-            <div className="flex h-full items-center justify-center px-3 text-center text-muted-foreground text-xs">
+            <div className="flex h-full items-center justify-center px-3 text-center text-xs text-muted-foreground">
               {emptyText}
             </div>
           )}

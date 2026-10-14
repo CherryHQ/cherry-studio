@@ -1,11 +1,3 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
-import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
-import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
-import { WindowType } from '@main/core/window/types'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import type { BrowserWindow } from 'electron'
 import { app, clipboard, screen, systemPreferences } from 'electron'
 import type {
@@ -15,6 +7,16 @@ import type {
   SelectionHookInstance,
   TextSelectionData
 } from 'selection-hook'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
+import { WindowType } from '@main/core/window/types'
+import { getApplicationId } from '@main/utils/appEdition'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from './selectionConfig'
 
@@ -51,6 +53,14 @@ type RelativeOrientation =
 @ServicePhase(Phase.WhenReady)
 export class SelectionService extends BaseService implements Activatable {
   private selectionHook: SelectionHookInstance | null = null
+  private nativePanel?: {
+    configurePanel(handle: Buffer): void
+    moveToActiveSpace(handle: Buffer): void
+  }
+
+  private getNativePanel(): NonNullable<SelectionService['nativePanel']> {
+    return (this.nativePanel ??= require(application.getPath('feature.selection.native_panel_file')))
+  }
 
   /** Latest desired running state — mirrors the `feature.selection.enabled` preference. */
   private desiredEnabled = false
@@ -256,6 +266,7 @@ export class SelectionService extends BaseService implements Activatable {
     // or accumulate duplicates across reuses.
     this.registerDisposable(
       wm.onWindowCreatedByType(WindowType.SelectionAction, (mw) => {
+        if (isMac) this.getNativePanel().configurePanel(mw.window.getNativeWindowHandle())
         mw.window.on('resized', () => {
           if (mw.window.isDestroyed()) return
           if (this.isRemeberWinSize) {
@@ -351,6 +362,9 @@ export class SelectionService extends BaseService implements Activatable {
     hasLinuxInputDeviceAccess: boolean
     isLinuxCompositorCompatible: boolean
   } {
+    // The env is only read when the native module loads (normally on activation); load it now so
+    // the settings page sees the real env even while the feature is still disabled.
+    if (isLinux && !this.initStatus) this.loadModuleAndCreateInstance()
     return {
       isLinuxWaylandDisplay: this.isLinuxWaylandDisplay,
       isLinuxXWaylandMode: this.isLinuxXWaylandMode,
@@ -501,7 +515,7 @@ export class SelectionService extends BaseService implements Activatable {
    * Toggle the enabled state of the selection service
    * Will sync the new enabled store to all renderer windows
    */
-  public toggleEnabled(enabled: boolean | undefined = undefined): void {
+  public toggleEnabled(enabled?: boolean): void {
     const preferenceService = application.get('PreferenceService')
     const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 
@@ -624,7 +638,7 @@ export class SelectionService extends BaseService implements Activatable {
     // [macOS] a hacky way
     // when set `skipTransformProcessType: true`, if the selection is in self app, it will make the selection canceled after toolbar showing
     // so we just don't set `skipTransformProcessType: true` when in self app
-    const isSelf = ['com.github.Electron', 'com.kangfenmao.CherryStudio'].includes(programName)
+    const isSelf = ['com.github.Electron', getApplicationId()].includes(programName)
 
     if (!isSelf) {
       // [macOS] an ugly hacky way
@@ -1369,16 +1383,11 @@ export class SelectionService extends BaseService implements Activatable {
 
     // act normally when the app is not in fullscreen mode
     if (!isFullScreen) {
+      // Move before showing: a recycled panel may still belong to another Space.
+      this.getNativePanel().moveToActiveSpace(actionWindow.getNativeWindowHandle())
       actionWindow.show()
       return
     }
-
-    // [macOS] an UGLY HACKY way for fullscreen override settings
-
-    // FIXME sometimes the dock will be shown when the action window is shown
-    // FIXME if actionWindow show on the fullscreen app, switch to other space will cause the mainWindow to be shown
-    // FIXME When setVisibleOnAllWorkspaces is true, docker icon disappeared when the first action window is shown on the fullscreen app
-    //       use app.dock.show() to show the dock again will cause the action window to be closed when auto hide on blur is enabled
 
     // setFocusable(false) to prevent the action window hide when blur (if auto hide on blur is enabled)
     actionWindow.setFocusable(false)
@@ -1387,31 +1396,12 @@ export class SelectionService extends BaseService implements Activatable {
     // (the pin toggle and this show sequence use the same default path).
     actionWindow.setAlwaysOnTop(true)
 
-    // `setVisibleOnAllWorkspaces(true)` will cause the dock icon disappeared
-    // just store the dock icon status, and show it again
-    const isDockShown = app.dock?.isVisible()
-
-    // DO NOT set `skipTransformProcessType: true`,
-    // it will cause the action window to be shown on other space
-    actionWindow.setVisibleOnAllWorkspaces(true, {
-      visibleOnFullScreen: true
-    })
-
+    this.getNativePanel().moveToActiveSpace(actionWindow.getNativeWindowHandle())
     actionWindow.showInactive()
-
-    // show the dock again if last time it was shown
-    // do not put it after `actionWindow.focus()`, will cause the action window to be closed when auto hide on blur is enabled
-    if (!app.dock?.isVisible() && isDockShown) {
-      void app.dock?.show()
-    }
 
     // unset everything
     setTimeout(() => {
       if (actionWindow.isDestroyed()) return
-      actionWindow.setVisibleOnAllWorkspaces(false, {
-        visibleOnFullScreen: true,
-        skipTransformProcessType: true
-      })
       actionWindow.setAlwaysOnTop(false)
 
       actionWindow.setFocusable(true)
@@ -1464,10 +1454,10 @@ export class SelectionService extends BaseService implements Activatable {
     }
   }
 
-  public writeToClipboard(text: string): boolean {
+  public async writeToClipboard(text: string): Promise<boolean> {
     if (isLinux) {
       try {
-        clipboard.writeText(text)
+        await clipboard.writeText(text)
         return true
       } catch (error) {
         logger.error('Failed to write to clipboard on Linux:', error as Error)

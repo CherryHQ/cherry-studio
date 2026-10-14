@@ -1,5 +1,6 @@
-import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
+
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 
 import { defineRoute } from '../define'
 import { operationResultSchema } from './common'
@@ -11,6 +12,8 @@ import { operationResultSchema } from './common'
  */
 
 // ── Request schemas ──
+const openclawStatusSchema = z.enum(['stopped', 'starting', 'running', 'error'])
+
 export const openclawRequestSchemas = {
   'openclaw.start_gateway': defineRoute({
     input: z.object({ port: z.number().int().min(1).max(65535).optional() }),
@@ -22,7 +25,7 @@ export const openclawRequestSchemas = {
   }),
   'openclaw.get_status': defineRoute({
     input: z.void(),
-    output: z.object({ status: z.enum(['stopped', 'starting', 'running', 'error']) })
+    output: z.object({ status: openclawStatusSchema })
   }),
   'openclaw.get_dashboard_url': defineRoute({
     input: z.void(),

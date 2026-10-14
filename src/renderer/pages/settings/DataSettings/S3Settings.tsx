@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { FolderOpen, RefreshCw, Save } from 'lucide-react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
@@ -15,11 +21,6 @@ import {
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
-import dayjs from 'dayjs'
-import { FolderOpen, RefreshCw, Save } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -115,7 +116,7 @@ const S3Settings: FC = () => {
       </SettingTitle>
       <SettingHelpText>{t('settings.data.s3.title.help')}</SettingHelpText>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-s3-endpoint" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.s3.endpoint.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.s3.endpoint.placeholder')}
@@ -127,7 +128,7 @@ const S3Settings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-s3-region" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.s3.region.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.s3.region.placeholder')}
@@ -138,7 +139,7 @@ const S3Settings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-s3-bucket" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.s3.bucket.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.s3.bucket.placeholder')}
@@ -149,7 +150,7 @@ const S3Settings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-s3-access-key" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.s3.accessKeyId.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.s3.accessKeyId.placeholder')}
@@ -203,7 +204,7 @@ const S3Settings: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-s3-auto-sync" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.s3.autoSync.label')}</SettingRowTitle>
         <Selector
           size={14}
@@ -225,7 +226,7 @@ const S3Settings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-s3-max-backups" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.s3.maxBackups.label')}</SettingRowTitle>
         <Selector
           size={14}

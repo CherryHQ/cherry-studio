@@ -1,11 +1,16 @@
+import { type ChildProcess, execFile, spawn, type SpawnOptions } from 'child_process'
+import path from 'path'
+import { promisify } from 'util'
+
+import crossSpawn from 'cross-spawn'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { type ChildProcess, execFile, spawn, type SpawnOptions } from 'child_process'
-import crossSpawn from 'cross-spawn'
-import path from 'path'
 
 import { getShellEnv } from './shellEnv'
+
+const execFileAsync = promisify(execFile)
 
 /**
  * Process execution helpers — spawning child processes with proper Windows
@@ -118,6 +123,79 @@ export function killProcessTree(child: ChildProcess): void {
 }
 
 /**
+ * Signal a spawned child's whole process tree, awaiting the signal's delivery.
+ *
+ * Unlike `killProcessTree` (fire-and-forget SIGTERM), this awaits `taskkill` so a
+ * caller can pair it with `waitForProcessExit` for graceful-then-forced escalation.
+ * `force=false` sends SIGTERM / `taskkill /T`; `force=true` sends SIGKILL /
+ * `taskkill /T /F`. Best-effort: a graceful failure against a still-live tree is
+ * logged (`label` names the owner in the warning) and a forced failure rethrows;
+ * POSIX signals the negative PID (the detached child's process group) and swallows
+ * ESRCH (the group is already gone).
+ */
+export async function terminateProcessTree(child: ChildProcess, force: boolean, label: string): Promise<void> {
+  if (!child.pid) return
+  if (isWin) {
+    const args = ['/PID', String(child.pid), '/T', ...(force ? ['/F'] : [])]
+    await execFileAsync('taskkill', args, { windowsHide: true }).catch((error) => {
+      if (child.exitCode !== null || child.signalCode !== null) return
+      if (force) throw error
+      logger.warn(`Failed to gracefully stop the managed ${label} process tree`, error as Error)
+    })
+    return
+  }
+
+  try {
+    process.kill(-child.pid, force ? 'SIGKILL' : 'SIGTERM')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+  }
+}
+
+/** Resolve true once the child exits within `timeoutMs` (or has already exited); false on timeout. */
+export function waitForProcessExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      child.off('exit', onClose)
+      child.off('close', onClose)
+      resolve(false)
+    }, timeoutMs)
+    const onClose = () => {
+      clearTimeout(timeout)
+      child.off('exit', onClose)
+      child.off('close', onClose)
+      resolve(true)
+    }
+    child.once('exit', onClose)
+    child.once('close', onClose)
+  })
+}
+
+/** Rejection of `executeCommand` when output passes `maxOutputBytes`; the command has been killed. */
+export class CommandOutputLimitError extends Error {
+  constructor(maxOutputBytes: number) {
+    super(`Command output exceeded ${maxOutputBytes} bytes`)
+    this.name = 'CommandOutputLimitError'
+  }
+}
+
+/** Rejection of `executeCommand` when the command ran to completion with a non-zero exit code. */
+export class CommandFailedError extends Error {
+  readonly code: number
+  readonly stdout: string
+  readonly stderr: string
+
+  constructor(code: number, stdout: string, stderr: string) {
+    super(stderr || `Command failed with code ${code}`)
+    this.name = 'CommandFailedError'
+    this.code = code
+    this.stdout = stdout
+    this.stderr = stderr
+  }
+}
+
+/**
  * Execute a command and return its output.
  * Uses crossPlatformSpawn internally for proper Windows .cmd handling.
  * If no env is provided, automatically uses the shell environment.
@@ -152,7 +230,7 @@ export async function executeCommand(
       const chunkBytes = Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(text)
       const nextOutputBytes = outputBytes + chunkBytes
       if (options?.maxOutputBytes !== undefined && nextOutputBytes > options.maxOutputBytes) {
-        outputLimitError = new Error(`Command output exceeded ${options.maxOutputBytes} bytes`)
+        outputLimitError = new CommandOutputLimitError(options.maxOutputBytes)
         if (timeoutId) clearTimeout(timeoutId)
         child.kill('SIGKILL')
         return null
@@ -188,7 +266,7 @@ export async function executeCommand(
       } else if (code === 0) {
         resolve(options?.capture !== false ? stdout : '')
       } else {
-        reject(new Error(stderr || `Command failed with code ${code}`))
+        reject(new CommandFailedError(code ?? -1, stdout, stderr))
       }
     })
   })

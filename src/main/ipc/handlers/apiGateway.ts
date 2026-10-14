@@ -28,5 +28,10 @@ async function stopGateway(): Promise<ApiGatewayStopResult> {
 export const apiGatewayHandlers: IpcHandlersFor<typeof apiGatewayRequestSchemas> = {
   'api_gateway.start': () => toStatusResult(() => application.get('ApiGatewayService').start()),
   'api_gateway.stop': stopGateway,
-  'api_gateway.restart': () => toStatusResult(() => application.get('ApiGatewayService').restart())
+  'api_gateway.restart': () => toStatusResult(() => application.get('ApiGatewayService').restart()),
+  'api_gateway.lan.set_enabled': ({ enabled }) => application.get('ApiGatewayService').setLanEnabled(enabled),
+  'api_gateway.remote.create_invitation': () => application.get('ApiGatewayService').createRemoteInvitation(),
+  'api_gateway.remote.list_claims': async () => application.get('RemoteAccessService').pendingClaims(),
+  'api_gateway.remote.decide_pairing': async ({ claimId, capabilities }) =>
+    application.get('RemoteAccessService').decidePairing(claimId, capabilities)
 }

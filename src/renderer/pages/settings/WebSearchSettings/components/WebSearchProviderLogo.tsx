@@ -1,9 +1,10 @@
+import type { FC } from 'react'
+
 import { useIcon } from '@cherrystudio/ui/icons'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { cn } from '@renderer/utils/style'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import type { FC } from 'react'
 
 interface WebSearchProviderLogoProps {
   providerId: WebSearchProviderId

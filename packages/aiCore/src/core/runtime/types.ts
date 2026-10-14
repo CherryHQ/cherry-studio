@@ -65,6 +65,7 @@ export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'mod
   model: string | ImageModelV3
   experimental_download?: Experimental_DownloadFunction
   onProviderCall?: RuntimeProviderCallHandler
+  onProviderCallStart?: () => RuntimeProviderCallHandler
 }
 export type generateImageResult = Awaited<ReturnType<typeof generateImage>>
 export type generateTextParams = Parameters<typeof generateText>[0]
@@ -74,6 +75,7 @@ export type streamTextParams = Parameters<typeof streamText>[0]
 export type EmbedManyParams = Omit<Parameters<typeof embedMany>[0], 'model'> & {
   model: string | EmbeddingModelV3
   onProviderCall?: RuntimeProviderCallHandler
+  onProviderCallStart?: () => RuntimeProviderCallHandler
 }
 export type EmbedManyResult = Awaited<ReturnType<typeof embedMany>>
 
@@ -84,5 +86,6 @@ export type RerankParams<VALUE extends JSONObject | string = string> = Omit<
 > & {
   model: string | RerankingModelV3
   onProviderCall?: RuntimeProviderCallHandler
+  onProviderCallStart?: () => RuntimeProviderCallHandler
 }
 export type RerankResult<VALUE extends JSONObject | string = string> = Awaited<ReturnType<typeof rerank<VALUE>>>

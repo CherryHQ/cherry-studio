@@ -1,10 +1,11 @@
+import { act, render } from '@testing-library/react'
+import { Activity, useMemo } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { act, render } from '@testing-library/react'
-import { Activity, useMemo } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   turnControllerConfig: null as any,
@@ -208,6 +209,37 @@ describe('useChatRuntimeState', () => {
     })
 
     expect(sent).toBe(false)
+  })
+
+  it('returns the viewport to bottom-follow after opening a conversation turn', async () => {
+    const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    const scrollToBottom = vi.fn()
+    render(<RuntimeHost topicId="topic-1" />)
+    latestRuntime?.bindMessageListRuntime({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom
+    })
+
+    await act(async () => {
+      await latestRuntime?.sendMessage('follow this response')
+    })
+
+    expect(scrollToBottom).toHaveBeenCalledOnce()
+    requestAnimationFrame.mockRestore()
+  })
+
+  it('keeps sendMessage stable across runtime rerenders', () => {
+    const view = render(<RuntimeHost topicId="topic-1" />)
+    const sendMessage = latestRuntime?.sendMessage
+
+    view.rerender(<RuntimeHost topicId="topic-1" />)
+
+    expect(latestRuntime?.sendMessage).toBe(sendMessage)
   })
 
   it('keeps branch-live state across an <Activity> hide/show and clears it when the topic changes', async () => {

@@ -1,18 +1,18 @@
-import type { TopicStreamStatus } from '@shared/ai/transport'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockEntry =
-  vi.fn<
-    () =>
-      | {
-          status: TopicStreamStatus | undefined
-          lastCompletedAt?: number
-          activeExecutions: []
-          awaitingApprovalAnchors: []
-        }
-      | undefined
-  >()
+import type { TopicStreamStatus } from '@shared/ai/transport'
+
+const mockEntry = vi.fn<
+  () =>
+    | {
+        status: TopicStreamStatus | undefined
+        lastCompletedAt?: number
+        activeExecutions: []
+        awaitingApprovalAnchors: []
+      }
+    | undefined
+>()
 
 let lastSeenCompletion: number | null = null
 const setLastSeenCompletion = vi.fn((next: number | null) => {

@@ -1,7 +1,8 @@
+import { useMemo } from 'react'
+
 import { useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import type { Provider } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { useMemo } from 'react'
 
 import { buildHostEndpointPreviews } from './buildHostEndpointPreviews'
 

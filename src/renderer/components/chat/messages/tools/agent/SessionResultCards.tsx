@@ -1,29 +1,52 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
 import { MousePointerClick } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { CONVERSATION_ROUTES } from '@shared/utils/conversationRoute'
+
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import type { SessionToolTarget } from './sessionToolResult'
+import type { ToolResponseLike } from '../toolResponse'
+import { useResolvedToolResponse } from '../useResolvedToolResponse'
+import { getSessionToolTargets, type SessionToolTarget } from './sessionToolResult'
+
+const KIND_LABEL_KEYS = {
+  create: 'message.tools.sessionCreate.created',
+  read: 'message.tools.sessionRead.read',
+  search: 'message.tools.sessionSearch.found',
+  send: 'message.tools.sessionSend.sent'
+} as const satisfies Record<SessionToolTarget['kind'], string>
 
 export const SessionResultCards = React.memo(function SessionResultCards({
-  targets
+  toolResponses
 }: {
-  targets: SessionToolTarget[]
+  toolResponses: ToolResponseLike[]
 }) {
+  return (
+    <div className="mt-3 flex w-[calc(100%-2.5rem)] flex-col gap-2 empty:hidden" data-testid="session-result-cards">
+      {toolResponses.map((toolResponse) => (
+        <SessionToolResultCards key={toolResponse.toolCallId ?? toolResponse.id} toolResponse={toolResponse} />
+      ))}
+    </div>
+  )
+})
+
+function SessionToolResultCards({ toolResponse }: { toolResponse: ToolResponseLike }) {
+  const resolvedToolResponse = useResolvedToolResponse(toolResponse)
+  const targets = getSessionToolTargets(resolvedToolResponse)
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
 
   if (targets.length === 0) return null
 
   return (
-    <div className="mt-3 flex w-[calc(100%-2.5rem)] flex-col gap-2" data-testid="session-result-cards">
+    <>
       {targets.map((target) => {
-        const isCreate = target.kind === 'create'
-        const label = t(isCreate ? 'message.tools.sessionCreate.created' : 'message.tools.sessionSend.sent')
-        const openLabel = t(isCreate ? 'message.tools.sessionCreate.open' : 'message.tools.sessionSend.open')
+        const label = t(KIND_LABEL_KEYS[target.kind])
+        const openLabel = t('message.tools.sessionCreate.open')
         const sessionName = target.sessionName || t('message.tools.sessionCreate.untitled')
         const targetLabel = [target.agentName, sessionName].filter(Boolean).join(' / ')
+        const route = CONVERSATION_ROUTES[target.conversationType]
 
         return (
           <div
@@ -46,7 +69,10 @@ export const SessionResultCards = React.memo(function SessionResultCards({
                 className="shrink-0"
                 aria-label={`${openLabel}: ${targetLabel}`}
                 onClick={() =>
-                  void actions.navigateToRoute?.({ path: '/app/agents', query: { sessionId: target.sessionId } })
+                  void actions.navigateToRoute?.({
+                    path: route.path,
+                    query: { [route.keyParam]: target.sessionId }
+                  })
                 }>
                 {openLabel}
               </Button>
@@ -54,6 +80,6 @@ export const SessionResultCards = React.memo(function SessionResultCards({
           </div>
         )
       })}
-    </div>
+    </>
   )
-})
+}

@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { canonicalGenerate } from '../canonicalGenerate'
 import type { GenerateInput } from '../types/generateInput'
@@ -47,7 +48,7 @@ function makeInput(params: Record<string, unknown>, overrides: Partial<PaintingD
       apiHost: 'https://example.com',
       isEnabled: true,
       getApiKey: async () => 'api-key'
-    } as never,
+    },
     tab: 'default',
     abortController: new AbortController()
   }
@@ -73,6 +74,34 @@ describe('canonicalGenerate', () => {
       outputFormat: 'png'
     })
     expect(call.inputImages).toBeUndefined()
+  })
+
+  it('submits the same effective slider value rendered from a numeric string', async () => {
+    const support = {
+      modes: {
+        generate: {
+          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+        }
+      }
+    }
+
+    await canonicalGenerate(makeInput({ strength: '4.5' }), { support, mode: 'generate' })
+
+    expect(lastGenerateCall().paramValues.strength).toBe(4.5)
+  })
+
+  it.each([true, false, [], ['4.5']])('drops invalid numeric input %# instead of coercing it', async (value) => {
+    const support = {
+      modes: {
+        generate: {
+          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+        }
+      }
+    }
+
+    await canonicalGenerate(makeInput({ strength: value }), { support, mode: 'generate' })
+
+    expect(lastGenerateCall().paramValues.strength).toBeUndefined()
   })
 
   it('composes the customSize widget trio into size and drops the companions', async () => {

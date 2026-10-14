@@ -1,9 +1,10 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dataApiService } from '@data/DataApiService'
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ConfigDraft } from '../types'
 
@@ -63,11 +64,19 @@ const initialDraftSeed: ConfigDraft = {
 describe('loadInitialConfigDraft (cherry gateway)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // The managed rebuild resolves spec paths renderer-side (makeDraftFile); the
-    // on-disk fixture itself arrives through the mocked readCliConfigFiles.
+    // The managed rebuild batch-reads the on-disk fixture through
+    // code_cli.read_config; loadInitialConfigDraft's other reads go through the
+    // mocked readCliConfigFiles barrel below.
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: { resolvePath: vi.fn(async (p: string) => `/resolved${p}`) }
+      value: {
+        ipcApi: {
+          request: vi.fn(async () => ({
+            ok: true,
+            data: { files: gatewayWrittenFiles.map(({ target, path, content }) => ({ target, path, content })) }
+          }))
+        }
+      }
     })
     mocks.readCliConfigFiles.mockResolvedValue(gatewayWrittenFiles)
     // Expose the real provider key through DataApi: if the initial load ever

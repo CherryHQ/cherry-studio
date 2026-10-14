@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useImageTools } from '@renderer/components/ActionTools'
+
 import ImagePreviewLayout from '../ImagePreviewLayout'
 import type { BasicPreviewHandles } from '../types'
 
@@ -13,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/ActionTools', () => ({
-  useImageTools: () => mocks
+  useImageTools: vi.fn(() => mocks)
 }))
 
 vi.mock('@renderer/components/icons/LoadingIcon', () => ({
@@ -69,5 +71,29 @@ describe('ImagePreviewLayout', () => {
       copy: mocks.copy,
       download: mocks.download
     })
+  })
+
+  it('enables drag and wheel zoom by default', () => {
+    render(<ImagePreviewLayout {...defaultProps} />)
+
+    expect(useImageTools).toHaveBeenCalledWith(
+      defaultProps.imageRef,
+      expect.objectContaining({
+        enableDrag: true,
+        enableWheelZoom: true
+      })
+    )
+  })
+
+  it('forwards explicit drag and wheel zoom settings to useImageTools', () => {
+    render(<ImagePreviewLayout {...defaultProps} enableDrag={false} enableWheelZoom={false} />)
+
+    expect(useImageTools).toHaveBeenCalledWith(
+      defaultProps.imageRef,
+      expect.objectContaining({
+        enableDrag: false,
+        enableWheelZoom: false
+      })
+    )
   })
 })

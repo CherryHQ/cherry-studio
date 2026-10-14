@@ -1,8 +1,9 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
+import { describe, expect, it } from 'vitest'
+
 import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { anthropicCacheFeature, transformAnthropicCacheParams } from '../anthropicCache'
 
@@ -39,6 +40,26 @@ function hasCacheControl(value: { providerOptions?: unknown }): boolean {
   )
 }
 
+function getCacheControl(value: { providerOptions?: unknown }): unknown {
+  return (value.providerOptions as { anthropic?: { cacheControl?: unknown } } | undefined)?.anthropic?.cacheControl
+}
+
+function collectCacheControls(params: LanguageModelV3CallOptions): unknown[] {
+  const controls: unknown[] = []
+  for (const tool of params.tools ?? []) {
+    if ('providerOptions' in tool && hasCacheControl(tool)) controls.push(getCacheControl(tool))
+  }
+  for (const message of params.prompt) {
+    if (hasCacheControl(message)) controls.push(getCacheControl(message))
+    if (typeof message.content !== 'string') {
+      for (const part of message.content) {
+        if ('providerOptions' in part && hasCacheControl(part)) controls.push(getCacheControl(part))
+      }
+    }
+  }
+  return controls
+}
+
 function countCacheMarkers(params: LanguageModelV3CallOptions): number {
   let count = 0
   for (const tool of params.tools ?? []) {
@@ -64,7 +85,7 @@ async function transform(
     {
       prompt: [textMessage('system', 'system'), textMessage('user', 'hello')],
       ...input
-    } as LanguageModelV3CallOptions,
+    },
     provider,
     assistant
   )
@@ -137,6 +158,28 @@ describe('transformAnthropicCacheParams', () => {
     )
 
     expect(countCacheMarkers(out)).toBe(1)
+  })
+
+  it('uses the configured one-hour lifetime for every emitted cache breakpoint', async () => {
+    const out = await transform(
+      {
+        prompt: [textMessage('system', 'x '.repeat(3000)), textMessage('user', 'u '.repeat(3000))],
+        tools: [makeTool('mcp_tool', 6000)]
+      },
+      makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 1, ttl: '1h' })
+    )
+
+    expect(collectCacheControls(out)).toEqual([
+      { type: 'ephemeral', ttl: '1h' },
+      { type: 'ephemeral', ttl: '1h' },
+      { type: 'ephemeral', ttl: '1h' }
+    ])
+  })
+
+  it('preserves the implicit five-minute cache marker by default', async () => {
+    const out = await transform({ prompt: [textMessage('system', 'x '.repeat(3000))] })
+
+    expect(collectCacheControls(out)).toEqual([{ type: 'ephemeral' }])
   })
 
   it('uses tool definitions in the cumulative prefix gate for system messages', async () => {

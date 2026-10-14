@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * notifyDataApiDataChange unit tests (unified application mock).
  *
@@ -11,7 +13,6 @@
 import { application } from '@application'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { notifyDataApiDataChange } from '../dataApiDataChange'
 
@@ -20,7 +21,9 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const windowManager = application.get('WindowManager') as unknown as { broadcast: ReturnType<typeof vi.fn> }
+const windowManager = application.get('WindowManager') as unknown as {
+  broadcast: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+}
 
 const effects: DataApiDataChangeEffect[] = [
   { endpoint: '/topics', kind: 'membership', entityIds: ['topic_1'] },

@@ -9,7 +9,7 @@
  *
  * See plan D2: pi speaks a fixed set of wire protocols via
  * `pi.registerProvider({ api })`; providers whose Cherry endpoint has no pi
- * equivalent are unsupported for pi agents.
+ * equivalent use Cherry's local Gateway when its chat route is available.
  */
 
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
@@ -17,7 +17,8 @@ import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTranspor
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { isGatewayRoutableModel } from '@shared/utils/model'
+import { isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
  * Login-based providers Cherry can still drive through pi via a per-request
@@ -105,7 +106,7 @@ function resolveEndpointType(provider: Provider, model: Model): EndpointType | u
 export function resolvePiApi(provider: Provider, model: Model): PiApi | undefined {
   // Login-based providers hold no plain app-side API key. An external-CLI login
   // (`claude-code`) reuses a CLI's own stored session and cannot be injected, so
-  // it stays unsupported like Bedrock/Vertex above. App-managed OAuth providers
+  // its native mapping is unavailable, like Bedrock/Vertex above. App-managed OAuth providers
   // (`grok-cli`/`openai-codex`), however, have a pi transport adapter that
   // injects their OAuth token + provider headers + payload rewrite per request —
   // so they ARE drivable and fall through to the normal endpoint mapping.
@@ -115,12 +116,12 @@ export function resolvePiApi(provider: Provider, model: Model): PiApi | undefine
   return mapEndpointToPiApi(endpointType, adapterFamily)
 }
 
-/** Pi uses this limit for compaction and overflow recovery, so an unknown value is not safely drivable. */
-export function hasKnownPiContextWindow(model: Model): model is Model & { contextWindow: number } {
-  return typeof model.contextWindow === 'number' && Number.isFinite(model.contextWindow) && model.contextWindow > 0
-}
-
 /** Whether a pi agent can use this provider+model. Used for renderer filtering. */
 export function isPiCompatibleModel(provider: Provider, model: Model): boolean {
-  return resolvePiApi(provider, model) !== undefined && hasKnownPiContextWindow(model)
+  return resolvePiApi(provider, model) !== undefined || isPiGatewayCompatibleModel(provider, model)
+}
+
+/** Whether Cherry's Gateway can execute this Pi provider/model route. */
+export function isPiGatewayCompatibleModel(provider: Provider, model: Model): boolean {
+  return !isExternalCliProvider(provider) && isGatewayRoutableModel(model)
 }

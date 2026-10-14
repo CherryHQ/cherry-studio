@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { PosixRelativeFilePathSchema } from '@shared/utils/file'
-import { describe, expect, it } from 'vitest'
 
 import { getRelativePath, isPathInside, isSamePath } from '../path'
 

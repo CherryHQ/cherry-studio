@@ -1,7 +1,6 @@
 /** A foreign window projected into one display's overlay coordinate space (DIP). */
 export interface DetectedWindow {
   title: string
-  appName: string
   x: number
   y: number
   width: number
@@ -10,6 +9,8 @@ export interface DetectedWindow {
 
 /** Init data handed to one overlay window. */
 export interface ScreenshotInitData {
+  /** Whether this session has a consumer for its result. */
+  canSubmitResult?: boolean
   /** `cherry-media://image/{id}` URL of this display's frozen capture. */
   imageUrl: string
   /** Id of the same entry, so region requests can name it without re-parsing the URL. */
@@ -24,11 +25,9 @@ export interface ScreenshotInitData {
     height: number
     scaleFactor: number
   }
-  /** Foreign windows overlapping this display, for hover-to-snap. */
-  windows: DetectedWindow[]
   /** Whether the overlay should run OCR once a selection settles. */
   autoOcr: boolean
-  /** Whether the OCR model is on disk; false disables the OCR affordance. */
+  /** Whether system OCR or an installed local model is available for this session. */
   ocrAvailable: boolean
 }
 
