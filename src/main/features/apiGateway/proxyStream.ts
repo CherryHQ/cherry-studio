@@ -141,17 +141,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   if (!modelString || typeof modelString !== 'string') {
     throw asClientError(new Error('Request is missing a "model" field'))
   }
-  const isInternalAgentRequest =
-    config.requestHeaders !== undefined &&
-    application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
-  const isInternalTranslationRequest =
-    inputFormat === 'openai' &&
-    config.requestHeaders !== undefined &&
-    application.get('ApiGatewayService').isTranslationCredential(config.requestHeaders, modelString)
-  const resolvedAddress = await resolveGatewayModelAddress(
-    modelString,
-    isInternalTranslationRequest ? 'translate' : isInternalAgentRequest ? 'agent' : undefined
-  )
+  const internalFeature = config.requestHeaders
+    ? application.get('ApiGatewayService').getInternalFeature(config.requestHeaders)
+    : undefined
+  const isInternalAgentRequest = internalFeature === 'agent'
+  const resolvedAddress = await resolveGatewayModelAddress(modelString, internalFeature)
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
@@ -386,10 +380,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             callOverrides,
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
-            ...(isInternalAgentRequest
-              ? { tokenUsageSource: 'agent' as const, modelUsageFeature: 'agent' as const }
-              : {}),
-            ...(isInternalTranslationRequest ? { modelUsageFeature: 'translate' as const } : {}),
+            ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
         } catch (error) {
@@ -473,8 +464,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         callOverrides,
         contextOwner: 'caller',
         ...(usageContext ? { usageContext } : {}),
-        ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const, modelUsageFeature: 'agent' as const } : {}),
-        ...(isInternalTranslationRequest ? { modelUsageFeature: 'translate' as const } : {}),
+        ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
         idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
       })
     }

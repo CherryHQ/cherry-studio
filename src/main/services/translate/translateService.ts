@@ -117,7 +117,6 @@ export class TranslateService {
       uniqueModelId,
       prompt: content,
       listener: wcListener,
-      modelUsageFeature: 'translate',
       reasoningEffort,
       callOverrides
     })

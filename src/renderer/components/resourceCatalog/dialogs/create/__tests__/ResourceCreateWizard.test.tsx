@@ -11,8 +11,7 @@ const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
   defaultProvider: { id: 'provider', name: 'Provider', isEnabled: true } as Provider | undefined,
   useDefaultModel: vi.fn(),
-  agentModelFilter: vi.fn<(agentType: AgentType | undefined, model: Model, provider?: Provider) => boolean>(() => true),
-  agentModelDisabled: vi.fn<(model: Model, provider?: Provider) => boolean>(() => false)
+  agentModelFilter: vi.fn<(agentType: AgentType | undefined, model: Model, provider?: Provider) => boolean>(() => true)
 }))
 
 function makeModel(id: UniqueModelId = 'provider::default'): Model {
@@ -46,11 +45,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: (agentType: AgentType | undefined) => (model: Model, provider?: Provider) =>
-    modelHook.agentModelFilter(agentType, model, provider),
-  useAgentModelAvailability: () => ({
-    getModelDetailDescription: () => undefined,
-    isModelDisabled: (model: Model, provider?: Provider) => modelHook.agentModelDisabled(model, provider)
-  })
+    modelHook.agentModelFilter(agentType, model, provider)
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
@@ -95,6 +90,7 @@ vi.mock('../steps/BasicInfoStep', async () => {
             }}>
             fill pi basic
           </button>
+
           <button
             type="button"
             onClick={() => {
@@ -102,14 +98,6 @@ vi.mock('../steps/BasicInfoStep', async () => {
               form.setValue('modelId', null)
             }}>
             switch to pi
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              form.setValue('agentType', 'dsh')
-              form.setValue('modelId', null)
-            }}>
-            switch to dsh
           </button>
         </>
       )
@@ -143,8 +131,6 @@ afterEach(() => {
   modelHook.useDefaultModel.mockReset()
   modelHook.agentModelFilter.mockReset()
   modelHook.agentModelFilter.mockReturnValue(true)
-  modelHook.agentModelDisabled.mockReset()
-  modelHook.agentModelDisabled.mockReturnValue(false)
 })
 
 describe('ResourceCreateWizard', () => {
@@ -163,15 +149,6 @@ describe('ResourceCreateWizard', () => {
 
   it('prefills the model from the default model when the wizard opens', async () => {
     modelHook.defaultModel = makeModel()
-
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
-
-    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
-  })
-
-  it('does not apply Work availability when prefilling an assistant model', async () => {
-    modelHook.defaultModel = makeModel()
-    modelHook.agentModelDisabled.mockReturnValue(true)
 
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
@@ -394,7 +371,7 @@ describe('ResourceCreateWizard', () => {
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
 
-  it.each(['pi', 'dsh'] as const)(
+  it.each(['pi'] as const)(
     'reselects a compatible default model after switching an agent to the %s runtime',
     async (agentType) => {
       const user = userEvent.setup()

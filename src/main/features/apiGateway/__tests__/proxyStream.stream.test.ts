@@ -50,8 +50,7 @@ vi.mock('@application', () => ({
         : name === 'ApiGatewayService'
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
-              isInternalAgentRequest: mockIsInternalAgentRequest,
-              isTranslationCredential: () => false,
+              getInternalFeature: (headers: Headers) => (mockIsInternalAgentRequest(headers) ? 'agent' : undefined),
               getAgentSessionId: vi.fn(() => undefined)
             }
           : undefined
@@ -225,7 +224,7 @@ async function processAndCaptureStreamMessages(
     params,
     inputFormat,
     outputFormat: 'anthropic',
-    requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
   })
   await vi.waitFor(() => expect(mockToUIMessages).toHaveBeenCalled())
   await vi.waitFor(() => expect(captured.listener).toBeDefined())
@@ -340,7 +339,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         inputFormat: 'anthropic',
         outputFormat: 'anthropic',
         signal: controller.signal,
-        requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+        requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
       })
     ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/tool_use ids must be unique/i) })
     expect(mockToUIMessages).not.toHaveBeenCalled()
@@ -576,7 +575,7 @@ describe('processMessage (streaming)', () => {
     }
     mockIsInternalAgentRequest.mockReturnValue(true)
     mockResolveAgentSessionUsage.mockReturnValue(usageContext)
-    const requestHeaders = new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    const requestHeaders = new Headers({ 'x-api-key': 'internal-agent-key' })
     const response = processMessage({
       params: { model: 'openai:gpt-4', stream: true, messages: [] },
       inputFormat: 'openai',
@@ -586,9 +585,7 @@ describe('processMessage (streaming)', () => {
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
     expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
-    expect(mockStreamPrompt).toHaveBeenCalledWith(
-      expect.objectContaining({ modelUsageFeature: 'agent', tokenUsageSource: 'agent', usageContext })
-    )
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
 
     commit(captured.listener!)
     await captured.listener!.onDone({} as any)
@@ -601,14 +598,12 @@ describe('processMessage (streaming)', () => {
       params: { model: 'openai:gpt-4', stream: true, messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
-      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
     const streamPromptInput = mockStreamPrompt.mock.calls[0][0]
-    expect(streamPromptInput).toEqual(
-      expect.objectContaining({ modelUsageFeature: 'agent', tokenUsageSource: 'agent' })
-    )
+    expect(streamPromptInput).toEqual(expect.objectContaining({ tokenUsageSource: 'agent' }))
     expect(streamPromptInput).not.toHaveProperty('usageContext')
 
     commit(captured.listener!)
@@ -726,13 +721,11 @@ describe('processMessage (streaming)', () => {
       params: { model: 'openai:gpt-4', messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
-      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
     })
 
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
-    expect(mockStreamPrompt).toHaveBeenCalledWith(
-      expect.objectContaining({ modelUsageFeature: 'agent', tokenUsageSource: 'agent' })
-    )
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent' }))
     await captured.listener!.onDone({} as any)
     await resPromise
   })

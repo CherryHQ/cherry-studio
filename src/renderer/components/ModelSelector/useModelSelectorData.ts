@@ -2,6 +2,7 @@ import { sortBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -38,11 +39,11 @@ function getModelSearchScore(keywords: string, model: Model, provider: Provider,
     { value: model.name, weight: 0, allowAbbreviation: true },
     { value: model.apiModelId, weight: 1, allowAbbreviation: true },
     { value: model.id, weight: 1, allowAbbreviation: true },
-    { value: provider.name, weight: 2, allowAbbreviation: false },
+    { value: provider.name, weight: 2, allowAbbreviation: false, allowPinyin: true },
     { value: provider.id, weight: 2, allowAbbreviation: false },
     { value: provider.presetProviderId, weight: 2, allowAbbreviation: false },
     // UI 展示的 provider 名（内置 provider 走 i18n 翻译），确保用户按界面上看到的名字搜索能命中
-    { value: providerDisplayName, weight: 2, allowAbbreviation: false }
+    { value: providerDisplayName, weight: 2, allowAbbreviation: false, allowPinyin: true }
   ])
 }
 
@@ -109,6 +110,7 @@ export function useModelSelectorData({
     togglePin
   } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
+  const { isModelHidden, isModelUnavailable, getModelDescription } = useCherryCloudModelAvailability(enabled)
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
 
   const baseModelFilter = useCallback(
@@ -140,6 +142,9 @@ export function useModelSelectorData({
       if (!includeAgentOnlyModels && agentOnlyProviderIds.has(model.providerId)) {
         continue
       }
+      if (isModelHidden(model, includeAgentOnlyModels)) {
+        continue
+      }
 
       const existingModels = grouped.get(model.providerId)
       if (existingModels) {
@@ -150,7 +155,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, models, sortedProviders])
+  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, isModelHidden, models, sortedProviders])
 
   const availableTags = useMemo(() => {
     if (modelsByProvider.size === 0) {
@@ -357,6 +362,8 @@ export function useModelSelectorData({
 
   return {
     availableTags,
+    getModelDescription,
+    isModelUnavailable,
     isLoading: isProvidersLoading || isModelsLoading || isPinsLoading,
     isPinActionDisabled: isPinsLoading || isPinsRefreshing || isPinsMutating,
     listItems,

@@ -1,6 +1,6 @@
 import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC, ReactNode, Ref } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
@@ -17,12 +17,10 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useCherryCloudModelFilter } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { toast } from '@renderer/services/toast'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
@@ -30,7 +28,16 @@ import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
 
-import { TopicNamingSettings } from './TopicNamingSettings'
+const TopicNamingSettings = lazy(() =>
+  import('./TopicNamingSettings').then((module) => ({ default: module.TopicNamingSettings }))
+)
+const TranslateSettingsPanelContent = lazy(() =>
+  // Preserve the existing cross-page panel ownership while moving its cost behind the activation boundary.
+  // eslint-disable-next-line import-x/no-restricted-paths
+  import('@renderer/pages/translate/TranslateSettings').then((module) => ({
+    default: module.TranslateSettingsPanelContent
+  }))
+)
 
 const logger = loggerService.withContext('ModelSettings')
 
@@ -147,16 +154,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
 
-  const baseChatModelFilter = useCallback(
+  const chatModelFilter = useCallback(
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
     [modelFilter]
   )
-  const baseTranslateModelFilter = useCallback(
+  const translateModelFilter = useCallback(
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
     [modelFilter]
   )
-  const chatModelFilter = useCherryCloudModelFilter('chat', baseChatModelFilter)
-  const translateModelFilter = useCherryCloudModelFilter('translate', baseTranslateModelFilter)
   const paintingModelFilter = useCallback((model: Model) => isGenerateImageModel(model), [])
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
   const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
@@ -356,7 +361,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             header={<h2 className={drawerTitleClassName}>{t('settings.models.quick_model.setting_title')}</h2>}
             contentClassName={MODEL_SETTINGS_DRAWER_WIDTH_CLASS}
             bodyClassName={SETTINGS_DRAWER_BODY_CLASS}>
-            <TopicNamingSettings />
+            <Suspense fallback={null}>
+              <TopicNamingSettings />
+            </Suspense>
           </PageSidePanel>
           <PageSidePanel
             open={activePanel === 'translate'}
@@ -365,7 +372,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             header={<h2 className={drawerTitleClassName}>{t('settings.translate.title')}</h2>}
             contentClassName={TRANSLATE_DRAWER_WIDTH_CLASS}
             bodyClassName={SETTINGS_DRAWER_BODY_CLASS}>
-            <TranslateSettingsPanelContent />
+            <Suspense fallback={null}>
+              <TranslateSettingsPanelContent />
+            </Suspense>
           </PageSidePanel>
         </>
       )}

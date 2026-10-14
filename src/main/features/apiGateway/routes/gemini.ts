@@ -99,9 +99,9 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
       }
 
       if (method === 'countTokens') {
-        const allowInternalAgent = application.get('ApiGatewayService').isInternalAgentRequest(request.headers)
+        const internalFeature = application.get('ApiGatewayService').getInternalFeature(request.headers)
         return {
-          totalTokens: await estimateGeminiRequestTokens(body, model, request.signal, allowInternalAgent)
+          totalTokens: await estimateGeminiRequestTokens(body, model, request.signal, internalFeature)
         }
       }
       if (!GENERATE_METHODS.has(method)) {

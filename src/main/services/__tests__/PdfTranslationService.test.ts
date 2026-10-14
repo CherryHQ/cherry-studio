@@ -70,11 +70,7 @@ const managedPath = (id: string) => path.join(TEST_ROOT, 'files', `${id}.pdf`)
 
 const binaryManager = { getToolSnapshots: vi.fn() }
 const apiGateway = {
-  acquireLease: vi.fn(),
-  createTranslationCredential: vi.fn(),
-  disposeTranslationCredential: vi.fn(),
-  getCurrentConfig: vi.fn(),
-  releaseLease: vi.fn()
+  ensureInternalGateway: vi.fn()
 }
 const fileManager = {
   createInternalEntry: vi.fn(),
@@ -146,12 +142,7 @@ describe('PdfTranslationService', () => {
         application: { status: 'applied', version: '0.6.4.post4' }
       }
     })
-    apiGateway.acquireLease.mockResolvedValue(undefined)
-    apiGateway.createTranslationCredential.mockReturnValue({
-      apiKey: 'cs-sk-test',
-      dispose: apiGateway.disposeTranslationCredential
-    })
-    apiGateway.getCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
+    apiGateway.ensureInternalGateway.mockResolvedValue({ baseUrl: 'http://127.0.0.1:23333', apiKey: 'cs-sk-test' })
 
     mocks.spawn.mockImplementation((_command: string, args: string[]) => {
       const child = new EventEmitter() as EventEmitter & {
@@ -193,9 +184,7 @@ describe('PdfTranslationService', () => {
     })
 
     expect(binaryManager.getToolSnapshots).toHaveBeenCalledTimes(1)
-    expect(apiGateway.acquireLease).toHaveBeenCalledTimes(1)
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
-    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
+    expect(apiGateway.ensureInternalGateway).toHaveBeenCalledWith('translate')
     expect(mocks.spawn).toHaveBeenCalledWith(
       MANAGED_BINARY,
       expect.arrayContaining([
@@ -620,8 +609,6 @@ describe('PdfTranslationService', () => {
     })
 
     await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
-    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-scanned-pdf'))).toBe(false)
   })
 
@@ -650,8 +637,6 @@ describe('PdfTranslationService', () => {
     await expect(pending).rejects.toThrow('PDF translation cancelled')
     expect(child!.kill).toHaveBeenCalledTimes(1)
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-cancel'))).toBe(false)
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
-    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
     // Cancellation is expected — it must not be logged as a failure.
     expect(mockMainLoggerService.error).not.toHaveBeenCalledWith(
       'PDF translation failed',
@@ -727,8 +712,6 @@ describe('PdfTranslationService', () => {
     await Promise.all([stopping, expect(translation).rejects.toThrow('PDF translation cancelled')])
 
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-stop'))).toBe(false)
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
-    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
   })
 
   it('takes and releases exactly one gateway lease per concurrent job', async () => {
@@ -758,20 +741,14 @@ describe('PdfTranslationService', () => {
     const first = translate('job-first')
     const second = translate('job-second')
     await vi.waitFor(() => expect(children.size).toBe(2))
-    // The service holds a lease per job; keeping the gateway up until the last lease drops is the
-    // gateway's own ref-counted concern (covered in ApiGatewayService tests), not the service's.
-    expect(apiGateway.acquireLease).toHaveBeenCalledTimes(2)
 
     children.get('job-first')!.stdout.write(finishEvent())
     children.get('job-first')!.emit('close', 0, null)
     await first
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
-    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
 
     children.get('job-second')!.stdout.write(finishEvent())
     children.get('job-second')!.emit('close', 0, null)
     await second
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(2)
   })
 
   it('logs the failure and surfaces the stderr tail when the sidecar exits non-zero', async () => {
@@ -807,8 +784,6 @@ describe('PdfTranslationService', () => {
       expect.any(Error),
       expect.objectContaining({ jobId: 'job-nonzero-exit' })
     )
-    expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
-    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-nonzero-exit'))).toBe(false)
   })
 
@@ -913,7 +888,7 @@ describe('PdfTranslationService', () => {
     })
 
     it('strips the brackets an IPv6 gateway host carries', async () => {
-      apiGateway.getCurrentConfig.mockReturnValue({ host: '::', port: 23333 })
+      apiGateway.ensureInternalGateway.mockResolvedValue({ baseUrl: 'http://[::1]:23333', apiKey: 'cs-sk-test' })
 
       const env = await spawnedEnv()
 

@@ -13,6 +13,7 @@ import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 
 import { MessageConverterFactory } from '../adapters'
+import type { InternalGatewayFeature } from '../ApiGatewayService'
 import { type ResolvedGatewayModelAddress, resolveGatewayModelAddress } from '../utils/models'
 import { boundedBodyTokens } from './fallbackEstimate'
 import { tryRemoteAnthropicCount } from './remoteAnthropicCount'
@@ -38,10 +39,10 @@ const logger = loggerService.withContext('GatewayTokenEstimate')
 export async function estimateAnthropicRequestTokens(
   body: MessageCreateParams,
   signal?: AbortSignal,
-  allowInternalAgent = false
+  internalFeature?: InternalGatewayFeature
 ): Promise<number> {
   try {
-    return await estimateConvertedRequest(body, signal, allowInternalAgent)
+    return await estimateConvertedRequest(body, signal, internalFeature)
   } catch (error) {
     // The body is only loosely validated (`content: z.unknown()`, `tools` untyped), so
     // conversion can throw on malformed blocks — degrade instead of surfacing a 500.
@@ -53,7 +54,7 @@ export async function estimateAnthropicRequestTokens(
 async function estimateConvertedRequest(
   body: MessageCreateParams,
   signal: AbortSignal | undefined,
-  allowInternalAgent: boolean
+  internalFeature: InternalGatewayFeature | undefined
 ): Promise<number> {
   const converter = MessageConverterFactory.create('anthropic')
   const uiMessages = converter.toUIMessages(body)
@@ -64,7 +65,7 @@ async function estimateConvertedRequest(
   let caps = ALL_MEDIA
   let resolved: ResolvedGatewayModelAddress | undefined
   try {
-    resolved = await resolveGatewayModelAddress(body.model, allowInternalAgent ? 'agent' : undefined)
+    resolved = await resolveGatewayModelAddress(body.model, internalFeature)
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
     caps = resolveMediaCapabilities(resolved.model)
   } catch (error) {

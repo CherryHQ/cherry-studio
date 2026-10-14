@@ -10,8 +10,9 @@ const { mockPreferenceGet } = vi.hoisted(() => ({
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    PreferenceService: { get: mockPreferenceGet }
-  })
+    PreferenceService: { get: mockPreferenceGet },
+    ApiGatewayService: { isInternalApiKey: (token: string) => token === 'internal-key' }
+  } as never)
 })
 
 /**
@@ -50,6 +51,14 @@ describe('authorizeApiRequest', () => {
     it('returns 403 when API key is null', () => {
       mockPreferenceGet.mockReturnValue(null)
       expect(authorizeApiRequest('some-key', undefined)).toEqual({ status: 403, error: 'Forbidden' })
+    })
+  })
+
+  describe('Internal consumer key', () => {
+    it('authenticates an internal key even when no user API key is configured', () => {
+      mockPreferenceGet.mockReturnValue(undefined)
+      expect(authorizeApiRequest(undefined, 'internal-key')).toBeUndefined()
+      expect(authorizeApiRequest(undefined, 'other-key')).toEqual({ status: 403, error: 'Forbidden' })
     })
   })
 

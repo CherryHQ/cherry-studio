@@ -36,7 +36,7 @@ import {
   type PdfTranslationStage
 } from '@shared/ipc/schemas/translate'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 
 const logger = loggerService.withContext('PdfTranslationService')
 const BABELDOC_STREAM_SCHEMA = 'babeldoc-stream/v2'
@@ -219,13 +219,10 @@ export class PdfTranslationService extends BaseService {
       stageProgress: null
     }
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
-    const gateway = application.get('ApiGatewayService')
-    let gatewayLeaseAcquired = false
-    let translationCredential: { apiKey: string; dispose: () => void } | undefined
 
     try {
       // Register the job as the first in-try statement so the `finally` cleanup (delete + temp
-      // removal + lease release) always pairs with it — a throw from the resolves above can't leave
+      // removal) always pairs with it — a throw from the resolves above can't leave
       // the id wedged in `activeJobs`.
       this.activeJobs.set(request.jobId, job)
       await fs.promises.access(request.sourcePath, fs.constants.R_OK)
@@ -241,22 +238,24 @@ export class PdfTranslationService extends BaseService {
       const model = modelService.getByKey(providerId, modelId)
       const gatewayModelId = formatGatewayModelId(providerId, model.apiModelId ?? modelId)
 
-      // Hold a temporary run lease instead of toggling the gateway's persistent enabled state, so a
-      // user enabling/disabling the gateway mid-translation is neither overridden nor able to cut us off.
-      await gateway.acquireLease()
-      gatewayLeaseAcquired = true
+      // The internal listener is independent of the user-facing gateway toggle and port.
+      const gateway = await application.get('ApiGatewayService').ensureInternalGateway('translate')
       this.throwIfCancelled(job)
-
-      translationCredential = gateway.createTranslationCredential(gatewayModelId)
-      const { apiKey } = translationCredential
-      const config = gateway.getCurrentConfig()
-      const baseUrl = `${gatewayClientOrigin(config.host, config.port)}/v1`
 
       await fs.promises.rm(outputDir, { force: true, recursive: true })
       await fs.promises.mkdir(outputDir, { recursive: true })
       onStage?.('translating')
 
-      await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onProgress)
+      await this.runSidecar(
+        job,
+        executable,
+        request,
+        outputDir,
+        gatewayModelId,
+        `${gateway.baseUrl}/v1`,
+        gateway.apiKey,
+        onProgress
+      )
       this.throwIfCancelled(job)
 
       // BabelDOC Stream 0.6.4.post1 inserts a `.no_watermark` segment into the mono filename whenever the
@@ -280,14 +279,12 @@ export class PdfTranslationService extends BaseService {
       }
       throw error
     } finally {
-      translationCredential?.dispose()
       this.activeJobs.delete(request.jobId)
       // Unconditional: on success the artifact already lives in FileManager, on failure
       // there is nothing worth keeping. Nobody outside this method reads the temp dir.
       await fs.promises.rm(outputDir, { force: true, recursive: true }).catch((error) => {
         logger.warn('Failed to clean PDF translation output', { jobId: request.jobId, error: String(error) })
       })
-      if (gatewayLeaseAcquired) gateway.releaseLease()
     }
   }
 
