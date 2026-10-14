@@ -1,9 +1,9 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import type { AgentRuntimeModel, SubagentModelCandidate, SubagentPort } from '../src'
 import {
   recordingSubagentPort,
+  reply,
   routedModel,
   storingSubagentPort,
   subagentCall,
@@ -11,10 +11,8 @@ import {
   toolResultOf,
   waitFor
 } from './subagentSupport'
-import { createTestSession, finish, MODEL, streamTextPort, textParts } from './support'
+import { createTestSession, finish, MODEL, streamTextPort } from './support'
 import { textOf } from './toolResults'
-
-const reply = (text: string): LanguageModelV3StreamPart[] => [...textParts('t', text), finish('stop')]
 
 const SONNET_OR: AgentRuntimeModel = { ...MODEL, provider: 'openrouter', key: 'or::sonnet', id: 'sonnet-4.5' }
 const SONNET_AN: AgentRuntimeModel = { ...MODEL, provider: 'anthropic', key: 'an::sonnet', id: 'claude-sonnet-4-5' }

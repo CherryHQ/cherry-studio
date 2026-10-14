@@ -1,27 +1,27 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { Type } from '@earendil-works/pi-ai'
-import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import {
   gate,
+  NOTE,
   noteTool,
   recordingSubagentPort,
+  reply,
   type RoutedCall,
   routedModel,
+  stopTurnTool,
   subagentCall,
+  subagentsDone,
   subagentStates,
   toolCallPart,
   toolResultOf,
   toolResults,
   waitFor
 } from './subagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort, textParts } from './support'
+import { createTestSession, finish, hostStore, streamTextPort } from './support'
 import { textOf } from './toolResults'
 
-const NOTE = 'Background subagent update (automatic message, not from the user):'
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
-const reply = (text: string): LanguageModelV3StreamPart[] => [...textParts('t', text), finish('stop')]
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
 
 describe('moving a foreground subagent to the background', () => {
@@ -30,20 +30,6 @@ describe('moving a foreground subagent to the background', () => {
   it('returns the call at once and lets the same run go on, ending in a notification', async () => {
     const held = gate()
     const parent: { session?: AgentSession } = {}
-    const stopTurn = defineTool({
-      name: 'stop_turn',
-      label: 'Stop turn',
-      description: 'The user presses stop',
-      parameters: Type.Object({}),
-      async execute(_id, _params, signal) {
-        void parent.session!.abort()
-        await new Promise<void>((resolve) => {
-          if (signal?.aborted) resolve()
-          else signal?.addEventListener('abort', () => resolve(), { once: true })
-        })
-        return { content: [{ type: 'text', text: 'stopped' }], details: undefined }
-      }
-    })
     const host = recordingSubagentPort()
     const store = hostStore()
     const { model, calls } = routedModel(({ userText, lastText, lastRole, humanText }) => {
@@ -59,7 +45,7 @@ describe('moving a foreground subagent to the background', () => {
     })
     const runtime = await createTestSession({
       port: streamTextPort(model).port,
-      tools: [noteTool, stopTurn],
+      tools: [noteTool, stopTurnTool(parent)],
       subagents: host.port,
       onEvent: store.onEvent
     })
@@ -106,7 +92,12 @@ describe('moving a foreground subagent to the background', () => {
         ]
       return reply('OK.')
     })
-    const runtime = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const parent = hostStore()
+    const runtime = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: host.port,
+      onEvent: parent.onEvent
+    })
     await runtime.prompt('Start both')
     const id = (description: string) =>
       host.subagents.find((subagent) => subagent.description === description)!.sessionId
@@ -115,5 +106,6 @@ describe('moving a foreground subagent to the background', () => {
     expect(runtime.backgroundSubagent(id('Check A'))).toBe(false)
     expect(runtime.backgroundSubagent('not-a-subagent')).toBe(false)
     held.open()
+    await subagentsDone(runtime.session, parent.events)
   })
 })

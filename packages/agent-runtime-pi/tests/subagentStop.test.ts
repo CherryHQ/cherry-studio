@@ -1,48 +1,27 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import {
   gate,
+  NOTE,
   recordingSubagentPort,
+  reply,
   type RoutedCall,
   routedModel,
   subagentCall,
   subagentStates,
   toolCallPart,
   toolResultOf,
+  untilStopped,
   waitFor
 } from './subagentSupport'
 import { createTestSession, finish, hostStore, streamTextPort, textParts } from './support'
 import { textOf } from './toolResults'
 
-const NOTE = 'Background subagent update (automatic message, not from the user):'
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 const BG_B = { description: 'Check B', prompt: 'TASK-B', background: true }
-const reply = (text: string): LanguageModelV3StreamPart[] => [...textParts('t', text), finish('stop')]
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
-const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
-
-/** A subagent tool that waits until its run is stopped; `reached` resolves once it waits. */
-function untilStopped() {
-  const started = gate()
-  const tool = defineTool({
-    name: 'work',
-    label: 'Work',
-    description: 'Works until stopped',
-    parameters: Type.Object({}),
-    async execute(_id, _params, signal) {
-      void started.wait(undefined)
-      await new Promise<void>((resolve) => {
-        if (signal?.aborted) resolve()
-        else signal?.addEventListener('abort', () => resolve(), { once: true })
-      })
-      return { content: [{ type: 'text', text: 'stopped working' }], details: undefined }
-    }
-  })
-  return { tool, reached: started.reached }
-}
 
 describe('stopping subagents', () => {
   // Breaks when stop_subagent leaves the subagent running, loses its partial output, or is followed
@@ -70,8 +49,8 @@ describe('stopping subagents', () => {
     await session.prompt('Check A in the background')
     await work.reached
 
+    // A notification would have been merged into this turn, or started as it settled.
     await session.prompt('Stop A')
-    await settle()
 
     const { sessionId } = host.subagents[0]
     expect(textOf(toolResultOf(session, 'call_stop'))).toBe(
@@ -130,7 +109,8 @@ describe('stopping subagents', () => {
 
     expect(runtime.stopSubagent(sessionId)).toBe(true)
     await waitFor(() => subagentStates(parent.entries).some((state) => state.stoppedBy === 'user'))
-    await settle()
+    // A run the stop would start begins as the stop is recorded, so it would show by now.
+    expect(runtime.session.isIdle).toBe(true)
     expect(notified(calls)).toEqual([])
     expect(runtime.stopSubagent(sessionId)).toBe(false)
     expect(runtime.stopSubagent('not-a-subagent')).toBe(false)

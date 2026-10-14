@@ -1,4 +1,3 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
@@ -16,7 +15,9 @@ import {
 } from './goalSupport'
 import {
   gate,
+  NOTE,
   recordingSubagentPort,
+  reply,
   type RoutedCall,
   routedModel,
   storingSubagentPort,
@@ -28,14 +29,9 @@ import {
   untilStopped,
   waitFor
 } from './subagentSupport'
-import { finish, textParts } from './support'
+import { finish } from './support'
 import { textOf } from './toolResults'
 
-const NOTE = 'Background subagent update (automatic message, not from the user):'
-const reply = (text: string, input = 10): LanguageModelV3StreamPart[] => [
-  ...textParts('t', text),
-  finish('stop', input, 0)
-]
 /** A background launch; the description never holds the task marker the routes look for. */
 const bg = (id: string, task: string) =>
   subagentCall(id, { description: `Check ${task.slice('TASK-'.length)}`, prompt: task, background: true })
@@ -152,29 +148,64 @@ describe('goal and background subagents', () => {
   // or the usage of a subagent the goal did not start is put in.
   it("counts the parent's notification turn toward an armed goal, not a human turn's subagent", async () => {
     const held = gate()
+    let inRoundOne = false
+    // A finishes once round 1 has settled, so its notification turn comes while the goal waits.
+    const openAfterRoundOne: ExtensionFactory = (pi) => {
+      pi.on('agent_settled', () => {
+        if (inRoundOne) held.open()
+      })
+    }
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A', 5_000))
       if (call.humanText === 'Check A in the background') return [bg('call_a', 'TASK-A'), finish('tool-calls')]
-      if (isNotice(call)) return reply('Read the report.', 1_000)
+      if (isNotice(call)) return reply('Read the report.', 1_000, 0)
       if (round(call) === 1) {
-        // Round 1 settles while A still works, so its notification turn comes while the goal waits.
-        void held.reached.then(() => setTimeout(held.open, 30))
-        return reply('working')
+        inRoundOne = true
+        return reply('working', 10, 0)
       }
       return reply(`working ${calls.length}`)
     })
     const { session: s, host } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 2 } }), {
-      subagents: recordingSubagentPort().port
+      subagents: recordingSubagentPort().port,
+      extensionFactories: [openAfterRoundOne]
     })
     await s.prompt('Check A in the background')
     await held.reached
     await promptIdle(s, '/goal Keep working')
     await waitFor(() => rounds(host.entries).length === 2)
 
-    // Round 1 (10 + 2 cached) and the notification turn (1000 + 2 cached); A's 5002 tokens are the human turn's.
+    // Round 1 (10 + 2 cached) and the notification turn (1000 + 2 cached); A's tokens are the human turn's.
     expect(snapshots(host.entries).find((snapshot) => snapshot.roundsStarted === 2)).toMatchObject({
       tokensUsed: 1_014
     })
+  })
+
+  // Breaks when a notification turn's usage counts toward a goal that is not active (here paused):
+  // that turn then works for no goal.
+  it('leaves the notification turn out of a goal that is not active', async () => {
+    const held = gate()
+    const { model, calls } = routedModel((call) => {
+      if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
+      if (call.humanText === 'Check A in the background') return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      if (isNotice(call)) return reply('Read the report.', 1_000, 0)
+      return reply(`working ${calls.length}`)
+    })
+    const { session: s, host } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 3 } }), {
+      subagents: recordingSubagentPort().port
+    })
+    await s.prompt('Check A in the background')
+    await held.reached
+    // Round 1 runs, then the goal waits for A.
+    await promptIdle(s, '/goal Keep working')
+    await s.prompt('/goal pause')
+    held.open()
+    await waitFor(() => calls.some(isNotice))
+    await s.waitForIdle()
+    await promptIdle(s, '/goal resume')
+
+    const all = snapshots(host.entries)
+    const paused = all.findIndex((snapshot) => snapshot.phase === 'paused')
+    expect(all[paused + 1]).toMatchObject({ phase: 'active', tokensUsed: all[paused].tokensUsed })
   })
 
   // Breaks when a background subagent the goal started runs past the goal's budget unseen: its usage
@@ -221,7 +252,7 @@ describe('goal and background subagents', () => {
       if (call.userText.includes('TASK-B'))
         return call.lastText.includes('TASK-B')
           ? [toolCallPart('work_1', 'work'), finish('tool-calls', 5_000, 0)]
-          : reply('LATE')
+          : reply('LATE', 10, 0)
       if (round(call) === 1) return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
       if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_b') {
         await work.reached
@@ -230,7 +261,7 @@ describe('goal and background subagents', () => {
           finish('tool-calls', 10, 0)
         ]
       }
-      return reply(`working ${calls.length}`)
+      return reply(`working ${calls.length}`, 10, 0)
     })
     const { session: s, host: store } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 2 } }), {
       tools: [work.tool],
@@ -254,7 +285,7 @@ describe('goal and background subagents', () => {
   it('counts the continuation a goal round starts toward the goal', async () => {
     const host = storingSubagentPort()
     const { model, calls } = routedModel((call) => {
-      if (call.userText.includes('TASK-A')) return reply(call.lastText === 'GO-ON' ? 'REPORT-2' : 'REPORT-1', 5_000)
+      if (call.userText.includes('TASK-A')) return reply(call.lastText === 'GO-ON' ? 'REPORT-2' : 'REPORT-1', 5_000, 0)
       if (round(call) === 1)
         return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' }), finish('tool-calls', 10, 0)]
       if (round(call) === 2)
@@ -262,7 +293,7 @@ describe('goal and background subagents', () => {
           toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'GO-ON' }),
           finish('tool-calls', 10, 0)
         ]
-      return reply(`working ${calls.length}`)
+      return reply(`working ${calls.length}`, 10, 0)
     })
     const { session: s, host: store } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 3 } }), {
       subagents: host.port
