@@ -2,6 +2,12 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
@@ -15,11 +21,6 @@ import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { danglingCache } from '../../danglingCache'
 import { createVersionCacheImpl } from '../../versionCache'
@@ -35,9 +36,8 @@ vi.mock('@data/db/restore/restoreJournal', () => ({
   hasPendingRestore: () => hasPendingRestoreMock()
 }))
 
-const { ENTRY_CLEANUP_BATCH_LIMIT, ENTRY_CLEANUP_GRACE_MS, runEntryCleanup, summariseEntryCleanup } = await import(
-  '../entryCleanup'
-)
+const { ENTRY_CLEANUP_BATCH_LIMIT, ENTRY_CLEANUP_GRACE_MS, runEntryCleanup, summariseEntryCleanup } =
+  await import('../entryCleanup')
 
 const HOUR = 60 * 60 * 1000
 
@@ -351,30 +351,33 @@ describe('entryCleanup', () => {
     await seedInternal(id, 'delete_when_unreferenced')
     const deps = makeDeps()
     const spy = vi.spyOn(deps.fileEntryService, 'withWriteTx').mockImplementationOnce(() => {
-      throw new Error('tx boom')
+      throw Object.assign(new Error('private transcript /private/audio.wav'), { code: 'SQLITE_BUSY' })
     })
     const report = await runEntryCleanup(deps)
     expect(report.failed).toBe(1)
+    expect(loggerService.warn).toHaveBeenCalledWith(expect.stringContaining('candidate failed'), {
+      id,
+      code: 'SQLITE_BUSY'
+    })
     expect(report.deleted).toBe(0)
     expect(fileEntryService.findById(id)).not.toBeNull()
     spy.mockRestore()
   })
 
-  it('reports failed with the raw error (stack) logged when the pass throws before the loop', async () => {
+  it('reports a failed pass without private database input or raw errors', async () => {
     const deps = makeDeps()
     const spy = vi.spyOn(deps.fileEntryService, 'findCleanupCandidates').mockImplementation(() => {
-      throw new Error('db exploded')
+      throw Object.assign(new Error('private transcript /private/audio.wav'), { code: 'SQLITE_BUSY' })
     })
     const errorSpy = vi.spyOn(loggerService, 'error')
     const report = await runEntryCleanup(deps)
     expect(report.outcome).toBe('failed')
-    expect(report.errorMessage).toBe('db exploded')
-    // The raw Error is passed first (stack preserved), not just its message string.
+    expect(report.errorMessage).toBe('file_entry_cleanup_failed')
     expect(errorSpy).toHaveBeenCalledWith(
       'file-entry-cleanup',
-      expect.any(Error),
-      expect.objectContaining({ event: 'file-entry-cleanup', outcome: 'failed' })
+      expect.objectContaining({ event: 'file-entry-cleanup', outcome: 'failed', code: 'SQLITE_BUSY' })
     )
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('private')
     spy.mockRestore()
   })
 
@@ -430,7 +433,42 @@ describe('entryCleanup', () => {
       await seedInternal(id, 'delete_when_unreferenced')
       const report = await runEntryCleanup(makeDeps())
       const summary = summariseEntryCleanup(report)
-      expect(summary).toEqual({ outcome: 'completed', candidates: report.candidates, deleted: report.deleted })
+      expect(summary).toEqual({
+        outcome: 'completed',
+        candidates: report.candidates,
+        deleted: report.deleted,
+        hasPendingWork: false
+      })
+    })
+
+    it('marks a saturated batch as possible pending work', () => {
+      const summary = summariseEntryCleanup({
+        outcome: 'completed',
+        candidates: ENTRY_CLEANUP_BATCH_LIMIT,
+        deleted: ENTRY_CLEANUP_BATCH_LIMIT,
+        skippedRefsReappeared: 0,
+        gonePinned: 0,
+        failed: 0,
+        unlinkFailures: 0,
+        durationMs: 1
+      })
+
+      expect(summary.hasPendingWork).toBe(true)
+    })
+
+    it('marks an unlink failure as pending work', () => {
+      const summary = summariseEntryCleanup({
+        outcome: 'completed',
+        candidates: 1,
+        deleted: 1,
+        skippedRefsReappeared: 0,
+        gonePinned: 0,
+        failed: 0,
+        unlinkFailures: 1,
+        durationMs: 1
+      })
+
+      expect(summary.hasPendingWork).toBe(true)
     })
   })
 })

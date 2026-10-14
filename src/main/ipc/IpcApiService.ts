@@ -1,3 +1,6 @@
+import type { IpcMainInvokeEvent } from 'electron'
+import { ipcMain } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
@@ -8,8 +11,6 @@ import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors/IpcEr
 import { type IpcEventName, type IpcRequestSchemas, ipcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload, IpcContext, WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { IpcMainInvokeEvent } from 'electron'
-import { ipcMain } from 'electron'
 
 import { ipcHandlers } from './handlers/ipcHandlers'
 import { IpcRouter } from './IpcRouter'

@@ -1,3 +1,8 @@
+import { FolderOpen } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Input, Slider, Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
@@ -15,10 +20,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
-import { FolderOpen } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('NotesSettings')
 
@@ -179,7 +180,7 @@ const NotesSettings: FC = () => {
               onValueChange={(value) => updateSettings({ fontSize: value[0] ?? settings.fontSize })}
               className="mr-4 w-50"
             />
-            <span className="min-w-10 text-muted-foreground text-sm">{settings.fontSize}px</span>
+            <span className="min-w-10 text-sm text-muted-foreground">{settings.fontSize}px</span>
           </div>
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.font_size_description')}</SettingHelpText>

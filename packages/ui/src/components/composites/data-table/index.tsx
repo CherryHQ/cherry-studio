@@ -1,14 +1,3 @@
-import { Checkbox } from '@cherrystudio/ui/components/primitives/checkbox'
-import { RadioGroup, RadioGroupItem } from '@cherrystudio/ui/components/primitives/radio-group'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@cherrystudio/ui/components/primitives/table'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   type Cell,
   type ColumnDef,
@@ -20,6 +9,18 @@ import {
 } from '@tanstack/react-table'
 import { ChevronRight } from 'lucide-react'
 import * as React from 'react'
+
+import { Checkbox } from '@cherrystudio/ui/components/primitives/checkbox'
+import { RadioGroup, RadioGroupItem } from '@cherrystudio/ui/components/primitives/radio-group'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@cherrystudio/ui/components/primitives/table'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 export type DataTableKey = React.Key
 
@@ -92,11 +93,11 @@ const tableExpandButtonClassName =
   'flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground'
 
 function getColumnMeta<TData>(cell: Cell<TData, unknown>): DataTableColumnMeta | undefined {
-  return cell.column.columnDef.meta as DataTableColumnMeta | undefined
+  return cell.column.columnDef.meta
 }
 
 function getHeaderMeta<TData>(columnDef: ColumnDef<TData, unknown>): DataTableColumnMeta | undefined {
-  return columnDef.meta as DataTableColumnMeta | undefined
+  return columnDef.meta
 }
 
 function getAlignClass(align?: DataTableColumnMeta['align']) {

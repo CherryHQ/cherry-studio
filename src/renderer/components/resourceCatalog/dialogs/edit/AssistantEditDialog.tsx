@@ -1,3 +1,8 @@
+import { Sparkles, Trash2 } from 'lucide-react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm, type UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   FormControl,
@@ -47,10 +52,6 @@ import {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
-import { Sparkles, Trash2 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import {
   AvatarField,
@@ -98,6 +99,7 @@ type AssistantEditFormValues = {
   maxToolCalls: number
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
+  enableBrowser: boolean
   mcpMode: AssistantFormState['mcpMode']
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
@@ -111,13 +113,13 @@ type AssistantEditFormValues = {
 
 type CustomParameter = AssistantFormState['customParameters'][number]
 type CustomParameterType = CustomParameter['type']
-type AssistantToolTab = 'tools.mcp' | 'tools.knowledge'
+type AssistantToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
 
 function isAssistantToolTab(value: string): value is AssistantToolTab {
-  return value === 'tools.mcp' || value === 'tools.knowledge'
+  return value === 'tools.builtin' || value === 'tools.mcp' || value === 'tools.knowledge'
 }
 
 function defaultValuesForAssistant(resource: AssistantEditDialogResource): AssistantEditFormValues {
@@ -139,6 +141,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     maxToolCalls: form.maxToolCalls,
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
+    enableBrowser: form.enableBrowser,
     mcpMode: form.mcpMode,
     contextOverrideEnabled: form.contextOverrideEnabled,
     contextCompressEnabled: form.contextCompressEnabled,
@@ -179,6 +182,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     maxToolCalls: values.maxToolCalls,
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
+    enableBrowser: values.enableBrowser,
     mcpMode: values.mcpMode,
     contextOverrideEnabled: values.contextOverrideEnabled,
     contextCompressEnabled: values.contextCompressEnabled,
@@ -247,6 +251,7 @@ function AssistantEditDialogContent({
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
         children: [
+          { id: 'tools.builtin', label: t('settings.skills.tabs.builtin') },
           { id: 'tools.knowledge', label: t('library.config.dialogs.edit.knowledge_tab') },
           { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') }
         ]
@@ -409,7 +414,24 @@ function AssistantEditDialogContent({
         </TabsContent>
         {isAssistantToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
-            {activeTab === 'tools.mcp' ? (
+            {activeTab === 'tools.builtin' ? (
+              <FormField
+                control={form.control}
+                name="enableBrowser"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between gap-3">
+                    <span>{t('settings.browser.title')}</span>
+                    <FormControl>
+                      <Switch
+                        aria-label={t('settings.browser.title')}
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            ) : activeTab === 'tools.mcp' ? (
               <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
             ) : (
               <div className="grid gap-4">
@@ -1190,7 +1212,7 @@ function CustomParametersField({
               portalContainer={portalContainer}
               onNameChange={(name) => updateField(index, { name })}
               onTypeChange={(type) => updateField(index, { type })}
-              onValueChange={(nextValue) => updateField(index, { value: nextValue } as Partial<CustomParameter>)}
+              onValueChange={(nextValue) => updateField(index, { value: nextValue })}
               onDelete={() => remove(index)}
             />
           ))}

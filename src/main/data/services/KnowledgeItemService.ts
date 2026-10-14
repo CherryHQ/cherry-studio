@@ -4,6 +4,8 @@
  * Handles CRUD operations for knowledge items stored in SQLite.
  */
 
+import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
+
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -19,7 +21,6 @@ import {
   type KnowledgeItemStatus,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'
@@ -407,10 +408,10 @@ export class KnowledgeItemService {
     baseId: string,
     rootIds: string[],
     status: 'deleting' | 'failed',
-    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
+    update?: FailedKnowledgeItemStatusUpdate
   ): string[] {
     if (status === 'failed') {
-      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update as FailedKnowledgeItemStatusUpdate)
+      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update)
     }
     return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
   }
@@ -424,7 +425,7 @@ export class KnowledgeItemService {
     baseId: string,
     rootIds: string[],
     status: 'deleting' | 'failed',
-    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
+    update?: FailedKnowledgeItemStatusUpdate
   ): string[] {
     const error = status === 'failed' ? update?.error.trim() : null
 
@@ -486,7 +487,7 @@ export class KnowledgeItemService {
     }
 
     const dbService = application.get('DbService')
-    const deleted = dbService.withWriteTx((tx) => {
+    const rowsAffected = dbService.withWriteTx((tx) => {
       const targetRows = tx
         .select({ groupId: knowledgeItemTable.groupId })
         .from(knowledgeItemTable)
@@ -495,15 +496,15 @@ export class KnowledgeItemService {
       tx.delete(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
         .run()
-      return {
-        rowsAffected: targetRows.length,
-        groupIds: targetRows.map((row) => row.groupId)
-      }
+      this.reconcileContainersTx(
+        tx,
+        baseId,
+        targetRows.map((row) => row.groupId)
+      )
+      return targetRows.length
     })
 
-    this.reconcileContainers(baseId, deleted.groupIds)
-
-    logger.info('Deleted knowledge items by ids', { baseId, count: deleted.rowsAffected })
+    logger.info('Deleted knowledge items by ids', { baseId, count: rowsAffected })
   }
 
   getSubtreeItems(baseId: string, rootIds: string[], options: GetSubtreeItemsOptions = {}): KnowledgeItem[] {
@@ -562,11 +563,7 @@ export class KnowledgeItemService {
 
   updateStatus(id: string, status: Exclude<KnowledgeItemStatus, 'failed'>, update?: never): KnowledgeItem
   updateStatus(id: string, status: 'failed', update: FailedKnowledgeItemStatusUpdate): KnowledgeItem
-  updateStatus(
-    id: string,
-    status: KnowledgeItemStatus,
-    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
-  ): KnowledgeItem {
+  updateStatus(id: string, status: KnowledgeItemStatus, update?: FailedKnowledgeItemStatusUpdate): KnowledgeItem {
     // Per-type status legality is enforced by the DB CHECK constraint.
     const error = status === 'failed' ? update?.error.trim() : null
 
@@ -672,6 +669,8 @@ export class KnowledgeItemService {
       const [updatedRow] = tx
         .update(knowledgeItemTable)
         .set({
+          // Runtime guards above narrow the item kind; Drizzle cannot carry that correlation through the spread.
+          // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
           data: nextData as KnowledgeItemData
         })
         .where(eq(knowledgeItemTable.id, id))
@@ -801,7 +800,7 @@ export class KnowledgeItemService {
 
   delete(id: string): void {
     const dbService = application.get('DbService')
-    const deleted = dbService.withWriteTx((tx) => {
+    dbService.withWriteTx((tx) => {
       const [existingRow] = tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
 
       if (!existingRow) {
@@ -820,10 +819,9 @@ export class KnowledgeItemService {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
 
-      return { baseId: existingRow.baseId, groupId: existingRow.groupId }
+      this.reconcileContainersTx(tx, existingRow.baseId, [existingRow.groupId])
     })
 
-    this.reconcileContainers(deleted.baseId, [deleted.groupId])
     logger.info('Deleted knowledge item', { id })
   }
 }

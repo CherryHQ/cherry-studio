@@ -3,11 +3,13 @@ export type { AppProviderId, AppProviderSettingsMap, AppRuntimeConfig } from './
 export { appProviderIds, getAllProviderIds, isRegisteredProviderId } from './merged'
 export type { CompletionsResult, ProviderCapabilities, ProviderConfig } from './providerConfig'
 export type {
-  AiBaseRequest,
+  AiChatRequest,
+  AiRequest,
   AiStreamRequest,
   AiTransportOptions,
   CallOverrides,
   ContextOwner,
+  ConversationRef,
   InProcessUsageContext,
   ListModelsRequest
 } from './requests'

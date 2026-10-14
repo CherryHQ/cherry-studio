@@ -1,4 +1,27 @@
 import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  Copy,
+  Database,
+  Download,
+  FolderOpen,
+  History,
+  Loader2,
+  Monitor,
+  Moon,
+  Rocket,
+  RotateCcw,
+  Shield,
+  Sparkles,
+  Sun,
+  Wrench,
+  X
+} from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
   Alert,
   Button,
   Dialog,
@@ -30,28 +53,6 @@ import {
   type MigrationStage,
   type PreparedMigrationExportPaths
 } from '@shared/data/migration/v2/types'
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  Copy,
-  Database,
-  Download,
-  FolderOpen,
-  History,
-  Loader2,
-  Monitor,
-  Moon,
-  Rocket,
-  RotateCcw,
-  Shield,
-  Sparkles,
-  Sun,
-  Wrench,
-  X
-} from 'lucide-react'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   CloseMigrationDialog,

@@ -1,5 +1,6 @@
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { TAB_LIMITS, TabLruManager } from '../TabLruManager'
 
@@ -24,19 +25,6 @@ describe('TabLruManager', () => {
     vi.spyOn(console, 'info').mockImplementation(() => {})
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
-  })
-
-  describe('constructor', () => {
-    it('should use default limits', () => {
-      const limits = manager.getLimits()
-      expect(limits.softCap).toBe(TAB_LIMITS.softCap)
-      expect(limits.hardCap).toBe(TAB_LIMITS.hardCap)
-    })
-
-    it('should accept custom limits', () => {
-      const customManager = new TabLruManager({ softCap: 5, hardCap: 15 })
-      expect(customManager.getLimits()).toEqual({ softCap: 5, hardCap: 15 })
-    })
   })
 
   describe('checkAndGetDormantCandidates', () => {

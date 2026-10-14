@@ -2,9 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import type * as ScanModule from '../scan'
 

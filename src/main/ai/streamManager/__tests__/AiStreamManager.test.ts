@@ -1,14 +1,18 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
+import type * as DispatchModule from '../context/dispatch'
+import type { PersistAssistantInput } from '../persistence/PersistenceBackend'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -23,7 +27,7 @@ import type {
 
 class FakeListener implements StreamListener {
   readonly id: string
-  readonly terminalPhase?: 'persistence'
+  readonly terminalPhase?: 'persistence' | 'cleanup'
   chunks: UIMessageChunk[] = []
   /** Second argument of each onChunk call, indexed by chunk position. */
   chunkSources: Array<string | undefined> = []
@@ -35,7 +39,7 @@ class FakeListener implements StreamListener {
   onPausedImpl?: (result: StreamPausedResult) => void | Promise<void>
   onErrorImpl?: (result: StreamErrorResult) => void | Promise<void>
 
-  constructor(id: string, terminalPhase?: 'persistence') {
+  constructor(id: string, terminalPhase?: 'persistence' | 'cleanup') {
     this.id = id
     this.terminalPhase = terminalPhase
   }
@@ -70,6 +74,14 @@ class FakeListener implements StreamListener {
 const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
 const mockGetMessageById = vi.hoisted(() => vi.fn())
 
+// Real by default (steer continuations reach it through `dispatch()`); a test swaps it to observe admission.
+const mockDispatchStreamRequest = vi.hoisted(() => vi.fn())
+vi.mock('../context/dispatch', async (importOriginal) => {
+  const actual = await importOriginal<typeof DispatchModule>()
+  mockDispatchStreamRequest.mockImplementation(actual.dispatchStreamRequest)
+  return { ...actual, dispatchStreamRequest: mockDispatchStreamRequest }
+})
+
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     create: vi.fn().mockResolvedValue({ id: 'msg-001' }),
@@ -99,6 +111,7 @@ function controlledStream(): {
   stream: ReadableStream<UIMessageChunk>
   enqueue: (chunk: UIMessageChunk) => void
   close: () => void
+  error: (reason: unknown) => void
 } {
   let controller!: ReadableStreamDefaultController<UIMessageChunk>
   const stream = new ReadableStream<UIMessageChunk>({
@@ -109,7 +122,8 @@ function controlledStream(): {
   return {
     stream,
     enqueue: (chunk) => controller.enqueue(chunk),
-    close: () => controller.close()
+    close: () => controller.close(),
+    error: (reason) => controller.error(reason)
   }
 }
 
@@ -156,7 +170,7 @@ vi.mock('@application', async () => {
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
-const { TerminalPersistenceError } = await import('../listeners/PersistenceListener')
+const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -218,8 +232,8 @@ function error(msg: string): SerializedError {
   return { name: 'Error', message: msg, stack: null }
 }
 
-function req(topicId: string) {
-  return { chatId: topicId, trigger: 'submit-message', messages: [] } as any
+function req(topicId: string): AiStreamRequest {
+  return { conversation: { id: topicId, topicId }, trigger: 'submit-message', messages: [] }
 }
 
 /**
@@ -291,11 +305,27 @@ describe('AiStreamManager', () => {
       })
 
       expect(mockStreamText).toHaveBeenCalledWith(
-        expect.objectContaining({ chatId: 'gateway-request-1', contextOwner: 'caller' })
+        expect.objectContaining({
+          conversation: { id: 'gateway-request-1', topicId: 'gateway-request-1' },
+          contextOwner: 'caller'
+        })
       )
     })
 
-    it('keeps stream identity separate from conversation identity', () => {
+    it('makes an anonymous prompt stream its own conversation', () => {
+      mgr.streamPrompt({
+        streamId: 'gateway-request-1',
+        uniqueModelId: 'provider-a::model-a',
+        messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
+        listener: new FakeListener('gateway:request-1')
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({ conversation: { id: 'gateway-request-1', topicId: 'gateway-request-1' } })
+      )
+    })
+
+    it('keeps a trusted Agent SDK call in its agent session conversation', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',
         uniqueModelId: 'provider-a::model-a',
@@ -311,7 +341,10 @@ describe('AiStreamManager', () => {
       })
 
       expect(mockStreamText).toHaveBeenCalledWith(
-        expect.objectContaining({ chatId: 'session-1', tokenUsageSource: 'agent' })
+        expect.objectContaining({
+          conversation: { id: 'session-1', topicId: 'gateway-request-1' },
+          tokenUsageSource: 'agent'
+        })
       )
     })
   })
@@ -338,7 +371,7 @@ describe('AiStreamManager', () => {
         type: 'tool-output-available',
         toolCallId: 'tool-call-1',
         output: 'approved'
-      } as UIMessageChunk)
+      })
       mgr.onChunk('topic-1', 'provider-a::model-a', approvalChunk)
       mgr.onChunk('topic-1', 'provider-a::model-a', {
         ...approvalChunk,
@@ -365,7 +398,7 @@ describe('AiStreamManager', () => {
         toolCallId: 'tool-call-1',
         toolName: 'read_file',
         input: {}
-      } as UIMessageChunk)
+      })
 
       expect(approvalRequestedEvents).toEqual([])
     })
@@ -383,7 +416,7 @@ describe('AiStreamManager', () => {
         type: 'tool-approval-request',
         approvalId: 'approval-1',
         toolCallId: 'tool-call-1'
-      } as UIMessageChunk)
+      })
 
       expect(approvalRequestedEvents).toEqual([])
     })
@@ -408,6 +441,7 @@ describe('AiStreamManager', () => {
         isMultiModel: false,
         listenerIds: ['l:a']
       })
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
       // One streamText call per execution — 1 for single-model.
       // Passing signal propagation is verified indirectly by abort-path tests
       // (e.g. `abort > sets status and triggers AbortController signal`).
@@ -1399,11 +1433,184 @@ describe('AiStreamManager', () => {
       expect(renderer.doneResults).toHaveLength(0)
       expect(mgr.hasLiveStream('a')).toBe(false)
       expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(true)
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
 
       releasePersistence()
       await terminal
       expect(renderer.doneResults).toHaveLength(1)
       expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(false)
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(false)
+    })
+
+    it('keeps the terminal dispatch in flight until every cleanup listener settles', async () => {
+      let releaseB!: () => void
+      const a = new FakeListener('cleanup-a:a', 'cleanup')
+      const aDone = new Promise<void>((resolve) => {
+        a.onDoneImpl = () => resolve()
+      })
+      const b = new FakeListener('cleanup-b:a', 'cleanup')
+      b.onDoneImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseB = resolve
+        })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [a, b],
+        isPersistentConversation: true
+      })
+
+      const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
+      await aDone
+
+      let settled = false
+      const settledPromise = mgr.whenTerminalDispatchSettled('a').then(() => {
+        settled = true
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(b.doneResults).toHaveLength(1)
+      expect(settled).toBe(false)
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
+      expect(conversationCompletedEvents).toEqual([])
+
+      releaseB()
+      await settledPromise
+      await terminal
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(false)
+      expect(conversationCompletedEvents).toEqual([
+        { topicId: 'a', turnId: expect.stringMatching(/^\d+:\d+$/), completedAt: expect.any(Number) }
+      ])
+    })
+
+    it('settles the terminal dispatch only after every execution of a multi-model topic has dispatched', async () => {
+      const topicId = 'multi-terminal'
+      const first = 'provider-a::model-a'
+      const last = 'provider-b::model-b'
+      let releaseFirst!: () => void
+      const cleanup = new FakeListener('cleanup:multi-terminal', 'cleanup')
+      cleanup.onDoneImpl = (result) => {
+        if (result.modelId !== first) return
+        return new Promise<void>((resolve) => {
+          releaseFirst = resolve
+        })
+      }
+      mgr.send({
+        topicId,
+        models: [
+          { modelId: first, request: req(topicId) },
+          { modelId: last, request: req(topicId) }
+        ],
+        listeners: [cleanup],
+        isPersistentConversation: true
+      })
+
+      // The first execution's dispatch is parked on its cleanup listener while the last one ends the topic.
+      const firstTerminal = mgr.onExecutionDone(topicId, first)
+      await vi.advanceTimersByTimeAsync(0)
+      await mgr.onExecutionDone(topicId, last)
+      expect(conversationCompletedEvents).toHaveLength(1)
+
+      let settled = false
+      const settledPromise = mgr.whenTerminalDispatchSettled(topicId).then(() => {
+        settled = true
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(settled).toBe(false)
+
+      releaseFirst()
+      await settledPromise
+      await firstTerminal
+      expect(conversationCompletedEvents).toHaveLength(1)
+    })
+
+    it('keeps the previous turn terminal lifecycle when a follow-up is admitted after the dispatch settles', async () => {
+      let releaseB!: () => void
+      const a = new FakeListener('cleanup-a:a', 'cleanup')
+      const aDone = new Promise<void>((resolve) => {
+        a.onDoneImpl = () => resolve()
+      })
+      const b = new FakeListener('cleanup-b:a', 'cleanup')
+      b.onDoneImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseB = resolve
+        })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [a, b],
+        isPersistentConversation: true
+      })
+      const previousTurnId = (sharedCacheStore.get('topic.stream.statuses.a') as { turnId: string }).turnId
+
+      const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
+      await aDone
+
+      const next = new FakeListener('wc:next:a')
+      const followUp = mgr
+        .whenTerminalDispatchSettled('a')
+        .then(() =>
+          startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [next] })
+        )
+      releaseB()
+      await followUp
+      await terminal
+
+      expect(conversationCompletedEvents).toEqual([
+        { topicId: 'a', turnId: previousTurnId, completedAt: expect.any(Number) }
+      ])
+      expect(fakeCacheService.setShared.mock.calls.map(([, value]) => value)).toContainEqual(
+        expect.objectContaining({ status: 'done', turnId: previousTurnId })
+      )
+      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: [next.id] })
+    })
+
+    it('dispatch() admits a renderer follow-up only after the previous terminal dispatch settles', async () => {
+      ;(mgr as unknown as { markReconciled(): void }).markReconciled()
+      let releaseB!: () => void
+      const a = new FakeListener('cleanup-a:a', 'cleanup')
+      const aDone = new Promise<void>((resolve) => {
+        a.onDoneImpl = () => resolve()
+      })
+      const b = new FakeListener('cleanup-b:a', 'cleanup')
+      b.onDoneImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseB = resolve
+        })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [a, b],
+        isPersistentConversation: true
+      })
+      const previousTurnId = (sharedCacheStore.get('topic.stream.statuses.a') as { turnId: string }).turnId
+
+      const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
+      await aDone
+
+      const next = new FakeListener('wc:next:a')
+      mockDispatchStreamRequest.mockImplementationOnce(async () => {
+        startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [next] })
+        return { mode: 'started' }
+      })
+      const followUp = mgr.dispatch(next, { trigger: 'submit-message', topicId: 'a' } as never)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+      expect(conversationCompletedEvents).toEqual([])
+
+      releaseB()
+      await expect(followUp).resolves.toEqual({ mode: 'started' })
+      await terminal
+
+      expect(conversationCompletedEvents).toEqual([
+        { topicId: 'a', turnId: previousTurnId, completedAt: expect.any(Number) }
+      ])
+      expect(fakeCacheService.setShared.mock.calls.map(([, value]) => value)).toContainEqual(
+        expect.objectContaining({ status: 'done', turnId: previousTurnId })
+      )
+      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: [next.id] })
     })
 
     it('suppresses the original terminal notification after persistence surfaced an error', async () => {
@@ -1621,6 +1828,34 @@ describe('AiStreamManager', () => {
       expect(nextTurnAdmitted).toBe(true)
     })
 
+    it('checks cancellation preconditions under admission lock before touching a newer stream', async () => {
+      const topicId = 'agent-session:session-1'
+      let release!: () => void
+      let execution = 'old'
+      let admitted!: () => void
+      const entered = new Promise<void>((resolve) => {
+        admitted = resolve
+      })
+      const admission = mgr.withDispatchLock(topicId, async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve
+          admitted()
+        })
+        execution = 'new'
+        startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [] })
+      })
+      await entered
+      const stopping = mgr.abortAndDrain(topicId, 'remote-cancel', () => {
+        if (execution !== 'old') throw new Error('Execution changed')
+      })
+      const rejected = expect(stopping).rejects.toThrow('Execution changed')
+      release()
+      await admission
+      await rejected
+      expect(mgr.inspect(topicId)?.executions[0].abortSignal.aborted).toBe(false)
+      expect(mockCloseSession).not.toHaveBeenCalled()
+    })
+
     it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
       vi.useRealTimers()
       const continuationListener = new FakeListener('persistence:continuation', 'persistence')
@@ -1693,12 +1928,12 @@ describe('AiStreamManager', () => {
         type: 'tool-output-available',
         toolCallId: 'call-large',
         output: large
-      } as UIMessageChunk)
+      })
       mgr.onChunk(topicId, 'provider-a::model-a', {
         type: 'tool-output-available',
         toolCallId: 'call-small',
         output: { content: 'tiny' }
-      } as UIMessageChunk)
+      })
 
       expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: true, output: large })
       // A small output travelled inline, so nothing needs to be resolvable for it.
@@ -1721,7 +1956,7 @@ describe('AiStreamManager', () => {
           type: 'tool-output-available',
           toolCallId: `call-${tag}`,
           output: large(tag)
-        } as UIMessageChunk)
+        })
       }
 
       // The evicted one is not lost — it resolves from SQLite once the message is persisted.
@@ -1741,10 +1976,10 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('l:a')]
       })
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hel' } as UIMessageChunk)
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' } as UIMessageChunk)
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' } as UIMessageChunk)
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hel' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' })
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       // `attach` is the public IPC-facing method; tests pass a minimal
@@ -1790,13 +2025,13 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:a')]
       })
 
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' })
       for (let i = 0; i < 5; i++) {
         ringMgr.onChunk('a', 'provider-a::model-a', {
           type: 'text-delta',
           id: 'p',
           delta: String(i)
-        } as UIMessageChunk)
+        })
       }
 
       const snap = ringMgr.inspect('a')!
@@ -1829,7 +2064,7 @@ describe('AiStreamManager', () => {
           type: 'text-delta',
           id: `p${i}`,
           delta: String(i)
-        } as UIMessageChunk)
+        })
       }
 
       const snap = ringMgr.inspect('a')!
@@ -1873,13 +2108,13 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:a')]
       })
 
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-start', id: 'r1' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-start', id: 'r1' })
       for (const delta of ['thinking ', 'in ', 'pieces']) {
-        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-delta', id: 'r1', delta } as UIMessageChunk)
+        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-delta', id: 'r1', delta })
       }
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-end', id: 'r1' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'answer' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-end', id: 'r1' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'answer' })
 
       // The final push overflowed the ring and evicted `reasoning-start`.
       const snap = ringMgr.inspect('a')!
@@ -1922,12 +2157,12 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:a')]
       })
 
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' })
       ringMgr.onChunk('a', 'provider-a::model-a', {
         type: 'text-delta',
         id: 'p',
         delta: 'abcdefghijkl'
-      } as UIMessageChunk)
+      })
 
       const snap = ringMgr.inspect('a')!
       expect(snap.executions[0].bufferedChunkCount).toBe(2)
@@ -1959,19 +2194,19 @@ describe('AiStreamManager', () => {
           type: 'text-delta',
           id: 'p',
           delta: String(i)
-        } as UIMessageChunk)
+        })
       }
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-available',
         toolCallId: 'call-1',
         toolName: 'search',
         input: { query: 'Cherry Studio' }
-      } as UIMessageChunk)
+      })
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-approval-request',
         approvalId: 'approval-1',
         toolCallId: 'call-1'
-      } as UIMessageChunk)
+      })
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
@@ -2003,26 +2238,26 @@ describe('AiStreamManager', () => {
         toolCallId: 'call-1',
         toolName: 'search',
         input: { query: 'Cherry Studio' }
-      } as UIMessageChunk)
+      })
       for (let i = 0; i < 2; i++) {
         approvalMgr.onChunk('a', 'provider-a::model-a', {
           type: 'text-delta',
           id: 'p',
           delta: String(i)
-        } as UIMessageChunk)
+        })
       }
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-approval-request',
         approvalId: 'approval-1',
         toolCallId: 'call-1'
-      } as UIMessageChunk)
+      })
       // Over the cap while pending: nothing may be evicted, so the tool input
       // needed to render and act on the approval stays replayable.
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'text-delta',
         id: 'p2',
         delta: 'sibling'
-      } as UIMessageChunk)
+      })
 
       const snap = approvalMgr.inspect('a')!
       // The two same-part deltas merge into one entry on ingest.
@@ -2050,7 +2285,7 @@ describe('AiStreamManager', () => {
         type: 'tool-output-available',
         toolCallId: 'call-1',
         output: { ok: true }
-      } as UIMessageChunk)
+      })
 
       const after = approvalMgr.inspect('a')!
       expect(after.executions[0].bufferedChunkCount).toBe(4)
@@ -2696,8 +2931,8 @@ describe('AiStreamManager', () => {
       // The approval-request chunk flows through the loop's onChunk callback, which re-arms the
       // idle watchdog to the generous approval bound (default 2 h). The stream then stays open with
       // no further chunks (the human is deliberating).
-      controlled.enqueue({ type: 'start' } as UIMessageChunk)
-      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start' })
+      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' })
 
       // Wait for the listener to have actually seen the approval chunk: that is
       // the re-arm, and it is a state rather than an interval. The fake clock is
@@ -2729,8 +2964,8 @@ describe('AiStreamManager', () => {
         listeners: [listener]
       })
 
-      controlled.enqueue({ type: 'start' } as UIMessageChunk)
-      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start' })
+      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' })
 
       // Wait for the approval chunk to land (the re-arm) before moving the clock —
       // otherwise this only ever proves *some* timer fired, not the approval bound.
@@ -2747,6 +2982,79 @@ describe('AiStreamManager', () => {
   // ── live finalMessage accumulation ──────────────────────────────
 
   describe('live finalMessage accumulation', () => {
+    it.each(['topic-1', 'agent-session:session-1'])(
+      'reports the final message text after accumulation for %s',
+      async (topicId) => {
+        vi.useRealTimers()
+        const controlled = controlledStream()
+        mockStreamText.mockImplementationOnce(async () => controlled.stream)
+        startSingle(mgr, {
+          topicId,
+          modelId: 'provider-a::model-a',
+          request: req(topicId),
+          listeners: [new FakeListener(`l:${topicId}`)],
+          isPersistentConversation: true
+        })
+
+        controlled.enqueue({ type: 'start' })
+        for (const [id, text] of [
+          ['intro', 'I will investigate.'],
+          ['answer', '  The fix is ready.  '],
+          ['empty', '  ']
+        ]) {
+          controlled.enqueue({ type: 'text-start', id })
+          controlled.enqueue({ type: 'text-delta', id, delta: text })
+          controlled.enqueue({ type: 'text-end', id })
+        }
+        controlled.enqueue({ type: 'reasoning-start', id: 'reasoning' })
+        controlled.enqueue({ type: 'reasoning-delta', id: 'reasoning', delta: 'Private reasoning' })
+        controlled.enqueue({ type: 'reasoning-end', id: 'reasoning' })
+        controlled.enqueue({ type: 'finish' })
+        controlled.close()
+
+        await vi.waitFor(() => expect(conversationCompletedEvents).toHaveLength(1))
+        expect(conversationCompletedEvents[0]).toMatchObject({
+          topicId,
+          responseText: 'I will investigate.\n  The fix is ready.'
+        })
+      }
+    )
+
+    it('uses the last finished model reply for a multi-model completion', async () => {
+      vi.useRealTimers()
+      const first = controlledStream()
+      const second = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => first.stream).mockImplementationOnce(async () => second.stream)
+      mgr.send({
+        topicId: 'multi-reply',
+        models: [
+          { modelId: 'p::first', request: req('multi-reply') },
+          { modelId: 'p::second', request: req('multi-reply') }
+        ],
+        listeners: [new FakeListener('l:multi-reply')],
+        isPersistentConversation: true
+      })
+
+      for (const [stream, text] of [
+        [second, 'Earlier reply'],
+        [first, 'Last reply']
+      ] as const) {
+        stream.enqueue({ type: 'start' })
+        stream.enqueue({ type: 'text-start', id: 'text' })
+        stream.enqueue({ type: 'text-delta', id: 'text', delta: text })
+        stream.enqueue({ type: 'text-end', id: 'text' })
+        stream.enqueue({ type: 'finish' })
+        stream.close()
+        if (stream === second) {
+          await vi.waitFor(() => expect(mgr.inspect('multi-reply')?.executions[1].status).toBe('done'))
+          expect(conversationCompletedEvents).toHaveLength(0)
+        }
+      }
+
+      await vi.waitFor(() => expect(conversationCompletedEvents).toHaveLength(1))
+      expect(conversationCompletedEvents[0].responseText).toBe('Last reply')
+    })
+
     it('writes exec.finalMessage via the accumulator before the terminal event fires', async () => {
       // readUIMessageStream relies on real microtask / timer scheduling
       // internally; fake timers starve its reader loop. Use real timers
@@ -2767,11 +3075,11 @@ describe('AiStreamManager', () => {
       // Feed a complete message — the AI SDK stream shape requires both
       // message-level `start` / `finish` boundaries and the text-part
       // triplet for readUIMessageStream to yield a UIMessage snapshot.
-      controlled.enqueue({ type: 'start' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-start', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'hello' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-end', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'finish' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start' })
+      controlled.enqueue({ type: 'text-start', id: 'p1' })
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'hello' })
+      controlled.enqueue({ type: 'text-end', id: 'p1' })
+      controlled.enqueue({ type: 'finish' })
       controlled.close()
 
       // Let the tee → accumulator → terminal chain drain. Poll for the terminal
@@ -2817,6 +3125,84 @@ describe('AiStreamManager', () => {
   // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
 
   describe('stream errors', () => {
+    it.each(['clean', 'provider-error', 'source-error', 'abort'] as const)(
+      'retains partial content after an accumulation failure and selects the correct terminal outcome (%s)',
+      async (ending) => {
+        vi.useRealTimers()
+        const controlled = controlledStream()
+        mockStreamText.mockResolvedValueOnce(controlled.stream)
+        const listener = new FakeListener('l:a')
+        const writes: PersistAssistantInput[] = []
+        const persistence = new PersistenceListener({
+          topicId: 'a',
+          backend: {
+            kind: 'test',
+            persistAssistant: (input) => {
+              writes.push(input)
+            }
+          },
+          onPersistFailed: (error) => {
+            throw new Error(error.message ?? 'Persistence failed')
+          }
+        })
+        startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [listener, persistence]
+        })
+        const chunks: UIMessageChunk[] = [
+          { type: 'start', messageId: 'reply' },
+          { type: 'text-start', id: 't1' },
+          { type: 'text-delta', id: 't1', delta: 'Preserved content' },
+          { type: 'reasoning-end', id: 'missing' },
+          ...Array.from({ length: 32 }, (): UIMessageChunk => ({ type: 'text-delta', id: 't1', delta: ' later' }))
+        ]
+        for (const chunk of chunks) controlled.enqueue(chunk)
+        if (ending === 'provider-error') controlled.enqueue({ type: 'error', errorText: 'Provider unavailable' })
+        if (ending === 'abort' || ending === 'source-error') {
+          await flushUntil(() => listener.chunks.length === chunks.length)
+          if (ending === 'abort') mgr.abort('a', 'user-stop')
+          else controlled.error(new Error('Source disconnected'))
+        } else controlled.close()
+
+        await flushUntil(() => listener.errorResults.length + listener.pausedResults.length === 1)
+
+        expect(listener.chunks.slice(0, chunks.length)).toEqual(chunks)
+        expect(listener.doneResults).toEqual([])
+        const terminal = listener.errorResults[0] ?? listener.pausedResults[0]
+        expect(terminal.finalMessage?.parts).toContainEqual(
+          expect.objectContaining({ type: 'text', text: 'Preserved content' })
+        )
+        expect(writes).toHaveLength(1)
+        expect(writes[0].status).toBe(ending === 'abort' ? 'paused' : 'error')
+        expect(writes[0].finalMessage?.parts).toContainEqual(
+          expect.objectContaining({ type: 'text', text: 'Preserved content', state: 'done' })
+        )
+        if (ending === 'abort') {
+          expect(listener.errorResults).toEqual([])
+          expect(terminal.status).toBe('paused')
+          expect(mgr.inspect('a')!.status).toBe('aborted')
+        } else if (ending === 'provider-error') {
+          expect(listener.errorResults[0].error).toMatchObject({ name: 'StreamError', message: 'Provider unavailable' })
+        } else if (ending === 'source-error') {
+          expect(listener.errorResults[0].error).toMatchObject({ message: 'Source disconnected' })
+        } else {
+          expect(listener.errorResults[0].error.executionFailure).toMatchObject({
+            retryable: false,
+            failure: { reasonCode: 'internal', source: { layer: 'host' } }
+          })
+          expect(writes[0].finalMessage?.parts).toContainEqual(
+            expect.objectContaining({
+              type: 'data-error',
+              data: expect.objectContaining({ executionFailure: listener.errorResults[0].error.executionFailure })
+            })
+          )
+          expect(mgr.inspect('a')!.status).toBe('error')
+        }
+      }
+    )
+
     it.each([
       { statusCode: 400, isRetryable: false, message: 'Maximum context length exceeded' },
       { statusCode: 503, isRetryable: true, message: 'Upstream unavailable' }
@@ -2881,6 +3267,51 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')!.status).toBe('error')
     })
 
+    it('extracts a safe message from a structured provider stream rejection', async () => {
+      vi.useRealTimers()
+
+      mockStreamText.mockResolvedValueOnce(
+        new ReadableStream({
+          start(controller) {
+            controller.error({
+              type: 'error',
+              sequence_number: 2,
+              error: {
+                code: 'credit_balance_exhausted',
+                message: 'You have no credits remaining.'
+              },
+              apiKey: 'object-secret',
+              prompt: 'private prompt'
+            })
+          }
+        })
+      )
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+      expect(listener.errorResults[0].error).toEqual({
+        name: null,
+        message: 'You have no credits remaining.',
+        stack: null
+      })
+      expect(JSON.stringify(listener.errorResults[0].error)).not.toMatch(/object-secret|private prompt/)
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith('Execution loop error', {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        err: { errorMessage: 'You have no credits remaining.' }
+      })
+      expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
+      expect(mgr.inspect('a')!.status).toBe('error')
+    })
+
     it('routes a terminal error chunk through onExecutionError with the translated stream error', async () => {
       // readUIMessageStream's accumulator needs real microtask / timer
       // scheduling; fake timers starve its reader loop (see live finalMessage
@@ -2899,7 +3330,7 @@ describe('AiStreamManager', () => {
       })
 
       // Provider surfaces a terminal error chunk rather than throwing.
-      controlled.enqueue({ type: 'error', errorText: 'boom' } as UIMessageChunk)
+      controlled.enqueue({ type: 'error', errorText: 'boom' })
       controlled.close()
 
       // Let the tee → broadcast → terminal chain drain.
@@ -2913,7 +3344,7 @@ describe('AiStreamManager', () => {
 
     it('keeps the thrown error when a lossy error chunk precedes it', async () => {
       // The chunk carries only `error.message`; rebuilding from it would drop the
-      // statusCode / responseBody that error classification and the error block need.
+      // status code and safe provider detail that classification and the error block need.
       vi.useRealTimers()
 
       const apiError = new APICallError({
@@ -2932,7 +3363,7 @@ describe('AiStreamManager', () => {
         new ReadableStream({
           pull(controller) {
             pulls += 1
-            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Forbidden' } as UIMessageChunk)
+            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Forbidden' })
             else controller.error(apiError)
           }
         })
@@ -2948,9 +3379,19 @@ describe('AiStreamManager', () => {
 
       await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      expect(listener.errorResults[0].error).toMatchObject({
+      expect(listener.errorResults[0].error).toEqual({
+        name: 'AI_APICallError',
+        message: 'no access to this model',
+        providerErrorCategory: 'permission',
+        stack: null,
+        cause: null,
+        url: '',
+        requestBodyValues: null,
         statusCode: 403,
-        responseBody: '{"detail":"no access to this model"}'
+        responseHeaders: null,
+        responseBody: null,
+        isRetryable: false,
+        data: null
       })
     })
   })
@@ -3000,12 +3441,12 @@ describe('AiStreamManager', () => {
       // Continuation: resolve the pre-existing tool call (references the seed's
       // toolCallId), then append text. Without the seed, the tool-output chunk
       // throws inside the accumulator and the later text never accumulates.
-      controlled.enqueue({ type: 'start', messageId: 'assistant-resume' } as UIMessageChunk)
-      controlled.enqueue({ type: 'tool-output-available', toolCallId: 'tc-1', output: { ok: true } } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-start', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'continued' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-end', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'finish' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start', messageId: 'assistant-resume' })
+      controlled.enqueue({ type: 'tool-output-available', toolCallId: 'tc-1', output: { ok: true } })
+      controlled.enqueue({ type: 'text-start', id: 'p1' })
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'continued' })
+      controlled.enqueue({ type: 'text-end', id: 'p1' })
+      controlled.enqueue({ type: 'finish' })
       controlled.close()
 
       await vi.waitFor(() => expect(mgr.inspect('a')!.status).toBe('done'))
@@ -3393,6 +3834,7 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'awaiting-approval'])
       expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+      expect(mgr.hasUnsettledTopicWork('t')).toBe(true)
       expect(conversationCompletedEvents).toEqual([])
     })
 
@@ -3450,7 +3892,6 @@ describe('AiStreamManager', () => {
     /** Drive a `tool-approval-request` so the exec is awaiting approval; return the private exec. */
     const startAwaitingApproval = (topicId: string, modelId: UniqueModelId) => {
       mgr.onChunk(topicId, modelId, { type: 'tool-approval-request' } as UIMessageChunk)
-      // biome-ignore lint/suspicious/noExplicitAny: reach the private exec to drive the abort path
       return (mgr as any).activeStreams.get(topicId).executions.get(modelId)
     }
 

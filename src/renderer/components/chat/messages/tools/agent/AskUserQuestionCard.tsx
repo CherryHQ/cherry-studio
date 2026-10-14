@@ -1,9 +1,10 @@
-import { Badge, Button } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { CheckCircle2, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Badge, Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from '../shared/agentToolTypes'
 import { SkeletonValue } from '../shared/GenericTools'
@@ -25,7 +26,7 @@ interface NavigationProps {
 function Navigation({ isFirst, isLast, onPrevious, onNext }: NavigationProps) {
   const { t } = useTranslation()
   return (
-    <div className="flex items-center justify-between border-default-200 border-t pt-3">
+    <div className="border-default-200 flex items-center justify-between border-t pt-3">
       <Button variant="outline" disabled={isFirst} onClick={onPrevious} className="flex items-center">
         <ChevronLeft size={16} />
         {t('agent.askUserQuestion.previous')}
@@ -52,14 +53,14 @@ function CompletedContent({ question, answer }: CompletedContentProps) {
         <Badge variant={answer ? 'secondary' : 'outline'} className="m-0">
           <SkeletonValue value={question?.header} width="60px" />
         </Badge>
-        <div className="min-w-0 flex-1 text-default-700 text-sm">
+        <div className="text-default-700 min-w-0 flex-1 text-sm">
           <SkeletonValue value={question?.question} width="100%" />
         </div>
       </div>
       {answer && (
         <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 p-2">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-          <span className="text-primary text-sm">{answer}</span>
+          <span className="text-sm text-primary">{answer}</span>
         </div>
       )}
     </div>
@@ -137,7 +138,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
         }
         trailing={
           answeredCount > 0 ? (
-            <span className="rounded-full bg-muted px-1.5 py-0.5 text-foreground-tertiary text-xs leading-4">
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs leading-4 text-foreground-tertiary">
               {answeredCount} {t('agent.askUserQuestion.answered')}
             </span>
           ) : undefined

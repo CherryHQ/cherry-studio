@@ -2,14 +2,15 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
-import { inspectOrphanBaseArtifacts } from '@main/features/knowledge/base/orphanBaseArtifacts'
-import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { inspectOrphanBaseArtifacts } from '@main/features/knowledge/base/orphanBaseArtifacts'
+import { cacheCleanupService } from '@main/services/cacheCleanup'
 
 const bootConfigGet = vi.hoisted(() => vi.fn())
 const hasPendingRestoreMock = vi.hoisted(() => vi.fn(() => false))
@@ -32,7 +33,8 @@ vi.mock('@data/bootConfig', () => ({
   bootConfigService: { get: bootConfigGet }
 }))
 
-vi.mock('@data/db/restore/restoreJournal', () => ({
+vi.mock(import('@data/db/restore/restoreJournal'), async (importOriginal) => ({
+  ...(await importOriginal()),
   hasPendingRestore: hasPendingRestoreMock
 }))
 
@@ -80,6 +82,7 @@ const emptyFileSweepReport = {
 describe('CacheCleanupService', () => {
   let root: string
   let tracePath: string
+  let logsPath: string
   let userDataPath: string
 
   const rootPath = (...segments: string[]) => path.join(root, ...segments)
@@ -122,6 +125,8 @@ describe('CacheCleanupService', () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-cleanup-test-'))
     userDataPath = root
     tracePath = rootPath('Trace')
+    // Mirrors macOS, where the logs directory sits outside userData.
+    logsPath = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-cleanup-logs-'))
     vi.mocked(app.getPath).mockImplementation((name) => (name === 'exe' ? rootPath('CherryStudio') : '/mock/path'))
 
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
@@ -132,6 +137,8 @@ describe('CacheCleanupService', () => {
         'app.session.webview': rootPath('Session', 'Partitions', 'webview'),
         'app.temp': rootPath('Temp'),
         'feature.trace': tracePath,
+        'app.logs': logsPath,
+        'feature.mini_app.logs': path.join(logsPath, 'mini-apps'),
         'v1.trace': rootPath('Home', 'trace'),
         'v1.cli.install': rootPath('Home', 'install'),
         'v1.database.file': path.join(userDataPath, 'cherrystudio.sqlite'),
@@ -160,6 +167,7 @@ describe('CacheCleanupService', () => {
   afterEach(async () => {
     vi.restoreAllMocks()
     await fs.rm(root, { recursive: true, force: true })
+    await fs.rm(logsPath, { recursive: true, force: true })
   })
 
   it('sums all Electron sessions, disk caches, and traces without counting shared temp data', async () => {
@@ -299,13 +307,48 @@ describe('CacheCleanupService', () => {
     await expectExisting(knownBasePath, unknownDirectory)
   })
 
-  it('does not advertise bytes from an orphan-file plan that the safety threshold aborts', async () => {
+  it('counts and clears historical failed restore databases as orphaned data', async () => {
+    const failed = rootPath('work-failed-62f9b5ce-9f03-425e-8448-3a4cd55e971f.sqlite')
+    const live = rootPath('Data', 'cherrystudio.sqlite')
+    await writeTestFile(failed, Buffer.alloc(127))
+    await writeTestFile(live, 'keep')
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+    expect(inspection.results[0]?.size).toEqual({ bytes: 127, accuracy: 'exact', completeness: 'complete' })
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+    expect(cleanup.results[0]?.status).toBe('cleared')
+    await expectMissing(failed)
+    expect(await fs.readFile(live, 'utf8')).toBe('keep')
+  })
+
+  it('reports the full reclaimable size of a large orphan-file plan', async () => {
+    const plan = { ...emptyFileSweepReport, plannedDeleteCount: 25, plannedDeleteBytes: 12 * 1024 * 1024 }
+    MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockImplementation(async (options) =>
+      options?.bypassSafetyThreshold ? plan : { ...plan, outcome: 'aborted', abortReason: 'count-fraction' }
+    )
+    MockMainFileManagerExport.fileManager.cleanupOrphanFiles.mockImplementation(async (options) =>
+      options?.bypassSafetyThreshold
+        ? { ...plan, actualDeleteCount: 25, actualDeleteBytes: 12 * 1024 * 1024 }
+        : { ...plan, outcome: 'aborted', abortReason: 'count-fraction' }
+    )
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+
+    expect(inspection.results[0]?.size).toEqual({
+      bytes: 12 * 1024 * 1024,
+      accuracy: 'exact',
+      completeness: 'complete'
+    })
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+    expect(cleanup.results[0]?.status).toBe('cleared')
+  })
+
+  it('does not advertise orphan-file bytes while a restore is pending', async () => {
+    hasPendingRestoreMock.mockReturnValue(true)
     MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue({
       ...emptyFileSweepReport,
       outcome: 'aborted',
-      abortReason: 'count-fraction',
-      plannedDeleteCount: 25,
-      plannedDeleteBytes: 4096
+      abortReason: 'pending-restore'
     })
 
     const inspection = await cacheCleanupService.inspect(['orphaned_data'])
@@ -423,6 +466,66 @@ describe('CacheCleanupService', () => {
     expect(inspection.results[0]?.size).toMatchObject({ bytes: null, completeness: 'partial' })
     expect(cleanup.results[0]?.status).toBe('partial')
     await expectExisting(externalBase)
+  })
+
+  it('removes rotated log files while keeping the log files still being written to', async () => {
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const activeLog = path.join(logsPath, `app.${today}.log`)
+    const activeMiniAppLog = path.join(logsPath, 'mini-apps', 'app-1', `activity.${today}.log`)
+    const activeShard = path.join(logsPath, `app.${today}.log.2`)
+    const oldLog = path.join(logsPath, 'app.2020-01-01.log')
+    const oldShard = path.join(logsPath, 'app.2020-01-01.log.1')
+    const oldMiniAppLog = path.join(logsPath, 'mini-apps', 'app-1', 'activity.2020-01-01.log')
+    const auditFile = path.join(logsPath, '.1234-audit.json')
+    const sizes = [
+      [activeLog, 3],
+      [activeShard, 2],
+      [activeMiniAppLog, 5],
+      [oldLog, 7],
+      [oldShard, 1],
+      [oldMiniAppLog, 11],
+      [auditFile, 13]
+    ] as const
+    for (const [filePath, size] of sizes) {
+      await writeTestFile(filePath, Buffer.alloc(size))
+    }
+
+    const inspection = await cacheCleanupService.inspect(['logs'])
+    const cleanup = await cacheCleanupService.run(['logs'])
+
+    expect(inspection.results[0]?.size).toMatchObject({ bytes: 19, accuracy: 'exact', completeness: 'complete' })
+    expect(cleanup.results[0]?.status).toBe('cleared')
+    await expectMissing(oldLog, oldShard, oldMiniAppLog)
+    await expectExisting(activeLog, activeShard, activeMiniAppLog, auditFile)
+  })
+
+  it('sweeps only logs past the retention window, keeping undated files', async () => {
+    const stamp = (daysAgo: number) => {
+      const day = new Date()
+      day.setDate(day.getDate() - daysAgo)
+      return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+    }
+    const kept = [
+      path.join(logsPath, `app.${stamp(0)}.log`),
+      path.join(logsPath, `app.${stamp(7)}.log`),
+      path.join(logsPath, 'app.log'),
+      // Mini apps keep their newest activity days however old they are.
+      path.join(logsPath, 'mini-apps', 'app-1', `activity.${stamp(40)}.log`)
+    ]
+    const expired = [
+      path.join(logsPath, `app.${stamp(8)}.log`),
+      path.join(logsPath, `app.${stamp(8)}.log.1`),
+      path.join(logsPath, `app-error.${stamp(40)}.log`)
+    ]
+    for (const filePath of [...kept, ...expired]) {
+      await writeTestFile(filePath, 'entry')
+    }
+
+    await expect(cacheCleanupService.sweepLogs(7)).resolves.toBe(3)
+
+    await expectMissing(...expired)
+    await expectExisting(...kept)
   })
 
   it('removes exact owned files and directory trees without inspecting their contents', async () => {

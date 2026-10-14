@@ -7,6 +7,7 @@ import {
 } from '@shared/types/skill'
 
 export const SKILL_SEARCH_FAILED_ERROR = 'skill_search_failed'
+export const SKILL_DIRECTORY_CONTENT_HASH_PREFIX = 'directory-sha256:'
 
 type MarketplaceSource = {
   name: SkillSearchSource
@@ -207,6 +208,100 @@ export function buildGithubSkillResult(rawUrl: string): SkillSearchResult | null
     sourceUrl: canonicalUrl,
     installSource: `github:${canonicalUrl}`
   }
+}
+
+export type ParsedSkillSourceUrl = {
+  sourceRegistry: SkillSearchSource
+  installSource: string
+}
+
+/** Recover the exact marketplace install handle persisted as a Skill source URL. */
+export function parseSkillSourceUrl(sourceUrl: string): ParsedSkillSourceUrl | null {
+  const githubResult = buildGithubSkillResult(sourceUrl)
+  if (githubResult) {
+    return { sourceRegistry: githubResult.sourceRegistry, installSource: githubResult.installSource }
+  }
+
+  let url: URL
+  let pathParts: string[]
+  try {
+    url = new URL(sourceUrl.trim())
+    pathParts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return null
+  if (pathParts.some(invalidPathPart)) return null
+
+  const host = url.hostname.toLowerCase().replace(/^www\./, '')
+  if (host === 'skills.sh') {
+    const [owner, repo, skillName, ...extraParts] = pathParts
+    if (
+      extraParts.length > 0 ||
+      !owner ||
+      !repo ||
+      !skillName ||
+      !GITHUB_REPO_PART.test(owner) ||
+      !GITHUB_REPO_PART.test(repo)
+    ) {
+      return null
+    }
+    return { sourceRegistry: 'skills.sh', installSource: `skills.sh:${owner}/${repo}/${skillName}` }
+  }
+
+  if (host === 'clawhub.ai') {
+    const [owner, skillsSegment, slug, ...extraParts] = pathParts
+    if (
+      extraParts.length > 0 ||
+      skillsSegment !== 'skills' ||
+      !owner ||
+      !slug ||
+      !GITHUB_REPO_PART.test(owner) ||
+      !GITHUB_REPO_PART.test(slug)
+    ) {
+      return null
+    }
+    return { sourceRegistry: 'clawhub.ai', installSource: `clawhub:${owner}/${slug}` }
+  }
+
+  if (host === 'github.com') {
+    const [owner, repo, treeSegment, branch, ...directoryParts] = pathParts
+    if (
+      treeSegment !== 'tree' ||
+      !branch ||
+      !['main', 'master'].includes(branch) ||
+      !owner ||
+      !repo ||
+      !GITHUB_REPO_PART.test(owner) ||
+      !GITHUB_REPO_PART.test(repo) ||
+      directoryParts.length === 0
+    ) {
+      return null
+    }
+    return {
+      sourceRegistry: 'claude-plugins.dev',
+      installSource: `claude-plugins:${owner}/${repo}/${directoryParts.join('/')}`
+    }
+  }
+
+  return null
+}
+
+export function isSkillDirectoryContentHash(contentHash: string): boolean {
+  return new RegExp(`^${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}[a-f0-9]{64}$`).test(contentHash)
+}
+
+export function hasSkillRemoteUpdateProvenance(skill: {
+  source: string
+  sourceUrl: string | null
+  contentHash: string
+}): boolean {
+  return (
+    skill.source === 'marketplace' &&
+    skill.sourceUrl !== null &&
+    parseSkillSourceUrl(skill.sourceUrl) !== null &&
+    isSkillDirectoryContentHash(skill.contentHash)
+  )
 }
 
 export function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {

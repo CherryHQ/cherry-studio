@@ -1,3 +1,10 @@
+import { getRouteApi } from '@tanstack/react-router'
+import { isEmpty } from 'es-toolkit/compat'
+import { ChevronDown, ListFilter, MoreHorizontal, Undo2 } from 'lucide-react'
+import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   DropdownMenu,
@@ -49,12 +56,6 @@ import {
   type ShortcutBinding,
   type ShortcutToken
 } from '@shared/utils/shortcut'
-import { getRouteApi } from '@tanstack/react-router'
-import { isEmpty } from 'es-toolkit/compat'
-import { ChevronDown, ListFilter, MoreHorizontal, Undo2 } from 'lucide-react'
-import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ShortcutSettings')
 const shortcutRouteApi = getRouteApi('/settings/shortcut')
@@ -65,7 +66,7 @@ const isBindingEqual = (a: ShortcutBinding, b: ShortcutBinding): boolean =>
 const keyCodeToAccelerator: Record<string, ShortcutToken> = {
   Backquote: '`',
   Period: '.',
-  NumpadEnter: 'Enter',
+  NumpadEnter: 'numenter',
   NumpadAdd: 'numadd',
   NumpadSubtract: 'numsub',
   Space: 'Space',
@@ -369,7 +370,9 @@ const ShortcutSettings: FC = () => {
     const nextPreferencesByCommand: Partial<Record<CommandId, PreferenceShortcutType>> = { ...shortcutPreferences }
     const updates = visibleShortcuts.reduce(
       (acc, record) => {
-        if (!record.preference.binding.length) return acc
+        // Non-editable commands are fixed reservations (e.g. the native close
+        // role); toggling them off would silently revert their accelerator.
+        if (!record.preference.binding.length || record.keybinding.editable === false) return acc
         nextPreferencesByCommand[record.command] = {
           binding: record.preference.binding,
           enabled
@@ -518,7 +521,7 @@ const ShortcutSettings: FC = () => {
       <Switch
         size="sm"
         checked={record.preference.enabled}
-        disabled={!record.preference.binding.length}
+        disabled={!record.preference.binding.length || record.keybinding.editable === false}
         onCheckedChange={() => {
           const nextPreference = {
             binding: record.preference.binding,

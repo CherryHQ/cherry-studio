@@ -1,3 +1,6 @@
+import type { Context, ReactNode } from 'react'
+import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import {
   buildCitationPartsRegistry,
@@ -6,8 +9,6 @@ import {
   getPriorCitationParts
 } from '@renderer/utils/message/citations'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { Context, ReactNode } from 'react'
-import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 
 import { PartsProvider } from './blocks/MessagePartsContext'
 import type {
@@ -49,6 +50,7 @@ type MessageListDataValue = Pick<
   MessageListState,
   | 'topic'
   | 'beforeList'
+  | 'afterMessages'
   | 'messageTail'
   | 'activeTurnStatus'
   | 'isInitialLoading'
@@ -123,6 +125,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       topic: state.topic,
       beforeList: state.beforeList,
+      afterMessages: state.afterMessages,
       messageTail: state.messageTail,
       activeTurnStatus: state.activeTurnStatus,
       isInitialLoading: state.isInitialLoading,
@@ -139,6 +142,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     [
       state.topic,
       state.beforeList,
+      state.afterMessages,
       state.messageTail,
       state.activeTurnStatus,
       state.isInitialLoading,

@@ -1,12 +1,15 @@
-import { pinTable } from '@data/db/schemas/pin'
-import { PinService, pinService } from '@data/services/PinService'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { pinTable } from '@data/db/schemas/pin'
+import { PinService, pinService } from '@data/services/PinService'
+
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 const PIN_ID_MISSING = '11111111-1111-4111-8111-111111111111'
 const ENTITY_ID_1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
@@ -113,6 +116,17 @@ describe('PinService', () => {
       const result = pinService.pin({ entityType: 'agent', entityId: AGENT_ID })
 
       expect(result).toMatchObject({ entityType: 'agent', entityId: AGENT_ID })
+    })
+
+    it('should persist and remove a pin for the built-in Support Agent', () => {
+      const result = pinService.pin({ entityType: 'agent', entityId: CHERRY_SUPPORT_AGENT_ID })
+
+      expect(pinService.listByEntityType('agent')).toContainEqual(
+        expect.objectContaining({ id: result.id, entityType: 'agent', entityId: CHERRY_SUPPORT_AGENT_ID })
+      )
+
+      pinService.unpin(result.id)
+      expect(pinService.listByEntityType('agent')).not.toContainEqual(expect.objectContaining({ id: result.id }))
     })
 
     it('should publish agent session read-model effects for session pins', () => {

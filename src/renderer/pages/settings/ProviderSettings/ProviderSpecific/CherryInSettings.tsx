@@ -1,13 +1,14 @@
+import { Check, ChevronDown } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { Check, ChevronDown } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface CherryInSettingsProps {
   providerId: string

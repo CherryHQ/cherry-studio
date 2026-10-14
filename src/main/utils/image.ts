@@ -4,6 +4,10 @@ import { fileTypeFromBuffer } from 'file-type'
 const ENTITY_IMAGE_DIMENSION = 128
 /** Decode-work bound: a small file can still declare huge dimensions (bomb). */
 const MAX_ENTITY_INPUT_PIXELS = 100_000_000
+/** Longest edge for model-bound images. Every vision provider downscales below this on its own
+ *  (Anthropic 1568, DeepSeek ~1300-equivalent), but an 8192+ edge is a hard provider reject.
+ *  ponytail: one constant for all providers; make it a `Model` field if one ever needs more. */
+const MODEL_IMAGE_MAX_EDGE = 2000
 
 /**
  * Normalize arbitrary image bytes to a 128×128 cover-cropped WebP buffer — the
@@ -35,6 +39,22 @@ export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
 
   const sharp = (await import('sharp')).default
   return sharp(bytes).png().toBuffer()
+}
+
+/**
+ * Shrink an image so neither edge exceeds the model-bound cap, preserving its format. Only the
+ * header is read to decide, so in-bounds input is never decoded or re-encoded.
+ * @returns resized bytes, or `null` when the image already fits. Throws on undecodable input.
+ */
+export async function clampImageForModel(bytes: Uint8Array): Promise<Uint8Array | null> {
+  const sharp = (await import('sharp')).default
+  const image = sharp(bytes, { failOn: 'none' })
+  const { width, height } = await image.metadata()
+  if (!width || !height) throw new Error('could not read image dimensions')
+  if (width <= MODEL_IMAGE_MAX_EDGE && height <= MODEL_IMAGE_MAX_EDGE) return null
+  return image
+    .resize(MODEL_IMAGE_MAX_EDGE, MODEL_IMAGE_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
+    .toBuffer()
 }
 
 /**

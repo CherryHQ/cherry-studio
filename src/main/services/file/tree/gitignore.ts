@@ -24,8 +24,9 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import { loggerService } from '@logger'
 import ignore, { type Ignore } from 'ignore'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('file/tree/gitignore')
 

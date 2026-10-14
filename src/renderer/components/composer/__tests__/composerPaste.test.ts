@@ -1,8 +1,9 @@
+import { describe, expect, it } from 'vitest'
+
 import {
   createComposerClipboardFragment,
   readComposerClipboardFragment
 } from '@renderer/utils/message/composerClipboard'
-import { describe, expect, it } from 'vitest'
 
 import {
   createComposerMarkedTextPasteContent,
@@ -244,6 +245,26 @@ describe('composer paste handling', () => {
       content: [{ type: 'text', text: 'report.pdf' }],
       files: []
     })
+  })
+
+  it('preserves all lines when an unresolved token falls back to a large text fragment', () => {
+    const text = 'x\n'.repeat(70000)
+    const result = getComposerClipboardPasteOverride(
+      {
+        version: 1,
+        segments: [
+          {
+            type: 'token',
+            token: { id: 'skill:missing', kind: 'skill', label: 'Missing skill' },
+            fallbackText: text
+          }
+        ]
+      },
+      {}
+    )
+
+    expect(result?.content.map((node) => (node.type === 'hardBreak' ? '\n' : node.text)).join('')).toBe(text)
+    expect(result?.files).toEqual([])
   })
 
   it('restores private folder tokens from a session-authored fragment', () => {

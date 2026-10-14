@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest'
+
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
@@ -7,7 +9,6 @@ import {
   isServerToolModelEligible,
   resolveWebToolRoutes
 } from '@shared/utils/provider'
-import { describe, expect, it } from 'vitest'
 
 const model = (apiModelId: string, overrides: Partial<Model> = {}): Model => ({
   id: `provider::${apiModelId}`,
@@ -25,6 +26,31 @@ const provider = (modelScope: 'all-chat-models' | 'model-dependent', id = 'anthr
   ({ id, serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope }] }) as Provider
 
 describe('server-tool model eligibility', () => {
+  it.each(['gemini', 'vertexai', 'cherryin', 'aihubmix'])(
+    'keeps Gemini 4 search and URL context alongside function tools on %s',
+    (providerId) => {
+      const argon = model('google/gemini-4-argon', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+      const host = {
+        id: providerId,
+        serverTools: [
+          { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' },
+          { id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent' }
+        ]
+      } as Provider
+      expect(isBuiltinWebSearchAvailable(argon, host)).toBe(true)
+      expect(isBuiltinWebFetchAvailable(argon, host)).toBe(true)
+      expect(
+        resolveWebToolRoutes(argon, host, {
+          webSearchEnabled: true,
+          modelToolsPreferred: true,
+          clientSearchAvailable: false,
+          clientFetchAvailable: false,
+          hasFunctionToolSignals: true
+        })
+      ).toMatchObject({ webSearch: 'server', webFetch: 'server' })
+    }
+  )
+
   it('uses generated registry eligibility without a generic model capability', () => {
     const claude = model('claude-sonnet-4-6')
 
@@ -37,7 +63,7 @@ describe('server-tool model eligibility', () => {
     const custom = model('private-model')
 
     expect(isBuiltinWebSearchAvailable(custom, provider('model-dependent'))).toBe(false)
-    expect(isBuiltinWebSearchAvailable(custom, { serverTools: [] } as unknown as Provider)).toBe(false)
+    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
   })
 
   it.each(['deepseek-v3', 'deepseek-v3.2', 'deepseek-v4-flash', 'deepseek-v4-pro'])(
@@ -58,7 +84,7 @@ describe('server-tool model eligibility', () => {
         }
       ]
     } as Provider
-    const flash = model('deepseek-v4-flash', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    const flash = model('deepseek-flash', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
     const route = (endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) =>
       resolveWebToolRoutes(flash, deepseek, {
         webSearchEnabled: true,
@@ -132,7 +158,7 @@ describe('server-tool model eligibility', () => {
         model('google/gemini-3-1-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
         {
           ...gateway
-        } as Provider,
+        },
         {
           webSearchEnabled: true,
           clientSearchAvailable: false,

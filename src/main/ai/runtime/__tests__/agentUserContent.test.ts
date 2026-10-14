@@ -1,8 +1,9 @@
 import { fileURLToPath } from 'node:url'
 
+import { describe, expect, it } from 'vitest'
+
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
 
 import { buildAgentUserContent } from '../agentUserContent'
 
@@ -20,7 +21,7 @@ describe('buildAgentUserContent', () => {
     const secondUrl = 'file:///C:/managed/uuid-b'
     const content = buildAgentUserContent(
       message([
-        { type: 'text', text: 'Classify these images.' } as CherryMessagePart,
+        { type: 'text', text: 'Classify these images.' },
         filePart(firstUrl, '20260406_184133 Alex Diaz.jpg'),
         filePart(secondUrl, 'scan "final".jpg')
       ])

@@ -178,9 +178,6 @@ remain excluded for as long as v1 downgrade support exists.
 - Additional legacy accessible paths after the primary workspace.
 - Per-Session configuration that moved to the parent Agent.
 
-Related user-visible behavior is recorded under
-`v2-refactor-temp/docs/breaking-changes/`.
-
 ## Implementation files
 
 - `AgentsMigrator.ts` — database preparation, import, validation, and ID remap orchestration.

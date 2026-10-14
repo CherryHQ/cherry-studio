@@ -105,7 +105,7 @@ describe('createRetryableWrap API key failover', () => {
       throw makeApiError(401)
     })
 
-    const result = await wrap!(makeFakeLanguageModel('same-model', primaryGenerate)).doGenerate({ prompt: [] } as never)
+    const result = await wrap!(makeFakeLanguageModel('same-model', primaryGenerate)).doGenerate({ prompt: [] })
 
     expect(attempts).toEqual(['key-1', 'key-2', 'key-3'])
     expect(result.content).toEqual(okResult.content)
@@ -141,8 +141,8 @@ describe('createRetryableWrap API key failover', () => {
     })
     const wrapped = wrap!(makeFakeLanguageModel('same-model', primaryGenerate))
 
-    const firstStep = await wrapped.doGenerate({ prompt: [] } as never)
-    const secondStep = await wrapped.doGenerate({ prompt: [] } as never)
+    const firstStep = await wrapped.doGenerate({ prompt: [] })
+    const secondStep = await wrapped.doGenerate({ prompt: [] })
 
     expect(firstStep.content).toEqual(toolCallResult.content)
     expect(secondStep.content).toEqual(okResult.content)
@@ -186,9 +186,9 @@ describe('createRetryableWrap API key failover', () => {
     })
     const wrapped = wrap!(makeFakeLanguageModel('same-model', primaryGenerate))
 
-    const firstStep = await wrapped.doGenerate({ prompt: [] } as never)
-    const secondStep = await wrapped.doGenerate({ prompt: [] } as never)
-    const thirdStep = await wrapped.doGenerate({ prompt: [] } as never)
+    const firstStep = await wrapped.doGenerate({ prompt: [] })
+    const secondStep = await wrapped.doGenerate({ prompt: [] })
+    const thirdStep = await wrapped.doGenerate({ prompt: [] })
 
     expect(firstStep.content).toEqual(toolCallResult.content)
     expect(secondStep.content).toEqual(toolCallResult.content)
@@ -216,7 +216,7 @@ describe('createRetryableWrap API key failover', () => {
       throw makeApiError(429)
     })
 
-    await wrap!(makeFakeLanguageModel('same-model', primaryGenerate)).doGenerate({ prompt: [] } as never)
+    await wrap!(makeFakeLanguageModel('same-model', primaryGenerate)).doGenerate({ prompt: [] })
 
     expect(attempts).toEqual(['key-1', 'key-2', 'fallback-model'])
   })
@@ -247,7 +247,7 @@ describe('createRetryableWrap API key failover', () => {
         throw makeApiError(401)
       })
 
-      const pending = wrap!(makeFakeLanguageModel('same-model', primaryGenerate)).doGenerate({ prompt: [] } as never)
+      const pending = wrap!(makeFakeLanguageModel('same-model', primaryGenerate)).doGenerate({ prompt: [] })
       await vi.advanceTimersByTimeAsync(2_000)
       await pending
 
@@ -298,7 +298,7 @@ describe('createRetryableWrap API key failover', () => {
         throw makeApiError(401)
       })
 
-      const pending = wrap!(makeFakeLanguageModel('same-model', primaryGenerate)).doGenerate({ prompt: [] } as never)
+      const pending = wrap!(makeFakeLanguageModel('same-model', primaryGenerate)).doGenerate({ prompt: [] })
       await vi.advanceTimersByTimeAsync(2_000)
       await pending
 
@@ -318,7 +318,7 @@ describe('createRetryableWrap API key failover', () => {
     })
     const wrapped = wrap!(makeFakeLanguageModel('same-model', vi.fn().mockRejectedValue(firstError)))
 
-    await expect(wrapped.doGenerate({ prompt: [] } as never)).rejects.toMatchObject({ errors: [firstError, lastError] })
+    await expect(wrapped.doGenerate({ prompt: [] })).rejects.toMatchObject({ errors: [firstError, lastError] })
   })
 
   it.each([400, 503])('does not fail over API keys for HTTP %s', async (statusCode) => {
@@ -331,7 +331,7 @@ describe('createRetryableWrap API key failover', () => {
     })
     const wrapped = wrap!(makeFakeLanguageModel('same-model', vi.fn().mockRejectedValue(error)))
 
-    await expect(wrapped.doGenerate({ prompt: [] } as never)).rejects.toBe(error)
+    await expect(wrapped.doGenerate({ prompt: [] })).rejects.toBe(error)
     expect(keyFallback).not.toHaveBeenCalled()
   })
 
@@ -357,7 +357,7 @@ describe('createRetryableWrap API key failover', () => {
 
     const result = await wrap!(makeFakeLanguageModel('same-model', vi.fn(), primaryStream)).doStream({
       prompt: []
-    } as never)
+    })
 
     expect(await collectStream(result.stream)).toContainEqual(
       expect.objectContaining({ type: 'text-delta', delta: 'ok' })
@@ -382,7 +382,7 @@ describe('createRetryableWrap API key failover', () => {
     })
     const result = await wrap!(makeFakeLanguageModel('same-model', vi.fn(), primaryStream)).doStream({
       prompt: []
-    } as never)
+    })
 
     expect(await collectStream(result.stream)).toEqual([
       expect.objectContaining({ type: 'text-delta', delta: 'partial' }),

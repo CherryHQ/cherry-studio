@@ -51,14 +51,16 @@ export default defineProvider({
     }
   },
   overrides: [
-    ...['mimo-v2-5', 'mimo-v2-5-pro'].map((modelId) => ({
-      modelId,
-      reasoningContracts: {
-        'anthropic-messages': { support: toggleSupport, wire: anthropicWire },
-        'openai-chat-completions': { support: toggleSupport, wire: chatWire },
-        'openai-responses': { support: toggleSupport, wire: responsesWire }
-      }
-    })),
+    ...['mimo-v2-5', 'mimo-v2-5-pro', 'mimo-v2-6-flash', 'mimo-v2-6-pro', 'mimo-v2-6-pro-ultraspeed'].map(
+      (modelId) => ({
+        modelId,
+        reasoningContracts: {
+          'anthropic-messages': { support: toggleSupport, wire: anthropicWire },
+          'openai-chat-completions': { support: toggleSupport, wire: chatWire },
+          'openai-responses': { support: toggleSupport, wire: responsesWire }
+        }
+      })
+    ),
     {
       modelId: 'mimo-v2-5-pro-ultraspeed',
       reasoningContracts: {

@@ -1,8 +1,9 @@
-import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { mockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 
 import { useAgentSessionSlashCommands } from '../useAgentSessionSlashCommands'
 

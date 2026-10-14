@@ -1,7 +1,8 @@
-import type { AgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
 import { Bot, Clock, Folder, History } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { AgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
 

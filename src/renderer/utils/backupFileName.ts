@@ -1,5 +1,6 @@
-import { ipcApi } from '@renderer/ipc'
 import dayjs from 'dayjs'
+
+import { ipcApi } from '@renderer/ipc'
 
 export async function createDefaultBackupFileName(): Promise<string> {
   const [deviceType, hostname] = await Promise.all([

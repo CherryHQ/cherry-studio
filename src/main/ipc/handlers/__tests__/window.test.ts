@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
+const { appGetMock } = vi.hoisted(() => ({
+  appGetMock: vi.fn()
+}))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 
 import { windowHandlers } from '../window'
@@ -13,7 +15,8 @@ const windowManager = {
   setFullScreen: vi.fn(() => true),
   isMaximized: vi.fn(() => true),
   isFullScreen: vi.fn(() => false),
-  getInitData: vi.fn(() => ({ path: '/settings/provider' }))
+  getInitData: vi.fn(() => ({ path: '/settings/provider' })),
+  getWindow: vi.fn()
 }
 const mainWindowService = {
   requestClose: vi.fn(() => false),

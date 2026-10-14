@@ -1,11 +1,11 @@
-import { preferenceService } from '@data/PreferenceService'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const DEFAULT_GATEWAY_HOST = '127.0.0.1'
 const DEFAULT_GATEWAY_PORT = 23333
@@ -55,7 +55,7 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   }, [apiGatewayRunning, startApiGateway])
 
   const getApiKey = useCallback(async (): Promise<string> => {
-    const key = await preferenceService.get('feature.api_gateway.api_key')
+    const key = await window.api.preference.get('feature.api_gateway.api_key')
     if (!key) {
       throw new Error('API gateway did not provide a key')
     }

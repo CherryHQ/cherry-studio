@@ -1,5 +1,6 @@
-import { cn } from '@renderer/utils/style'
 import type { ComponentPropsWithRef } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 export default function ComposerFloatingCapsule({ children, className, ref, ...props }: ComponentPropsWithRef<'div'>) {
   return (

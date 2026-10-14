@@ -99,6 +99,8 @@ Improvements to code quality, performance, and maintainability.
 - No full imports of large dependencies when only a small part is used (tree-shaking)
 
 ### B2. Code Simplification
+- Added or materially changed logic checked against existing repository modules
+  before accepting duplication (see cherry-review-guidance.md § Existing Module Reuse)
 - Clearly duplicated or similar logic extracted (judge by complexity and maintenance
   cost, not count threshold)
 - Deep nested if/else simplified with early return
@@ -215,7 +217,7 @@ Coding standards and documentation consistency.
 > for an excluded issue type, that type is **not excluded** — review per project rules.
 
 1. Pure style preferences within formatting tool scope (not required by project rules)
-2. Formatting already handled by Biome (indentation, whitespace, trailing commas, etc.)
+2. Formatting already handled by Oxfmt (indentation, whitespace, trailing commas, etc.)
 3. Suggestions based on assumed future requirements, not current code
 4. Code following project's existing style but not matching some external standard
 5. Priority C issues in test code (unless project rules require otherwise)
