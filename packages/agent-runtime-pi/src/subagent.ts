@@ -1,9 +1,17 @@
 import { randomUUID } from 'node:crypto'
 
 import { Type } from '@earendil-works/pi-ai'
-import type { AgentSession, AgentToolResult, ExtensionFactory, SessionEntry } from '@earendil-works/pi-coding-agent'
+import type {
+  AgentSession,
+  AgentToolResult,
+  ExtensionContext,
+  ExtensionFactory,
+  SessionEntry
+} from '@earendil-works/pi-coding-agent'
 
+import type { ToolOutputOffload } from './offload'
 import type { AgentRuntimeSession } from './session'
+import { shortenResult, SubagentDelivery } from './subagentDelivery'
 import { DEFAULT_MAX_BACKGROUND, SUBAGENT_STATE_TYPE, SubagentRegistry } from './subagentRegistry'
 import {
   type CreateSubagentSession,
@@ -66,6 +74,9 @@ export interface SubagentSessionOptions {
 /** How a subagent's run ended. */
 export type SubagentOutcome = RunEnd | 'stopped' | 'interrupted'
 
+/** Who stopped a run that ended `stopped`. */
+export type SubagentStopper = 'model' | 'user' | 'budget'
+
 /**
  * `details` of every result the tool returns once the subagent's session is built, and of a call
  * aborted before then. Calls that throw carry none, `onSessionCreated` throwing included.
@@ -85,6 +96,14 @@ export interface SubagentToolOptions {
   parentModelKey: string
   /** The parent's `onEvent`. */
   emit: (event: AgentRuntimeEvent) => void
+  /** The parent's offload, also used for long results in notifications. */
+  offload: ToolOutputOffload | undefined
+}
+
+/** What the parent's `AgentRuntimeSession` reaches through to its subagents. */
+export interface SubagentControls {
+  /** Held by a host prompt or compaction until it returns; no notification starts a run meanwhile. */
+  hold(): () => void
 }
 
 const DESCRIPTION = [
@@ -145,21 +164,64 @@ const parameters = Type.Object({
   )
 })
 
-/** The `subagent` tool: each call runs a subagent session in-process and returns its final report. */
-export function subagentExtension({
+/**
+ * The `subagent` tool and the delivery of background results. Each call runs a subagent session
+ * in-process; a foreground call returns its final report, a background one returns at once.
+ */
+export function createSubagentExtension({
   port,
   createSession,
   parentTranscript,
   parentModelKey,
-  emit
-}: SubagentToolOptions): ExtensionFactory {
-  return (pi) => {
+  emit,
+  offload
+}: SubagentToolOptions): { extension: ExtensionFactory; controls: SubagentControls } {
+  let delivery: SubagentDelivery | undefined
+  const controls: SubagentControls = { hold: () => delivery?.hold() ?? (() => {}) }
+  const extension: ExtensionFactory = (pi) => {
+    let ctx: ExtensionContext | undefined
+    let inSubagent = false
     const registry = new SubagentRegistry({
       appendState: (state) => pi.appendEntry(SUBAGENT_STATE_TYPE, state),
       emit,
-      maxBackground: port.maxBackground ?? DEFAULT_MAX_BACKGROUND
+      maxBackground: port.maxBackground ?? DEFAULT_MAX_BACKGROUND,
+      shorten: (record, result) =>
+        shortenResult(result, offload, { toolCallId: record.parentToolCallId, toolName: SUBAGENT_TOOL_NAME }),
+      finished: (record, result) =>
+        delivery?.enqueue({
+          sessionId: record.sessionId,
+          run: record.run,
+          description: record.description,
+          outcome: record.outcome!,
+          ...(result.report === undefined ? {} : { report: result.report }),
+          ...(result.reason === undefined ? {} : { reason: result.reason }),
+          ...(result.partial === undefined ? {} : { partial: result.partial }),
+          usage: result.usage,
+          wake: true
+        })
     })
-    pi.on('session_shutdown', () => registry.close())
+    const parentDelivery = new SubagentDelivery({
+      startTurn: (message) => pi.sendMessage(message, { triggerTurn: true }),
+      isIdle: () => ctx?.isIdle() ?? false,
+      stillRunning: () => registry.runningBackground()
+    })
+
+    pi.on('session_start', (_event, context) => {
+      // A fork keeps this extension so its tools match the parent's; it delivers nothing.
+      inSubagent = isSubagentSession(context.sessionManager.getBranch())
+      if (inSubagent) return
+      ctx = context
+      delivery = parentDelivery
+    })
+    pi.on('agent_before_settle', (event) => (inSubagent ? undefined : parentDelivery.beforeSettle(event)))
+    pi.on('agent_settled', (event) => {
+      if (!inSubagent) parentDelivery.settled(event.aborted)
+    })
+    pi.on('before_agent_start', () => (inSubagent ? undefined : parentDelivery.beforeAgentStart()))
+    pi.on('session_shutdown', () => {
+      parentDelivery.close()
+      return registry.close()
+    })
 
     pi.registerTool({
       name: SUBAGENT_TOOL_NAME,
@@ -237,4 +299,5 @@ export function subagentExtension({
       }
     })
   }
+  return { extension, controls }
 }
