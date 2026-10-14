@@ -91,6 +91,30 @@ describe('application-local dictation shortcuts', () => {
     expect(start).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['hold', 'toggle'] as const)('consumes matching %s repeats without another recording action', (mode) => {
+    MockUsePreferenceUtils.setPreferenceValue(`feature.voice.dictation.${mode}_shortcut`, 'Backspace+ControlLeft')
+    mount()
+    down('ControlLeft')
+    down('Backspace')
+    const repeat = () => down('Backspace', true)
+    expect(repeat()).toBe(false)
+    void act(() => vi.advanceTimersByTime(350))
+    expect(start).toHaveBeenCalledOnce()
+    expect(repeat()).toBe(false)
+    expect(stop).not.toHaveBeenCalled()
+    expect(down('KeyX', true)).toBe(true)
+    up('Backspace')
+    up('ControlLeft')
+    if (mode === 'toggle') {
+      down('ControlLeft')
+      down('Backspace')
+      up('Backspace')
+      up('ControlLeft')
+    }
+    expect(stop).toHaveBeenCalledOnce()
+    expect(start).toHaveBeenCalledOnce()
+  })
+
   it.each(['starting', 'recording'] as const)(
     'keeps the same %s run when a hold becomes a toggle chord',
     async (initialPhase) => {

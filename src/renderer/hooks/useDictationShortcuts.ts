@@ -64,7 +64,18 @@ export function useDictationShortcuts(): void {
         })
     }
     const keydown = (event: KeyboardEvent) => {
-      if (event.isComposing || event.repeat || event.defaultPrevented) return
+      if (event.isComposing || event.defaultPrevented) return
+      if (event.repeat) {
+        if (
+          pressed.has(event.code) &&
+          (owned || canStart()) &&
+          (dictationShortcutMatches(hold, pressed) || dictationShortcutMatches(toggle, pressed))
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+        return
+      }
       pressed.add(event.code)
       clearTimer()
       if (dictationShortcutMatches(toggle, pressed) && (owned || canStart())) {
