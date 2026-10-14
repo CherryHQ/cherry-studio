@@ -1,23 +1,25 @@
 import { randomUUID } from 'node:crypto'
 
-import { type AssistantMessage, Type, type Usage } from '@earendil-works/pi-ai'
-import type {
-  AgentSession,
-  AgentToolResult,
-  ExtensionFactory,
-  SessionEntry,
-  SessionManager
-} from '@earendil-works/pi-coding-agent'
+import { Type } from '@earendil-works/pi-ai'
+import type { AgentSession, AgentToolResult, ExtensionFactory, SessionEntry } from '@earendil-works/pi-coding-agent'
 
-import type { AgentRuntimeSession } from './session'
-import type { AgentRuntimeEvent } from './sessionEvents'
-import { createSubagentSessionManager, subagentForkPoint } from './subagentSession'
+import {
+  type CreateSubagentSession,
+  forkTranscript,
+  MAX_SUBAGENT_REQUESTS,
+  openChild,
+  type RunEnd,
+  type RunResult,
+  runSubagent,
+  SUBAGENT_ORIGIN_STATE
+} from './subagentRun'
+import type { TranscriptEntry } from './transcript'
+import type { AgentRuntimeEvent } from './transcriptTap'
+
+export { SUBAGENT_ORIGIN_STATE } from './subagentRun'
 
 /** DSH's name: Cherry's renderer shows a cherry-runtime `subagent` call as a Task card. */
 export const SUBAGENT_TOOL_NAME = 'subagent'
-
-/** State entry naming the call that created a session; it marks a subagent's session. */
-export const SUBAGENT_ORIGIN_STATE = 'cherry.subagent-origin'
 
 /** True inside a subagent's session. */
 export function isSubagentSession(entries: readonly SessionEntry[]): boolean {
@@ -37,54 +39,46 @@ export interface SubagentPort {
 export interface Subagent {
   /** The `subagent` call that creates it. */
   parentToolCallId: string
-  /**
-   * Its Pi session id and its requests' `sessionId`: `<parent session id>.<random UUID>`, unique per
-   * subagent. Treat it as opaque; `parentToolCallId` ties the subagent to its call.
-   */
+  /** Its Pi session id, its requests' `sessionId` and the id the model sees: a random UUID. */
   sessionId: string
+  description: string
   fork: boolean
+  /** Whether this run is in the background. */
+  background: boolean
 }
 
 /** The session options the host gives each subagent; everything else comes from the parent. */
 export interface SubagentSessionOptions {
   extensionFactories?: ExtensionFactory[]
-  /** The subagent's own transcript events, shaped like the parent's `onEvent`; they never reach the parent's. */
+  /**
+   * The subagent's own transcript events, shaped like the parent's `onEvent`; they never reach the
+   * parent's. The first `transcript-append` holds its start entries (fork prefix and origin entry).
+   */
   onEvent?: (event: AgentRuntimeEvent) => void
   /** Called before the subagent's first model request; subscribe to its live output here. */
   onSessionCreated?: (session: AgentSession) => void
 }
 
+/** How a subagent's run ended. */
+export type SubagentOutcome = RunEnd | 'stopped' | 'interrupted'
+
 /**
  * `details` of every result the tool returns once the subagent's session is built, and of a call
  * aborted before then. Calls that throw carry none, `onSessionCreated` throwing included.
  */
-export interface SubagentDetails {
-  sessionId: string
-  fork: boolean
-  outcome: 'completed' | 'failed' | 'truncated' | 'aborted' | 'limit_reached'
-}
-
-/** What a subagent's session overrides in the parent's options. */
-export interface SubagentSessionOverrides {
-  sessionManager: SessionManager
-  extensionFactories: ExtensionFactory[]
-  onEvent: ((event: AgentRuntimeEvent) => void) | undefined
-  /** A fork keeps `subagent` registered so its tools match the parent's. */
-  fork: boolean
-  /**
-   * Called before each model request the session makes (its turns and the compaction summaries made
-   * for it); a throw refuses the request before it reaches the port or the summarizer.
-   */
-  beforeModelRequest: () => void
-}
+export type SubagentDetails =
+  | { sessionId: string; fork: boolean; background: false; outcome: SubagentOutcome }
+  | { sessionId: string; fork: boolean; background: true }
 
 /** What the session that registers `subagent` lends it. */
 export interface SubagentToolOptions {
   port: SubagentPort
   /** Builds a session from the parent's options with these overrides. */
-  createSession: (overrides: SubagentSessionOverrides) => Promise<AgentRuntimeSession>
-  /** Native parent storage, including the running turn. */
-  parentSession: SessionManager
+  createSession: CreateSubagentSession
+  /** The parent's transcript so far, including the running turn. */
+  parentTranscript: () => readonly TranscriptEntry[]
+  /** Key of the parent's model, recorded as the model a subagent runs on. */
+  parentModelKey: string
 }
 
 const DESCRIPTION = [
@@ -100,39 +94,28 @@ const PREAMBLE =
 
 const NO_FINAL_MESSAGE = 'The subagent finished without a final message.'
 
-/** Model requests one subagent may make before it is stopped (Claude Code's limit for a fork). */
-export const MAX_SUBAGENT_REQUESTS = 200
-
-const STOPPED: Record<Exclude<SubagentDetails['outcome'], 'completed'>, string> = {
+const STOPPED: Record<Exclude<RunEnd, 'completed'>, string> = {
   failed: 'The subagent failed',
   truncated: 'The subagent hit its output limit before finishing',
   aborted: 'The subagent was stopped because the turn was aborted',
   limit_reached: `The subagent was stopped after ${MAX_SUBAGENT_REQUESTS} model requests`
 }
 
-function outcomeOf(
-  last: AssistantMessage | undefined,
-  stopped: 'aborted' | 'limit_reached' | undefined
-): SubagentDetails['outcome'] {
-  if (stopped) return stopped
-  switch (last?.stopReason) {
-    case 'stop':
-      return 'completed'
-    case 'length':
-      return 'truncated'
-    case 'aborted':
-      return 'aborted'
-    default:
-      return 'failed'
-  }
+const text = (value: string) => ({ type: 'text' as const, text: value })
+const taskText = (prompt: string) => `${PREAMBLE}\n\nTask:\n${prompt}`
+const idTrailer = (sessionId: string) => `(id: ${sessionId} — continue this subagent with message_subagent.)`
+
+/** The L4 result text: the final message, or why the run stopped and its last partial output. */
+function runText(result: RunResult): string {
+  if (result.end === 'completed') return result.report || NO_FINAL_MESSAGE
+  const lines = [result.reason ? `${STOPPED[result.end]}: ${result.reason}` : `${STOPPED[result.end]}.`]
+  if (result.partial) lines.push(`Partial output before it stopped:\n${result.partial}`)
+  return lines.join('\n')
 }
 
-const textOf = (message: AssistantMessage) =>
-  message.content.map((block) => (block.type === 'text' ? block.text : '')).join('')
-
-const notStarted = (base: Omit<SubagentDetails, 'outcome'>): AgentToolResult<SubagentDetails> => ({
+const notStarted = (sessionId: string, fork: boolean): AgentToolResult<SubagentDetails> => ({
   content: [text('The subagent was not started because the turn was aborted.')],
-  details: { ...base, outcome: 'aborted' },
+  details: { sessionId, fork, background: false, outcome: 'aborted' },
   isError: true
 })
 
@@ -146,112 +129,13 @@ const parameters = Type.Object({
   )
 })
 
-const text = (value: string) => ({ type: 'text' as const, text: value })
-const taskText = (prompt: string) => `${PREAMBLE}\n\nTask:\n${prompt}`
-
-const zeroUsage = (): Usage => ({
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-  totalTokens: 0,
-  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
-})
-
-function addUsage(sum: Usage, usage: Usage): Usage {
-  return {
-    input: sum.input + usage.input,
-    output: sum.output + usage.output,
-    cacheRead: sum.cacheRead + usage.cacheRead,
-    cacheWrite: sum.cacheWrite + usage.cacheWrite,
-    ...(sum.reasoning === undefined && usage.reasoning === undefined
-      ? {}
-      : { reasoning: (sum.reasoning ?? 0) + (usage.reasoning ?? 0) }),
-    totalTokens: sum.totalTokens + usage.totalTokens,
-    cost: {
-      input: sum.cost.input + usage.cost.input,
-      output: sum.cost.output + usage.cost.output,
-      cacheRead: sum.cost.cacheRead + usage.cost.cacheRead,
-      cacheWrite: sum.cost.cacheWrite + usage.cost.cacheWrite,
-      total: sum.cost.total + usage.cost.total
-    }
-  }
-}
-
-/**
- * The request cap of one subagent session, counted where its requests are made. Past the cap a
- * request is refused before it goes out and the run stops with `limit_reached`.
- */
-class RequestLimit {
-  private requests = 0
-  private onLimit: (() => void) | undefined
-
-  readonly beforeModelRequest = () => {
-    if (this.requests >= MAX_SUBAGENT_REQUESTS) {
-      this.onLimit?.()
-      throw new Error(`The subagent reached its limit of ${MAX_SUBAGENT_REQUESTS} model requests`)
-    }
-    this.requests++
-  }
-
-  whenReached(onLimit: () => void) {
-    this.onLimit = onLimit
-  }
-}
-
-/** Runs the task to settlement; the result carries the subagent's final message and the sum of its usage. */
-async function run(
-  child: AgentRuntimeSession,
-  prompt: string,
-  signal: AbortSignal | undefined,
-  base: Omit<SubagentDetails, 'outcome'>,
-  limit: RequestLimit
-): Promise<AgentToolResult<SubagentDetails>> {
-  const { session } = child
-  let stopped: 'aborted' | 'limit_reached' | undefined
-  const stop = (reason: 'aborted' | 'limit_reached') => {
-    stopped ??= reason
-    void session.abort()
-  }
-  limit.whenReached(() => stop('limit_reached'))
-  // Not read from `session.messages`: Pi swaps it for the compacted context, dropping folded replies.
-  const replies: AssistantMessage[] = []
-  const unsubscribe = session.subscribe((event) => {
-    if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
-    // An abort before the run starts is a no-op in Pi, and the run clears it; repeat it once the run is live.
-    if (event.type === 'agent_start' && stopped) void session.abort()
-  })
-  const onAbort = () => stop('aborted')
-  signal?.addEventListener('abort', onAbort, { once: true })
-  let error: string | undefined
-  try {
-    if (signal?.aborted) stop('aborted')
-    else await session.prompt(taskText(prompt), { expandPromptTemplates: false, source: 'extension' })
-  } catch (thrown) {
-    error = thrown instanceof Error ? thrown.message : String(thrown)
-  } finally {
-    unsubscribe()
-    signal?.removeEventListener('abort', onAbort)
-  }
-
-  const usage = replies.reduce((sum, reply) => addUsage(sum, reply.usage), zeroUsage())
-  const last = replies.at(-1)
-  const outcome = error === undefined ? outcomeOf(last, stopped) : (stopped ?? 'failed')
-  const details = { ...base, outcome }
-  if (outcome === 'completed') return { content: [text(textOf(last!).trim() || NO_FINAL_MESSAGE)], details, usage }
-
-  const reason = error ?? (outcome === 'failed' ? last?.errorMessage : undefined)
-  const partial = replies
-    .map(textOf)
-    .filter((part) => part.trim())
-    .at(-1)
-  const lines = [reason ? `${STOPPED[outcome]}: ${reason}` : `${STOPPED[outcome]}.`]
-  if (partial) lines.push(`Partial output before it stopped:\n${partial}`)
-  return { content: [text(lines.join('\n'))], details, usage, isError: true }
-}
-
 /** The `subagent` tool: each call runs a subagent session in-process and returns its final report. */
-export function subagentExtension({ port, createSession, parentSession }: SubagentToolOptions): ExtensionFactory {
+export function subagentExtension({
+  port,
+  createSession,
+  parentTranscript,
+  parentModelKey
+}: SubagentToolOptions): ExtensionFactory {
   return (pi) => {
     pi.registerTool({
       name: SUBAGENT_TOOL_NAME,
@@ -265,26 +149,38 @@ export function subagentExtension({ port, createSession, parentSession }: Subage
         const prompt = params.prompt.trim()
         if (!description || !prompt) throw new Error('A subagent needs a non-empty description and prompt.')
         const fork = params.fork ?? false
-        const forkPoint = fork ? subagentForkPoint(parentSession, toolCallId) : undefined
         const subagent: Subagent = {
           parentToolCallId: toolCallId,
-          sessionId: `${ctx.sessionManager.getSessionId()}.${randomUUID()}`,
-          fork
-        }
-        const options = await port.configure(subagent)
-        const base = { sessionId: subagent.sessionId, fork }
-        if (signal?.aborted) return notStarted(base)
-        const limit = new RequestLimit()
-        const child = await createSession({
-          sessionManager: createSubagentSessionManager(parentSession, subagent, forkPoint),
+          sessionId: randomUUID(),
+          description,
           fork,
-          extensionFactories: options.extensionFactories ?? [],
-          onEvent: options.onEvent,
-          beforeModelRequest: limit.beforeModelRequest
-        })
+          background: false
+        }
+        // Built before `configure`, so a failure building the fork transcript never reaches the host.
+        const prefix = fork ? forkTranscript(parentTranscript(), toolCallId) : []
+        const options = await port.configure(subagent)
+        if (signal?.aborted) return notStarted(subagent.sessionId, fork)
+        const child = await openChild({ subagent, options, prefix, parentModelKey, createSession })
         try {
-          options.onSessionCreated?.(child.session)
-          return await run(child, prompt, signal, base, limit)
+          const run = new AbortController()
+          const onAbort = () => run.abort()
+          if (signal?.aborted) run.abort()
+          else signal?.addEventListener('abort', onAbort, { once: true })
+          const result = await runSubagent(child, taskText(prompt), run.signal).finally(() =>
+            signal?.removeEventListener('abort', onAbort)
+          )
+          const details: SubagentDetails = {
+            sessionId: subagent.sessionId,
+            fork,
+            background: false,
+            outcome: result.end
+          }
+          return {
+            content: [text(`${runText(result)}\n\n${idTrailer(subagent.sessionId)}`)],
+            details,
+            usage: result.usage,
+            ...(result.end === 'completed' ? {} : { isError: true })
+          }
         } finally {
           await child.dispose()
         }

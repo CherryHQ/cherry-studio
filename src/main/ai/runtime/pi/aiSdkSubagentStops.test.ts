@@ -91,7 +91,7 @@ describe('subagent stops', () => {
 
     const [a, b] = toolResults(calls.at(-1)!)
     expect(a.output.type).toBe('error-text')
-    expect(outputText(b.output)).toBe('REPORT-B')
+    expect(outputText(b.output)).toMatch(/^REPORT-B\n\n\(id: /)
   })
 
   it('stops the subagent and shuts it down when the parent turn aborts', async () => {
