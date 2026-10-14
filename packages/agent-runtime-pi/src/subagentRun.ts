@@ -4,7 +4,7 @@ import type { AssistantMessage, Usage } from '@earendil-works/pi-ai'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import type { ToolCallPart } from 'ai'
 
-import type { AgentRuntimeSession } from './session'
+import type { AgentRuntimeModel, AgentRuntimeSession } from './session'
 import type { Subagent, SubagentSessionOptions } from './subagent'
 import type { TranscriptEntry, TranscriptMessageEntry, TranscriptStateEntry } from './transcript'
 import type { AgentRuntimeEvent } from './transcriptTap'
@@ -51,6 +51,7 @@ export interface SubagentSessionOverrides {
   transcript: TranscriptEntry[]
   extensionFactories: NonNullable<SubagentSessionOptions['extensionFactories']>
   onEvent: ((event: AgentRuntimeEvent) => void) | undefined
+  model: AgentRuntimeModel
   /** A fork keeps `subagent` registered so its tools match the parent's. */
   fork: boolean
   /**
@@ -217,9 +218,27 @@ export const originEntry = (origin: SubagentOrigin): TranscriptStateEntry => ({
  * prefix and origin entry, a continuation's answers to interrupted calls) go to its `onEvent` first,
  * so the host's copy is the whole transcript.
  */
+/** The model a subagent runs on (spec §6.7). */
+export function pickModel(
+  subagent: Subagent,
+  options: SubagentSessionOptions,
+  parentModel: AgentRuntimeModel
+): AgentRuntimeModel {
+  if (subagent.modelKey !== undefined) {
+    if (options.model?.key === subagent.modelKey) return options.model
+    // A host that never picks models runs every subagent on the parent's model.
+    if (!options.model && subagent.modelKey === parentModel.key) return parentModel
+    throw new Error(`The subagent needs the model ${subagent.modelKey}, which the app did not provide.`)
+  }
+  // A fork shares the parent's prompt cache, which another model cannot use.
+  if (subagent.fork) return parentModel
+  return options.model ?? parentModel
+}
+
 export async function openChild(input: {
   subagent: Subagent
   options: SubagentSessionOptions
+  model: AgentRuntimeModel
   /** The whole transcript the session starts from. */
   transcript: TranscriptEntry[]
   /** Its entries the host has not stored yet. */
@@ -236,6 +255,7 @@ export async function openChild(input: {
     fork: subagent.fork,
     extensionFactories: [input.inbox.extension, ...(options.extensionFactories ?? [])],
     onEvent: options.onEvent,
+    model: input.model,
     beforeModelRequest: limit.beforeModelRequest
   })
   requestLimits.set(child, limit)
