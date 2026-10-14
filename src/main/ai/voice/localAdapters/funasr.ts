@@ -52,7 +52,8 @@ function inspectCanonicalWav(audio: Uint8Array): { durationSeconds: number } {
     if (hasTag(offset, 'fmt ')) {
       if (
         hasFmt ||
-        chunkSize < 16 ||
+        (chunkSize !== 16 && chunkSize !== 18) ||
+        (chunkSize === 18 && view.getUint16(payloadOffset + 16, true) !== 0) ||
         view.getUint16(payloadOffset, true) !== 1 ||
         view.getUint16(payloadOffset + 2, true) !== 1 ||
         view.getUint32(payloadOffset + 4, true) !== 16_000 ||

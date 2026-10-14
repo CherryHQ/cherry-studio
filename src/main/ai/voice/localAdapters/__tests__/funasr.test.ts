@@ -14,22 +14,23 @@ import { createLocalTranscriptionModel, downloadVoiceModel, getLocalVoiceStatus 
 const mocks = vi.hoisted(() => ({ decode: vi.fn(), transcribe: vi.fn(), refreshStatus: vi.fn(), download: vi.fn() }))
 const transcriptCanary = 'PRIVATE_TRANSCRIPT_CANARY'
 
-function canonicalWav(samples: number, channels = 1): Uint8Array {
+function canonicalWav(samples: number, channels = 1, fmtSize = 16): Uint8Array {
   const dataSize = samples * channels * 2
-  const audio = new Uint8Array(44 + dataSize)
+  const dataOffset = 20 + fmtSize + (fmtSize % 2)
+  const audio = new Uint8Array(dataOffset + 8 + dataSize)
   const view = new DataView(audio.buffer)
   audio.set(new TextEncoder().encode('RIFF'), 0)
   view.setUint32(4, audio.byteLength - 8, true)
   audio.set(new TextEncoder().encode('WAVEfmt '), 8)
-  view.setUint32(16, 16, true)
+  view.setUint32(16, fmtSize, true)
   view.setUint16(20, 1, true)
   view.setUint16(22, channels, true)
   view.setUint32(24, 16_000, true)
   view.setUint32(28, 16_000 * channels * 2, true)
   view.setUint16(32, channels * 2, true)
   view.setUint16(34, 16, true)
-  audio.set(new TextEncoder().encode('data'), 36)
-  view.setUint32(40, dataSize, true)
+  audio.set(new TextEncoder().encode('data'), dataOffset)
+  view.setUint32(dataOffset + 4, dataSize, true)
   return audio
 }
 
@@ -111,8 +112,8 @@ describe('FunASR local adapter', () => {
     expect(await readdir(directory)).toEqual([])
   })
 
-  it('transcribes canonical WAV bytes unchanged and reports the data duration', async () => {
-    const bytes = canonicalWav(1600)
+  it.each([16, 18])('transcribes WAV with a %i-byte fmt unchanged and reports the data duration', async (fmtSize) => {
+    const bytes = canonicalWav(1600, 1, fmtSize)
     const backing = Buffer.alloc(bytes.byteLength + 2)
     backing.set(bytes, 1)
     const input = backing.subarray(1, -1)
@@ -143,6 +144,17 @@ describe('FunASR local adapter', () => {
 
   it.each([
     ['truncated header', () => new Uint8Array(11)],
+    ['17-byte fmt chunk', () => canonicalWav(1, 1, 17)],
+    ['20-byte fmt chunk', () => canonicalWav(1, 1, 20)],
+    ['40-byte fmt chunk', () => canonicalWav(1, 1, 40)],
+    [
+      '18-byte fmt chunk with nonzero extension size',
+      () => {
+        const audio = canonicalWav(1, 1, 18)
+        new DataView(audio.buffer).setUint16(36, 1, true)
+        return audio
+      }
+    ],
     [
       'wrong RIFF size',
       () => {
