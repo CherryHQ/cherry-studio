@@ -59,11 +59,15 @@ export interface RegistryHost {
   appendState(state: SubagentState): void
   emit(event: AgentRuntimeEvent): void
   maxBackground: number
+  /** Shortens a finished run's texts for the snapshot and the notification. */
+  shorten(record: SubagentRecord, result: RunResult): Promise<RunResult>
+  /** A background run ended and its snapshot is written. */
+  finished(record: SubagentRecord, result: RunResult): void
 }
 
 interface LiveRun {
-  child: AgentRuntimeSession
   controller: AbortController
+  /** Settles once the run's session is disposed and its end is recorded. */
   done: Promise<void>
 }
 
@@ -137,6 +141,10 @@ export class SubagentRegistry {
 
   /** Runs `task` on `child` in the background; the parent's turn does not wait for it or stop it. */
   startBackground(record: SubagentRecord, child: AgentRuntimeSession, task: string): void {
+    if (this.closing) {
+      void child.dispose()
+      return
+    }
     record.background = true
     record.status = 'running'
     delete record.outcome
@@ -144,8 +152,13 @@ export class SubagentRegistry {
     this.host.appendState(snapshot(record))
     this.changed()
     const controller = new AbortController()
-    const done = runSubagent(child, task, controller.signal).then((result) => this.finish(record, child, result))
-    this.live.set(record.sessionId, { child, controller, done })
+    const done = runSubagent(child, task, controller.signal).then((result) => {
+      // Finished at once, so a message sent from now on continues the subagent instead of joining this run.
+      record.status = 'finished'
+      record.outcome = result.end
+      return this.record(record, child, result)
+    })
+    this.live.set(record.sessionId, { controller, done })
   }
 
   /** Session shutdown: stops every live run and disposes its session, writing nothing. */
@@ -156,16 +169,16 @@ export class SubagentRegistry {
     await Promise.all(runs.map((run) => run.done))
   }
 
-  private async finish(record: SubagentRecord, child: AgentRuntimeSession, result: RunResult): Promise<void> {
-    this.live.delete(record.sessionId)
+  private async record(record: SubagentRecord, child: AgentRuntimeSession, result: RunResult): Promise<void> {
     // A failing shutdown of the subagent's session must not keep its result from the parent.
     await child.dispose().catch(() => undefined)
+    const shortened = this.closing ? result : await this.host.shorten(record, result)
+    this.live.delete(record.sessionId)
     // Rebuilt from the transcript, a run whose last snapshot is `running` is interrupted.
     if (this.closing) return
-    record.status = 'finished'
-    record.outcome = result.end
-    this.host.appendState(snapshot(record, result))
+    this.host.appendState(snapshot(record, shortened))
     this.changed()
+    this.host.finished(record, shortened)
   }
 
   private changed(): void {
