@@ -136,7 +136,12 @@ describe('retired DSH session migration', () => {
               // URL on every host — a hardcoded `file:///tmp/…` URL makes
               // `fileURLToPath` throw on Windows ("File URL path must be
               // absolute"), failing the whole migration suite there.
-              { type: 'file', mediaType: 'text/plain', filename: 'notes.txt', url: pathToFileURL(path.join(directory, 'cherry-notes.txt')).href }
+              {
+                type: 'file',
+                mediaType: 'text/plain',
+                filename: 'notes.txt',
+                url: pathToFileURL(path.join(directory, 'cherry-notes.txt')).href
+              }
             ]
           },
           runtimeResumeToken: 'old-dsh-token'
