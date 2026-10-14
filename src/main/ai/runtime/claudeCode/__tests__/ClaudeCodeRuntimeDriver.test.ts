@@ -256,6 +256,7 @@ vi.mock('../streamAdapter', async (importActual) => {
       readonly finalizeOpenTextParts = vi.fn()
       // Mirrors the real adapter: session-scoped, content only flows inside a turn.
       private turnActive = false
+      private turnSequence = 0
       private turnHasActivity = false
       private autonomous = false
       private pendingInit: any
@@ -268,11 +269,20 @@ vi.mock('../streamAdapter', async (importActual) => {
         return this.turnActive
       }
 
+      get turnGeneration() {
+        return this.turnSequence
+      }
+
+      isGenerationActive(generation: number) {
+        return this.turnActive && this.turnSequence === generation
+      }
+
       get hasTurnActivity() {
         return this.turnHasActivity
       }
 
       beginTurn() {
+        this.turnSequence++
         this.turnHasActivity = false
         this.turnActive = true
         if (this.pendingInit) {
@@ -922,6 +932,44 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(query.interrupt).not.toHaveBeenCalled()
     expect(query.close).not.toHaveBeenCalled()
     void connection.close()
+  })
+
+  it('settles the stop on the interrupted generation when background work re-opens the turn', async () => {
+    vi.useFakeTimers()
+    try {
+      const queryQueue = createAsyncQueue<any>()
+      const query = {
+        ...queryQueue.iterable,
+        interrupt: vi.fn(async () => undefined),
+        close: vi.fn(),
+        return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+      }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      await connection.send({ message: userMessage() })
+
+      const aborting = connection.abortTurn!()
+      await vi.advanceTimersByTimeAsync(0)
+      // The CLI answers the interrupt by ending the interrupted turn...
+      queryQueue.push({ type: 'result', subtype: 'success', session_id: 'session-1' })
+      await vi.advanceTimersByTimeAsync(0)
+      // ...and background work immediately wakes the main agent into a new generation.
+      queryQueue.push({ type: 'stream_event', event: {}, session_id: 'session-1' })
+      // The stop must not spend its settle window on that successor generation: waiting it out
+      // returns false and the host tears down the subprocess the stop meant to preserve.
+      await vi.advanceTimersByTimeAsync(10_000)
+      await expect(aborting).resolves.toBe(true)
+
+      expect(query.close).not.toHaveBeenCalled()
+      expect(query.return).not.toHaveBeenCalled()
+      void connection.close()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('discards a prompt whose Stop landed while its attachments were still materializing', async () => {
