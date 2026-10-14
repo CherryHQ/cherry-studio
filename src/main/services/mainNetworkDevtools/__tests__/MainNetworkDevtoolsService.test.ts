@@ -244,6 +244,24 @@ describe('MainNetworkDevtoolsService helpers', () => {
     })
   })
 
+  it('marks content-encoded request bodies as non-replayable', () => {
+    expect(captureRequestBody('{"prompt":"hi"}', 'application/json', { 'content-encoding': 'gzip' })).toMatchObject({
+      replayable: false,
+      note: 'Content-encoded request bodies cannot be replayed from capture.'
+    })
+  })
+
+  it('preserves large JSON integers in display while marking the body non-replayable', () => {
+    const captured = captureRequestBody('{"record_id":9007199254740993,"api_key":"secret"}', 'application/json')
+
+    expect(captured?.text).toContain('9007199254740993')
+    expect(captured?.text).toContain('"api_key":"<redacted>"')
+    expect(captured).toMatchObject({
+      replayable: false,
+      note: 'JSON integer precision cannot be preserved for cURL replay.'
+    })
+  })
+
   it('allows only registered DevTools extension origins', () => {
     const service = new MainNetworkDevtoolsService()
     const serviceState = service as unknown as {

@@ -56,7 +56,11 @@ function buildCurlCommand(event) {
   } else if (body?.truncated) {
     parts.push(curlComment('request body truncated in capture; omit --data-raw for replay'))
   } else if (body?.text && body.replayable === false) {
-    parts.push(curlComment('request body is a display summary only; omit --data-raw for replay'))
+    parts.push(
+      curlComment(
+        body.note ?? 'request body is a display summary only; omit --data-raw for replay'
+      )
+    )
   } else if (body?.note) {
     parts.push(curlComment(`request body not captured: ${body.note}`))
   }

@@ -112,6 +112,22 @@ describe('main network cURL export', () => {
     expect(curl).toContain('text/plain;charset=UTF-8')
   })
 
+  it('does not export content-encoded bodies as --data-raw', () => {
+    const curl = buildCurlCommand({
+      method: 'POST',
+      url: 'https://api.example/v1',
+      requestHeaders: { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip' },
+      requestBody: {
+        text: '{"prompt":"hi"}',
+        replayable: false,
+        note: 'Content-encoded request bodies cannot be replayed from capture.'
+      }
+    })
+
+    expect(curl).not.toMatch(/\n\s+--data-raw\b/)
+    expect(curl).toContain('Content-encoded')
+  })
+
   it('does not send FormData display summaries as --data-raw', () => {
     const curl = buildCurlCommand({
       method: 'POST',
@@ -125,6 +141,6 @@ describe('main network cURL export', () => {
     })
 
     expect(curl).not.toMatch(/\n\s+--data-raw\b/)
-    expect(curl).toContain('display summary only')
+    expect(curl).toContain('Multipart FormData cannot be exported as cURL.')
   })
 })

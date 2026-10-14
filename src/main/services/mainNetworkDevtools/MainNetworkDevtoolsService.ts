@@ -348,7 +348,7 @@ export class MainNetworkDevtoolsService extends BaseService {
         throw error
       }
 
-      this.trackClientRequest(request, id, startedAt, description.requestContentType)
+      this.trackClientRequest(request, id, startedAt, description.requestContentType, description.requestHeaders)
       return request
     }
   }
@@ -357,7 +357,8 @@ export class MainNetworkDevtoolsService extends BaseService {
     request: ClientRequest,
     id: string,
     startedAt: number,
-    requestContentType: string | undefined
+    requestContentType: string | undefined,
+    requestHeaders?: Record<string, string>
   ): void {
     let completed = false
     const complete = (patch: Partial<MainNetworkDevtoolsEvent>) => {
@@ -370,7 +371,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       })
     }
 
-    this.captureClientRequestBody(request, id, requestContentType)
+    this.captureClientRequestBody(request, id, requestContentType, requestHeaders)
 
     request.once('response', (response: IncomingMessage) => {
       const responseHeaders = redactHeaders(response.headers)
@@ -418,7 +419,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       return
     }
 
-    void readWebBody(clonedRequest.body, contentType, 'No request body.')
+    void readWebBody(clonedRequest.body, contentType, 'No request body.', description.requestHeaders)
       .then((requestBody) => this.updateEvent(id, { requestBody }))
       .catch((error) => this.updateEvent(id, { requestBody: { contentType, note: getErrorMessage(error) } }))
   }
@@ -445,8 +446,13 @@ export class MainNetworkDevtoolsService extends BaseService {
       .catch((error) => this.updateEvent(id, { responseBodyError: getErrorMessage(error) }))
   }
 
-  private captureClientRequestBody(request: ClientRequest, id: string, contentType: string | undefined): void {
-    const requestBodyAccumulator = createBodyAccumulator(contentType)
+  private captureClientRequestBody(
+    request: ClientRequest,
+    id: string,
+    contentType: string | undefined,
+    requestHeaders?: Record<string, string>
+  ): void {
+    const requestBodyAccumulator = createBodyAccumulator(contentType, requestHeaders)
     const target = request as unknown as MutableClientRequestMethods
     const originalWrite = target.write
     const originalEnd = target.end
@@ -589,7 +595,7 @@ function describeFetchRequest(
     method: String(init?.method ?? request?.method ?? 'GET').toUpperCase(),
     url: redactUrl(getFetchUrl(input)),
     requestHeaders,
-    requestBody: captureRequestBody(init?.body, requestContentType),
+    requestBody: captureRequestBody(init?.body, requestContentType, requestHeaders),
     requestContentType
   }
 }
@@ -656,22 +662,35 @@ function getHeaderValue(headers: Record<string, string> | undefined, name: strin
   return undefined
 }
 
-export function captureRequestBody(body: unknown, contentType?: string): MainNetworkDevtoolsBody | undefined {
+export function captureRequestBody(
+  body: unknown,
+  contentType?: string,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody | undefined {
   if (body === undefined || body === null) return undefined
 
-  if (typeof body === 'string') return createCapturedTextBody(body, contentType)
-  if (body instanceof URLSearchParams)
-    return createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded')
+  if (typeof body === 'string') {
+    return applyContentEncodingReplayConstraint(createCapturedTextBody(body, contentType), requestHeaders)
+  }
+  if (body instanceof URLSearchParams) {
+    return applyContentEncodingReplayConstraint(
+      createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded'),
+      requestHeaders
+    )
+  }
   if (typeof FormData !== 'undefined' && body instanceof FormData) {
     const captured = createCapturedTextBody(
       JSON.stringify(formDataToRecord(body)),
       contentType ?? 'multipart/form-data'
     )
-    return {
-      ...captured,
-      replayable: false,
-      note: 'Multipart FormData cannot be exported as cURL.'
-    }
+    return applyContentEncodingReplayConstraint(
+      {
+        ...captured,
+        replayable: false,
+        note: 'Multipart FormData cannot be exported as cURL.'
+      },
+      requestHeaders
+    )
   }
   if (typeof Blob !== 'undefined' && body instanceof Blob) {
     return {
@@ -688,13 +707,14 @@ export function captureRequestBody(body: unknown, contentType?: string): MainNet
     return { contentType, note: 'Streaming request body is not captured.' }
   }
 
-  return createCapturedTextBody(String(body), contentType)
+  return applyContentEncodingReplayConstraint(createCapturedTextBody(String(body), contentType), requestHeaders)
 }
 
 async function readWebBody(
   body: ReadableStream<Uint8Array> | null,
   contentType: string | undefined,
-  emptyNote: string
+  emptyNote: string,
+  requestHeaders?: Record<string, string>
 ): Promise<MainNetworkDevtoolsBody> {
   if (!body) return { contentType, note: emptyNote }
 
@@ -726,10 +746,10 @@ async function readWebBody(
     reader.releaseLock()
   }
 
-  return createCapturedTextBody(text, contentType, truncated)
+  return applyContentEncodingReplayConstraint(createCapturedTextBody(text, contentType, truncated), requestHeaders)
 }
 
-function createBodyAccumulator(contentType?: string) {
+function createBodyAccumulator(contentType?: string, requestHeaders?: Record<string, string>) {
   let text = ''
   let size = 0
   let truncated = false
@@ -778,7 +798,10 @@ function createBodyAccumulator(contentType?: string) {
     toBody(): MainNetworkDevtoolsBody | undefined {
       if (!text && size === 0 && !note) return undefined
       if (note && !text) return { contentType, size, note }
-      return createCapturedTextBody(text, contentType, truncated, size)
+      return applyContentEncodingReplayConstraint(
+        createCapturedTextBody(text, contentType, truncated, size),
+        requestHeaders
+      )
     }
   }
 }
@@ -798,17 +821,23 @@ function createCapturedTextBody(
 ): MainNetworkDevtoolsBody {
   const truncated = alreadyTruncated || text.length > MAX_BODY_CHARS
   const visibleText = text.slice(0, MAX_BODY_CHARS)
+  const precisionRisk = hasJsonIntegerPrecisionRisk(visibleText, contentType)
+  const redactedText = redactBodyText(visibleText, contentType, precisionRisk)
   return {
-    text: redactBodyText(visibleText, contentType),
+    text: redactedText,
     contentType,
     size,
     truncated: truncated || undefined,
-    replayable: true
+    replayable: precisionRisk ? false : true,
+    note: precisionRisk ? 'JSON integer precision cannot be preserved for cURL replay.' : undefined
   }
 }
 
-function redactBodyText(text: string, contentType?: string): string {
+function redactBodyText(text: string, contentType?: string, preserveIntegerLiterals = false): string {
   if (isJsonContentType(contentType) || looksJson(text)) {
+    if (preserveIntegerLiterals) {
+      return redactJsonSensitiveValuesInText(text)
+    }
     try {
       return JSON.stringify(redactJsonValue(JSON.parse(text)))
     } catch {
@@ -825,6 +854,52 @@ function redactBodyText(text: string, contentType?: string): string {
   }
 
   return text
+}
+
+function hasJsonIntegerPrecisionRisk(text: string, contentType?: string): boolean {
+  if (!isJsonContentType(contentType) && !looksJson(text)) return false
+
+  for (const match of text.matchAll(/(?<=[:,\[])\s*(-?\d+)(?=\s*[,}\]])/g)) {
+    const digits = match[1]
+    if (!digits) continue
+    try {
+      const asNumber = Number(digits)
+      if (!Number.isFinite(asNumber)) continue
+      if (BigInt(digits) !== BigInt(asNumber)) return true
+    } catch {
+      return true
+    }
+  }
+
+  return false
+}
+
+function redactJsonSensitiveValuesInText(text: string): string {
+  return text.replace(/"((?:[^"\\]|\\.)*)"\s*:\s*("(?:[^"\\]|\\.)*")/g, (match, rawKey: string, _rawValue: string) => {
+    let key = rawKey
+    try {
+      key = JSON.parse(`"${rawKey}"`) as string
+    } catch {
+      // keep raw key when malformed
+    }
+    return isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? `"${rawKey}":${JSON.stringify(REDACTED)}` : match
+  })
+}
+
+function applyContentEncodingReplayConstraint(
+  body: MainNetworkDevtoolsBody | undefined,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody | undefined {
+  if (!body) return body
+
+  const encoding = getHeaderValue(requestHeaders, 'content-encoding')
+  if (!encoding || encoding.toLowerCase() === 'identity') return body
+
+  return {
+    ...body,
+    replayable: false,
+    note: body.note ?? 'Content-encoded request bodies cannot be replayed from capture.'
+  }
 }
 
 function redactJsonValue(value: unknown): unknown {
