@@ -31,6 +31,7 @@ export const MODEL_ENDPOINT_OPTIONS = [
   { id: ENDPOINT_TYPE.OPENAI_RESPONSES, label: 'endpoint_type.openai-response' },
   { id: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, label: 'endpoint_type.anthropic' },
   { id: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, label: 'endpoint_type.gemini' },
+  { id: ENDPOINT_TYPE.GOOGLE_INTERACTIONS, label: 'endpoint_type.gemini_interactions' },
   { id: ENDPOINT_TYPE.OPENAI_EMBEDDINGS, label: 'endpoint_type.openai-embeddings' },
   { id: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, label: 'endpoint_type.image-generation' },
   { id: ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, label: 'endpoint_type.image-edit' },

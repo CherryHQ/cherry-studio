@@ -1344,6 +1344,7 @@
   "emoji_picker.search": "搜尋",
   "endpoint_type.anthropic": "Anthropic",
   "endpoint_type.gemini": "Gemini",
+  "endpoint_type.gemini_interactions": "Gemini Interactions",
   "endpoint_type.image-edit": "影像編輯（OpenAI）",
   "endpoint_type.image-generation": "影像產生（OpenAI）",
   "endpoint_type.jina-rerank": "Jina Rerank",

@@ -8,7 +8,8 @@ export const CUSTOM_PROVIDER_TEXT_ENDPOINTS = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   ENDPOINT_TYPE.OPENAI_RESPONSES,
   ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.GOOGLE_INTERACTIONS
 ] as const
 
 export const CUSTOM_PROVIDER_IMAGE_ENDPOINTS = [
@@ -44,6 +45,7 @@ const ENDPOINT_PATHS: Record<CustomProviderEndpoint, string> = {
   [ENDPOINT_TYPE.OPENAI_RESPONSES]: '/responses',
   [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: '/messages',
   [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: '/models/{model}:generateContent',
+  [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]: '/interactions',
   [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: '/images/generations',
   [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: '/images/edits'
 }
@@ -84,7 +86,9 @@ export function buildCustomProviderEndpointPreview(baseUrl: string, endpointType
   }
 
   const formattedHost =
-    endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? formatApiHost(value, true, 'v1beta') : formatApiHost(value)
+    endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT || endpointType === ENDPOINT_TYPE.GOOGLE_INTERACTIONS
+      ? formatApiHost(value, true, 'v1beta')
+      : formatApiHost(value)
   return `${formattedHost}${ENDPOINT_PATHS[endpointType]}`
 }
 

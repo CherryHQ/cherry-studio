@@ -666,6 +666,39 @@ describe('listModels — geminiFetcher API key transport', () => {
     }
   )
 
+  it.each([ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, ENDPOINT_TYPE.GOOGLE_INTERACTIONS])(
+    'filters hosted agents from %s model sync while keeping Omni and ordinary models',
+    async (endpointType) => {
+      const supported = ['gemini-omni-1.1-flash', 'gemini-omni-flash-preview', 'gemini-4-argon']
+      const agents = [
+        'antigravity-preview-latest',
+        'antigravity-preview-09-2026',
+        'antigravity-preview-05-2026',
+        'deep-research-preview-04-2026',
+        'deep-research-max-preview-04-2026',
+        'deep-research-pro-preview-12-2025'
+      ]
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: {
+          models: [...supported, ...agents].map((id, index) => ({
+            name: index % 2 ? id : `models/${id}`,
+            // The discovery API advertises generateContent for hosted agents too.
+            supportedGenerationMethods: ['generateContent', 'countTokens']
+          }))
+        }
+      })
+      const provider = makeProvider({
+        id: 'custom-google',
+        defaultChatEndpoint: endpointType,
+        endpointConfigs: { [endpointType]: { baseUrl: 'https://generativelanguage.googleapis.com' } }
+      })
+
+      const { models } = await listModels(provider)
+
+      expect(models.map((model) => model.apiModelId)).toEqual(supported)
+    }
+  )
+
   it('drops audio and video generation models, keeping chat, image, and embedding models', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {

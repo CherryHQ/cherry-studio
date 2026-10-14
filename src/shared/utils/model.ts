@@ -11,10 +11,10 @@
  *    `@cherrystudio/provider-registry` (creator-declared data).
  */
 
-import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
-import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import { type EndpointType, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 /** Check if model has reasoning capability */
 export const isReasoningModel = (model: Model): boolean =>
@@ -90,10 +90,30 @@ export const isNonChatModel = (model: Model): boolean =>
   isEmbeddingModel(model) ||
   isRerankModel(model) ||
   isGenerateImageModel(model) ||
-  isGenerateVideoModel(model) ||
+  (isGenerateVideoModel(model) && model.endpointTypes?.[0] !== ENDPOINT_TYPE.GOOGLE_INTERACTIONS) ||
   isGenerateAudioModel(model) ||
   isTextToSpeechModel(model) ||
   isSpeechToTextModel(model)
+
+/** Text tasks cannot consume media-only responses, even when the chat UI can. */
+export const isTextChatModel = (model: Model): boolean =>
+  !isNonChatModel(model) &&
+  (model.outputModalities?.length ? model.outputModalities.includes(MODALITY.TEXT) : !isGenerateVideoModel(model))
+
+/** OpenClaw exports only the first effective endpoint, without protocol conversion. */
+export const isOpenClawModel = (
+  model: Model,
+  defaultChatEndpoint: EndpointType = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+): boolean => {
+  const endpoint = model.endpointTypes?.[0] ?? defaultChatEndpoint
+  return (
+    !isNonChatModel(model) &&
+    (endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ||
+      endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES ||
+      endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ||
+      endpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+  )
+}
 
 /**
  * Models the API gateway can route — the single predicate shared by the gateway's
@@ -104,7 +124,7 @@ export const isNonChatModel = (model: Model): boolean =>
  * ("providerId:apiModelId") splits on the FIRST ':', so such ids cannot round-trip.
  */
 export const isGatewayRoutableModel = (model: Model): boolean => {
-  if (model.providerId.includes(':') || isNonChatModel(model)) return false
+  if (model.providerId.includes(':') || isNonChatModel(model) || isGenerateVideoModel(model)) return false
   return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
 }
 

@@ -34,7 +34,9 @@ export interface ResolvedEndpoint {
  */
 export function resolveWireModelId(model: Model, endpointType: EndpointType | undefined): string {
   const rawId = getRawModelId(model)
-  return endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? rawId.replace(/^models\//, '') : rawId
+  return endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT || endpointType === ENDPOINT_TYPE.GOOGLE_INTERACTIONS
+    ? rawId.replace(/^models\//, '')
+    : rawId
 }
 
 /**
@@ -98,6 +100,9 @@ export function resolveAiSdkProviderId(provider: Provider, endpointType: Endpoin
   if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
     return appProviderIds['open-responses']
   }
+  if (endpointType === ENDPOINT_TYPE.GOOGLE_INTERACTIONS) {
+    return appProviderIds['google-interactions']
+  }
   return appProviderIds['openai-compatible']
 }
 
@@ -129,6 +134,7 @@ export function resolveProviderOptionsKey(
     case 'azure-anthropic':
       return 'anthropic'
     case 'google':
+    case 'google-interactions':
       return 'google'
     case 'google-vertex':
     case 'google-vertex-anthropic':

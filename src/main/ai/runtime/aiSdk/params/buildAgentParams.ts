@@ -712,6 +712,7 @@ function buildAgentOptions(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
     model
   )
+  if (endpointType === ENDPOINT_TYPE.GOOGLE_INTERACTIONS) delete sanitized.bodyParams.previous_interaction_id
   // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
   if (Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(

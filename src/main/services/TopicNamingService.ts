@@ -19,6 +19,7 @@ import {
   truncateFirstUserMessageTitleSource
 } from '@shared/utils/conversationTitle'
 import { languageEnglishNameMap } from '@shared/utils/languages'
+import { isTextChatModel } from '@shared/utils/model'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('TopicNamingService')
@@ -439,8 +440,8 @@ export class TopicNamingService {
     try {
       const provider = providerService.getByProviderId(providerId)
       if (isExternalCliProvider(provider)) return null
-      modelService.getByKey(providerId, modelId)
-      return parsed.data
+      const model = modelService.getByKey(providerId, modelId)
+      return isTextChatModel(model) ? parsed.data : null
     } catch {
       return null
     }

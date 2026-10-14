@@ -28,7 +28,7 @@ import type { BinaryAvailability } from '@shared/types/binary'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
-import { isNonChatModel } from '@shared/utils/model'
+import { isOpenClawModel } from '@shared/utils/model'
 import { redactSecretText } from '@shared/utils/redaction'
 
 import { vertexAiService } from './VertexAiService'
@@ -1147,8 +1147,8 @@ export class OpenClawService extends BaseService {
     const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 
     this.ensureSyncProviderSupported(provider)
-    if (isNonChatModel(primaryModel)) {
-      throw new Error('Selected OpenClaw model must support chat')
+    if (!isOpenClawModel(primaryModel, provider.defaultChatEndpoint)) {
+      throw new Error('Selected OpenClaw model must support chat through a supported endpoint')
     }
 
     const endpointType = this.getModelEndpointType(primaryModel, provider)
@@ -1174,13 +1174,15 @@ export class OpenClawService extends BaseService {
         models: models
           .filter(
             (model) =>
-              !model.isHidden && !isNonChatModel(model) && this.getModelEndpointType(model, provider) === endpointType
+              !model.isHidden &&
+              isOpenClawModel(model, provider.defaultChatEndpoint) &&
+              this.getModelEndpointType(model, provider) === endpointType
           )
-          .map((model) => this.toOpenClawModel(model)),
+          .map((model) => this.toOpenClawModel(model, endpointType)),
         presetProviderId: provider.presetProviderId,
         headers: provider.settings?.extraHeaders
       },
-      primaryModel: this.toOpenClawModel(primaryModel)
+      primaryModel: this.toOpenClawModel(primaryModel, endpointType)
     }
   }
 
@@ -1232,7 +1234,7 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private toOpenClawModel(model: DataModel): OpenClawSyncModel {
+  private toOpenClawModel(model: DataModel, endpointType: EndpointType): OpenClawSyncModel {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
@@ -1241,7 +1243,7 @@ export class OpenClawService extends BaseService {
       provider: model.providerId,
       name: model.name,
       group: model.group ?? '',
-      endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0]),
+      endpoint_type: this.toOpenClawEndpointType(endpointType),
       ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
       ...(model.maxOutputTokens ? { maxTokens: model.maxOutputTokens } : {}),
       ...(model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING) ? { reasoning: true } : {}),
@@ -1303,7 +1305,7 @@ export class OpenClawService extends BaseService {
     return cost
   }
 
-  private toOpenClawEndpointType(endpointType?: EndpointType): Model['endpoint_type'] {
+  private toOpenClawEndpointType(endpointType: EndpointType): Model['endpoint_type'] {
     if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
       return 'anthropic'
     }
@@ -1313,7 +1315,8 @@ export class OpenClawService extends BaseService {
     if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
       return 'gemini'
     }
-    return 'openai'
+    if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) return 'openai'
+    throw new Error(`Unsupported OpenClaw endpoint: ${endpointType}`)
   }
 
   public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {

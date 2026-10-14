@@ -32,7 +32,8 @@ const ENDPOINT_LABEL_KEYS: Record<ModelChatEndpointType, string> = {
   [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'settings.provider.more_endpoints.openai_chat',
   [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'settings.provider.more_endpoints.openai_responses',
   [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'settings.provider.more_endpoints.anthropic',
-  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'settings.provider.more_endpoints.gemini'
+  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'settings.provider.more_endpoints.gemini',
+  [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]: 'endpoint_type.gemini_interactions'
 }
 
 const PURPOSE_LABEL_KEYS: Record<ModelPurpose, { label: string; description: string }> = {

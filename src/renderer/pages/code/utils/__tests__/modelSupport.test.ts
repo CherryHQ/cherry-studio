@@ -5,9 +5,34 @@ import { CodeCli } from '@shared/types/codeCli'
 
 import { modelSupportsCliTool } from '../modelSupport'
 
-const model = (endpointTypes: string[]): Model => ({ endpointTypes }) as Model
+const model = (endpointTypes: Model['endpointTypes']): Model => ({
+  id: 'test::model',
+  providerId: 'test',
+  name: 'Model',
+  capabilities: [],
+  endpointTypes,
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false
+})
 
 describe('modelSupportsCliTool', () => {
+  it('excludes Interactions from OpenClaw even when a later endpoint is compatible', () => {
+    expect(modelSupportsCliTool(CodeCli.OPENCLAW, model([ENDPOINT_TYPE.GOOGLE_INTERACTIONS]))).toBe(false)
+    expect(
+      modelSupportsCliTool(
+        CodeCli.OPENCLAW,
+        model([ENDPOINT_TYPE.GOOGLE_INTERACTIONS, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+      )
+    ).toBe(false)
+    expect(modelSupportsCliTool(CodeCli.OPENCLAW, model([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]))).toBe(true)
+  })
+
+  it('uses the provider endpoint when model metadata is absent', () => {
+    expect(modelSupportsCliTool(CodeCli.OPENCLAW, model([]), ENDPOINT_TYPE.GOOGLE_INTERACTIONS)).toBe(false)
+    expect(modelSupportsCliTool(CodeCli.OPENCLAW, model([]), ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(true)
+  })
+
   it('gives Antigravity the same Gemini endpoint contract as Gemini CLI', () => {
     const models = [
       model([ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]),

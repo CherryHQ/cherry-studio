@@ -73,7 +73,9 @@ describe('translateService.resolveTranslatePayload', () => {
       'feature.translate.model_prompt',
       'Translate to {{target_language}}: {{text}}'
     )
-    getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    getByKeyMock.mockReturnValue(
+      makeModel({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    )
 
     const payload = translateService.resolveTranslatePayload('hello', TARGET)
 
@@ -88,7 +90,9 @@ describe('translateService.resolveTranslatePayload', () => {
       'feature.translate.model_prompt',
       'A {{target_language}} B {{text}} C {{target_language}} D {{text}}'
     )
-    getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    getByKeyMock.mockReturnValue(
+      makeModel({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    )
     const sourceText = "$$E=mc^2$$ | $& | $` | $' | {{target_language}}"
     const targetLanguage = {
       ...TARGET,
@@ -107,6 +111,7 @@ describe('translateService.resolveTranslatePayload', () => {
       'Translate to {{target_language}}: {{text}}'
     )
     getByKeyMock.mockReturnValue({
+      ...makeModel(),
       id: 'dashscope::qwen-mt-turbo',
       providerId: 'dashscope',
       apiModelId: 'qwen-mt-turbo',
@@ -152,12 +157,23 @@ describe('translateService.open', () => {
       'feature.translate.model_prompt',
       'Translate to {{target_language}}: {{text}}'
     )
-    getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    getByKeyMock.mockReturnValue(
+      makeModel({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    )
     getByLangCodeMock.mockReturnValue(TARGET)
     MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
       'feature.translate.enable_temperature': true,
       'feature.translate.temperature': 0.3
     })
+  })
+
+  it('rejects a saved media-only translation model before starting a generation', () => {
+    getByKeyMock.mockReturnValue(makeModel({ outputModalities: ['video'] }))
+
+    expect(() =>
+      translateService.open(fakeSender, { streamId: 'translate:video', text: 'hello', targetLangCode: 'en-us' })
+    ).toThrow('translate.error.not_configured')
+    expect(streamPromptMock).not.toHaveBeenCalled()
   })
 
   it('uses the renderer-supplied streamId, resolves the DTO, and dispatches via streamManager.streamPrompt', async () => {

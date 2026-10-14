@@ -1,9 +1,13 @@
+import { resolve } from 'node:path'
+
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -89,6 +93,94 @@ afterEach(() => {
 })
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
+  describe.each(['gemini', 'custom-gemini'])('merged Gemini provider %s', (providerId) => {
+    const getPath = vi.mocked(application.getPath).getMockImplementation()
+
+    beforeEach(() => {
+      vi.mocked(application.getPath).mockImplementation((key, filename) =>
+        key === 'feature.provider_registry.data' && filename
+          ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
+          : (getPath?.(key, filename) ?? `/mock/${key}`)
+      )
+      providerRegistryService.clearCache()
+    })
+
+    afterEach(() => {
+      vi.mocked(application.getPath).mockImplementation(getPath!)
+      providerRegistryService.clearCache()
+    })
+
+    it.each([
+      {
+        name: 'official default',
+        primary: undefined,
+        interactions: undefined,
+        expectedPrimary: 'https://generativelanguage.googleapis.com/v1beta',
+        expectedInteractions: 'https://generativelanguage.googleapis.com/v1beta'
+      },
+      {
+        name: 'saved primary proxy',
+        primary: 'https://gemini.example.com/proxy',
+        interactions: undefined,
+        expectedPrimary: 'https://gemini.example.com/proxy/v1beta',
+        expectedInteractions: 'https://gemini.example.com/proxy/v1beta'
+      },
+      {
+        name: 'explicit Interactions proxy',
+        primary: 'https://gemini.example.com',
+        interactions: 'https://interactions.example.com/v1beta',
+        expectedPrimary: 'https://gemini.example.com/v1beta',
+        expectedInteractions: 'https://interactions.example.com/v1beta'
+      },
+      {
+        name: 'cleared Interactions override',
+        primary: 'https://gemini.example.com',
+        interactions: '',
+        expectedPrimary: 'https://gemini.example.com/v1beta',
+        expectedInteractions: 'https://gemini.example.com/v1beta'
+      }
+    ])(
+      'preserves $name through registry merge and SDK routing',
+      async ({ primary, interactions, expectedPrimary, expectedInteractions }) => {
+        const endpointConfigs = providerRegistryService.mergeEndpointConfigs(
+          {
+            ...(primary === undefined ? {} : { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: primary } }),
+            ...(interactions === undefined ? {} : { [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]: { baseUrl: interactions } })
+          },
+          providerId,
+          'gemini'
+        )
+        expect(endpointConfigs?.[ENDPOINT_TYPE.GOOGLE_INTERACTIONS]?.adapterFamily).toBe('google-interactions')
+        const provider = makeProvider({
+          id: providerId,
+          presetProviderId: 'gemini',
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+          endpointConfigs: endpointConfigs ?? undefined
+        })
+        const omni = makeModel({
+          id: `${providerId}::gemini-omni-1.1-flash`,
+          apiModelId: 'gemini-omni-1.1-flash',
+          providerId,
+          endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]
+        })
+        const text = makeModel({
+          id: `${providerId}::gemini-4-argon`,
+          apiModelId: 'gemini-4-argon',
+          providerId,
+          endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+        })
+
+        const omniConfig = await providerToAiSdkConfig(provider, omni)
+        const textConfig = await providerToAiSdkConfig(provider, text)
+
+        expect(omniConfig.providerId).toBe('google-interactions')
+        expect(omniConfig.providerSettings).toMatchObject({ baseURL: expectedInteractions, apiKey: 'sk-test-key' })
+        expect(textConfig.providerId).toBe('google')
+        expect(textConfig.providerSettings).toMatchObject({ baseURL: expectedPrimary, apiKey: 'sk-test-key' })
+      }
+    )
+  })
+
   it.each([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])(
     'passes managed Cherry Cloud %s models to its credential-free transport',
     async (endpointType) => {

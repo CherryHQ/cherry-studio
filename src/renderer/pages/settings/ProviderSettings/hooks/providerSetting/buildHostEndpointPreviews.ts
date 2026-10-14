@@ -44,7 +44,10 @@ export function buildHostEndpointPreviews(params: {
     const project = authConfig?.type === 'iam-gcp' ? authConfig.project : ''
     const location = authConfig?.type === 'iam-gcp' ? authConfig.location : ''
     formattedHost = formatVertexApiHost({ apiHost, project, location })
-  } else if (primaryEndpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
+  } else if (
+    primaryEndpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ||
+    primaryEndpoint === ENDPOINT_TYPE.GOOGLE_INTERACTIONS
+  ) {
     formattedHost = formatApiHost(apiHost, appendVersion, 'v1beta')
   } else {
     formattedHost = formatApiHost(apiHost, appendVersion)
@@ -65,6 +68,7 @@ export function buildHostEndpointPreviews(params: {
     if (primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return `${formattedHost}/messages`
     if (isVertexProvider(provider)) return `${formattedHost}/publishers/google`
     if (primaryEndpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return `${formattedHost}/models`
+    if (primaryEndpoint === ENDPOINT_TYPE.GOOGLE_INTERACTIONS) return `${formattedHost}/interactions`
 
     return formattedHost
   })()

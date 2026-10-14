@@ -19,8 +19,23 @@ export default defineProvider({
     'google-generate-content': {
       adapterFamily: 'google',
       baseUrl: 'https://generativelanguage.googleapis.com'
+    },
+    'google-interactions': {
+      adapterFamily: 'google-interactions'
     }
   },
+  overrides: [
+    {
+      modelId: 'gemini-omni-1-1-flash',
+      apiModelId: 'gemini-omni-1.1-flash',
+      endpointTypes: ['google-interactions']
+    },
+    {
+      modelId: 'gemini-omni-flash-preview',
+      apiModelId: 'gemini-omni-flash-preview',
+      endpointTypes: ['google-interactions']
+    }
+  ],
   serverTools: [
     {
       id: 'web-search',

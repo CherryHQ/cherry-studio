@@ -1,7 +1,7 @@
 import { generateText } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import { resolveCompressionModel } from '../resolveCompressionModel'
@@ -43,6 +43,18 @@ describe('resolveCompressionModel', () => {
       throw new Error('no such provider')
     })
     expect(await resolveCompressionModel('ghost::model-x', CONVERSATION)).toBeNull()
+  })
+
+  it('disables compression for a saved video-only Interactions model', async () => {
+    modelLookup.mockReturnValue(
+      makeModel({
+        id: 'google::gemini-omni-flash-preview',
+        capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS],
+        outputModalities: ['video']
+      })
+    )
+    expect(await resolveCompressionModel('google::gemini-omni-flash-preview', CONVERSATION)).toBeNull()
   })
 
   it('budgets the summary against the compressor own window', async () => {

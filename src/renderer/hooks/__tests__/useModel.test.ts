@@ -5,15 +5,18 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { BulkUpdateModelItem } from '@shared/data/api/schemas/models'
-import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, ENDPOINT_TYPE, type Model, type UniqueModelId } from '@shared/data/types/model'
 
 import { useDefaultModel, useModelById, useModelMutations, useModels } from '../useModel'
 
 // ─── Mock data ────────────────────────────────────────────────────────
-const mockModel1: any = {
+const mockModel1: Model = {
   id: 'openai::gpt-4o',
   providerId: 'openai',
-  modelId: 'gpt-4o',
+  apiModelId: 'gpt-4o',
+  capabilities: [],
+  supportsStreaming: true,
+  isHidden: false,
   name: 'GPT-4o',
   isEnabled: true
 }
@@ -613,6 +616,58 @@ describe('useDefaultModel', () => {
     }))
   })
 
+  it.each([null, 'openai::gpt-4o'] as const)(
+    'does not cascade a video default into quick or translation models (%s)',
+    async (configured) => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', configured)
+      MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', configured)
+      const { result } = renderHook(() => useDefaultModel())
+      const videoModel: Model = {
+        ...mockModel1,
+        id: 'gemini::gemini-omni-flash-preview',
+        capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS],
+        outputModalities: ['video']
+      }
+
+      await act(async () => {
+        await result.current.setDefaultModel(videoModel, { forceCascade: true })
+      })
+
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.default_model_id')).toBe(videoModel.id)
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.model_id')).toBe(configured)
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.model_id')).toBe(configured)
+    }
+  )
+
+  it.each([null, 'openai::gpt-4o'] as const)(
+    'rejects media-only quick and translation models from preferences or fallback (%s)',
+    (configured) => {
+      const videoModel: Model = {
+        ...mockModel1,
+        capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS],
+        outputModalities: ['video']
+      }
+      MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', videoModel.id)
+      MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', configured)
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', configured)
+      mockUseQuery.mockReturnValue({
+        data: videoModel,
+        isLoading: false,
+        isRefreshing: false,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      })
+
+      const { result } = renderHook(() => useDefaultModel())
+
+      expect(result.current.defaultModel).toEqual(videoModel)
+      expect(result.current.translateModel).toBeUndefined()
+      expect(result.current.quickModel).toBeUndefined()
+    }
+  )
+
   it('keeps every model entity query inactive when its owner is closed', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
@@ -667,7 +722,7 @@ describe('useDefaultModel', () => {
     const { result } = renderHook(() => useDefaultModel())
 
     await act(async () => {
-      await result.current.setDefaultModel({ id: 'openai::gpt-4o' })
+      await result.current.setDefaultModel(mockModel1)
     })
 
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.model_id')).toBe('openai::gpt-4o')
@@ -681,7 +736,7 @@ describe('useDefaultModel', () => {
     const { result } = renderHook(() => useDefaultModel())
 
     await act(async () => {
-      await result.current.setDefaultModel({ id: 'openai::gpt-4o' }, { forceCascade: true })
+      await result.current.setDefaultModel(mockModel1, { forceCascade: true })
     })
 
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.model_id')).toBe('openai::gpt-4o')

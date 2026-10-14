@@ -1433,6 +1433,9 @@
         "google-generate-content": {
           "adapterFamily": "google",
           "baseUrl": "https://generativelanguage.googleapis.com"
+        },
+        "google-interactions": {
+          "adapterFamily": "google-interactions"
         }
       },
       "id": "gemini",
@@ -2718,5 +2721,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "932c0006165e4fcb"
+  "version": "3a4113df85dadd07"
 }

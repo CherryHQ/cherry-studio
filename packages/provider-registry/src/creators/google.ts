@@ -105,13 +105,26 @@ export default defineCreator({
       }
     },
     {
-      id: 'gemini-omni-1-1-flash',
+      id: 'gemini-omni-1.1-flash',
       name: 'Gemini Omni 1.1 Flash',
-      family: 'gemini',
+      family: 'gemini-omni',
       capabilities: ['image-recognition', 'video-recognition', 'video-generation', 'file-input'],
       contextWindow: 1048576,
+      maxOutputTokens: 65536,
       inputModalities: ['text', 'image', 'video'],
-      outputModalities: ['video']
+      outputModalities: ['video'],
+      endpointTypes: ['google-interactions']
+    },
+    {
+      id: 'gemini-omni-flash-preview',
+      name: 'Gemini Omni Flash Preview',
+      family: 'gemini-omni',
+      capabilities: ['image-recognition', 'video-recognition', 'video-generation', 'file-input'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['video'],
+      endpointTypes: ['google-interactions']
     },
     {
       id: 'gemini-embedding-2-preview',

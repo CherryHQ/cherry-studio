@@ -33,7 +33,7 @@ import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { isQwenMTModel } from '@shared/utils/model'
+import { isQwenMTModel, isTextChatModel } from '@shared/utils/model'
 
 import { WebContentsListener } from '../../ai/streamManager'
 
@@ -197,7 +197,7 @@ export class TranslateService {
       provider = undefined
       model = undefined
     }
-    if (!provider || !model) {
+    if (!provider || !model || !isTextChatModel(model)) {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)

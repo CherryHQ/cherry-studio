@@ -16235,6 +16235,18 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "gemini-omni-1.1-flash",
+      "endpointTypes": ["google-interactions"],
+      "modelId": "gemini-omni-1-1-flash",
+      "providerId": "gemini"
+    },
+    {
+      "apiModelId": "gemini-omni-flash-preview",
+      "endpointTypes": ["google-interactions"],
+      "modelId": "gemini-omni-flash-preview",
+      "providerId": "gemini"
+    },
+    {
       "apiModelId": "grok-4.20-0309-non-reasoning",
       "capabilities": {
         "force": ["function-call", "image-recognition"]
@@ -41311,5 +41323,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "24243e9504b54823"
+  "version": "8881da49ade0e37e"
 }

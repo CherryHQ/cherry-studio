@@ -50,7 +50,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
-import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
+import { isGatewayRoutableModel, isTextChatModel } from '@shared/utils/model'
 
 import TranslateHistoryList from './components/TranslateHistory'
 import TranslateInputPane from './components/TranslateInputPane'
@@ -278,13 +278,11 @@ const TranslatePage: FC = () => {
   const pdfTextFallbackStartedRef = useRef(false)
   const prePdfOutputRef = useRef<string | null>(null)
 
-  const selectedModelId = useMemo(
-    () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
-    [translateModelId]
-  )
-
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
-  const selectedModel = selectedModelId ? modelsById.get(selectedModelId) : undefined
+  const configuredModel =
+    translateModelId && isUniqueModelId(translateModelId) ? modelsById.get(translateModelId) : undefined
+  const selectedModel = configuredModel && isTextChatModel(configuredModel) ? configuredModel : undefined
+  const selectedModelId = selectedModel?.id
   const isSelectedPdfModelRoutable = !!selectedModel && isGatewayRoutableModel(selectedModel)
   const selectedModelIcon = useIcon(selectedModel ? getModelLogoRef(selectedModel) : undefined)
 
@@ -643,7 +641,7 @@ const TranslatePage: FC = () => {
 
   const modelSelectorFilter = useCallback<ModelSelectorFilter>(
     (model) =>
-      !isNonChatModel(model) && (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
+      isTextChatModel(model) && (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
     [babelDoc.availability, isPdfMode]
   )
 

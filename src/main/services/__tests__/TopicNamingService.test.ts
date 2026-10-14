@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WindowType } from '@main/core/window/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
@@ -117,10 +118,39 @@ describe('TopicNamingService', () => {
     mockMainLoggerService.debug.mockClear()
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', true)
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::gpt-4o-mini')
-    mocks.getModelByKey.mockReturnValue({ id: 'openai::gpt-4o-mini' })
+    mocks.getModelByKey.mockReturnValue({ id: 'openai::gpt-4o-mini', capabilities: [] })
     mocks.getProviderByProviderId.mockReturnValue({ authMethods: ['api-key'] })
     mockRenameInputs()
   })
+
+  it.each(['feature.quick_assistant.model_id', 'chat.default_model_id'] as const)(
+    'falls back to a text model when %s selects video-only Omni',
+    async (preference) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', null)
+      MockMainPreferenceServiceUtils.setPreferenceValue(preference, 'gemini::gemini-omni-flash-preview')
+      mocks.getModelByKey.mockReturnValue({
+        id: 'gemini::gemini-omni-flash-preview',
+        capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS],
+        outputModalities: ['video']
+      })
+
+      await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Assistant response' }]
+      } as never)
+
+      expect(mocks.generateText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+        })
+      )
+      expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', {
+        name: 'Generated Title',
+        isNameManuallyEdited: false
+      })
+    }
+  )
 
   it('uses the quick assistant model for normal chat summary naming', async () => {
     await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {

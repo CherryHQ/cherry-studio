@@ -109,7 +109,7 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT || endpointType === ENDPOINT_TYPE.OLLAMA_GENERATE) {
     return formatOllamaApiHost(baseURL)
   }
-  if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
+  if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT || endpointType === ENDPOINT_TYPE.GOOGLE_INTERACTIONS) {
     return formatApiHost(baseURL, appendApiVersion, 'v1beta')
   }
 
@@ -330,6 +330,7 @@ export async function resolveProviderAiSdkConfig(
     // Subset Responses servers (HuggingFace router today) speak the spec-neutral dialect: the
     // minimal body only, no OpenAI-only extras they would reject.
     { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
+    { match: (_, id) => id === 'google-interactions', build: withSelectedApiKey(buildGenericProviderConfig) },
     // modelscope / ppio / doubao / dmxapi / tokenhub: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider
     // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own

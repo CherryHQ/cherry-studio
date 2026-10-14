@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 import { modelService } from '@data/services/ModelService'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 import { MINI_APP_MAX_INPUT_BYTES, MINI_APP_MAX_MESSAGES } from '@shared/types/miniAppManifest'
 
 import { MiniAppUnavailableError } from '../../errors'
@@ -532,6 +532,59 @@ describe('cherry.ai.chat — model slots', () => {
     await call
   })
 
+  it.each([
+    ['default', 'app'],
+    ['quick', 'app'],
+    ['default', 'global'],
+    ['quick', 'global'],
+    ['quick', 'default-fallback']
+  ] as const)('rejects a video-only %s model resolved from %s', async (slot, source) => {
+    const videoId = 'gemini::gemini-omni-flash-preview'
+    setSlots(null, null)
+    await preferences().set('chat.default_model_id', null)
+    await preferences().set('feature.quick_assistant.model_id', null)
+    if (source === 'app') {
+      setSlots(slot === 'default' ? videoId : null, slot === 'quick' ? videoId : null)
+    } else {
+      await preferences().set(
+        slot === 'quick' && source === 'global' ? 'feature.quick_assistant.model_id' : 'chat.default_model_id',
+        videoId
+      )
+    }
+    const videoModel: Model = {
+      id: videoId,
+      providerId: 'gemini',
+      name: 'Gemini Omni',
+      capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS],
+      outputModalities: ['video'],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    }
+    vi.mocked(modelService.getByKey).mockReturnValue(videoModel)
+
+    expect(await aiCapability.getCapabilities(A, { model: slot })).toEqual({ available: false })
+    await expect(chat(A, { ...HI, model: slot })).rejects.toBeInstanceOf(MiniAppUnavailableError)
+    expect(streamPrompt).not.toHaveBeenCalled()
+
+    vi.mocked(modelService.getByKey).mockReturnValue({
+      ...videoModel,
+      outputModalities: ['text', 'video']
+    })
+    expect(await aiCapability.getCapabilities(A, { model: slot })).toEqual({
+      available: true,
+      reasoning: false,
+      contextWindow: null
+    })
+    const chunks: string[] = []
+    const call = chat(A, { ...HI, model: slot }, (chunk) => chunks.push(chunk))
+    drive.chunk('usable text')
+    drive.done()
+    await expect(call).resolves.toEqual({ ok: true })
+    expect(chunks.join('')).toBe('usable text')
+  })
+
   it('rejects a slot it does not know rather than silently using the default', async () => {
     await expect(chat(A, { ...HI, model: 'cheap' })).rejects.toThrow()
     expect(streamPrompt).not.toHaveBeenCalled()
@@ -605,8 +658,7 @@ describe('cherry.ai.getCapabilities', () => {
   })
 
   it('reports a deleted model the same way, not only an empty slot', async () => {
-    // Reached through a DIFFERENT throw — `getByKey`, not `resolveModelFor` — so the empty
-    // slot resolving is no evidence that this one does.
+    // A saved selection can outlive its model row.
     vi.mocked(modelService.getByKey).mockImplementation(() => {
       throw new Error('Model openai/gpt-4o-mini not found')
     })

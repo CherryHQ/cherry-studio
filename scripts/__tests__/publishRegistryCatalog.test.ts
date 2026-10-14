@@ -56,13 +56,18 @@ const publishOptions = {
 }
 
 describe('publishRegistryCatalog', () => {
-  it('keeps v2 catalog updates available when Sonnet 5.5 moves to a new schema stream', async () => {
+  it('preserves older stream floors when Interactions requires a new schema stream', async () => {
     const { destinationDirectory } = makeDirectories()
     const sourceDirectory = path.resolve(COMPAT_DIRECTORY, '../data')
     fs.mkdirSync(path.join(destinationDirectory, 'v2'))
     fs.writeFileSync(
       path.join(destinationDirectory, 'v2/manifest.json'),
       JSON.stringify({ minAppVersion: '2.0.13', sourceAppVersion: '2.1.3', revision: 35, schemaVersion: 2, files: {} })
+    )
+    fs.mkdirSync(path.join(destinationDirectory, 'v3'))
+    fs.writeFileSync(
+      path.join(destinationDirectory, 'v3/manifest.json'),
+      JSON.stringify({ minAppVersion: '2.1.4', sourceAppVersion: '2.1.4', revision: 36, schemaVersion: 3, files: {} })
     )
 
     const published = await publishRegistryCatalog({
@@ -71,15 +76,15 @@ describe('publishRegistryCatalog', () => {
       destinationDirectory,
       currentVersion: REGISTRY_SCHEMA_VERSION,
       minAppVersion: REGISTRY_MIN_APP_VERSION,
-      sourceAppVersion: '2.1.4'
+      sourceAppVersion: REGISTRY_MIN_APP_VERSION
     })
 
-    expect(published).toEqual(expect.arrayContaining(['v2', 'v3']))
+    expect(published).toEqual(expect.arrayContaining(['v2', 'v3', `v${REGISTRY_SCHEMA_VERSION}`]))
     const v2Directory = path.join(destinationDirectory, 'v2')
     const v2Manifest = JSON.parse(fs.readFileSync(path.join(v2Directory, 'manifest.json'), 'utf8'))
     expect(v2Manifest).toMatchObject({
       minAppVersion: '2.0.13',
-      sourceAppVersion: '2.1.4',
+      sourceAppVersion: REGISTRY_MIN_APP_VERSION,
       revision: 41,
       schemaVersion: 2
     })
@@ -102,6 +107,17 @@ describe('publishRegistryCatalog', () => {
         id: 'claude-sonnet-5-5',
         reasoning: expect.objectContaining({ wireDialect: 'adaptive-between-tools' })
       })
+    )
+
+    const currentDirectory = path.join(destinationDirectory, `v${REGISTRY_SCHEMA_VERSION}`)
+    const currentManifest = JSON.parse(fs.readFileSync(path.join(currentDirectory, 'manifest.json'), 'utf8'))
+    expect(currentManifest).toMatchObject({
+      minAppVersion: REGISTRY_MIN_APP_VERSION,
+      schemaVersion: REGISTRY_SCHEMA_VERSION
+    })
+    const currentModels = JSON.parse(fs.readFileSync(path.join(currentDirectory, 'models.json'), 'utf8'))
+    expect(currentModels.models).toContainEqual(
+      expect.objectContaining({ id: 'gemini-omni-1-1-flash', endpointTypes: ['google-interactions'] })
     )
   })
 
