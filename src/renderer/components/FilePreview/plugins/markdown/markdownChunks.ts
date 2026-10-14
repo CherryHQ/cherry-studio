@@ -518,11 +518,13 @@ const EMPTY_LIST_ITEM = /^ {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]*$/
 const PARAGRAPH_INTERRUPTING_LIST_MARKER = /^ {0,3}(?:[-+*]|1[.)])[ \t]+\S/
 
 /**
- * A setext heading underline: `=+` for h1, one or two `-` for h2 (three or more is a thematic
- * break, which BLOCK_START already holds). Deeper than three columns it is indented code, which
- * interrupts nothing.
+ * A setext heading underline: `=+` for h1, `-+` for h2. A dash run of any length underlines where
+ * a paragraph is open — CommonMark reads a setext underline ahead of the thematic break the same
+ * run would be — so the length that decides is the marker, not the count: three or more `*`, `_`
+ * or spaces-interrupted dashes is a break, which THEMATIC_BREAK and BLOCK_START already hold.
+ * Deeper than three columns it is indented code, which interrupts nothing.
  */
-const SETEXT_UNDERLINE = /^ {0,3}(?:=+|-{1,2})[ \t]*$/
+const SETEXT_UNDERLINE = /^ {0,3}(?:=+|-+)[ \t]*$/
 
 /**
  * Whether the container on a definition-shaped line opens a block the paragraph above it does not

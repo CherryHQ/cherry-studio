@@ -1895,6 +1895,45 @@ describe('document-wide heading slugs across heading syntaxes', () => {
     expect(chunks[0].headingSlugs?.get('title')).toEqual(['title'])
     expect(chunks[1].headingSlugs?.get('title')).toEqual(['title-1'])
   })
+
+  it('counts a setext heading whose underline is three dashes', () => {
+    // `---` is an h2 underline at any length from one dash up; only three or more `*` or `_` is
+    // a thematic break instead. The underline regex admitted one or two dashes, so `Title` was
+    // never recorded and the ATX heading below took `title` — leaving `#title-1` with no target
+    // even with both chunks mounted.
+    const filler = 'filler\n\n'.repeat(3200)
+    const content = `Title\n---\n${filler}# Title\n\n[jump](#title-1)\n`
+
+    expect(parsed('Title\n---').children[0].type).toBe('heading')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    expect(renderedHeadingIds(content)).toEqual(['chunk--title', 'chunk--title-1'])
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
+  })
+
+  it('resolves a link to a duplicate heading written as a setext underline', () => {
+    // The target a `#fragment` navigation looks for is the rendered id, so the ATX `Title` has to
+    // render `title-1` for the link to find it — which only holds while the underline above it is
+    // counted as the heading it is.
+    const filler = 'filler\n\n'.repeat(3200)
+    const content = `Title\n---\n${filler}# Title\n\nsee [jump](#doc--title-1)\n`
+
+    expect(headingIds(content)).toEqual(['doc--title', 'doc--title-1'])
+    expect(chunkedHeadingIds(content)).toContain('doc--title-1')
+  })
+
+  it('does not count a setext underline that is a thematic break', () => {
+    // Three `*` is a thematic break whether or not a paragraph sits above it, and a break is
+    // not a heading — so neither line here may be recorded as one.
+    const content = ['Title', '***', '', '# Title', ''].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks[0].headingSlugs).toBeUndefined()
+    expect(chunks[1].headingSlugs?.get('title')).toEqual(['title'])
+  })
 })
 
 describe('a title left open across a long document', () => {

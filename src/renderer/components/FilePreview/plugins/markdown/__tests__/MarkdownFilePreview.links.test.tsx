@@ -175,6 +175,29 @@ describe('MarkdownFilePreview links', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' })
   })
 
+  it('jumps to a duplicate heading whose first copy is a setext underline', async () => {
+    // `Title` under `---` and the ATX `Title` below it render the same text, so the document numbers
+    // the second `title-1`. Missing the underline numbered both `title`, and the link — clicked in
+    // one mounted chunk against a heading in another — had no target to scroll to.
+    const padding = 'x'.repeat(15_000)
+    mocks.readText.mockResolvedValue(
+      ['Title', '---', '', '[jump](#title-1)', '', padding, '', padding, '', '# Title', '', 'body'].join('\n')
+    )
+    const scrollIntoView = vi.fn()
+    const user = userEvent.setup()
+
+    renderArtifactPreview(vi.fn())
+
+    const headings = await screen.findAllByRole('heading', { name: 'Title' })
+    expect(headings).toHaveLength(2)
+    const second = headings[1]
+    second.scrollIntoView = scrollIntoView
+    await user.click(await screen.findByRole('link', { name: 'jump' }))
+
+    expect(second).toHaveAttribute('id', expect.stringContaining('title-1'))
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' })
+  })
+
   it('keeps passive fenced-code actions without chat execution or HTML artifact controls', async () => {
     mocks.readText.mockResolvedValue(
       '```python\nprint("not executed")\n```\n\n```html\n<button>Not an artifact</button>\n```'
