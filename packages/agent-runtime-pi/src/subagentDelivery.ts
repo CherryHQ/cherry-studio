@@ -184,6 +184,8 @@ export class SubagentDelivery {
   /** After the user stops a turn, nothing starts until they speak again. */
   private suppressed = false
   private closed = false
+  /** The running run began with a prompt, whose start took everything queued before it. */
+  private promptRun = false
 
   constructor(private readonly host: DeliveryHost) {}
 
@@ -209,11 +211,13 @@ export class SubagentDelivery {
     if (event.outcome !== 'completed') return undefined
     // Users first: their queued message is answered before the notification is merged.
     if (event.context.pendingMessages.some((message) => message.role === 'user')) return undefined
-    if (!this.queue.some((item) => item.wake)) return undefined
+    // Quiet items wait for the next message; a run no prompt started (a command's) may be the only one coming.
+    if (this.promptRun ? !this.queue.some((item) => item.wake) : this.queue.length === 0) return undefined
     return { entries: [...event.entries, { type: 'custom_message', ...this.take() }], continue: true }
   }
 
   settled(aborted: boolean): void {
+    this.promptRun = false
     if (aborted) this.suppressed = true
     else this.deliverIfIdle()
   }
@@ -221,6 +225,7 @@ export class SubagentDelivery {
   /** `before_agent_start`, a prompt about to run: everything still queued rides with it. */
   beforeAgentStart(): { message: NotificationMessage } | undefined {
     this.suppressed = false
+    this.promptRun = true
     return this.queue.length === 0 ? undefined : { message: this.take() }
   }
 

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { Type } from '@earendil-works/pi-ai'
+import { Type, type Usage } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
   AgentToolResult,
@@ -136,6 +136,22 @@ export type SubagentStopper = 'model' | 'user' | 'budget'
 export type SubagentDetails =
   | { sessionId: string; fork: boolean; background: false; outcome: SubagentOutcome }
   | { sessionId: string; fork: boolean; background: true }
+
+/**
+ * `details` of a `message_subagent` result: the message joined the running run, or started run `run`
+ * in the background. Calls that throw carry none.
+ */
+export type SubagentMessageDetails =
+  | { sessionId: string; continued: false }
+  | { sessionId: string; continued: true; run: number }
+
+/**
+ * `details` of a `stop_subagent` result: the run it stopped and that run's usage (no notification
+ * follows to carry it), or `stopped: false` when the subagent was not running. Calls that throw carry none.
+ */
+export type SubagentStopDetails =
+  | { sessionId: string; stopped: true; run: number; usage: Usage }
+  | { sessionId: string; stopped: false }
 
 /** What the session that registers `subagent` lends it. */
 export interface SubagentToolOptions {
@@ -512,11 +528,12 @@ export function createSubagentExtension({
         { message: interrupted ? `${RECOVERY_HINT}\n\n${message}` : message },
         inbox
       )
+      const details: SubagentMessageDetails = { sessionId: id, continued: true, run: record.run }
       return {
         content: [
           text(`Subagent ${id} resumed in the background with your message; you will be notified when it finishes.`)
         ],
-        details: undefined
+        details
       }
     }
 
@@ -537,11 +554,11 @@ export function createSubagentExtension({
         // Another message may be continuing it right now; this one then goes to that run.
         for (let starting = registry.startingRun(id); starting; starting = registry.startingRun(id))
           await starting.catch(() => undefined)
-        if (record.status !== 'finished' && registry.message(id, message))
-          return {
-            content: [text(`Message queued for subagent ${id}; it reads it after its current step.`)],
-            details: undefined
-          }
+        // A run being stopped would drop the message; it is answered once the stop is recorded.
+        if (record.status !== 'finished' && !record.stoppedBy && registry.message(id, message)) {
+          const details: SubagentMessageDetails = { sessionId: id, continued: false }
+          return { content: [text(`Message queued for subagent ${id}; it reads it after its current step.`)], details }
+        }
         return registry.startRun(id, async () => {
           // A run that has just ended is recorded before the next one starts.
           await registry.recorded(id)
@@ -571,10 +588,14 @@ export function createSubagentExtension({
         const record = registry.get(id)
         if (!record) throw new Error(unknownId(id, registry))
         const stopped = registry.stop(id, 'model')
-        if (!stopped)
-          return { content: [text(`Subagent ${id} is not running (${statusText(record)}).`)], details: undefined }
+        if (!stopped) {
+          const details: SubagentStopDetails = { sessionId: id, stopped: false }
+          return { content: [text(`Subagent ${id} is not running (${statusText(record)}).`)], details }
+        }
+        const { run } = record
         const result = await stopped
         const partial = result.partial ?? result.report
+        const details: SubagentStopDetails = { sessionId: id, stopped: true, run, usage: result.usage }
         return {
           content: [
             text(
@@ -583,7 +604,7 @@ export function createSubagentExtension({
                 : `Stopped subagent ${id}.`
             )
           ],
-          details: undefined
+          details
         }
       }
     })

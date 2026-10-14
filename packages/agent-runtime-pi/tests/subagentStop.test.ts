@@ -143,6 +143,57 @@ describe('stopping subagents', () => {
     ])
   })
 
+  // Breaks when the user's stop during a prompt's turn costs that turn an extra request at its
+  // settle, instead of riding with the user's next message.
+  it("the user's stop during a turn rides with the next message, not the turn's settle", async () => {
+    const work = untilStopped()
+    const host = recordingSubagentPort()
+    const parent = hostStore()
+    const runtime: { stopSubagent?: (id: string) => boolean } = {}
+    const pressStop = defineTool({
+      name: 'press_stop',
+      label: 'Press stop',
+      description: "The user presses a subagent's stop button",
+      parameters: Type.Object({}),
+      async execute() {
+        runtime.stopSubagent!(host.subagents[0].sessionId)
+        await waitFor(() => subagentStates(parent.entries).some((state) => state.stoppedBy === 'user'))
+        return { content: [{ type: 'text', text: 'pressed' }], details: undefined }
+      }
+    })
+    const { model, calls } = routedModel(({ userText, lastText }) => {
+      if (userText.includes('TASK-A'))
+        return lastText.includes('TASK-A') ? [toolCallPart('work_1', 'work'), finish('tool-calls')] : reply('LATE-A')
+      if (lastText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      if (lastText === 'Do something') return [toolCallPart('press_1', 'press_stop'), finish('tool-calls')]
+      return reply('OK.')
+    })
+    const created = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [work.tool, pressStop],
+      subagents: host.port,
+      onEvent: parent.onEvent
+    })
+    runtime.stopSubagent = created.stopSubagent
+    await created.prompt('Check A in the background')
+    await work.reached
+    const sent = calls.length
+    await created.prompt('Do something')
+    await created.prompt('Any news?')
+
+    expect(
+      calls
+        .slice(sent)
+        .map((call) => call.humanText || (call.lastText.startsWith(NOTE) ? 'notification' : call.lastRole))
+    ).toEqual(['Do something', 'tool', 'Any news?'])
+    expect(calls.at(-1)!.options.prompt.at(-1)).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: `${NOTE}\n\n- "Check A" (id: ${host.subagents[0].sessionId}) was stopped by the user.` }
+      ]
+    })
+  })
+
   // Breaks when a quiet result is held back from a notification that goes out anyway.
   it("the user's stop rides with the next notification", async () => {
     const work = untilStopped()
