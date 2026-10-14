@@ -3,7 +3,12 @@ import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { SUBAGENT_NOTIFICATION_TYPE, type ToolOutputStore, type TranscriptEntry } from '../src'
+import {
+  type AgentRuntimeSession,
+  SUBAGENT_NOTIFICATION_TYPE,
+  type ToolOutputStore,
+  type TranscriptEntry
+} from '../src'
 import {
   gate,
   recordingSubagentPort,
@@ -263,6 +268,109 @@ describe('background subagent delivery', () => {
         .slice(-2)
         .map((call) => (call.lastText.startsWith(NOTE) ? 'notification' : call.lastText))
     ).toEqual(['Second question', 'notification'])
+  })
+
+  // Breaks when a prompt the host sends from `turn-complete` returns before it runs: Pi defers it past
+  // the settle, a result arriving meanwhile starts a run first, and the user's message is lost.
+  it('runs a prompt the host sends as a turn completes before any notification run', async () => {
+    const heldA = gate()
+    const heldB = gate()
+    const parent = hostStore()
+    let holdNextPrompt = false
+    const slowStart: ExtensionFactory = (pi) => {
+      pi.on('before_agent_start', async () => {
+        if (!holdNextPrompt) return undefined
+        holdNextPrompt = false
+        heldB.open()
+        await waitFor(() => finishedCount(parent.entries) === 2)
+        return undefined
+      })
+    }
+    const { model, calls } = routedModel(({ userText, lastText }) => {
+      if (userText.includes('TASK-A')) return heldA.wait(reply('REPORT-A'))
+      if (userText.includes('TASK-B')) return heldB.wait(reply('REPORT-B'))
+      if (lastText === 'Check A and B')
+        return [subagentCall('call_a', BG_A), subagentCall('call_b', BG_B), finish('tool-calls')]
+      return reply(lastText.startsWith(NOTE) ? 'Read the report.' : 'Answered.')
+    })
+    const host: { runtime?: AgentRuntimeSession; armed: boolean; sent?: Promise<string> } = { armed: false }
+    const errors: string[] = []
+    const runtime = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: recordingSubagentPort().port,
+      extensionFactories: [slowStart],
+      onEvent: (event) => {
+        parent.onEvent(event)
+        // The host sends the message the user typed during the notification turn once that turn completes.
+        if (event.type !== 'turn-complete' || !host.armed || host.sent) return
+        holdNextPrompt = true
+        host.sent = host.runtime!.prompt('Second question').then(
+          () => 'resolved',
+          (error: Error) => error.message
+        )
+      }
+    })
+    runtime.session.extensionRunner.onError((error) => errors.push(error.error))
+    host.runtime = runtime
+    await runtime.prompt('Check A and B')
+    host.armed = true
+    heldA.open()
+    await waitFor(() => host.sent !== undefined)
+    const sent = await host.sent
+    await waitFor(() => parentCalls(calls).filter((call) => call.lastText.startsWith(NOTE)).length === 2)
+
+    expect(sent).toBe('resolved')
+    expect(errors).toEqual([])
+    expect(
+      parentCalls(calls).map((call) =>
+        call.lastText.startsWith(NOTE) ? 'notification' : call.lastRole === 'tool' ? 'tool' : call.lastText
+      )
+    ).toEqual(['Check A and B', 'tool', 'notification', 'Second question', 'notification'])
+  })
+
+  // Breaks when a prompt the host sends from `turn-complete` collides with the notification run that
+  // same settle starts (a failed request merges nothing, so the next result starts a run): it must follow it.
+  it('runs a prompt the host sends as a turn completes after the notification run that settle starts', async () => {
+    const heldA = gate()
+    const heldB = gate()
+    const parent = hostStore()
+    const { model, calls } = routedModel(async ({ userText, lastText }) => {
+      if (userText.includes('TASK-A')) return heldA.wait(reply('REPORT-A'))
+      if (userText.includes('TASK-B')) return heldB.wait(reply('REPORT-B'))
+      if (lastText === 'Check A and B')
+        return [subagentCall('call_a', BG_A), subagentCall('call_b', BG_B), finish('tool-calls')]
+      if (lastText.startsWith(NOTE) && lastText.includes('REPORT-A')) {
+        heldB.open()
+        await waitFor(() => finishedCount(parent.entries) === 2)
+        return [{ type: 'error', error: new Error('upstream exploded') }]
+      }
+      return reply(lastText.startsWith(NOTE) ? 'Read the report.' : 'Answered.')
+    })
+    const host: { runtime?: AgentRuntimeSession; armed: boolean; sent?: Promise<string> } = { armed: false }
+    const runtime = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: recordingSubagentPort().port,
+      onEvent: (event) => {
+        parent.onEvent(event)
+        if (event.type !== 'turn-complete' || !host.armed || host.sent) return
+        host.sent = host.runtime!.prompt('Second question').then(
+          () => 'resolved',
+          (error: Error) => error.message
+        )
+      }
+    })
+    host.runtime = runtime
+    await runtime.prompt('Check A and B')
+    host.armed = true
+    heldA.open()
+    await waitFor(() => host.sent !== undefined)
+
+    expect(await host.sent).toBe('resolved')
+    expect(
+      parentCalls(calls).map((call) =>
+        call.lastText.startsWith(NOTE) ? 'notification' : call.lastRole === 'tool' ? 'tool' : call.lastText
+      )
+    ).toEqual(['Check A and B', 'tool', 'notification', 'notification', 'Second question'])
   })
 
   // Breaks when stopping a turn is followed by an automatic run, when the result is lost, or when

@@ -1,6 +1,6 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
-import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
+import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import type { TranscriptEntry } from '../src'
@@ -15,6 +15,7 @@ import {
   toolCallPart,
   toolResultOf,
   toolResults,
+  untilStopped,
   waitFor
 } from './subagentSupport'
 import { createTestSession, finish, hostStore, MODEL, streamTextPort, textParts } from './support'
@@ -138,6 +139,86 @@ describe('continuing a finished subagent', () => {
     const refused = toolResultOf(runtime.session, 'msg_b')
     expect(refused.isError).toBe(true)
     expect(textOf(refused)).toBe(
+      `Subagent ${id('Check B')} was stopped by the user and cannot be continued. Start a new subagent if the work is still needed.`
+    )
+    await waitFor(() => notified(calls).some((call) => call.lastText.includes('RESUMED')))
+  })
+
+  // Breaks when a message that arrives while a stop takes effect joins the run being stopped and is
+  // lost with it: the model's stop must lead to a continuation, the user's to a refusal.
+  it('answers a message to a subagent being stopped as it would once the stop is done', async () => {
+    const work = untilStopped()
+    const lingerB = gate()
+    const stopping = gate()
+    // B's stop takes effect only once `stopping` opens.
+    const linger = defineTool({
+      name: 'linger',
+      label: 'Linger',
+      description: 'Works until stopped, then winds down',
+      parameters: Type.Object({}),
+      async execute(_id, _params, signal) {
+        void lingerB.wait(undefined)
+        await new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }))
+        await stopping.wait(undefined)
+        return { content: [{ type: 'text', text: 'stopped lingering' }], details: undefined }
+      }
+    })
+    const host = storingSubagentPort()
+    const id = (description: string) =>
+      host.subagents.find((subagent) => subagent.description === description)!.sessionId
+    const runtime: { stopSubagent?: (id: string) => boolean } = {}
+    const pressStop: ExtensionFactory = (pi) => {
+      pi.registerTool(
+        defineTool({
+          name: 'press_stop',
+          label: 'Press stop',
+          description: "The user presses B's stop button",
+          parameters: Type.Object({}),
+          async execute() {
+            runtime.stopSubagent!(id('Check B'))
+            // Once the calls of this step have run.
+            setTimeout(stopping.open, 0)
+            return { content: [{ type: 'text', text: 'pressed' }], details: undefined }
+          }
+        })
+      )
+    }
+    const { model, calls } = routedModel(({ userText, lastText, humanText }) => {
+      if (userText.includes('TASK-')) {
+        if (lastText === 'GO-ON') return reply('RESUMED')
+        if (!lastText.includes('TASK-')) return reply('LATE')
+        return [toolCallPart('tool_1', userText.includes('TASK-A') ? 'work' : 'linger'), finish('tool-calls')]
+      }
+      if (humanText === 'Start A and B')
+        return [
+          subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A', background: true }),
+          subagentCall('call_b', { description: 'Check B', prompt: 'TASK-B', background: true }),
+          finish('tool-calls')
+        ]
+      if (humanText === 'Stop both and message them')
+        return [
+          toolCallPart('call_stop', 'stop_subagent', { id: id('Check A') }),
+          toolCallPart('msg_a', 'message_subagent', { id: id('Check A'), message: 'GO-ON' }),
+          toolCallPart('call_press', 'press_stop'),
+          toolCallPart('msg_b', 'message_subagent', { id: id('Check B'), message: 'GO-ON' }),
+          finish('tool-calls')
+        ]
+      return reply('OK.')
+    })
+    const created = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [work.tool, linger],
+      subagents: host.port,
+      extensionFactories: [pressStop]
+    })
+    runtime.stopSubagent = created.stopSubagent
+    await created.prompt('Start A and B')
+    await Promise.all([work.reached, lingerB.reached])
+
+    await created.prompt('Stop both and message them')
+
+    expect(textOf(toolResultOf(created.session, 'msg_a'))).toMatch(/^Subagent .* resumed in the background/)
+    expect(textOf(toolResultOf(created.session, 'msg_b'))).toBe(
       `Subagent ${id('Check B')} was stopped by the user and cannot be continued. Start a new subagent if the work is still needed.`
     )
     await waitFor(() => notified(calls).some((call) => call.lastText.includes('RESUMED')))

@@ -19,10 +19,13 @@ import {
   recordingSubagentPort,
   type RoutedCall,
   routedModel,
+  storingSubagentPort,
   subagentCall,
   subagentStates,
   toolCallPart,
   toolResultOf,
+  toolResults,
+  untilStopped,
   waitFor
 } from './subagentSupport'
 import { finish, textParts } from './support'
@@ -38,7 +41,6 @@ const bg = (id: string, task: string) =>
   subagentCall(id, { description: `Check ${task.slice('TASK-'.length)}`, prompt: task, background: true })
 const isNotice = (call: RoutedCall) => call.lastText.startsWith(NOTE)
 const round = (call: RoutedCall) => (call.lastRole === 'user' ? roundStart(call.options.prompt) : undefined)
-const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
 
 /** The user messages a request ends with: what started it. */
 const trailingUserTexts = (call: RoutedCall) => {
@@ -210,17 +212,88 @@ describe('goal and background subagents', () => {
     expect(lastSnapshot(host.entries)).toMatchObject({ lastStop: { code: 'budget_exhausted' } })
   })
 
-  // Breaks when a subagent's denied call stops the parent's goal: the host's one approval registry
-  // reports both, and providers may reuse call ids across sessions.
-  it("ignores a subagent's denied approval, even under a call id the parent used", async () => {
+  // Breaks when the run of a goal's background subagent that the model stops is left out of the
+  // budget: it sends no notification, so its usage must come with the stop.
+  it('counts the usage of a background subagent of the goal that the model stops', async () => {
+    const work = untilStopped()
+    const host = recordingSubagentPort()
+    const { model, calls } = routedModel(async (call) => {
+      if (call.userText.includes('TASK-B'))
+        return call.lastText.includes('TASK-B')
+          ? [toolCallPart('work_1', 'work'), finish('tool-calls', 5_000, 0)]
+          : reply('LATE')
+      if (round(call) === 1) return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
+      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_b') {
+        await work.reached
+        return [
+          toolCallPart('call_stop', 'stop_subagent', { id: host.subagents[0].sessionId }),
+          finish('tool-calls', 10, 0)
+        ]
+      }
+      return reply(`working ${calls.length}`)
+    })
+    const { session: s, host: store } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 2 } }), {
+      tools: [work.tool],
+      subagents: host.port
+    })
+    await promptIdle(s, '/goal Check B')
+    await waitFor(() => lastSnapshot(store.entries)?.phase === 'blocked')
+
+    expect(toolResultOf(s, 'call_stop').details).toEqual({
+      sessionId: host.subagents[0].sessionId,
+      stopped: true,
+      run: 1,
+      usage: expect.objectContaining({ totalTokens: 5_002 })
+    })
+    // Four parent requests of 12 tokens (10 + 2 cached), and B's 5002.
+    expect(lastSnapshot(store.entries)).toMatchObject({ tokensUsed: 5_050, lastStop: { code: 'round_limit' } })
+  })
+
+  // Breaks when a continuation a goal round starts is left out of the budget because the goal did
+  // not start that subagent in the background (here it ran in the foreground first).
+  it('counts the continuation a goal round starts toward the goal', async () => {
+    const host = storingSubagentPort()
+    const { model, calls } = routedModel((call) => {
+      if (call.userText.includes('TASK-A')) return reply(call.lastText === 'GO-ON' ? 'REPORT-2' : 'REPORT-1', 5_000)
+      if (round(call) === 1)
+        return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' }), finish('tool-calls', 10, 0)]
+      if (round(call) === 2)
+        return [
+          toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'GO-ON' }),
+          finish('tool-calls', 10, 0)
+        ]
+      return reply(`working ${calls.length}`)
+    })
+    const { session: s, host: store } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 3 } }), {
+      subagents: host.port
+    })
+    await promptIdle(s, '/goal Check A')
+    await waitFor(() => lastSnapshot(store.entries)?.phase === 'blocked')
+
+    expect(toolResultOf(s, 'call_msg').details).toEqual({
+      sessionId: host.subagents[0].sessionId,
+      continued: true,
+      run: 2
+    })
+    // Six parent requests of 12 tokens, and both runs of A (5002 each: the foreground one counts with its result).
+    expect(lastSnapshot(store.entries)).toMatchObject({ tokensUsed: 10_076, lastStop: { code: 'round_limit' } })
+  })
+
+  /**
+   * A two-round goal whose round 1 starts subagent A by the call `call_a`; A's own call `call_a` is
+   * denied, by an event that names its session when `named`. Resolves with the goal's last stop.
+   */
+  async function denyInSubagent({ background, named }: { background: boolean; named: boolean }) {
     const listeners = new Set<(event: ToolApprovalEvent) => void>()
     const onApproval = (listener: (event: ToolApprovalEvent) => void) => {
       listeners.add(listener)
       return () => void listeners.delete(listener)
     }
     const denyAll: ExtensionFactory = (pi) => {
-      pi.on('tool_call', (event) => {
-        for (const listener of listeners) listener({ kind: 'denied', toolCallId: event.toolCallId })
+      pi.on('tool_call', (event, ctx) => {
+        const sessionId = named ? ctx.sessionManager.getSessionId() : undefined
+        for (const listener of listeners)
+          listener({ kind: 'denied', toolCallId: event.toolCallId, ...(sessionId ? { sessionId } : {}) })
         return { block: true, reason: 'denied' }
       })
     }
@@ -238,7 +311,8 @@ describe('goal and background subagents', () => {
         return call.lastText.includes('TASK-A')
           ? [toolCallPart('call_a', 'risky'), finish('tool-calls')]
           : reply('REPORT-A')
-      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      if (round(call) === 1)
+        return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A', background }), finish('tool-calls')]
       return reply(`working ${calls.length}`)
     })
     const recording = recordingSubagentPort(() => ({ extensionFactories: [denyAll] }))
@@ -246,15 +320,28 @@ describe('goal and background subagents', () => {
     const { session: s, host } = await openGoalSession(
       model,
       goalPort({ onApproval, defaults: { maxGoalRounds: 2 } }),
-      {
-        tools: [risky],
-        subagents
-      }
+      { tools: [risky], subagents }
     )
     await promptIdle(s, '/goal Check A')
     await waitFor(() => lastSnapshot(host.entries)?.phase === 'blocked')
-    await settle()
+    return lastSnapshot(host.entries)
+  }
 
-    expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 2, lastStop: { code: 'round_limit' } })
+  // Breaks when a background subagent's denied call stops the parent's goal: the host's one approval
+  // registry reports both, and providers may reuse call ids across sessions.
+  it("ignores a background subagent's denied approval under the id of a call the parent made", async () => {
+    expect(await denyInSubagent({ background: true, named: false })).toMatchObject({
+      roundsStarted: 2,
+      lastStop: { code: 'round_limit' }
+    })
+  })
+
+  // Breaks when a foreground subagent's denied call stops the parent's goal although the event names
+  // the subagent's session: the parent's `subagent` call of the same id runs all the while.
+  it("ignores a foreground subagent's denied approval under the id of the parent's running call", async () => {
+    expect(await denyInSubagent({ background: false, named: true })).toMatchObject({
+      roundsStarted: 2,
+      lastStop: { code: 'round_limit' }
+    })
   })
 })

@@ -211,6 +211,8 @@ export class SubagentRegistry {
   /** Continuations being set up, by subagent. */
   private readonly starting = new Map<string, Promise<unknown>>()
   private closing = false
+  /** Runs the shutdown cut off; a run that had ended on its own by then is still recorded. */
+  private readonly cutOff = new Set<string>()
 
   constructor(private readonly host: RegistryHost) {}
 
@@ -246,7 +248,8 @@ export class SubagentRegistry {
   /** A pending approval marks its subagent `awaiting_approval`; any other event, or the call ending, undoes it. */
   approval(event: ToolApprovalEvent): void {
     for (const [sessionId, run] of this.live)
-      if (run.calls.has(event.toolCallId)) this.setWaiting(sessionId, event.kind === 'pending')
+      if ((event.sessionId ?? sessionId) === sessionId && run.calls.has(event.toolCallId))
+        this.setWaiting(sessionId, event.kind === 'pending')
   }
 
   /** Resolves once the latest run of the subagent is over and recorded. */
@@ -361,9 +364,10 @@ export class SubagentRegistry {
 
   /** Runs `child` in the background; the parent's turn does not wait for it or stop it. */
   startBackground(record: SubagentRecord, child: AgentRuntimeSession, start: RunStart, inbox: SubagentInbox): void {
+    // Without a snapshot, a result saying it started would leave a subagent of no known state.
     if (this.closing) {
-      void child.dispose()
-      return
+      void child.dispose().catch(() => undefined)
+      throw new Error('The conversation is closing, so no subagent can start.')
     }
     record.background = true
     record.status = 'running'
@@ -384,26 +388,36 @@ export class SubagentRegistry {
     this.live.set(record.sessionId, { controller, inbox, done, calls: calls.ids })
   }
 
-  /** Session shutdown: stops every live run and disposes its session, writing nothing. */
+  /**
+   * Session shutdown: stops every live run and disposes its session. The runs it cuts off write
+   * nothing; one that had ended on its own is recorded, for the rebuilt parent to deliver.
+   */
   async close(): Promise<void> {
     this.closing = true
-    const runs = [...this.live.values()]
-    for (const run of runs) run.controller.abort()
-    await Promise.all(runs.map((run) => run.done))
+    const runs = [...this.live]
+    for (const [sessionId, run] of runs) {
+      if (this.records.get(sessionId)?.status === 'finished') continue
+      this.cutOff.add(sessionId)
+      run.controller.abort()
+    }
+    await Promise.all(runs.map(([, run]) => run.done))
   }
 
   private async record(record: SubagentRecord, child: AgentRuntimeSession, result: RunResult): Promise<void> {
     // A failing shutdown of the subagent's session must not keep its result from the parent.
     await child.dispose().catch(() => undefined)
-    const shortened = this.closing ? result : await this.host.shorten(record, result)
-    this.live.delete(record.sessionId)
     // Rebuilt from the transcript, a run whose last snapshot is `running` is interrupted.
-    if (this.closing) return
+    if (this.cutOff.has(record.sessionId)) {
+      this.live.delete(record.sessionId)
+      return
+    }
+    const shortened = await this.host.shorten(record, result)
+    this.live.delete(record.sessionId)
     this.track(record)
     this.host.appendState(snapshot(record, shortened))
     this.changed()
     // The model that stopped it has its partial output from stop_subagent already.
-    if (record.stoppedBy !== 'model') this.host.finished(record, shortened)
+    if (record.stoppedBy !== 'model' && !this.closing) this.host.finished(record, shortened)
   }
 
   /** Follows the tool calls executing in a subagent's session, for its approval events. */
