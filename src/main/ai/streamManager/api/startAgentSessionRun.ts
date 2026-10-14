@@ -1,4 +1,5 @@
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -27,6 +28,10 @@ export async function startAgentSessionRun(input: {
   /** Recipients authorized only for this run; [] deliberately disables notify. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   requireIdle?: { expectedAgentId: string }
+  /** Synchronously assert admission after preparation, inside the message-write transaction. */
+  beforePersist?: () => void
+  /** Commit caller-owned durable admission alongside the reserved messages, before activation. */
+  onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
 }): Promise<StartAgentSessionRunResult> {
   if (input.listeners.length === 0) {
     throw new Error('startAgentSessionRun requires at least one listener')
@@ -85,8 +90,10 @@ export async function startAgentSessionRun(input: {
         {
           hasLiveStream: false,
           requireIdle: input.requireIdle !== undefined,
-          expectedAgentId: input.requireIdle?.expectedAgentId
-        }
+          expectedAgentId: input.requireIdle?.expectedAgentId,
+          beforePersist: input.beforePersist
+        },
+        input.onPersist
       )
     } catch (error) {
       if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED) {

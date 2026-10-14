@@ -43,13 +43,18 @@ const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.
 const DEFAULT_GATEWAY_PORT = 18790
 const GATEWAY_PROBE_INTERVAL_MS = 5000
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
+const OPENCLAW_SCHEMA_TIMEOUT_MS = 30000
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES = 32 * 1024 * 1024
 const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
 const OPENCLAW_VISIBLE_ISSUE_LIMIT = 3
 const OPENCLAW_CONFIG_FILE_MODE = 0o600
 
-type OpenClawPreflightFailureKind = 'binary_incompatible' | 'external_config_invalid' | 'preflight_failed'
+type OpenClawPreflightFailureKind =
+  | 'binary_incompatible'
+  | 'external_config_invalid'
+  | 'preflight_failed'
+  | 'preflight_timeout'
 
 type OpenClawRuntime = {
   path: AbsoluteFilePath
@@ -65,6 +70,8 @@ type OpenClawCommandResult = {
 
 type OpenClawCommandOptions = {
   stdoutLimitBytes?: number
+  timeoutMs?: number
+  timeoutFailureKind?: 'preflight_failed' | 'preflight_timeout'
 }
 
 type OpenClawValidationIssue = {
@@ -531,6 +538,8 @@ export class OpenClawService extends BaseService {
 
       const stdoutCapture = this.createOutputCapture(options.stdoutLimitBytes)
       const stderrCapture = this.createOutputCapture()
+      const timeoutMs = options.timeoutMs ?? OPENCLAW_COMMAND_TIMEOUT_MS
+      const timeoutFailureKind = options.timeoutFailureKind ?? 'preflight_failed'
       let outputTruncated = false
       let settled = false
 
@@ -545,9 +554,13 @@ export class OpenClawService extends BaseService {
         if (settled) return
         proc.kill('SIGKILL')
         settled = true
-        logger.warn('OpenClaw preflight command timed out', { timeoutMs: OPENCLAW_COMMAND_TIMEOUT_MS })
-        reject(new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed')))
-      }, OPENCLAW_COMMAND_TIMEOUT_MS)
+        logger.warn('OpenClaw preflight command timed out', { timeoutMs })
+        const message =
+          timeoutFailureKind === 'preflight_timeout'
+            ? t('openclaw.errors.preflight_timeout', { seconds: timeoutMs / 1000 })
+            : t('openclaw.errors.preflight_failed')
+        reject(new OpenClawPreflightError(timeoutFailureKind, message))
+      }, timeoutMs)
 
       proc.on('error', (error) => {
         if (settled) return
@@ -713,9 +726,16 @@ export class OpenClawService extends BaseService {
           ...runtime.env,
           OPENCLAW_CONFIG_PATH: openclawConfigPath()
         },
-        { stdoutLimitBytes: OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES }
+        {
+          stdoutLimitBytes: OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES,
+          timeoutMs: OPENCLAW_SCHEMA_TIMEOUT_MS,
+          timeoutFailureKind: 'preflight_timeout'
+        }
       )
     } catch (error) {
+      if (error instanceof OpenClawPreflightError && error.kind === 'preflight_timeout') {
+        throw error
+      }
       this.throwSchemaCapabilityError(error instanceof Error ? error.message : String(error))
     }
 

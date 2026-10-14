@@ -547,7 +547,7 @@ describe('MessageService', () => {
       dbh.db
         .update(messageTable)
         .set({
-          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }] },
+          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }], modelSelection: 'explicit' },
           status: 'error',
           stats: {
             totalTokens: 42,
@@ -582,7 +582,7 @@ describe('MessageService', () => {
         siblingsGroupId: before.siblingsGroupId,
         modelId: before.modelId,
         status: 'pending',
-        data: { parts: [] }
+        data: { parts: [], modelSelection: 'explicit' }
       })
       expect(reset.stats).toMatchObject({ totalTokens: 42, requestCount: 1 })
       expect(reset.stats).not.toHaveProperty('runtimeTiming')
@@ -1791,6 +1791,91 @@ describe('MessageService', () => {
         ['a-second', 'u-second']
       ])
       expect(result.activeNodeId).toBe('a-second')
+    })
+  })
+
+  describe('update — parent validation', () => {
+    it('rejects a self-parent without persisting any part of the patch', async () => {
+      const rootId = await seedTopicWithRoot('topic-parent')
+      const message = messageService.create('topic-parent', {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('original'),
+        status: 'success'
+      })
+      const before = messageService.getById(message.id)
+
+      expect(() =>
+        messageService.update(message.id, { parentId: message.id, data: mainText('must not persist') })
+      ).toThrowError(expect.objectContaining({ code: ErrorCode.INVALID_OPERATION }))
+      expect(messageService.getById(message.id)).toEqual(before)
+    })
+
+    it.each(['message', 'virtual root'])('rejects a foreign-topic %s without changing either tree', async (kind) => {
+      const rootId = await seedTopicWithRoot('topic-parent')
+      const foreignRootId = await seedTopicWithRoot('topic-foreign')
+      const message = messageService.create('topic-parent', {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('original'),
+        status: 'success'
+      })
+      const foreignMessage = messageService.create('topic-foreign', {
+        parentId: foreignRootId,
+        role: 'user',
+        data: mainText('foreign'),
+        status: 'success'
+      })
+      const originalTree = messageService.getTree('topic-parent', { depth: -1 })
+      const foreignTree = messageService.getTree('topic-foreign', { depth: -1 })
+      const before = messageService.getById(message.id)
+      const parentId = kind === 'message' ? foreignMessage.id : foreignRootId
+
+      expect(() => messageService.update(message.id, { parentId, data: mainText('must not persist') })).toThrowError(
+        expect.objectContaining({ code: ErrorCode.INVALID_OPERATION })
+      )
+      expect(messageService.getById(message.id)).toEqual(before)
+      expect(messageService.getTree('topic-parent', { depth: -1 })).toEqual(originalTree)
+      expect(messageService.getTree('topic-foreign', { depth: -1 })).toEqual(foreignTree)
+      messageService.clearTopicMessages('topic-foreign')
+      expect(messageService.getById(message.id)).toEqual(before)
+    })
+
+    it('rejects a descendant parent without changing the branch', async () => {
+      const { prompt, anchor, awaitingInput } = await seedAwaitingInputBranch('topic-parent')
+
+      expect(() => messageService.update(prompt.id, { parentId: awaitingInput.id })).toThrowError(
+        expect.objectContaining({ code: ErrorCode.INVALID_OPERATION })
+      )
+      expect(messageService.getPathToNode(awaitingInput.id).map((message) => message.id)).toEqual([
+        prompt.id,
+        anchor.id,
+        awaitingInput.id
+      ])
+    })
+
+    it.each(['message', 'virtual root'])('allows moving to a same-topic %s', async (kind) => {
+      const { prompt, anchor, awaitingInput } = await seedAwaitingInputBranch('topic-parent')
+      const rootId = messageService.getRootMessageIdTx(dbh.db, 'topic-parent')
+      const parentId = kind === 'message' ? prompt.id : rootId
+
+      const updated = messageService.update(awaitingInput.id, { parentId })
+
+      expect(updated.parentId).toBe(parentId)
+      expect(messageService.getById(awaitingInput.id).parentId).toBe(parentId)
+      expect(messageService.getPathToNode(awaitingInput.id).map((message) => message.id)).toEqual(
+        kind === 'message' ? [prompt.id, awaitingInput.id] : [awaitingInput.id]
+      )
+      expect(messageService.getById(anchor.id).parentId).toBe(prompt.id)
+    })
+
+    it('allows keeping the current parent while editing message data', async () => {
+      const { prompt, anchor } = await seedAwaitingInputBranch('topic-parent')
+
+      const updated = messageService.update(anchor.id, { parentId: prompt.id, data: mainText('edited') })
+
+      expect(updated.parentId).toBe(prompt.id)
+      expect(messageService.getById(anchor.id).data.parts).toEqual(mainText('edited').parts)
     })
   })
 

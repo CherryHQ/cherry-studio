@@ -3,7 +3,7 @@ import type { Provider } from '@shared/data/types/provider'
 
 const logger = loggerService.withContext('ProviderSettings:EnableProviderWhenModelsAvailable')
 
-/** Enables a disabled provider once a flow has confirmed it has usable models, then moves it to the top. */
+/** Enables a disabled provider once a flow has confirmed it has usable models. */
 export async function enableProviderWhenModelsAvailable(
   provider: Pick<Provider, 'id' | 'isEnabled'> | undefined,
   enableProvider: () => Promise<unknown>,
@@ -17,7 +17,7 @@ export async function enableProviderWhenModelsAvailable(
   try {
     await enableProvider()
   } catch (error) {
-    logger.error('Failed to enable provider with pin-to-top when models are available', {
+    logger.error('Failed to enable provider when models are available', {
       providerId: provider.id,
       modelCount,
       source,

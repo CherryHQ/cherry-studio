@@ -134,6 +134,13 @@ export type UseCacheSchema = {
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
+  // Detached Chat/Agent windows keep pane state within their renderer process. These values are
+  // seeded from the matching persisted preference but never sync back to the main window.
+  'ui.window.chat.sidebar.width': number
+  'ui.window.chat.artifact_pane.width': number
+  'ui.window.chat.resource_pane.width': number
+  'ui.window.chat.right_pane_open_override': boolean | null
+  'ui.window.agent.right_pane_open_override': boolean | null
 
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
@@ -142,15 +149,8 @@ export type UseCacheSchema = {
   'notes.active_file_path': AbsoluteFilePath | undefined
 
   // MiniApp management
-  'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
-  'mini_app.current_id': string
-  /** Whether the mini app view is split into two panes. */
-  'mini_app.split_open': boolean
-  /** Mini app shown in the split pane. Empty while the pane awaits a pick. */
-  'mini_app.split_id': string
-  'mini_app.show': boolean
-  'mini_app.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
   'mini_app.detected_region': MiniAppRegion | null
+  'mini_app.split': { appId: string | null } | null
 
   // Topic management
   'topic.renaming': string[]
@@ -160,6 +160,8 @@ export type UseCacheSchema = {
   'agent.session.waiting_id_map': Record<string, boolean>
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
+  // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
+  'agent.ask_user_question_draft.${approvalId}': CacheValueTypes.CacheAskUserQuestionDraft
 
   // Translate page state management
   /** Input text */
@@ -228,17 +230,17 @@ export const DefaultUseCache: UseCacheSchema = {
     modelMultiSelectMode: false
   },
   'chat.scroll_anchor.${topicId}': null,
+  'ui.window.chat.sidebar.width': 275,
+  'ui.window.chat.artifact_pane.width': 460,
+  'ui.window.chat.resource_pane.width': 275,
+  'ui.window.chat.right_pane_open_override': null,
+  'ui.window.agent.right_pane_open_override': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 
   // MiniApp management
-  'mini_app.opened_keep_alive': [],
-  'mini_app.current_id': '',
-  'mini_app.split_open': false,
-  'mini_app.split_id': '',
-  'mini_app.show': false,
-  'mini_app.opened_oneoff': null,
   'mini_app.detected_region': null,
+  'mini_app.split': null,
 
   // Topic management
   'topic.renaming': [],
@@ -253,6 +255,11 @@ export const DefaultUseCache: UseCacheSchema = {
     knowledgeBaseIds: [],
     workspaceKey: '',
     agentId: ''
+  },
+  'agent.ask_user_question_draft.${approvalId}': {
+    selectedAnswers: {},
+    customAnswers: {},
+    currentIndex: 0
   },
 
   // Translate page state management
@@ -288,10 +295,12 @@ export type SharedCacheSchema = {
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
   'doctor.state.${scope}': CacheValueTypes.CacheDoctorState
+  'doctor.agent.${scope}': CacheValueTypes.CacheDoctorAgentState
   'network.online': boolean
   // Runtime-only opt-out shared across windows; resets when the app exits.
   'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.closing.${sessionId}': boolean
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
@@ -299,6 +308,7 @@ export type SharedCacheSchema = {
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
   'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
   'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
+  'message.context.compacting.${messageId}': boolean
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -306,6 +316,7 @@ export type SharedCacheSchema = {
   'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  'feature.remote_access.discovery_status': 'inactive' | 'starting' | 'available' | 'unavailable'
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
@@ -345,6 +356,10 @@ export type SharedCacheSchema = {
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
+  // File-processing progress for a knowledge item, main -> all windows. The check job
+  // mirrors the linked file-processing job's progress here every poll round so the row can
+  // show a percentage during the 'processing' wait; absence means no progress was reported.
+  'knowledge.item.file_processing_progress.${itemId}': number | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -352,9 +367,11 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
   'doctor.state.${scope}': { status: 'idle' },
+  'doctor.agent.${scope}': { status: 'idle' },
   'network.online': true,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
+  'agent.session.closing.${sessionId}': false,
   'agent.session.api_retry.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
@@ -362,12 +379,14 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.task_events.${sessionId}': {},
   'agent.session.flow_parts.${sessionId}.${messageId}': [],
   'agent.session.turn_origin.${sessionId}.${messageId}': null,
+  'message.context.compacting.${messageId}': false,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
   'feature.deepseek_harness.status': { status: 'stopped' },
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
+  'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
   'feature.binary.latest_versions': {},
@@ -383,7 +402,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'channel.status.${channelId}': null,
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
-  'knowledge.item.directory_copy_progress.${itemId}': null
+  'knowledge.item.directory_copy_progress.${itemId}': null,
+  'knowledge.item.file_processing_progress.${itemId}': null
 }
 
 /**
@@ -430,6 +450,7 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  'settings.device_connections.step': 'download' | 'connect' | 'complete'
   // Usage statistics view selections, persisted so leaving and re-entering the page restores
   // them. The heatmap drill-down date stays component-local: a stored past date would reopen
   // the page on an empty range.
@@ -467,7 +488,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
   'ui.chat.sidebar.width': 275,
-  'ui.chat.artifact_pane.width': 460,
+  'ui.chat.artifact_pane.width': 280,
   'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
@@ -485,6 +506,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.filter_mode': 'all',
+  'settings.device_connections.step': 'download',
   'settings.usage.window': '30d',
   'settings.usage.group_by': 'provider',
   'settings.usage.chart_metric': 'tokens',

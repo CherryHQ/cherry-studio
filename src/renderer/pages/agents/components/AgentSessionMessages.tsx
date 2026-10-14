@@ -11,6 +11,7 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agent/useSession'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType } from '@renderer/types/topic'
@@ -19,6 +20,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
+import { AgentPendingAttachments } from '../messages/AgentPendingAttachments'
 import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
 
 const logger = loggerService.withContext('AgentSessionMessages')
@@ -39,6 +41,7 @@ type Props = {
   /** Load-all handle for the multi-select "select all" action. */
   selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
+  isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
   openBrowserUrl?: MessageListActions['openBrowserUrl']
@@ -63,6 +66,7 @@ const AgentSessionMessages = ({
   loadOlder,
   selectAllPagination,
   onOpenCitationsPanel,
+  isAgentToolFlowActive,
   openAgentToolFlow,
   openArtifactFile,
   openBrowserUrl,
@@ -127,6 +131,11 @@ const AgentSessionMessages = ({
   )
   const diagnosticReport = useMemo(() => ({ location: 'agent' }), [])
 
+  const messageIds = useStableStringArray(messages.map((message) => message.id))
+  const afterMessages = useMemo(
+    () => <AgentPendingAttachments key={sessionId} sessionId={sessionId} messageIds={messageIds} />,
+    [messageIds, sessionId]
+  )
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
     messages,
@@ -139,6 +148,7 @@ const AgentSessionMessages = ({
     loadOlder,
     selectAllPagination,
     openCitationsPanel: onOpenCitationsPanel,
+    isAgentToolFlowActive,
     openAgentToolFlow,
     openArtifactFile,
     openBrowserUrl,
@@ -151,7 +161,8 @@ const AgentSessionMessages = ({
     respondToolApproval,
     messageNavigation,
     workspacePath: session?.workspace?.path,
-    messageTail
+    messageTail,
+    afterMessages
   })
 
   // Main owns the warm lease per (session × window) and debounces the real teardown, so the

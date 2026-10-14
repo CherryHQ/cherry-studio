@@ -9,7 +9,7 @@ const { apiGatewayService } = vi.hoisted(() => ({
     stop: vi.fn(),
     restart: vi.fn(),
     setLanEnabled: vi.fn(),
-    createPairingOffer: vi.fn()
+    createRemoteInvitation: vi.fn()
   }
 }))
 vi.mock('@application', async () => {
@@ -33,13 +33,11 @@ describe('apiGatewayHandlers', () => {
     await expect(router.dispatch('api_gateway.lan.set_enabled', { enabled: true }, ctx)).rejects.toThrow('bind failed')
   })
 
-  it('propagates pairing failures to the IpcApi error channel', async () => {
-    apiGatewayService.createPairingOffer.mockImplementation(() => {
-      throw new Error('API Gateway is not running')
-    })
+  it('propagates invitation failures to the IpcApi error channel', async () => {
+    apiGatewayService.createRemoteInvitation.mockRejectedValueOnce(new Error('API Gateway is not running'))
     const router = new IpcRouter(apiGatewayRequestSchemas, apiGatewayHandlers)
 
-    await expect(router.dispatch('api_gateway.create_pairing_offer', undefined, ctx)).rejects.toThrow(
+    await expect(router.dispatch('api_gateway.remote.create_invitation', undefined, ctx)).rejects.toThrow(
       'API Gateway is not running'
     )
   })
