@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ApiGatewayService } from '../../ApiGatewayService'
+
 /**
  * Integration tests that drive the real Elysia app via `app.handle(Request)`.
  *
@@ -26,7 +28,11 @@ vi.mock('@application', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken }
+    ApiGatewayService: {
+      isInternalRequestToken: mockIsInternalRequestToken,
+      isTranslationRequest: (request: Request, model: unknown) =>
+        translationGateway?.isTranslationRequest(request, model) ?? false
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -78,6 +84,8 @@ function get(app: ReturnType<typeof buildApp>, path: string, headers: Record<str
 async function read(res: Response): Promise<{ status: number; body: any }> {
   return { status: res.status, body: await res.json() }
 }
+
+let translationGateway: ApiGatewayService | undefined
 
 describe('API gateway routes (integration)', () => {
   let app: ReturnType<typeof buildApp>
@@ -619,5 +627,31 @@ describe('API gateway routes (integration)', () => {
       })
       expect(localResponse.status).toBe(200)
     })
+  })
+})
+
+describe('PDF translation bearer authorization', () => {
+  it('accepts the leased model but refuses another model, endpoint, or revoked credential', async () => {
+    translationGateway = new ApiGatewayService()
+    const credential = translationGateway.createTranslationCredential('cherryai-subscription:translate-only')
+    const app = buildApp()
+    const send = (model: string, path = '/v1/chat/completions') =>
+      app.handle(
+        new Request(`http://localhost${path}`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${credential.apiKey}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'translate' }], max_tokens: 16 })
+        })
+      )
+    try {
+      expect((await send('cherryai-subscription:translate-only')).status).toBe(200)
+      expect((await send('cherryai-subscription:other')).status).toBe(403)
+      expect((await send('cherryai-subscription:translate-only', '/v1/messages')).status).toBe(403)
+      credential.dispose()
+      expect((await send('cherryai-subscription:translate-only')).status).toBe(403)
+    } finally {
+      credential.dispose()
+      translationGateway = undefined
+    }
   })
 })

@@ -51,6 +51,7 @@ vi.mock('@application', () => ({
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
               isInternalAgentRequest: mockIsInternalAgentRequest,
+              isTranslationCredential: () => false,
               getAgentSessionId: vi.fn(() => undefined)
             }
           : undefined
@@ -585,7 +586,9 @@ describe('processMessage (streaming)', () => {
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
     expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
-    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ tokenUsageSource: 'agent', modelUsageFeature: 'agent', usageContext })
+    )
 
     commit(captured.listener!)
     await captured.listener!.onDone({} as any)
@@ -603,7 +606,9 @@ describe('processMessage (streaming)', () => {
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
     const streamPromptInput = mockStreamPrompt.mock.calls[0][0]
-    expect(streamPromptInput).toEqual(expect.objectContaining({ tokenUsageSource: 'agent' }))
+    expect(streamPromptInput).toEqual(
+      expect.objectContaining({ tokenUsageSource: 'agent', modelUsageFeature: 'agent' })
+    )
     expect(streamPromptInput).not.toHaveProperty('usageContext')
 
     commit(captured.listener!)
@@ -725,7 +730,9 @@ describe('processMessage (streaming)', () => {
     })
 
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
-    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent' }))
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ tokenUsageSource: 'agent', modelUsageFeature: 'agent' })
+    )
     await captured.listener!.onDone({} as any)
     await resPromise
   })

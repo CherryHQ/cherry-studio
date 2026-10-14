@@ -144,9 +144,13 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const isInternalAgentRequest =
     config.requestHeaders !== undefined &&
     application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
+  const isInternalTranslationRequest =
+    inputFormat === 'openai' &&
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isTranslationCredential(config.requestHeaders, modelString)
   let resolvedAddress: ReturnType<typeof resolveGatewayModelAddress>
   try {
-    resolvedAddress = resolveGatewayModelAddress(modelString, isInternalAgentRequest)
+    resolvedAddress = resolveGatewayModelAddress(modelString, isInternalAgentRequest || isInternalTranslationRequest)
   } catch (error) {
     throw asClientError(error)
   }
@@ -384,7 +388,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             callOverrides,
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
-            ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
+            ...(isInternalAgentRequest
+              ? { tokenUsageSource: 'agent' as const, modelUsageFeature: 'agent' as const }
+              : {}),
+            ...(isInternalTranslationRequest ? { modelUsageFeature: 'translate' as const } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
         } catch (error) {
@@ -467,7 +474,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       callOverrides,
       contextOwner: 'caller',
       ...(usageContext ? { usageContext } : {}),
-      ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
+      ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const, modelUsageFeature: 'agent' as const } : {}),
+      ...(isInternalTranslationRequest ? { modelUsageFeature: 'translate' as const } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 
