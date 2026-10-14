@@ -126,14 +126,19 @@ describe('subagent fork', () => {
     const forkCall = calls.find((call) => call.userText.includes('TASK-A'))!
     const names = (call: typeof forkCall) => call.options.tools?.map((tool) => tool.name)
     expect(names(forkCall)).toEqual(names(parentCall))
-    expect(names(forkCall)).toEqual(expect.arrayContaining(['get_weather', 'subagent']))
+    expect(names(forkCall)).toEqual(expect.arrayContaining(['get_weather', 'subagent', 'message_subagent']))
   })
 
-  it('rejects a subagent call made inside a fork', async () => {
+  // Breaks when a fork can start or address subagents (it would manage its parent's subagents).
+  it('rejects subagent and message_subagent calls made inside a fork', async () => {
     const { model, calls } = routedModel(({ userText, lastRole }) => {
       if (userText.includes('TASK-A'))
         return lastRole === 'user'
-          ? [subagentCall('call_nested', { description: 'Nested', prompt: 'TASK-NESTED' }), finish('tool-calls')]
+          ? [
+              subagentCall('call_nested', { description: 'Nested', prompt: 'TASK-NESTED' }),
+              toolCallPart('call_message', 'message_subagent', { id: 'any', message: 'hello' }),
+              finish('tool-calls')
+            ]
           : [...textParts('r', 'REPORT-A'), finish('stop')]
       return lastRole === 'user'
         ? [subagentCall('call_a', forkA), finish('tool-calls')]
@@ -145,9 +150,11 @@ describe('subagent fork', () => {
     await session.prompt('Check module A')
 
     expect(host.subagents.map((subagent) => subagent.parentToolCallId)).toEqual(['call_a'])
-    const nested = toolResults(calls.filter((call) => call.userText.includes('TASK-A'))[1]).at(-1)!
-    expect(nested.toolCallId).toBe('call_nested')
-    expect(outputText(nested.output)).toMatch(/cannot start subagents/)
+    const refused = toolResults(calls.filter((call) => call.userText.includes('TASK-A'))[1]).slice(-2)
+    expect(refused.map((part) => [part.toolCallId, outputText(part.output)])).toEqual([
+      ['call_nested', 'Subagents cannot start or manage subagents.'],
+      ['call_message', 'Subagents cannot start or manage subagents.']
+    ])
   })
 
   // Breaks when the fork prefix is not handed to the host: the stored transcript would start at the
