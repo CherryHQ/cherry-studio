@@ -1,9 +1,10 @@
 ---
-description: Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow
+description: Per-attachment routing to native file parts or capped extracted analysis, with read_file paging for truncated overflow
 sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/fileProcessor.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
+  - src/main/features/fileProcessing/media/MediaAnalysisService.ts
   - src/shared/utils/file/fileExtensions.ts
   - src/renderer/utils/file.ts
 ---
@@ -38,9 +39,9 @@ Decided per file part in `prepareChatMessages`
 | text / code | — | decoded text, inline (capped) |
 | extensionless | — | decoded text when content is text; otherwise unsupported note |
 | audio | model and resolved endpoint are audio-capable | native audio part (inline) |
-| audio | otherwise | short note ("can't process audio") |
+| audio | otherwise | compact timestamped media analysis, inline (capped) |
 | video | model and resolved endpoint are video-capable | native video part (inline) |
-| video | otherwise | short note ("can't process video") |
+| video | otherwise | compact timestamped media analysis, inline (capped) |
 | other (binary: zip/exe/…) | — | short note ("unsupported file type") |
 
 - **Native** → the file part is left in place and materialized as a `data:` URL
@@ -59,6 +60,8 @@ Decided per file part in `prepareChatMessages`
 - Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
+- Audio/video probe or analysis failure degrades to a clear model-visible note.
+  Cancellation is not degraded and continues to abort the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
@@ -73,8 +76,13 @@ What the composer lets the user pick is `imageExts`, `documentExts`, and
 `textExts` (`src/shared/utils/file/fileExtensions.ts`) — images and documents
 always, plus every linguist-recognized code extension and the `customTextExts`
 additions (dotfiles, config, log, and domain formats such as `.conf`,
-`.config`, `.yaml`, `.toml`, `.ini`) — with `audioExts`/`videoExts` added only
-when the active model(s) support that modality. That union covers C# (`.cs`),
+`.config`, `.yaml`, `.toml`, `.ini`) — and known `audioExts` and `videoExts`.
+Chat accepts those known audio and video files on text-only and mixed models.
+Routing is native-first when the model and resolved endpoint can take the
+modality; otherwise the turn inlines capped text from `MediaAnalysisService`.
+`.webm` is classified by the media layer. Chat probes its bytes before choosing
+a native audio or video part, and native materialization keeps the authoritative
+probed MIME. That union covers C# (`.cs`),
 stylesheets (`.css`), shell scripts (`.sh`, `.bash`), and common configuration
 files. Unknown extensions are not rejected outright — `isSupportedFile`
 (`src/renderer/utils/file.ts`) falls back to a content sniff that accepts text
@@ -85,7 +93,7 @@ unsupported-type note instead (see the routing matrix above).
 
 ## The cap (the only context guard)
 
-Extracted text is bounded so multi-turn context stays in control:
+Extracted text and compact media analysis are bounded so multi-turn context stays in control:
 
 - text ≤ cap → inlined in full.
 - text > cap → inline the first `cap` chars + a trailer:
@@ -129,6 +137,7 @@ to the shared chat runtime or to ordinary Agents.
 |---|---|
 | office/pdf/text → text | `extractDocumentText` (`src/main/ai/messages/attachmentTextExtraction.ts`) |
 | image → text (non-vision) | `FileProcessingService.ocrImage` (`src/main/features/fileProcessing/`) |
+| audio/video → compact analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
 
 `ai/` reaches OCR through the `FileProcessingService` rather than deep-importing
 the feature, keeping processor/handler internals in that domain. Both
@@ -139,6 +148,10 @@ re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
 `officeparser`/`word-extractor`, known text extensions via
 `decodeTextWithAutoEncoding`, and extensionless text via
 `decodeTextBufferIfText`) and dispatches on the `FileEntry` canonical `ext`.
+
+`MediaAnalysisService` caches compact chat analysis by file identity/version and
+the ASR, Vision, OCR, and execution-budget configuration. A repeated turn does
+not duplicate preprocessing, and configuration changes invalidate the cache.
 
 ## Capability resolution
 
