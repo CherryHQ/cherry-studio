@@ -138,10 +138,11 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 
 /** Check if model supports temperature parameter */
 export const isSupportTemperatureModel = (model: Model): boolean =>
-  model.parameterSupport?.temperature?.supported !== false
+  !isGemini4Model(model) && model.parameterSupport?.temperature?.supported !== false
 
 /** Check if model supports top_p parameter */
-export const isSupportTopPModel = (model: Model): boolean => model.parameterSupport?.topP?.supported !== false
+export const isSupportTopPModel = (model: Model): boolean =>
+  !isGemini4Model(model) && model.parameterSupport?.topP?.supported !== false
 
 /** Whether temperature and top_p are mutually exclusive for this model */
 export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean => {
@@ -205,11 +206,21 @@ export const isAnthropicModel = (model: Model): boolean =>
 export const isGeminiModel = (model: Model): boolean =>
   VENDOR_PATTERNS.gemini.test(getLowerBaseModelName(getRawModelId(model)))
 
-/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
-export const isGemini3Model = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
+/**
+ * Check if a raw model id is Gemini 3 series. The `*-latest` aliases resolve to
+ * Gemini 3, so an id-substring check alone misses them.
+ */
+export const isGemini3ModelId = (modelId: string): boolean => {
+  const id = getLowerBaseModelName(modelId)
   return id.includes('gemini-3') || id === 'gemini-flash-latest' || id === 'gemini-pro-latest'
 }
+
+/** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
+export const isGemini3Model = (model: Model): boolean => isGemini3ModelId(getRawModelId(model))
+
+/** Gemini 4 uses level-based thinking and ignores sampling parameters. */
+export const isGemini4Model = (model: Model): boolean =>
+  /^gemini-4(?:[.-]|$)/.test(getLowerBaseModelName(getRawModelId(model)))
 
 /** Check if model is a Grok model */
 export const isGrokModel = (model: Model): boolean =>
@@ -451,11 +462,11 @@ export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
 
 /**
  * The wire id every id-based predicate must key off. `apiModelId` is optional
- * on the runtime Model, so reading it alone silently misidentifies models whose
+ * or empty on the runtime Model, so reading it alone silently misidentifies models whose
  * unique id carries the wire name instead.
  */
 export function getRawModelId(model: Model): string {
-  return model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  return model.apiModelId || parseUniqueModelId(model.id).modelId
 }
 
 // ---------------------------------------------------------------------------

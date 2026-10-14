@@ -2,13 +2,14 @@ import { existsSync, mkdtempSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { fileEntryTable } from '@data/db/schemas/file'
-import { preferenceTable } from '@data/db/schemas/preference'
-import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import { preferenceTable } from '@data/db/schemas/preference'
+import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { DexieSettingsReader, type DexieSettingsRecord } from '../../utils/DexieSettingsReader'
@@ -96,6 +97,27 @@ describe('PreferencesMigrator', () => {
       const rows = await selectByKey(dbh.db, 'app.language')
       expect(rows).toHaveLength(1)
       expect(rows[0].value).toBe('zh-CN')
+    })
+
+    it('preserves v1 long-text paste preferences', async () => {
+      const ctx = createTestContext(
+        {
+          redux: {
+            settings: {
+              pasteLongTextAsFile: false,
+              pasteLongTextThreshold: 3200
+            }
+          }
+        },
+        dbh.db
+      )
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const pasteAsFile = await selectByKey(dbh.db, 'chat.input.paste_long_text_as_file')
+      const threshold = await selectByKey(dbh.db, 'chat.input.paste_long_text_threshold')
+      expect(pasteAsFile[0]?.value).toBe(false)
+      expect(threshold[0]?.value).toBe(3200)
     })
 
     it('migrates v1 custom CSS to the current preference behind the v1 marker', async () => {

@@ -7,6 +7,7 @@ import { useProviderModelList } from '../useProviderModelList'
 const useModelsMock = vi.fn()
 const deleteModelMock = vi.fn()
 const deleteModelsMock = vi.fn()
+const refetchModelsMock = vi.fn()
 
 const models = [
   {
@@ -38,7 +39,8 @@ describe('useProviderModelList', () => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
 
-    useModelsMock.mockReturnValue({ models, isLoading: false })
+    refetchModelsMock.mockResolvedValue(models)
+    useModelsMock.mockReturnValue({ models, isLoading: false, refetch: refetchModelsMock })
     deleteModelMock.mockResolvedValue(undefined)
     deleteModelsMock.mockResolvedValue(undefined)
   })
@@ -122,6 +124,32 @@ describe('useProviderModelList', () => {
     expect(result.current.sections.enabledSections.map((section) => section.groupName)).toEqual(['Custom Group'])
   })
 
+  it('keeps numeric group names in model order while a search filter is active', async () => {
+    // A search filter is what turns on `preserveGroupOrder`, i.e. group order
+    // follows model order rather than the group name. Group names come from
+    // `model.group`, which is free text, so they can look like array indices.
+    // JavaScript enumerates integer-like keys in ascending numeric order ahead
+    // of insertion order, so a plain record silently reorders them and `10`
+    // lands after `2` no matter which order the models arrived in.
+    useModelsMock.mockReturnValue({
+      models: [
+        { id: 'openai::a10', name: 'A10', group: '10', capabilities: [], isEnabled: true, providerId: 'openai' },
+        { id: 'openai::a2', name: 'A2', group: '2', capabilities: [], isEnabled: true, providerId: 'openai' },
+        { id: 'openai::a1', name: 'A1', group: '1', capabilities: [], isEnabled: true, providerId: 'openai' }
+      ] as any,
+      isLoading: false
+    })
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+    act(() => {
+      result.current.header.setSearchText('A')
+    })
+
+    await waitFor(() => {
+      expect(result.current.sections.enabledSections.map((section) => section.groupName)).toEqual(['10', '2', '1'])
+    })
+  })
+
   it('does not surface local search filtering as a loading state for larger model sets', async () => {
     const largeModelSet = Array.from({ length: 12 }, (_, index) => ({
       id: `openai::model-${index}`,
@@ -187,7 +215,7 @@ describe('useProviderModelList', () => {
       rejectDelete = reject
     })
 
-    useModelsMock.mockReturnValue({ models, isLoading: false })
+    useModelsMock.mockReturnValue({ models, isLoading: false, refetch: refetchModelsMock })
     deleteModelMock.mockReturnValueOnce(deletePromise)
 
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
@@ -207,11 +235,36 @@ describe('useProviderModelList', () => {
     })
 
     expect(result.current.sections.pendingModelIds.has('openai::model-beta')).toBe(false)
+    expect(refetchModelsMock).toHaveBeenCalledOnce()
     expect(result.current.header.modelCount).toBe(2)
     expect(result.current.sections.displayEnabledModelCount).toBe(2)
     expect(
       result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
     ).toContain('openai::model-beta')
+  })
+
+  it('keeps a model removed when refresh confirms a rejected delete was committed', async () => {
+    const error = new Error('delete failed')
+    let latestModels = models
+
+    deleteModelMock.mockRejectedValueOnce(error)
+    refetchModelsMock.mockImplementationOnce(async () => {
+      latestModels = models.filter((model) => model.id !== 'openai::model-beta')
+      return latestModels
+    })
+    useModelsMock.mockImplementation(() => ({ models: latestModels, isLoading: false, refetch: refetchModelsMock }))
+
+    const { result, rerender } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    await act(async () => {
+      await expect(result.current.sections.onDeleteModel(models[1])).resolves.toBeUndefined()
+    })
+    rerender()
+
+    expect(refetchModelsMock).toHaveBeenCalledOnce()
+    expect(
+      result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+    ).not.toContain('openai::model-beta')
   })
 
   it('deletes all selected group models and removes them immediately', async () => {
@@ -344,7 +397,8 @@ describe('useProviderModelList', () => {
     ] as any
 
     deleteModelsMock.mockRejectedValueOnce(error)
-    useModelsMock.mockReturnValue({ models: groupedModels, isLoading: false })
+    refetchModelsMock.mockResolvedValueOnce(groupedModels)
+    useModelsMock.mockReturnValue({ models: groupedModels, isLoading: false, refetch: refetchModelsMock })
 
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
@@ -354,6 +408,7 @@ describe('useProviderModelList', () => {
 
     expect(deleteModelsMock).toHaveBeenCalledWith(['openai::chat-alpha', 'openai::chat-beta'])
     expect(deleteModelMock).not.toHaveBeenCalled()
+    expect(refetchModelsMock).toHaveBeenCalledOnce()
     expect(result.current.header.modelCount).toBe(2)
     expect(
       result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)

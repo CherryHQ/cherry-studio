@@ -3,6 +3,20 @@
  * Main entry point for the model and provider registry system
  */
 
+export type { Registry, RegistryCatalog, ModelSnapshot } from './registry'
+export { createRegistry, parseModelSnapshot } from './registry'
+export type { CatalogManifest, RegistryFileName, RemoteRegistryFileName } from './catalog'
+export {
+  CatalogManifestSchema,
+  REGISTRY_FILES,
+  REGISTRY_MIN_APP_VERSION,
+  REGISTRY_SCHEMA_VERSION,
+  REMOTE_REGISTRY_FILES
+} from './catalog'
+export { ModelConfigSchema, ModelListSchema } from './schemas/model'
+export { ProviderConfigSchema, ProviderListSchema } from './schemas/provider'
+export { ProviderModelOverrideSchema, ProviderModelListSchema } from './schemas/provider-models'
+
 // Enums — const objects (SCREAMING_CASE)
 export {
   CANONICAL_PARAM_KEY,
@@ -23,7 +37,9 @@ export {
   IMAGE_PARAM_CATALOG,
   IMAGE_PARAM_CATALOG_KEYS,
   imageParamsSchema,
+  normalizeImageParamNumber,
   paramCatalogEntry,
+  parseImageParamValue,
   wireName
 } from './schemas/imageParamCatalog'
 export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
@@ -68,6 +84,7 @@ export type {
   ProviderConfig as ProtoProviderConfig,
   ProviderReasoningFormat as ProtoProviderReasoningFormat,
   ProviderConfig,
+  ProviderEdition,
   ProviderReasoningFormat,
   ReasoningFormatType,
   RegistryEndpointConfig,
@@ -79,6 +96,7 @@ export type {
 } from './schemas/provider'
 export {
   FastModeTransportSchema,
+  ProviderEditionSchema,
   REASONING_FORMAT_TYPES,
   ServerToolConfigSchema,
   ServiceTierDeliverySchema,

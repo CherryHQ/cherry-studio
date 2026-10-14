@@ -1,6 +1,7 @@
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useConversationNavigationOwner } from '../useConversationNavigationOwner'
 

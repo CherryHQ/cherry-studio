@@ -18,6 +18,17 @@ import type { Stats } from 'node:fs'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { setTimeout as delay } from 'node:timers/promises'
+import * as path from 'path'
+
+import { ZipArchive } from 'archiver'
+import { Mutex, tryAcquire } from 'async-mutex'
+import Database from 'better-sqlite3'
+import dayjs from 'dayjs'
+import { readMigrationFiles } from 'drizzle-orm/migrator'
+import { app } from 'electron'
+import * as fs from 'fs-extra'
+import StreamZip from 'node-stream-zip'
+import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -26,7 +37,7 @@ import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
-import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/file'
+import { type AtomicWriteStream, createAtomicWriteStream, ensureDir } from '@main/utils/file'
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { getDeviceType, getHostname } from '@main/utils/system'
@@ -34,20 +45,15 @@ import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  BACKUP_BACKGROUND_TASKS_ERROR_CODE,
+  BACKUP_DISK_FULL_ERROR_CODE,
+  BACKUP_NEWER_VERSION_ERROR_CODE,
+  BACKUP_OPERATION_BUSY_ERROR_CODE,
   type LocalBackupConfig,
   type S3Config,
   type WebDavConfig
 } from '@shared/types/backup'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { ZipArchive } from 'archiver'
-import { Mutex, tryAcquire } from 'async-mutex'
-import Database from 'better-sqlite3'
-import dayjs from 'dayjs'
-import { app } from 'electron'
-import * as fs from 'fs-extra'
-import StreamZip from 'node-stream-zip'
-import * as path from 'path'
-import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
@@ -61,6 +67,10 @@ const BACKUP_OPERATION_DIR_PATTERN =
   /^(?:create|lan-create|extract|webdav-download|s3-download)-[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const BACKUP_TEMP_ARCHIVE_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}-.+\.zip$/i
 const WINDOWS_UV_EBUSY_ERRNO = -4082
+// Backup archives hold every stored credential; the shared-OS-temp staging tree
+// must not be readable by other local users (S8 hardening).
+const BACKUP_ARCHIVE_FILE_MODE = 0o600
+const BACKUP_TEMP_DIR_MODE = 0o700
 
 const isSkippableLevelDbLockError = (sourcePath: string, error: unknown): error is NodeJS.ErrnoException => {
   const parentDirectory = path.basename(path.dirname(sourcePath)).toLowerCase()
@@ -121,8 +131,17 @@ type BackupInvocationEvent = Electron.IpcMainInvokeEvent | null
 
 export class BackupOperationBusyError extends Error {
   constructor() {
-    super('Another backup operation is already in progress.')
+    super(`${BACKUP_OPERATION_BUSY_ERROR_CODE}: Another backup operation is already in progress.`)
     this.name = 'BackupOperationBusyError'
+  }
+}
+
+export class BackupActiveWritersError extends Error {
+  constructor() {
+    super(
+      `${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running. Wait for it to finish, then retry the backup or restore.`
+    )
+    this.name = 'BackupActiveWritersError'
   }
 }
 
@@ -148,6 +167,7 @@ class BackupManager {
     webdavUser?: string
     webdavPass?: string
     webdavPath?: string
+    allowSelfSignedTls?: boolean
   } | null = null
 
   private get backupDir(): string {
@@ -156,6 +176,13 @@ class BackupManager {
 
   async cleanupStaleTempArtifacts(): Promise<void> {
     const cutoff = Date.now() - STALE_TEMP_ARTIFACT_AGE_MS
+
+    // Best-effort boot hardening: pre-existing 0755 roots are fixed even with
+    // no operation running; ENOENT (never used yet) is expected and silent.
+    // The restore-staging root seals crash-recovered trees too — 0700 on the
+    // root blocks traversal into any pre-existing subtree.
+    await this.hardenStagingRootBestEffort(this.backupDir)
+    await this.hardenStagingRootBestEffort(application.getPath('feature.backup.restore.staging'))
 
     try {
       const entries = await fs.readdir(this.backupDir, { withFileTypes: true })
@@ -308,7 +335,7 @@ class BackupManager {
     let output: AtomicWriteStream | undefined
 
     try {
-      await fs.ensureDir(outputDirectory)
+      await ensureDir(AbsoluteFilePathSchema.parse(outputDirectory))
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       const userDataPath = application.getPath('app.userdata')
@@ -316,28 +343,27 @@ class BackupManager {
       logger.debug('[backupDirect] Capturing v2 backup resources')
 
       const quiesceReason = 'backup: capture consistent snapshot'
-      const channelManager = application.get('ChannelManager')
-      const channelHold = channelManager.pause(quiesceReason)
+      const agentLifecycle = application.get('AgentLifecycleService')
+      const ingressHold = agentLifecycle.pauseIngress(quiesceReason)
       try {
-        const channelVerdict = await channelManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
+        const ingressVerdict = await agentLifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })
         signal?.throwIfAborted()
-        this.assertWritersDrained([channelVerdict])
+        this.assertWritersDrained([ingressVerdict])
 
         const aiStreamManager = application.get('AiStreamManager')
-        const agentSessionRuntime = application.get('AgentSessionRuntimeService')
-        const agentSessionDelivery = application.get('AgentSessionDeliveryService')
         const jobManager = application.get('JobManager')
+        const agentJobs = application.get('AgentJobsService')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
           writerHolds.push(aiStreamManager.pause(quiesceReason))
-          writerHolds.push(agentSessionRuntime.pause(quiesceReason))
-          writerHolds.push(agentSessionDelivery.pause(quiesceReason))
+          writerHolds.push(agentLifecycle.pauseExecution(quiesceReason))
+          writerHolds.push(agentJobs.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
 
           const writerVerdicts = await Promise.all([
+            agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
-            agentSessionRuntime.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
-            agentSessionDelivery.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
           ])
           signal?.throwIfAborted()
@@ -429,13 +455,15 @@ class BackupManager {
           }
         }
       } finally {
-        channelHold.dispose()
+        ingressHold.dispose()
       }
 
       onProgress({ stage: 'compressing', progress: 80, total: 100 })
       signal?.throwIfAborted()
 
-      const atomicOutput = createAtomicWriteStream(AbsoluteFilePathSchema.parse(backupedFilePath))
+      const atomicOutput = createAtomicWriteStream(AbsoluteFilePathSchema.parse(backupedFilePath), {
+        mode: BACKUP_ARCHIVE_FILE_MODE
+      })
       output = atomicOutput
       const archive = new ZipArchive({
         zlib: { level: 1 },
@@ -485,174 +513,8 @@ class BackupManager {
       if (output && !output.destroyed) {
         await output.abort()
       }
-      throw error
-    } finally {
-      await fs.remove(workDir).catch(() => {})
-    }
-  }
-
-  /**
-   * Legacy backup method (JSON format, used by LanTransfer)
-   * Creates a backup in the old format with data.json and optional Data directory.
-   * @param _ - Electron IPC event
-   * @param fileName - Name of the backup file
-   * @param data - JSON string data to backup
-   * @param destinationPath - Path to save the backup (defaults to this.backupDir)
-   * @param skipBackupFile - Whether to skip backing up the Data directory
-   * @returns Path to the created backup file
-   */
-  async backupLegacy(
-    _event: Electron.IpcMainInvokeEvent,
-    fileName: string,
-    data: string,
-    destinationPath: string = this.backupDir,
-    skipBackupFile: boolean = false
-  ): Promise<string> {
-    return this.runBackupWorkflow(() => this.backupLegacyUnlocked(fileName, data, destinationPath, skipBackupFile))
-  }
-
-  private async backupLegacyUnlocked(
-    fileName: string,
-    data: string,
-    destinationPath: string,
-    skipBackupFile: boolean
-  ): Promise<string> {
-    const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
-    const workDir = await this.createOperationDir('lan-create')
-
-    try {
-      onProgress({ stage: 'preparing', progress: 0, total: 100 })
-
-      // Write data.json using streaming
-      const tempDataPath = path.join(workDir, 'data.json')
-
-      await new Promise<void>((resolve, reject) => {
-        const writeStream = fs.createWriteStream(tempDataPath)
-        writeStream.write(data)
-        writeStream.end()
-
-        writeStream.on('finish', () => resolve())
-        writeStream.on('error', (error) => reject(error))
-      })
-
-      onProgress({ stage: 'writing_data', progress: 20, total: 100 })
-
-      logger.debug(`BackupManager IPC, skipBackupFile: ${skipBackupFile}`)
-
-      if (!skipBackupFile) {
-        // Copy Data directory to temp directory
-        const sourcePath = application.getPath('app.userdata.data')
-        const tempDataDir = path.join(workDir, 'Data')
-
-        // Get total size of source directory
-        const totalSize = await this.getDirSize(sourcePath, { dereferenceSymlinks: true })
-
-        // Use streaming copy
-        await this.copyDirWithProgress(
-          sourcePath,
-          tempDataDir,
-          this.createCopyProgressHandler(totalSize, 0, 50, 'copying_files', onProgress),
-          { dereferenceSymlinks: true }
-        )
-
-        onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
-      } else {
-        logger.debug('Skip the backup of the file')
-        await fs.promises.mkdir(path.join(workDir, 'Data')) // Creating empty Data dir is required, otherwise restore will fail
-      }
-
-      // Create output file stream
-      const backupedFilePath = path.join(destinationPath, fileName)
-      const output = fs.createWriteStream(backupedFilePath)
-
-      // Create archiver instance, enable ZIP64 support
-      const archive = new ZipArchive({
-        zlib: { level: 1 }, // Use lowest compression level for speed
-        zip64: true // Enable ZIP64 support for large files
-      })
-
-      let lastProgress = 50
-      let totalEntries = 0
-      let processedEntries = 0
-      let totalBytes = 0
-      let processedBytes = 0
-
-      // First calculate total files and size, but don't log details
-      const calculateTotals = async (dirPath: string) => {
-        try {
-          const items = await fs.readdir(dirPath, { withFileTypes: true })
-          for (const item of items) {
-            const fullPath = path.join(dirPath, item.name)
-            if (item.isDirectory()) {
-              await calculateTotals(fullPath)
-            } else {
-              totalEntries++
-              const stats = await fs.stat(fullPath)
-              totalBytes += stats.size
-            }
-          }
-        } catch (error) {
-          // Only log on error
-          logger.error('[BackupManager] Error calculating totals:', error as Error)
-        }
-      }
-
-      await calculateTotals(workDir)
-
-      // Listen for file entry events
-      archive.on('entry', () => {
-        processedEntries++
-        if (totalEntries > 0) {
-          const progressPercent = Math.min(55, 50 + Math.floor((processedEntries / totalEntries) * 5))
-          if (progressPercent > lastProgress) {
-            lastProgress = progressPercent
-            onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
-          }
-        }
-      })
-
-      // Listen for data write events
-      archive.on('data', (chunk) => {
-        processedBytes += chunk.length
-        if (totalBytes > 0) {
-          const progressPercent = Math.min(99, 55 + Math.floor((processedBytes / totalBytes) * 44))
-          if (progressPercent > lastProgress) {
-            lastProgress = progressPercent
-            onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
-          }
-        }
-      })
-
-      // Use Promise to wait for compression to complete
-      await new Promise<void>((resolve, reject) => {
-        output.on('close', () => {
-          onProgress({ stage: 'compressing', progress: 100, total: 100 })
-          resolve()
-        })
-        archive.on('error', reject)
-        archive.on('warning', (err: any) => {
-          if (err.code !== 'ENOENT') {
-            logger.warn('[BackupManager] Archive warning:', err)
-          }
-        })
-
-        // Pipe output stream to archiver
-        archive.pipe(output)
-
-        // Add entire temp directory to archive
-        archive.directory(workDir, false)
-
-        // Finalize compression
-        archive.finalize()
-      })
-
-      onProgress({ stage: 'completed', progress: 100, total: 100 })
-
-      logger.info('Backup completed successfully')
-      return backupedFilePath
-    } catch (error) {
-      logger.error('[BackupManager] Backup failed:', error as Error)
-      throw error
+      const reportedError = await this.withAvailableDiskSpace(error, output ? outputDirectory : workDir)
+      throw reportedError
     } finally {
       await fs.remove(workDir).catch(() => {})
     }
@@ -676,7 +538,7 @@ class BackupManager {
       const operationSignal = event === null ? signal : undefined
       operationSignal?.throwIfAborted()
       const backupDir = localConfig.localBackupDir || this.backupDir
-      await fs.ensureDir(backupDir)
+      await ensureDir(AbsoluteFilePathSchema.parse(backupDir))
       const result = await this.backupDirect(
         fileName || this.createBackupFileName(),
         backupDir,
@@ -888,7 +750,8 @@ class BackupManager {
       await this.restoreDirect(extractionDir)
     } catch (error) {
       logger.error('Restore failed:', error as Error)
-      throw error
+      const reportedError = await this.withAvailableDiskSpace(error, extractionDir)
+      throw reportedError
     } finally {
       await fs.remove(extractionDir).catch(() => {})
     }
@@ -922,7 +785,10 @@ class BackupManager {
     // staging tree, and any remaining directory is an orphan from a crash
     // before the durable journal commit.
     await fs.remove(stagingRoot)
-    await fs.ensureDir(restoreDir)
+    // Staging holds the full pre-boot user-data snapshot (S8); same fail-closed
+    // hardening as every other staging path.
+    await this.ensurePrivateDir(stagingRoot)
+    await this.ensurePrivateDir(restoreDir)
 
     try {
       const metadata = await this.readDirectBackupMetadata(extractionDir)
@@ -1000,7 +866,12 @@ class BackupManager {
       }
 
       const chain = this.validateStagedDatabase(workDatabase)
-      onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
+      if (!this.isChainBundledPrefix(chain)) {
+        throw new Error(
+          `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (database is ahead of this version) and cannot be restored here. Please update Cherry Studio and try again. Backup appVersion: ${metadata.appVersion ?? 'unknown'}, current: ${app.getVersion()}.`
+        )
+      }
+      onProgress({ stage: 'restoring_database', progress: 95, total: 100 })
 
       const fileResources: RestoreJournal['fileResources'] = []
       fileResources.push(
@@ -1050,9 +921,28 @@ class BackupManager {
       this.fsyncTree(stagingRoot)
 
       const jobManager = application.get('JobManager')
+      const agentJobs = application.get('AgentJobsService')
+      const heartbeatHold = agentJobs.pause('backup restore: stage promotion journal')
       const quiesceHold = jobManager.pause('backup restore: stage promotion journal')
+      const agentLifecycle = application.get('AgentLifecycleService')
+      const agentIngressHold = agentLifecycle.pauseIngress('backup restore')
+      const writerHolds: Array<{ dispose(): void }> = []
       try {
-        await this.assertJobsDrained(jobManager)
+        const [heartbeatVerdict] = await Promise.all([
+          agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+          this.assertJobsDrained(jobManager)
+        ])
+        this.assertWritersDrained([heartbeatVerdict])
+        this.assertWritersDrained([await agentLifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })])
+        const aiStreamManager = application.get('AiStreamManager')
+        writerHolds.push(aiStreamManager.pause('backup restore'))
+        writerHolds.push(agentLifecycle.pauseExecution('backup restore'))
+        this.assertWritersDrained(
+          await Promise.all([
+            aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
+          ])
+        )
         this.assertNoActiveDataWriters()
         const dbService = application.get('DbService')
         dbService.checkpointTruncate()
@@ -1078,7 +968,10 @@ class BackupManager {
         logger.info('[restoreDirect] Restore journal committed and ready for relaunch', { restoreId })
       } finally {
         if (!journalCommitted) {
+          for (const hold of writerHolds.reverse()) hold.dispose()
+          agentIngressHold.dispose()
           quiesceHold.dispose()
+          heartbeatHold.dispose()
         }
       }
     } catch (error) {
@@ -1096,6 +989,11 @@ class BackupManager {
 
     if (!raw || typeof raw !== 'object' || raw.appName !== 'Cherry Studio') {
       throw new Error('This backup file is not from Cherry Studio and cannot be restored')
+    }
+    if (typeof raw.version === 'number' && raw.version > DIRECT_BACKUP_VERSION) {
+      throw new Error(
+        `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (backup version ${String(raw.version)}) and cannot be restored on this version (supports ${DIRECT_BACKUP_VERSION}). Please update Cherry Studio and try again.`
+      )
     }
     if (raw.version !== DIRECT_BACKUP_VERSION) {
       throw new Error(
@@ -1178,6 +1076,25 @@ class BackupManager {
       throw new Error('Backup SQLite database could not be sealed without WAL sidecars')
     }
     return chain
+  }
+
+  private isChainBundledPrefix(chain: RestoreJournal['db']['chain']): boolean {
+    let bundled: ReturnType<typeof readMigrationFiles>
+    try {
+      bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') })
+    } catch (error) {
+      logger.warn(
+        '[restoreDirect] Failed to read bundled migrations for downgrade check, allowing promotion gate to decide',
+        error as Error
+      )
+      return true
+    }
+    if (chain.length > bundled.length) {
+      return false
+    }
+    return chain.every(
+      (item, index) => item.folderMillis === bundled[index].folderMillis && item.hash === bundled[index].hash
+    )
   }
 
   private async createJournalResource(input: {
@@ -1384,7 +1301,8 @@ class BackupManager {
         await this.restoreUnlocked(backupedFilePath)
       } catch (error: any) {
         logger.error('Failed to restore from WebDAV:', error)
-        throw new Error(error.message || 'Failed to restore backup file')
+        const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
+        throw reportedError
       } finally {
         await fs.remove(downloadDir).catch(() => {})
       }
@@ -1415,7 +1333,8 @@ class BackupManager {
         await this.restoreUnlocked(backupedFilePath)
       } catch (error: any) {
         logger.error('[BackupManager] Failed to restore from S3:', error)
-        throw new Error(error.message || 'Failed to restore backup file')
+        const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
+        throw reportedError
       } finally {
         await fs.remove(downloadDir).catch(() => {})
       }
@@ -1427,10 +1346,56 @@ class BackupManager {
   // These are helper methods for file operations like size calculation,
   // directory copying with progress, and permission management.
 
+  /** Staging dirs hold full-backup content (S8); a chmod failure aborts the
+   * backup rather than writing payloads under looser permissions. */
+  private async ensurePrivateDir(dir: string): Promise<void> {
+    // 0700 at creation closes the ensureDir→chmod exposure window; 0700 has no
+    // group/other bits, so umask cannot loosen it.
+    await fs.ensureDir(dir, { mode: BACKUP_TEMP_DIR_MODE })
+    await fs.chmod(dir, BACKUP_TEMP_DIR_MODE).catch((error) => {
+      throw new Error(`Failed to restrict backup staging dir permissions (${dir}): ${String(error)}`)
+    })
+  }
+
+  /** Boot-time variant: opportunistic, must never block startup (ENOENT silent). */
+  private async hardenStagingRootBestEffort(dir: string): Promise<void> {
+    await fs.chmod(dir, BACKUP_TEMP_DIR_MODE).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('[cleanupStaleTempArtifacts] Failed to restrict backup staging dir permissions', { dir, error })
+      }
+    })
+  }
+
   private async createOperationDir(prefix: string): Promise<string> {
+    // Every sensitive flow (create/extract/webdav-download/...) passes through here, so the
+    // staging root is hardened at the same choke point; chmod also fixes pre-existing 0755 dirs.
+    await this.ensurePrivateDir(this.backupDir)
     const operationDir = path.join(this.backupDir, `${prefix}-${randomUUID()}`)
-    await fs.ensureDir(operationDir)
+    try {
+      await this.ensurePrivateDir(operationDir)
+    } catch (error) {
+      const reportedError = await this.withAvailableDiskSpace(error, this.backupDir)
+      throw reportedError
+    }
     return operationDir
+  }
+
+  private async withAvailableDiskSpace(error: unknown, fallbackDirectory: string): Promise<unknown> {
+    if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'ENOSPC') {
+      return error
+    }
+
+    const fileError = error as NodeJS.ErrnoException & { dest?: string }
+    const failedPath = fileError.dest ?? fileError.path
+    const probePath = failedPath ? path.dirname(failedPath) : fallbackDirectory
+
+    try {
+      const stats = await fs.promises.statfs(probePath)
+      return new Error(`${BACKUP_DISK_FULL_ERROR_CODE}:${stats.bsize * stats.bavail}`)
+    } catch (statError) {
+      logger.warn('Failed to read available disk space after ENOSPC', { probePath, statError })
+      return error
+    }
   }
 
   private async assertJobsDrained(jobManager: {
@@ -1440,21 +1405,26 @@ class BackupManager {
     this.assertWritersDrained([verdict])
   }
 
-  private assertWritersDrained(verdicts: Array<{ stragglerIds: string[]; startupRecoveryPending?: boolean }>): void {
-    if (verdicts.some((verdict) => verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending === true)) {
-      throw new Error('Background data writes did not quiesce in time. Please retry after current tasks finish.')
+  private assertWritersDrained(
+    verdicts: Array<{ stragglerIds: string[]; startupRecoveryPending?: boolean } | { settled: boolean }>
+  ): void {
+    if (
+      verdicts.some((verdict) =>
+        'settled' in verdict
+          ? !verdict.settled
+          : verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending === true
+      )
+    ) {
+      throw new Error(`${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: Background data writes did not quiesce in time.`)
     }
   }
 
   private assertNoActiveDataWriters(): void {
     if (
       application.get('AiStreamManager').hasLiveStreams() ||
-      application.get('AgentSessionRuntimeService').hasBusySessions() ||
-      application.get('AgentSessionDeliveryService').listActiveWork().length > 0
+      application.get('AgentLifecycleService').listActiveWork().length > 0
     ) {
-      throw new Error(
-        `${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running. Wait for it to finish, then retry the backup or restore.`
-      )
+      throw new BackupActiveWritersError()
     }
   }
 
@@ -1617,7 +1587,8 @@ class BackupManager {
       cachedConfig.webdavHost === config.webdavHost &&
       cachedConfig.webdavUser === config.webdavUser &&
       cachedConfig.webdavPass === config.webdavPass &&
-      cachedConfig.webdavPath === config.webdavPath
+      cachedConfig.webdavPath === config.webdavPath &&
+      (cachedConfig.allowSelfSignedTls ?? false) === (config.allowSelfSignedTls ?? false)
     )
   }
 
@@ -1639,7 +1610,8 @@ class BackupManager {
         webdavHost: config.webdavHost,
         webdavUser: config.webdavUser,
         webdavPass: config.webdavPass,
-        webdavPath: config.webdavPath
+        webdavPath: config.webdavPath,
+        allowSelfSignedTls: config.allowSelfSignedTls
       }
       logger.debug('[BackupManager] Created new WebDav instance')
     } else {
@@ -1950,68 +1922,6 @@ class BackupManager {
     } catch (error) {
       logger.error('[BackupManager] Delete local backup file failed:', error as Error)
       throw error
-    }
-  }
-
-  // ==================== Legacy & Temp Methods ====================
-  // These methods are for legacy backup format and temporary file operations.
-
-  /**
-   * Create a legacy backup
-   * Creates a lightweight backup (skipBackupFile=true) in the temp directory
-   * Returns the path to the created ZIP file
-   * @param data - JSON string data to backup
-   * @param destinationPath - Path to save the backup
-   */
-  async createLanTransferBackup(
-    _: Electron.IpcMainInvokeEvent,
-    data: string,
-    destinationPath?: string
-  ): Promise<string> {
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[-:T.Z]/g, '')
-      .slice(0, 14)
-
-    const fileName = `cherry-studio.${timestamp}.zip`
-    const tempPath = application.getPath('feature.lan_transfer.temp')
-    const targetPath = destinationPath || tempPath
-
-    // Ensure temp directory exists
-    await fs.ensureDir(targetPath)
-
-    // Create backup with skipBackupFile=true (no Data folder)
-    const backupedFilePath = await this.backupLegacy(_, fileName, data, targetPath, true)
-
-    logger.info(`[BackupManager] Created LAN transfer backup at: ${backupedFilePath}`)
-
-    return backupedFilePath
-  }
-
-  /**
-   * Delete a temporary backup file after LAN transfer completes
-   */
-  async deleteLanTransferBackup(_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> {
-    try {
-      // Security check: only allow deletion within temp directory
-      const tempBase = path.normalize(application.getPath('feature.lan_transfer.temp'))
-      const resolvedPath = path.normalize(path.resolve(filePath))
-
-      // Use normalized paths with trailing separator to prevent prefix attacks (e.g., /temp-evil)
-      if (!resolvedPath.startsWith(tempBase + path.sep) && resolvedPath !== tempBase) {
-        logger.warn(`[BackupManager] Attempted to delete file outside temp directory: ${filePath}`)
-        return false
-      }
-
-      if (await fs.pathExists(resolvedPath)) {
-        await fs.remove(resolvedPath)
-        logger.info(`[BackupManager] Deleted temp backup: ${resolvedPath}`)
-        return true
-      }
-      return false
-    } catch (error) {
-      logger.error('[BackupManager] Failed to delete temp backup:', error as Error)
-      return false
     }
   }
 

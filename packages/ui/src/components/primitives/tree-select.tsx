@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './popover'
 
 const treeSelectTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
+    'inline-flex items-center justify-between rounded-md border-1 text-sm font-normal transition-colors outline-none',
     'bg-input',
     'text-foreground'
   ),
@@ -20,12 +20,12 @@ const treeSelectTriggerVariants = cva(
       state: {
         default: 'border-border focus-visible:border-primary',
         error: 'border border-destructive',
-        disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
+        disabled: 'pointer-events-none cursor-not-allowed opacity-50'
       },
       size: {
-        sm: 'h-8 px-2 text-xs gap-1',
-        default: 'h-9 px-3 gap-2',
-        lg: 'h-10 px-4 gap-2'
+        sm: 'h-8 gap-1 px-2 text-xs',
+        default: 'h-9 gap-2 px-3',
+        lg: 'h-10 gap-2 px-4'
       }
     },
     defaultVariants: {
@@ -322,7 +322,7 @@ export function TreeSelect({
               disabled={option.disabled}
               onClick={() => handleSelect(option)}
               className={cn(
-                'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors',
+                'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors outline-none',
                 selected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/60',
                 option.disabled && 'pointer-events-none opacity-50',
                 option.selectable === false && 'text-muted-foreground'
@@ -379,12 +379,12 @@ export function TreeSelect({
         )}
         <div
           role="tree"
-          className="overflow-y-auto py-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/40 [&::-webkit-scrollbar]:w-1"
+          className="overflow-y-auto py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/40"
           style={{ maxHeight }}>
           {visibleTree.length > 0 ? (
             renderNodes(visibleTree)
           ) : (
-            <div className="px-2 py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
+            <div className="px-2 py-6 text-center text-sm text-muted-foreground">{emptyText}</div>
           )}
         </div>
       </PopoverContent>

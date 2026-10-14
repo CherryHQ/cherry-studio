@@ -120,6 +120,13 @@ Improvements to code quality, performance, and maintainability.
   mapping live in services
 - Services do not reimplement another domain's business logic or bypass the
   owning service's invariants
+- Generic pipelines, dispatchers, registries, permission gates, and shared
+  contracts stay free of concrete-instance knowledge: no branching on specific
+  tool/server/feature ids, no name-list side tables or string-prefix
+  classification, no domain-only parameters threaded through generic
+  signatures (see cherry-review-guidance.md § Entity Leakage)
+- A field carrying several distinct meanings uses a discriminated union, not
+  an overloaded primitive decoded downstream by regex or convention
 
 ### B4. Interface Usage
 - Called APIs used according to their design intent and documentation
@@ -208,7 +215,7 @@ Coding standards and documentation consistency.
 > for an excluded issue type, that type is **not excluded** — review per project rules.
 
 1. Pure style preferences within formatting tool scope (not required by project rules)
-2. Formatting already handled by Biome (indentation, whitespace, trailing commas, etc.)
+2. Formatting already handled by Oxfmt (indentation, whitespace, trailing commas, etc.)
 3. Suggestions based on assumed future requirements, not current code
 4. Code following project's existing style but not matching some external standard
 5. Priority C issues in test code (unless project rules require otherwise)

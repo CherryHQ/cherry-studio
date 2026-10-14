@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -8,9 +12,6 @@ import { ErrorCode } from '@shared/data/api/errors'
 import { type CreateKnowledgeBaseDto, KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SECOND_KNOWLEDGE_BASE_ID = '22222222-2222-4222-8222-222222222222'
@@ -309,6 +310,17 @@ describe('KnowledgeBaseService', () => {
   })
 
   describe('listCursor', () => {
+    it('filters to exact knowledge base ids before counting', async () => {
+      await seedKnowledgeBase()
+      await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Second' })
+      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Other' })
+
+      const result = service.listCursor({ ids: [KNOWLEDGE_BASE_ID, OTHER_KNOWLEDGE_BASE_ID], limit: 2 })
+
+      expect(result.items.map((item) => item.id).sort()).toEqual([KNOWLEDGE_BASE_ID, OTHER_KNOWLEDGE_BASE_ID].sort())
+      expect(result.total).toBe(2)
+    })
+
     it('walks 201 knowledge bases without gaps or duplicates', async () => {
       await seedKnowledgeBases(201)
 

@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { EditorView } from '@codemirror/view'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { loadLanguage } from '@uiw/codemirror-extensions-langs'
 import { type ComponentProps, type ReactNode, type Ref, useImperativeHandle, useRef, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import PromptEditorField from '../PromptEditorField'
 
@@ -59,35 +59,35 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       <div data-testid="markdown" data-md-id={id}>
         {children}
       </div>
-    ),
+    )
   }
 })
 
 vi.mock('@renderer/components/LazyCodeEditor', () => ({
   LazyCodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, theme }: MockCodeEditorProps) => {
-      const textareaRef = useRef<HTMLTextAreaElement>(null)
-      mocks.codeEditorProps = { options, theme }
-      useImperativeHandle(ref, () => ({
-        focus: () => textareaRef.current?.focus()
-      }))
-      return (
-        <div className="cm-editor" data-testid="editor-empty-area">
-          {options?.lineNumbers !== false || options?.foldGutter !== false ? (
-            <div className="cm-gutters" data-testid="gutter" />
-          ) : null}
-          <div className="cm-content">
-            <textarea
-              ref={textareaRef}
-              autoFocus={autoFocus}
-              aria-label="Prompt editor"
-              placeholder={placeholder}
-              value={value}
-              onChange={(event) => onChange?.(event.currentTarget.value)}
-            />
-          </div>
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
+    mocks.codeEditorProps = { options, theme }
+    useImperativeHandle(ref, () => ({
+      focus: () => textareaRef.current?.focus()
+    }))
+    return (
+      <div className="cm-editor" data-testid="editor-empty-area">
+        {options?.lineNumbers !== false || options?.foldGutter !== false ? (
+          <div className="cm-gutters" data-testid="gutter" />
+        ) : null}
+        <div className="cm-content">
+          <textarea
+            ref={textareaRef}
+            autoFocus={autoFocus}
+            aria-label="Prompt editor"
+            placeholder={placeholder}
+            value={value}
+            onChange={(event) => onChange?.(event.currentTarget.value)}
+          />
         </div>
-      )
-    }
+      </div>
+    )
+  }
 }))
 
 describe('PromptEditorField', () => {
@@ -143,7 +143,7 @@ describe('PromptEditorField', () => {
     parent.remove()
   })
 
-  it('keeps Markdown markers visually secondary', () => {
+  it('keeps Markdown markers visually secondary', async () => {
     function Harness() {
       const [value, setValue] = useState('')
       return <PromptEditorField label={<span>Prompt</span>} value={value} onChange={setValue} />
@@ -172,6 +172,13 @@ describe('PromptEditorField', () => {
       }
       return getComputedStyle(tokens[occurrence])
     }
+
+    await waitFor(() => {
+      const renderedTokens = Array.from(view.dom.querySelectorAll<HTMLElement>('.cm-content span')).map(
+        (token) => token.textContent
+      )
+      expect(renderedTokens).toContain('**')
+    })
 
     expect(tokenStyle('#').color).toBe('var(--muted-foreground)')
     expect(tokenStyle(' Heading').color).toBe('var(--foreground)')

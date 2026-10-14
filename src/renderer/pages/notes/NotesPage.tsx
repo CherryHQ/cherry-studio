@@ -1,6 +1,10 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { AnimatePresence, motion } from 'motion/react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, type CodeEditorHandles, ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
@@ -34,10 +38,6 @@ import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type DirectoryTreeOptions, type TreeMutationEvent } from '@shared/utils/file'
-import { AnimatePresence, motion } from 'motion/react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import HeaderNavbar from './HeaderNavbar'
 import NotesEditor, { NotesEditorLoading } from './NotesEditor'
@@ -581,6 +581,10 @@ const NotesPage: FC = () => {
     },
     [createNote, requestFileTransition]
   )
+
+  const handleCreateUntitledNote = useCallback(() => {
+    void handleCreateNote(t('notes.untitled_note'))
+  }, [handleCreateNote, t])
 
   const handleToggleExpanded = useCallback(
     (nodeId: string) => {
@@ -1126,6 +1130,7 @@ const NotesPage: FC = () => {
               onMarkdownChange={handleMarkdownChange}
               editorRef={editorRef}
               codeEditorRef={codeEditorRef}
+              onCreateNote={handleCreateUntitledNote}
             />
           )}
         </div>

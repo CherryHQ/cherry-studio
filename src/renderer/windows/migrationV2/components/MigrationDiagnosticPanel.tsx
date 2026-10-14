@@ -1,8 +1,9 @@
-import { Button, error as showErrorToast, success as showSuccessToast } from '@cherrystudio/ui'
-import { loggerService } from '@renderer/services/LoggerService'
 import { Download } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, error as showErrorToast, success as showSuccessToast } from '@cherrystudio/ui'
+import { loggerService } from '@renderer/services/LoggerService'
 
 import { useMigrationActions } from '../hooks/useMigrationProgress'
 
@@ -94,7 +95,7 @@ export function MigrationDiagnosticPanel({
     <section
       className={embedded ? 'space-y-3 pt-1' : 'space-y-3 rounded-xl border border-border bg-muted/15 px-4 py-3'}>
       {showPrivacy && (
-        <p className="text-muted-foreground text-xs leading-relaxed">{t('migration.diagnostics.privacy')}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('migration.diagnostics.privacy')}</p>
       )}
       <div role="status" aria-live="polite" aria-atomic="true" className="space-y-1 text-xs leading-relaxed">
         {saved && (

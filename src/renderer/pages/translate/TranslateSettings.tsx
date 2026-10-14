@@ -1,3 +1,8 @@
+import { ArrowLeftRight, ChevronDown, PenLine, Plus, X } from 'lucide-react'
+import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ConfirmDialog,
@@ -17,11 +22,13 @@ import {
   PopoverContent,
   PopoverTrigger,
   SegmentedControl,
+  Slider,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -35,13 +42,10 @@ import type {
 import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { ArrowLeftRight, ChevronDown, PenLine, Plus, X } from 'lucide-react'
-import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import IconButton from './components/IconButton'
 import LanguagePicker from './components/LanguagePicker'
+import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 
 type Props = {
   visible: boolean
@@ -208,6 +212,8 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
           </PageSidePanelItem>
         </div>
 
+        <TranslateModelParameters />
+
         <TranslatePromptField />
 
         <CustomLanguageList />
@@ -219,9 +225,148 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
 const TranslateSettingsCoreContent: FC = () => {
   return (
     <div className="flex flex-col gap-8">
+      <TranslateModelParameters />
       <TranslatePromptField />
       <CustomLanguageList />
     </div>
+  )
+}
+
+// Rendered by both panel bodies, so the translate page and Settings → Models
+// agree. Values commit on release, never per change: they go straight to
+// Preference, and an `enable*` toggle must not disturb the number beside it.
+const TranslateModelParameters: FC = () => {
+  const { t } = useTranslation()
+  const { model, effort, selectEffort, supportsReasoning } = useTranslateReasoningEffort()
+  const [enableTemperature, setEnableTemperature] = usePreference('feature.translate.enable_temperature')
+  const [temperature, setTemperature] = usePreference('feature.translate.temperature')
+  const [enableTopP, setEnableTopP] = usePreference('feature.translate.enable_top_p')
+  const [topP, setTopP] = usePreference('feature.translate.top_p')
+
+  const safePersist = useCallback(
+    async (persistPromise: Promise<unknown>, actionName: string) => {
+      try {
+        await persistPromise
+      } catch (error) {
+        logger.error(`Failed to persist ${actionName}`, error as Error)
+        toast.error(t('common.save_failed'))
+      }
+    },
+    [t]
+  )
+
+  return (
+    <PageSidePanelSection title={t('translate.settings.model_params')}>
+      <div className="flex flex-col gap-5">
+        {supportsReasoning && model && (
+          <PageSidePanelItem
+            title={t('assistants.settings.reasoning_effort.label')}
+            action={<ModelSpeedControl model={model} reasoningEffort={effort} onReasoningEffortChange={selectEffort} />}
+          />
+        )}
+
+        <SamplingSliderItem
+          label={t('library.config.basic.temperature')}
+          description={t('library.config.basic.field.temperature.hint')}
+          enabled={enableTemperature}
+          onEnabledChange={(next) => void safePersist(setEnableTemperature(next), 'translate temperature toggle')}
+          value={temperature}
+          onCommit={(next) => void safePersist(setTemperature(next), 'translate temperature')}
+          min={0}
+          max={2}
+          step={0.1}
+          precision={1}
+          marks={[
+            { value: 0, label: t('library.config.basic.precise') },
+            { value: 1, label: '1' },
+            { value: 2, label: t('library.config.basic.creative') }
+          ]}
+        />
+
+        <SamplingSliderItem
+          label={t('library.config.basic.top_p')}
+          description={t('library.config.basic.field.top_p.hint')}
+          enabled={enableTopP}
+          onEnabledChange={(next) => void safePersist(setEnableTopP(next), 'translate top-p toggle')}
+          value={topP}
+          onCommit={(next) => void safePersist(setTopP(next), 'translate top-p')}
+          min={0}
+          max={1}
+          step={0.05}
+          precision={2}
+          marks={[
+            { value: 0, label: '0' },
+            { value: 0.5, label: '0.5' },
+            { value: 1, label: '1' }
+          ]}
+        />
+      </div>
+    </PageSidePanelSection>
+  )
+}
+
+type SamplingSliderItemProps = {
+  label: string
+  description: string
+  enabled: boolean
+  onEnabledChange: (enabled: boolean) => void
+  value: number
+  onCommit: (value: number) => void
+  min: number
+  max: number
+  step: number
+  precision: number
+  marks: Array<{ value: number; label: string }>
+}
+
+const SamplingSliderItem: FC<SamplingSliderItemProps> = ({
+  label,
+  description,
+  enabled,
+  onEnabledChange,
+  value,
+  onCommit,
+  min,
+  max,
+  step,
+  precision,
+  marks
+}) => {
+  const { t } = useTranslation()
+  const [dragged, setDragged] = useState<number | null>(null)
+  const shown = dragged ?? value
+
+  return (
+    <PageSidePanelItem
+      title={label}
+      description={description}
+      action={
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-xs">
+            {enabled ? shown.toFixed(precision) : t('library.config.basic.default_value')}
+          </span>
+          <Switch size="sm" aria-label={label} checked={enabled} onCheckedChange={onEnabledChange} />
+        </div>
+      }>
+      {enabled && (
+        <div className="-mb-2 mt-1 w-full">
+          <Slider
+            min={min}
+            max={max}
+            step={step}
+            marks={marks}
+            value={[shown]}
+            aria-label={label}
+            className="w-full"
+            onValueChange={([next]) => setDragged(next)}
+            onValueCommit={([next]) => {
+              setDragged(null)
+              onCommit(next)
+            }}
+          />
+        </div>
+      )}
+    </PageSidePanelItem>
   )
 }
 
@@ -302,7 +447,7 @@ const TranslatePromptField: FC = () => {
           <button
             type="button"
             onClick={onReset}
-            className="rounded-md text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
+            className="rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
             {t('common.reset')}
           </button>
         )
@@ -310,7 +455,7 @@ const TranslatePromptField: FC = () => {
       <textarea
         value={local}
         onChange={(e) => schedulePersist(e.target.value)}
-        className="min-h-30 w-full resize-y rounded-md border border-border-subtle bg-muted/40 p-3 text-muted-foreground text-sm leading-relaxed outline-none transition-colors focus:border-ring"
+        className="min-h-30 w-full resize-y rounded-md border border-border-subtle bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground transition-colors outline-none focus:border-ring"
       />
     </PageSidePanelSection>
   )
@@ -338,7 +483,7 @@ const CustomLanguageList: FC = () => {
       title={t('translate.custom.label')}
       actions={
         customLanguages.length > 0 && (
-          <span className="text-foreground-tertiary text-xs">{t('code.count', { count: customLanguages.length })}</span>
+          <span className="text-xs text-foreground-tertiary">{t('code.count', { count: customLanguages.length })}</span>
         )
       }>
       <div className="flex flex-col gap-1">
@@ -346,7 +491,7 @@ const CustomLanguageList: FC = () => {
           <CustomLanguageRow key={language.langCode} language={language} />
         ))}
         {customLanguages.length === 0 && !isAdding && (
-          <p className="rounded-md bg-muted/30 px-2 py-2 text-center text-muted-foreground text-sm">
+          <p className="rounded-md bg-muted/30 px-2 py-2 text-center text-sm text-muted-foreground">
             {t('common.no_results')}
           </p>
         )}
@@ -479,7 +624,7 @@ const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[]; onAdded?: () =
         {error?.field === 'code' ? (
           <FieldDescription className="text-destructive">{t(error.messageKey)}</FieldDescription>
         ) : (
-          <FieldDescription className="text-muted-foreground text-xs leading-4">
+          <FieldDescription className="text-xs leading-4 text-muted-foreground">
             {t('settings.translate.custom.langCode.help')}
           </FieldDescription>
         )}
@@ -545,13 +690,13 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
     return (
       <>
         <div className="group flex items-center gap-2 rounded-lg px-2 py-1.25 transition-colors hover:bg-muted/30">
-          <span className="min-w-0 flex-1 truncate text-foreground text-sm">{language.value}</span>
-          <span className="shrink-0 font-mono text-foreground-tertiary text-xs">{language.langCode}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-foreground">{language.value}</span>
+          <span className="shrink-0 font-mono text-xs text-foreground-tertiary">{language.langCode}</span>
           <IconButton
             size="xs"
             onClick={() => setEditing(true)}
             aria-label={t('common.edit')}
-            className="text-muted-foreground opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
+            className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-transparent">
             <PenLine size={10} />
           </IconButton>
           <IconButton
@@ -559,7 +704,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
             tone="destructive"
             onClick={() => setConfirmOpen(true)}
             aria-label={t('common.delete')}
-            className="text-muted-foreground opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
+            className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-transparent">
             <X size={10} />
           </IconButton>
         </div>

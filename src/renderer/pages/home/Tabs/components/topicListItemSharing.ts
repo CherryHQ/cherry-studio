@@ -1,7 +1,8 @@
+import { isEqual } from 'es-toolkit/compat'
+
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { isEqual } from 'es-toolkit/compat'
 
 interface TopicListItemSnapshot {
   entity: ApiTopic

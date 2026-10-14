@@ -9,7 +9,7 @@ function utf8CodePointBytes(codePoint: number): number {
 
 function utf8ByteLength(value: string): number {
   let bytes = 0
-  for (let index = 0; index < value.length; ) {
+  for (let index = 0; index < value.length;) {
     const codePoint = value.codePointAt(index)!
     bytes += utf8CodePointBytes(codePoint)
     index += codePoint > 0xffff ? 2 : 1
@@ -42,7 +42,7 @@ function splitUtf8(value: string, maxBytes: number): Utf8Segment[] {
   let segmentStart = 0
   let segmentBytes = 0
 
-  for (let index = 0; index < value.length; ) {
+  for (let index = 0; index < value.length;) {
     const codePoint = value.codePointAt(index)!
     const codeUnits = codePoint > 0xffff ? 2 : 1
     const codePointBytes = utf8CodePointBytes(codePoint)

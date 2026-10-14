@@ -66,4 +66,19 @@ describe('ImageToolbar', () => {
 
     expect(openDialog).toHaveBeenCalledOnce()
   })
+
+  it('hides pan/zoom controls but keeps the dialog control when pan/zoom is disabled', async () => {
+    const user = userEvent.setup()
+    render(<ImageToolbar pan={pan} zoom={zoom} dialog={openDialog} enablePanZoom={false} />)
+
+    expect(screen.queryByRole('button', { name: 'preview.pan_up' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'preview.zoom_in' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'preview.reset' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'preview.dialog' }))
+
+    expect(openDialog).toHaveBeenCalledOnce()
+    expect(pan).not.toHaveBeenCalled()
+    expect(zoom).not.toHaveBeenCalled()
+  })
 })

@@ -1,7 +1,8 @@
-import { Input } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Mail, Search, User } from 'lucide-react'
 import { useState } from 'react'
+
+import { Input } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Input> = {
   title: 'Components/Primitives/Input',

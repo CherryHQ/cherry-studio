@@ -31,6 +31,7 @@ const cacheCleanupGroupsInputSchema = z
   })
 
 export const appRequestSchemas = {
+  'app.mobile.get_android_download_url': defineRoute({ input: z.void(), output: z.url() }),
   'app.get_info': defineRoute({
     input: z.void(),
     output: z.object({
@@ -86,7 +87,6 @@ export const appRequestSchemas = {
     input: z.object({ delta: z.number(), reset: z.boolean().optional() }),
     output: z.number()
   }),
-  'app.set_spell_check_enabled': defineRoute({ input: z.boolean(), output: z.void() }),
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.migration_v2.rerun': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
