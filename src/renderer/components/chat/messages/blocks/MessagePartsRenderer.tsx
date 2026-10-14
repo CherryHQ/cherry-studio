@@ -788,20 +788,21 @@ function renderPart(
         logger.warn('File part addresses no file, skipping', { filename: filePart.filename })
         return null
       }
+      if (filePart.mediaType?.startsWith('video/')) {
+        return (
+          <React.Suspense key={partId} fallback={null}>
+            <MessageVideo handle={attachment.handle} url={filePart.url} />
+          </React.Suspense>
+        )
+      }
       return (
-        <React.Fragment key={partId}>
-          {filePart.mediaType?.startsWith('video/') && (
-            <React.Suspense fallback={null}>
-              <MessageVideo handle={attachment.handle} url={filePart.url} />
-            </React.Suspense>
-          )}
-          <MessageAttachments
-            handle={attachment.handle}
-            name={attachment.name}
-            ext={attachment.ext}
-            createdAt={message.createdAt}
-          />
-        </React.Fragment>
+        <MessageAttachments
+          key={partId}
+          handle={attachment.handle}
+          name={attachment.name}
+          ext={attachment.ext}
+          createdAt={message.createdAt}
+        />
       )
     }
 

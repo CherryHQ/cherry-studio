@@ -1167,7 +1167,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'doc.pdf')
     })
 
-    it('offers inline playback for generated video files while keeping file actions available', async () => {
+    it('renders generated video files inline without a duplicate generic attachment card', async () => {
       renderParts([
         {
           type: 'file',
@@ -1182,7 +1182,7 @@ describe('MessagePartsRenderer', () => {
         'data-url',
         'file:///generated/result.mp4'
       )
-      expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'result.mp4')
+      expect(screen.queryByTestId('mock-attachments')).not.toBeInTheDocument()
     })
 
     it('renders a composer file token when it is the only user message content', () => {
