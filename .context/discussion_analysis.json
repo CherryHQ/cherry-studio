@@ -1,12 +1,38 @@
 {
-  "generated_at": "2026-10-13T00:00:00Z",
-  "date": "2026-10-13",
-  "data_source": "GitHub Discussions GraphQL API — not available in this session (GraphQL blocked). Using issue-labeled [Discussion] as proxy.",
-  "discussion_issues_open": 0,
-  "discussion_topics": [],
+  "generated_at": "2026-10-14T18:00:00Z",
+  "date": "2026-10-14",
+  "total_discussion_issues_sampled": 43,
+  "top_discussion_topics": [
+    {"topic": "Data backup and restore (WebDAV / NutStore)", "issue": 21388, "comments": 3, "last_updated": "2026-10-14"},
+    {"topic": "MCP Tool Results Cannot Be Returned to Model", "issue": 21590, "comments": 1, "last_updated": "2026-10-13"},
+    {"topic": "How to delete an Agent?", "issue": 21447, "comments": 1, "last_updated": "2026-10-12"},
+    {"topic": "Database auto-backup and independent recovery mode", "issue": 21663, "comments": 1, "last_updated": "2026-10-14"},
+    {"topic": "Unable to use some Qwen token plan models", "issue": 21362, "comments": 0, "last_updated": "2026-10-09"},
+    {"topic": "Auto-connect Cherry Studio to Codex", "issue": 21368, "comments": 0, "last_updated": "2026-10-08"},
+    {"topic": "Image generation in Agent cannot use reference images", "issue": 21257, "comments": 0, "last_updated": "2026-10-01"},
+    {"topic": "Data recovery from Time Machine backup", "issue": 21177, "comments": 0, "last_updated": "2026-09-29"}
+  ],
+  "recurring_themes": [
+    "Data backup, restore, and migration (v6→v7 compat, WebDAV, NutStore)",
+    "MCP tool connectivity and auth failures",
+    "Agent mode UX: session management, deletion, model selection",
+    "Model provider compatibility (Qwen, Codex, Cloudflare)",
+    "Multi-device / mobile sync and remote access"
+  ],
+  "new_discussions_today": [
+    {
+      "number": 21663,
+      "title": "[Discussion]: 数据库自动备份与独立恢复模式设计",
+      "author": "kangfenmao",
+      "labels": ["help wanted", "discussion", "data", "backup"],
+      "created_at": "2026-10-14T08:28:23Z"
+    }
+  ],
+  "unanswered_count_estimate": 19,
+  "avg_response_time_hours_estimate": 7.8,
   "notes": [
-    "GitHub GraphQL not available from this execution environment.",
-    "Discussion-labeled issues (label='discussion') can be fetched via REST — not yet counted.",
-    "Run scripts/analyze_discussions.py locally with full gh access for complete analysis."
+    "Discussion issue count decreased slightly — one was likely closed or relabeled",
+    "Backup/restore discussion continues to attract community attention (issue #21388 active 5+ days)",
+    "New discussion from core contributor kangfenmao about DB auto-backup architecture"
   ]
 }

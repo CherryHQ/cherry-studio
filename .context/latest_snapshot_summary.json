@@ -1,322 +1,105 @@
 {
-  "generated_at": "2026-10-13T00:00:00Z",
-  "date": "2026-10-13",
+  "generated_at": "2026-10-14T18:00:00Z",
+  "date": "2026-10-14",
   "open_issues": {
-    "total": 1152,
-    "p1_urgent": 50,
-    "p2": 0,
-    "p3": 0,
-    "unlabeled_estimate": "~15% based on sample (need full scan)",
+    "total": 1151,
+    "p1_urgent": 100,
+    "p2": 12,
+    "p3": 3,
+    "uncategorized_estimate_pct": 9.0,
     "top_labels": {
-      "bug": "est. ~60%",
-      "feature": "est. ~30%",
-      "agent": "high",
-      "windows": "high",
-      "models": "high"
+      "bug": "~42%",
+      "feature": "~27%",
+      "agent": "~24%",
+      "windows": "~16%",
+      "models": "~17%"
     }
   },
   "open_prs": {
     "total": 100,
-    "base_main": 82,
+    "base_main": 83,
     "base_v2": 0,
-    "other_feature_branches": 18
+    "other_feature_branches": 17
   },
-  "p1_issues": [
+  "p1_issues_top10": [
     {
       "number": 21418,
-      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename \"Local Storage\"); b",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "data",
-        "v2"
-      ],
-      "assignees": [
-        "DeJeune"
-      ],
+      "title": "[Bug]: Restore triggers app auto-restart, backup archive corrupted (v6→v7)",
+      "labels": ["bug", "p1", "windows", "data", "v2"],
       "updated_at": "2026-10-13T11:31:36Z"
     },
     {
       "number": 21085,
-      "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
-      "labels": [
-        "bug",
-        "p1",
-        "rag",
-        "assistant",
-        "performance",
-        "v2",
-        "chat"
-      ],
-      "assignees": [
-        "404-Page-Found"
-      ],
+      "title": "[Bug]: File/KB scopes inline large builtin tool schemas and can overflow context",
+      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
       "updated_at": "2026-09-27T21:15:39Z"
     },
     {
       "number": 20941,
-      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "labels": [
-        "bug",
-        "p1",
-        "v2",
-        "agent",
-        "chat"
-      ],
-      "assignees": [],
+      "title": "[Bug]: Work and Agent conversations terminate with empty no-response error",
+      "labels": ["bug", "p1", "v2", "agent", "chat"],
       "updated_at": "2026-09-22T17:31:00Z"
     },
     {
       "number": 20940,
       "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "v2",
-        "chat"
-      ],
-      "assignees": [],
+      "labels": ["bug", "p1", "models", "v2", "chat"],
       "updated_at": "2026-09-22T16:32:21Z"
     },
     {
       "number": 20937,
       "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "v2",
-        "agent"
-      ],
-      "assignees": [],
+      "labels": ["bug", "p1", "windows", "v2", "agent"],
       "updated_at": "2026-09-22T16:32:14Z"
     },
     {
       "number": 20695,
-      "title": "[Bug]: Parallel `edit` calls to the same file via built-in filesystem MCP cause lost updates and dup",
-      "labels": [
-        "bug",
-        "p1"
-      ],
-      "assignees": [
-        "404-Page-Found",
-        "Copilot"
-      ],
+      "title": "[Bug]: Parallel edit calls to the same file via built-in filesystem MCP cause lost updates",
+      "labels": ["bug", "p1"],
       "updated_at": "2026-09-24T15:37:51Z"
     },
     {
       "number": 20692,
       "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
-      "labels": [
-        "bug",
-        "p1",
-        "agent"
-      ],
-      "assignees": [
-        "404-Page-Found",
-        "Copilot"
-      ],
+      "labels": ["bug", "p1", "agent"],
       "updated_at": "2026-10-08T18:05:27Z"
     },
     {
       "number": 20532,
       "title": "[Bug]: Cherry Studio crashes when saving a Chinese-named file",
-      "labels": [
-        "bug",
-        "p1",
-        "windows"
-      ],
-      "assignees": [
-        "404-Page-Found",
-        "Copilot"
-      ],
+      "labels": ["bug", "p1", "windows"],
       "updated_at": "2026-09-19T06:55:06Z"
     },
     {
-      "number": 20476,
-      "title": "DeepSeek chat content can be serialized with an incomplete hex escape",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "models",
-        "chat"
-      ],
-      "assignees": [],
-      "updated_at": "2026-09-12T18:36:43Z"
+      "number": 19865,
+      "title": "[Bug]: Claude Code Agent can exhaust Windows virtual memory and freeze the system",
+      "labels": ["bug", "p1", "windows", "performance", "agent"],
+      "updated_at": "2026-09-28T03:15:14Z"
     },
     {
-      "number": 20460,
-      "title": "[Bug]: Volcano responses with reasoning_content break tool_calls parsing",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ],
-      "assignees": [],
-      "updated_at": "2026-09-12T12:40:31Z"
-    },
-    {
-      "number": 20458,
-      "title": "[Bug]: Hybrid Chat Completions response schema fails strict validation",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "chat"
-      ],
-      "assignees": [],
-      "updated_at": "2026-09-18T11:26:50Z"
-    },
-    {
-      "number": 20374,
-      "title": "Unable to read Word and PDF documents",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-repro",
-        "data",
-        "v2"
-      ],
-      "assignees": [
-        "zhangjiadi225"
-      ],
-      "updated_at": "2026-09-11T08:00:58Z"
-    },
-    {
-      "number": 20369,
-      "title": "[Bug]: Claude Code Agent exits on Linux when zypak cannot access the session bus",
-      "labels": [
-        "bug",
-        "p1",
-        "linux",
-        "agent"
-      ],
-      "assignees": [
-        "404-Page-Found"
-      ],
-      "updated_at": "2026-09-20T02:46:11Z"
-    },
-    {
-      "number": 20365,
-      "title": "[Bug]: Clearing chat context still reports about 90K cached prompt tokens for a one-line request",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "models",
-        "performance",
-        "chat"
-      ],
-      "assignees": [],
-      "updated_at": "2026-09-26T18:29:48Z"
-    },
-    {
-      "number": 20361,
-      "title": "[Bug]: All conversation tools report No tools are available on one Windows PC",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent"
-      ],
-      "assignees": [],
-      "updated_at": "2026-09-10T15:26:46Z"
-    },
-    {
-      "number": 20344,
-      "title": "Windows Agent startup crashes when PATH contains a null byte",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent"
-      ],
-      "assignees": [],
-      "updated_at": "2026-09-14T07:40:27Z"
-    },
-    {
-      "number": 20343,
-      "title": "Configured OCR fallback fails for image input on non-vision models",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "models",
-        "chat"
-      ],
-      "assignees": [
-        "eeee0717"
-      ],
-      "updated_at": "2026-10-13T11:18:41Z"
-    },
-    {
-      "number": 20338,
-      "title": "[Bug]: Mac OS系统下，编程搭档启动失败",
-      "labels": [
-        "bug",
-        "p1",
-        "macos",
-        "code-mate"
-      ],
-      "assignees": [
-        "GeorgeDong32"
-      ],
-      "updated_at": "2026-09-10T16:40:08Z"
-    },
-    {
-      "number": 20315,
-      "title": "[Bug]: DSH bridge fails while loading cordis:include",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "mcp",
-        "agent"
-      ],
-      "assignees": [
-        "404-Page-Found"
-      ],
-      "updated_at": "2026-10-04T14:15:36Z"
-    },
-    {
-      "number": 20314,
-      "title": "[Bug]: Agent task model selection overwrites another task",
-      "labels": [
-        "bug",
-        "p1",
-        "ui-ux",
-        "models",
-        "agent"
-      ],
-      "assignees": [
-        "404-Page-Found"
-      ],
-      "updated_at": "2026-09-20T03:10:13Z"
+      "number": 18373,
+      "title": "[Bug]: Data directory relocation leaves stale absolute paths in DB",
+      "labels": ["bug", "p1", "windows", "data"],
+      "updated_at": "2026-10-09T02:53:22Z"
     }
   ],
   "p1_by_component": {
-    "agent": 25,
-    "windows": 20,
+    "agent": 28,
+    "windows": 22,
     "models": 20,
-    "chat": 11,
-    "v2": 10,
-    "performance": 5,
-    "data": 3,
-    "macos": 3,
+    "chat": 12,
+    "v2": 11,
+    "performance": 6,
+    "data": 4,
+    "macos": 4,
     "code-mate": 3,
     "ui-ux": 3
   },
   "summary_notes": [
-    "1152 open issues total as of 2026-10-13",
-    "50 P1 urgent bugs/features — 48 bugs, 1 feature, 1 other",
-    "Agent/Windows/Models are the top affected components in P1",
-    "10 P1 issues tagged v2",
-    "100 open PRs; 82 targeting main, 0 targeting v2 directly",
-    "Feature branch PRs include voice/media pipeline (codex/voice-*, SiinXu/media-ffmpeg-*, orca/media-*)",
-    "No .context scripts found — this is a first-time snapshot bootstrap"
+    "1151 open issues as of 2026-10-14 (down 1 from yesterday: 1152)",
+    "100 P1 issues — highest priority requiring immediate attention",
+    "76 of 100 open PRs created in the last 7 days — very active development pace",
+    "Top PR contributors: DeJeune (12), SiinXu (10), focus-zyw (8), lianshuang-photo (7)",
+    "Voice/media pipeline and Agent Runtime are the two active feature tracks"
   ]
 }

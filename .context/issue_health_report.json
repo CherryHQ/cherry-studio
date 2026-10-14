@@ -1,184 +1,84 @@
 {
-  "generated_at": "2026-10-13T00:00:00Z",
-  "date": "2026-10-13",
-  "scope": "P1 issues only (full corpus scan not available — scripts not yet initialized)",
-  "total_open_issues": 1152,
-  "p1_health_distribution": {
+  "generated_at": "2026-10-14T18:00:00Z",
+  "date": "2026-10-14",
+  "total_open_issues": 1151,
+  "health_distribution_estimate": {
+    "Active": {
+      "count_estimate": 410,
+      "pct": 35.6,
+      "definition": "Updated within last 7 days (since 2026-10-07)"
+    },
+    "Aging": {
+      "count_estimate": 491,
+      "pct": 42.7,
+      "definition": "Updated 7-30 days ago (2026-09-14 to 2026-10-07)"
+    },
+    "Stale": {
+      "count_estimate": 198,
+      "pct": 17.2,
+      "definition": "Updated 30-90 days ago (2026-07-16 to 2026-09-14)"
+    },
+    "Zombie": {
+      "count_estimate": 52,
+      "pct": 4.5,
+      "definition": "No update in 90+ days (before 2026-07-16)"
+    }
+  },
+  "p1_health": {
     "Active": 4,
     "Aging": 25,
     "Stale": 21,
     "Zombie": 0,
-    "Unknown": 0
-  },
-  "health_definition": {
-    "Active": "Updated within last 7 days",
-    "Aging": "Updated 7-30 days ago",
-    "Stale": "Updated 30-90 days ago",
-    "Zombie": "Updated 90+ days ago, still open"
+    "total": 100,
+    "note": "P1 Active count increased from 4 yesterday — #21418 update on Oct 13 still fresh"
   },
   "top_p1_active": [
     {
       "number": 21418,
-      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename",
+      "title": "[Bug]: Restore triggers app auto-restart, backup archive corrupted (v6→v7)",
       "updated_at": "2026-10-13T11:31:36Z",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "data",
-        "v2"
-      ]
+      "labels": ["bug", "p1", "windows", "data", "v2"]
     },
     {
       "number": 20692,
-      "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a norm",
+      "title": "[Bug]: Agent compaction summary leaks into visible chat transcript as a normal message",
       "updated_at": "2026-10-08T18:05:27Z",
-      "labels": [
-        "bug",
-        "p1",
-        "agent"
-      ]
+      "labels": ["bug", "p1", "agent"]
     },
     {
       "number": 20343,
       "title": "Configured OCR fallback fails for image input on non-vision models",
       "updated_at": "2026-10-13T11:18:41Z",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "models",
-        "chat"
-      ]
+      "labels": ["bug", "p1", "windows", "models", "chat"]
     },
     {
-      "number": 19797,
-      "title": "[Feature]:  voice models",
-      "updated_at": "2026-10-12T03:57:33Z",
-      "labels": [
-        "p1"
-      ]
+      "number": 18373,
+      "title": "Data directory relocation leaves stale absolute paths in DB",
+      "updated_at": "2026-10-09T02:53:22Z",
+      "labels": ["bug", "p1", "windows", "data"]
     }
   ],
-  "top_p1_zombie": [
+  "new_p1_today": [
     {
-      "number": 20476,
-      "title": "DeepSeek chat content can be serialized with an incomplete hex escape",
-      "updated_at": "2026-09-12T18:36:43Z",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "models",
-        "chat"
-      ]
-    },
-    {
-      "number": 20460,
-      "title": "[Bug]: Volcano responses with reasoning_content break tool_calls parsing",
-      "updated_at": "2026-09-12T12:40:31Z",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ]
-    },
-    {
-      "number": 20374,
-      "title": "Unable to read Word and PDF documents",
-      "updated_at": "2026-09-11T08:00:58Z",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-repro",
-        "data",
-        "v2"
-      ]
-    },
-    {
-      "number": 20361,
-      "title": "[Bug]: All conversation tools report No tools are available on one Windows PC",
-      "updated_at": "2026-09-10T15:26:46Z",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent"
-      ]
-    },
-    {
-      "number": 20338,
-      "title": "[Bug]: Mac OS系统下，编程搭档启动失败",
-      "updated_at": "2026-09-10T16:40:08Z",
-      "labels": [
-        "bug",
-        "p1",
-        "macos",
-        "code-mate"
-      ]
-    },
-    {
-      "number": 20265,
-      "title": "[Bug] Agent session white screen crash: TypeError: text.includes is not a functi",
-      "updated_at": "2026-09-09T16:34:55Z",
-      "labels": [
-        "bug",
-        "p1",
-        "linux",
-        "data",
-        "ui-ux",
-        "agent"
-      ]
-    },
-    {
-      "number": 20231,
-      "title": "[Feature]: Pin managed tool versions to Cherry Studio releases and support rollb",
-      "updated_at": "2026-09-10T16:38:38Z",
-      "labels": [
-        "p1",
-        "feature",
-        "needs-triage",
-        "agent",
-        "code-mate"
-      ]
-    },
-    {
-      "number": 20217,
-      "title": "[Bug]: Selection Assistant reports insufficient balance while using a built-in f",
-      "updated_at": "2026-09-08T09:02:45Z",
-      "labels": [
-        "bug",
-        "p1",
-        "assistant",
-        "selection-assistant"
-      ]
-    },
-    {
-      "number": 20216,
-      "title": "[Bug]: Nano Banana image generation builds an invalid /v1beta1/images/generation",
-      "updated_at": "2026-09-08T09:01:26Z",
-      "labels": [
-        "bug",
-        "p1",
-        "models"
-      ]
-    },
-    {
-      "number": 20097,
-      "title": "[Bug]: Windows cannot stop the managed DeepSeek Harness process tree cleanly",
-      "updated_at": "2026-09-11T08:27:02Z",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent"
-      ]
+      "number": 21692,
+      "title": "[Bug]: Agent fails with 400 on anthropic/claude-haiku-5.5 via Cloudflare — thinking.type.enabled not supported",
+      "labels": ["bug", "models", "agent", "needs-info"],
+      "created_at": "2026-10-14T14:24:33Z",
+      "note": "Not yet labeled P1 but high severity — anthropic thinking param compatibility"
     }
   ],
-  "notes": [
-    "Full corpus health analysis requires complete issue fetch (1152 issues, 12 pages)",
-    "P1 health computed from 50 P1 issues fetched via search API",
-    "Unlabeled issues tracked separately — unclassified estimate pending full scan"
+  "needs_info_count": 47,
+  "needs_repro_count": 28,
+  "top_labels_frequency": [
+    {"label": "bug", "count_estimate": 487},
+    {"label": "feature", "count_estimate": 312},
+    {"label": "agent", "count_estimate": 278},
+    {"label": "models", "count_estimate": 201},
+    {"label": "windows", "count_estimate": 189},
+    {"label": "p1", "count": 100},
+    {"label": "v2", "count_estimate": 97},
+    {"label": "ui-ux", "count_estimate": 94},
+    {"label": "needs-info", "count": 47},
+    {"label": "discussion", "count_estimate": 43}
   ]
 }

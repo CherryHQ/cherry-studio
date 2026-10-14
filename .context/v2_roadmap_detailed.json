@@ -1,180 +1,99 @@
 {
-  "generated_at": "2026-10-13T00:00:00Z",
-  "date": "2026-10-13",
+  "generated_at": "2026-10-14T18:00:00Z",
+  "date": "2026-10-14",
   "v2_branch_status": {
     "open_prs_targeting_v2": 0,
-    "merged_prs_last_30d": "not fetched (GraphQL unavailable)",
-    "note": "No open PRs found targeting the v2 base branch. Feature development is currently on main and named feature branches."
+    "note": "No open PRs targeting v2 branch — all v2 work is in feature branches merging to main"
   },
   "active_feature_branches": [
-    "codex/voice-renderer-foundation (3 PRs)",
-    "SiinXu/media-ffmpeg-linux-runtime (2 PRs)",
-    "codex/voice-runtime-foundation (2 PRs)",
-    "orca/media-analysis-integration (2 PRs)",
-    "orca/chat-media-fallback-integration (1 PR)",
-    "codex/voice-funasr-runtime (1 PR)",
-    "codex/voice-primary-consumers (1 PR)",
-    "feature/agent-runtime-subagent (1 PR)",
-    "feature/agent-runtime-todo-ask-user (1 PR)",
-    "feature/agent-runtime-ai-sdk-bridge (1 PR)",
-    "feature/agent-runtime-transcript-context (1 PR)",
-    "DeJeune/native-tool-search-code-mode (1 PR)"
+    "feature/agent-runtime-goal (PRs: 1)",
+    "feature/agent-runtime-subagent (PRs: 1)",
+    "feature/agent-runtime-todo-ask-user (PRs: 1)",
+    "codex/generated-attachments (PRs: 1)",
+    "codex/voice-renderer-foundation (PRs: 1)",
+    "orca/media-analysis-integration (PRs: 2)",
+    "SiinXu/media-ffmpeg-linux-runtime (PRs: 2)",
+    "DeJeune/native-tool-search-code-mode (PRs: 2)",
+    "orca/chat-media-fallback-integration (PRs: 1)"
   ],
-  "v2_tagged_p1_bugs": [
+  "v2_tagged_p1_bugs_open": [
     {
       "number": 21418,
-      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename \"Local Storage\"); b",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "data",
-        "v2"
-      ],
-      "assignees": [
-        "DeJeune"
-      ],
+      "title": "[Bug]: Restore triggers app auto-restart, backup archive corrupted (v6→v7)",
+      "labels": ["bug", "p1", "windows", "data", "v2"],
       "updated_at": "2026-10-13T11:31:36Z"
     },
     {
       "number": 21085,
-      "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
-      "labels": [
-        "bug",
-        "p1",
-        "rag",
-        "assistant",
-        "performance",
-        "v2",
-        "chat"
-      ],
-      "assignees": [
-        "404-Page-Found"
-      ],
+      "title": "[Bug]: File/KB scopes inline large builtin tool schemas and can overflow context",
+      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
       "updated_at": "2026-09-27T21:15:39Z"
     },
     {
       "number": 20941,
       "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "labels": [
-        "bug",
-        "p1",
-        "v2",
-        "agent",
-        "chat"
-      ],
-      "assignees": [],
+      "labels": ["bug", "p1", "v2", "agent", "chat"],
       "updated_at": "2026-09-22T17:31:00Z"
     },
     {
       "number": 20940,
       "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "v2",
-        "chat"
-      ],
-      "assignees": [],
+      "labels": ["bug", "p1", "models", "v2", "chat"],
       "updated_at": "2026-09-22T16:32:21Z"
     },
     {
       "number": 20937,
       "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "v2",
-        "agent"
-      ],
-      "assignees": [],
+      "labels": ["bug", "p1", "windows", "v2", "agent"],
       "updated_at": "2026-09-22T16:32:14Z"
     },
     {
       "number": 20374,
       "title": "Unable to read Word and PDF documents",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-repro",
-        "data",
-        "v2"
-      ],
-      "assignees": [
-        "zhangjiadi225"
-      ],
+      "labels": ["bug", "p1", "needs-repro", "data", "v2"],
       "updated_at": "2026-09-11T08:00:58Z"
     },
     {
       "number": 20027,
       "title": "Explain and recover when all generated images are filtered as invalid",
-      "labels": [
-        "bug",
-        "p1",
-        "ui-ux",
-        "models",
-        "v2"
-      ],
-      "assignees": [
-        "SiinXu"
-      ],
+      "labels": ["bug", "p1", "ui-ux", "models", "v2"],
       "updated_at": "2026-09-05T09:56:26Z"
     },
     {
       "number": 20021,
-      "title": "Local OCR and embedding fail when onnxruntime_binding.node cannot initialize on Windows",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "rag",
-        "v2",
-        "ocr"
-      ],
-      "assignees": [],
+      "title": "Local OCR and embedding fail (onnxruntime_binding.node cannot initialize on Windows)",
+      "labels": ["bug", "p1", "windows", "rag", "v2", "ocr"],
       "updated_at": "2026-09-14T11:02:08Z"
     },
     {
       "number": 19929,
       "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "v2",
-        "agent"
-      ],
-      "assignees": [
-        "404-Page-Found"
-      ],
+      "labels": ["bug", "p1", "windows", "v2", "agent"],
       "updated_at": "2026-09-20T07:39:25Z"
     },
     {
       "number": 19753,
       "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "needs-repro",
-        "v2",
-        "agent"
-      ],
-      "assignees": [],
+      "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
       "updated_at": "2026-09-29T02:10:41Z"
+    },
+    {
+      "number": 19625,
+      "title": "[Bug]: Windows in-app update exits but leaves old 1.9.x version installed",
+      "labels": ["bug", "p1", "windows", "needs-repro", "needs-triage", "v2"],
+      "updated_at": "2026-08-28T04:52:26Z"
     }
   ],
   "v2_theme_inferred": [
     "Voice/Media pipeline: FFmpeg runtime packaging, audio preprocessing, FunASR, voice renderer",
-    "Agent Runtime: subagent, transcript context, AI SDK bridge, tool-call ask-user",
+    "Agent Runtime: subagent orchestration, background execution, transcript context, AI SDK bridge",
     "Chat media fallback: orca integration",
-    "P1 v2 bugs: Restore/data corruption, Knowledge Base context overflow, empty responses, DSH bridge failures, Responses API stream failures"
+    "P1 v2 bugs: Restore/data corruption, KB context overflow, empty responses, DSH bridge failures"
   ],
   "notes": [
-    "v2 branch itself has no open PRs — all v2 work is in named feature branches merging to main",
-    "10 open P1 bugs are tagged v2, indicating v2-specific regressions not yet resolved",
-    "Voice and media pipeline appears to be the primary active feature area (7 PRs across 4 branches)"
+    "v2 branch has no open PRs — development continues on main with feature branches",
+    "11 open P1 bugs tagged v2 (down from 10 yesterday if #21418 resolved, still at 11)",
+    "Voice and media pipeline remains primary active feature area",
+    "New: agent-runtime-goal branch added today with background subagent execution feature"
   ]
 }
