@@ -67,6 +67,17 @@ const ANTHROPIC_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoni
   wire: OPENAI_CHAT_REASONING_PROFILE.wire
 }
 
+// Gemini's wire forwards the effort verbatim into `thinkingConfig.thinkingLevel`,
+// which only accepts low/medium/high — the manual fallback must not offer more.
+const GEMINI_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
+  format: 'gemini' as const,
+  wire: {
+    off: { operations: [{ target: 'thinkingConfig.includeThoughts', value: { source: 'literal', value: false } }] },
+    auto: { operations: [{ target: 'thinkingConfig.includeThoughts', value: { source: 'literal', value: true } }] },
+    effort: { operations: [{ target: 'thinkingConfig.thinkingLevel', value: { source: 'effort' } }] }
+  }
+}
+
 beforeEach(() => {
   resolveModelMock.mockReset()
   resolveModelMock.mockReturnValue({
@@ -1051,6 +1062,72 @@ describe('ModelService — manual reasoning capability projects effort controls'
     expect(efforts).not.toContain('minimal')
     expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
     expect(model.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
+  })
+
+  it('derives manual controls from a model-level endpoint override, not the provider default', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+
+    // Provider resolves to an anthropic-format endpoint by default.
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: ANTHROPIC_REASONING_PROFILE
+    })
+    modelService.create([
+      {
+        dto: {
+          providerId: 'acme',
+          modelId: 'acme-thinker:latest',
+          name: 'Acme Thinker',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    // The MODEL overrides its endpoint to ollama-chat: requests honor that
+    // override, so the vocabulary must be regenerated for it — not for the
+    // provider default the resolved profile was built from.
+    await dbh.db
+      .update(userModelTable)
+      .set({ endpointTypes: ['ollama-chat'] })
+      .where(and(eq(userModelTable.providerId, 'acme'), eq(userModelTable.modelId, 'acme-thinker:latest')))
+
+    const [model] = modelService.list({ providerId: 'acme' })
+    const efforts = model.reasoning?.selectableEfforts ?? []
+    expect(efforts).not.toContain('max')
+    expect(efforts).not.toContain('xhigh')
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+    expect(model.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
+  })
+
+  it('exposes no gemini-incompatible tiers on a Gemini endpoint', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('gemini-host', 'Gemini Host'))
+
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: GEMINI_REASONING_PROFILE
+    })
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'gemini-host',
+          modelId: 'acme-uncataloged-thinker',
+          name: 'Acme Thinker',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    // Gemini forwards the effort verbatim into thinkingConfig.thinkingLevel,
+    // which accepts only low/medium/high — xhigh/max would fail the request.
+    const efforts = created.reasoning?.selectableEfforts ?? []
+    expect(efforts).not.toContain('xhigh')
+    expect(efforts).not.toContain('max')
+    expect(efforts).not.toContain('minimal')
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
   })
 
   it('leaves models without the reasoning capability untouched', async () => {

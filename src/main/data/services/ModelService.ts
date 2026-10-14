@@ -481,9 +481,41 @@ const MANUAL_REASONING_EFFORTS: readonly ReasoningEffort[] = [
 ]
 
 /**
+ * The reasoning format each chat-reasoning endpoint speaks by default. Manual
+ * fallback controls for an unknown model must match the endpoint REQUESTS will
+ * use: a MODEL-level `endpointTypes` override diverges from the provider
+ * default the resolved profile was built from, and emitting the default's
+ * vocabulary over the override's wire produces values the wire rejects
+ * (Ollama echoes the effort verbatim into `think`). (CherryHQ/cherry-studio#19761)
+ */
+const CHAT_ENDPOINT_REASONING_FORMAT: Partial<Record<EndpointType, ReasoningFormatType>> = {
+  'anthropic-messages': 'anthropic',
+  'google-generate-content': 'gemini',
+  'ollama-chat': 'ollama',
+  'openai-chat-completions': 'openai-chat',
+  'openai-responses': 'openai-responses'
+}
+
+/**
+ * The profile the manual fallback controls must be built from: the resolved
+ * provider profile, unless the model row overrides the endpoint — then the
+ * canonical profile for the overridden endpoint. (Catalog descriptors are
+ * endpoint-projected by the registry itself and never pass through here.)
+ */
+function manualReasoningProfileFor(model: Model, reasoningProfile: ResolvedReasoningProfile): ResolvedReasoningProfile {
+  const overrideFormat = model.endpointTypes
+    ?.map((endpoint) => CHAT_ENDPOINT_REASONING_FORMAT[endpoint])
+    .find((format) => format !== undefined)
+  if (!overrideFormat || overrideFormat === reasoningProfile.format) return reasoningProfile
+  return { format: overrideFormat, wire: REASONING_FORMAT_PROFILES[overrideFormat].wire }
+}
+
+/**
  * Reasoning knobs for a model whose REASONING capability the user declared but
- * whose id matches no catalog heuristic. Ollama keeps a toggle-shaped control:
- * its wire switches reasoning with a boolean, not an effort level.
+ * whose id matches no catalog heuristic. Toggle-shaped controls for formats
+ * whose wires switch reasoning without a full ladder: Ollama flips a boolean,
+ * Gemini only accepts low/medium/high as `thinkingLevel` (xhigh/max would go
+ * out verbatim and fail the request).
  */
 function manualDeclaredReasoning(
   format: ReasoningFormatType | undefined,
@@ -494,7 +526,7 @@ function manualDeclaredReasoning(
   return projectRuntimeReasoning(
     {
       controls:
-        format === 'ollama'
+        format === 'ollama' || format === 'gemini'
           ? [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
           : [{ kind: 'effort', values: [...MANUAL_REASONING_EFFORTS] }]
     },
@@ -888,14 +920,17 @@ class ModelService {
           // creation-time vocabulary, so a provider endpoint switch
           // (anthropic-messages → ollama-chat) kept offering `max` — a tier
           // Ollama's wire echoes verbatim into `think`, which the SDK rejects.
+          // A model-level endpointTypes override wins over the provider default
+          // the resolved profile was built from (manualReasoningProfileFor).
           // Reasoning is not hand-editable (absent from UPDATE_MODEL_FIELD_MAP), so
           // nothing user-authored is lost by regenerating; catalog and registry
           // descriptors took the branch above. The id heuristics still win over the
           // manual fallback, and removing the capability in Edit Model disarms the
           // manual fallback via declaredReasoning (#19761).
+          const manualProfile = manualReasoningProfileFor(model, reasoningProfile)
           reasoning =
-            inferCustomModelReasoning(modelId, reasoningProfile.wire, { declaredReasoning }) ??
-            manualDeclaredReasoning(reasoningProfile.format, reasoningProfile.wire, declaredReasoning)
+            inferCustomModelReasoning(modelId, manualProfile.wire, { declaredReasoning }) ??
+            manualDeclaredReasoning(manualProfile.format, manualProfile.wire, declaredReasoning)
         }
         if (reasoning) updates.reasoning = reasoning
         else if (model.reasoning) updates.reasoning = undefined
