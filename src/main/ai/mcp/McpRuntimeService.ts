@@ -253,7 +253,7 @@ export class McpRuntimeService extends BaseService {
   // Keyed by server key, so a config change starts fresh; restart/stop/remove clear it.
   private connectFailures = new Map<string, ConnectFailure>()
   // A successful connect cannot reset a connection's repeated probe failures.
-  private probeFailures = new Map<string, { error: unknown; attempts: number; retryAt: number }>()
+  private probeFailures = new Map<string, ConnectFailure>()
   private removedServerIds = new Set<string>()
   private pendingRemovals = new Map<string, Promise<void>>()
   private activeToolCalls = new Map<string, Set<ActiveToolCall>>()
@@ -460,7 +460,10 @@ export class McpRuntimeService extends BaseService {
     const existing = this.connections.get(serverKey)
     const pendingProbe = this.pendingProbes.get(serverKey)
     if (pendingProbe || existing) {
-      const reused = await waitForConnection(pendingProbe ?? this.probeConnection(server, serverKey, existing!), signal)
+      const reused = await waitForConnection(
+        pendingProbe ?? this.probeConnection(server, serverKey, existing!, requestContext),
+        signal
+      )
       if (reused) return reused
     }
 
@@ -469,9 +472,12 @@ export class McpRuntimeService extends BaseService {
     if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
     const pendingAfterProbe = this.pendingConnections.get(serverKey)
     if (pendingAfterProbe) return waitForConnection(pendingAfterProbe, signal)
-    const probeFailure = this.probeFailures.get(serverKey)
-    if (probeFailure && Date.now() < probeFailure.retryAt) throw probeFailure.error
     const interactive = canAuthorizeInteractively(requestContext)
+    const probeFailure = this.probeFailures.get(serverKey)
+    // A background probe cannot open the browser, so it must not block a caller that can sign in.
+    const probeSignInPending =
+      probeFailure && !probeFailure.interactive && interactive && UnauthorizedError.isInstance(probeFailure.error)
+    if (probeFailure && Date.now() < probeFailure.retryAt && !probeSignInPending) throw probeFailure.error
     const failure = this.connectFailures.get(serverKey)
     // A background attempt cannot open the browser, so it must not block a caller that can sign in.
     const signInPending = failure && !failure.interactive && interactive && UnauthorizedError.isInstance(failure.error)
@@ -538,7 +544,8 @@ export class McpRuntimeService extends BaseService {
   private probeConnection(
     server: McpServer,
     serverKey: string,
-    existing: McpConnection
+    existing: McpConnection,
+    requestContext?: McpInteractionContext | null
   ): Promise<McpConnection | undefined> {
     const pending = this.pendingProbes.get(serverKey)
     if (pending) return pending
@@ -552,18 +559,19 @@ export class McpRuntimeService extends BaseService {
         } else {
           const attempts = (this.probeFailures.get(serverKey)?.attempts ?? 0) + 1
           const retryAt = attempts === 1 ? 0 : Date.now() + connectRetryDelayMs(error, attempts)
-          this.probeFailures.set(serverKey, { error, attempts, retryAt })
+          const record = { error, attempts, retryAt, interactive: canAuthorizeInteractively(requestContext) }
+          this.probeFailures.set(serverKey, record)
           getServerLogger(server).warn('Existing MCP connection failed health check', { error, attempts })
           await this.closeConnection(serverKey, existing).catch(() => undefined)
+          if (this.probeFailures.get(serverKey) !== record) return undefined
+          if (retryAt > Date.now()) this.setServerStatus(server.id, 'error', error)
           if (retryAt === Infinity) {
-            this.setServerStatus(server.id, 'error', error)
             this.emitServerLog(server, {
               timestamp: Date.now(),
               level: 'error',
               message: `Stopped reconnecting after ${attempts} failed health checks`,
               source: 'client'
             })
-            throw error
           }
           return undefined
         }
@@ -1175,6 +1183,9 @@ export class McpRuntimeService extends BaseService {
     }
     for (const key of this.probeFailures.keys()) {
       if (this.isServerKeyForId(key, serverId)) this.probeFailures.delete(key)
+    }
+    for (const key of this.pendingProbes.keys()) {
+      if (this.isServerKeyForId(key, serverId)) this.pendingProbes.delete(key)
     }
     const pendingKeys = [...this.pendingConnections.keys()].filter((key) => this.isServerKeyForId(key, serverId))
     for (const key of pendingKeys) {

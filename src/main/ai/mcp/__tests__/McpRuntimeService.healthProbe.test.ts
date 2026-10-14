@@ -8,7 +8,8 @@ import {
   SdkError,
   SdkErrorCode,
   SdkHttpError,
-  SseError
+  SseError,
+  UnauthorizedError
 } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
@@ -50,6 +51,14 @@ function connection(health: () => Promise<void>) {
     listTools: vi.fn().mockResolvedValue(tools),
     close: vi.fn().mockResolvedValue(undefined)
   }
+}
+
+function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
 }
 
 describe('health probe error classification', () => {
@@ -175,6 +184,104 @@ describe('McpRuntimeService existing connection probes', () => {
     await expect(service.listTools(server.id)).rejects.toBe(error)
     expect(connections.at(-1)?.health).toHaveBeenCalledTimes(1)
     expect(create).toHaveBeenCalledTimes(4)
+  })
+
+  it('lets a window-backed caller recover after background OAuth probes fail', async () => {
+    const service = new McpRuntimeService()
+    const error = new UnauthorizedError('sign-in required')
+    const dead = () =>
+      connection(async () => {
+        throw error
+      })
+    ;(service as any).connections.set(service.getServerKey(server), dead())
+    const prompt = { messages: [] }
+    const authorized = { ...connection(async () => undefined), getPrompt: vi.fn().mockResolvedValue(prompt) }
+    const create = vi
+      .spyOn(service as any, 'createConnection')
+      .mockResolvedValueOnce(dead())
+      .mockResolvedValueOnce(authorized)
+
+    await expect(service.listTools(server.id)).resolves.toEqual(tools)
+    await expect(service.listTools(server.id)).rejects.toBe(error)
+    await expect(service.listTools(server.id)).rejects.toBe(error)
+    expect(create).toHaveBeenCalledTimes(1)
+
+    await expect(
+      service.getPrompt({ serverId: server.id, name: 'welcome', interactionContext: { windowId: 'w1' } })
+    ).resolves.toEqual(prompt)
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(create.mock.calls[1][1]).toMatchObject({ windowId: 'w1' })
+  })
+
+  it('lets restart supersede a terminal probe waiting for close', async () => {
+    const service = new McpRuntimeService()
+    const error = new SdkError(SdkErrorCode.NotConnected, 'Not connected')
+    const dead = () =>
+      connection(async () => {
+        throw error
+      })
+    const closed = createDeferred()
+    const enteredClose = createDeferred()
+    const connections = [dead()]
+    ;(service as any).connections.set(service.getServerKey(server), connections[0])
+    const create = vi.spyOn(service as any, 'createConnection').mockImplementation(async () => {
+      const next = dead()
+      connections.push(next)
+      return next
+    })
+
+    await service.listTools(server.id)
+    for (const delay of [20_000, 40_000, 80_000]) {
+      await expect(service.listTools(server.id)).rejects.toBe(error)
+      await vi.advanceTimersByTimeAsync(delay)
+      await service.listTools(server.id)
+    }
+    connections.at(-1)!.close.mockImplementation(() => {
+      enteredClose.resolve()
+      return closed.promise
+    })
+
+    const pending = service.listTools(server.id)
+    await enteredClose.promise
+    await expect(service.restartServer(server.id)).resolves.toBeUndefined()
+    expect(create).toHaveBeenCalledTimes(5)
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)).toMatchObject({
+      state: 'connected'
+    })
+    const errorLogsBeforeClose = broadcastToType.mock.calls.filter((call) => call[2].level === 'error').length
+
+    closed.resolve()
+    await expect(pending).resolves.toEqual(tools)
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)).toMatchObject({
+      state: 'connected'
+    })
+    expect(broadcastToType.mock.calls.filter((call) => call[2].level === 'error')).toHaveLength(errorLogsBeforeClose)
+  })
+
+  it('publishes an unavailable status during finite probe cooldown and recovers', async () => {
+    const service = new McpRuntimeService()
+    const error = new SdkError(SdkErrorCode.NotConnected, 'Not connected')
+    const dead = () =>
+      connection(async () => {
+        throw error
+      })
+    ;(service as any).connections.set(service.getServerKey(server), dead())
+    const create = vi
+      .spyOn(service as any, 'createConnection')
+      .mockResolvedValueOnce(dead())
+      .mockResolvedValueOnce(connection(async () => undefined))
+    const status = () => MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)
+
+    await expect(service.listTools(server.id)).resolves.toEqual(tools)
+    expect(status()).toMatchObject({ state: 'connected' })
+    await expect(service.listTools(server.id)).rejects.toBe(error)
+    expect(status()).toMatchObject({ state: 'error', lastError: 'Not connected' })
+    await expect(service.listTools(server.id)).rejects.toBe(error)
+    expect(create).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    await expect(service.listTools(server.id)).resolves.toEqual(tools)
+    expect(status()).toMatchObject({ state: 'connected' })
   })
 
   it('clears the streak after a successful probe', async () => {
