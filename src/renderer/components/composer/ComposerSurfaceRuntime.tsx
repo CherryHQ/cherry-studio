@@ -174,6 +174,11 @@ export interface ComposerSurfaceProps {
    * keeping the composer centred and its margins symmetric while the rail shows. */
   railGutterPx?: number
   onFocus?: () => void
+  voiceTarget?: { targetId: string; sourceEntityId: string }
+  /** @internal Keeps the outer deferred surface's voice binding stable while the editor swaps. */
+  onInputAdapterChange?: (inputAdapter: QuickPanelInputAdapter | undefined) => void
+  /** @internal Marks the outer deferred surface's voice target from rich-editor interactions. */
+  onVoiceTargetInteraction?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   isInputHistoryActive?: boolean
   onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
@@ -214,6 +219,8 @@ export interface ComposerSurfaceProps {
 
 /** One-shot interactions the deferred fallback captured before this runtime existed. */
 export interface ComposerDeferredIntent {
+  /** A fallback literal insertion must survive initial document creation without tokenization. */
+  preservePlainText?: boolean
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
   insertToken?: { token: ComposerDraftToken; updateOnly?: boolean; selection: { start: number; end: number } }
@@ -498,6 +505,8 @@ export default function ComposerSurfaceRuntime({
   narrowMode,
   railGutterPx,
   onFocus,
+  onInputAdapterChange,
+  onVoiceTargetInteraction,
   onActionsChange,
   isInputHistoryActive = false,
   onInputHistoryNavigate,
@@ -1740,7 +1749,10 @@ export default function ComposerSurfaceRuntime({
 
   const editor = useRichTextEditorKernel({
     extensions: editorExtensions,
-    content: createComposerDraftContent({ text, tokens: draftTokens ?? [] }),
+    content: createComposerDraftContent(
+      { text, tokens: draftTokens ?? [] },
+      { tokenizeVariables: !deferredIntent?.preservePlainText }
+    ),
     editable,
     // Render the view synchronously: the fallback textarea unmounts in the same commit this
     // runtime mounts, so a view that attaches a frame later leaves nothing focused in between.
@@ -1748,9 +1760,9 @@ export default function ComposerSurfaceRuntime({
     enableSpellCheck,
     editorProps: memoizedEditorProps,
     handlePaste: memoizedHandlePaste,
-    onUpdate: ({ editor: updatedEditor }) => {
+    onUpdate: ({ editor: updatedEditor, transaction }) => {
       requestCompactMeasurement()
-      if (tokenizePromptVariablesInEditor(updatedEditor)) return
+      if (tokenizePromptVariablesInEditor(updatedEditor, transaction)) return
 
       const draft = serializeComposerDocument(updatedEditor)
       lastSerializedDraftRef.current = draft
@@ -1869,6 +1881,11 @@ export default function ComposerSurfaceRuntime({
       }
     }
   }, [editor])
+
+  useLayoutEffect(() => {
+    onInputAdapterChange?.(inputAdapter)
+    return () => onInputAdapterChange?.(undefined)
+  }, [inputAdapter, onInputAdapterChange])
 
   const isRootQuickPanelVisible =
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
@@ -2216,6 +2233,8 @@ export default function ComposerSurfaceRuntime({
       data-ui="chat.composer"
       data-composer-inputbar=""
       data-composer-presentation={isCompact ? 'compact' : 'regular'}
+      onPointerDownCapture={onVoiceTargetInteraction}
+      onFocusCapture={onVoiceTargetInteraction}
       className={cn(
         'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-sm transition-all duration-200 ease-in-out',
         isCompact || editingState ? 'pt-0' : 'pt-2',
@@ -2291,6 +2310,7 @@ export default function ComposerSurfaceRuntime({
             className="min-w-0 flex-1"
             style={isCompact ? compactEditorContentStyle : editorContentStyle}
             onFocus={() => {
+              onVoiceTargetInteraction?.()
               onFocus?.()
               pasteHandling.setLastFocusedComponent('inputbar')
             }}

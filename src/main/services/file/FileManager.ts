@@ -130,7 +130,7 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
@@ -167,6 +167,7 @@ import {
   batchRemoveFromLibrary as internalBatchRemoveFromLibrary,
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
+  deleteInternalTemporaryEntry as internalDeleteInternalTemporaryEntry,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
@@ -424,6 +425,15 @@ export class ContentCommittedMetadataPendingError extends Error {
  * otherwise.
  */
 export interface IFileManager {
+  /**
+   * Exclude an automatic internal entry from background cleanup until this reference is disposed.
+   * References are independent, idempotent to dispose, and cleared on stop; explicit deletion still applies.
+   */
+  retainTemporaryEntry(id: FileEntryId): Disposable
+
+  /** Delete a retained automatic internal entry only after its physical content is gone. */
+  deleteRetainedTemporaryEntry(id: FileEntryId): Promise<void>
+
   /** Return active internal entries matching a content hash; consumers choose whether to reuse one. */
   findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]>
 
@@ -713,6 +723,7 @@ export class FileManager extends BaseService implements IFileManager {
   private readonly _contentWriteLock = new KeyedMutex()
   readonly intakes = new IntakeStore()
   private readonly activeWriteStreams = new Set<AtomicWriteStream>()
+  private readonly temporaryReferences = new Map<FileEntryId, Set<symbol>>()
 
   private readonly deps: FileManagerDeps = {
     fileEntryService,
@@ -762,9 +773,43 @@ export class FileManager extends BaseService implements IFileManager {
     this.registerInterval(() => this.entryCleanupTick(), FileManager.CLEANUP_INTERVAL_MS)
   }
 
+  retainTemporaryEntry(id: FileEntryId): Disposable {
+    const entry = this.deps.fileEntryService.getById(id)
+    if (entry.origin !== 'internal' || entry.cleanupPolicy !== 'delete_when_unreferenced') {
+      throw new Error('Only automatic internal entries support temporary retention')
+    }
+    const references = this.temporaryReferences.get(id) ?? new Set<symbol>()
+    const token = Symbol()
+    references.add(token)
+    this.temporaryReferences.set(id, references)
+    return {
+      dispose: () => {
+        references.delete(token)
+        if (references.size === 0 && this.temporaryReferences.get(id) === references) {
+          this.temporaryReferences.delete(id)
+        }
+      }
+    }
+  }
+
+  async deleteRetainedTemporaryEntry(id: FileEntryId): Promise<void> {
+    if (!this.temporaryReferences.has(id)) throw new Error('Temporary entry must be retained before verified deletion')
+    try {
+      await internalDeleteInternalTemporaryEntry(this.deps, id)
+    } catch (error) {
+      fileManagerLogger.warn('Verified temporary entry deletion failed', {
+        id,
+        operation: 'delete-retained-temporary-entry',
+        code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+      })
+      throw error
+    }
+    this.notifyReadModelChange([id])
+  }
+
   /** Run one cleanup pass now. Never throws — failures land in the report. */
   async runEntryCleanup(): Promise<EntryCleanupReport> {
-    const report = await internalRunEntryCleanup(this.deps, this.intakes)
+    const report = await internalRunEntryCleanup(this.deps, this.intakes, this.temporaryReferences)
     if (report.outcome === 'completed') {
       this.lastCleanupCompletedAt = Date.now()
     }
@@ -857,6 +902,7 @@ export class FileManager extends BaseService implements IFileManager {
       })
     )
     this.activeWriteStreams.clear()
+    this.temporaryReferences.clear()
   }
 
   /**

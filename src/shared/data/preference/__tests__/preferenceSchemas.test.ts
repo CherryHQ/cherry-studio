@@ -5,6 +5,34 @@ import { DefaultPreferences } from '../preferenceSchemas'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '../preferenceTypes'
 
 describe('DefaultPreferences', () => {
+  it('seeds Voice selections without guessing resources or enabling auto-read', () => {
+    const speechSpeed: PreferenceSchemas['default']['feature.voice.speech.speed'] = 1
+    const recognitionModelId: PreferenceSchemas['default']['feature.voice.recognition.model_id'] = ''
+    const autoRead: PreferenceSchemas['default']['feature.voice.auto_read.enabled'] = false
+    const defaults = DefaultPreferences.default as Record<string, unknown>
+
+    expect({
+      recognitionModelId: defaults['feature.voice.recognition.model_id'],
+      recognitionLanguage: defaults['feature.voice.recognition.language'],
+      speechModelId: defaults['feature.voice.speech.model_id'],
+      speechVoiceId: defaults['feature.voice.speech.voice_id'],
+      speechLanguage: defaults['feature.voice.speech.language'],
+      speechSpeed: defaults['feature.voice.speech.speed'],
+      autoRead: defaults['feature.voice.auto_read.enabled'],
+      disclosureConfirmed: defaults['feature.voice.auto_read.disclosure_confirmed']
+    }).toEqual({
+      recognitionModelId: '',
+      recognitionLanguage: '',
+      speechModelId: '',
+      speechVoiceId: '',
+      speechLanguage: '',
+      speechSpeed,
+      autoRead,
+      disclosureConfirmed: false
+    })
+    expect(recognitionModelId).toBe('')
+  })
+
   it('leaves the client ID empty until runtime generates a UUID', () => {
     expect(DefaultPreferences.default['app.user.id']).toBe('')
   })
