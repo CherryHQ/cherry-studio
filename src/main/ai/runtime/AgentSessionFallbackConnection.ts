@@ -5,7 +5,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { AsyncEventQueue } from './AsyncEventQueue'
-import { resolveAgentFallbackPolicy, selectFallbackModelId } from './claudeCode'
+import { resolveAgentFallbackPolicy, selectFallbackModelId } from './modelFallback'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,

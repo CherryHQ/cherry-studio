@@ -49,6 +49,7 @@ import { isVisionModel } from '@shared/utils/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
+import { resolveAgentFallbackPolicy } from '../modelFallback'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -71,11 +72,7 @@ import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
-import {
-  type AgentSessionFallbackDecision,
-  resolveAgentFallbackPolicy,
-  resolveAgentSessionFallback
-} from './modelFallback'
+import { type AgentSessionFallbackDecision, resolveAgentSessionFallback } from './modelFallback'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
