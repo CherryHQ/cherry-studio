@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
   closeWarmSession: vi.fn().mockResolvedValue(undefined),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
+  updateAgent: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
   trackTokenUsage: vi.fn()
@@ -96,7 +97,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
 }))
 
 vi.mock('@data/services/AgentService', () => ({
-  agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
+  agentService: { getAgent: mocks.getAgent, updateAgent: mocks.updateAgent, onAgentUpdated: () => () => {} }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -519,6 +520,7 @@ describe('AgentSessionRuntimeService', () => {
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    mocks.updateAgent.mockReturnValue({ id: 'agent-1' })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'DbService') return { withWriteTx: mocks.dbWithWriteTx }
       if (name === 'AiStreamManager') {
@@ -674,6 +676,67 @@ describe('AgentSessionRuntimeService', () => {
         expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'plan-approved-model-handoff')
         expect(closeSession).toHaveBeenCalledWith('session-1')
       })
+    })
+
+    it('moves a plan-mode agent out of plan mode before the handoff tears the connection down', async () => {
+      // The teardown discards the connection that carried the SDK's post-approval mode shift, and
+      // the follow-up's fresh connection re-reads this row: spawning it back into `plan` ("no
+      // execution of tools") would leave the approved plan unrunnable on the chosen model.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-mode',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-mode',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      vi.spyOn(service, 'closeSession').mockResolvedValue()
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-mode' })
+
+      const result = service.respondToolApproval('approval-plan-mode', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      expect(mocks.updateAgent).toHaveBeenCalledWith('agent-1', {
+        configuration: { permission_mode: 'acceptEdits' }
+      })
+    })
+
+    it('leaves the permission mode alone when the agent is not in plan mode', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'default' }
+      })
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-non-plan-mode',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-non-plan-mode',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      vi.spyOn(service, 'closeSession').mockResolvedValue()
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-non-plan-mode' })
+
+      const result = service.respondToolApproval('approval-non-plan-mode', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      expect(mocks.updateAgent).not.toHaveBeenCalled()
     })
 
     it('tears the approved turn down only after the plan tool result settles', async () => {

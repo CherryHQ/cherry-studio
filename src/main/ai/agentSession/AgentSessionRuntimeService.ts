@@ -1572,6 +1572,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const runningModelId = turn.modelId
     if (runningModelId === executionModelId) return 'already-current'
 
+    // The teardown removes the connection that carried the SDK's post-approval mode shift, so the
+    // follow-up's fresh connection re-reads this row — leaving `plan` here would spawn it into "no
+    // execution of tools" and the approved plan could not run (Options.permissionMode contract).
+    if (agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan') {
+      agentService.updateAgent(entry.agentId, { configuration: { permission_mode: 'acceptEdits' } })
+    }
+
     logger.info('Stopping approved plan turn for execution-model handoff', {
       sessionId,
       executionModelId,
