@@ -47,6 +47,14 @@ describe('mergeBinaryExecutionEnv', () => {
 
     expect(PATH.split(':')).toEqual([shims, '/opt/mise/bin', '/usr/bin'])
   })
+
+  it('collapses a trailing-separator spelling of the same directory', () => {
+    // posix normalize keeps a trailing slash, so `/usr/bin/` and `/usr/bin`
+    // canonicalize differently although they name one directory.
+    const { PATH } = mergeBinaryExecutionEnv({ PATH: '/usr/bin:/usr/bin/' })
+
+    expect(PATH.split(':')).toEqual([shims, '/usr/bin'])
+  })
 })
 
 describe('mergePathPrefixes', () => {
