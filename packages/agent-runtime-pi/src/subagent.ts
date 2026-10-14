@@ -31,6 +31,7 @@ export { SUBAGENT_MESSAGE_TYPE, SUBAGENT_ORIGIN_STATE } from './subagentRun'
 /** DSH's name: Cherry's renderer shows a cherry-runtime `subagent` call as a Task card. */
 export const SUBAGENT_TOOL_NAME = 'subagent'
 export const MESSAGE_SUBAGENT_TOOL_NAME = 'message_subagent'
+export const STOP_SUBAGENT_TOOL_NAME = 'stop_subagent'
 
 /** True inside a subagent's session. */
 export function isSubagentSession(entries: readonly SessionEntry[]): boolean {
@@ -105,6 +106,8 @@ export interface SubagentToolOptions {
 export interface SubagentControls {
   /** Held by a host prompt or compaction until it returns; no notification starts a run meanwhile. */
   hold(): () => void
+  /** The user stops a background subagent; false when it is not running. */
+  stopSubagent(sessionId: string): boolean
 }
 
 const DESCRIPTION = [
@@ -142,11 +145,17 @@ function runText(result: RunResult): string {
 
 const IN_SUBAGENT = 'Subagents cannot start or manage subagents.'
 
+const STOPPED_BY: Record<SubagentStopper, string> = {
+  model: 'stopped by you',
+  user: 'stopped by the user',
+  budget: "stopped because the goal's budget is used up"
+}
+
 /** A subagent's state in the words lists of subagents use. */
 function statusText(record: SubagentRecord): string {
   if (record.status === 'running') return 'running'
   if (record.status === 'awaiting_approval') return 'waiting for a tool approval'
-  return record.outcome!
+  return record.stoppedBy ? STOPPED_BY[record.stoppedBy] : record.outcome!
 }
 
 function unknownId(id: string, registry: SubagentRegistry): string {
@@ -199,8 +208,13 @@ export function createSubagentExtension({
   emit,
   offload
 }: SubagentToolOptions): { extension: ExtensionFactory; controls: SubagentControls } {
-  let delivery: SubagentDelivery | undefined
-  const controls: SubagentControls = { hold: () => delivery?.hold() ?? (() => {}) }
+  // Set once the main session starts; a fork's copy of this extension stays unreachable.
+  let main: { registry: SubagentRegistry; delivery: SubagentDelivery } | undefined
+  const controls: SubagentControls = {
+    hold: () => main?.delivery.hold() ?? (() => {}),
+    stopSubagent: (sessionId) =>
+      main?.registry.get(sessionId)?.background === true && main.registry.stop(sessionId, 'user') !== undefined
+  }
   const extension: ExtensionFactory = (pi) => {
     let ctx: ExtensionContext | undefined
     let inSubagent = false
@@ -211,19 +225,21 @@ export function createSubagentExtension({
       shorten: (record, result) =>
         shortenResult(result, offload, { toolCallId: record.parentToolCallId, toolName: SUBAGENT_TOOL_NAME }),
       finished: (record, result) =>
-        delivery?.enqueue({
+        delivery.enqueue({
           sessionId: record.sessionId,
           run: record.run,
           description: record.description,
           outcome: record.outcome!,
+          ...(record.stoppedBy === undefined ? {} : { stoppedBy: record.stoppedBy }),
           ...(result.report === undefined ? {} : { report: result.report }),
           ...(result.reason === undefined ? {} : { reason: result.reason }),
           ...(result.partial === undefined ? {} : { partial: result.partial }),
           usage: result.usage,
-          wake: true
+          // The user only needs the parent to know; that is no reason to start a turn.
+          wake: record.stoppedBy !== 'user'
         })
     })
-    const parentDelivery = new SubagentDelivery({
+    const delivery = new SubagentDelivery({
       startTurn: (message) => pi.sendMessage(message, { triggerTurn: true }),
       isIdle: () => ctx?.isIdle() ?? false,
       stillRunning: () => registry.runningBackground()
@@ -234,15 +250,15 @@ export function createSubagentExtension({
       inSubagent = isSubagentSession(context.sessionManager.getBranch())
       if (inSubagent) return
       ctx = context
-      delivery = parentDelivery
+      main = { registry, delivery }
     })
-    pi.on('agent_before_settle', (event) => (inSubagent ? undefined : parentDelivery.beforeSettle(event)))
+    pi.on('agent_before_settle', (event) => (inSubagent ? undefined : delivery.beforeSettle(event)))
     pi.on('agent_settled', (event) => {
-      if (!inSubagent) parentDelivery.settled(event.aborted)
+      if (!inSubagent) delivery.settled(event.aborted)
     })
-    pi.on('before_agent_start', () => (inSubagent ? undefined : parentDelivery.beforeAgentStart()))
+    pi.on('before_agent_start', () => (inSubagent ? undefined : delivery.beforeAgentStart()))
     pi.on('session_shutdown', () => {
-      parentDelivery.close()
+      delivery.close()
       return registry.close()
     })
 
@@ -335,6 +351,36 @@ export function createSubagentExtension({
           )
         return {
           content: [text(`Message queued for subagent ${id}; it reads it after its current step.`)],
+          details: undefined
+        }
+      }
+    })
+
+    pi.registerTool({
+      name: STOP_SUBAGENT_TOOL_NAME,
+      label: 'Stop subagent',
+      description:
+        'Stop a running subagent by its id and get its partial output. You get no notification for it afterwards; message_subagent can continue it later.',
+      parameters: Type.Object({ id: Type.String({ description: 'The id a subagent result or notification gave.' }) }),
+      exposure: 'model-only',
+      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+        if (isSubagentSession(ctx.sessionManager.getBranch())) throw new Error(IN_SUBAGENT)
+        const id = params.id.trim()
+        const record = registry.get(id)
+        if (!record) throw new Error(unknownId(id, registry))
+        const stopped = registry.stop(id, 'model')
+        if (!stopped)
+          return { content: [text(`Subagent ${id} is not running (${statusText(record)}).`)], details: undefined }
+        const result = await stopped
+        const partial = result.partial ?? result.report
+        return {
+          content: [
+            text(
+              partial
+                ? `Stopped subagent ${id}. Partial output before it stopped:\n${partial}`
+                : `Stopped subagent ${id}.`
+            )
+          ],
           details: undefined
         }
       }

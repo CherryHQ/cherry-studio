@@ -1,7 +1,7 @@
 import type { Usage } from '@earendil-works/pi-ai'
 
 import type { AgentRuntimeSession } from './session'
-import type { SubagentOutcome } from './subagent'
+import type { SubagentOutcome, SubagentStopper } from './subagent'
 import { type RunResult, type RunStart, runSubagent, type SubagentInbox } from './subagentRun'
 import type { AgentRuntimeEvent } from './transcriptTap'
 
@@ -26,6 +26,8 @@ export interface SubagentRecord {
   run: number
   status: SubagentStatus
   outcome?: SubagentOutcome
+  /** Set when the latest run was stopped. */
+  stoppedBy?: SubagentStopper
 }
 
 /** Data of a `cherry.subagent-state` entry. */
@@ -39,6 +41,7 @@ export interface SubagentState {
   run: number
   status: 'running' | 'finished'
   outcome?: SubagentOutcome
+  stoppedBy?: SubagentStopper
   report?: string
   reason?: string
   partial?: string
@@ -61,15 +64,15 @@ export interface RegistryHost {
   maxBackground: number
   /** Shortens a finished run's texts for the snapshot and the notification. */
   shorten(record: SubagentRecord, result: RunResult): Promise<RunResult>
-  /** A background run ended and its snapshot is written. */
+  /** A background run ended and its snapshot is written; not called for runs the model stopped. */
   finished(record: SubagentRecord, result: RunResult): void
 }
 
 interface LiveRun {
   controller: AbortController
   inbox: SubagentInbox
-  /** Settles once the run's session is disposed and its end is recorded. */
-  done: Promise<void>
+  /** Settles with the run's result once its session is disposed and its end is recorded. */
+  done: Promise<RunResult>
 }
 
 /** Ids listed in status messages and errors (spec §5.4). */
@@ -85,6 +88,7 @@ const snapshot = (record: SubagentRecord, result?: RunResult): SubagentState => 
   run: record.run,
   status: record.status === 'finished' ? 'finished' : 'running',
   ...(record.outcome === undefined ? {} : { outcome: record.outcome }),
+  ...(record.stoppedBy === undefined ? {} : { stoppedBy: record.stoppedBy }),
   ...(result === undefined
     ? {}
     : {
@@ -112,6 +116,16 @@ export class SubagentRegistry {
   /** The most recently active subagents first, at most 20. */
   recent(): SubagentRecord[] {
     return [...this.records.values()].reverse().slice(0, LISTED)
+  }
+
+  /** Stops a running subagent; resolves with its run's result once its end is recorded. */
+  stop(sessionId: string, by: SubagentStopper): Promise<RunResult> | undefined {
+    const run = this.live.get(sessionId)
+    const record = this.records.get(sessionId)
+    if (!run || !record || record.status === 'finished') return undefined
+    record.stoppedBy = by
+    run.controller.abort()
+    return run.done
   }
 
   /** Queues `text` for a running subagent; false when its run has just ended. */
@@ -170,11 +184,10 @@ export class SubagentRegistry {
     if (signal?.aborted) controller.abort()
     else signal?.addEventListener('abort', onAbort, { once: true })
     const run = runSubagent(child, start, controller.signal, inbox)
-    this.live.set(record.sessionId, { controller, inbox, done: run.then(() => undefined) })
+    this.live.set(record.sessionId, { controller, inbox, done: run })
     try {
       const result = await run
-      record.status = 'finished'
-      record.outcome = result.end
+      this.end(record, result)
       return result
     } finally {
       signal?.removeEventListener('abort', onAbort)
@@ -191,15 +204,16 @@ export class SubagentRegistry {
     record.background = true
     record.status = 'running'
     delete record.outcome
+    delete record.stoppedBy
     this.track(record)
     this.host.appendState(snapshot(record))
     this.changed()
     const controller = new AbortController()
-    const done = runSubagent(child, start, controller.signal, inbox).then((result) => {
+    const done = runSubagent(child, start, controller.signal, inbox).then(async (result) => {
       // Finished at once, so a message sent from now on continues the subagent instead of joining this run.
-      record.status = 'finished'
-      record.outcome = result.end
-      return this.record(record, child, result)
+      this.end(record, result)
+      await this.record(record, child, result)
+      return result
     })
     this.live.set(record.sessionId, { controller, inbox, done })
   }
@@ -222,7 +236,13 @@ export class SubagentRegistry {
     this.track(record)
     this.host.appendState(snapshot(record, shortened))
     this.changed()
-    this.host.finished(record, shortened)
+    // The model that stopped it has its partial output from stop_subagent already.
+    if (record.stoppedBy !== 'model') this.host.finished(record, shortened)
+  }
+
+  private end(record: SubagentRecord, result: RunResult): void {
+    record.status = 'finished'
+    record.outcome = record.stoppedBy ? 'stopped' : result.end
   }
 
   /** Adds `record` or moves it to the most recently active place. */
