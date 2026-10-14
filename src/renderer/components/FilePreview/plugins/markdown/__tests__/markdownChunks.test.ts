@@ -1788,6 +1788,26 @@ describe('document-wide heading slugs', () => {
     expect(chunks[2].headingSlugs?.get('title')).toEqual(['title-2'])
   })
 
+  it('counts a heading a raw HTML block renders toward the document-wide numbering', () => {
+    // The block renders an `<h2>` element, so the unsplit document numbers it between the two
+    // Markdown headings — the ids, and the `#fragment` links aimed at them, must survive the split.
+    const content = ['# Title', '', '<h2>Title</h2>', '', '# Title', ''].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunkHeadingIds(content, 1)).toEqual(['chunk--title', 'chunk--title-2'])
+    expect(chunks[1].headingSlugs?.get('title')).toEqual(['title-1'])
+    expect(chunks[2].headingSlugs?.get('title')).toEqual(['title-2'])
+  })
+
+  it('does not count a heading a raw comment only mentions', () => {
+    const content = ['<!-- <h2>Title</h2> -->', '', '# Title', ''].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks[1].headingSlugs?.get('title')).toEqual(['title'])
+  })
+
   it('does not count a heading inside a fenced code block', () => {
     const content = ['```', '# Title', '```', '', '# Title', ''].join('\n')
 

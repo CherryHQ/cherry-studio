@@ -70,22 +70,38 @@ export function extractTextFromNode(node: Node | Text | Element | null | undefin
 
 export default function rehypeHeadingIds(options?: RehypeHeadingIdsOptions): (tree: Root) => void {
   return (tree: Root): void => {
-    const slugger = createSlugger()
     const prefix = options?.prefix ? `${options.prefix}--` : ''
     // Assignments are consumed in order, so each run copies its own — a re-parse of the same
     // source starts from the same slugs instead of an emptied map.
     const assigned = options?.slugs && new Map(Array.from(options.slugs, ([key, slugs]) => [key, [...slugs]]))
+    // Every id the document's own numbering has given out, the assignments this run will hand back
+    // included: a heading the scan never saw falls to the counter below, and one of those ids
+    // falling out of it a second time would put two elements under one id.
+    const taken = options?.slugs && new Set<string>(Array.from(options.slugs, ([, slugs]) => slugs).flat())
+    const seen = new Map<string, number>()
+    const fallback = (text: string): string => {
+      const base = normalizeHeadingText(text)
+      let count = seen.get(base) ?? 0
+      let id = count === 0 ? base : `${base}-${count}`
+      count += 1
+      if (taken?.has(id)) {
+        while (taken.has(`${base}-${count}`)) count += 1
+        id = `${base}-${count}`
+        count += 1
+      }
+      seen.set(base, count)
+      taken?.add(id)
+      return id
+    }
     visit(tree, 'element', (node) => {
       if (!node || typeof node.tagName !== 'string') return
       const tag = node.tagName.toLowerCase()
       if (!/^h[1-6]$/.test(tag)) return
 
       const text = extractTextFromNode(node)
-      // Every heading advances the slugger, assigned ones included: an assigned id is one the
-      // document's own numbering already gave out, so a fallback has to number past those rather
-      // than hand a heading the scan never saw an id another one is already rendering with.
-      const fallback = slugger.slug(text)
-      const id = prefix + (assigned?.get(normalizeHeadingText(text))?.shift() ?? fallback)
+      // An unclaimed heading takes the counter's next id, so the fallbacks keep the document's own
+      // order — an assigned id is one that numbering already gave out, not one to number onto.
+      const id = prefix + (assigned?.get(normalizeHeadingText(text))?.shift() ?? fallback(text))
       node.properties = node.properties || {}
       if (!node.properties.id) node.properties.id = id
     })

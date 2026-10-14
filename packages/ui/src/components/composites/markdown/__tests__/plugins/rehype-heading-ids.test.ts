@@ -27,4 +27,15 @@ describe('rehypeHeadingIds', () => {
   it('numbers its own headings when no assignments are handed over', () => {
     expect(idsOf(['Title', 'Title'])).toEqual(['chunk--title', 'chunk--title-1'])
   })
+
+  it('numbers a heading without an assignment past the ids the assignments hold', () => {
+    // A heading the splitter's scan never saw — a raw-HTML one — falls to the local counter, and
+    // handing it an id one of the chunk's own assignments carries would render two elements under
+    // one id.
+    expect(idsOf(['Title', 'Title', 'Title'], new Map([['title', ['title-1']]]))).toEqual([
+      'chunk--title-1',
+      'chunk--title',
+      'chunk--title-2'
+    ])
+  })
 })
