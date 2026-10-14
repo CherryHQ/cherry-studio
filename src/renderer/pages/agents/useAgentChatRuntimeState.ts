@@ -65,7 +65,6 @@ export interface AgentTurnInput {
   text: string
   editTarget?: AgentSessionEditTarget
   options?: AgentSendOptions
-  throwOnError?: boolean
 }
 
 export function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
@@ -252,10 +251,8 @@ export function useAgentChatRuntimeState({
     ensureConversation,
     buildStreamRequest,
     onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions),
-    onError: (error, input) => {
-      if (input.throwOnError) throw error
-      return input.editTarget ? reportEditError(error) : errorToastsRef.current?.report(error, modelId)
-    },
+    onError: (error, input) =>
+      input.editTarget ? reportEditError(error) : errorToastsRef.current?.report(error, modelId),
     openStream: async (request, input) => {
       if (!input.editTarget || request.trigger !== 'submit-message') return ipcApi.request('ai.stream.open', request)
       const ack = await ipcApi.request('ai.agent.session.edit_resend', {
@@ -477,7 +474,7 @@ export function useAgentChatRuntimeState({
       ? async () => {
           if (isPending || editBusy) return false
           return (
-            errorToastsRef.current?.waitForFinish(() => send({ text: '/compact', throwOnError: true }), modelId) ??
+            errorToastsRef.current?.waitForFinish(() => send({ text: '/compact' }, { throwOnError: true }), modelId) ??
             false
           )
         }

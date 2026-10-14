@@ -42,7 +42,7 @@ export interface ToastRecord extends ToastConfig {
 
 export interface ToastLabels {
   close: string
-  details: string
+  details?: string
   error: React.ReactNode
   errorDescription: React.ReactNode
   loading: React.ReactNode
@@ -411,7 +411,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
         {toast.details && (
           <details className="mt-1 text-xs text-muted-foreground" onClick={(event) => event.stopPropagation()}>
             <summary className="cursor-pointer" title={toast.details}>
-              {labels.details}
+              {labels.details ?? DEFAULT_TOAST_LABELS.details}
             </summary>
             <pre className="mt-1 max-h-40 overflow-auto font-mono break-words whitespace-pre-wrap">{toast.details}</pre>
           </details>

@@ -299,8 +299,8 @@ describe('Toast', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('uses configured labels for fallback loading states and close button', async () => {
-    const labels: Partial<ToastLabels> = {
+  it('accepts the original label shape and defaults the details label', async () => {
+    const labels: ToastLabels = {
       close: 'Dismiss',
       error: 'Localized error',
       errorDescription: 'Localized fallback error',
@@ -312,11 +312,12 @@ describe('Toast', () => {
     render(<ToastViewport labels={labels} />)
 
     await act(async () => {
-      localizedToast.loading({ promise: Promise.resolve() })
+      localizedToast.loading({ promise: Promise.resolve(), details: 'Operation details' })
     })
 
     expect(screen.getByText('Localized success')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument()
+    expect(screen.getByText('View details')).toBeInTheDocument()
   })
 
   it('keeps loading rejection errors sticky and calls onError', async () => {

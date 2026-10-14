@@ -110,25 +110,33 @@ describe('useConversationTurnController', () => {
     expect(result.current.phase).toBe('streaming')
   })
 
-  it('returns to ready when stream open is blocked', async () => {
-    mocks.streamOpen.mockResolvedValueOnce({
-      mode: 'blocked',
-      reason: 'agent-session-workspace',
-      message: 'Workspace access is required'
-    })
-    const { result, historyAdapter } = renderController()
+  it.each([false, true])(
+    'returns to ready when stream open is blocked (caller owns errors: %s)',
+    async (throwOnError) => {
+      mocks.streamOpen.mockResolvedValueOnce({
+        mode: 'blocked',
+        reason: 'agent-session-workspace',
+        message: 'Workspace access is required'
+      })
+      const onError = vi.fn()
+      const { result, historyAdapter } = renderController('topic-a', onError)
 
-    let sent: boolean | undefined
-    await act(async () => {
-      sent = await result.current.send('blocked message')
-    })
+      let sent: boolean | undefined
+      await act(async () => {
+        const request = result.current.send('blocked message', { throwOnError })
+        if (throwOnError) await expect(request).rejects.toThrow('Workspace access is required')
+        else sent = await request
+      })
 
-    expect(sent).toBe(false)
-    expect(result.current.phase).toBe('ready')
-    expect(mocks.toastError).toHaveBeenCalledWith('Workspace access is required')
-    expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
-    expect(historyAdapter.rollback).not.toHaveBeenCalled()
-  })
+      if (!throwOnError) expect(sent).toBe(false)
+      expect(result.current.phase).toBe('ready')
+      if (throwOnError) expect(mocks.toastError).not.toHaveBeenCalled()
+      else expect(mocks.toastError).toHaveBeenCalledWith('Workspace access is required')
+      expect(onError).not.toHaveBeenCalled()
+      expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
+      expect(historyAdapter.rollback).not.toHaveBeenCalled()
+    }
+  )
 
   it('returns to draft when stream open fails', async () => {
     mocks.streamOpen.mockRejectedValueOnce(new Error('stream open failed'))
