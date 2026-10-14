@@ -360,7 +360,6 @@ vi.mock('react-i18next', () => ({
             'knowledge.rag.download_local_model': '下载本地模型',
             'knowledge.file_hint': `支持 ${options?.file_types} 格式`,
             'knowledge.status.processing': '处理中',
-            'knowledge.rag.file_processing': '文件处理',
             'settings.dependencies.localModels.embedding.name': '本地嵌入模型',
             'settings.dependencies.localModels.status.downloading': '下载中…',
             'settings.dependencies.localModels.unsupported': '当前平台不支持本地模型。'

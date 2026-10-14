@@ -24,6 +24,11 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import {
+  getCachedMessageUiState,
+  subscribeCachedMessageUiState,
+  updateCachedMessageUiState
+} from '@renderer/services/messageUiStateCache'
 import type { Citation } from '@renderer/types/message'
 import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import {
@@ -74,6 +79,7 @@ import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
+import MessageCompactionStatus from './MessageCompactionStatus'
 import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
 import {
   findOpenTextTailIndex,
@@ -1299,6 +1305,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   message: MessageListItem
   renderOptions: RenderGroupedEntryOptions
 }) {
+  const { thoughtAutoCollapse } = useMessageRenderConfig()
   const projectedLiveItems = useMemo(
     () =>
       isActive
@@ -1439,6 +1446,9 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         key={`completed-process-${message.id}`}
         phase="completed"
         outcome={completedHasError ? 'error' : 'success'}
+        defaultExpanded={
+          !thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part))
+        }
         message={message}
         toolItems={completedToolItems}>
         {renderCompletedHistory}
@@ -1477,24 +1487,33 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const { subagentListTitle } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive } = useMessageListActions()
   const { t } = useTranslation()
-  const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
+  const subscribeDisclosures = React.useCallback(
+    (listener: () => void) => subscribeCachedMessageUiState(message.id, listener),
+    [message.id]
+  )
+  const getDisclosures = React.useCallback(() => getCachedMessageUiState(message.id).disclosures, [message.id])
+  const disclosures = React.useSyncExternalStore(subscribeDisclosures, getDisclosures, getDisclosures)
+  const expandedTextPartIds = useMemo(
+    () =>
+      new Set(
+        Object.entries(disclosures ?? {})
+          .filter(([, expanded]) => expanded)
+          .map(([partId]) => partId)
+      ),
+    [disclosures]
+  )
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
   )
-  const handleTextPartExpandedChange = React.useCallback((partId: string, expanded: boolean) => {
-    setExpandedTextPartIds((current) => {
-      const hasPartId = current.has(partId)
-      if (hasPartId === expanded) return current
-
-      const next = new Set(current)
-      if (expanded) {
-        next.add(partId)
-      } else {
-        next.delete(partId)
-      }
-      return next
-    })
-  }, [])
+  const handleTextPartExpandedChange = React.useCallback(
+    (partId: string, expanded: boolean) => {
+      updateCachedMessageUiState(message.id, (current) => {
+        if ((current.disclosures?.[partId] ?? false) === expanded) return current
+        return { ...current, disclosures: { ...current.disclosures, [partId]: expanded } }
+      })
+    },
+    [message.id]
+  )
   const handleTextPlayoutSettledChange = React.useCallback((partId: string, settled: boolean) => {
     setUnsettledTextPlayoutPartIds((current) => {
       const isUnsettled = current.has(partId)
@@ -1651,14 +1670,20 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       // back to it otherwise.
       return (
         <AnimatePresence mode="sync">
-          <ActiveTurnStatusView fallback={placeholder} />
+          <MessageCompactionStatus messageId={message.id} fallback={<ActiveTurnStatusView fallback={placeholder} />} />
         </AnimatePresence>
       )
     }
-    if (message.role === 'assistant' && message.status === 'paused') {
-      return <ChatMarkdown block={{ id: `${message.id}-paused`, content: '', status: 'paused' }} />
-    }
-    return null
+    return (
+      <MessageCompactionStatus
+        messageId={message.id}
+        fallback={
+          message.role === 'assistant' && message.status === 'paused' ? (
+            <ChatMarkdown block={{ id: `${message.id}-paused`, content: '', status: 'paused' }} />
+          ) : null
+        }
+      />
+    )
   }
 
   return (
@@ -1672,7 +1697,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         message={message}
         renderOptions={renderOptions}
       />
-      {isActiveTurnProcessing && <ActiveTurnStatusView fallback={null} />}
+      <MessageCompactionStatus
+        messageId={message.id}
+        fallback={isActiveTurnProcessing ? <ActiveTurnStatusView fallback={null} /> : null}
+      />
       {unsettledTextPlayoutPartIds.size === 0 && sessionToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`session-results-${message.id}`} enableAnimation={false} animation="fade">
           <SessionResultCards toolResponses={sessionToolResponses} />

@@ -169,6 +169,30 @@ function stripNonStringEnums(node: JSONSchema7): JSONSchema7 {
   return replacement
 }
 
+/**
+ * Gemini's Schema proto requires a concrete `type` — a draft-07 type array
+ * (third-party MCP servers advertise nullable scalars as
+ * `type: ["number", "null"]`) reaches `convertJSONSchemaToOpenAPISchema`, which
+ * maps the array into an `anyOf` without ever setting a top-level `type`, and
+ * the request 400s with "didn't specify the schema type field" (issue #21394).
+ * Rewrites the array into explicit `anyOf` branches — one per listed type,
+ * each carrying the node's other keywords — which the converter already folds
+ * into `nullable` + a typed schema. Nullability survives as its own branch;
+ * the original zod schema still validates locally.
+ */
+function expandTypeArrays(node: JSONSchema7): JSONSchema7 {
+  const type = node.type
+  if (!Array.isArray(type) || type.length === 0 || type.some((entry) => typeof entry !== 'string')) return node
+  if (node.anyOf !== undefined) return node
+
+  const rest: JSONSchema7 = { ...node }
+  delete rest.type
+  if (type.length === 1) return { ...rest, type: type[0] }
+
+  const branches = type.map((entry) => (entry === 'null' ? { type: entry } : { ...rest, type: entry }))
+  return { ...rest, anyOf: branches }
+}
+
 function isGeminiArraySchema(schema: JSONSchema7): boolean {
   return schema.type === 'array' || (Array.isArray(schema.type) && schema.type.includes('array'))
 }
@@ -226,6 +250,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     const keywords = tool.strict === true ? STRICT_UNSUPPORTED : new Set(ALWAYS_UNSUPPORTED)
     let inputSchema = stripKeywords(tool.inputSchema, keywords)
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
+    if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, expandTypeArrays)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
     if (inputSchema === tool.inputSchema) transformedTools.push(tool)
     else {

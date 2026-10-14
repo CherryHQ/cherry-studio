@@ -1,12 +1,13 @@
 import { defineConfig } from 'tsdown'
 
-// Two entries: the default runtime surface (`index`) and the Node-only loader (`./node` →
-// `registry-loader`). A package-local tsconfig (no project `references`) is required so
-// rolldown-plugin-dts can emit declarations — the root tsconfig's `references` break it.
 export default defineConfig({
   entry: {
     index: 'src/index.ts',
-    'registry-loader': 'src/registry-loader.ts'
+    'registry-loader': 'src/registry-loader.ts',
+    'bundled-catalog': 'src/bundled-catalog.ts',
+    'bundled-models': 'src/bundled-models.ts',
+    'bundled-providers': 'src/bundled-providers.ts',
+    'bundled-provider-models': 'src/bundled-provider-models.ts'
   },
   outDir: 'dist',
   format: ['esm', 'cjs'],

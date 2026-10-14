@@ -4,7 +4,8 @@ import { once } from 'node:events'
 import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
 
 import { application } from '@application'
-import { isMac, isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
+import { syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 
@@ -365,6 +366,7 @@ export class CdpBrowserController extends BrowserPageController {
       windowManager.close(windowId)
       throw new Error('MCP browser window not found after open')
     }
+    if (isLinux) syncTitleBarOverlayWithTheme(win)
     if (showWindow) win.show()
 
     return { window: win, windowId }

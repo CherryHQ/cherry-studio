@@ -8,8 +8,9 @@ import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
-import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError } from '@cherrystudio/ui'
+import { Button, type CodeEditorHandles, Field, FieldContent, FieldError } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'
@@ -188,7 +189,7 @@ export function PromptEditorField({
               <StaticMarkdown id={previewId}>{previewValue || value}</StaticMarkdown>
             </div>
           ) : (
-            <CodeEditor
+            <LazyCodeEditor
               ref={codeEditorRef}
               theme={promptEditorTheme}
               fontSize={fontSize - 1}

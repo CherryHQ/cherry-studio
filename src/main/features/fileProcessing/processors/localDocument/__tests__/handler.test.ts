@@ -86,7 +86,7 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
 
 vi.mock('../../../utils/ocr', () => ({ preprocessImage: preprocessImageMock }))
 
-import { localDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
+import { isScannedPdfError, localDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
 
 const PDF_BYTES = Buffer.from('%PDF-1.7 fake')
 
@@ -107,18 +107,29 @@ function createFile(ext: string | null, name = 'input') {
 
 const pdfFile = createFile('pdf')
 
-/**
- * anydoc rejections all arrive as `code: 'GenericFailure'` — the message is the only
- * thing that distinguishes them. These strings are the real ones; `handler.smoke.test.ts`
- * pins them against the actual binding.
- */
-function anydocError(message: string): Error {
-  return Object.assign(new Error(message), { code: 'GenericFailure' })
+function anydocError(code: string, message: string): Error {
+  return Object.assign(new Error(message), { code })
 }
 
-const SCANNED_PDF_ERROR = anydocError(
-  'unsupported input: PDF has no extractable text (Scanned, 3 pages): OCR is required'
-)
+const SCANNED_PDF_ERROR = anydocError('needsOcr', 'page 1 of 3 needs OCR')
+
+describe('isScannedPdfError', () => {
+  it('recognizes the OCR error code independently of its message', () => {
+    expect(isScannedPdfError(anydocError('needsOcr', 'image-only page'))).toBe(true)
+  })
+
+  it.each([
+    undefined,
+    null,
+    'OCR is required',
+    { code: 'needsOcr' },
+    new Error('OCR is required'),
+    anydocError('unsupported', 'PDF has no extractable text (Scanned, 0 pages): OCR is required'),
+    anydocError('encrypted', 'OCR is required')
+  ])('does not infer a scanned PDF from an unrelated rejection: %j', (error) => {
+    expect(isScannedPdfError(error)).toBe(false)
+  })
+})
 
 async function prepareBackground(file = pdfFile, signal?: AbortSignal) {
   const prepared = await localDocumentToMarkdownHandler.prepare(file, config, signal)
@@ -207,7 +218,7 @@ describe('localDocumentToMarkdownHandler', () => {
       expect(reportProgress).toHaveBeenLastCalledWith(100)
     })
 
-    it('falls back to per-page OCR when anydoc reports no extractable text', async () => {
+    it('falls back to per-page OCR when the PDF has no text layer', async () => {
       getTextMock.mockResolvedValue({
         total: 3,
         pages: [
@@ -301,18 +312,34 @@ describe('localDocumentToMarkdownHandler', () => {
       expect(removeMock).toHaveBeenCalledTimes(1)
     })
 
-    it.each([
-      'document is encrypted',
-      'malformed document: invalid PDF structure',
-      'unsupported input: unrecognized file content: name the format explicitly',
-      'io error: permission denied',
-      'resource limit exceeded (max_entry_bytes): 1'
-    ])('rethrows "%s" instead of wasting minutes on OCR that cannot help', async (message) => {
+    it('returns OCR text when anydoc rejects a PDF with needsOcr', async () => {
       const prepared = await prepareBackground()
-      toMarkdownBytesMock.mockRejectedValueOnce(anydocError(message))
+      toMarkdownBytesMock.mockRejectedValueOnce(SCANNED_PDF_ERROR)
+      getScreenshotMock.mockResolvedValue({ pages: [{ data: new Uint8Array([1]) }] })
+      recognizeMock
+        .mockResolvedValueOnce({ text: 'page one', lines: [] })
+        .mockResolvedValueOnce({ text: 'page two', lines: [] })
+        .mockResolvedValueOnce({ text: 'page three', lines: [] })
 
-      await expect(prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })).rejects.toThrow(
-        message
+      await expect(
+        prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })
+      ).resolves.toEqual({ kind: 'markdown', markdownContent: 'page one\n\npage two\n\npage three' })
+    })
+
+    it.each([
+      ['encrypted', 'document is encrypted'],
+      ['malformed', 'malformed document: invalid PDF structure'],
+      ['unsupported', 'unsupported input: unrecognized file content: name the format explicitly'],
+      ['unsupported', 'unsupported input: PDF has no extractable text (Scanned, 0 pages): OCR is required'],
+      ['io', 'io error: permission denied'],
+      ['resourceLimit', 'resource limit exceeded (max_entry_bytes): 1']
+    ])('rethrows %s instead of wasting minutes on OCR that cannot help', async (code, message) => {
+      const prepared = await prepareBackground()
+      const error = anydocError(code, message)
+      toMarkdownBytesMock.mockRejectedValueOnce(error)
+
+      await expect(prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })).rejects.toBe(
+        error
       )
       expect(recognizeMock).not.toHaveBeenCalled()
     })
