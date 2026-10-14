@@ -249,3 +249,26 @@ describe('shared repository and type preparation', () => {
     expect(simulate(true, false, { 'Record repository success': 'skipped' }).gate).not.toBe(0)
   })
 })
+
+// A failed dependency must still reach its gate; a cancelled workflow must not allocate another runner.
+describe('required gate scheduling', () => {
+  it.each([
+    ['successful dependencies', 'success', 'pull_request', false, false, true],
+    ['failed dependencies', 'failure', 'pull_request', false, false, true],
+    ['skipped dependencies', 'skipped', 'pull_request', false, false, true],
+    ['workflow cancellation', 'success', 'pull_request', false, true, false],
+    ['draft pull request', 'success', 'pull_request', true, false, false],
+    ['manual validation', 'success', 'workflow_dispatch', false, false, true]
+  ])('handles %s with the upstream cancellation condition', (_name, dependency, event, draft, cancelled, expected) => {
+    for (const name of ['basic-checks', 'general-test', 'render-test']) {
+      const condition = workflow.jobs[name].if.replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+      expect(condition).toContain('!cancelled()')
+      const selected = new Function('github', 'cancelled', 'success', `return (${condition})`)(
+        { event_name: event, event: { pull_request: { draft } } },
+        () => cancelled,
+        () => dependency === 'success'
+      )
+      expect(selected).toBe(expected)
+    }
+  })
+})
