@@ -10,6 +10,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 
 import type { ToolOutputOffload } from './offload'
+import type { ToolApprovalEvent } from './ports'
 import type { AgentRuntimeSession } from './session'
 import { renderStatus, shortenResult, SubagentDelivery } from './subagentDelivery'
 import {
@@ -59,6 +60,11 @@ export interface SubagentPort {
    * it. Without it, finished subagents cannot be continued.
    */
   load?(sessionId: string): Promise<readonly TranscriptEntry[] | undefined>
+  /**
+   * Approval events of the subagents' tool calls (the parent's own may come too: they are told
+   * apart by call id). While one is pending, its subagent shows as `awaiting_approval`.
+   */
+  onApproval?(listener: (event: ToolApprovalEvent) => void): () => void
   /** Background subagents one parent session may run at once; default 20 (Claude Code's default). */
   maxBackground?: number
 }
@@ -238,6 +244,7 @@ export function createSubagentExtension({
   const extension: ExtensionFactory = (pi) => {
     let ctx: ExtensionContext | undefined
     let inSubagent = false
+    let unsubscribeApproval: (() => void) | undefined
     const registry = new SubagentRegistry({
       appendState: (state) => pi.appendEntry(SUBAGENT_STATE_TYPE, state),
       emit,
@@ -275,6 +282,7 @@ export function createSubagentExtension({
       const { records, undelivered } = restoreSubagents(branch, parentModelKey)
       registry.restore(records)
       delivery.restore(undelivered)
+      unsubscribeApproval = port.onApproval?.((event) => registry.approval(event))
     })
     // After a compaction the model no longer sees its subagent calls; this keeps it from starting them again.
     pi.on('session_compact', () => {
@@ -288,6 +296,8 @@ export function createSubagentExtension({
     })
     pi.on('before_agent_start', () => (inSubagent ? undefined : delivery.beforeAgentStart()))
     pi.on('session_shutdown', () => {
+      unsubscribeApproval?.()
+      unsubscribeApproval = undefined
       delivery.close()
       return registry.close()
     })
