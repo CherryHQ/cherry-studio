@@ -959,7 +959,9 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
     rawBaseURL = ctx.baseConfig.baseURL
   }
 
-  const baseURL = formatNewApiBaseURL(rawBaseURL, endpointType)
+  const baseURL = isWithTrailingSharp(ctx.resolvedBaseUrl)
+    ? ctx.baseConfig.baseURL
+    : formatNewApiBaseURL(rawBaseURL, endpointType)
 
   return {
     providerId: 'newapi',
