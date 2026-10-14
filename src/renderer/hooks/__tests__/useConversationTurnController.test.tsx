@@ -33,13 +33,15 @@ vi.mock('@logger', () => ({
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
+    reject = rejectPromise
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
-function renderController(initialScopeKey = 'topic-a') {
+function renderController(initialScopeKey = 'topic-a', onError?: (error: unknown, input: string) => void) {
   const refreshMetadata = vi.fn()
   const historyAdapter: ConversationHistoryAdapter = {
     seedReservedMessages: vi.fn(),
@@ -57,7 +59,8 @@ function renderController(initialScopeKey = 'topic-a') {
           topicId: conversation.topicId,
           userMessageParts: []
         }),
-        refreshMetadata
+        refreshMetadata,
+        onError
       }),
     { initialProps: { scopeKey: initialScopeKey } }
   )
@@ -138,5 +141,60 @@ describe('useConversationTurnController', () => {
     expect(result.current.phase).toBe('draft')
     expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
     expect(historyAdapter.rollback).toHaveBeenCalledOnce()
+  })
+
+  it('does not surface a stream-open failure after switching scopes', async () => {
+    const pendingAck = createDeferred<AiStreamOpenResponse>()
+    mocks.streamOpen.mockReturnValueOnce(pendingAck.promise)
+    const onError = vi.fn()
+    const { result, rerender, historyAdapter } = renderController('agent-session:a', onError)
+
+    let sendFromA!: Promise<boolean>
+    act(() => {
+      sendFromA = result.current.send('from A')
+    })
+    await waitFor(() => expect(mocks.streamOpen).toHaveBeenCalledOnce())
+    rerender({ scopeKey: 'agent-session:b' })
+
+    await act(async () => {
+      pendingAck.reject(new Error('old session failed'))
+      expect(await sendFromA).toBe(false)
+    })
+
+    expect(result.current.phase).toBe('draft')
+    expect(historyAdapter.rollback).not.toHaveBeenCalled()
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('keeps the new scope intact during rollback (rollback fails: %s)', async (rollbackFails) => {
+    const failure = new Error('old session failed')
+    mocks.streamOpen.mockRejectedValueOnce(failure)
+    const pendingRollback = createDeferred<void>()
+    const onError = vi.fn()
+    const { result, rerender, historyAdapter } = renderController('agent-session:a', onError)
+    vi.mocked(historyAdapter.rollback).mockImplementation(async () => {
+      await pendingRollback.promise
+      if (rollbackFails) throw new Error('rollback failed')
+    })
+
+    let sendFromA!: Promise<boolean>
+    act(() => {
+      sendFromA = result.current.send('from A')
+    })
+    await waitFor(() => expect(historyAdapter.rollback).toHaveBeenCalledOnce())
+    rerender({ scopeKey: 'agent-session:b' })
+
+    mocks.streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    await act(async () => {
+      expect(await result.current.send('from B')).toBe(true)
+    })
+    expect(result.current.phase).toBe('streaming')
+
+    await act(async () => {
+      pendingRollback.resolve()
+      expect(await sendFromA).toBe(false)
+    })
+    expect(result.current.phase).toBe('streaming')
+    expect(onError).not.toHaveBeenCalled()
   })
 })

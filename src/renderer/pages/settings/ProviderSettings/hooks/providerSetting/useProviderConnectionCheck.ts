@@ -140,8 +140,10 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
           if (notify) toast.success({ timeout: 2000, title: i18n.t('message.api.connection.success') })
           return 'passed' as const
         }
-        if (!notify) throw result.error ?? new Error(i18n.t('settings.models.check.failed_to_start'))
-        reportFailure(result.error)
+        // Mixed failures use credential order; keep the aggregate for the results panel.
+        const error = keyResults.find((keyResult) => keyResult.kind === 'failed')?.error ?? result.error
+        if (!notify) throw error ?? new Error(i18n.t('settings.models.check.failed_to_start'))
+        reportFailure(error)
         return 'failed' as const
       } catch (error) {
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const

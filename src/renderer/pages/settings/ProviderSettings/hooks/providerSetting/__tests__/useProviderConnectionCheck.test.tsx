@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HealthStatus, type ModelCheckCredential } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type * as HealthCheckUtils from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { toast } from '@renderer/services/toast'
+import { classifyError } from '@renderer/utils/errorClassifier'
+import { errorToastPresentations, serializeToastError } from '@renderer/utils/errorToast'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 import { ModelCheckCredentialsSaveError, type ModelCheckCredentialsState } from '../useModelCheckCredentials'
@@ -200,6 +202,76 @@ describe('useProviderConnectionCheck', () => {
     })
     expect(result.current.singleModelResult?.kind).toBe('ok')
     expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { statusCode: 401, message: 'Invalid credentials', category: 'auth', action: 'configure' },
+    { statusCode: 429, message: 'Resource exhausted', category: 'rate_limit', action: 'retry' }
+  ])(
+    'preserves $category recovery for initial and retry failures',
+    async ({ statusCode, message, category, action }) => {
+      const failure = { name: 'ProviderError', message, stack: null, statusCode }
+      checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
+        credentials.map((credential) => ({ ...failedResult(credential), error: failure }))
+      )
+      const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+      await act(async () => {
+        expect(await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })).toBe('failed')
+      })
+
+      const [reportedError, context] = vi.mocked(toast.errorFromException).mock.calls[0]
+      expect(reportedError).toEqual(failure)
+      const diagnosis = classifyError(serializeToastError(reportedError), 'cherryin')
+      expect(diagnosis.category).toBe(category)
+      expect(errorToastPresentations[diagnosis.category].action).toBe(action)
+
+      const retry = context?.actions?.retry
+      expect(retry).toBeDefined()
+      let retryError: unknown
+      await act(async () => {
+        retryError = await Promise.resolve(retry!()).catch((error: unknown) => error)
+      })
+      expect(retryError).toEqual(failure)
+      const retryDiagnosis = classifyError(serializeToastError(retryError), 'cherryin')
+      expect(retryDiagnosis.category).toBe(category)
+      expect(errorToastPresentations[retryDiagnosis.category].action).toBe(action)
+      expect(toast.errorFromException).toHaveBeenCalledOnce()
+      expect(toast.success).not.toHaveBeenCalled()
+    }
+  )
+
+  it('uses the first failed credential for mixed-error feedback while retaining every result', async () => {
+    apiKeyEntries.push({ id: 'key-3', key: 'sk-third', label: 'Third', isEnabled: true })
+    const firstFailure = {
+      name: 'ProviderError',
+      message: 'Resource exhausted',
+      stack: null,
+      statusCode: 429,
+      providerErrorCategory: 'quota'
+    }
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) => [
+      successfulResult(credentials[0]),
+      { ...failedResult(credentials[1]), error: firstFailure },
+      {
+        ...failedResult(credentials[2], 'Invalid credentials'),
+        error: { name: 'ProviderError', message: 'Invalid credentials', stack: null, statusCode: 401 }
+      }
+    ])
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+    await act(async () => {
+      expect(await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })).toBe('failed')
+    })
+
+    const reportedError = vi.mocked(toast.errorFromException).mock.calls[0][0]
+    expect(reportedError).toEqual(firstFailure)
+    const diagnosis = classifyError(serializeToastError(reportedError))
+    expect(diagnosis.category).toBe('quota')
+    expect(errorToastPresentations[diagnosis.category].action).toBe('billing')
+    expect(result.current.singleModelResult?.keyResults).toEqual([
+      expect.objectContaining({ kind: 'ok' }),
+      expect.objectContaining({ error: firstFailure }),
+      expect.objectContaining({ error: expect.objectContaining({ statusCode: 401 }) })
+    ])
   })
 
   it('leaves save failure feedback to the API key owner before stopping', async () => {

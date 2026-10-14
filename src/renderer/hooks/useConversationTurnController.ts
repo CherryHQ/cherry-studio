@@ -99,17 +99,17 @@ export function useConversationTurnController<TInput, TConversation>({
         if (isCurrentScope()) setPhase('streaming')
         return true
       } catch (err) {
-        if (isCurrentScope()) {
-          try {
-            await historyAdapter.rollback()
-          } catch (rollbackErr) {
-            logger.warn('Failed to rollback conversation history after stream open failure', rollbackErr as Error)
-          }
-          setPhase('draft')
-          if (callbacks.onError) {
-            callbacks.onError(err, input)
-            return false
-          }
+        if (!isCurrentScope()) return false
+        try {
+          await historyAdapter.rollback()
+        } catch (rollbackErr) {
+          logger.warn('Failed to rollback conversation history after stream open failure', rollbackErr as Error)
+        }
+        if (!isCurrentScope()) return false
+        setPhase('draft')
+        if (callbacks.onError) {
+          callbacks.onError(err, input)
+          return false
         }
         throw err
       }
