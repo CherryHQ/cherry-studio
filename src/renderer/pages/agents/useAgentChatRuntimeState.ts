@@ -2,7 +2,6 @@ import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { loggerService } from '@logger'
 import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
@@ -19,6 +18,7 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
@@ -34,7 +34,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
-import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_CLOSING_CACHE_KEY, agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
@@ -191,6 +191,7 @@ export function useAgentChatRuntimeState({
     selectAllPagination,
     refresh,
     seedReservedMessages,
+    replaceMessageTail,
     deleteMessage: deleteSessionMessage
   } = useAgentSessionParts(sessionId, {
     enabled: sessionMessagesEnabled,
@@ -241,9 +242,7 @@ export function useAgentChatRuntimeState({
       if (ack.mode !== 'blocked' && currentSessionRef.current === sessionId) {
         resetOverlay()
         setMessages([])
-        await Promise.resolve(refresh()).catch((error) =>
-          loggerService.withContext('AgentEdit').warn('Failed to refresh edited history', { error })
-        )
+        await replaceMessageTail(input.editTarget.messageId, ack.reservedMessages ?? [])
       }
       return ack
     }
@@ -365,7 +364,8 @@ export function useAgentChatRuntimeState({
     onRespond: respondToolApproval
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
-  const editBusy = isPending || editPending || toolApprovalComposerOverrides.length > 0
+  const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
+  const editBusy = isPending || sessionClosing || editPending || toolApprovalComposerOverrides.length > 0
   const cancelEditing = useCallback(() => {
     if (!editRequestRef.current) setEditDraft(undefined)
   }, [])

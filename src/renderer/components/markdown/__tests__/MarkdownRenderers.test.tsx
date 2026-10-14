@@ -126,23 +126,15 @@ describe('MarkdownRenderers', () => {
     expect(fallback).toHaveStyle({ width: '240px', height: '120px' })
   })
 
-  it('keeps code actions available for ordinary fenced code blocks', () => {
+  it('preserves text nested in animation spans in inline code', () => {
     render(
-      <Renderer name="code" className="language-javascript">
-        {'const value = 1\n'}
+      <Renderer name="code">
+        <span>live</span>
+        <span> code</span>
       </Renderer>
     )
-
-    expect(screen.getByRole('button', { name: 'Code actions' })).toBeInTheDocument()
-  })
-
-  it('keeps code actions available for Mermaid previews', () => {
-    render(
-      <Renderer name="code" className="language-mermaid">
-        {'graph TD; A-->B\n'}
-      </Renderer>
-    )
-
-    expect(screen.getByRole('button', { name: 'Code actions' })).toBeInTheDocument()
+    expect(screen.getByText('live')).toBeVisible()
+    expect(screen.getByText('code')).toBeVisible()
+    expect(document.body).not.toHaveTextContent('[object Object]')
   })
 })

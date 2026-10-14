@@ -134,6 +134,7 @@ vi.mock('@main/core/platform', () => ({
   get isLinux() {
     return platformState.isLinux
   },
+  isLinuxWayland: false,
   get isDev() {
     return platformState.isDev
   }

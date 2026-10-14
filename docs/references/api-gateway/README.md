@@ -38,6 +38,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 │                                       `buildStreamErrorFrame` (streaming error/timeout frames), `transformOpenAiError`
 ├── ApiGatewayService.ts             ← lifecycle owner, preference intent, leases, running-state reconciler
 ├── McpSessionStore.ts               ← bounded live Streamable HTTP MCP sessions
+├── ModernMcpProxy.ts                ← MCP 2026-07-28 discovery, MRTR and subscriptions
 ├── proxyStream.ts                   ← `processMessage()` — the core request → stream → response engine
 ├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
 ├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
@@ -117,7 +118,7 @@ guard, described below.
 | `GET /v1/knowledge-bases/:id` | Cherry REST | single base |
 | `GET /v1/mcps` | Cherry REST | active MCP server catalog with gateway URLs |
 | `GET /v1/mcps/:id` | Cherry REST | one active server plus its warmed tool catalog |
-| `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | initialize/session request or sessionless one-shot JSON-RPC |
+| `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | modern discovery/requests/subscriptions or legacy initialize/session requests |
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
@@ -128,14 +129,29 @@ Gemini routes carry a separate local auth guard because Gemini clients use
 The MCP proxy validates browser `Origin` as loopback-only to prevent DNS
 rebinding. Native clients normally send no `Origin`. Live sessions are bounded
 and owned by `McpSessionStore`; GET carries server push and DELETE terminates a
-session.
+legacy session. Modern clients use the same URL with MCP 2026-07-28 discovery
+and subscriptions; the SDK classifies the request before it enters either
+transport. Both paths retain API-key and Origin checks, request cancellation,
+progress, disabled-tool filtering, and tool-list change notifications.
+
+For modern upstream servers, the modern proxy forwards `input_required`, opaque
+`requestState`, and `inputResponses` to the external client. Elicitation,
+sampling and roots are limited to that client's advertised capabilities; these
+requests do not open a desktop consent dialog. Upstream OAuth credentials must
+already be configured through the desktop. Legacy callers continue through the
+v1 bridge; scalar and array structured results also receive a JSON text
+projection so legacy clients can consume them.
 
 ### LAN exposure is confined to the remote-access upgrade
 
-The gateway uses one listener on `0.0.0.0` at its configured port (default
-`23333`). Local HTTP clients and remote WebSocket clients share that port.
-LAN toggles change access policy without rebinding the listener, so existing
-local streams continue and paired devices retain the same endpoint after restart.
+The gateway listens on `127.0.0.1` and `::1` by default at its configured port (default
+`23333`). Allowing network access rebinds to all IPv4 / IPv6 interfaces (`0.0.0.0` and `::`).
+Two explicit listeners share that port and the MCP session store; the IPv6 socket uses `ipv6Only: true`.
+If IPv6 is unavailable, IPv4 remains usable and only its addresses are advertised.
+A port conflict fails startup and releases both listeners. Local HTTP and remote WebSocket clients share the port. Rebinding only
+releases the listening handles; existing local streams and MCP sessions continue.
+The settings card explains network exposure and pairing requirements in plain language.
+Actual bound addresses appear only in the collapsed connection details, including while access is disabled.
 
 The root `onRequest` guard (`lanGuard.ts`) runs before CORS and screens each
 request by its socket peer. Ordinary HTTP routes remain loopback-only. The only
@@ -145,8 +161,11 @@ blocked on loopback when LAN access is disabled. Desktop consumers continue to
 use `127.0.0.1` through `gatewayClientOrigin`.
 
 Disabling LAN first restores `feature.api_gateway.host` to `127.0.0.1`, then
-closes remote sessions and clears pending invitations. The shared TCP listener
-remains bound, but new remote requests receive `403`.
+closes remote sessions and clears pending invitations, then rebinds to loopback.
+The guard rejects remote requests during the transition; afterward the network
+interfaces no longer accept new TCP connections. If opening access fails, the
+service restores loopback intent and attempts to rebind locally. If narrowing
+the listener fails, it remains unbound and the command reports an error.
 
 ## Request flow (generation routes)
 
@@ -275,7 +294,7 @@ single authority for their running state.
 |---|---|
 | `onInit` | Subscribe to `feature.api_gateway.enabled`; IpcApi handlers live in `src/main/ipc/handlers/apiGateway.ts`. |
 | `onReady` | Read the persisted desired state and flush the reconciler. |
-| `onActivate` | Start the shared listener on `0.0.0.0` at the configured port; the request guard enforces LAN intent. |
+| `onActivate` | Start on `127.0.0.1` / `::1`, or `0.0.0.0` / `::` when network access and the gateway are enabled; the guard enforces route access. |
 | `onDeactivate` | Close remote sessions and stop the shared listener; publish both running states as `false`. |
 
 `ensureValidApiKey()` generates a `cs-sk-<uuid>` key into
@@ -285,17 +304,17 @@ All activation/deactivation flows through a self-held
 [`createLatestReconciler`](../../../src/main/core/concurrency/README.md), the
 sole caller of `activate`/`deactivate`. It is driven by `onReady`, Preference
 changes, IpcApi actions, and temporary run leases, converging actual state to
-`desiredEnabled || leaseCount > 0`. A temporary consumer can therefore keep the
+`desiredEnabled || leaseCount > 0` and the requested listening scope. A temporary consumer can therefore keep the
 server up without persisting an enabled intent. Start/stop persist user intent
 before convergence; restart rebinds only when no lease is active.
 
 LAN commands are serialized with remote-session cleanup. Enabling LAN requires
 an enabled, running gateway and persists `host = 0.0.0.0`. Disabling LAN persists
-`host = 127.0.0.1` and closes remote sessions without interrupting local requests.
+`host = 127.0.0.1`, closes remote sessions and rebinds the listener without interrupting local requests.
 
 An explicit gateway stop atomically persists `enabled = false` and disables LAN,
 then closes remote sessions. A `deferred` stop preserves the listener for local
-task leases, while the guard refuses remote access. The final lease release
+task leases on `127.0.0.1` / `::1`, while the guard refuses remote access. The final lease release
 stops the listener. An explicit restart retains LAN intent and reuses the
 configured gateway port; a fresh QR is only needed if the endpoint changes.
 
