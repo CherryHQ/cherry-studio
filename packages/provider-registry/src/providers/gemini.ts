@@ -21,8 +21,7 @@ export default defineProvider({
       baseUrl: 'https://generativelanguage.googleapis.com'
     },
     'google-interactions': {
-      adapterFamily: 'google-interactions',
-      baseUrl: 'https://generativelanguage.googleapis.com'
+      adapterFamily: 'google-interactions'
     }
   },
   overrides: [
