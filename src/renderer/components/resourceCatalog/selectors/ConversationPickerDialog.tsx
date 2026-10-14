@@ -25,6 +25,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { matchesPinyinInitials } from '@renderer/utils/pinyin'
 
 const logger = loggerService.withContext('ConversationPickerDialog')
 
@@ -84,7 +85,10 @@ function itemMatchesQuery(item: ConversationPickerItem, query: string) {
   const keyword = query.trim().toLowerCase()
   if (!keyword) return true
 
-  return [item.name, item.searchText].filter(Boolean).some((text) => text?.toLowerCase().includes(keyword))
+  return (
+    [item.name, item.searchText].some((text) => text?.toLowerCase().includes(keyword)) ||
+    matchesPinyinInitials(item.name, keyword)
+  )
 }
 
 export function ConversationPickerDialog<T extends ConversationPickerItem>({
