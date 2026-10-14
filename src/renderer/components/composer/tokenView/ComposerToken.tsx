@@ -78,6 +78,7 @@ export interface ComposerTokenProps {
   maxWidthClassName?: string
   onMouseDown?: MouseEventHandler<HTMLSpanElement>
   onRemove?: () => void
+  onOpenLink?: (url: string) => void | Promise<void>
   removeLabel?: string
 }
 
@@ -268,18 +269,19 @@ export function LinkComposerToken(props: ComposerTokenProps) {
     })
   }
 
-  const openLink = () => {
-    void ipcApi.request('system.shell.open_website', link.url)
+  const openLink = (modified: boolean) => {
+    if (!modified && props.onOpenLink) void props.onOpenLink(link.url)
+    else void ipcApi.request('system.shell.open_website', link.url)
   }
   const handleClick: MouseEventHandler<HTMLSpanElement> = (event) => {
     stopTokenActionEvent(event)
-    openLink()
+    openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     event.stopPropagation()
-    openLink()
+    openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
 
   // The chip only shows the truncated label; hover must surface the full url the label stands for.
@@ -738,11 +740,23 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const imagePreviewUrl = props.readOnlyFilePreview?.mediaType?.startsWith('image/')
     ? props.readOnlyFilePreview.url
     : undefined
-  const presentation = getFileTokenPresentation(file, label, imagePreviewUrl)
+  const [blobPreview, setBlobPreview] = useState<{ blob: Blob; url: string }>()
+  const blob = file?.blob
+  useEffect(() => {
+    if (!blob) return
+    const url = URL.createObjectURL(blob)
+    setBlobPreview({ blob, url })
+    return () => URL.revokeObjectURL(url)
+  }, [blob])
+  const presentation = getFileTokenPresentation(
+    file,
+    label,
+    imagePreviewUrl ?? (blobPreview?.blob === blob ? blobPreview?.url : undefined)
+  )
   const openImagePreview = useCallback(() => {
     if (!presentation.previewUrl) return
-    void ImagePreviewService.show(presentation.previewUrl)
-  }, [presentation.previewUrl])
+    void ImagePreviewService.show(blob ?? presentation.previewUrl)
+  }, [blob, presentation.previewUrl])
   const title = props.token.description ?? props.token.promptText ?? label
   const accessibleTitle = props.readOnly ? label : title
   const removeLabel = removeLabelProp ?? 'Remove'

@@ -13,23 +13,32 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 const {
   appGetMock,
   agentSessionMessageService,
+  agentSessionService,
   fileEntryService,
   messageService,
   createAgent,
-  createBuiltinSupportSession
+  createBuiltinSkillSession,
+  createBuiltinSupportSession,
+  openRequestPath
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
+  agentSessionService: { getById: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
-  createBuiltinSupportSession: vi.fn()
+  createBuiltinSkillSession: vi.fn(),
+  createBuiltinSupportSession: vi.fn(),
+  openRequestPath: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
+vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService }))
 vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
+vi.mock('@main/services/file', () => ({ openRequestPath }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
+vi.mock('@main/ai/agents/createBuiltinSkillSession', () => ({ createBuiltinSkillSession }))
 vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
 vi.mock('@main/ai/agents/AgentLifecycleService', () => ({
   AgentSessionArchiveBusyError: class AgentSessionArchiveBusyError extends Error {
@@ -100,6 +109,7 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
+  createBuiltinSkillSession.mockReturnValue({ id: 'skill-session', agentId: 'cherry-assistant' })
   createBuiltinSupportSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-support' })
   // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
   fileEntryService.findById.mockReturnValue({
@@ -251,6 +261,13 @@ describe('aiHandlers', () => {
 
     expect(createBuiltinSupportSession).toHaveBeenCalledTimes(1)
     expect(result).toEqual({ sessionId: 'feedback-session' })
+  })
+
+  it('delegates Skill-session creation with the selected Skill and returns its id', async () => {
+    const result = await aiHandlers['ai.agent.skill_session.create']({ skillId: 'skill-1' }, ctx)
+
+    expect(createBuiltinSkillSession).toHaveBeenCalledExactlyOnceWith('skill-1')
+    expect(result).toEqual({ sessionId: 'skill-session' })
   })
 
   it('generate_text forwards the request and returns the AiService result', async () => {
@@ -426,16 +443,36 @@ describe('aiHandlers', () => {
 })
 
 describe('aiHandlers — streaming', () => {
+  it('reports an unsupported edit checkpoint as an edit failure while preserving other fork failures', async () => {
+    const input = {
+      sessionId: 'session-1',
+      target: { messageId: 'user-1', version: 'version-1' },
+      userMessageParts: [{ type: 'text', text: 'Replacement' }]
+    } as never
+
+    aiStreamManager.dispatch.mockRejectedValueOnce(new AgentSessionForkError('unsupported_checkpoint'))
+    await expect(aiHandlers['ai.agent.session.edit_resend'](input, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED,
+      data: { reason: 'checkpoint_unsupported' }
+    })
+
+    aiStreamManager.dispatch.mockRejectedValueOnce(new AgentSessionForkError('workspace_changed'))
+    await expect(aiHandlers['ai.agent.session.edit_resend'](input, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED,
+      data: { reason: 'workspace_changed' }
+    })
+  })
+
   it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
-    const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] } as never
+    const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] }
     aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })
 
-    const result = await aiHandlers['ai.stream.open'](req, { senderId: 'w1' })
+    const result = await aiHandlers['ai.stream.open'](req as never, { senderId: 'w1' })
 
     expect(windowManager.getWindow).toHaveBeenCalledWith('w1')
     expect(aiStreamManager.dispatch).toHaveBeenCalledTimes(1)
     // Second arg is the parsed request; first is the freshly built WebContentsListener.
-    expect(aiStreamManager.dispatch.mock.calls[0][1]).toBe(req)
+    expect(aiStreamManager.dispatch.mock.calls[0][1]).toEqual({ ...req, interactionWindowId: 'w1' })
     expect(result).toEqual({ mode: 'started' })
   })
 
@@ -667,6 +704,26 @@ describe('aiHandlers — agent sessions & tasks', () => {
     await aiHandlers['ai.agent.session.close_warm']({ sessionId: 's1' }, ctx)
     expect(agentSessionRuntimeService.releaseWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
     expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).not.toHaveBeenCalled()
+  })
+
+  // Relative paths reported by a session's tools are resolved against that session's workspace,
+  // and only main knows it — the renderer sends the path text verbatim.
+  it('open_path resolves the raw path against the session workspace', async () => {
+    agentSessionService.getById.mockReturnValue({ workspace: { path: '/home/alice/project' } })
+
+    await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: 'assets/logo.png' }, ctx)
+
+    expect(openRequestPath).toHaveBeenCalledWith('assets/logo.png', '/home/alice/project')
+  })
+
+  // A workspace row that is not an absolute path must not steer resolution; the caller's own
+  // absolute path still opens, and a relative one fails rather than resolving against the cwd.
+  it('open_path drops a workspace path that is not absolute', async () => {
+    agentSessionService.getById.mockReturnValue({ workspace: { path: 'project' } })
+
+    await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: '/opt/out.png' }, ctx)
+
+    expect(openRequestPath).toHaveBeenCalledWith('/opt/out.png', undefined)
   })
 
   it('respond_tool_approval delegates to AiService with the resolved sender WebContents', async () => {

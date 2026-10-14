@@ -57,6 +57,13 @@ describe('match', () => {
       expect(includeKeywords('Hello\nWorld', 'hello world')).toBe(true)
     })
 
+    it('matches Chinese initials and Latin tokens together without dropping any keyword', () => {
+      expect(includeKeywords('API 知识库', 'ZSK api')).toBe(true)
+      expect(includeKeywords('API 知识库', ['api', 'zsk'])).toBe(true)
+      expect(includeKeywords('API 知识库', 'zsk missing')).toBe(false)
+      expect(includeKeywords('API 知识库', 'api zk')).toBe(false)
+    })
+
     it('should return false if any keyword is not included', () => {
       expect(includeKeywords('Hello World', 'hello foo')).toBe(false)
       expect(includeKeywords('Hello World', 'foo')).toBe(false)

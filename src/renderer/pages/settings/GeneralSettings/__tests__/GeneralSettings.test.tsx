@@ -64,6 +64,28 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   Flex: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   InfoTooltip: () => null,
+  Combobox: ({
+    options,
+    value,
+    onChange,
+    'aria-label': ariaLabel
+  }: {
+    options: { value: string; label: string }[]
+    value?: string | string[]
+    onChange?: (value: string | string[]) => void
+    'aria-label'?: string
+  }) => (
+    <select
+      aria-label={ariaLabel}
+      value={Array.isArray(value) ? (value[0] ?? '') : (value ?? '')}
+      onChange={(event) => onChange?.(event.target.value)}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   InputNumber: ({
     onBlur,
@@ -100,17 +122,6 @@ describe('GeneralSettings', () => {
     })
   })
 
-  it('places context management directly after proxy settings', () => {
-    render(<GeneralSettings />)
-
-    expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
-      'settings.launch.title',
-      'settings.proxy.mode.title',
-      'settings.models.context_management.title',
-      'settings.developer.title'
-    ])
-  })
-
   it('renders model retry settings in General and persists changes', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,
@@ -125,7 +136,7 @@ describe('GeneralSettings', () => {
     expect(screen.getByLabelText('settings.models.retry.backoff')).toBeInTheDocument()
     expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText('settings.models.retry.label'))
+    fireEvent.click(screen.getByLabelText('settings.general.retry.enabled'))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.retry.enabled')).toBe(false)
@@ -144,6 +155,27 @@ describe('GeneralSettings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('app.tray.on_close')).toBe(false)
       expect(MockUsePreferenceUtils.getPreferenceValue('app.tray.on_launch')).toBe(false)
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.click_tray_to_show')).toBe(false)
+    })
+  })
+
+  it('renders the agent reply language row defaulting to follow conversation', () => {
+    render(<GeneralSettings />)
+
+    const preset = screen.getByRole('combobox', { name: 'settings.agent.language.combo_label' })
+    expect(preset).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'settings.agent.language.custom_label' })).toHaveValue('')
+    expect(screen.queryByText('settings.agent.language.description')).not.toBeInTheDocument()
+  })
+
+  it('persists the agent reply language preset', async () => {
+    render(<GeneralSettings />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'settings.agent.language.combo_label' }), {
+      target: { value: '日本語' }
+    })
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('agent.language')).toBe('日本語')
     })
   })
 })

@@ -15,6 +15,17 @@ import { usePortalContainer } from './portal-container'
 type Side = 'top' | 'bottom' | 'left' | 'right'
 type Align = 'start' | 'center' | 'end'
 
+/**
+ * Tooltips anchored in a surface hidden via display:none (<Activity>) never see the leave events
+ * that would close them and park at the viewport origin; an inactive surface drops them at once.
+ */
+const TooltipSurfaceContext = React.createContext(true)
+
+/** Marks a subtree as the anchoring surface for tooltips; inactive surfaces disable their tooltips. */
+export const TooltipSurface = ({ active = true, children }: { active?: boolean; children?: React.ReactNode }) => {
+  return <TooltipSurfaceContext value={active}>{children}</TooltipSurfaceContext>
+}
+
 function parsePlacement(placement?: string): { side: Side; align: Align } {
   const mapping: Record<string, { side: Side; align: Align }> = {
     top: { side: 'top', align: 'center' },
@@ -77,10 +88,14 @@ function useTooltipController(
   }
   const effectiveOpen = controlledOpen != null ? controlledOpen : disabled ? false : innerOpen
   const contentVisible = useTooltipUnmountDelay(effectiveOpen)
-  // disabled 早退后组件仍挂载，内部打开态必须复位，否则重新启用时会不经 hover 直接打开
-  React.useEffect(() => {
-    if (disabled) setInnerOpen(false)
-  }, [disabled])
+  // disabled 早退后组件仍挂载，内部打开态必须复位，否则重新启用时会不经 hover 直接打开；
+  // 复位必须发生在渲染期且禁用/恢复两端都做——<Activity> 隐藏期间效果不运行，其子树的
+  // 渲染期更新还可能被推迟到恢复可见时才提交，单端复位会被整段吞掉
+  const [wasDisabled, setWasDisabled] = React.useState(disabled)
+  if (wasDisabled !== disabled) {
+    setWasDisabled(disabled)
+    setInnerOpen(false)
+  }
   const handleOpenChange = React.useCallback(
     (next: boolean) => {
       if (controlledOpen == null) setInnerOpen(next)
@@ -258,7 +273,16 @@ function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) 
 }
 
 function TooltipRoot({ delayDuration = 0, open: openProp, defaultOpen, onOpenChange, ...props }: TooltipRootProps) {
-  const { contentVisible, effectiveOpen, handleOpenChange } = useTooltipController(openProp, onOpenChange, defaultOpen)
+  const surfaceActive = React.use(TooltipSurfaceContext)
+  const {
+    contentVisible: controllerContentVisible,
+    effectiveOpen: controllerEffectiveOpen,
+    handleOpenChange
+  } = useTooltipController(openProp, onOpenChange, defaultOpen, !surfaceActive)
+  // 非活跃 surface 强制关闭并跳过退出窗口：anchor 被 display:none 藏起时看不到任何离开事件，
+  // portal content 不得比 anchor 活得更久；关闭同时复位内部 open 态，surface 恢复后不会无 hover 复活
+  const contentVisible = surfaceActive && controllerContentVisible
+  const effectiveOpen = surfaceActive && controllerEffectiveOpen
   return (
     <TooltipOverlayContext value={contentVisible}>
       <TooltipProvider delayDuration={delayDuration}>
@@ -299,9 +323,19 @@ const contentStyles =
 const arrowStyles =
   'z-[80] -translate-y-px fill-neutral-900 stroke-neutral-900 stroke-2 dark:fill-neutral-100 dark:stroke-neutral-100 [paint-order:stroke_fill]'
 
+/**
+ * Default gap between tooltip content and its trigger. Content rendered flush with the trigger
+ * (sideOffset = 0) overlaps the trigger's hit area: once the pointer lands on the tooltip, the
+ * anchor loses :hover, hover-driven regions around it collapse and move the anchor, and the
+ * tooltip instantly reopens within Radix's skipDelayDuration - a hover feedback loop. Keeping
+ * the floating content clear of the trigger breaks that loop at the root. Callers can still
+ * pass sideOffset explicitly to opt out.
+ */
+export const TOOLTIP_DEFAULT_SIDE_OFFSET = 8
+
 function TooltipContent({
   className,
-  sideOffset = 0,
+  sideOffset = TOOLTIP_DEFAULT_SIDE_OFFSET,
   children,
   portalContainer,
   showArrow = true,
@@ -377,7 +411,7 @@ export const Tooltip = ({
   title,
   placement,
   delay = 0,
-  sideOffset = 0,
+  sideOffset = TOOLTIP_DEFAULT_SIDE_OFFSET,
   showArrow = true,
   fullWidthTrigger = false,
   classNames,
@@ -391,7 +425,10 @@ export const Tooltip = ({
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   const defaultPortalContainer = usePortalContainer()
-  const disabled = !tooltipContent || isDisabled
+  // An inactive surface drops the tooltip exactly like a disabled one; the disabled pass also
+  // resets the open state so nothing resurfaces unhovered when the surface comes back.
+  const surfaceActive = React.use(TooltipSurfaceContext)
+  const disabled = !tooltipContent || isDisabled || !surfaceActive
   const { contentVisible, effectiveOpen, handleOpenChange } = useTooltipController(
     isOpen,
     onOpenChange,

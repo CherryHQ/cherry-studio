@@ -63,26 +63,31 @@ export class SchedulerService extends BaseService {
   }
 
   /**
-   * Parse-only validation of a trigger's scheduling semantics — nothing is
+   * Validate a trigger's scheduling semantics — nothing is
    * registered and no timer is created. Cron expressions and IANA timezones go
    * through the same Croner construction path as `scheduleCron` (constructed
    * without a callback, so nothing is scheduled; `nextRun()` forces the
    * timezone conversion Croner otherwise defers; `.stop()` is defensive),
-   * surfacing the parser's original error. Delays beyond the setTimeout limit
-   * are rejected — Node would fire the timer immediately, turning a chained
-   * interval into a hot loop and a far-future once into an early fire. The
-   * once bound only needs to hold at validation time: the remaining delay
-   * shrinks monotonically, so every later re-arm stays under the limit too.
+   * surfacing parser errors and rejecting a cron without a future run. Delays
+   * beyond the setTimeout limit are rejected — Node would fire the timer
+   * immediately, turning a chained interval into a hot loop and a far-future
+   * once into an early fire. The once bound only needs to hold at validation
+   * time: the remaining delay shrinks monotonically, so every later re-arm
+   * stays under the limit too.
    *
    * @param trigger - Trigger config to validate
    * @throws The raw Croner / Intl parse error for an invalid cron expression
-   *   or unknown timezone; `RangeError` for an out-of-range interval / once
+   *   or unknown timezone; `RangeError` for a cron without a future run or an
+   *   out-of-range interval / once
    */
   validateTrigger(trigger: Trigger): void {
     if (trigger.kind === 'cron') {
       const probe = new Cron(trigger.expr, { timezone: trigger.timezone, maxRuns: trigger.limit })
-      probe.nextRun()
-      probe.stop()
+      try {
+        if (probe.nextRun() === null) throw new RangeError('Cron expression has no future occurrence')
+      } finally {
+        probe.stop()
+      }
       return
     }
     if (trigger.kind === 'interval' && trigger.ms > MAX_TIMER_DELAY_MS) {

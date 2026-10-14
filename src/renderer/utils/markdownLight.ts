@@ -91,7 +91,8 @@ export function isHtmlCode(code: string | null): boolean {
  */
 export function purifyMarkdownImages(markdown: string): string {
   return markdown.replace(
-    /(!\[[^\]]*\]\()\s*data:image\/[\w+.-]+;base64\s*,[\w+/=]+(?:\s*[\w+/=]+)*\s*\)/gi,
+    // `\s+` (not `\s*`) between base64 chunks: an optional separator backtracks exponentially when `)` is missing.
+    /(!\[[^\]]*\]\()\s*data:image\/[\w+.-]+;base64\s*,[\w+/=]+(?:\s+[\w+/=]+)*\s*\)/gi,
     '$1image_url)'
   )
 }

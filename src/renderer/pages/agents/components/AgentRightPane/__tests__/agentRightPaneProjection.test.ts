@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { getSubagentTaskStatus } from '@renderer/components/chat/messages/tools/agent'
 import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -167,6 +168,41 @@ describe('agent right pane projections', () => {
     expect(nextProjection.partsByMessageId['root:agent-flow-assistant'][1]).toBe(
       projection.partsByMessageId['root:agent-flow-assistant'][1]
     )
+  })
+
+  it.each([
+    ['in_progress', 'invoking'],
+    ['completed', 'done'],
+    ['error', 'error'],
+    ['stopped', 'cancelled']
+  ] as const)('preserves nested task status %s across flow projection', (status, expected) => {
+    const started: CherryMessagePart = {
+      type: 'data-agent-task-event',
+      data: { event: 'started', taskId: 'nested-task', toolUseId: 'child', status: 'in_progress' }
+    }
+    const updated: CherryMessagePart = {
+      type: 'data-agent-task-event',
+      data: { event: 'notification', taskId: 'nested-task', status }
+    }
+    const unrelated: CherryMessagePart = {
+      type: 'data-agent-task-event',
+      data: { event: 'started', taskId: 'other-task', toolUseId: 'other', status: 'in_progress' }
+    }
+    const parts = [
+      toolPart('root', 'Agent'),
+      toolPart('child', 'Agent', 'root', 'output-available', {}, { status: 'async_launched' }),
+      started,
+      unrelated
+    ]
+    const projection = buildAgentToolFlowProjection(
+      [message('m1', parts), message('m2', [updated])],
+      { m1: parts, m2: [updated] },
+      'root'
+    )
+    const flowParts = projection.partsByMessageId['root:agent-flow-assistant']
+
+    expect(flowParts.filter((part) => part.type === 'data-agent-task-event')).toEqual([started, updated])
+    expect(getSubagentTaskStatus(flowParts, 'child', 'done')).toBe(expected)
   })
 
   it('uses a lazily resolved selected output and preserves child parts untouched', () => {

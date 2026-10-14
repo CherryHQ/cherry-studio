@@ -5,5 +5,5 @@
     "incremental": false,
     "types": ["node"]
   },
-  "include": ["tests/e2e/cherry-regression/**/*.ts", "cherry-regression.playwright.config.ts", "src/preload/*.d.ts"]
+  "include": ["tests/e2e/**/*.ts", "playwright.config.ts", "playwright.regression.config.ts", "src/preload/*.d.ts"]
 }

@@ -1,5 +1,5 @@
 ---
-description: Frontend and SQLite testing references
+description: Frontend, SQLite, and remote Agent protocol testing references
 sources:
   - tests
   - src/renderer
@@ -14,3 +14,4 @@ Testing policy and harnesses for Cherry Studio: what makes a test worth writing 
 | --- | --- |
 | [Frontend Testing Guidelines](./frontend-testing.md) | Normative rules for renderer, packages/ui, and E2E tests — layer choice, mocking, and review gates |
 | [Database Testing Guide](./database-testing.md) | The setupTestDatabase harness for SQLite-backed main-process code, with migration recipes and anti-patterns |
+| [Remote Agent Testing Specification](../ai/remote-agent-testing.md) | Target local WebSocket client acceptance through the real Desktop execution and persistence chain |
