@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   finalizeHeldTopicStream: vi.fn(async () => undefined),
+  clearPendingChannelListeners: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -118,7 +119,8 @@ beforeEach(() => {
         broadcastTopicError: mocks.broadcastTopicError,
         resolveToolApproval: mocks.resolveToolApproval,
         terminateHeldTopicStream: mocks.terminateHeldTopicStream,
-        finalizeHeldTopicStream: mocks.finalizeHeldTopicStream
+        finalizeHeldTopicStream: mocks.finalizeHeldTopicStream,
+        clearPendingChannelListeners: mocks.clearPendingChannelListeners
       }
     }
     if (name === 'CacheService') {
@@ -469,5 +471,33 @@ describe('subagent settlement wake (incident replay)', () => {
     handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'finished' })
     handleRuntimeEvent({ type: 'turn-complete' })
     void service.closeSession('session-1')
+  })
+
+  // Canceling the session's runtime kills its detached background work, so the wake that owed the
+  // stashed channel recipients their delivery can never come — closing the session must release
+  // the binding, or a later unrelated wake on the topic would post to the old external chats.
+  it('releases the stashed wake recipients when the session runtime closes', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      },
+      occupancy: {}
+    }
+    handleRuntimeEvent({ type: 'background-work-state', active: true })
+    expect(entry.runtimeState.connection.occupancy).toMatchObject({ background: expect.anything() })
+
+    await service.closeSession('session-1')
+
+    expect(mocks.clearPendingChannelListeners).toHaveBeenCalledWith('agent-session:session-1')
   })
 })
