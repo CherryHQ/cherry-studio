@@ -1,9 +1,11 @@
 ---
-description: Per-attachment routing to native file parts or capped extracted text and analysis, with read_file paging for truncated overflow and full attachment detail
+description: Per-attachment routing to native file parts or capped extracted text and analysis, with read_file paging for truncated overflow and full attachment detail and Pi read analysis for audio and video
 sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/fileProcessor.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
+  - src/main/ai/runtime/pi/PiRuntimeConnection.ts
+  - src/main/ai/runtime/pi/piMediaRead.ts
   - src/main/features/fileProcessing/media/MediaAnalysisService.ts
   - src/shared/utils/file/fileExtensions.ts
   - src/renderer/utils/file.ts
@@ -132,6 +134,34 @@ session-scoped server. It writes only new paths inside the session workspace and
 never overwrites an existing file. No attachment state or write tools are added
 to the shared chat runtime or to ordinary Agents.
 
+## Pi `read` — filesystem media analysis
+
+Pi filesystem agents keep the SDK tool named `read`
+(`src/main/ai/runtime/pi/PiRuntimeConnection.ts`,
+`src/main/ai/runtime/pi/piMediaRead.ts`). This path is not the attachment
+allow-list used by `read_file` and `assistant-files`. The model passes a
+workspace path, and Cherry does not restrict that path to files attached to the
+current conversation.
+
+`wrapPiReadToolForMedia` keeps Pi's `read` name, parameter schema, and approval
+identity. The wrapped tool is registered in `customTools` next to managed bash.
+`excludeTools` still matches the name `read`, so a disabled read stays
+disabled. Every path that is not audio or video, including images, calls the
+original `read` implementation.
+
+Audio and video paths call the same `MediaAnalysisService.analyzeToFullText`
+used by `read_file`. The tool `signal` is passed through.
+`signal.throwIfAborted()` runs before analysis, after analysis, and after
+paging, so a cancellation keeps `signal.reason`.
+
+Paging is Pi's line window, distinct from the AI SDK `read_file` character
+`offset` and `limit`. Pi's `offset` is 1-based and `limit` counts lines. The
+selected lines then pass through the SDK `truncateHead` cap (`DEFAULT_MAX_LINES`
+and `DEFAULT_MAX_BYTES`). Continuation notices use the next line offset. An
+oversized first line is clipped with `surrogateSafeEnd` and stays on this tool.
+The result is `{ content: [{ type: 'text', text }], details: undefined }`.
+Relative paths resolve with `path.resolve(cwd, path)`.
+
 ## Extraction & OCR
 
 | Concern | Owner |
@@ -170,9 +200,13 @@ SDK converter. PDF additionally requires a first-party provider
 (`supportsNativePdf`). There is no `pdf-compatibility` middleware — native PDFs
 pass through inline, non-native PDFs go through extraction.
 
-## Invariants
+## Chat-turn invariants
 
-- Content visibility never depends on a tool call.
+These apply to the chat attachment turn above. They do not describe Pi's
+filesystem `read`, which runs only when the model calls that tool and is not
+limited to conversation attachments.
+
+- Content visibility on the chat turn never depends on a tool call.
 - `fileEntryId` never reaches the model (filename in, filename out).
 - Native modalities keep provider-native handling.
 - Models not configured for image input never receive native image parts.
