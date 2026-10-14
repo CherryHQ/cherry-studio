@@ -43,7 +43,11 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import {
+  AGENT_SESSION_CLOSING_CACHE_KEY,
+  type AgentSessionEditDraft,
+  type AgentSessionEditTarget
+} from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
@@ -340,13 +344,11 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 
 @Injectable('AgentSessionRuntimeService')
 @ServicePhase(Phase.WhenReady)
-// The dependency is runtime, not lexical: this service's connections spawn CLI children through
-// ClaudeCodeProcessManager. Declaring it keeps that owner stopping LAST, so its sweep runs after
-// these entries are closed — do not drop it as unused. Covered by a stop-order test.
-@DependsOn(['ClaudeCodeProcessManager'])
+// Process and prewarm owners must outlive this runtime's shutdown barriers.
+@DependsOn(['ClaudeCodeProcessManager', 'ClaudeCodeWarmQueryManager'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
-  private readonly failedClosures = new Map<string, AgentRuntimeConnection>()
+  private readonly failedClosures = new Map<string, Set<AgentRuntimeConnection>>()
   private readonly pendingEditInputs = new Map<
     Electron.WebContents,
     { counts: Map<string, number>; dispose: () => void }
@@ -1088,16 +1090,44 @@ export class AgentSessionRuntimeService extends BaseService {
     return barrier
   }
 
+  async closeSessionForArchive(sessionId: string): Promise<void> {
+    await this.closeSession(sessionId)
+    await application.get('ClaudeCodeWarmQueryManager').close(sessionId)
+    const attempt = this.connectionAttempts.get(sessionId)?.promise
+    if (attempt) await attempt
+    while (this.closingSessions.has(sessionId)) {
+      await this.closingSessions.get(sessionId)!.promise
+    }
+    const failed = this.failedClosures.get(sessionId)
+    for (const connection of failed ?? []) await this.closeRuntimeConnection(connection, sessionId, true)
+    if (this.failedClosures.has(sessionId) || this.entries.has(sessionId) || this.connectionAttempts.has(sessionId)) {
+      throw new AgentSessionEditError('close_failed')
+    }
+  }
+
   private trackSessionClosing(sessionId: string, closing: Promise<void>, resumeToken?: string): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const barrier = {
       promise: Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(() => {
-        if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
+        if (this.closingSessions.get(sessionId) === barrier) {
+          this.closingSessions.delete(sessionId)
+          this.publishSessionClosing(sessionId, false)
+        }
       }),
       resumeToken: resumeToken ?? priorClosing?.resumeToken
     }
     this.closingSessions.set(sessionId, barrier)
+    this.publishSessionClosing(sessionId, true)
     return barrier.promise
+  }
+
+  private publishSessionClosing(sessionId: string, closing: boolean): void {
+    try {
+      application.get('CacheService').setShared(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId), closing)
+    } catch (error) {
+      // Cache broadcast failures must not interrupt session teardown.
+      logger.warn('Failed to publish agent session closing state', error as Error, { sessionId })
+    }
   }
 
   /**
@@ -1233,6 +1263,11 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return isAgentSessionRuntimeBusy(entry.runtimeState)
+  }
+
+  isSessionBusyForArchive(sessionId: string): boolean {
+    const entry = this.entries.get(sessionId)
+    return this.isSessionBusy(sessionId) || Boolean(entry && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
   }
 
   /** Turn-local notification authority. Undefined lets the resolver use the linked source channel. */
@@ -3437,14 +3472,18 @@ export class AgentSessionRuntimeService extends BaseService {
       const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
       await Promise.race([
         Promise.resolve(closing).then(() => {
-          if (this.failedClosures.get(sessionId) === connection) this.failedClosures.delete(sessionId)
+          const failed = this.failedClosures.get(sessionId)
+          failed?.delete(connection)
+          if (failed?.size === 0) this.failedClosures.delete(sessionId)
         }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new AgentSessionEditError('close_failed')), 20_000)
         })
       ])
     } catch (error) {
-      this.failedClosures.set(sessionId, connection)
+      const failed = this.failedClosures.get(sessionId) ?? new Set<AgentRuntimeConnection>()
+      failed.add(connection)
+      this.failedClosures.set(sessionId, failed)
       logger.warn('Agent runtime connection close failed', { sessionId, error })
       if (strict) throw new AgentSessionEditError('close_failed')
     } finally {
