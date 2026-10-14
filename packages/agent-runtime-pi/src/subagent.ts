@@ -132,6 +132,8 @@ export interface SubagentControls {
   hold(): () => void
   /** The user stops a background subagent; false when it is not running. */
   stopSubagent(sessionId: string): boolean
+  /** The user moves a running foreground subagent to the background; false for any other. */
+  backgroundSubagent(sessionId: string): boolean
 }
 
 const DESCRIPTION = [
@@ -197,6 +199,9 @@ const messageParameters = Type.Object({
   message: Type.String({ description: 'What to tell the subagent.' })
 })
 
+const movedText = (sessionId: string) =>
+  `The user moved this subagent to the background (id: ${sessionId}); it keeps working. You will be notified when it finishes. Do not wait, poll or guess its result, and do not redo its work. Continue with what the user asks next.`
+
 const startedText = (sessionId: string) =>
   `Subagent started in the background (id: ${sessionId}). You will be notified when it finishes. Do not wait, poll or guess its result, and do not redo its work or edit the files it is working on. Continue with independent work, or end your turn.`
 
@@ -239,7 +244,8 @@ export function createSubagentExtension({
   const controls: SubagentControls = {
     hold: () => main?.delivery.hold() ?? (() => {}),
     stopSubagent: (sessionId) =>
-      main?.registry.get(sessionId)?.background === true && main.registry.stop(sessionId, 'user') !== undefined
+      main?.registry.get(sessionId)?.background === true && main.registry.stop(sessionId, 'user') !== undefined,
+    backgroundSubagent: (sessionId) => main?.registry.moveToBackground(sessionId) ?? false
   }
   const extension: ExtensionFactory = (pi) => {
     let ctx: ExtensionContext | undefined
@@ -353,22 +359,17 @@ export function createSubagentExtension({
           const details: SubagentDetails = { sessionId: subagent.sessionId, fork, background: true }
           return { content: [text(startedText(subagent.sessionId))], details }
         }
-        try {
-          const result = await registry.runForeground(record, child, start, inbox, signal)
-          const details: SubagentDetails = {
-            sessionId: subagent.sessionId,
-            fork,
-            background: false,
-            outcome: result.end
-          }
-          return {
-            content: [text(`${runText(result)}\n\n${idTrailer(subagent.sessionId)}`)],
-            details,
-            usage: result.usage,
-            ...(result.end === 'completed' ? {} : { isError: true })
-          }
-        } finally {
-          await child.dispose()
+        const result = await registry.runForeground(record, child, start, inbox, signal)
+        if (!result) {
+          const details: SubagentDetails = { sessionId: subagent.sessionId, fork, background: true }
+          return { content: [text(movedText(subagent.sessionId))], details }
+        }
+        const details: SubagentDetails = { sessionId: subagent.sessionId, fork, background: false, outcome: result.end }
+        return {
+          content: [text(`${runText(result)}\n\n${idTrailer(subagent.sessionId)}`)],
+          details,
+          usage: result.usage,
+          ...(result.end === 'completed' ? {} : { isError: true })
         }
       }
     })

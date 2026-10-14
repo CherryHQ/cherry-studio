@@ -85,6 +85,8 @@ interface LiveRun {
   done: Promise<RunResult>
   /** Tool calls executing in its session, which approval events name. */
   calls: Set<string>
+  /** A foreground run only: hands it to the background, where it goes on. */
+  toBackground?: () => void
 }
 
 /** Ids listed in status messages and errors (spec §5.4). */
@@ -304,33 +306,57 @@ export class SubagentRegistry {
   }
 
   /**
-   * Runs a foreground subagent within the parent's call: `signal` (the call's) stops it. Its result
-   * is the call's, so nothing is written to the transcript.
+   * Runs a foreground subagent within the parent's call: `signal` (the call's) stops it, and its
+   * result is the call's. Resolves `undefined` when the user moves it to the background first:
+   * the same run then goes on there, and its end is notified.
    */
-  async runForeground(
+  runForeground(
     record: SubagentRecord,
     child: AgentRuntimeSession,
     start: RunStart,
     inbox: SubagentInbox,
     signal: AbortSignal | undefined
-  ): Promise<RunResult> {
+  ): Promise<RunResult | undefined> {
     this.track(record)
     const controller = new AbortController()
     const onAbort = () => controller.abort()
     if (signal?.aborted) controller.abort()
     else signal?.addEventListener('abort', onAbort, { once: true })
     const calls = this.watchCalls(record.sessionId, child)
-    const run = runSubagent(child, start, controller.signal, inbox)
-    this.live.set(record.sessionId, { controller, inbox, done: run, calls: calls.ids })
-    try {
-      const result = await run
-      this.end(record, result)
-      return result
-    } finally {
+    let moved = false
+    let returnNow!: () => void
+    const movedAway = new Promise<undefined>((resolve) => (returnNow = () => resolve(undefined)))
+    const done = runSubagent(child, start, controller.signal, inbox).then(async (result) => {
       calls.stop()
       signal?.removeEventListener('abort', onAbort)
-      this.live.delete(record.sessionId)
+      this.end(record, result)
+      if (moved) await this.record(record, child, result)
+      else {
+        await child.dispose().catch(() => undefined)
+        this.live.delete(record.sessionId)
+      }
+      return result
+    })
+    const toBackground = () => {
+      moved = true
+      // From now on the parent's turn, aborted or not, does not reach it.
+      signal?.removeEventListener('abort', onAbort)
+      record.background = true
+      this.host.appendState(snapshot(record))
+      this.changed()
+      returnNow()
     }
+    this.live.set(record.sessionId, { controller, inbox, done, calls: calls.ids, toBackground })
+    return Promise.race([done, movedAway])
+  }
+
+  /** The user moves a running foreground subagent to the background; false for any other. */
+  moveToBackground(sessionId: string): boolean {
+    const record = this.records.get(sessionId)
+    const run = this.live.get(sessionId)
+    if (!record || record.background || record.status === 'finished' || !run?.toBackground) return false
+    run.toBackground()
+    return true
   }
 
   /** Runs `child` in the background; the parent's turn does not wait for it or stop it. */
