@@ -7,10 +7,13 @@ import {
   negotiateProtocol,
   protocolSupportSchema,
   remoteLimits,
+  uploadTransferLimits,
   type ProtocolSupport
 } from '@cherrystudio/remote-protocol'
 
+import type { NoiseCrypto } from './crypto'
 import { readDeviceIdentity } from './identity'
+import { binaryRecordBytes, encodeRecord, decodeRecord } from './records'
 
 const profile = 'cherry-remote-noise-xx-v1'
 const unsupportedUpgrade = (): never => {
@@ -27,6 +30,7 @@ const encode = (value: unknown): Uint8Array => new TextEncoder().encode(JSON.str
 const decode = (bytes: Uint8Array): unknown => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
 
 export interface ChannelOptions {
+  crypto?: NoiseCrypto
   identity: Uint8Array
   logger: ComponentLogger
   protocolVersions: number[]
@@ -52,7 +56,7 @@ async function secure(
 ): Promise<SecureChannel> {
   const identity = readDeviceIdentity(options.identity)
   const encrypter = noise({
-    crypto: pureJsCrypto,
+    crypto: options.crypto ?? pureJsCrypto,
     prologueBytes: encode({ profile, protocolVersions: offer.protocolVersions, protocolVersion: version })
   })({ ...identity, logger: options.logger, upgrader })
   const securityOptions = { signal: options.signal, skipStreamMuxerNegotiation: true }
@@ -62,8 +66,8 @@ async function secure(
       : await encrypter.secureOutbound(stream, { ...securityOptions, remotePeer: peerIdFromString(remoteIdentity) })
   if (result.remotePeer.type !== 'Ed25519') throw new Error('Remote identity must be Ed25519')
   const records = lpStream(result.connection, {
-    maxDataLength: remoteLimits.recordBytes,
-    maxBufferSize: remoteLimits.queuedBytes
+    maxDataLength: binaryRecordBytes,
+    maxBufferSize: uploadTransferLimits.queuedBytes
   })
   let queuedBytes = 0
   let writes: Promise<void> = Promise.resolve()
@@ -72,11 +76,11 @@ async function secure(
     protocolVersion: version,
     offeredVersions: Object.freeze([...offer.protocolVersions]),
     async read(signal) {
-      return decode((await records.read({ signal })).subarray())
+      return decodeRecord((await records.read({ signal })).subarray())
     },
     write(value, signal) {
-      const bytes = encode(value)
-      if (bytes.length > remoteLimits.recordBytes || queuedBytes + bytes.length > remoteLimits.queuedBytes) {
+      const bytes = encodeRecord(value)
+      if (queuedBytes + bytes.length > uploadTransferLimits.queuedBytes) {
         const error = new Error('Remote record budget exceeded')
         result.connection.abort(error)
         return Promise.reject(error)

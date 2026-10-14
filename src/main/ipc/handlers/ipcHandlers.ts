@@ -15,6 +15,7 @@ import { codeCliHandlers } from './codeCli'
 import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
 import { doctorHandlers } from './doctor'
+import { doctorAgentHandlers } from './doctorAgent'
 import { exportHandlers } from './export'
 import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
@@ -35,12 +36,15 @@ import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
 import { quickAssistantHandlers } from './quickAssistant'
 import { screenshotHandlers } from './screenshot'
+import { screenshotChatHandlers } from './screenshotChat'
 import { selectionHandlers } from './selection'
 import { skillHandlers } from './skill'
 import { systemHandlers } from './system'
 import { tabHandlers } from './tab'
+import { toolResultHandlers } from './toolResult'
 import { translateHandlers } from './translate'
 import { trashHandlers } from './trash'
+import { voiceHandlers } from './voice'
 import { webSearchHandlers } from './webSearch'
 import { webviewHandlers } from './webview'
 import { windowHandlers } from './window'
@@ -56,6 +60,7 @@ import { windowHandlers } from './window'
  */
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...aiHandlers,
+  ...voiceHandlers,
   ...apiGatewayHandlers,
   ...appHandlers,
   ...backupHandlers,
@@ -69,6 +74,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...deepSeekHarnessHandlers,
   ...diagnosticsHandlers,
   ...doctorHandlers,
+  ...doctorAgentHandlers,
   ...exportHandlers,
   ...externalAppHandlers,
   ...fileHandlers,
@@ -89,11 +95,13 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...providerHandlers,
   ...quickAssistantHandlers,
   ...screenshotHandlers,
+  ...screenshotChatHandlers,
   ...selectionHandlers,
   ...skillHandlers,
   ...systemHandlers,
   ...tabHandlers,
   ...translateHandlers,
+  ...toolResultHandlers,
   ...trashHandlers,
   ...webSearchHandlers,
   ...webviewHandlers,
