@@ -1,6 +1,6 @@
 # Agent runtime 后台子代理与续接 设计
 
-状态：待评审 · 2026-10-14（同日按用户意见：并发上限 20、一期加入前台转后台与指定模型） · 基于 L5 goal（PR #21607，分支 `feature/agent-runtime-goal` tip `2a32858406`）· 分支 `feature/agent-runtime-background-subagent`
+状态：已评审 · 2026-10-14（同日按用户意见：并发上限 20、一期加入前台转后台与指定模型；按实施计划的探针结果修订 7 处，见第 18 节） · 基于 L5 goal（PR #21607，分支 `feature/agent-runtime-goal` tip `2a32858406`）· 分支 `feature/agent-runtime-background-subagent`
 
 相关：L4 前台子代理（PR #21578）、L5 goal 设计（`2026-10-11-agent-runtime-goal-design.md`）。调研原稿在 explore 工作树的 `research_notes/subagents/`（未提交，可能被清理），本文第 17 节摘录了用到的结论和出处。
 
@@ -113,7 +113,7 @@ type SubagentOutcome =
 | `subagent` 工具结果 | 父 | 是 | 前台：最终报告；后台：已启动。`details` 见 4.4 |
 | `cherry.subagent-state`（state） | 父 | 否 | 每次状态变化一条快照：开始运行、结束（含结果文本和用量）、停止 |
 | `cherry.subagent-notification`（custom message） | 父 | 是（user 角色） | 一条或多条子代理的结果，`details` 带结构化数据 |
-| `cherry.subagent-status`（custom message） | 父 | 是（user 角色） | 压缩后、重建后的子代理状态列表 |
+| `cherry.subagent-status`（custom message） | 父 | 是（user 角色） | 压缩后的子代理状态列表 |
 | `cherry.subagent-origin`（state） | 子 | 否 | 派出配置：`{ parentToolCallId, fork, description, modelKey }`，续接时重放 |
 | `cherry.subagent-message`（custom message） | 子 | 是（user 角色） | 父代理通过 `message_subagent` 发来的消息 |
 
@@ -168,7 +168,8 @@ interface SubagentSessionOptions {
   onEvent?: (event: AgentRuntimeEvent) => void
   onSessionCreated?: (session: AgentSession) => void
   /**
-   * 子代理用的模型。设了 Subagent.modelKey 就必须给这个 key 的模型，否则这次派出或续接失败；
+   * 子代理用的模型。设了 Subagent.modelKey 就必须给这个 key 的模型，否则这次派出或续接失败，
+   * 只有一个例外：modelKey 正是父会话当前模型的 key 时，不给就用父会话的模型；
    * 没设时宿主可给智能体设置里的默认子代理模型，不给就跟随父会话当前模型。实际用的 key 记进 origin。
    */
   model?: AgentRuntimeModel
@@ -279,9 +280,9 @@ L4 的 `run()` 抽成 `runSubagent(child, prompt, options)`，保留：从 `mess
 
 每个运行中的子代理有一个收件箱，消息按到达顺序保存：
 
-- 子会话正在跑：立即以 `cherry.subagent-message` 自定义消息、`triggerTurn: true` 送进子会话。Pi 在运行中把它当 steer，等当前这批工具结束后、下一次请求前送入。
-- 子会话恰好在 settle：包在子会话里的内部扩展在 `agent_before_settle` 检查收件箱，还有没送出的就带上并 `continue: true`。
-- `runSubagent` 的 `prompt` 返回时收件箱仍有消息（Pi 判定不续跑与运行结束之间的微任务窗口）：在同一个子会话上以这些消息再 `prompt` 一次。
+- 子会话正在跑：立即以 `cherry.subagent-message` 自定义消息、`triggerTurn: true` 送进子会话。Pi 在运行中把它当 steer，等当前这批工具结束后、下一次请求前送入，并为它续跑。
+- 从子会话自己的 `agent_before_settle` 起，收件箱不再 steer 新消息，而是先存着：Pi 判定不续跑之后几个微任务内送进去的 steer 会滞留在 Pi 的队列里，没有任何 settle 处理器看得到（实施计划探针 d2）。
+- `runSubagent` 的运行返回时收件箱里有存着的消息：在同一个子会话上用它们开下一段运行（`sendCustomMessage(…, { triggerTurn: true })`）。收件箱在最后一次检查的同一个 tick 内关闭；关闭之后到达的消息按"已结束"续接（5.2）。
 - 收件箱清空之前，子代理不会进入 `finished`。
 
 这样，任何被 `message_subagent` 接受的消息都不会丢（Claude Code 在 2.1.178、2.1.280 两次修过子代理快结束时消息丢失）。
@@ -331,7 +332,7 @@ L4 的 `run()` 抽成 `runSubagent(child, prompt, options)`，保留：从 `mess
 ```
 Background subagent update (automatic message, not from the user):
 
-- "补 auth 模块测试" (id: 7c1e…) completed:
+- "补 auth 模块测试" (id: 7c1e9d52-…（完整 UUID）) completed:
   <结果文本>
 - "补 billing 测试" (id: 9a02…) failed: <原因>
   Partial output before it stopped: <部分输出>
@@ -341,6 +342,7 @@ Background subagent update (automatic message, not from the user):
 ```
 
 - 开头写明是自动消息、不是用户输入（Claude Code 在通知里加"no human input has occurred"，2.1.277 加"子代理输出"头）。
+- 每行带完整 id（模型要用它调 `message_subagent`）。各结局的行文：`completed:` 加缩进的报告；`failed: <原因>`；`hit its output limit before finishing.`；`was stopped after 200 model requests.`；`was aborted.`；`was stopped because the goal's budget is used up.`；以上几种有部分输出时再加 `Partial output before it stopped:` 和缩进的部分输出；`was stopped by the user.`；`was interrupted (the app closed while it was running). Continue it with message_subagent if the work is still needed.`；结尾 `<n> other background subagent(s) is/are still running.`
 - 结果文本过长时：宿主提供了 offload（`ToolOutputStore`）就把全文存进去，通知里给开头预览和路径；没有 offload 就保留开头和结尾、注明中间已省略。阈值沿用 offload 的 `thresholdChars`，没有 offload 时为 20,000 字符。
 - `details`：`SubagentNotificationDetails`，给宿主渲染和 goal 记账，不发给模型。
 - 对模型是 user 角色（Pi 的 `convertToLlm` 把自定义消息转成 user），transcript 里是自定义消息条目，宿主不渲染成用户气泡。
@@ -370,21 +372,21 @@ Background subagent update (automatic message, not from the user):
 
 ### 7.5 静默项
 
-用户停止的运行只是让父代理"知道一下"，不值得为它开一轮。静默项留在队列里，随下一条通知（7.3/7.4）或下一个用户回合一起送达；送进用户回合时用 `deliverAs: 'nextTurn'`，随用户消息注入。
+用户停止的运行只是让父代理"知道一下"，不值得为它开一轮。静默项留在队列里，随下一条通知（7.3/7.4）或下一个用户回合一起送达；送进用户回合时由父会话的 `before_agent_start` 返回为 `message`，排在用户消息之后。不用 `deliverAs: 'nextTurn'`：它只随真正的 `session.prompt()` 送出，命令（如 `/goal resume`）开出的轮不带它，消息会滞留在 Pi 的队列里（实施计划探针 c）。在用户回合真正开始之前，这些项留在包的队列里，也会在下一个 settle 并入。
 
 ### 7.6 中止后的抑制期
 
-父代理一轮被用户中止（`agent_settled { aborted: true }`）后，到下一个人类回合开始之前不自动开轮。用户按停止往往是想插话，立刻开一轮会和用户抢。期间结束的子代理照常进队列，随用户下一条消息一起送达（`nextTurn`），之后恢复自动开轮。
+父代理一轮被用户中止后，到下一个人类回合开始之前不自动开轮。两种中止都算：`session.abort()`（`agent_settled { aborted: true }`），以及宿主经自己的请求 signal 中止（`agent_before_settle` 的 `outcome: 'aborted'`，`agent_settled` 报 `aborted: false`，见 L5 的 I1）。用户按停止往往是想插话，立刻开一轮会和用户抢。期间结束的子代理照常进队列，随用户下一条消息一起送达（父会话 `before_agent_start` 返回的 `message`，见 7.5），之后恢复自动开轮。
 
 ### 7.7 重建后的未送达通知
 
-父会话重建（含重启）时，未送达的结束项恢复进队列，但**不自动开轮**，而是随用户下一条消息送达。Claude Code 在 2.1.280 明确改成"恢复会话时不再自行开回合"。
+父会话重建（含重启）时，未送达的结束项，以及被打断的运行（作为 outcome 为 `interrupted`、用量为 0 的条目），恢复进队列，但**不自动开轮**，而是合成一条 `cherry.subagent-notification` 随用户下一条消息送达（7.5 的方式）。用通知而不是状态消息，是因为通知的 `(sessionId, run)` 去重键能保证每一项只说一次；状态消息每次重建都会再说一遍。Claude Code 在 2.1.280 明确改成"恢复会话时不再自行开回合"。
 
 ## 8. 续接与持久化
 
 ### 8.1 起始条目交给宿主
 
-新建子代理时，起始 transcript（fork 前缀 + `cherry.subagent-origin`）在子会话建好后、第一次请求前，经子会话的 `onEvent` 以 `transcript-append` 发出一次。之后的条目照 L2 规则发出。宿主按 `sessionId` 存下这些条目，就得到了完整的子代理 transcript。续接重建时不再发起始条目（宿主已经有了）。
+新建子代理时，起始 transcript（fork 前缀 + `cherry.subagent-origin`）在 `configure` 之后、子会话建好之前，经子会话的 `onEvent` 以 `transcript-append` 发出一次；这样子会话的扩展在 `session_start` 里追加的条目，在宿主只追加的副本里排在它们后面。之后的条目照 L2 规则发出。宿主按 `sessionId` 存下这些条目，就得到了完整的子代理 transcript。续接重建时不再发起始条目（宿主已经有了）。
 
 ### 8.2 续接流程
 
@@ -398,7 +400,7 @@ Background subagent update (automatic message, not from the user):
 
 ### 8.3 被打断的运行
 
-上一次运行是 `interrupted` 或 `aborted` 时，transcript 末尾可能有没有结果的工具调用。重建前为每个这样的调用补一条工具结果：`This tool call was interrupted (the app closed or the turn was stopped); its result is unknown. Check the current state before relying on it.`（不能说成"用户拒绝"，Claude Code 2.1.296 修过这一点）。续接消息前加一句恢复提示：`Your previous run was interrupted. Check the current state of the workspace first and do not redo work that is already done.`（Cline Teams、OpenCode v2 都这样做）。
+上一次运行是 `interrupted` 或 `aborted` 时，transcript 末尾可能有没有结果的工具调用。重建前为每个这样的调用补一条工具结果：`This tool call was interrupted (the app closed or the turn was stopped); its result is unknown. Check the current state before relying on it.`（不能说成"用户拒绝"，Claude Code 2.1.296 修过这一点）。只给最后一条可重放回复里的调用补：被中止或出错的 assistant 回复在重建时会被 Pi 丢掉，给它的调用补结果会变成孤立结果（实施计划探针 f）。补上的结果在子会话建好之前经 `onEvent` 交给宿主，否则宿主下次取回的 transcript 里，那个调用后面仍然没有结果。续接消息前加一句恢复提示：`Your previous run was interrupted. Check the current state of the workspace first and do not redo work that is already done.`（Cline Teams、OpenCode v2 都这样做）。
 
 ### 8.4 宿主的存储
 
@@ -467,7 +469,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 
 - **父会话压缩**：手动压缩期间不开自动轮（7.4 的条件），压缩结束后再检查投递；运行中的自动压缩发生在一轮之内，settle 时照常并入。
 - **压缩后的状态消息**：压缩结束时，如果有运行中、等审批或已结束未送达的子代理，追加一条 `cherry.subagent-status` 自定义消息，列出它们（id、description、状态），并写明：运行中的会自动通知、不要重复派出、不要等待或轮询（Claude Code 2.1.83 修过压缩后看不到后台子代理导致重复派出；Codex #12774）。运行中用 `triggerTurn: false`（本 turn 结束时追加），空闲时直接追加，都不触发新的一轮。
-- **重建后的状态消息**：父会话重建时，如果有被打断（`interrupted`）的子代理或未送达的通知，在用户下一条消息时以 `deliverAs: 'nextTurn'` 带上状态消息：哪些被打断、可以用 `message_subagent` 续接；未送达的通知合并在同一条里。
+- **重建后**：不发状态消息，被打断的运行和未送达的结果合成一条通知（7.7）。`cherry.subagent-status` 只用于压缩后。
 - **子代理压缩**：沿用 L4，`CompactionSummaryRequest.sessionId` 区分主子会话。
 
 ## 13. 宿主接入约定
@@ -476,7 +478,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 2. 有后台子代理在运行时，不销毁、不重建父会话。宿主现有逻辑在有后台工作时推迟重建（`AgentSessionRuntimeService.ts:1706`），把 `subagents` 事件映射到 `background-work-state` 即可沿用。
 3. 把 `subagents` 事件映射到现有的 `background-tasks`（任务标签条）与 `background-work-state`；停止按钮（`ai.agent.session.stop_background_task`）调用 `stopSubagent(sessionId)`，`taskId` 即 `sessionId`。
 4. 子代理 transcript 按 `sessionId` 持久化（含起始条目），实现 `SubagentPort.load`；父子关系用 Cherry 会话 id 记录；删父会话时一并删除。
-5. `configure` 对同一个子代理（首次与续接）返回一致的扩展；设了 `modelKey` 时必须按它返回 `model`。
+5. `configure` 对同一个子代理（首次与续接）返回一致的扩展；设了 `modelKey` 时必须按它返回 `model`（`modelKey` 正是父会话当前模型时可以不返回）。
 6. 审批：按第 10 节；实现 `SubagentPort.onApproval`，与 `GoalPort.onApproval` 接同一个审批注册表；goal 只收父会话自己的工具调用（11.5）。
 7. 通知轮渲染为自主轮（`background-work`），通知消息不渲染成用户气泡；`details` 可用于在轮次头显示"子代理 X 已完成"。
 8. 父会话界面显示子代理花费（`details.subagents[].usage`），不让子代理花费隐身（OpenCode #45417）。
@@ -560,3 +562,15 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 - **goal**：Claude Code `/goal` 在有后台工作时跳过本轮评估，等后台完成后作为新回合交给模型。
 - **并发**：Claude Code 默认 20（2.1.217）；Codex V1 6、V2 4（含 root，可卸载空闲）。
 - **Pi 1.1.0 事实**（`agent-session.js` 行号）：`sendMessage(..., { triggerTurn: true })` 空闲时开新运行、运行中转 steer（1795-1808）；`prompt()` 准备阶段 `isIdle` 仍为 true（1517-1630），并发开运行会抛 "Agent is already processing a prompt"；steer 在整批工具结束后才送入（`agent-loop.js` 179-190、453）；settle 时 `shouldContinue = result.continue || hasQueuedMessages()`（1464）；`abort()` 不清队列（1909-1920）；工具返回后 Pi 不跟踪它启动的工作；自定义消息经 `convertToLlm` 变 user（`messages.js` 89-96），`details` 不发给模型。
+
+## 18. 修订记录
+
+2026-10-14，实施计划（`docs/superpowers/plans/2026-10-14-agent-runtime-background-subagent.md`）用探针实测 Pi 1.1.0 后修订：
+
+1. 6.4：子会话 settle 起收件箱改为暂存，运行返回后在同一会话开下一段（探针 d2：settle 判定后几个微任务内的 steer 会滞留）。
+2. 7.5、7.6、7.7、12：`deliverAs: 'nextTurn'` 改为父会话 `before_agent_start` 返回的 `message`（探针 c：命令开出的轮不带 nextTurn）。
+3. 4.3、7.7、12：重建后不发状态消息，被打断的运行和未送达的结果合成一条通知，靠 `(sessionId, run)` 去重；状态消息只用于压缩后。
+4. 8.1、8.3：起始条目在建子会话之前交给宿主；补给被打断调用的结果也经 `onEvent` 交给宿主，且只补最后一条可重放回复里的调用（探针 f）。
+5. 4.4、13.5：`modelKey` 正是父会话当前模型时，宿主可以不返回 `model`，否则不做模型选择的宿主永远续接不了。
+6. 7.6：宿主经自己的请求 signal 中止（`outcome: 'aborted'`）也开启抑制期（探针 g）。
+7. 7.2：通知每行带完整 id，并定下各结局的行文。
