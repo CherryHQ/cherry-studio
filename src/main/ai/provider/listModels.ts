@@ -303,18 +303,38 @@ const ollamaFetcher: ModelFetcher = {
   }
 }
 
-const EXCLUDED_GEMINI_GENERATION_METHODS = ['predictLongRunning', 'bidiGenerateContent'] as const
+const GEMINI_MODEL_TYPES: Array<{ methods: string[]; metadata: Partial<Model> | null }> = [
+  { methods: ['predictLongRunning', 'bidiGenerateContent', 'bidiGenerateMusic'], metadata: null },
+  {
+    methods: ['embedContent', 'batchEmbedContents', 'asyncBatchEmbedContent'],
+    metadata: {
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      outputModalities: [MODALITY.VECTOR],
+      supportsStreaming: false
+    }
+  },
+  {
+    methods: ['predict'],
+    metadata: {
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      outputModalities: [MODALITY.IMAGE],
+      supportsStreaming: false
+    }
+  },
+  { methods: ['generateContent', 'batchGenerateContent'], metadata: { supportsStreaming: true } }
+]
 
 const EXCLUDED_GEMINI_MODEL_KEYWORDS = ['tts'] as const
 
-function isSupportedGeminiModel(model: z.infer<typeof GeminiModelsResponseSchema>['models'][number]): boolean {
-  const methods = model.supportedGenerationMethods ?? []
-  if (EXCLUDED_GEMINI_GENERATION_METHODS.some((method) => methods.includes(method))) {
-    return false
-  }
-
+function getGeminiModelMetadata(
+  model: z.infer<typeof GeminiModelsResponseSchema>['models'][number]
+): Partial<Model> | null {
   const id = (model.name.startsWith('models/') ? model.name.slice(7) : model.name).toLowerCase()
-  return !EXCLUDED_GEMINI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
+  if (EXCLUDED_GEMINI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))) return null
+
+  const methods = model.supportedGenerationMethods ?? []
+  if (methods.length === 0) return {}
+  return GEMINI_MODEL_TYPES.find((type) => type.methods.some((method) => methods.includes(method)))?.metadata ?? null
 }
 
 const geminiFetcher: ModelFetcher = {
@@ -337,12 +357,18 @@ const geminiFetcher: ModelFetcher = {
       abortSignal: signal
     })
     return listing(
-      dedup(response.models, (m) => m.name)
-        .filter(isSupportedGeminiModel)
-        .map((m) => {
-          const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
-          return toModel(id, provider, { name: m.displayName || id, description: m.description })
-        })
+      dedup(response.models, (m) => m.name).flatMap((m) => {
+        const metadata = getGeminiModelMetadata(m)
+        if (!metadata) return []
+        const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
+        return [
+          toModel(id, provider, {
+            name: m.displayName || id,
+            description: m.description,
+            ...metadata
+          })
+        ]
+      })
     )
   }
 }

@@ -29,7 +29,7 @@ describe('ApiGatewayRequiredDialog', () => {
   it('defers the gateway prompt while a mandatory gate owns the window', async () => {
     const view = render(
       <MandatoryGateProvider open>
-        <ApiGatewayRequiredDialog sessionId="session-1" />
+        <ApiGatewayRequiredDialog />
       </MandatoryGateProvider>
     )
     const onGatewayRequired = useIpcOnMock.mock.calls[0]?.[1]
@@ -40,7 +40,7 @@ describe('ApiGatewayRequiredDialog', () => {
 
     view.rerender(
       <MandatoryGateProvider open={false}>
-        <ApiGatewayRequiredDialog sessionId="session-1" />
+        <ApiGatewayRequiredDialog />
       </MandatoryGateProvider>
     )
 
@@ -52,7 +52,7 @@ describe('ApiGatewayRequiredDialog', () => {
     startApiGatewayMock.mockResolvedValue(false)
     render(
       <MandatoryGateProvider open={false}>
-        <ApiGatewayRequiredDialog sessionId="session-1" />
+        <ApiGatewayRequiredDialog />
       </MandatoryGateProvider>
     )
     const onGatewayRequired = useIpcOnMock.mock.calls[0]?.[1]

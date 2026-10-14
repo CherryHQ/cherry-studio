@@ -1,10 +1,13 @@
 import { Editor } from '@tiptap/core'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from '../composerDraft'
-import { createComposerInputAdapter, updateComposerToken } from '../composerInputAdapter'
+import type { CherryMessagePart } from '@shared/data/types/message'
+
+import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from '../composerDraft'
+import { appendComposerText, createComposerInputAdapter, updateComposerToken } from '../composerInputAdapter'
 import { createComposerEditorPreset } from '../composerPreset'
 import { tokenizePromptVariablesInEditor } from '../promptVariables'
+import { createEditableMessageDraft, replaceEditedMessageParts } from '../variants/chat/messageEditingDraft'
 
 describe('createComposerInputAdapter', () => {
   let editor: Editor | undefined
@@ -36,6 +39,36 @@ describe('createComposerInputAdapter', () => {
     const draft = serializeComposerDocument(editor)
     expect(draft.text).toBe('dictated text')
     expect(draft.tokens).toMatchObject([{ id: 'file-1', kind: 'file', textOffset: 0 }])
+  })
+
+  it('appends literal text while preserving interleaved message parts on save', () => {
+    const currentEditor = createEditor()
+    const original: CherryMessagePart[] = [
+      { type: 'text', text: 'Before' },
+      { type: 'reasoning', text: 'Keep reasoning' },
+      { type: 'text', text: 'After' }
+    ]
+    const editable = createEditableMessageDraft(original, 'message-1')
+    currentEditor.commands.setContent(createComposerDraftContent({ text: editable.text, tokens: editable.draftTokens }))
+    const before = serializeComposerDocument(currentEditor)
+    currentEditor.commands.setTextSelection(1)
+    expect(appendComposerText(currentEditor, 'Explain ${this}')).toBe(true)
+    const draft = serializeComposerDocument(currentEditor)
+    expect(draft.tokens).toEqual(before.tokens)
+    expect(draft.text).toBe(before.text + '\nExplain ${this}')
+    expect(replaceEditedMessageParts(original, 'message-1', draft, [{ type: 'text', text: draft.text }])).toEqual([
+      original[0],
+      original[1],
+      { type: 'text', text: 'After\nExplain ${this}' }
+    ])
+  })
+
+  it('appends text beyond the former input limit without truncating the draft', () => {
+    const currentEditor = createEditor()
+    const existingText = 'a'.repeat(40000)
+    currentEditor.commands.setContent(existingText)
+    expect(appendComposerText(currentEditor, 'Explain this')).toBe(true)
+    expect(serializeComposerDocument(currentEditor).text).toBe(`${existingText}\nExplain this`)
   })
 
   it('updates an existing annotation in place without duplicating or resurrecting a removed token', () => {
