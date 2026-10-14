@@ -79,7 +79,7 @@ export class SubagentInbox {
   private holding = false
   private closed = false
 
-  /** The subagent's own extension; it goes first among the session's extensions. */
+  /** The subagent's own extension; it goes ahead of the extensions the host gives the subagent. */
   readonly extension: ExtensionFactory = (pi) => {
     this.send = (text) => pi.sendMessage(messageOf(text), { triggerTurn: true })
     pi.on('session_start', (_event, ctx) => {
@@ -213,11 +213,6 @@ export const originEntry = (origin: SubagentOrigin): TranscriptStateEntry => ({
   data: { ...origin }
 })
 
-/**
- * Builds a subagent's session. The entries the host has not stored yet (a new subagent's fork
- * prefix and origin entry, a continuation's answers to interrupted calls) go to its `onEvent` first,
- * so the host's copy is the whole transcript.
- */
 /** The model a subagent runs on (spec §6.7). */
 export function pickModel(
   subagent: Subagent,
@@ -235,6 +230,11 @@ export function pickModel(
   return options.model ?? parentModel
 }
 
+/**
+ * Builds a subagent's session. The entries the host has not stored yet (a new subagent's fork
+ * prefix and origin entry, a continuation's answers to interrupted calls) go to its `onEvent` first,
+ * so the host's copy is the whole transcript.
+ */
 export async function openChild(input: {
   subagent: Subagent
   options: SubagentSessionOptions

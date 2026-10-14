@@ -208,8 +208,8 @@ export class SubagentRegistry {
   private readonly live = new Map<string, LiveRun>()
   /** Background launches past the cap check that have not started yet. */
   private launching = 0
-  /** Continuations being set up, by subagent. */
-  private readonly starting = new Map<string, Promise<unknown>>()
+  /** By subagent: the message handling that holds its continuation lock. */
+  private readonly continuationLocks = new Map<string, Promise<unknown>>()
   private closing = false
   /** Runs the shutdown cut off; a run that had ended on its own by then is still recorded. */
   private readonly cutOff = new Set<string>()
@@ -231,7 +231,7 @@ export class SubagentRegistry {
   }
 
   /** Background subagents running or awaiting an approval, the most recently active first. */
-  unfinished(): SubagentRecord[] {
+  runningBackground(): SubagentRecord[] {
     return [...this.records.values()].reverse().filter((record) => record.background && record.status !== 'finished')
   }
 
@@ -253,37 +253,30 @@ export class SubagentRegistry {
   }
 
   /** Resolves once the latest run of the subagent is over and recorded. */
-  async recorded(sessionId: string): Promise<void> {
+  async whenRecorded(sessionId: string): Promise<void> {
     await this.live.get(sessionId)?.done
   }
 
-  /** The continuation of the subagent being set up, if any. */
-  startingRun(sessionId: string): Promise<unknown> | undefined {
-    return this.starting.get(sessionId)
+  /** What holds the subagent's continuation lock, if anything: wait for it before messaging it. */
+  continuationLock(sessionId: string): Promise<unknown> | undefined {
+    return this.continuationLocks.get(sessionId)
   }
 
-  /** Sets up the subagent's next run; until it is set up, other messages to it wait. */
-  startRun<T>(sessionId: string, start: () => Promise<T>): Promise<T> {
-    const started = start().finally(() => this.starting.delete(sessionId))
-    this.starting.set(sessionId, started)
-    return started
+  /** Runs `handle` (which may continue the subagent) holding its continuation lock. */
+  withContinuationLock<T>(sessionId: string, handle: () => Promise<T>): Promise<T> {
+    const handled = handle().finally(() => this.continuationLocks.delete(sessionId))
+    this.continuationLocks.set(sessionId, handled)
+    return handled
   }
 
   /** Queues `text` for a running subagent; false when its run has just ended. */
-  message(sessionId: string, text: string): boolean {
+  queueMessage(sessionId: string, text: string): boolean {
     return this.live.get(sessionId)?.inbox.push(text) ?? false
-  }
-
-  /** Background subagents running or waiting for an approval. */
-  runningBackground(): number {
-    let count = 0
-    for (const record of this.records.values()) if (record.background && record.status !== 'finished') count++
-    return count
   }
 
   /** Holds a background slot until the launch starts or fails; throws at the cap. */
   reserveBackground(): () => void {
-    const running = this.runningBackground() + this.launching
+    const running = this.runningBackground().length + this.launching
     if (running >= this.host.maxBackground)
       throw new Error(
         `${running} background subagents are already running; wait for one to finish before starting another.`
