@@ -228,6 +228,7 @@ export class McpRuntimeService extends BaseService {
   private connections = new Map<string, McpConnection>()
   private pendingConnections = new Map<string, Promise<McpConnection>>()
   private pendingConnectionControllers = new Map<string, AbortController>()
+  private pendingConnectionClosures = new Map<string, Promise<void>>()
   // Removal waits for initialization cleanup, but must not wait out a liveness probe.
   private pendingProbes = new Map<string, Promise<McpConnection | undefined>>()
   // Keyed by server key, so a config change starts fresh; restart/stop/remove clear it.
@@ -439,6 +440,12 @@ export class McpRuntimeService extends BaseService {
     if (pendingProbe || existing) {
       const reused = await waitForConnection(pendingProbe ?? this.probeConnection(server, serverKey, existing!), signal)
       if (reused) return reused
+    }
+
+    const closing = this.pendingConnectionClosures.get(serverKey)
+    if (closing) {
+      await waitForConnection(closing, signal)
+      return this.getOrCreateConnection(server, requestContext, signal)
     }
 
     signal?.throwIfAborted()
@@ -1132,16 +1139,27 @@ export class McpRuntimeService extends BaseService {
   }
 
   private async closeAllConnections(): Promise<void> {
-    await Promise.allSettled([...this.connections.keys()].map((key) => this.closeConnection(key)))
+    const keys = new Set([...this.connections.keys(), ...this.pendingConnectionClosures.keys()])
+    await Promise.allSettled([...keys].map((key) => this.closeConnection(key)))
   }
 
   private async closeConnection(serverKey: string, expected?: McpConnection): Promise<void> {
+    const pending = this.pendingConnectionClosures.get(serverKey)
+    if (pending) return pending
     const connection = this.connections.get(serverKey)
     if (!connection || (expected && connection !== expected)) return
     this.connections.delete(serverKey)
     this.connectionGenerations.delete(serverKey)
-    await connection.close()
-    this.serverLogs.remove(serverKey)
+    const closing = Promise.resolve()
+      .then(async () => {
+        await connection.close()
+        this.serverLogs.remove(serverKey)
+      })
+      .finally(() => {
+        if (this.pendingConnectionClosures.get(serverKey) === closing) this.pendingConnectionClosures.delete(serverKey)
+      })
+    this.pendingConnectionClosures.set(serverKey, closing)
+    return closing
   }
 
   private async closeConnectionsForServer(serverId: string): Promise<void> {
@@ -1162,8 +1180,10 @@ export class McpRuntimeService extends BaseService {
       return pending ? [pending.catch(() => undefined)] : []
     })
     await Promise.all(pendingConnections)
-    const keys = [...this.connections.keys()].filter((key) => this.isServerKeyForId(key, serverId))
-    await Promise.all(keys.map((key) => this.closeConnection(key)))
+    const keys = new Set([...this.connections.keys(), ...this.pendingConnectionClosures.keys()])
+    await Promise.all(
+      [...keys].filter((key) => this.isServerKeyForId(key, serverId)).map((key) => this.closeConnection(key))
+    )
   }
 
   public async stopServer(serverId: string): Promise<void> {

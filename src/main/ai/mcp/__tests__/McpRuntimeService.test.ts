@@ -321,6 +321,64 @@ describe('McpRuntimeService connection ownership', () => {
     expect((service as any).connections.get(service.getServerKey(server))).toBe(connection)
   })
 
+  it.each(['restart', 'stop', 'remove', 'shutdown'])('awaits failed-health cleanup on %s', async (operation) => {
+    const service = new McpRuntimeService()
+    const closing = createDeferred<void>()
+    const failure = new SdkError(SdkErrorCode.RequestTimeout, 'connection is stale')
+    const stale = {
+      health: async () => {
+        throw failure
+      },
+      close: vi.fn(() => closing.promise)
+    }
+    const key = service.getServerKey(server)
+    ;(service as any).connections.set(key, stale)
+    const replacement = { era: 'legacy', health: async () => {}, listTools: async () => [], close: vi.fn() }
+    const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue(replacement)
+    const failed = expect(service.listTools(server.id)).rejects.toBe(failure)
+    await vi.waitFor(() => expect(stale.close).toHaveBeenCalledTimes(1))
+
+    let completed = false
+    const action =
+      operation === 'restart'
+        ? service.restartServer(server.id)
+        : operation === 'stop'
+          ? service.stopServer(server.id)
+          : operation === 'remove'
+            ? service.removeServer(server.id)
+            : (service as any).onStop()
+    const pending = action.then(() => {
+      completed = true
+    })
+    const waiting =
+      operation === 'restart' ? expect(service.listTools(server.id)).resolves.toEqual([]) : Promise.resolve()
+    try {
+      if (operation === 'restart') {
+        const caller = new AbortController()
+        const cancelled = expect(
+          service.getPrompt({ serverId: server.id, name: 'ready', signal: caller.signal })
+        ).rejects.toThrow('cancel closing waiter')
+        caller.abort(new Error('cancel closing waiter'))
+        await cancelled
+      }
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(completed).toBe(false)
+      expect(create).not.toHaveBeenCalled()
+    } finally {
+      closing.resolve()
+      await Promise.all([failed, pending, waiting])
+    }
+
+    expect(stale.close).toHaveBeenCalledTimes(1)
+    expect((service as any).connections.get(key)).toBe(operation === 'restart' ? replacement : undefined)
+    if (operation === 'restart') {
+      expect(create).toHaveBeenCalledTimes(1)
+      expect(await service.getServerLogs(server.id)).toContainEqual(
+        expect.objectContaining({ message: 'Server connected (legacy)' })
+      )
+    }
+  })
+
   it('cancels only the caller waiting on shared initialization', async () => {
     const service = new McpRuntimeService()
     const activation = createDeferred<unknown>()
