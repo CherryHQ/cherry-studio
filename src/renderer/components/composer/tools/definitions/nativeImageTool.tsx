@@ -50,8 +50,10 @@ export default defineTool({
   label: (t) => t('chat.input.generate_image_native'),
   visibleInScopes: [TopicType.Chat],
   composer: {
-    runtime: ({ context }) => (
-      <NativeImageRuntime assistantId={context.assistant!.id} model={context.model} launcher={context.launcher} />
-    )
+    runtime: ({ context }) => {
+      const { assistant, model, launcher } = context
+      if (!assistant || !model) return null
+      return <NativeImageRuntime assistantId={assistant.id} model={model} launcher={launcher} />
+    }
   }
 })

@@ -26,14 +26,14 @@ describe('native image composer opt-in', () => {
     })
     updateAssistant.mockReset()
   })
-  function mount(endpoint = 'openai-responses') {
+  function mount(endpoint = 'openai-responses', linkedAssistant = true) {
     const registerLaunchers = vi.fn<(launchers: ComposerToolLauncher[]) => () => void>(() => vi.fn())
     const Runtime = nativeImageTool.composer!.runtime!
     render(
       <Runtime
         context={
           {
-            assistant: { id: 'a1' },
+            assistant: linkedAssistant ? { id: 'a1' } : undefined,
             model: { id: 'grok::grok-4.7', apiModelId: 'grok-4.7', endpointTypes: [endpoint] },
             launcher: { registerLaunchers }
           } as any
@@ -51,6 +51,10 @@ describe('native image composer opt-in', () => {
     expect(launcher.active).toBe(false)
     launcher.action?.({} as never)
     expect(updateAssistant).toHaveBeenCalledWith({ settings: { enableNativeImageGeneration: true } })
+  })
+  // Regression: a default-model chat without a linked assistant must stay usable without an assistant-owned toggle.
+  it('does not offer the native toggle in an unlinked chat with a default model', () => {
+    expect(mount('openai-responses', false)).not.toHaveBeenCalled()
   })
   it('does not offer native generation for a chat-completions endpoint', () => {
     expect(mount('openai-chat-completions')).not.toHaveBeenCalled()
