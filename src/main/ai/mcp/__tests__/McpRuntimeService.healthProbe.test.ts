@@ -213,6 +213,36 @@ describe('McpRuntimeService existing connection probes', () => {
     expect(create.mock.calls[1][1]).toMatchObject({ windowId: 'w1' })
   })
 
+  it('lets a window-backed caller sign in after window-initiated OAuth probes fail', async () => {
+    const service = new McpRuntimeService()
+    const error = new UnauthorizedError('sign-in required')
+    const prompt = { messages: [] }
+    const dead = () => ({
+      ...connection(async () => {
+        throw error
+      }),
+      getPrompt: vi.fn().mockResolvedValue(prompt)
+    })
+    ;(service as any).connections.set(service.getServerKey(server), dead())
+    const authorized = { ...connection(async () => undefined), getPrompt: vi.fn().mockResolvedValue(prompt) }
+    const create = vi
+      .spyOn(service as any, 'createConnection')
+      .mockResolvedValueOnce(dead())
+      .mockResolvedValueOnce(dead())
+      .mockResolvedValueOnce(authorized)
+    const getPrompt = () =>
+      service.getPrompt({ serverId: server.id, name: 'welcome', interactionContext: { windowId: 'w1' } })
+
+    await expect(getPrompt()).resolves.toEqual(prompt)
+    await expect(getPrompt()).resolves.toEqual(prompt)
+    await expect(service.listTools(server.id)).rejects.toBe(error)
+    expect(create).toHaveBeenCalledTimes(2)
+
+    await expect(getPrompt()).resolves.toEqual(prompt)
+    expect(create).toHaveBeenCalledTimes(3)
+    expect(create.mock.calls[2][1]).toMatchObject({ windowId: 'w1' })
+  })
+
   it('lets restart supersede a terminal probe waiting for close', async () => {
     const service = new McpRuntimeService()
     const error = new SdkError(SdkErrorCode.NotConnected, 'Not connected')
@@ -245,6 +275,7 @@ describe('McpRuntimeService existing connection probes', () => {
     await enteredClose.promise
     await expect(service.restartServer(server.id)).resolves.toBeUndefined()
     expect(create).toHaveBeenCalledTimes(5)
+    const replacement = connections.at(-1)!
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)).toMatchObject({
       state: 'connected'
     })
@@ -252,6 +283,9 @@ describe('McpRuntimeService existing connection probes', () => {
 
     closed.resolve()
     await expect(pending).resolves.toEqual(tools)
+    expect(create).toHaveBeenCalledTimes(5)
+    expect((service as any).connections.get(service.getServerKey(server))).toBe(replacement)
+    expect(replacement.listTools).toHaveBeenCalledTimes(1)
     expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)).toMatchObject({
       state: 'connected'
     })
