@@ -285,6 +285,7 @@ vi.mock('../streamAdapter', async (importActual) => {
         this.turnSequence++
         this.turnHasActivity = false
         this.turnActive = true
+        this.autonomous = false
         if (this.pendingInit) {
           this.pendingInit = undefined
           this.emitInitMetadata()
@@ -309,6 +310,11 @@ vi.mock('../streamAdapter', async (importActual) => {
       }
 
       handleMessage(message: any) {
+        // Mirrors the real adapter: a task-notification result belongs to the task, not the turn.
+        if (message.type === 'result' && message.origin?.kind === 'task-notification' && !this.autonomous) {
+          this.options.onSessionId(message.session_id)
+          return { type: 'continue' }
+        }
         if (message.type !== 'system' && message.type !== 'tool_progress' && !this.turnActive) {
           if (message.type === 'result') {
             this.options.onSessionId(message.session_id)
@@ -318,13 +324,13 @@ vi.mock('../streamAdapter', async (importActual) => {
           }
           const isContent = message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user'
           if (!isContent) return { type: 'continue' }
-          this.autonomous = true
           this.options.statusSink.emit({
             type: 'autonomous-turn-state',
             state: 'started',
             origin: { kind: 'background-work' }
           })
           this.beginTurn()
+          this.autonomous = true
         }
         if (message.type === 'truncate-now') {
           throw new Error('Claude Code SDK output ended unexpectedly; truncated response')
@@ -1023,6 +1029,76 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(pulled.map((message) => message.message.content)).toEqual(['hello'])
     void connection.close()
     await consuming
+  })
+
+  it('submits a prepared prompt only after a generation opened mid-materialization ends', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(async () => undefined),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const pulled: any[] = []
+    const consuming = (async () => {
+      for await (const message of sdkInput) pulled.push(message)
+    })()
+    const events: any[] = []
+    const consumingEvents = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+
+    // The follow-up's attachments are still being read when background content arrives.
+    const materializing = createDeferred<any>()
+    mocks.materializeNativeFilePart.mockReturnValueOnce(materializing.promise)
+    const sending = connection.send({
+      message: {
+        ...userMessage(),
+        id: 'user-2',
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      }
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // Parentless content with no turn open: the adapter opens an autonomous generation.
+    queryQueue.push({ type: 'stream_event', event: {}, session_id: 'session-1' })
+    await vi.waitFor(() =>
+      expect(events).toContainEqual(expect.objectContaining({ type: 'autonomous-turn-state', state: 'started' }))
+    )
+
+    // Claiming the adapter now would reset that generation, so the prepared prompt must wait.
+    materializing.resolve({ type: 'file', url: 'data:image/png;base64,QUJD', mediaType: 'image/png' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(pulled).toHaveLength(0)
+
+    // The generation settles through its own result, reported to the host as an autonomous finish...
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'session-1',
+      origin: { kind: 'task-notification' }
+    })
+    await vi.waitFor(() =>
+      expect(events).toContainEqual(expect.objectContaining({ type: 'autonomous-turn-state', state: 'finished' }))
+    )
+
+    // ...and only then is the prepared prompt admitted behind it.
+    await sending
+    expect(pulled).toHaveLength(1)
+    void connection.close()
+    await Promise.all([consuming, consumingEvents])
   })
 
   it('rejects the SDK-owned /fast command before it enters the input queue', async () => {
