@@ -54,7 +54,8 @@ const speechInput = sessionAdmission
   .extend({
     modelId: z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID]).optional(),
     text: z.string().trim().min(1).max(10_000),
-    voice: z.string().min(1).max(256),
+    voice: z.string().min(1).max(256).optional(),
+    preferenceResolution: z.literal(true).optional(),
     language,
     trigger: z.enum(VOICE_SESSION_TRIGGERS).optional(),
     chunkIndex: z.number().int().nonnegative().optional(),
@@ -67,6 +68,9 @@ const speechInput = sessionAdmission
       (chunkIndex !== undefined && chunkCount !== undefined && chunkIndex < chunkCount),
     { message: 'Speech chunk metadata must be a complete zero-based range' }
   )
+  .refine((value) => value.preferenceResolution === true || value.voice !== undefined, {
+    message: 'Speech requires an exact voice unless preference resolution is requested'
+  })
 
 export const VOICE_SESSION_PHASES = [
   'idle',
@@ -186,7 +190,15 @@ export const voiceRequestSchemas = {
       sessionId: z.uuid(),
       requestId: z.uuid(),
       output: z.strictObject({ id: z.uuid(), url: z.url(), mimeType: z.literal('audio/wav') }),
-      playback: playbackStateSchema
+      playback: playbackStateSchema,
+      resolved: z
+        .strictObject({
+          modelId: speechModelId,
+          voice: z.string().min(1).max(256),
+          language,
+          speed: z.number().finite().min(MIN_SPEECH_SPEED).max(MAX_SPEECH_SPEED)
+        })
+        .optional()
     })
   }),
   'ai.speech.abort': defineRoute({ input: abort, output: z.void() }),

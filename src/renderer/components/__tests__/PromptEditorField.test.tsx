@@ -59,33 +59,36 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       <div data-testid="markdown" data-md-id={id}>
         {children}
       </div>
-    ),
-    CodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, theme }: MockCodeEditorProps) => {
-      const textareaRef = useRef<HTMLTextAreaElement>(null)
-      mocks.codeEditorProps = { options, theme }
-      useImperativeHandle(ref, () => ({
-        focus: () => textareaRef.current?.focus()
-      }))
-      return (
-        <div className="cm-editor" data-testid="editor-empty-area">
-          {options?.lineNumbers !== false || options?.foldGutter !== false ? (
-            <div className="cm-gutters" data-testid="gutter" />
-          ) : null}
-          <div className="cm-content">
-            <textarea
-              ref={textareaRef}
-              autoFocus={autoFocus}
-              aria-label="Prompt editor"
-              placeholder={placeholder}
-              value={value}
-              onChange={(event) => onChange?.(event.currentTarget.value)}
-            />
-          </div>
-        </div>
-      )
-    }
+    )
   }
 })
+
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, theme }: MockCodeEditorProps) => {
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
+    mocks.codeEditorProps = { options, theme }
+    useImperativeHandle(ref, () => ({
+      focus: () => textareaRef.current?.focus()
+    }))
+    return (
+      <div className="cm-editor" data-testid="editor-empty-area">
+        {options?.lineNumbers !== false || options?.foldGutter !== false ? (
+          <div className="cm-gutters" data-testid="gutter" />
+        ) : null}
+        <div className="cm-content">
+          <textarea
+            ref={textareaRef}
+            autoFocus={autoFocus}
+            aria-label="Prompt editor"
+            placeholder={placeholder}
+            value={value}
+            onChange={(event) => onChange?.(event.currentTarget.value)}
+          />
+        </div>
+      </div>
+    )
+  }
+}))
 
 describe('PromptEditorField', () => {
   beforeEach(() => {

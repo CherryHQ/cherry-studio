@@ -29,7 +29,7 @@ describe('voice smoke connection boundary', () => {
 })
 
 function browserEnvironment(
-  transcription: 'success' | 'empty' | 'funasr_fallback' | 'native_failure',
+  transcription: 'success' | 'apple_empty' | 'funasr_empty' | 'native_failure',
   windows = false
 ) {
   const created = new Set<string>()
@@ -37,6 +37,8 @@ function browserEnvironment(
   const preempted = new Set<string>()
   let lease: { sessionId: string; phase: 'ready' | 'recording' | 'recorded'; fileEntryId?: string } | undefined
   const requestedModels: string[] = []
+  const statusModels: string[] = []
+  const funAsrRequests: Record<string, any>[] = []
   const languageRequests: {
     route: string
     language: string | { source: 'explicit'; locale: string }
@@ -117,7 +119,11 @@ function browserEnvironment(
       return input!.modelId === (windows ? 'local-voice::windows-system-tts' : 'local-voice::apple-system-tts')
         ? voices
         : []
-    if (route === 'ai.voice.model.status') return { status: 'ready' }
+    if (route === 'ai.voice.model.status') {
+      statusModels.push(input!.modelId)
+      if (input!.modelId === 'local-voice::funasr-nano') funAsrRequests.push(input!)
+      return { status: 'ready' }
+    }
     if (route === 'ai.speech.generate') {
       if (lease) throw { code: 'VOICE_BUSY' }
       created.add(input!.sessionId)
@@ -148,14 +154,16 @@ function browserEnvironment(
       if (lease?.sessionId !== input!.sessionId || lease?.phase !== 'recorded') throw { code: 'VOICE_INVALID_REQUEST' }
       if (lease.fileEntryId !== input!.fileEntryId) throw { code: 'VOICE_FORBIDDEN' }
       requestedModels.push(input!.modelId)
+      if (input!.modelId === 'local-voice::funasr-nano') funAsrRequests.push(input!)
       if (transcription === 'native_failure')
         throw { code: 'SENSITIVE_NATIVE_DETAIL', message: '/private/audio transcript' }
-      if (input!.modelId === 'local-voice::funasr-nano' && transcription !== 'funasr_fallback') {
-        throw { code: 'VOICE_UNSUPPORTED' }
-      }
+      const empty =
+        (transcription === 'apple_empty' && input!.modelId === 'local-voice::apple-system-asr') ||
+        (transcription === 'funasr_empty' && input!.modelId === 'local-voice::funasr-nano')
       lease = undefined
       return {
-        text: transcription === 'empty' ? '' : 'Private transcript must not appear in evidence',
+        text: empty ? '' : 'Private transcript must not appear in evidence',
+        segments: empty ? [] : [{ text: 'Private transcript segment', startSecond: 0, endSecond: 0.001 }],
         language: 'en',
         durationInSeconds: 0.001
       }
@@ -196,7 +204,10 @@ function browserEnvironment(
     discarded,
     preempted,
     requestedModels,
+    statusModels,
+    funAsrRequests,
     languageRequests,
+    activeSessionId: () => lease?.sessionId,
     resourcesClosed: () => recorderStopped && contextClosed && tracksStopped && !lease
   }
 }
@@ -253,19 +264,23 @@ describe('voice smoke renderer contract', () => {
     expect(fixture.created.size).toBe(0)
   })
 
-  it('requires nonempty Apple output and explicit FunASR rejection, discarding every session without leaking content', async () => {
+  it('completes both admitted recording sessions without preempting its speech output or leaking content', async () => {
     const fixture = browserEnvironment('success')
     const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
     expect(result).toMatchObject({
       passed: true,
       apple: { transcriptNonEmpty: true },
-      funasr: { reason: 'unsupported' },
-      cleanupSucceeded: true
+      funasr: { transcriptNonEmpty: true, segmentCount: 1 },
+      cleanupSucceeded: true,
+      sessionsDiscarded: 3
     })
+    expect(fixture.statusModels).toEqual(['local-voice::apple-system-asr', 'local-voice::funasr-nano'])
     expect(fixture.requestedModels).toEqual(['local-voice::apple-system-asr', 'local-voice::funasr-nano'])
+    expect(fixture.funAsrRequests).toHaveLength(2)
+    expect(fixture.funAsrRequests.every((input) => !Object.hasOwn(input, 'language'))).toBe(true)
     expect(fixture.created.size).toBe(3)
-    expect(fixture.preempted.size).toBe(0)
     expect(fixture.discarded).toEqual(fixture.created)
+    expect(fixture.preempted.size).toBe(0)
     expect(fixture.resourcesClosed()).toBe(true)
     expect(JSON.stringify(result)).not.toContain('Private transcript')
     expect(JSON.stringify(result)).not.toContain('e0b0c5ec-dcb8-4f77-b027-0a3c05637786')
@@ -290,6 +305,68 @@ describe('voice smoke renderer contract', () => {
     expect(fixture.discarded).toEqual(fixture.created)
   })
 
+  it('reads owned speech output even when generic file access is unavailable', async () => {
+    const fixture = browserEnvironment('success')
+    const ipc = fixture.globals.window.api.ipcApi
+    const originalRequest = ipc.request
+    ipc.request = async (route, input) =>
+      route === 'file.read' ? { ok: false, error: { code: 'VOICE_FORBIDDEN' } } : originalRequest(route, input)
+
+    const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
+
+    expect(result).toMatchObject({ passed: true, sessionsDiscarded: 3, cleanupSucceeded: true })
+    expect(fixture.resourcesClosed()).toBe(true)
+  })
+
+  it('fails an upload after another recording takes ownership without discarding the replacement', async () => {
+    const fixture = browserEnvironment('success')
+    const ipc = fixture.globals.window.api.ipcApi
+    const originalRequest = ipc.request
+    const replacementSession = randomUUID()
+    ipc.request = async (route, input) => {
+      if (route === 'file.voice_recording.create') {
+        await originalRequest('ai.voice.recording.start', {
+          sessionId: replacementSession,
+          requestId: randomUUID(),
+          source: 'automation'
+        })
+      }
+      return originalRequest(route, input)
+    }
+
+    const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
+
+    expect(result).toMatchObject({
+      passed: false,
+      stage: 'apple_upload',
+      code: 'VOICE_INVALID_REQUEST',
+      cleanupSucceeded: true
+    })
+    expect(fixture.activeSessionId()).toBe(replacementSession)
+    expect(fixture.discarded.has(replacementSession)).toBe(false)
+    expect(result.apple).toBeUndefined()
+    expect(result.funasr).toBeUndefined()
+  })
+
+  it.each(['VOICE_NO_SPEECH', 'VOICE_MODEL_LOAD_FAILED', 'VOICE_WORKER_CRASHED', 'VOICE_DOWNLOAD_FAILED'])(
+    'preserves the stable FunASR failure %s without exposing native details',
+    async (code) => {
+      const fixture = browserEnvironment('success')
+      const ipc = fixture.globals.window.api.ipcApi
+      const originalRequest = ipc.request
+      ipc.request = async (route, input) =>
+        route === 'ai.transcription.generate' && input?.modelId === 'local-voice::funasr-nano'
+          ? { ok: false, error: { code, message: '/private/audio transcript' } }
+          : originalRequest(route, input)
+
+      const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
+
+      expect(result).toMatchObject({ passed: false, stage: 'funasr_transcribe', code, cleanupSucceeded: true })
+      expect(fixture.resourcesClosed()).toBe(true)
+      expect(JSON.stringify(result)).not.toContain('/private/audio transcript')
+    }
+  )
+
   it('rejects unapproved test languages before any IPC session is created', async () => {
     const fixture = browserEnvironment('success')
     const result = await runInNewContext(
@@ -301,13 +378,16 @@ describe('voice smoke renderer contract', () => {
     expect(fixture.languageRequests).toEqual([])
   })
 
-  it.each(['empty', 'funasr_fallback', 'native_failure'] as const)('fails closed and cleans up on %s', async (mode) => {
-    const fixture = browserEnvironment(mode)
-    const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
-    expect(result.passed).toBe(false)
-    expect(result.cleanupSucceeded).toBe(true)
-    expect(fixture.discarded).toEqual(fixture.created)
-    expect(fixture.resourcesClosed()).toBe(true)
-    expect(JSON.stringify(result)).not.toMatch(/private|transcript must|SENSITIVE_NATIVE_DETAIL/)
-  })
+  it.each(['apple_empty', 'funasr_empty', 'native_failure'] as const)(
+    'fails closed and cleans up on %s',
+    async (mode) => {
+      const fixture = browserEnvironment(mode)
+      const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
+      expect(result.passed).toBe(false)
+      expect(result.cleanupSucceeded).toBe(true)
+      expect(fixture.discarded).toEqual(fixture.created)
+      expect(fixture.resourcesClosed()).toBe(true)
+      expect(JSON.stringify(result)).not.toMatch(/private|transcript must|SENSITIVE_NATIVE_DETAIL/)
+    }
+  )
 })
