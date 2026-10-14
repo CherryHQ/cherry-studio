@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { hashPairedDeviceToken } from '../../pairedDeviceToken'
-
 /**
  * Integration tests that drive the real Elysia app via `app.handle(Request)`.
  *
@@ -13,38 +11,9 @@ import { hashPairedDeviceToken } from '../../pairedDeviceToken'
 
 // All mock fns live in vi.hoisted so the (hoisted) vi.mock factories can close
 // over them without a TDZ error.
-const {
-  mockGetModels,
-  mockGetProviderApiKeys,
-  mockGetProviderAuthConfig,
-  mockHasPairedDeviceToken,
-  mockIsInternalRequestToken,
-  mockListProviderModels,
-  mockListProviders,
-  mockPairDevice,
-  mockPreferenceGet,
-  mockProcessMessage
-} = vi.hoisted(() => ({
+const { mockGetModels, mockIsInternalRequestToken, mockPreferenceGet, mockProcessMessage } = vi.hoisted(() => ({
   mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
-  mockGetProviderApiKeys: vi.fn(),
-  mockGetProviderAuthConfig: vi.fn(),
-  mockHasPairedDeviceToken: vi.fn(),
   mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token'),
-  mockListProviderModels: vi.fn(),
-  mockListProviders: vi.fn(),
-  mockPairDevice: vi.fn((code: string, device: { name: string; platform: string }) =>
-    code === '0123456789abcdef0123456789abcdef'
-      ? {
-          device: {
-            id: '11111111-1111-4111-8111-111111111111',
-            ...device,
-            createdAt: '2026-08-29T00:00:00.000Z',
-            updatedAt: '2026-08-29T00:00:00.000Z'
-          },
-          token: 'cs-dt-new'
-        }
-      : null
-  ),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
@@ -57,7 +26,7 @@ vi.mock('@application', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken, pairDevice: mockPairDevice }
+    ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken }
   }
   return mockApplicationFactory(overrides)
 })
@@ -91,22 +60,6 @@ vi.mock('../../utils/models', () => ({
   getModels: mockGetModels
 }))
 
-vi.mock('@data/services/ProviderService', () => ({
-  providerService: {
-    getApiKeys: mockGetProviderApiKeys,
-    getAuthConfig: mockGetProviderAuthConfig,
-    list: mockListProviders
-  }
-}))
-
-vi.mock('@data/services/ModelService', () => ({
-  modelService: { list: mockListProviderModels }
-}))
-
-vi.mock('@data/services/ApiGatewayPairedDeviceService', () => ({
-  apiGatewayPairedDeviceService: { hasTokenHash: mockHasPairedDeviceToken }
-}))
-
 // Knowledge routes use the v2 KB service (pulled in by buildApp); stubbed so
 // building the app stays hermetic (knowledge behaviour tested separately).
 vi.mock('@data/services/KnowledgeBaseService', () => ({
@@ -116,8 +69,6 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 import { buildApp } from '../../app'
 
 const AUTH = { 'content-type': 'application/json', 'x-api-key': 'test-key' }
-const PAIRING_CODE = '0123456789abcdef0123456789abcdef'
-
 function post(app: ReturnType<typeof buildApp>, path: string, body: unknown, headers: Record<string, string> = AUTH) {
   return app.handle(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
 }
@@ -133,51 +84,7 @@ describe('API gateway routes (integration)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockHasPairedDeviceToken.mockReturnValue(false)
     mockPreferenceGet.mockReturnValue('test-key')
-    mockListProviders.mockImplementation(({ enabled }: { enabled?: boolean }) =>
-      enabled
-        ? [
-            {
-              id: 'openai',
-              name: 'OpenAI',
-              logo: 'icon:openai',
-              logoSrc: 'file:///desktop-only/provider-logo.png',
-              apiKeys: [{ id: 'enabled-key', label: 'Primary', isEnabled: true }],
-              authType: 'api-key',
-              reportsActualCost: false,
-              settings: { notes: 'desktop only' },
-              serverTools: [{ id: 'desktop-only-tool' }],
-              isEnabled: true
-            }
-          ]
-        : [{ id: 'disabled-provider', name: 'Disabled', isEnabled: false }]
-    )
-    mockGetProviderApiKeys.mockImplementation((_providerId: string, options?: { enabled?: boolean }) =>
-      options?.enabled
-        ? [{ id: 'enabled-key', key: 'sk-mobile', label: 'Primary', isEnabled: true }]
-        : [
-            { id: 'enabled-key', key: 'sk-mobile', label: 'Primary', isEnabled: true },
-            { id: 'disabled-key', key: 'sk-disabled', isEnabled: false }
-          ]
-    )
-    mockGetProviderAuthConfig.mockReturnValue({ type: 'api-key', headerName: 'Authorization', prefix: 'Bearer ' })
-    mockListProviderModels.mockImplementation(({ enabled }: { enabled?: boolean }) =>
-      enabled
-        ? [
-            {
-              id: 'openai::gpt-4o',
-              providerId: 'openai',
-              apiModelId: 'gpt-4o',
-              name: 'GPT-4o',
-              capabilities: [],
-              supportsStreaming: true,
-              isEnabled: true,
-              isHidden: false
-            }
-          ]
-        : [{ id: 'openai::disabled', providerId: 'openai', isEnabled: false }]
-    )
     app = buildApp()
   })
 
@@ -323,67 +230,6 @@ describe('API gateway routes (integration)', () => {
 
     it('rejects a /v1 request with an invalid Bearer token (403)', async () => {
       const { status } = await read(await get(app, '/v1/models', { authorization: 'Bearer wrong-key' }))
-      expect(status).toBe(403)
-    })
-  })
-
-  describe('provider export', () => {
-    beforeEach(() => {
-      mockHasPairedDeviceToken.mockImplementation(
-        (tokenHash: string) => tokenHash === hashPairedDeviceToken('paired-device-token')
-      )
-    })
-
-    it('exports only enabled provider credentials and models to the paired device', async () => {
-      const response = await get(app, '/v1/export/providers', { authorization: 'Bearer paired-device-token' })
-      const { status, body } = await read(response)
-
-      expect(status).toBe(200)
-      expect(response.headers.get('cache-control')).toBe('no-store')
-      expect(body).toEqual({
-        version: 1,
-        providers: [
-          {
-            id: 'openai',
-            name: 'OpenAI',
-            logo: 'icon:openai',
-            apiKeys: [{ id: 'enabled-key', key: 'sk-mobile', label: 'Primary', isEnabled: true }],
-            authConfig: { type: 'api-key', headerName: 'Authorization', prefix: 'Bearer ' },
-            authType: 'api-key',
-            reportsActualCost: false,
-            settings: {},
-            isEnabled: true,
-            models: [
-              {
-                id: 'openai::gpt-4o',
-                providerId: 'openai',
-                apiModelId: 'gpt-4o',
-                name: 'GPT-4o',
-                capabilities: [],
-                supportsStreaming: true,
-                isEnabled: true,
-                isHidden: false
-              }
-            ]
-          }
-        ]
-      })
-      expect(JSON.stringify(body)).not.toContain('desktop-only')
-      expect(JSON.stringify(body)).not.toContain('sk-disabled')
-    })
-
-    it('rejects the desktop API key because the snapshot contains provider credentials', async () => {
-      const { status } = await read(await get(app, '/v1/export/providers', { authorization: 'Bearer test-key' }))
-      expect(status).toBe(403)
-    })
-
-    it('does not accept a paired token in the URL query', async () => {
-      const { status } = await read(await get(app, '/v1/export/providers?access_token=paired-device-token', {}))
-      expect(status).toBe(401)
-    })
-
-    it('does not extend paired-device access to ordinary API routes', async () => {
-      const { status } = await read(await get(app, '/v1/models', { authorization: 'Bearer paired-device-token' }))
       expect(status).toBe(403)
     })
   })
@@ -735,135 +581,6 @@ describe('API gateway routes (integration)', () => {
     })
   })
 
-  describe('LAN pairing (/pair)', () => {
-    const device = { name: 'Pixel 9', platform: 'android' }
-
-    it('is public and exchanges a live code for a device token', async () => {
-      const { status, body } = await read(
-        await post(app, '/pair', { code: PAIRING_CODE, device }, { 'content-type': 'application/json' })
-      )
-      expect(status).toBe(200)
-      expect(body.token).toBe('cs-dt-new')
-      expect(body.name).toBeDefined()
-    })
-
-    it('rejects a wrong/expired code with 403', async () => {
-      const { status, body } = await read(
-        await post(app, '/pair', { code: '0'.repeat(32), device }, { 'content-type': 'application/json' })
-      )
-      expect(status).toBe(403)
-      expect(body.error).toBe('Invalid or expired pairing code')
-    })
-
-    it('rejects a malformed body via schema validation', async () => {
-      const { status } = await read(
-        await post(app, '/pair', { code: PAIRING_CODE }, { 'content-type': 'application/json' })
-      )
-      expect(status).toBe(422)
-      expect(mockPairDevice).not.toHaveBeenCalled()
-    })
-
-    it.each(['a'.repeat(31), 'a'.repeat(33), 'g'.repeat(32), `${'a'.repeat(32)}\n`])(
-      'rejects malformed code %s',
-      async (code) => {
-        const { status } = await read(await post(app, '/pair', { code, device }))
-
-        expect(status).toBe(422)
-        expect(mockPairDevice).not.toHaveBeenCalled()
-      }
-    )
-
-    it.each([4096, 4097])('enforces the 4 KiB request boundary for %i bytes', async (size) => {
-      const payload = JSON.stringify({ code: PAIRING_CODE, device }).padEnd(size)
-      const response = await app.handle(
-        new Request('http://localhost/pair', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: payload
-        })
-      )
-
-      if (size === 4096) {
-        expect(response.status).toBe(200)
-        expect((await response.json()).token).toBe('cs-dt-new')
-      } else {
-        expect(response.status).toBe(413)
-        expect((await response.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
-        expect(mockPairDevice).not.toHaveBeenCalled()
-      }
-    })
-
-    it('counts UTF-8 bytes rather than characters', async () => {
-      const { status } = await read(
-        await post(app, '/pair', { code: PAIRING_CODE, device, padding: '中'.repeat(1500) })
-      )
-
-      expect(status).toBe(413)
-      expect(mockPairDevice).not.toHaveBeenCalled()
-    })
-
-    it('rejects an oversized stream without waiting for the body to finish', async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode(' '.repeat(2048)))
-          controller.enqueue(new TextEncoder().encode(' '.repeat(2049)))
-        }
-      })
-      const init = {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: stream,
-        duplex: 'half'
-      }
-
-      try {
-        const response = await app.handle(new Request('http://localhost/pair', init))
-
-        expect(response.status).toBe(413)
-        expect(response.headers.get('connection')).toBe('close')
-        expect((await response.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
-        expect(mockPairDevice).not.toHaveBeenCalled()
-      } finally {
-        await stream.cancel()
-      }
-    })
-
-    it('keeps malformed JSON on the existing 400 error path', async () => {
-      const response = await app.handle(
-        new Request('http://localhost/pair', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: '{'
-        })
-      )
-
-      expect(response.status).toBe(400)
-      expect((await response.json()).error.code).toBe('BAD_REQUEST')
-      expect(mockPairDevice).not.toHaveBeenCalled()
-    })
-
-    it('does not accept JSON sent with a non-JSON content type', async () => {
-      const { status } = await read(
-        await post(app, '/pair', { code: PAIRING_CODE, device }, { 'content-type': 'text/plain' })
-      )
-
-      expect(status).toBe(422)
-      expect(mockPairDevice).not.toHaveBeenCalled()
-    })
-
-    it('does not apply the pairing body limit to generation routes', async () => {
-      const { status, body } = await read(
-        await post(app, '/v1/chat/completions', {
-          model: 'openai:gpt-4o',
-          messages: [{ role: 'user', content: 'a'.repeat(8192) }]
-        })
-      )
-
-      expect(status).toBe(200)
-      expect(body).toEqual({ ok: true })
-    })
-  })
-
   describe('LAN exposure (non-loopback peer)', () => {
     beforeEach(() => {
       mockPreferenceGet.mockImplementation((key) => (key === 'feature.api_gateway.host' ? '0.0.0.0' : 'test-key'))
@@ -892,37 +609,10 @@ describe('API gateway routes (integration)', () => {
       expect((await read(await getFromLan('/v1/knowledge-bases'))).status).toBe(403)
     })
 
-    it('lets a LAN client reach the pairing bootstrap', async () => {
-      const { status, body } = await read(
-        await postFromLan('/pair', { code: PAIRING_CODE, device: { name: 'Pixel 9', platform: 'android' } })
-      )
-      expect(status).toBe(200)
-      expect(body.token).toBe('cs-dt-new')
-    })
-
-    it('lets a paired LAN client reach the provider export', async () => {
-      mockHasPairedDeviceToken.mockImplementation(
-        (tokenHash: string) => tokenHash === hashPairedDeviceToken('paired-device-token')
-      )
-      const { status } = await read(
-        await getFromLan('/v1/export/providers', { authorization: 'Bearer paired-device-token' })
-      )
-      expect(status).toBe(200)
-    })
-
-    it('blocks pairing and provider export immediately when LAN access is revoked on a live listener', async () => {
-      mockHasPairedDeviceToken.mockImplementation(
-        (tokenHash: string) => tokenHash === hashPairedDeviceToken('paired-device-token')
-      )
-      const headers = { authorization: 'Bearer paired-device-token' }
-      expect((await getFromLan('/v1/export/providers', headers)).status).toBe(200)
-
+    it('keeps loopback callers served after LAN access is revoked on a live listener', async () => {
       mockPreferenceGet.mockImplementation((key) => (key === 'feature.api_gateway.host' ? '127.0.0.1' : 'test-key'))
 
-      expect((await getFromLan('/v1/export/providers', headers)).status).toBe(403)
-      expect(
-        (await postFromLan('/pair', { code: PAIRING_CODE, device: { name: 'Phone', platform: 'android' } })).status
-      ).toBe(403)
+      expect((await getFromLan('/v1/models')).status).toBe(403)
       const localResponse = await post(app, '/v1/chat/completions', {
         model: 'openai:gpt-4o',
         messages: [{ role: 'user', content: 'Hello' }]

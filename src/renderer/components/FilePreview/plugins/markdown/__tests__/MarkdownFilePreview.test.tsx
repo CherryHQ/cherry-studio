@@ -1,8 +1,9 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { FilePreviewType } from '../../../types'
@@ -10,8 +11,7 @@ import MarkdownFilePreview from '../MarkdownFilePreview'
 
 const mocks = vi.hoisted(() => ({
   codeViewer: vi.fn(),
-  readText: vi.fn(),
-  withFullMarkdown: vi.fn(() => ({}))
+  readText: vi.fn()
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
@@ -21,14 +21,14 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryStudioUi>()),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div>
       <span>{title}</span>
       <span>{description}</span>
     </div>
   ),
-  Markdown: ({ children }: { children: ReactNode }) => <article data-testid="markdown-preview">{children}</article>,
   Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>,
   SegmentedControl: ({
     disabled,
@@ -53,8 +53,7 @@ vi.mock('@cherrystudio/ui', () => ({
         </button>
       ))}
     </div>
-  ),
-  withFullMarkdown: mocks.withFullMarkdown
+  )
 }))
 
 vi.mock('react-i18next', () => ({
@@ -98,9 +97,8 @@ describe('MarkdownFilePreview', () => {
   it('reads and renders Markdown through the existing file IPC', async () => {
     renderPreview()
 
-    expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# File preview')
+    expect(await screen.findByRole('heading')).toHaveTextContent('File preview')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
-    expect(mocks.withFullMarkdown).toHaveBeenCalledWith({ singleDollarMath: true })
   })
 
   it('shows the empty state for empty content', async () => {
@@ -109,7 +107,7 @@ describe('MarkdownFilePreview', () => {
     renderPreview({ size: 0 })
 
     expect(await screen.findByText('file_preview.markdown.empty.title')).toBeInTheDocument()
-    expect(screen.queryByTestId('markdown-preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
   })
 
   it('rejects files over 2 MiB before reading their contents', async () => {
@@ -138,17 +136,17 @@ describe('MarkdownFilePreview', () => {
 
   it('switches between rendered preview and wrapped source', async () => {
     renderPreview()
-    await screen.findByTestId('markdown-preview')
+    await screen.findByRole('heading')
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.source' }))
 
-    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('# File preview')
+    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('File preview')
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
       expect.objectContaining({ language: 'markdown', value: '# File preview', wrapped: true })
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.preview' }))
-    expect(screen.getByTestId('markdown-preview')).toBeInTheDocument()
+    expect(screen.getByRole('heading')).toBeInTheDocument()
   })
 
   it('hides frontmatter and the source switch when the artifact host owns editing', async () => {
@@ -157,9 +155,9 @@ describe('MarkdownFilePreview', () => {
     )
     renderPreview({ type: 'artifact' })
 
-    expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# File preview')
-    expect(screen.getByTestId('markdown-preview')).not.toHaveTextContent('name: Writer')
-    expect(screen.getByTestId('markdown-preview')).not.toHaveTextContent('description: Draft clear prose')
+    expect(await screen.findByRole('heading')).toHaveTextContent('File preview')
+    expect(screen.getByRole('heading')).not.toHaveTextContent('name: Writer')
+    expect(screen.getByRole('heading')).not.toHaveTextContent('description: Draft clear prose')
     expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
   })
@@ -167,7 +165,7 @@ describe('MarkdownFilePreview', () => {
   it('reloads when the path or refresh key changes', async () => {
     const secondPath = '/tmp/workspace/CHANGELOG.md' as AbsoluteFilePath
     const view = renderPreview()
-    await screen.findByTestId('markdown-preview')
+    await screen.findByRole('heading')
 
     view.rerender(
       <MarkdownFilePreview
@@ -211,9 +209,9 @@ describe('MarkdownFilePreview', () => {
         refreshKey={0}
       />
     )
-    expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# Second file')
+    expect(await screen.findByRole('heading')).toHaveTextContent('Second file')
 
     resolveFirstRead?.('# Stale file')
-    await waitFor(() => expect(screen.getByTestId('markdown-preview')).toHaveTextContent('# Second file'))
+    await waitFor(() => expect(screen.getByRole('heading')).toHaveTextContent('Second file'))
   })
 })

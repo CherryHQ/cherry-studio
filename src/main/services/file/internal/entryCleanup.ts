@@ -18,6 +18,7 @@ import type { EntryCleanupSummary } from '@shared/types/file'
 
 import type { FileManagerDeps } from './deps'
 import { cleanupDeletedEntry } from './entry/lifecycle'
+import type { IntakeStore } from './IntakeStore'
 
 const logger = loggerService.withContext('FileManager:entryCleanup')
 
@@ -52,7 +53,10 @@ export interface EntryCleanupReport {
 
 type CandidateOutcome = { kind: 'deleted'; entry: FileEntry } | { kind: 'refs-reappeared' } | { kind: 'gone-or-pinned' }
 
-export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryCleanupReport> {
+export async function runEntryCleanup(
+  deps: FileManagerDeps,
+  intakeProtection?: Pick<IntakeStore, 'load' | 'isProtected'>
+): Promise<EntryCleanupReport> {
   const startedAt = Date.now()
   // A staged restore holds the DB in a protected window: mutating file_entry or
   // unlinking blobs now could invalidate the live DB fingerprint or race the
@@ -71,6 +75,7 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
     })
   }
   try {
+    await intakeProtection?.load()
     const batch = deps.fileEntryService.findCleanupCandidates({
       graceMs: ENTRY_CLEANUP_GRACE_MS,
       limit: ENTRY_CLEANUP_BATCH_LIMIT
@@ -99,7 +104,11 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
       try {
         const outcome = deps.fileEntryService.withWriteTx((tx): CandidateOutcome => {
           const row = deps.fileEntryService.findByIdTx(tx, candidate.id)
-          if (row === null || row.cleanupPolicy !== 'delete_when_unreferenced') {
+          if (
+            row === null ||
+            row.cleanupPolicy !== 'delete_when_unreferenced' ||
+            intakeProtection?.isProtected(candidate.id)
+          ) {
             return { kind: 'gone-or-pinned' }
           }
           if (deps.fileRefService.countPersistentRefsByEntryIdTx(tx, candidate.id) > 0) {

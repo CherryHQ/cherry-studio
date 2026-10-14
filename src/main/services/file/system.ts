@@ -1,11 +1,12 @@
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import { assertSafePathForDefaultOpen } from './internal/system/openGuard'
+import { assertOpenableTarget, assertSafePathForDefaultOpen } from './internal/system/openGuard'
 import { open as internalOpen, showInFolder as internalShowInFolder } from './internal/system/shell'
 
 /** Open a path with the system default app after unsafe extension checks. */
 export async function safeOpen(path: AbsoluteFilePath): Promise<void> {
   assertSafePathForDefaultOpen(path)
+  await assertOpenableTarget(path)
   return internalOpen(path)
 }
 

@@ -30,6 +30,7 @@ import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
@@ -38,6 +39,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 
 import { createActionRegistry } from '../../actions/actionRegistry'
 import type { ActionAvailabilityInput, ActionDescriptor, ResolvedAction } from '../../actions/actionTypes'
+import { messageExportTargets } from '../messageExportTargets'
 import type { MessageListActions, MessageListItem, MessageListSelectionState } from '../types'
 import type { MessageMenuConfig } from '../types'
 import { getMessageListItemModelName } from '../utils/messageListItem'
@@ -288,7 +290,10 @@ registerCommand('message.exportImage', async (context) => {
       return
     }
 
-    const success = await context.actions.saveImage(title, imageData)
+    // The title derives from message content (e.g. leading `**bold**` markup);
+    // an unsanitized name pre-fills the save dialog with Windows-reserved
+    // characters and disables its Save button. Mirrors the topic image export.
+    const success = await context.actions.saveImage(removeSpecialCharactersForFileName(title), imageData)
     if (success) {
       context.actions.notifySuccess?.(context.t('chat.topics.export.image_saved'))
     } else {
@@ -569,72 +574,15 @@ registerAction({
       order: 10,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.saveImage
     },
-    {
-      id: 'export.markdown',
-      commandId: 'message.exportMarkdown',
-      label: ({ t }) => t('chat.topics.export.md.label'),
-      group: 'file',
-      order: 20,
-      availability: ({ actions, menuConfig }) =>
-        menuConfig.exportMenuOptions.markdown && !!actions.exportMessageAsMarkdown
-    },
-    {
-      id: 'export.markdown-reason',
-      commandId: 'message.exportMarkdownReason',
-      label: ({ t }) => t('chat.topics.export.md.reason'),
-      group: 'file',
-      order: 30,
-      availability: ({ actions, menuConfig }) =>
-        menuConfig.exportMenuOptions.markdown_reason && !!actions.exportMessageAsMarkdown
-    },
-    {
-      id: 'export.word',
-      commandId: 'message.exportWord',
-      label: ({ t }) => t('chat.topics.export.word'),
-      group: 'file',
-      order: 40,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.docx && !!actions.exportToWord
-    },
-    {
-      id: 'export.notion',
-      commandId: 'message.exportNotion',
-      label: ({ t }) => t('chat.topics.export.notion'),
-      group: 'external',
-      order: 50,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.notion && !!actions.exportToNotion
-    },
-    {
-      id: 'export.yuque',
-      commandId: 'message.exportYuque',
-      label: ({ t }) => t('chat.topics.export.yuque'),
-      group: 'external',
-      order: 60,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.yuque && !!actions.exportToYuque
-    },
-    {
-      id: 'export.obsidian',
-      commandId: 'message.exportObsidian',
-      label: ({ t }) => t('chat.topics.export.obsidian'),
-      group: 'external',
-      order: 70,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.obsidian && !!actions.exportToObsidian
-    },
-    {
-      id: 'export.joplin',
-      commandId: 'message.exportJoplin',
-      label: ({ t }) => t('chat.topics.export.joplin'),
-      group: 'external',
-      order: 80,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.joplin && !!actions.exportToJoplin
-    },
-    {
-      id: 'export.siyuan',
-      commandId: 'message.exportSiyuan',
-      label: ({ t }) => t('chat.topics.export.siyuan'),
-      group: 'external',
-      order: 90,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.siyuan && !!actions.exportToSiyuan
-    },
+    ...messageExportTargets.map(({ target, commandId, labelKey, group, option, action }, index) => ({
+      id: `export.${target}`,
+      commandId,
+      label: ({ t }: MessageMenuBarActionContext) => t(labelKey),
+      group,
+      order: (index + 2) * 10,
+      availability: ({ actions, menuConfig }: MessageMenuBarActionContext) =>
+        menuConfig.exportMenuOptions[option] && !!actions[action]
+    })),
     {
       id: 'export.copy-plain-text',
       commandId: 'message.copyPlainText',

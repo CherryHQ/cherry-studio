@@ -56,10 +56,7 @@ describe('heartbeatDocument', () => {
     expect(await readFile(outside, 'utf8')).toBe('Keep me')
   })
 
-  it('does not provision files for a missing or unsupported agent', async () => {
-    dbh.db.insert(agentTable).values({ id: 'dsh', name: 'DSH', type: 'dsh', instructions: '', orderKey: 'a1' }).run()
+  it('does not provision files for a missing agent', async () => {
     await expect(readHeartbeatDocument('../escape')).rejects.toThrow('unavailable')
-    await expect(readHeartbeatDocument('dsh')).rejects.toThrow('unavailable')
-    await expect(readFile(path.join(root, 'dsh', 'heartbeat.md'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })

@@ -1,4 +1,5 @@
-import { AlertTriangle, ArrowUp, GripVertical, Pause, Pencil, Play, Trash2, X } from 'lucide-react'
+import { AlertTriangle, ArrowUp, ChevronRight, GripVertical, Pause, Pencil, Play, Trash2, X } from 'lucide-react'
+import { motion } from 'motion/react'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,6 +11,9 @@ import { cn } from '@renderer/utils/style'
 
 import { excludeComposerDraftTokens } from './composerDraft'
 import type { FollowupQueueItem } from './useFollowupQueue'
+
+const QUEUE_EASE = [0.23, 1, 0.32, 1] as const
+const QUEUE_CSS_EASE = `cubic-bezier(${QUEUE_EASE.join(',')})`
 
 /** Max rows shown before the dock collapses behind an "Expand N more…" toggle. */
 export const QUEUE_VISIBLE_LIMIT = 3
@@ -176,34 +180,62 @@ export function QueuedFollowupsDock({
   steerDisabledReason
 }: QueuedFollowupsDockProps) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [listExpanded, setListExpanded] = useState(false)
+  const [shouldAnimate, setShouldAnimate] = useState(false)
   const listId = useId()
+  const transition = {
+    type: 'tween' as const,
+    duration: shouldAnimate ? 0.2 : 0,
+    ease: QUEUE_EASE
+  }
   if (items.length === 0) return null
 
   const failed = failedItemId != null ? items.find((item) => item.id === failedItemId) : undefined
-  const visibleItems = expanded || items.length <= QUEUE_VISIBLE_LIMIT ? items : items.slice(0, QUEUE_VISIBLE_LIMIT)
+  const visibleItems = listExpanded || items.length <= QUEUE_VISIBLE_LIMIT ? items : items.slice(0, QUEUE_VISIBLE_LIMIT)
   const hiddenCount = items.length - visibleItems.length
 
   return (
-    <div
-      className="mx-2 mb-1.5 rounded-[16px] border-[0.5px] border-border p-1.5 backdrop-blur"
-      style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
-      <div className="flex items-center justify-between px-1.5 pb-1">
-        <span className="text-xs text-muted-foreground">
+    <motion.div
+      layout
+      layoutDependency={isExpanded}
+      transition={transition}
+      className="relative mx-2 mb-1.5 border-[0.5px] border-border p-1.5 backdrop-blur"
+      style={{
+        borderRadius: 16,
+        originY: 1,
+        backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)'
+      }}>
+      <motion.div
+        layout="position"
+        layoutDependency={isExpanded}
+        transition={transition}
+        className={cn('flex items-center justify-between gap-1 px-1.5', isExpanded && 'pb-1')}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground h-6 min-h-0 flex-1 justify-start gap-1 px-0 text-xs font-normal shadow-none transition-colors hover:bg-transparent"
+          aria-expanded={isExpanded}
+          aria-controls={listId}
+          onClick={(event) => {
+            setShouldAnimate(event.detail > 0 && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+            setIsExpanded((value) => !value)
+          }}>
           {t('chat.input.followup_queue.title', { count: items.length })}
-        </span>
-        <div className="flex items-center gap-0.5">
-          <Tooltip placement="top" content={t('chat.input.followup_queue.clear_all')}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-6 shadow-none"
-              aria-label={t('chat.input.followup_queue.clear_all')}
-              onClick={onClearAll}>
-              <Trash2 className="size-3.5" />
-            </Button>
-          </Tooltip>
+          <span
+            aria-hidden
+            className="inline-flex"
+            style={{
+              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              transitionProperty: 'transform',
+              transitionDuration: `${transition.duration}s`,
+              transitionTimingFunction: QUEUE_CSS_EASE
+            }}>
+            <ChevronRight className="size-3.5" />
+          </span>
+        </Button>
+        <div className="flex shrink-0 items-center gap-0.5">
           <Tooltip
             placement="top"
             content={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}>
@@ -218,8 +250,19 @@ export function QueuedFollowupsDock({
               {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
             </Button>
           </Tooltip>
+          <Tooltip placement="top" content={t('chat.input.followup_queue.clear_all')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 shadow-none"
+              aria-label={t('chat.input.followup_queue.clear_all')}
+              onClick={onClearAll}>
+              <Trash2 className="size-3.5" />
+            </Button>
+          </Tooltip>
         </div>
-      </div>
+      </motion.div>
       {failed ? (
         <div
           role="alert"
@@ -247,45 +290,64 @@ export function QueuedFollowupsDock({
           </div>
         </div>
       ) : null}
-      <div className="max-h-40 overflow-y-auto" id={listId}>
-        <ReorderableList
-          items={items}
-          visibleItems={visibleItems}
-          getId={(item) => item.id}
-          onReorder={onReorder}
-          direction="vertical"
-          gap={4}
-          dragHandle
-          renderItem={(item, _index, { dragging, dragHandleProps }) => (
-            <QueuedFollowupRow
-              item={item}
-              dragging={dragging}
-              dragHandleProps={dragHandleProps}
-              onSteer={onSteer}
-              onEdit={onEdit}
-              onRemove={onRemove}
-              isSteerDisabled={isSteerDisabled}
-              steerDisabledReason={steerDisabledReason}
+      <motion.div
+        id={listId}
+        aria-hidden={!isExpanded}
+        inert={!isExpanded}
+        layout="position"
+        layoutDependency={isExpanded}
+        transition={transition}
+        className="relative"
+        style={{ height: isExpanded ? 'auto' : 0 }}>
+        <motion.div layout="position" layoutDependency={isExpanded} transition={transition}>
+          <div
+            className="max-h-40 overflow-y-auto transition-[opacity,transform]"
+            style={{
+              opacity: isExpanded ? 1 : 0,
+              transform: isExpanded ? 'translateY(0px)' : 'translateY(4px)',
+              transitionDuration: `${transition.duration}s`,
+              transitionTimingFunction: QUEUE_CSS_EASE
+            }}>
+            <ReorderableList
+              items={items}
+              visibleItems={visibleItems}
+              getId={(item) => item.id}
+              onReorder={onReorder}
+              direction="vertical"
+              gap={4}
+              dragHandle
+              renderItem={(item, _index, { dragging, dragHandleProps }) => (
+                <QueuedFollowupRow
+                  item={item}
+                  dragging={dragging}
+                  dragHandleProps={dragHandleProps}
+                  onSteer={onSteer}
+                  onEdit={onEdit}
+                  onRemove={onRemove}
+                  isSteerDisabled={isSteerDisabled}
+                  steerDisabledReason={steerDisabledReason}
+                />
+              )}
             />
-          )}
-        />
-      </div>
-      {items.length > QUEUE_VISIBLE_LIMIT ? (
-        <div className="mt-1 flex justify-center">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-6 text-muted-foreground"
-            aria-expanded={expanded}
-            aria-controls={listId}
-            onClick={() => setExpanded((value) => !value)}>
-            {expanded
-              ? t('chat.input.followup_queue.collapse')
-              : t('chat.input.followup_queue.expand_more', { count: hiddenCount })}
-          </Button>
-        </div>
-      ) : null}
-    </div>
+            {items.length > QUEUE_VISIBLE_LIMIT ? (
+              <div className="mt-1 flex justify-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-muted-foreground"
+                  aria-expanded={listExpanded}
+                  aria-controls={listId}
+                  onClick={() => setListExpanded((value) => !value)}>
+                  {listExpanded
+                    ? t('chat.input.followup_queue.collapse')
+                    : t('chat.input.followup_queue.expand_more', { count: hiddenCount })}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   )
 }

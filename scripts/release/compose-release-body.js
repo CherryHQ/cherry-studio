@@ -1,12 +1,8 @@
 const fs = require('node:fs')
 
-const { EDITIONS, getReleaseDownloadGroups } = require('./edition')
+const { GLOBAL_EDITION, getReleaseDownloadGroups } = require('./edition')
 const { readBuilderReleaseNotes } = require('./hotfix-release-notes')
 
-const LANGUAGES = [
-  { end: '<!--LANG:zh-CN-->', label: 'English', start: '<!--LANG:en-->' },
-  { end: '<!--LANG:END-->', label: '简体中文', start: '<!--LANG:zh-CN-->' }
-]
 const PLATFORMS = [
   { id: 'windows', label: 'Windows' },
   { id: 'mac', label: 'macOS' },
@@ -15,32 +11,22 @@ const PLATFORMS = [
 
 function createDownloadTable({ productName, repository, tag }) {
   const version = tag.startsWith('v') ? tag.slice(1) : tag
-  const lines = [
-    `## Downloads / 下载 (${tag})`,
-    '',
-    '| Platform | Architecture | Global | China Edition |',
-    '| --- | --- | --- | --- |'
-  ]
+  const lines = [`## Downloads (${tag})`, '', '| Platform | Architecture | Download |', '| --- | --- | --- |']
 
   for (const platform of PLATFORMS) {
-    const editionGroups = EDITIONS.map((edition) =>
-      getReleaseDownloadGroups({ edition, platform: platform.id, productName, version })
-    )
-    if (platform.id === 'mac') editionGroups.forEach((groups) => groups.reverse())
+    const groups = getReleaseDownloadGroups({ edition: GLOBAL_EDITION, platform: platform.id, productName, version })
+    if (platform.id === 'mac') groups.reverse()
 
-    for (let index = 0; index < editionGroups[0].length; index += 1) {
-      const architecture = editionGroups[0][index].architecture
+    for (const { architecture, artifacts } of groups) {
       const architectureLabel =
-        platform.id === 'mac' ? (architecture === 'arm64' ? 'Apple M Series' : 'Intel') : architecture
-      const downloads = editionGroups.map((groups) =>
-        groups[index].artifacts
-          .map(({ fileName, label }) => {
-            const url = `https://github.com/${repository}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`
-            return `[${label}](${url})`
-          })
-          .join(' · ')
-      )
-      lines.push(`| ${platform.label} | ${architectureLabel} | ${downloads[0]} | ${downloads[1]} |`)
+        platform.id === 'mac' ? (architecture === 'arm64' ? 'Apple silicon (arm64)' : 'Intel (x64)') : architecture
+      const downloads = artifacts
+        .map(({ fileName, label }) => {
+          const url = `https://github.com/${repository}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`
+          return `[${label}](${url})`
+        })
+        .join(' · ')
+      lines.push(`| ${platform.label} | ${architectureLabel} | ${downloads} |`)
     }
   }
 
@@ -48,12 +34,12 @@ function createDownloadTable({ productName, repository, tag }) {
 }
 
 function createReleaseNotes(curatedNotes) {
-  const sections = LANGUAGES.map(({ end, label, start }) => {
-    const content = curatedNotes.slice(curatedNotes.indexOf(start) + start.length, curatedNotes.indexOf(end)).trim()
-    return `<details>\n<summary>${label}</summary>\n\n${content}\n\n</details>`
-  })
+  const start = '<!--LANG:en-->'
+  const content = curatedNotes
+    .slice(curatedNotes.indexOf(start) + start.length, curatedNotes.indexOf('<!--LANG:zh-CN-->'))
+    .trim()
 
-  return `## Release Notes / 发布说明\n\n${sections.join('\n\n')}`
+  return `<details>\n<summary>Release Notes</summary>\n\n${content}\n\n</details>`
 }
 
 function composeReleaseBody({ builderContent, generatedNotes, productName, repository, tag }) {
@@ -64,7 +50,7 @@ function composeReleaseBody({ builderContent, generatedNotes, productName, repos
   const body = `${createDownloadTable({ productName, repository, tag })}\n\n${createReleaseNotes(curatedNotes)}`
   if (!changes) return `${body}\n`
 
-  return `${body}\n\n---\n\n${changes}\n`
+  return `${body}\n\n${changes}\n`
 }
 
 function main() {

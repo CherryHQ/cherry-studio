@@ -121,6 +121,10 @@ describe('KnowledgeBaseToolRuntime', () => {
       sources: ['popover', 'root-panel'],
       active: true
     })
+    expect(knowledgeLauncher.rootSearchItems).toEqual([
+      expect.objectContaining({ id: 'knowledge-base:kb-1', label: 'Knowledge One' }),
+      expect.objectContaining({ id: 'knowledge-base:kb-2', label: 'Knowledge Two' })
+    ])
     expect(knowledgeLauncher.suffix).toBeUndefined()
     expect(knowledgeLauncher.showInActiveControls).toBe(false)
 
@@ -173,16 +177,47 @@ describe('KnowledgeBaseToolRuntime', () => {
     ])
 
     panelList[0].action?.({
+      context: { symbol: ComposerPanelSymbol.KnowledgeBase },
       item: { ...panelList[0], isSelected: true }
     })
 
     expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0], mocks.knowledgeBases[1]])
 
     panelList[1].action?.({
+      context: { symbol: ComposerPanelSymbol.KnowledgeBase },
       item: { ...panelList[1], isSelected: false }
     })
 
     expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0]])
+  })
+
+  it('does not leave an input listener after selecting from root search', async () => {
+    const launcher = createLauncherApi()
+    const onSelect = vi.fn()
+    const subscribeInput = vi.fn(() => vi.fn())
+
+    render(
+      <KnowledgeBaseToolRuntime
+        launcher={launcher}
+        configuredKnowledgeBaseIds={['kb-1', 'kb-2']}
+        selectedBases={[]}
+        onSelect={onSelect}
+      />
+    )
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls.at(-1)![0]
+    const rootSearchItem = knowledgeLauncher.rootSearchItems?.[0]
+    if (!rootSearchItem) throw new Error('Expected a knowledge-base root search item')
+
+    rootSearchItem.action?.({
+      context: { symbol: ComposerPanelSymbol.Root, close: vi.fn() },
+      inputAdapter: { getText: () => '', subscribeInput },
+      item: rootSearchItem
+    } as never)
+
+    expect(onSelect).toHaveBeenCalledWith([mocks.knowledgeBases[0]])
+    expect(subscribeInput).not.toHaveBeenCalled()
   })
 
   it('shows available knowledge bases when the assistant has no configured knowledge-base ids', async () => {
