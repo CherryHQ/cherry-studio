@@ -28,6 +28,7 @@ vi.mock('@application', () => ({
       if (name === 'AiStreamManager') return { streamPrompt: mockStreamPrompt, abort: vi.fn() }
       if (name === 'ApiGatewayService')
         return {
+          isTranslationCredential: () => false,
           isInternalAgentRequest: vi.fn(() => mockGetAgentSessionId() !== undefined),
           resolveAgentSessionUsage: vi.fn(() => undefined),
           getAgentSessionId: mockGetAgentSessionId

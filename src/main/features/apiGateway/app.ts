@@ -4,6 +4,7 @@ import { node } from '@elysia/node'
 import { Elysia } from 'elysia'
 import { v4 as uuidv4 } from 'uuid'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiError } from '@shared/data/api/errors'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
@@ -43,7 +44,9 @@ const buildV1Routes = (mcpSessions: McpSessionStore) =>
     .use(bearer())
     .guard({
       as: 'scoped',
-      beforeHandle: ({ bearer, headers, set }) => {
+      beforeHandle: ({ bearer, headers, set, request, body }) => {
+        const model = body && typeof body === 'object' && 'model' in body ? body.model : undefined
+        if (application.get('ApiGatewayService').isTranslationRequest(request, model)) return undefined
         const failure = authorizeApiRequest(headers['x-api-key'], bearer)
         if (!failure) return undefined
         set.status = failure.status

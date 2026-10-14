@@ -144,7 +144,14 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const isInternalAgentRequest =
     config.requestHeaders !== undefined &&
     application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
-  const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalAgentRequest)
+  const isInternalTranslationRequest =
+    inputFormat === 'openai' &&
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isTranslationCredential(config.requestHeaders, modelString)
+  const resolvedAddress = await resolveGatewayModelAddress(
+    modelString,
+    isInternalTranslationRequest ? 'translate' : isInternalAgentRequest ? 'agent' : undefined
+  )
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
@@ -380,8 +387,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
             ...(isInternalAgentRequest
-              ? { modelUsageFeature: 'agent' as const, tokenUsageSource: 'agent' as const }
+              ? { tokenUsageSource: 'agent' as const, modelUsageFeature: 'agent' as const }
               : {}),
+            ...(isInternalTranslationRequest ? { modelUsageFeature: 'translate' as const } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
         } catch (error) {
@@ -464,7 +472,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       callOverrides,
       contextOwner: 'caller',
       ...(usageContext ? { usageContext } : {}),
-      ...(isInternalAgentRequest ? { modelUsageFeature: 'agent' as const, tokenUsageSource: 'agent' as const } : {}),
+      ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const, modelUsageFeature: 'agent' as const } : {}),
+      ...(isInternalTranslationRequest ? { modelUsageFeature: 'translate' as const } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 

@@ -752,3 +752,31 @@ describe('ApiGatewayService running-state publication', () => {
     expect(service.isActivated).toBe(true)
   })
 })
+
+describe('PDF translation credentials', () => {
+  it('authorizes only the leased model on chat completions and revokes it when disposed', () => {
+    const gateway = new ApiGatewayService()
+    const credential = gateway.createTranslationCredential('cherryai-subscription:translation-only')
+    const headers = new Headers({ authorization: `Bearer ${credential.apiKey}` })
+    const request = (path: string, method = 'POST') => new Request(`http://localhost${path}`, { method, headers })
+    expect(
+      gateway.isTranslationRequest(request('/v1/chat/completions'), 'cherryai-subscription:translation-only')
+    ).toBe(true)
+    expect(gateway.isTranslationRequest(request('/v1/chat/completions'), 'cherryai-subscription:other')).toBe(false)
+    expect(gateway.isTranslationRequest(request('/v1/models', 'GET'), 'cherryai-subscription:translation-only')).toBe(
+      false
+    )
+    expect(gateway.isTranslationRequest(request('/v1/messages'), 'cherryai-subscription:translation-only')).toBe(false)
+    expect(gateway.isInternalAgentRequest(headers)).toBe(false)
+    expect(
+      gateway.isTranslationCredential(
+        new Headers({ authorization: 'Bearer public-key' }),
+        'cherryai-subscription:translation-only'
+      )
+    ).toBe(false)
+    credential.dispose()
+    expect(
+      gateway.isTranslationRequest(request('/v1/chat/completions'), 'cherryai-subscription:translation-only')
+    ).toBe(false)
+  })
+})

@@ -80,7 +80,12 @@ export class DoctorAgentService extends BaseService {
   }
 
   async checkModel(modelId: UniqueModelId): Promise<{ latency: number }> {
-    return application.get('AiService').checkModel({ uniqueModelId: modelId, timeout: 15000 }, { chatOnly: true })
+    return application
+      .get('AiService')
+      .checkModel(
+        { uniqueModelId: modelId, timeout: 15000, modelUsageFeature: 'agent', requestOptions: { maxRetries: 0 } },
+        { chatOnly: true }
+      )
   }
 
   async start(input: {

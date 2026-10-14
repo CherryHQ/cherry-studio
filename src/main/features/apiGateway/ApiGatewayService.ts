@@ -30,6 +30,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private readonly internalUsageToken = uuidv4()
   /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
   private readonly internalRequestToken = uuidv4()
+  private readonly translationTokens = new Map<string, string>()
   /** Latest persistent desired state. Its only source is the `enabled` preference. */
   private desiredEnabled = false
   /**
@@ -375,6 +376,28 @@ export class ApiGatewayService extends BaseService implements Activatable {
       addresses: addressOptions.slice(0, 32).map(({ address }) => address),
       addressOptions
     }
+  }
+
+  /** Job-scoped bearer credential, restricted to one PDF translation model. */
+  createTranslationCredential(modelAddress: string): { apiKey: string; dispose: () => void } {
+    const apiKey = uuidv4()
+    this.translationTokens.set(apiKey, modelAddress)
+    return {
+      apiKey,
+      dispose: () => {
+        this.translationTokens.delete(apiKey)
+      }
+    }
+  }
+
+  isTranslationRequest(request: Request, modelAddress: unknown): boolean {
+    if (request.method !== 'POST' || new URL(request.url).pathname !== '/v1/chat/completions') return false
+    return this.isTranslationCredential(request.headers, modelAddress)
+  }
+
+  isTranslationCredential(headers: Headers, modelAddress: unknown): boolean {
+    const token = headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1]
+    return typeof modelAddress === 'string' && !!token && this.translationTokens.get(token) === modelAddress
   }
 
   getInternalRequestToken(): string {

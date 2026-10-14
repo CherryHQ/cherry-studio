@@ -45,18 +45,6 @@ export async function buildCherryCloudProviderConfig(
   modelUsageFeature: ModelUsageFeature
 ): Promise<ProviderConfig> {
   const service = application.get('CherryCloudService')
-  let availability
-  try {
-    availability = await service.syncEntitledModelsIfStale()
-  } catch (error) {
-    throw new ModelUnavailableError('Cherry Cloud model availability could not be refreshed', { cause: error })
-  }
-  if (
-    !availability.availableModelIdsByFeature[modelUsageFeature].includes(uniqueModelId) ||
-    availability.quotaExhaustedModelIds.includes(uniqueModelId)
-  ) {
-    throw new ModelUnavailableError(`Cherry Cloud model is unavailable for ${modelUsageFeature}`)
-  }
   const apiOrigin = new URL(service.getApiOrigin()).origin
   const requestPath =
     endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
@@ -74,6 +62,19 @@ export async function buildCherryCloudProviderConfig(
       const url = new URL(request.url)
       if (url.origin !== apiOrigin || url.pathname !== requestPath) {
         throw new Error('Cherry Cloud requests must stay on the configured Cherry Cloud API origin')
+      }
+
+      let availability
+      try {
+        availability = await service.syncEntitledModelsIfStale()
+      } catch (error) {
+        throw new ModelUnavailableError('Cherry Cloud model availability could not be refreshed', { cause: error })
+      }
+      if (
+        !availability.availableModelIdsByFeature[modelUsageFeature].includes(uniqueModelId) ||
+        availability.quotaExhaustedModelIds.includes(uniqueModelId)
+      ) {
+        throw new ModelUnavailableError(`Cherry Cloud model is unavailable for ${modelUsageFeature}`)
       }
 
       return service.authenticatedFetch(`${url.pathname}${url.search}`, {

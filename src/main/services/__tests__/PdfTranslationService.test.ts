@@ -71,7 +71,8 @@ const managedPath = (id: string) => path.join(TEST_ROOT, 'files', `${id}.pdf`)
 const binaryManager = { getToolSnapshots: vi.fn() }
 const apiGateway = {
   acquireLease: vi.fn(),
-  ensureValidApiKey: vi.fn(),
+  createTranslationCredential: vi.fn(),
+  disposeTranslationCredential: vi.fn(),
   getCurrentConfig: vi.fn(),
   releaseLease: vi.fn()
 }
@@ -146,7 +147,10 @@ describe('PdfTranslationService', () => {
       }
     })
     apiGateway.acquireLease.mockResolvedValue(undefined)
-    apiGateway.ensureValidApiKey.mockResolvedValue('cs-sk-test')
+    apiGateway.createTranslationCredential.mockReturnValue({
+      apiKey: 'cs-sk-test',
+      dispose: apiGateway.disposeTranslationCredential
+    })
     apiGateway.getCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
 
     mocks.spawn.mockImplementation((_command: string, args: string[]) => {
@@ -191,6 +195,7 @@ describe('PdfTranslationService', () => {
     expect(binaryManager.getToolSnapshots).toHaveBeenCalledTimes(1)
     expect(apiGateway.acquireLease).toHaveBeenCalledTimes(1)
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
+    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
     expect(mocks.spawn).toHaveBeenCalledWith(
       MANAGED_BINARY,
       expect.arrayContaining([
@@ -616,6 +621,7 @@ describe('PdfTranslationService', () => {
 
     await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
+    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-scanned-pdf'))).toBe(false)
   })
 
@@ -645,6 +651,7 @@ describe('PdfTranslationService', () => {
     expect(child!.kill).toHaveBeenCalledTimes(1)
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-cancel'))).toBe(false)
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
+    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
     // Cancellation is expected — it must not be logged as a failure.
     expect(mockMainLoggerService.error).not.toHaveBeenCalledWith(
       'PDF translation failed',
@@ -721,6 +728,7 @@ describe('PdfTranslationService', () => {
 
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-stop'))).toBe(false)
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
+    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
   })
 
   it('takes and releases exactly one gateway lease per concurrent job', async () => {
@@ -758,6 +766,7 @@ describe('PdfTranslationService', () => {
     children.get('job-first')!.emit('close', 0, null)
     await first
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
+    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
 
     children.get('job-second')!.stdout.write(finishEvent())
     children.get('job-second')!.emit('close', 0, null)
@@ -799,6 +808,7 @@ describe('PdfTranslationService', () => {
       expect.objectContaining({ jobId: 'job-nonzero-exit' })
     )
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
+    expect(apiGateway.disposeTranslationCredential).toHaveBeenCalledTimes(1)
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-nonzero-exit'))).toBe(false)
   })
 
