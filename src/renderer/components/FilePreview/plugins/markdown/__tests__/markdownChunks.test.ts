@@ -619,6 +619,38 @@ describe('splitMarkdownChunks', () => {
     expect(chunks[0].text.startsWith('[label]: https://example.com/right\n\n')).toBe(true)
   })
 
+  it('keeps paragraph state for the shallow indent of the line a definition shape follows', () => {
+    // One to three columns of indent is still a paragraph, so the definition-shaped line under it
+    // is paragraph text. Reading the indent as code reset that state and hoisted the wrong
+    // destination above the real definition, which the first definition wins.
+    const content = [
+      ' paragraph',
+      '[label]: https://example.com/wrong',
+      '',
+      '[label]: https://example.com/right',
+      '',
+      'see [label]'
+    ].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.at(-1)?.text.startsWith('[label]: https://example.com/right\n\n')).toBe(true)
+    expect(chunks.filter((chunk) => chunk.text.includes('/wrong'))).toHaveLength(1)
+  })
+
+  it('still resets paragraph state behind a line indented into code', () => {
+    // Four columns is indented code, a block of its own — the definition below it opens freely.
+    const content = ['\tparagraph', '[label]: https://example.com/target', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com/target')
+    }
+  })
+
   it('still carries a definition-shaped line a quote marker opens behind a paragraph', () => {
     // The quote interrupts the paragraph, and the definition inside it is the document's own.
     const content = ['paragraph', '> [label]: https://example.com/target', '', 'see [label]'].join('\n')

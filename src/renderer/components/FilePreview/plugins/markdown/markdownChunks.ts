@@ -1467,8 +1467,10 @@ export function splitMarkdownChunks(
     // Indented code is a block of its own rather than a paragraph, so a line below it is free to
     // open a definition — the same as it is after a heading. The code itself is no paragraph: the
     // walk reaches here only for lines the containers above did not take, so `    code` lands on
-    // the branch that sets paragraph state, and without this test it would hold one open.
-    const indentedCode = !blank && INDENTED_LINE.test(line) && !startsBlock(line)
+    // the branch that sets paragraph state, and without this test it would hold one open. Four
+    // columns are the parser's own floor: one to three leave the line a paragraph, and the state
+    // a definition-shaped line below it has to meet is that paragraph's.
+    const indentedCode = !blank && leadingColumns(line) >= 4 && !startsBlock(line)
     const indentedContinuation =
       definitionContainer && insideContainer !== null
         ? // A marker-only line behind the definition's container (`>` on its own) is blank the way
