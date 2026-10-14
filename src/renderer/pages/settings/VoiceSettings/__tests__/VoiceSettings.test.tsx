@@ -1134,7 +1134,7 @@ describe('VoiceSettings', () => {
           </Activity>
         )
       if (action !== 'unmount') {
-        expect(await screen.findByRole('button', { name: 'Preview voice' })).toBeEnabled()
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled())
         expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       }
     }
