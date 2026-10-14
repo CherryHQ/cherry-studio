@@ -1381,7 +1381,7 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(getQueueDock()).toBeFalsy()
-    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).toHaveBeenCalledWith(expect.objectContaining({ message: 'send failed' }))
     expect(mocks.surfaceProps?.text).toBe('hello')
     expect(vi.mocked(cacheService.set)).toHaveBeenLastCalledWith(
       'agent.composer_draft.session_session-1',
@@ -4591,7 +4591,11 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed'))
+    await waitFor(() =>
+      expect(toast.errorFromException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Agent workspace reference is not a file: /workspace/docs/notes.md' })
+      )
+    )
     expect(mocks.sendMessage).not.toHaveBeenCalled()
   })
 
@@ -5071,7 +5075,7 @@ describe('AgentComposer', () => {
       86400000
     )
     expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {

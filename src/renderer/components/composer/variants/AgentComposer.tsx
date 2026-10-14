@@ -1527,7 +1527,7 @@ const AgentComposerInner = ({
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
-        toast.error(t('chat.input.send_failed'))
+        toast.errorFromException(error)
         return false
       }
     },
@@ -1540,8 +1540,7 @@ const AgentComposerInner = ({
       launchOptions,
       saveHistory,
       sessionId,
-      sessionTopicId,
-      t
+      sessionTopicId
     ]
   )
 

@@ -1520,13 +1520,13 @@ const ChatComposerInner = ({
         return true
       } catch (error) {
         logger.warn('send failed', { error })
-        toast.error(t('chat.input.send_failed'))
+        toast.errorFromException(error)
         return false
       } finally {
         setIsSending(false)
       }
     },
-    [onSend, saveHistory, t]
+    [onSend, saveHistory]
   )
 
   const clearCurrentDraft = useCallback(() => {

@@ -182,6 +182,26 @@ describe('useProviderConnectionCheck', () => {
     expect(result.current.singleModelResult?.kind).toBe('failed')
   })
 
+  it('retries a failed probe without producing a second completion notification', async () => {
+    checkModelWithMultipleKeysMock.mockImplementationOnce(async (_model, credentials: ModelCheckCredential[]) =>
+      credentials.map((credential) => failedResult(credential, 'fetch failed'))
+    )
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+    await act(async () => {
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+    const retry = vi.mocked(toast.errorFromException).mock.calls[0][1]?.actions?.retry
+    expect(retry).toBeDefined()
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
+      credentials.map((credential) => successfulResult(credential))
+    )
+    await act(async () => {
+      expect(await retry!()).toBe(true)
+    })
+    expect(result.current.singleModelResult?.kind).toBe('ok')
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('leaves save failure feedback to the API key owner before stopping', async () => {
     prepareCredentialsMock.mockRejectedValueOnce(new ModelCheckCredentialsSaveError(new Error('save failed')))
     const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
@@ -194,6 +214,7 @@ describe('useProviderConnectionCheck', () => {
     expect(outcome).toBe('failed')
     expect(checkModelWithMultipleKeysMock).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
   it('retains results while the shared credential version is unchanged', async () => {
     checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>

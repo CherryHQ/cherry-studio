@@ -12,7 +12,6 @@ import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
 import type { McpResource } from '@shared/types/mcp'
 
@@ -188,7 +187,11 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
           serverId: resource.serverId,
           uri: resource.uri
         })
-        toast.error(formatErrorMessageWithPrefix(error, t('chat.input.mcp_resources.read_failed')))
+        toast.errorFromException(error, {
+          category: 'mcp',
+          mcpServer: { id: resource.serverId, name: resource.serverName },
+          isCurrent: () => isMountedRef.current && generation === selectionGenerationRef.current
+        })
       } finally {
         if (requestIdRef.current === requestId) requestIdRef.current = undefined
       }
