@@ -474,10 +474,7 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
   }
 }
 
-/**
- * Outlasts ProseMirror's own 20ms `scheduleComposeEnd` delay so the committed text is readable.
- * If that delay changes upstream, this has to follow it.
- */
+// Outlast ProseMirror's 20ms composition-end flush; keep this above its upstream delay.
 const COMPOSITION_END_SETTLE_MS = 40
 const COMPOSITION_END_NOTIFY_TIMER_KEY = 'composerCompositionEndNotify'
 
@@ -558,7 +555,7 @@ export default function ComposerSurfaceRuntime({
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
-  const { setTimeoutTimer } = useTimer()
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
@@ -1463,11 +1460,8 @@ export default function ComposerSurfaceRuntime({
     [activeSuggestionSources, placeholder, renderComposerToken]
   )
 
-  // IME commits reach the document while ProseMirror still flags the view as composing, so every
-  // notification subscribers see during composition is marked `isComposing`. ProseMirror clears the
-  // flag on `compositionend` and runs `endComposition` on a timer, which dispatches nothing when the
-  // flush finds no pending changes — so subscribers never get a final, non-composing notification and
-  // a Chinese query never reaches the quick panel.
+  // ProseMirror may finish composition without another document update, leaving the quick panel
+  // unaware that it can read the committed query.
   const scheduleCompositionEndInputNotify = useCallback(() => {
     setTimeoutTimer(
       COMPOSITION_END_NOTIFY_TIMER_KEY,
@@ -1801,6 +1795,9 @@ export default function ComposerSurfaceRuntime({
       pendingLocalTextEchoRef.current = nextText
       onTextChange(nextText)
       const inputEventCause = isSyncingTokensRef.current ? 'state-sync' : 'user-input'
+      if (!updatedEditor.view.composing && inputEventCause === 'user-input') {
+        clearTimeoutTimer(COMPOSITION_END_NOTIFY_TIMER_KEY)
+      }
       inputListenersRef.current.forEach((listener) =>
         listener({ isComposing: updatedEditor.view.composing, cause: inputEventCause })
       )

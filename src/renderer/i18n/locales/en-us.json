@@ -5659,6 +5659,7 @@
   "settings.tool.websearch.model_tools_preferred.label": "Prefer model-native web tools",
   "settings.tool.websearch.provider_description.bocha": "Chinese AI search API with real-time web and structured results.",
   "settings.tool.websearch.provider_description.crawl4ai": "Self-hosted Crawl4AI browser crawler for Markdown page content.",
+  "settings.tool.websearch.provider_description.duckduckgo": "Free built-in keyword search powered by DuckDuckGo's HTML endpoint. No API key required.",
   "settings.tool.websearch.provider_description.exa": "Neural search API for AI apps, tuned for semantic web retrieval.",
   "settings.tool.websearch.provider_description.exa_mcp": "Expose Exa search to agents through the Exa MCP Server.",
   "settings.tool.websearch.provider_description.fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
