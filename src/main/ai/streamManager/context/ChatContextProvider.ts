@@ -14,6 +14,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { AiStreamRequest } from '../../types'
 import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
 import type { StreamListener } from '../types'
+import type { StoreGeneratedFile } from '../withGeneratedFiles'
 import type { MainDispatchRequest } from './dispatch'
 
 type PreparedLiveExecutionChange =
@@ -37,6 +38,7 @@ export interface PreparedDispatch {
     seedFromEmpty?: boolean
     rootSpan?: Span
     abortController?: AbortController
+    storeGeneratedFile?: StoreGeneratedFile
   }>
   listeners: StreamListener[]
   /**

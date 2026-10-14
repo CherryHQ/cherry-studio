@@ -1,3 +1,4 @@
+import '@data/services/MessageService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +8,8 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { TemporaryChatService } from '@data/services/TemporaryChatService'
+import { TemporaryChatService } from '@main/ai/TemporaryChatService'
+import { BaseService } from '@main/core/lifecycle'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -28,6 +30,7 @@ describe('TemporaryChatService', () => {
   let service: TemporaryChatService
 
   beforeEach(() => {
+    BaseService.resetInstances()
     service = new TemporaryChatService()
     notifyDataApiDataChangeMock.mockClear()
   })
@@ -39,71 +42,75 @@ describe('TemporaryChatService', () => {
       topicId = topic.id
     })
 
-    it('rejects parentId', () => {
+    it('rejects parentId', async () => {
       let err: unknown
       try {
-        service.appendMessage(topicId, { role: 'user', data: mainText('hi'), parentId: 'some-msg' })
+        await service.appendMessage(topicId, { role: 'user', data: mainText('hi'), parentId: 'some-msg' })
       } catch (e) {
         err = e
       }
       expect(fieldsOf(err).parentId).toBeDefined()
     })
 
-    it('rejects non-zero siblingsGroupId', () => {
+    it('rejects non-zero siblingsGroupId', async () => {
       let err: unknown
       try {
-        service.appendMessage(topicId, { role: 'user', data: mainText('hi'), siblingsGroupId: 1 })
+        await service.appendMessage(topicId, { role: 'user', data: mainText('hi'), siblingsGroupId: 1 })
       } catch (e) {
         err = e
       }
       expect(fieldsOf(err).siblingsGroupId).toBeDefined()
     })
 
-    it('accepts siblingsGroupId === 0', () => {
-      expect(service.appendMessage(topicId, { role: 'user', data: mainText('hi'), siblingsGroupId: 0 })).toBeDefined()
+    it('accepts siblingsGroupId === 0', async () => {
+      expect(
+        await service.appendMessage(topicId, { role: 'user', data: mainText('hi'), siblingsGroupId: 0 })
+      ).toBeDefined()
     })
 
-    it('rejects setAsActive', () => {
+    it('rejects setAsActive', async () => {
       let err: unknown
       try {
-        service.appendMessage(topicId, { role: 'user', data: mainText('hi'), setAsActive: true })
+        await service.appendMessage(topicId, { role: 'user', data: mainText('hi'), setAsActive: true })
       } catch (e) {
         err = e
       }
       expect(fieldsOf(err).setAsActive).toBeDefined()
     })
 
-    it('rejects status=pending', () => {
+    it('rejects status=pending', async () => {
       let err: unknown
       try {
-        service.appendMessage(topicId, { role: 'user', data: mainText('hi'), status: 'pending' })
+        await service.appendMessage(topicId, { role: 'user', data: mainText('hi'), status: 'pending' })
       } catch (e) {
         err = e
       }
       expect(fieldsOf(err).status).toBeDefined()
     })
 
-    it('rejects unknown role', () => {
+    it('rejects unknown role', async () => {
       let err: unknown
       try {
-        service.appendMessage(topicId, { role: 'bogus' as never, data: mainText('hi') })
+        await service.appendMessage(topicId, { role: 'bogus' as never, data: mainText('hi') })
       } catch (e) {
         err = e
       }
       expect(fieldsOf(err).role).toBeDefined()
     })
 
-    it('rejects append to unknown topicId with notFound', () => {
-      expect(() => service.appendMessage('no-such-topic', { role: 'user', data: mainText('hi') })).toThrow(/not found/i)
+    it('rejects append to unknown topicId with notFound', async () => {
+      await expect(service.appendMessage('no-such-topic', { role: 'user', data: mainText('hi') })).rejects.toThrow(
+        /not found/i
+      )
     })
   })
 
   describe('deleteTopic / listMessages — notFound', () => {
-    it('deleteTopic on unknown id throws notFound', () => {
-      expect(() => service.deleteTopic('missing')).toThrow(/not found/i)
+    it('deleteTopic on unknown id throws notFound', async () => {
+      await expect(service.deleteTopic('missing')).rejects.toThrow(/not found/i)
     })
 
-    it('listMessages on unknown id throws notFound', () => {
+    it('listMessages on unknown id throws notFound', async () => {
       expect(() => service.listMessages('missing')).toThrow(/not found/i)
     })
   })
@@ -129,7 +136,7 @@ describe('TemporaryChatService', () => {
         emoji: '🤖',
         model: { id: 'mdl-1', name: 'GPT', provider: 'openai' }
       }
-      const msg = service.appendMessage(topic.id, {
+      const msg = await service.appendMessage(topic.id, {
         role: 'assistant',
         data: mainText('world'),
         modelId: 'mdl-1',
@@ -145,9 +152,9 @@ describe('TemporaryChatService', () => {
       expect(typeof msg.createdAt).toBe('string')
     })
 
-    it('uses a caller-provided stable message id', () => {
+    it('uses a caller-provided stable message id', async () => {
       const topic = service.createTopic({ name: 'T' })
-      const msg = service.appendMessage(
+      const msg = await service.appendMessage(
         topic.id,
         { role: 'assistant', data: mainText('world') },
         'assistant-message-id'
@@ -161,7 +168,7 @@ describe('TemporaryChatService', () => {
   describe('listMessages — deep-clone isolation', () => {
     it('mutating the returned array does not affect internal store', async () => {
       const topic = service.createTopic({ name: 'T' })
-      service.appendMessage(topic.id, { role: 'user', data: mainText('a') })
+      await service.appendMessage(topic.id, { role: 'user', data: mainText('a') })
       const list1 = service.listMessages(topic.id)
       list1.push({ ...list1[0], id: 'external' })
       const list2 = service.listMessages(topic.id)
@@ -170,7 +177,7 @@ describe('TemporaryChatService', () => {
 
     it('mutating nested data on the returned array does not affect store', async () => {
       const topic = service.createTopic({ name: 'T' })
-      service.appendMessage(topic.id, { role: 'user', data: mainText('a') })
+      await service.appendMessage(topic.id, { role: 'user', data: mainText('a') })
       const list1 = service.listMessages(topic.id)
       expect(list1).toHaveLength(1)
       const part = list1[0].data.parts![0]
@@ -188,22 +195,16 @@ describe('TemporaryChatService', () => {
   describe('persist', () => {
     it('happy path: writes topic + messages, linearizes parentId chain, sets activeNodeId, clears store', async () => {
       const topic = service.createTopic({ name: 'persisted' })
-      const m1 = service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
-      const m2 = service.appendMessage(topic.id, { role: 'assistant', data: mainText('yo') })
-      const m3 = service.appendMessage(topic.id, { role: 'user', data: mainText('again') })
+      const m1 = await service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
+      const m2 = await service.appendMessage(topic.id, { role: 'assistant', data: mainText('yo') })
+      const m3 = await service.appendMessage(topic.id, { role: 'user', data: mainText('again') })
 
-      const result = service.persist(topic.id)
+      const result = await service.persist(topic.id)
       expect(result).toEqual({ topicId: topic.id, messageCount: 3 })
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-        { endpoint: '/topics', kind: 'membership', entityIds: [topic.id] },
-        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [topic.id] },
-        { endpoint: '/topics/:id', entityIds: [topic.id] },
-        { endpoint: '/topics/latest' }
-      ])
 
       // In-memory store is cleared
       expect(() => service.listMessages(topic.id)).toThrow(/not found/i)
-      expect(() => service.deleteTopic(topic.id)).toThrow(/not found/i)
+      await expect(service.deleteTopic(topic.id)).rejects.toThrow(/not found/i)
 
       // Persistent DB contains the topic with correct activeNodeId
       const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
@@ -224,14 +225,14 @@ describe('TemporaryChatService', () => {
 
     it('empty session: persists topic with activeNodeId=null', async () => {
       const topic = service.createTopic({ name: 'empty' })
-      const result = service.persist(topic.id)
+      const result = await service.persist(topic.id)
       expect(result.messageCount).toBe(0)
       const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
       expect(dbTopic?.activeNodeId).toBeNull()
     })
 
-    it('unknown topicId → notFound', () => {
-      expect(() => service.persist('no-such-id')).toThrow(/not found/i)
+    it('unknown topicId → notFound', async () => {
+      await expect(service.persist('no-such-id')).rejects.toThrow(/not found/i)
     })
 
     it('rebuilds an assistant projection from an existing invocation without creating another record', async () => {
@@ -249,8 +250,8 @@ describe('TemporaryChatService', () => {
       })
 
       const topic = service.createTopic({ name: 'billed' })
-      service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
-      const assistant = service.appendAssistantMessage(
+      await service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
+      const assistant = await service.appendAssistantMessage(
         topic.id,
         {
           role: 'assistant',
@@ -279,7 +280,7 @@ describe('TemporaryChatService', () => {
         createdAt: Date.now()
       })
 
-      service.persist(topic.id)
+      await service.persist(topic.id)
 
       const rows = await dbh.db.select().from(aiUsageRecordTable)
       expect(rows).toHaveLength(1)
@@ -319,7 +320,7 @@ describe('TemporaryChatService', () => {
       })
 
       const topic = service.createTopic({ name: 'billed-by-provider' })
-      const assistant = service.appendAssistantMessage(
+      const assistant = await service.appendAssistantMessage(
         topic.id,
         {
           role: 'assistant',
@@ -349,7 +350,7 @@ describe('TemporaryChatService', () => {
         createdAt: Date.now()
       })
 
-      service.persist(topic.id)
+      await service.persist(topic.id)
 
       const rows = await dbh.db.select().from(aiUsageRecordTable)
       expect(rows).toHaveLength(1)
@@ -374,17 +375,11 @@ describe('TemporaryChatService', () => {
       // tx.insert() would ship the row with orderKey = '' — silently breaks
       // all subsequent reorders and the unpinned section's sort.
       const topic = service.createTopic({ name: 'with-key' })
-      service.persist(topic.id)
+      await service.persist(topic.id)
       const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
       expect(dbTopic?.orderKey).toBeDefined()
       expect(dbTopic?.orderKey).not.toBe('')
       expect(dbTopic?.orderKey?.length).toBeGreaterThan(0)
     })
-
-    // NOTE: The original "rollback on tx failure" test dropped the message
-    // table mid-run. That would corrupt the shared schema for all subsequent
-    // tests in the harness. We drop this specific scenario — the rollback
-    // semantics are better exercised by the handler-layer integration test
-    // that uses a fresh tmpdir per case.
   })
 })

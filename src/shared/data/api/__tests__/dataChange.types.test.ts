@@ -56,7 +56,6 @@ describe('endpoint classification', () => {
       | '/skills'
       | '/tags'
       | '/tags/entities/:entityType/:entityId'
-      | '/temporary/topics/:topicId/messages'
       | '/topics'
       | '/topics/:topicId/messages'
       | '/topics/:topicId/path'

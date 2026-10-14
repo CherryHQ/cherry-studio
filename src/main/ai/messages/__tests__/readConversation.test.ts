@@ -2,14 +2,16 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { messageService } from '@data/services/MessageService'
-import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { topicService } from '@data/services/TopicService'
+import { TemporaryChatService } from '@main/ai/TemporaryChatService'
+import { BaseService } from '@main/core/lifecycle'
 
 import { findPersistedToolOutput } from '../persistedToolOutput'
 import { readAllConversationMessages, readConversation } from '../readConversation'
@@ -51,19 +53,26 @@ function topicOf(result: ReturnType<typeof readConversation>): TopicReadResult {
 
 describe('readConversation', () => {
   const dbh = setupTestDatabase()
+  let temporaryChatService: TemporaryChatService
   let temporaryTopicId: string | undefined
 
   beforeEach(() => {
+    BaseService.resetInstances()
+    temporaryChatService = new TemporaryChatService()
+    const container = application.getContainer()
+    vi.mocked(application.get).mockImplementation((name: string) =>
+      name === 'TemporaryChatService' ? temporaryChatService : container.get(name)
+    )
     temporaryTopicId = undefined
     fileManager.read = vi.fn()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     if (temporaryTopicId && temporaryChatService.hasTopic(temporaryTopicId))
-      temporaryChatService.deleteTopic(temporaryTopicId)
+      await temporaryChatService.deleteTopic(temporaryTopicId)
   })
 
-  it('reads the current topic branch, pagination and an exact message from SQLite', () => {
+  it('reads the current topic branch, pagination and an exact message from SQLite', async () => {
     const topic = topicService.create({ name: 'readable topic' })
     const first = messageService.create(topic.id, {
       role: 'user',
@@ -115,7 +124,7 @@ describe('readConversation', () => {
     expect(afterAppend.messages.some((item) => item.message.id === later.id)).toBe(true)
   })
 
-  it('reads Agent Session messages and temporary messages by the same session_id contract', () => {
+  it('reads Agent Session messages and temporary messages by the same session_id contract', async () => {
     dbh.db
       .insert(agentTable)
       .values({
@@ -148,7 +157,7 @@ describe('readConversation', () => {
 
     const temporary = temporaryChatService.createTopic({ name: 'temporary' })
     temporaryTopicId = temporary.id
-    const temporaryMessage = temporaryChatService.appendMessage(temporary.id, {
+    const temporaryMessage = await temporaryChatService.appendMessage(temporary.id, {
       role: 'user',
       data: { parts: [{ type: 'text', text: 'temporary message' }] },
       status: 'success'
@@ -159,7 +168,7 @@ describe('readConversation', () => {
       messages: [{ id: temporaryMessage.id, role: 'user' }]
     })
 
-    temporaryChatService.persist(temporary.id)
+    await temporaryChatService.persist(temporary.id)
     const persistedTemporaryResult = topicOf(readConversation({ sessionId: temporary.id }))
     expect(persistedTemporaryResult.messages.some((item) => item.message.id === temporaryMessage.id)).toBe(true)
 
@@ -168,13 +177,13 @@ describe('readConversation', () => {
     )
 
     const deletedTemporary = temporaryChatService.createTopic({ name: 'deleted temporary' })
-    temporaryChatService.deleteTopic(deletedTemporary.id)
+    await temporaryChatService.deleteTopic(deletedTemporary.id)
     expect(() => readConversation({ sessionId: deletedTemporary.id })).toThrowError(
       expect.objectContaining({ code: 'NOT_FOUND' })
     )
   })
 
-  it('rejects missing, ambiguous and source-incompatible reads', () => {
+  it('rejects missing, ambiguous and source-incompatible reads', async () => {
     expect(() => readConversation({ sessionId: 'missing-session' })).toThrowError(
       expect.objectContaining({ code: 'NOT_FOUND' })
     )
@@ -308,7 +317,7 @@ describe('readConversation', () => {
       output: 'legacy full output'
     })
   })
-  it('reads a real current branch through pagination and restores chronological order', () => {
+  it('reads a real current branch through pagination and restores chronological order', async () => {
     const topic = topicService.create({ name: `handoff pagination ${Date.now()}` })
     const messageIds: string[] = []
     let parentId: string | undefined
@@ -329,7 +338,7 @@ describe('readConversation', () => {
     expect(material.messages.map((message) => message.id)).toEqual(messageIds)
   })
 
-  it('reads Agent and temporary sources with their own query contracts without creating either source', () => {
+  it('reads Agent and temporary sources with their own query contracts without creating either source', async () => {
     const agentId = `handoff-agent-${Date.now()}`
     dbh.db
       .insert(agentTable)
@@ -351,7 +360,7 @@ describe('readConversation', () => {
 
     const temporary = temporaryChatService.createTopic({ name: 'Handoff temporary source' })
     temporaryTopicId = temporary.id
-    const temporaryMessage = temporaryChatService.appendMessage(temporary.id, {
+    const temporaryMessage = await temporaryChatService.appendMessage(temporary.id, {
       role: 'user',
       data: { parts: [{ type: 'text', text: 'Temporary source' }] },
       status: 'success'

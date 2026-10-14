@@ -1,3 +1,4 @@
+import type { UIMessage } from 'ai'
 /**
  * Behavior tests for the observer half of PersistenceListener.
  *
@@ -6,10 +7,9 @@
  * skip-when-no-finalMessage, persistence-failure signalling) is identical regardless of
  * which backend is wired in.
  */
-
-import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -20,11 +20,11 @@ const appendAssistantMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
 const messageFinalizeMock = vi.fn()
 
-vi.mock('@main/data/services/TemporaryChatService', () => ({
-  temporaryChatService: {
+beforeEach(() => {
+  Object.assign(application.get('TemporaryChatService'), {
     appendAssistantMessage: appendAssistantMessageMock
-  }
-}))
+  })
+})
 
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {

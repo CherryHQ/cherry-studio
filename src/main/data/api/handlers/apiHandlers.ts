@@ -40,7 +40,6 @@ import { providerHandlers } from './providers'
 import { searchHandlers } from './search'
 import { skillHandlers } from './skills'
 import { tagHandlers } from './tags'
-import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
 
@@ -62,7 +61,6 @@ export const apiHandlers: ApiImplementation = {
   ...topicHandlers,
   ...messageHandlers,
   ...fileHandlers,
-  ...temporaryChatHandlers,
   ...modelHandlers,
   ...paintingHandlers,
   ...providerHandlers,

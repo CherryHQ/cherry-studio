@@ -102,6 +102,10 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.temporary_chat.create': async (input) => application.get('TemporaryChatService').createTopic(input),
+  'ai.temporary_chat.delete': ({ topicId }) => application.get('TemporaryChatService').deleteTopic(topicId),
+  'ai.temporary_chat.persist': ({ topicId }) => application.get('TemporaryChatService').persist(topicId),
+
   'ai.claude_code.binary.status': async () => application.get('ClaudeCodeBinaryService').getStatus(),
   'ai.claude_code.binary.ensure': async () => application.get('ClaudeCodeBinaryService').ensure(),
   'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),

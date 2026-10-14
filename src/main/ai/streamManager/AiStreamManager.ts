@@ -12,6 +12,7 @@ import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
   BaseService,
+  DependsOn,
   type Disposable,
   Emitter,
   type Event,
@@ -72,7 +73,7 @@ import type {
   StreamListener,
   TransportTimings
 } from './types'
-import { withGeneratedFiles } from './withGeneratedFiles'
+import { withGeneratedFiles, type StoreGeneratedFile } from './withGeneratedFiles'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
@@ -119,6 +120,7 @@ export interface SendModelSpec {
   seedFromEmpty?: boolean
   rootSpan?: Span
   abortController?: AbortController
+  storeGeneratedFile?: StoreGeneratedFile
 }
 
 type LiveExecutionChange =
@@ -148,6 +150,7 @@ export interface SendResult {
 }
 
 export interface StartRuntimeTurnInput {
+  storeGeneratedFile?: StoreGeneratedFile
   topicId: string
   modelId: UniqueModelId
   request: ManagedAiStreamRequest
@@ -321,6 +324,7 @@ const nullStreamListener: StreamListener = {
  * the cycle at init time is unresolvable.
  */
 @Injectable('AiStreamManager')
+@DependsOn(['TemporaryChatService'])
 @ServicePhase(Phase.WhenReady)
 export class AiStreamManager extends BaseService {
   private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
@@ -400,6 +404,7 @@ export class AiStreamManager extends BaseService {
     // in-memory registry is empty, so every still-`pending` assistant row is stale.
     this.reconcileStalePendingMessages()
     this.markReconciled()
+    this.registerDisposable(application.get('TemporaryChatService').onPersisted((topicId) => this.evictStream(topicId)))
     logger.info('AiStreamManager initialized')
   }
 
@@ -776,7 +781,8 @@ export class AiStreamManager extends BaseService {
         model.runtimeTimingSeed,
         model.seedFromEmpty,
         model.rootSpan,
-        model.abortController
+        model.abortController,
+        model.storeGeneratedFile
       )
       // Replacing an existing key preserves its insertion position; appending a new key places the
       // new model last. Both cases keep the visual multi-model order stable.
@@ -836,7 +842,15 @@ export class AiStreamManager extends BaseService {
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
 
-    for (const { modelId, request, runtimeTimingSeed, seedFromEmpty, rootSpan, abortController } of input.models) {
+    for (const {
+      modelId,
+      request,
+      runtimeTimingSeed,
+      seedFromEmpty,
+      rootSpan,
+      abortController,
+      storeGeneratedFile
+    } of input.models) {
       const exec = this.createAndLaunchExecution(
         input.topicId,
         modelId,
@@ -845,7 +859,8 @@ export class AiStreamManager extends BaseService {
         runtimeTimingSeed,
         seedFromEmpty,
         rootSpan,
-        abortController
+        abortController,
+        storeGeneratedFile
       )
       executions.set(modelId, exec)
     }
@@ -961,7 +976,8 @@ export class AiStreamManager extends BaseService {
           request: input.request,
           runtimeTimingSeed: input.runtimeTimingSeed,
           rootSpan: input.rootSpan,
-          abortController: input.abortController
+          abortController: input.abortController,
+          storeGeneratedFile: input.storeGeneratedFile
         }
       ],
       listeners: [...carriedListeners, ...input.listeners],
@@ -1918,12 +1934,14 @@ export class AiStreamManager extends BaseService {
     runtimeTimingSeed?: MessageRuntimeTiming,
     seedFromEmpty?: boolean,
     rootSpan?: Span,
-    abortController?: AbortController
+    abortController?: AbortController,
+    storeGeneratedFile?: StoreGeneratedFile
   ): StreamExecution {
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {
       modelId,
+      storeGeneratedFile,
       attemptId: ++this.nextExecutionAttemptSequence,
       anchorMessageId: request.messageId,
       seedFromEmpty,
@@ -2001,7 +2019,7 @@ export class AiStreamManager extends BaseService {
     const { stream: idleStream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
     // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
     // thinkingMs measurement (see withReasoningTimingMetadata).
-    const stream = withGeneratedFiles(withReasoningTimingMetadata(idleStream))
+    const stream = withGeneratedFiles(withReasoningTimingMetadata(idleStream), exec.storeGeneratedFile)
 
     // `continue-conversation` chunks reference toolCallIds on the anchor
     // assistant message; without seeding, `readUIMessageStream`'s

@@ -291,6 +291,7 @@ export function buildPathRegistry() {
     'feature.file_processing.temp': path.join(appTemp, 'file-processing'),
     'feature.mcp.resource_results.temp': path.join(appTemp, 'mcp-resource-results'),
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
+    'feature.temporary_chat.temp': path.join(appUserDataRuntime, 'temporary-chat'),
     'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
     'feature.files.intakes': path.join(appUserDataData, 'FileIntakes'),
     'feature.voice.temp': path.join(

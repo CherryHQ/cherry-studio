@@ -23,6 +23,7 @@ import {
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
+import { TemporaryChatService } from '@main/ai/TemporaryChatService'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
@@ -106,6 +107,7 @@ import { WebviewService } from '@main/services/webview'
  */
 export const services = {
   ComputerUseService,
+  TemporaryChatService,
   RemoteAccessService,
   MainNetworkDevtoolsService,
   WindowManager,

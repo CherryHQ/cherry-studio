@@ -88,7 +88,7 @@ The virtual root is created **eagerly**, in the same transaction that creates th
 so every topic has its root from birth. Writers:
 
 - Runtime: `MessageService.createRootMessageTx(tx, topicId)` — called by `TopicService.create`,
-  `TopicService.duplicate`, and `TemporaryChatService` persist.
+  `TopicService.duplicate`, and `TopicService.importConversation` (temporary-chat promotion).
 - Migration: `ChatMigrator` builds the same row inline per topic and reparents former v1
   physical roots onto it, so migrated topics match freshly created ones.
 

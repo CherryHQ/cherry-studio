@@ -1,18 +1,17 @@
+import { v7 as uuidv7 } from 'uuid'
 /**
  * In-memory temporary topics — append-only, no tree, no siblings.
  * Routing is state-based (`hasTopic`): after `persist()`, the topic
  * moves out of the in-memory map and the persistent provider takes over.
  */
 
-import { v7 as uuidv7 } from 'uuid'
-
+import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
 import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
 import { applyMaxMessagesWindow } from '@main/ai/messages/maxMessagesWindow'
-import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
@@ -34,7 +33,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
   canHandle(topicId: string): boolean {
     // Defensive — agent-session prefix is never temporary regardless of `hasTopic`.
     if (isAgentSessionTopic(topicId)) return false
-    return temporaryChatService.hasTopic(topicId)
+    return application.get('TemporaryChatService').hasTopic(topicId)
   }
 
   async prepareDispatch(
@@ -61,7 +60,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       throw new Error('Cannot submit to a temporary chat while a turn is in flight')
     }
 
-    const topic = temporaryChatService.getTopic(req.topicId)
+    const topic = application.get('TemporaryChatService').getTopic(req.topicId)
     if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)
 
     const selectedModelId = req.mentionedModelIds?.[0]
@@ -91,14 +90,14 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       : undefined
 
     // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
-    temporaryChatService.appendMessage(req.topicId, {
+    await application.get('TemporaryChatService').appendMessage(req.topicId, {
       role: 'user',
       data: { parts: req.userMessageParts },
       status: 'success',
       modelId: model.id
     })
 
-    const prior = temporaryChatService.listMessages(req.topicId)
+    const prior = application.get('TemporaryChatService').listMessages(req.topicId)
     const fullHistory: CherryUIMessage[] = prior.map((m) => ({
       id: m.id,
       role: toContentRole(m.role),
@@ -115,6 +114,15 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const messageId = uuidv7()
     const listeners: StreamListener[] = [
       subscriber,
+      {
+        id: 'temporary-turn:' + messageId,
+        terminalPhase: 'cleanup',
+        onChunk: () => {},
+        onDone: () => application.get('TemporaryChatService').finishTurn(req.topicId),
+        onPaused: () => application.get('TemporaryChatService').finishTurn(req.topicId),
+        onError: () => application.get('TemporaryChatService').finishTurn(req.topicId),
+        isAlive: () => true
+      },
       new PersistenceListener({
         topicId: req.topicId,
         modelId: model.id,
@@ -137,9 +145,17 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
     }
 
+    const abortController = application.get('TemporaryChatService').beginTurn(req.topicId)
     return {
       topicId: req.topicId,
-      models: [{ modelId: model.id, request: streamRequest }],
+      models: [
+        {
+          modelId: model.id,
+          request: streamRequest,
+          abortController,
+          storeGeneratedFile: (part) => application.get('TemporaryChatService').storeGeneratedFile(req.topicId, part)
+        }
+      ],
       listeners
     }
   }

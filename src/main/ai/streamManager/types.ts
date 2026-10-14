@@ -11,6 +11,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import type { PersistedAssistant } from './persistence/PersistenceBackend'
+import type { StoreGeneratedFile } from './withGeneratedFiles'
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -110,6 +111,7 @@ export interface StreamListener {
  * running independently against the same listeners and siblingsGroupId.
  */
 export interface StreamExecution {
+  storeGeneratedFile?: StoreGeneratedFile
   /** Format: "providerId::modelId". */
   modelId: UniqueModelId
   /** Unique identity for this run, even when modelId and anchorMessageId are reused by retry. Monotonic within the Main-process lifetime; newer attempts have larger values. */

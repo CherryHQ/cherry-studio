@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 const appendAssistantMessageMock = vi.fn()
 
-vi.mock('@main/data/services/TemporaryChatService', () => ({
-  temporaryChatService: { appendAssistantMessage: appendAssistantMessageMock }
-}))
+beforeEach(() => {
+  Object.assign(application.get('TemporaryChatService'), { appendAssistantMessage: appendAssistantMessageMock })
+})
 
 const { TemporaryChatBackend } = await import('../TemporaryChatBackend')
 

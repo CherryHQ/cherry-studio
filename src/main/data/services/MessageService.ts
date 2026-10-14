@@ -1091,6 +1091,28 @@ export class MessageService {
     return message
   }
 
+  importMessageTx(tx: DbOrTx, message: Message, topicId: string, parentId: string): void {
+    tx.insert(messageTable)
+      .values({
+        id: message.id,
+        topicId,
+        parentId,
+        role: message.role,
+        data: message.data,
+        status: message.status,
+        siblingsGroupId: 0,
+        modelId: message.modelId,
+        messageSnapshot: message.messageSnapshot,
+        stats: message.stats,
+        createdAt: Date.parse(message.createdAt),
+        updatedAt: Date.parse(message.updatedAt)
+      })
+      .run()
+    replaceChatMessageFileRefsTx(tx, message.id, message.data)
+    if (message.role === 'assistant')
+      aiUsageRecordService.refreshMessageProjectionTx(tx, { kind: 'chat', id: message.id })
+  }
+
   /**
    * Insert the topic's virtual root — the single `parentId = null` row: content-less
    * (`role = 'root'`, empty `data`), never rendered. The dedicated `role = 'root'`

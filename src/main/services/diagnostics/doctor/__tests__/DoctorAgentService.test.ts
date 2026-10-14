@@ -37,7 +37,9 @@ vi.mock('@main/ai/agents/ensureBuiltinAgent', () => ({ loadBuiltinAgentEnsureInp
 vi.mock('@main/ai/streamManager', () => ({ startAgentSessionRun: mocks.startRun }))
 vi.mock('@main/i18n', () => ({ getAppLanguage: () => 'en-US' }))
 vi.mock('@main/ai/messages/readConversation', () => ({ readConversation: mocks.readConversation }))
-vi.mock('@data/services/TemporaryChatService', () => ({ temporaryChatService: { hasTopic: () => false } }))
+beforeEach(() => {
+  Object.assign(application.get('TemporaryChatService'), { hasTopic: () => false })
+})
 vi.mock('@main/ai/agents/doctor/doctorWrites', async (importOriginal) => ({
   ...(await importOriginal<typeof DoctorWrites>()),
   applyWrite: mocks.applyWrite,

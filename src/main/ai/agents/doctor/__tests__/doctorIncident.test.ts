@@ -4,6 +4,8 @@ import path from 'node:path'
 
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+
 const logsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'doctor-incident-logs-'))
 afterAll(() => fs.rmSync(logsDir, { recursive: true, force: true }))
 
@@ -20,9 +22,9 @@ vi.mock('@application', async () => {
   const base = (await import('@test-mocks/main/application')).mockApplicationFactory()
   return { ...base, application: { ...base.application, getPath: () => logsDir } }
 })
-vi.mock('@data/services/TemporaryChatService', () => ({
-  temporaryChatService: { hasTopic: () => false, listMessages: () => [] }
-}))
+beforeEach(() => {
+  Object.assign(application.get('TemporaryChatService'), { hasTopic: () => false, listMessages: () => [] })
+})
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     listSessionMessages: (sessionId: string) => ({

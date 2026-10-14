@@ -1,9 +1,9 @@
 import * as z from 'zod'
 
+import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { messageService } from '@data/services/MessageService'
-import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { topicService } from '@data/services/TopicService'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -70,7 +70,7 @@ function identifyConversation(sessionId: string): ConversationCandidate {
   const candidates = [
     tryCandidate(() => topicService.getById(sessionId), 'topic', sessionId),
     tryCandidate(() => agentSessionService.getById(sessionId), 'agent', sessionId),
-    temporaryChatService.hasTopic(sessionId) ? { source: 'temporary' as const, sessionId } : null
+    application.get('TemporaryChatService').hasTopic(sessionId) ? { source: 'temporary' as const, sessionId } : null
   ].filter((candidate): candidate is ConversationCandidate => candidate !== null)
 
   if (candidates.length === 0) {
@@ -194,7 +194,7 @@ function readConversationPage(candidate: ConversationCandidate, input: ReadConve
   return {
     source: 'temporary' as const,
     sessionId: candidate.sessionId,
-    messages: temporaryChatService.listMessages(candidate.sessionId)
+    messages: application.get('TemporaryChatService').listMessages(candidate.sessionId)
   }
 }
 
