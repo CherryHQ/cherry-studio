@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { type Api, type Message, type Model, StringEnum, Type } from '@earendil-works/pi-ai'
-import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
+import { StringEnum, Type } from '@earendil-works/pi-ai'
 import {
   type AgentBeforeSettleEvent,
   type AgentBeforeSettleEventResult,
@@ -46,12 +45,9 @@ import {
   unadmittedRounds,
   withCounts
 } from './goalState'
+import { type ConversationModelMessage, toModelMessages } from './modelMessages'
+import type { ToolApprovalEvent } from './ports'
 import { isSubagentSession } from './subagent'
-
-export interface GoalApprovalEvent {
-  kind: 'pending' | 'granted' | 'denied' | 'unavailable'
-  toolCallId: string
-}
 
 /** Host-side completion check; without it the extension falls back to runtime checks (spec §9). */
 export interface GoalVerifier {
@@ -62,8 +58,7 @@ export interface GoalVerifier {
      * The session's whole context after compaction (not cut), after the session model's replay rules,
      * shaped like the compaction summarizer's input.
      */
-    messages: Message[]
-    model: Model<Api>
+    messages: ConversationModelMessage[]
     signal: AbortSignal
   }): Promise<{ verdict: 'met' | 'not_met' | 'impossible'; reason: string }>
 }
@@ -79,7 +74,7 @@ export interface GoalPort {
   }
   modelSupportsTools(): boolean
   /** Wired by the host integration (its ToolApprovalRegistry): approval events of this session's tool calls. */
-  onApproval?(listener: (event: GoalApprovalEvent) => void): () => void
+  onApproval?(listener: (event: ToolApprovalEvent) => void): () => void
   /** L6: background subagents of this session still running; foreground subagents finish inside their call. */
   hasRunningSubagents?(): boolean
   verify?: GoalVerifier
@@ -450,9 +445,9 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     })
 
     /** The conversation as the session model would get it, for the host's verifier (spec §9). */
-    const conversation = (ctx: ExtensionContext): Message[] => {
+    const conversation = (ctx: ExtensionContext): ConversationModelMessage[] => {
       const { messages } = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId())
-      return transformMessages(convertToLlm(withoutUnadmittedRounds(messages, ctx)), ctx.model!)
+      return toModelMessages(convertToLlm(withoutUnadmittedRounds(messages, ctx)), ctx.model!)
     }
     const finishGoal = (): AgentToolResult<unknown> => {
       stop('complete')
@@ -473,7 +468,6 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
             objective: goal.objective,
             claim,
             messages: conversation(ctx),
-            model: ctx.model!,
             signal: signal ?? new AbortController().signal
           })
         } catch (error) {
