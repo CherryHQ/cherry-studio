@@ -92,12 +92,13 @@ function findHtmlDocumentEnd(
 }
 
 // Lexical scan for `<details` / `</details` boundaries: comments, raw-text element bodies
-// (script/style/textarea/title) and ordinary tags are consumed whole, so a literal `</details>`
-// inside them — script source, a comment, a quoted attribute — can never close a disclosure.
-// A generic tag consumes quoted attribute values verbatim (`title="> </details>"` is legal HTML
-// whose `>` must not end the tag); the raw-text openers do the same for their attribute lists.
+// (script/style/textarea/title/iframe/xmp) and ordinary tags are consumed whole, so a literal
+// `</details>` inside them — script source, a comment, a quoted attribute — can never close a
+// disclosure. Disclosure tags consume their full attribute list (`title="</details>"` is legal
+// HTML whose decoy must not reach the depth counter); a generic tag does the same so a quoted
+// `>` never ends the tag early.
 const CONTAINER_LEXICAL_TOKEN_REGEX =
-  /<!--[\s\S]*?-->|<(script|style|textarea|title)\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\s\S]*?<\/\1\s*>|<\/?details(?=[\s>/])|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>/gi
+  /<!--[\s\S]*?-->|<(script|style|textarea|title|iframe|xmp)\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\s\S]*?<\/\1\s*>|<\/?details(?=[\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>/gi
 
 interface ContainerScanResult {
   closed: boolean
@@ -120,17 +121,13 @@ function scanContainerBoundaries(value: string, depth: { count: number }): Conta
     if (token[1] === '/') {
       depth.count -= 1
       if (depth.count === 0) {
-        const tagEnd = value.indexOf('>', match.index)
-        return {
-          closed: true,
-          closeStart: match.index,
-          closeEnd: tagEnd === -1 ? match.index + match[0].length : tagEnd + 1
-        }
+        // The token consumed the complete end tag, quotes included.
+        return { closed: true, closeStart: match.index, closeEnd: match.index + match[0].length }
       }
     } else {
-      // A self-closing `<details … />` opens and closes itself.
-      const tagEnd = value.indexOf('>', match.index)
-      if (tagEnd === -1 || value[tagEnd - 1] !== '/') depth.count += 1
+      // A self-closing `<details … />` opens and closes itself. The token carries the complete
+      // tag, so this reads the real tag end instead of a `>` inside a quoted attribute.
+      if (!match[0].endsWith('/>')) depth.count += 1
     }
   }
   return { closed: false }
@@ -317,19 +314,18 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         const openBoundary = items[index]
         const closeNode = paired.closeNode
         if (openBoundary) children.push(openBoundary)
-        processRange(items, index + 1, paired.index)
-        // The close can share its html node with other content: a complete document BEFORE the
-        // boundary must keep the artifact path, and the NEXT disclosure's opening after it
-        // (`</details>` and `<details>` merge into one html block when no blank line separates
-        // them) must re-enter pairing as a fresh open — only the boundary itself is exempt.
-        const needsHeadSplit = paired.closeStart > 0
-        const needsTailSplit = paired.closeEnd < closeNode.value.length
-        if (needsHeadSplit) {
-          processRange([sliceHtmlNode(closeNode, 0, paired.closeStart)], 0, 1)
-        }
+        // Content preceding the boundary inside its own node joins the SAME body range, so a
+        // multi-node document ending right before the close still assembles one artifact —
+        // processing it as a separate single-node range would lose the document start.
+        const body: RootContent[] = items.slice(index + 1, paired.index)
+        if (paired.closeStart > 0) body.push(sliceHtmlNode(closeNode, 0, paired.closeStart))
+        processRange(body, 0, body.length)
         children.push(sliceHtmlNode(closeNode, paired.closeStart, paired.closeEnd))
-        if (needsTailSplit) {
-          // Leading whitespace on the remainder is insignificant inside the html block.
+        if (paired.closeEnd < closeNode.value.length) {
+          // The NEXT disclosure's opening after the boundary (`</details>` and `<details>`
+          // merge into one html block when no blank line separates them) re-enters pairing as
+          // a fresh open. Leading whitespace on the remainder is insignificant inside the
+          // html block.
           const rest = closeNode.value.slice(paired.closeEnd)
           const remainderStart = paired.closeEnd + (rest.length - rest.trimStart().length)
           items.splice(paired.index, 1, sliceHtmlNode(closeNode, remainderStart, closeNode.value.length))

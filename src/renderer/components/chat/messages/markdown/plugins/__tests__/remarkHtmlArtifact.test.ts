@@ -248,6 +248,56 @@ After`
     expect(codeValues.some((value) => value.includes('title="> </details>"'))).toBe(true)
   })
 
+  it('keeps the artifact path for a multi-node document whose end shares the close node', () => {
+    const source = `<details>
+<summary>Spec</summary>
+
+<html><body>
+<style>p { color: red; }</style>
+
+<p>Doc</p>
+</body></html></details>`
+    const tree = parse(source)
+
+    // Blank lines split the document across several html nodes and CommonMark merges the
+    // document tail with `</details>` into one node: the body range plus the closing-node
+    // prefix must still assemble ONE document artifact, not leak raw HTML.
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: expect.stringContaining('<style>p { color: red; }</style>')
+    })
+    expect((tree.children[1] as { value: string }).value).toContain('</html>')
+    expect((tree.children[2] as { value: string }).value).toBe('</details>')
+  })
+
+  it('consumes quoted attributes on disclosure opens and raw-text bodies when pairing', () => {
+    const source = `<details>
+<summary>Outer</summary>
+
+<html><body><details title="</details>">Inner</details><xmp>not a boundary: </details></xmp><style>p { color: red; }</style></body></html>
+
+<iframe>fallback </details> text</iframe>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // A `</details>` inside the open tag's quoted attribute or an iframe/xmp raw-text body is
+    // legal HTML that must never close the outer disclosure; the embedded document keeps the
+    // artifact path and only the real boundary stays raw.
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: expect.stringContaining('<style>p { color: red; }</style>')
+    })
+    expect((tree.children[2] as { value: string }).value).toContain('<iframe>')
+    expect((tree.children[3] as { value: string }).value).toBe('</details>')
+  })
+
   it('routes document content sharing the close node through the artifact path', () => {
     const source = `Before
 
