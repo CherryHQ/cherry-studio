@@ -849,6 +849,22 @@ function holdsLink(source: string): boolean {
 const MAX_HEADING_LABEL_CHARS = 64 * 1024
 
 /**
+ * A heading tag a raw HTML block renders — an element the parser hands the document whole, which
+ * the renderer numbers an id from the same way it numbers a Markdown heading's.
+ */
+const HTML_HEADING_TAG = /<h([1-6])(?:[ \t][^>]*)?>([\s\S]*?)<\/h\1\s*>/gi
+
+/** The text an HTML heading renders — its content with its own tags stripped and entities read. */
+function htmlHeadingText(content: string): string {
+  return content
+    .replace(/<[^>]*>/g, '')
+    .replace(
+      /&(#(?:\d{1,7}|x[\dA-Fa-f]{1,6})|[\dA-Za-z]{1,31});/g,
+      (entity, value: string) => decodeEntity(value) ?? entity
+    )
+}
+
+/**
  * The plain text a heading's inline source renders — the text the renderer numbers the heading's
  * id from. A link renders its label while its destination stays out of the text, an image with a
  * destination and a raw tag or comment render none at all, and an autolink renders its URL. What
@@ -1430,6 +1446,12 @@ export function splitMarkdownChunks(
     slugOrder.set(base, seen)
     lineHeadings[line] = { base, slug }
   }
+  // A raw HTML block's lines are the tags the renderer parses into elements, so a heading tag on
+  // one of them numbers the document's ids the same way an ATX heading does. The content past the
+  // container markers is what the parser reads.
+  const recordHtmlHeadings = (line: number, content: string): void => {
+    for (const match of content.matchAll(HTML_HEADING_TAG)) recordHeading(line, htmlHeadingText(match[2]))
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -1451,9 +1473,12 @@ export function splitMarkdownChunks(
       // else it carries — the block's remaining lines are its text. A line that only falls short of
       // an item's content column stays inside: the item's blocks reach their own content column,
       // and a shallower line is the item's content rather than a block that leaves it.
-      const continues =
-        htmlBlockContainer === null || stripDefinitionContainer(line, containerParams(htmlBlockContainer)) !== null
-      if (continues && !blank) continue
+      const stripped =
+        htmlBlockContainer === null ? line : stripDefinitionContainer(line, containerParams(htmlBlockContainer))
+      if (stripped !== null && !blank) {
+        recordHtmlHeadings(i, stripped)
+        continue
+      }
       htmlBlankBlock = false
     }
     if (mathRun) {
@@ -1549,6 +1574,7 @@ export function splitMarkdownChunks(
       // The block lives in the container it was opened behind, so its lines have to keep that
       // container: the marker chain the opening line carried, and an item's content column.
       htmlBlockContainer = container?.[0] ?? null
+      recordHtmlHeadings(i, uncontained)
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
