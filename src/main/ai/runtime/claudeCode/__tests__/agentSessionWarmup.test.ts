@@ -4,6 +4,7 @@ import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { computeLanguageCost } from '@shared/utils/usagePricing'
 
 const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   buildSkillWhitelist: vi.fn(),
   findChannelBySessionId: vi.fn(),
   findMcpServerByIdOrName: vi.fn(),
+  getMcpInstructions: vi.fn(),
   preferenceGet: vi.fn(),
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
@@ -32,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
+  buildEnvironment: vi.fn(),
   platform: { isLinux: false }
 }))
 
@@ -94,13 +97,20 @@ vi.mock('@application', () => ({
       if (name === 'AgentSessionRuntimeService') {
         return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
       }
+      if (name === 'McpRuntimeService') {
+        return { getConnectedServerInstructions: mocks.getMcpInstructions }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
   }
 }))
 
 vi.mock('@main/i18n', () => ({
-  getAppLanguage: mocks.getAppLanguage
+  getAppLanguage: mocks.getAppLanguage,
+  t: (key: string) =>
+    key === 'agent.session.claude.linux_session_bus_unavailable'
+      ? 'Claude Code cannot start on Linux without a desktop session bus (DBUS_SESSION_BUS_ADDRESS is missing). Open Cherry Studio from your desktop session so the bus address is inherited, then try again.'
+      : key
 }))
 
 vi.mock('@main/services/proxy/proxyEnv', () => ({
@@ -118,6 +128,14 @@ vi.mock('../settingsBuilder', () => ({
   buildSkillWhitelist: mocks.buildSkillWhitelist,
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
+
+vi.mock('../environment', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../environment')>()
+  return {
+    ...actual,
+    buildEnvironment: mocks.buildEnvironment
+  }
+})
 
 vi.mock('@main/core/platform', () => ({
   get isLinux() {
@@ -813,6 +831,37 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
       ANTHROPIC_MODEL: 'custom:relay-model'
     })
+  })
+
+  it('estimates direct Claude Code usage at the scheduled peak without a request start event', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
+      settings: {
+        billing: {
+          defaultMultiplier: 0.5,
+          scheduleEnabled: true,
+          timeZone: 'UTC',
+          periods: [
+            { id: 'peak', name: '09:00–18:00', start: '09:00', end: '18:00', mode: 'multiplier', multiplier: 4 }
+          ]
+        }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      pricing: {
+        input: { perMillionTokens: 2, currency: 'USD' },
+        output: { perMillionTokens: 6, currency: 'USD' }
+      }
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    if (request?.usageCapture.owner !== 'agent-sdk') throw new Error('Expected direct SDK capture')
+    const snapshot = request.usageCapture.frozenModels[0].pricingSnapshot
+    expect(snapshot?.billing).toMatchObject({ reason: 'peak_fallback', multiplier: 4, periodId: 'peak' })
+    expect(snapshot?.billing?.pricedAt).toBeUndefined()
+    expect(computeLanguageCost({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, snapshot!)?.cost).toBe(32)
   })
 
   it('captures distinct same-provider models for direct-route usage attribution', async () => {
@@ -1748,6 +1797,14 @@ describe('deriveConnectionConfig', () => {
     })
     const mcpDefinitionChanged = await deriveSignature()
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
+    mocks.getMcpInstructions.mockReturnValueOnce({
+      serverId: 'mcp-1',
+      serverName: 'server',
+      text: 'Use search before reading.',
+      truncated: false
+    })
+    const instructionsArrived = await deriveSignature()
+    expect(instructionsArrived.rebuildSignature).not.toBe(mcpDefinitionChanged.rebuildSignature)
   })
 
   it('fingerprints knowledge-base bindings as a set', async () => {
@@ -1905,7 +1962,7 @@ describe('Linux session-bus preflight', () => {
   })
 
   it('fails fast with an actionable error when Linux has no session bus', async () => {
-    mocks.buildSessionSettings.mockResolvedValue({ env: { PATH: '/usr/bin' } })
+    mocks.buildEnvironment.mockResolvedValue({ PATH: '/usr/bin' })
 
     const error = await buildClaudeCodeQueryRequestForAgentSession('session-1').then(
       () => null,
@@ -1915,9 +1972,14 @@ describe('Linux session-bus preflight', () => {
     expect(error).toBeInstanceOf(Error)
     expect((error as Error).name).toBe('ClaudeCodeLinuxSessionBusUnavailableError')
     expect((error as Error).message).toContain('DBUS_SESSION_BUS_ADDRESS')
+    expect(mocks.buildSessionSettings).not.toHaveBeenCalled()
   })
 
   it('builds the request when Linux provides a session bus', async () => {
+    mocks.buildEnvironment.mockResolvedValue({
+      PATH: '/usr/bin',
+      DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus'
+    })
     mocks.buildSessionSettings.mockResolvedValue({
       env: { PATH: '/usr/bin', DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' }
     })
@@ -1928,9 +1990,10 @@ describe('Linux session-bus preflight', () => {
   })
 
   it('rejects a whitespace-only session bus on Linux', async () => {
-    mocks.buildSessionSettings.mockResolvedValue({ env: { PATH: '/usr/bin', DBUS_SESSION_BUS_ADDRESS: ' ' } })
+    mocks.buildEnvironment.mockResolvedValue({ PATH: '/usr/bin', DBUS_SESSION_BUS_ADDRESS: ' ' })
 
     await expect(buildClaudeCodeQueryRequestForAgentSession('session-1')).rejects.toThrow('DBUS_SESSION_BUS_ADDRESS')
+    expect(mocks.buildSessionSettings).not.toHaveBeenCalled()
   })
 
   it('ignores a missing session bus outside Linux', async () => {
@@ -1940,5 +2003,6 @@ describe('Linux session-bus preflight', () => {
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request).toBeDefined()
+    expect(mocks.buildEnvironment).not.toHaveBeenCalled()
   })
 })

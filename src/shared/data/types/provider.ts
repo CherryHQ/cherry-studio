@@ -23,6 +23,8 @@ import {
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
 
+import { ProviderBillingSchema } from './providerBilling'
+
 export type { ServerTool, ServerToolConfig }
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
@@ -155,6 +157,7 @@ const AnthropicCacheTtlSchema = z.enum(ANTHROPIC_CACHE_TTL_OPTIONS)
 export type AnthropicCacheTtl = z.infer<typeof AnthropicCacheTtlSchema>
 
 export const ProviderSettingsSchema = z.object({
+  billing: ProviderBillingSchema.optional(),
   streamOptions: z
     .object({
       includeUsage: z.boolean().optional()

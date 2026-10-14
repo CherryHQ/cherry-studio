@@ -19,6 +19,7 @@ import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
+import { grokReasoningReplayFeature } from './grokReasoningReplay'
 import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
@@ -41,6 +42,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   deepseekDsmlParserFeature,
   // DeepSeek-only: tag replayed reasoning so the Responses serializer passes it back (#18150).
   deepseekResponsesReasoningReplayFeature,
+  grokReasoningReplayFeature,
   reasoningExtractionFeature,
   simulateStreamingFeature,
   // Must precede anthropic-cache: middleware array order = transformParams

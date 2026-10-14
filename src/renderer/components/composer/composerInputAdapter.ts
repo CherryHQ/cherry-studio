@@ -16,10 +16,19 @@ import {
 } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@renderer/components/QuickPanel'
 
+import { serializeComposerDocument } from './composerDraft'
 import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableInlineContent, getNextPromptVariableIndex } from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
+
+export function appendComposerText(editor: Editor, text: string): boolean {
+  if (editor.isDestroyed) return false
+  if (!text) return true
+  const current = serializeComposerDocument(editor).text
+  const appended = current ? `\n${text}` : text
+  return editor.commands.insertContentAt(editor.state.doc.content.size - 1, createComposerPlainTextContent(appended))
+}
 
 export function updateComposerToken(editor: Editor, token: ComposerDraftToken) {
   const transaction = editor.state.tr

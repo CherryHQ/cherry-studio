@@ -151,6 +151,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     throw asClientError(error)
   }
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
+  const agentSessionId = config.requestHeaders
+    ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
+    : undefined
+  // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
+  const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
   const usageContext = config.requestHeaders
@@ -158,8 +163,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     : undefined
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
-    providerId,
-    modelId,
+    ...logContext,
     inputFormat,
     outputFormat
   })
@@ -174,8 +178,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
     if (normalization.status === 'conflict') {
       logger.warn('Rejected conflicting tool history in internal Agent request', {
-        providerId,
-        modelId,
+        ...logContext,
         toolUseId: normalization.toolUseId,
         reason: normalization.reason,
         firstLocation: normalization.firstLocation,
@@ -187,8 +190,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     if (normalization.status === 'repaired') {
       effectiveParams = { ...anthropicParams, messages: normalization.messages }
       logger.warn('Repaired duplicate tool history in internal Agent request', {
-        providerId,
-        modelId,
+        ...logContext,
         duplicateToolUseCount: normalization.duplicateToolUseCount,
         duplicateToolResultCount: normalization.duplicateToolResultCount
       })
@@ -225,9 +227,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     config.fastMode === true
   )
 
-  const agentSessionId = config.requestHeaders
-    ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
-    : undefined
   const providerOptions = agentSessionId
     ? applyAgentPromptCacheKey(provider, model, fastModeProviderOptions, agentSessionId)
     : fastModeProviderOptions
@@ -248,7 +247,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   const streamId = `gateway-${uuidv4()}`
   if (messages !== convertedMessages) {
-    logger.info('Appended assistant-tail continuation for internal agent request', { providerId, modelId, streamId })
+    logger.info('Appended assistant-tail continuation for internal agent request', { ...logContext, streamId })
   }
   const aiStreamManager = application.get('AiStreamManager')
 
@@ -302,7 +301,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         const complete = () => {
           commit()
           safeClose()
-          logger.info('Message completed', { providerId, modelId, streaming: true })
+          logger.info('Message completed', { ...logContext, streaming: true })
           onComplete?.()
         }
         const write = (data: string) => {
@@ -339,8 +338,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
               .join('') + formatter.formatDone(),
           formatPaused: () => {
             logger.warn('Gateway stream paused before completion; emitting truncation error frame', {
-              providerId,
-              modelId,
+              ...logContext,
               streamId
             })
             return buildStreamErrorFrame(outputFormat, streamInterruptedError())
@@ -363,6 +361,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             return sseListener.onPaused(result)
           },
           onError: (result) => {
+            logger.warn('Gateway stream failed', { ...logContext, streamId, error: result.error })
             if (startupState !== 'pending') return sseListener.onError(result)
 
             fail(result.error)
@@ -450,8 +449,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         return
       }
       logger.warn('Gateway non-streaming request paused before completion (idle timeout)', {
-        providerId,
-        modelId,
+        ...logContext,
         streamId
       })
       rejectDone(streamInterruptedError())
@@ -478,14 +476,14 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     // Flush the adapter's finalize step, then emit the accumulated response.
     adapter.finalizeEvents()
 
-    logger.info('Message completed', { providerId, modelId, streaming: false })
+    logger.info('Message completed', { ...logContext, streaming: false })
     onComplete?.()
 
     return new Response(JSON.stringify(adapter.buildNonStreamingResponse()), {
       headers: { 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    logger.error('Error in message processing', error as Error, { providerId, modelId })
+    logger.error('Error in message processing', error as Error, logContext)
     onError?.(error)
     throw error
   } finally {
