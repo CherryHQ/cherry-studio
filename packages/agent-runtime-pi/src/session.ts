@@ -17,7 +17,7 @@ import { type ToolOutputOffload, toolOutputOffloadExtension } from './offload'
 import type { ModelCallPort, ModelCallSideChannel } from './ports'
 import { rebuildSessionEntries } from './rebuild'
 import { recallExtension } from './recall'
-import { subagentExtension, type SubagentPort } from './subagent'
+import { createSubagentExtension, type SubagentPort } from './subagent'
 import type { TranscriptEntry } from './transcript'
 import { type AgentRuntimeEvent, TranscriptTap } from './transcriptTap'
 
@@ -89,6 +89,13 @@ export interface AgentRuntimeSession {
   session: AgentSession
   /** Aborts the running turn, lets extensions shut down, then disposes the session. */
   dispose(): Promise<void>
+  /**
+   * `session.prompt`, for every user turn the host starts: while it prepares, Pi reports the session
+   * idle, and a background result must not start a run then.
+   */
+  prompt(text: string, options?: Parameters<AgentSession['prompt']>[1]): Promise<void>
+  /** `session.compact`, for every manual compaction the host starts, for the same reason. */
+  compact(customInstructions?: string): Promise<void>
 }
 
 /** The port and host summarizer of `options`, each request first passing `before` (a subagent's request cap). */
@@ -171,6 +178,23 @@ export async function createAgentRuntimeSession<TRequestOptions>(
   )
 
   const { compaction } = options
+  const subagents =
+    options.subagents &&
+    createSubagentExtension({
+      port: options.subagents,
+      // A fork keeps `subagent` so its tools match the parent's; a fresh subagent has none.
+      createSession: ({ fork, beforeModelRequest, ...overrides }) =>
+        createAgentRuntimeSession({
+          ...options,
+          ...overrides,
+          ...gateModelRequests(options, beforeModelRequest),
+          subagents: fork ? options.subagents : undefined
+        }),
+      parentTranscript: () => tap.entries(),
+      parentModelKey: key,
+      emit: (event) => options.onEvent?.(event),
+      offload: options.offload
+    })
   const extensionFactories = [
     // Before every host `tool_call` handler (an approval prompt), so none sees a call Pi will not run.
     invalidToolCallGuard,
@@ -178,24 +202,7 @@ export async function createAgentRuntimeSession<TRequestOptions>(
       ? [compactionSummaryExtension(compaction.summarize, (message) => (tap.summaryFailure = message))]
       : []),
     ...(options.recall ? [recallExtension(() => tap.entries())] : []),
-    ...(options.subagents
-      ? [
-          subagentExtension({
-            port: options.subagents,
-            // A fork keeps `subagent` so its tools match the parent's; a fresh subagent has none.
-            createSession: ({ fork, beforeModelRequest, ...overrides }) =>
-              createAgentRuntimeSession({
-                ...options,
-                ...overrides,
-                ...gateModelRequests(options, beforeModelRequest),
-                subagents: fork ? options.subagents : undefined
-              }),
-            parentTranscript: () => tap.entries(),
-            parentModelKey: key,
-            emit: (event) => options.onEvent?.(event)
-          })
-        ]
-      : []),
+    ...(subagents ? [subagents.extension] : []),
     ...(options.extensionFactories ?? []),
     // Last, so it sees what other `tool_result` handlers made of the output.
     ...(options.offload ? [toolOutputOffloadExtension(options.offload)] : [])
@@ -249,8 +256,18 @@ export async function createAgentRuntimeSession<TRequestOptions>(
   tap.setBaseTools(baseTools)
   if (rebuilt.activatedTools.length > 0) session.setActiveToolsByName([...baseTools, ...rebuilt.activatedTools])
 
+  const held = async (run: () => Promise<unknown>) => {
+    const release = subagents?.controls.hold() ?? (() => {})
+    try {
+      await run()
+    } finally {
+      release()
+    }
+  }
   return {
     session,
+    prompt: (text, promptOptions) => held(() => session.prompt(text, promptOptions)),
+    compact: (customInstructions) => held(() => session.compact(customInstructions)),
     async dispose() {
       try {
         await session.abort()
