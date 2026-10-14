@@ -72,6 +72,7 @@ import {
   buildEnvironment,
   DEFAULT_REQUESTED_OUTPUT_TOKENS,
   MIN_AUTO_COMPACT_WINDOW,
+  isTrustedClaudeSlot,
   resolveAutoCompactWindow,
   resolveClaudeExecutablePath,
   resolveClaudeOutputCap,
@@ -367,7 +368,9 @@ export async function buildClaudeCodeSessionSettings(
       output: requestedOutputTokens,
       provider,
       model: primaryModel,
-      trusted: options?.primaryTrusted,
+      trusted:
+        options?.primaryTrusted ??
+        (hasGatewaySlots ? isTrustedClaudeSlot(provider, primaryModel, 'gateway-forwarding') : undefined),
       isGatewaySlot: false
     }
   ]
@@ -399,7 +402,9 @@ export async function buildClaudeCodeSessionSettings(
       ),
       provider: slotProvider,
       model: slotModel,
-      trusted: gatewaySlot.trusted,
+      trusted:
+        gatewaySlot.trusted ??
+        (slotProvider != null ? isTrustedClaudeSlot(slotProvider, slotModel, 'gateway-forwarding') : undefined),
       providerId: gatewaySlot.providerId,
       isGatewaySlot: true
     })

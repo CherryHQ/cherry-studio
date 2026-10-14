@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveAutoCompactWindow } from '../environment'
+import { isTrustedClaudeSlot, resolveAutoCompactWindow } from '../environment'
 
 // Unit coverage for the trust gate and budget matrix behind
 // buildClaudeCodeSessionSettings: the settings-builder suite keeps the
@@ -232,5 +232,28 @@ describe('resolveAutoCompactWindow', () => {
     expect(
       resolveAutoCompactWindow(256_000, 32_000, provider, { endpointTypes: ['anthropic-messages'] } as never)
     ).toBe(219_520)
+  })
+})
+
+describe('isTrustedClaudeSlot', () => {
+  const mixedProvider = {
+    id: 'mixed',
+    presetProviderId: 'mixed',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: {
+      'anthropic-messages': { baseUrl: 'https://api.anthropic.com' },
+      'openai-chat-completions': { baseUrl: 'https://mix.example.com' }
+    }
+  } as never
+  const dualDialectModel = {
+    endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+  } as never
+
+  it('prefers Anthropic Messages for direct SDK dialect budgeting', () => {
+    expect(isTrustedClaudeSlot(mixedProvider, dualDialectModel)).toBe(true)
+  })
+
+  it('matches gateway forwarding when OpenAI is listed first', () => {
+    expect(isTrustedClaudeSlot(mixedProvider, dualDialectModel, 'gateway-forwarding')).toBe(false)
   })
 })

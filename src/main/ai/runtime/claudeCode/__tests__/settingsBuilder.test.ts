@@ -1023,6 +1023,47 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
   })
 
+  it('derates a gateway slot when forwarding picks a relay ahead of Anthropic Messages', async () => {
+    mocks.getByProviderId.mockImplementation((id: string) =>
+      id === 'mixed'
+        ? {
+            id: 'mixed',
+            presetProviderId: 'mixed',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'anthropic-messages': { baseUrl: 'https://api.anthropic.com' },
+              'openai-chat-completions': { baseUrl: 'https://mix.example.com' }
+            }
+          }
+        : undefined
+    )
+    mocks.modelGetByKey.mockImplementation(() => ({
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+    }))
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      {
+        contextWindow: 256_000,
+        maxOutputTokens: 32_000,
+        gatewayModelSlots: [
+          { providerId: 'mixed', modelId: 'claude-via-relay', contextWindow: 256_000, maxOutputTokens: 32_000 }
+        ]
+      }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
+  })
+
   // The primary slot follows the same rule: a model reaching the official endpoint
   // through a non-Anthropic provider default keeps the full budget, while a model
   // served through another dialect on the same provider does not.

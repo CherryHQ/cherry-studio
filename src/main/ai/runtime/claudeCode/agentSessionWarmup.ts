@@ -763,9 +763,9 @@ function deriveRouteFacts(
         modelId: ref.modelId,
         contextWindow: ref.contextWindow,
         maxOutputTokens: ref.model?.maxOutputTokens,
-        trusted: isTrustedClaudeSlot(ref.provider ?? null, ref.model ?? null)
+        trusted: isTrustedClaudeSlot(ref.provider ?? null, ref.model ?? null, 'gateway-forwarding')
       })),
-      primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
+      primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel, 'gateway-forwarding'),
       usageModels: []
     }
   }
