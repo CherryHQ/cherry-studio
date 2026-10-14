@@ -264,7 +264,7 @@ function projectPiToolOutput(toolName: string, result: unknown): unknown {
 
 /**
  * `tool_call` returns the target tool's MCP result verbatim, hiding an all-text payload inside a
- * JSON string. Unwrap it the way the Claude Code / dsh adapters do, so tool cards and citation
+ * JSON string. Unwrap it the way the Claude Code adapter do, so tool cards and citation
  * resolution see one shape across runtimes.
  */
 function unwrapMcpContent({ content }: AgentToolResult<unknown>): unknown {

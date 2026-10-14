@@ -4,6 +4,8 @@ sources:
   - src/main/ai/provider/endpoint.ts
   - packages/provider-registry/src/registry-utils.ts
   - packages/provider-registry/data/providers.json
+  - packages/provider-registry/src/providers/new-api.ts
+  - src/main/ai/provider/custom/wire/wireProfile.ts
   - src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts
 ---
 
@@ -46,6 +48,22 @@ export function resolveAiSdkProviderId(provider, endpointType) {
 
 One signal, no heuristics. Tested with 54 cases in
 `provider/__tests__/endpoint.test.ts`.
+
+### New API image endpoints
+
+The New API preset declares `newapi` for both `openai-image-generation` and
+`openai-image-edit`. This adapter derives `/v1` from the configured gateway
+host before the image SDK appends `/images/generations` or `/images/edits`.
+The terminal `openai-compatible` fallback does not perform this relay-specific
+version handling and can request an unversioned path that returns the gateway
+web UI instead of image JSON.
+
+Image endpoints inherit the configured primary host unless the user supplies
+a separate image base URL. Explicit paths and the trailing `#` opt-out retain
+the existing New API URL rules; no model-name exception is needed.
+
+Image parameters use the existing OpenAI and diffusion wire mappings, with
+unmapped vendor parameters preserved under the SDK's `newapi` options key.
 
 ## Write paths
 

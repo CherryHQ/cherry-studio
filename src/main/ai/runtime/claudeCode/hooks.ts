@@ -23,7 +23,6 @@ import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import { rtkRewrite } from '@main/utils/rtk'
 
 import type { AgentRuntimeUserInput } from '../types'
-import type { AgentsMdLoader } from './AgentsMdLoader'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
@@ -74,7 +73,6 @@ export interface ClaudeCodeHookContext {
   /** Loaded plugin directories by manifest name; indexed once per session. */
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
-  agentsMdLoader: AgentsMdLoader
 }
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {
@@ -219,8 +217,6 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
-  const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
-
   // Subagent Bash history is scoped per agent_id; when the subagent stops, its scope is dropped so
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
@@ -304,7 +300,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   }
 
   return {
-    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
+    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
