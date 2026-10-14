@@ -15,6 +15,7 @@ import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
+import { createGoogleInteractionsProvider } from '../../../../provider/custom/googleInteractionsProvider'
 
 const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
 import { createBrowserToolEntries } from '../../../../tools/adapters/aiSdk/builtin/BrowserTools'
@@ -539,6 +540,52 @@ describe('buildAgentParams provider resolution', () => {
     })
 
     expect(result.plugins.map((plugin) => plugin.name)).toContain('urlContext')
+  })
+
+  it('keeps Interactions stateless through assistant custom parameters and SDK serialization', async () => {
+    const bodies: Record<string, unknown>[] = []
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'google-interactions',
+        providerSettings: {
+          apiKey: 'test-key',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            bodies.push(JSON.parse(String(init?.body)))
+            return Response.json({ id: 'new', status: 'completed', steps: [] })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider: makeProvider({ id: 'gemini', defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_INTERACTIONS }),
+      model: makeModel({ apiModelId: 'gemini-4-argon', endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS] }),
+      assistant: makeAssistant({
+        settings: {
+          customParameters: [
+            { name: 'previous_interaction_id', type: 'string', value: 'stored-remote-history' },
+            { name: 'store', type: 'boolean', value: true },
+            { name: 'background', type: 'boolean', value: true },
+            { name: 'custom_marker', type: 'string', value: 'kept' },
+            { name: 'google', type: 'json', value: '{"previousInteractionId":"nested-history","store":true}' }
+          ]
+        }
+      })
+    })
+    await createGoogleInteractionsProvider({
+      apiKey: 'test-key',
+      fetch: result.sdkConfig.providerSettings.fetch
+    })
+      .languageModel('gemini-4-argon')
+      .doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Edited context only.' }] }],
+        providerOptions: result.options.providerOptions
+      })
+
+    expect(bodies[0]).not.toHaveProperty('previous_interaction_id')
+    expect(bodies[0]).toMatchObject({ store: false, background: false, custom_marker: 'kept' })
   })
 
   it('preserves assistant custom parameters unchanged in the final provider request body', async () => {
