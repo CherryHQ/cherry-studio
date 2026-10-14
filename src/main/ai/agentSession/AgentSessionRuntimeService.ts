@@ -1356,7 +1356,6 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(sessionId)
     return entry !== undefined && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
   }
-  }
 
   /**
    * Epoch ms of the newest detached-background publish for the session. A background flow
@@ -1952,6 +1951,9 @@ export class AgentSessionRuntimeService extends BaseService {
       if (this.currentConnection(entry) === connection) {
         this.resetConnectionRuntimeState(entry, connection)
         this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
+        // The runtime (and its detached work) is gone — its stashed wake recipients can never be
+        // consumed legitimately; a later unrelated wake must not inherit them.
+        application.get('AiStreamManager').clearPendingChannelListeners(entry.topicId)
         if (entry.runtimeState.queue.length > 0 && !this.liveTurn(entry)) {
           this.requestRuntimeLaunch(entry, 'queued-turn')
         }
@@ -3782,6 +3784,9 @@ export class AgentSessionRuntimeService extends BaseService {
     if (connection && resetRuntimeState) this.resetConnectionRuntimeState(entry, connection)
     if (connection) this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
     entry.connectionLoop = undefined
+    // The connection's detached work dies with it, so no wake can consume the topic's stashed
+    // channel recipients anymore — release them before an unrelated wake resurrects them.
+    application.get('AiStreamManager').clearPendingChannelListeners(entry.topicId)
     return connection
   }
 
