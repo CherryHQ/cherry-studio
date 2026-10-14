@@ -1,3 +1,9 @@
+import fs from 'node:fs'
+
+import { app, dialog } from 'electron'
+
+import { application } from '@application'
+import { readRestoreJournal } from '@data/db/restore/restoreJournal'
 import {
   cleanupTerminalRestoreArtifacts,
   isLiveDbStranded,
@@ -5,8 +11,32 @@ import {
   runRestorePromotion
 } from '@data/db/restore/restorePromotion'
 import { loggerService } from '@logger'
+import { resolveSystemLanguage, t } from '@main/i18n'
 
 const logger = loggerService.withContext('BackupRestoreGate')
+
+/** Isolate Chromium before Sentry or asynchronous preboot work can open the live profile. */
+export function prepareBackupRestoreSession(): boolean {
+  const result = readRestoreJournal()
+  const pending = result.kind === 'ok' && (result.journal.state === 'staged' || result.journal.state === 'promoting')
+  if (pending && app.isReady()) {
+    throw new Error('Restore session isolation must run before Electron is ready')
+  }
+  const sessionRoot = application.getPath('feature.backup.restore.session')
+  try {
+    fs.rmSync(sessionRoot, { recursive: true, force: true })
+  } catch (error) {
+    logger.warn('Could not clean up the previous restore session', { error })
+  }
+  if (!pending) {
+    return false
+  }
+  fs.mkdirSync(sessionRoot, { recursive: true })
+  const sessionDataPath = fs.mkdtempSync(application.getPath('feature.backup.restore.session', 'session-'))
+  app.setPath('sessionData', sessionDataPath)
+  logger.info('Prepared isolated sessionData for backup restore', { sessionDataPath })
+  return true
+}
 
 /**
  * Preboot shell around the restore promotion logic (which lives in
@@ -18,23 +48,19 @@ const logger = loggerService.withContext('BackupRestoreGate')
  * renames and must hold the single-instance lock) and after the path registry
  * is frozen (all journal paths resolve against the final userData).
  *
- * No return value: whatever happens, boot continues — promotion success means
- * the new DB is live, any refusal or failure means the old DB is. An
+ * An isolated restore launch returns handled and relaunches without bootstrapping;
+ * the next launch opens the restored profile. Otherwise boot continues. An
  * unexpected crash of the promotion logic is logged and handed to
  * markRestoreFailedAfterCrash, which restores the live DB from the aside if
  * needed and freezes the journal to failed (or leaves a committed promotion
  * resumable) so the next boot does not retry a promotion that just proved
  * itself poisonous.
  *
- * This shell never throws — a preboot exception falls into startApp's
- * fail-fast catch (forceExit) and dead-loops the app into "Unable to Start" —
- * with exactly ONE exception: when even the crash net could not put a live
- * DB in place (isLiveDbStranded), booting on would silently CREATE a fresh
- * empty database while the user's data sits in the aside. That is the one
- * outcome worse than the fail-fast dialog, so the gate refuses to boot and
- * leaves the aside, the journal, and the staging tree as repair artifacts.
+ * Refuses to boot if recovery strands the live DB or an isolated launch cannot
+ * consume its journal. This preserves repair artifacts and prevents either an
+ * empty database boot or an automatic relaunch loop.
  */
-export async function runBackupRestoreGate(): Promise<void> {
+export async function runBackupRestoreGate(isolatedSession = false): Promise<'handled' | 'skipped'> {
   try {
     await runRestorePromotion()
   } catch (error) {
@@ -50,5 +76,19 @@ export async function runBackupRestoreGate(): Promise<void> {
       )
     }
   }
+  const result = readRestoreJournal()
+  if (result.kind === 'ok' && (result.journal.state === 'failed' || result.journal.state === 'expired')) {
+    await app.whenReady()
+    const language = resolveSystemLanguage(app.getLocale())
+    dialog.showErrorBox(t('backup.restore.failed', undefined, language), t('backup.restore.retry', undefined, language))
+  }
   cleanupTerminalRestoreArtifacts()
+  if (isolatedSession) {
+    if (readRestoreJournal().kind !== 'none') {
+      throw new Error('Restore journal remains unresolved — refusing to relaunch or bootstrap with an isolated session')
+    }
+    application.relaunch()
+    return 'handled'
+  }
+  return 'skipped'
 }
