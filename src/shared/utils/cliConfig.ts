@@ -35,6 +35,15 @@ export type CliConfigWriteFile =
   | { target: CliConfigTarget; content: string; delete?: never }
   | { target: 'codex-auth'; delete: true; content?: never }
 
+/**
+ * The provider-key prefix Cherry writes into the file-configured CLIs' provider
+ * maps (`cherry-<sanitized-name>`). The renderer builds these keys
+ * (`CHERRY_PROVIDER_PREFIX` in the cliConfig page); main reads them back when
+ * re-deriving Command Code's managed credential from the on-disk config, so
+ * both sides must agree on the exact bytes.
+ */
+export const CHERRY_PROVIDER_KEY_PREFIX = 'cherry-'
+
 export const CLAUDE_SETTINGS_PATH = '~/.claude/settings.json'
 export const CODEX_AUTH_PATH = '~/.codex/auth.json'
 export const CODEX_CONFIG_PATH = '~/.codex/config.toml'

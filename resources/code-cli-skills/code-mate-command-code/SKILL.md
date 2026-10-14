@@ -19,7 +19,7 @@ Pass the prompt as one quoted argument. The shell resolves the managed credentia
 
 ## Authentication And Permissions
 
-The command above authenticates against the managed endpoint configured in Code Mate; the credential file is written by Cherry Studio when Command Code is launched from the CLI page. If the credential file is missing or Command Code still reports missing login, API key, model, or provider configuration, stop and ask the user to launch Command Code once from Cherry Studio's CLI page (or reconfigure it in Code Mate). Never request, read, print, or copy credentials.
+The command above authenticates against the managed endpoint configured in Code Mate; Cherry Studio keeps the credential file in sync with that configuration — it is rewritten on every Code Mate config save and every launch from Cherry Studio's CLI page, and removed when the configured provider has no key. If the credential file is missing or Command Code still reports missing login, API key, model, or provider configuration, stop and ask the user to save the configuration in Code Mate or launch Command Code once from Cherry Studio's CLI page. Never request, read, print, or copy credentials.
 
 Only allow modification tools when the user explicitly requests workspace changes, and prefer read-only instructions in the prompt otherwise. Never pass a flag or setting that relaxes the permission mode.
 
