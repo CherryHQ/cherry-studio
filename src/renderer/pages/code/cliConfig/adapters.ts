@@ -1,9 +1,11 @@
+import { stringify as stringifyToml } from 'smol-toml'
+import { type Document, isMap, isScalar } from 'yaml'
+
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
 import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { type CliConfigWriteFile, type FileConfiguredCli, getCliConfigTargets } from '@shared/utils/cliConfig'
-import { stringify as stringifyToml } from 'smol-toml'
 
 import {
   buildClaudeConfig,
@@ -11,6 +13,7 @@ import {
   buildCodexConfig,
   buildGeminiEnvConfig,
   buildGeminiSettingsConfig,
+  buildHermesEnvConfig,
   buildKimiConfig,
   buildOpenCodeConfig,
   buildPiModelsConfig,
@@ -18,11 +21,18 @@ import {
   buildQwenConfig,
   clearCodexApiKeyAuth
 } from './builders'
-import { CHERRY_PROVIDER_PREFIX, OPEN_CODE_ENDPOINTS, PI_ENDPOINTS } from './constants'
+import {
+  CHERRY_PROVIDER_PREFIX,
+  HERMES_ENDPOINTS,
+  MINIMAX_ENDPOINTS,
+  OPEN_CODE_ENDPOINTS,
+  PI_ENDPOINTS
+} from './constants'
 import { parseDotenv, renderDotenvFile } from './dotenv'
 import {
   getDraftFile,
   makeDraftFile,
+  parseDraftFileOrThrow,
   readAndParseDraftFile,
   readConfigFilesForDraft,
   readDraftFileText
@@ -30,6 +40,8 @@ import {
 import {
   parseJsonOrThrow,
   parseTomlOrThrow,
+  parseYamlDocumentOrThrow,
+  parseYamlOrThrow,
   readConfigFiles,
   readValidatedJsonOrNull,
   readValidatedTomlOrNull,
@@ -62,11 +74,16 @@ import {
   isOpenCodePermissionMode
 } from './permissionModes'
 import {
+  HERMES_API_MODES,
+  type HermesApiMode,
+  type MinimaxApi,
   modelSupportsReasoningEffort,
   openCodeNpmInfoFromNpmPackage,
   resolveClaudeBaseUrl,
   resolveCodexBaseUrl,
   resolveGeminiBaseUrl,
+  resolveHermesProviderInfo,
+  resolveMinimaxProviderInfo,
   resolveOpenAIBaseUrl,
   resolveOpenCodeNpmInfo,
   resolvePiProviderInfo
@@ -143,6 +160,8 @@ export interface CliConfigAdapter {
 }
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
+const HERMES_API_KEY_ENV = 'CHERRY_HERMES_API_KEY'
+const HERMES_API_KEY_ENV_REFERENCE = '${CHERRY_HERMES_API_KEY}'
 
 function replaceDraftContent(
   files: CliConfigFileDraft[],
@@ -169,6 +188,104 @@ function providerNameFromKey(providerKey: string | undefined, label: string): st
 
 function cherryProviderKeyFrom(providers: Record<string, any>): string {
   return requireDraftValue(findCherryProviderKey(providers), 'OpenCode provider')
+}
+
+function isHermesApiMode(value: unknown): value is HermesApiMode {
+  return HERMES_API_MODES.some((apiMode) => apiMode === value)
+}
+
+const HERMES_MANAGED_MODEL_KEYS = ['provider', 'default', 'base_url', 'api_key', 'api_mode'] as const
+
+function writeHermesConfig(
+  document: Document,
+  resolved: { apiKeyEnv: string; apiMode: HermesApiMode; baseUrl: string; model: string }
+): string {
+  const existingModel = document.get('model', true)
+  // A bare `model:` parses to a null scalar node, not a missing key — an empty
+  // section is a valid starting point, not a malformed mapping.
+  if (existingModel == null || (isScalar(existingModel) && existingModel.value == null)) {
+    document.set('model', document.createNode({}))
+  } else if (!isMap(existingModel)) {
+    throw new Error('invalid Hermes model config: expected an object')
+  }
+  document.setIn(['model', 'provider'], 'custom')
+  document.setIn(['model', 'default'], resolved.model)
+  document.setIn(['model', 'base_url'], normalizeUrl(resolved.baseUrl))
+  document.setIn(['model', 'api_key'], resolved.apiKeyEnv)
+  document.setIn(['model', 'api_mode'], resolved.apiMode)
+  return document.toString()
+}
+
+function clearHermesConfig(content: string): string | null {
+  const document = parseYamlDocumentOrThrow(content)
+  if (document.getIn(['model', 'api_key']) !== HERMES_API_KEY_ENV_REFERENCE) return null
+  for (const key of HERMES_MANAGED_MODEL_KEYS) document.deleteIn(['model', key])
+  const model = document.get('model', true)
+  if (isMap(model) && model.items.length === 0) document.delete('model')
+  return document.toString()
+}
+
+function minimaxManagedProviderKey(document: Document): string | undefined {
+  const providers = document.getIn(['custom_provider'])
+  return isMap(providers)
+    ? providers.items
+        .map((item) => (isScalar(item.key) ? String(item.key.value) : ''))
+        .find((key) => key.startsWith(CHERRY_PROVIDER_PREFIX))
+    : undefined
+}
+
+function minimaxManagedApi(document: Document, providerKey: string): MinimaxApi {
+  const api = document.getIn(['custom_provider', providerKey, 'api'])
+  return api === 'openai-completions' || api === 'openai-responses' ? api : 'anthropic-messages'
+}
+
+/** Delete every Cherry-managed `custom_provider` entry; returns the deleted keys. */
+function deleteMinimaxManagedProviders(document: Document): string[] {
+  const deletedKeys: string[] = []
+  let providerKey = minimaxManagedProviderKey(document)
+  while (providerKey) {
+    document.deleteIn(['custom_provider', providerKey])
+    deletedKeys.push(providerKey)
+    providerKey = minimaxManagedProviderKey(document)
+  }
+  return deletedKeys
+}
+
+function writeMinimaxConfig(
+  document: Document,
+  resolved: { api: MinimaxApi; apiKey: string; baseUrl: string; model: string; providerKey: string }
+): string {
+  // Drop every stale Cherry-managed entry, not just keys ahead of the incoming
+  // one — the mapping node itself survives, so its position and leading comment
+  // stay intact.
+  deleteMinimaxManagedProviders(document)
+  document.setIn(
+    ['custom_provider', resolved.providerKey],
+    document.createNode({
+      api: resolved.api,
+      name: resolved.providerKey.slice(CHERRY_PROVIDER_PREFIX.length),
+      options: { apiKey: resolved.apiKey, baseURL: resolved.baseUrl },
+      models: { [resolved.model]: {} }
+    })
+  )
+  document.set('defaultModel', `custom_provider:${resolved.providerKey}/${resolved.model}`)
+  return document.toString()
+}
+
+function clearMinimaxConfig(content: string): string | null {
+  const document = parseYamlDocumentOrThrow(content)
+  const deletedKeys = deleteMinimaxManagedProviders(document)
+  if (deletedKeys.length === 0) return null
+  const nextProviders = document.getIn(['custom_provider'])
+  if (isMap(nextProviders) && nextProviders.items.length === 0) document.delete('custom_provider')
+  const defaultModel = document.get('defaultModel')
+  if (
+    typeof defaultModel === 'string' &&
+    deletedKeys.some((key) => defaultModel.startsWith(`custom_provider:${key}/`))
+  ) {
+    document.delete('defaultModel')
+  }
+  return document.toString()
 }
 
 const claudeAdapter: CliConfigAdapter = {
@@ -794,6 +911,99 @@ const kimiAdapter: CliConfigAdapter = {
   }
 }
 
+const hermesAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets(CodeCli.HERMES),
+  providerBaseUrls: (provider) =>
+    HERMES_ENDPOINTS.flatMap((endpoint) => {
+      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
+      const baseUrl = normalizeUrl(resolveHermesProviderInfo(provider, [endpoint]).baseUrl)
+      return baseUrl ? [baseUrl] : []
+    }),
+  sanitize: () => ({}),
+  async buildDraft(args, context) {
+    const { apiKey, model, modelRecord, provider } = context
+    const providerInfo = resolveHermesProviderInfo(provider, modelRecord?.endpointTypes)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const document = readAndParseDraftFile('hermes-config', parseYamlDocumentOrThrow, args.files, read)
+    const envText = readDraftFileText('hermes-env', args.files, read)
+    return [
+      makeDraftFile(
+        'hermes-config',
+        writeHermesConfig(document, {
+          apiKeyEnv: HERMES_API_KEY_ENV_REFERENCE,
+          apiMode: providerInfo.apiMode,
+          baseUrl: providerInfo.baseUrl,
+          model
+        }),
+        read
+      ),
+      makeDraftFile('hermes-env', renderDotenvFile(buildHermesEnvConfig(parseDotenv(envText), apiKey), envText), read)
+    ]
+  },
+  assertCredentials(context) {
+    const { baseUrl } = resolveHermesProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    if (!context.apiKey || !baseUrl) throw new Error('Hermes config is missing required fields (apiKey/baseUrl)')
+  },
+  updateDraftConfig(files, connection) {
+    const document = parseDraftFileOrThrow('hermes-config', files, parseYamlDocumentOrThrow)
+    const envText = getDraftFile(files, 'hermes-env')?.content ?? ''
+    const existingApiMode = document.getIn(['model', 'api_mode'])
+    const apiMode = isHermesApiMode(existingApiMode) ? existingApiMode : 'chat_completions'
+    return replaceDraftContent(
+      replaceDraftContent(
+        files,
+        'hermes-config',
+        writeHermesConfig(document, {
+          apiKeyEnv: HERMES_API_KEY_ENV_REFERENCE,
+          apiMode,
+          baseUrl: requireDraftValue(connection.baseUrl, 'Hermes base URL'),
+          model: requireDraftValue(connection.model, 'Hermes model')
+        })
+      ),
+      'hermes-env',
+      connection.apiKey
+        ? renderDotenvFile(buildHermesEnvConfig(parseDotenv(envText), connection.apiKey), envText)
+        : envText
+    )
+  },
+  async buildClearFiles() {
+    const read = await readConfigFiles(this.targets)
+    const files: CliConfigWriteFile[] = []
+    const config = requireReadFile('hermes-config', read)
+    if (config.content !== null) {
+      try {
+        const content = clearHermesConfig(config.content)
+        if (content !== null) files.push({ target: 'hermes-config', content })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(`Failed to parse Hermes config at ${config.path}: ${message}`)
+      }
+    }
+
+    const env = requireReadFile('hermes-env', read)
+    if (env.content !== null) {
+      const envMap = parseDotenv(env.content)
+      envMap.delete(HERMES_API_KEY_ENV)
+      files.push({ target: 'hermes-env', content: renderDotenvFile(envMap, env.content) })
+    }
+    return files
+  },
+  extractConnection(files) {
+    const config = parseYamlOrThrow(getDraftFile(files, 'hermes-config')?.content ?? '')
+    const model = asRecord(config.model)
+    if (model.api_key !== HERMES_API_KEY_ENV_REFERENCE) return null
+    const env = parseDotenv(getDraftFile(files, 'hermes-env')?.content ?? '')
+    return {
+      baseUrl: stringValue(model.base_url),
+      apiKey: stringValue(env.get(HERMES_API_KEY_ENV)),
+      model: stringValue(model.default)
+    }
+  },
+  extractConfig() {
+    return {}
+  }
+}
+
 const piAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.PI),
   providerBaseUrls: (provider) =>
@@ -891,6 +1101,80 @@ const piAdapter: CliConfigAdapter = {
   }
 }
 
+const minimaxAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets(CodeCli.MINIMAX_CODE),
+  providerBaseUrls: (provider) =>
+    MINIMAX_ENDPOINTS.flatMap((endpoint) => {
+      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
+      const baseUrl = normalizeUrl(resolveMinimaxProviderInfo(provider, [endpoint]).baseUrl)
+      return baseUrl ? [baseUrl] : []
+    }),
+  sanitize: () => ({}),
+  async buildDraft(args, context) {
+    const { apiKey, model, modelRecord, provider } = context
+    const providerInfo = resolveMinimaxProviderInfo(provider, modelRecord?.endpointTypes)
+    const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
+    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const document = readAndParseDraftFile('minimax-config', parseYamlDocumentOrThrow, args.files, read)
+    return [
+      makeDraftFile(
+        'minimax-config',
+        writeMinimaxConfig(document, {
+          api: providerInfo.api,
+          apiKey,
+          baseUrl: providerInfo.baseUrl,
+          model,
+          providerKey
+        }),
+        read
+      )
+    ]
+  },
+  assertCredentials(context) {
+    const { baseUrl } = resolveMinimaxProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    if (!context.apiKey || !baseUrl) throw new Error('MiniMax Code config is missing required fields (apiKey/baseUrl)')
+  },
+  updateDraftConfig(files, connection) {
+    const document = parseDraftFileOrThrow('minimax-config', files, parseYamlDocumentOrThrow)
+    const providerKey = requireDraftValue(minimaxManagedProviderKey(document), 'MiniMax provider key')
+    return replaceDraftContent(
+      files,
+      'minimax-config',
+      writeMinimaxConfig(document, {
+        api: minimaxManagedApi(document, providerKey),
+        apiKey: requireDraftValue(connection.apiKey, 'MiniMax API key'),
+        baseUrl: requireDraftValue(connection.baseUrl, 'MiniMax base URL'),
+        model: requireDraftValue(connection.model, 'MiniMax model'),
+        providerKey
+      })
+    )
+  },
+  async buildClearFiles() {
+    const read = await readConfigFiles(this.targets)
+    const config = requireReadFile('minimax-config', read)
+    if (config.content === null) return []
+    const content = clearMinimaxConfig(config.content)
+    return content === null ? [] : [{ target: 'minimax-config', content }]
+  },
+  extractConnection(files) {
+    const config = parseYamlOrThrow(getDraftFile(files, 'minimax-config')?.content ?? '')
+    const providerKey = findCherryProviderKey(asRecord(config.custom_provider))
+    if (!providerKey) return null
+    const provider = asRecord(asRecord(config.custom_provider)[providerKey])
+    const defaultModel = stringValue(config.defaultModel)
+    return {
+      baseUrl: stringValue(asRecord(provider.options).baseURL),
+      apiKey: stringValue(asRecord(provider.options).apiKey),
+      model: defaultModel?.startsWith(`custom_provider:${providerKey}/`)
+        ? defaultModel.slice(`custom_provider:${providerKey}/`.length)
+        : undefined
+    }
+  },
+  extractConfig() {
+    return {}
+  }
+}
+
 /**
  * The file-based CLI tools, one adapter each. Typed as a **total** record over
  * `FileConfiguredCli` (the key set of `CLI_CONFIG_TARGETS`), so omitting an adapter
@@ -903,7 +1187,9 @@ export const CLI_CONFIG_ADAPTERS: Record<FileConfiguredCli, CliConfigAdapter> = 
   [CodeCli.GEMINI_CLI]: geminiAdapter,
   [CodeCli.QWEN_CODE]: qwenAdapter,
   [CodeCli.KIMI_CODE]: kimiAdapter,
-  [CodeCli.PI]: piAdapter
+  [CodeCli.PI]: piAdapter,
+  [CodeCli.HERMES]: hermesAdapter,
+  [CodeCli.MINIMAX_CODE]: minimaxAdapter
 }
 
 export function getAdapter(cliTool: string): CliConfigAdapter | undefined {

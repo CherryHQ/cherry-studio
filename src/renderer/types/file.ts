@@ -1,6 +1,7 @@
+import * as z from 'zod'
+
 import type OpenAI from '@cherrystudio/openai'
 import { objectValues } from '@renderer/utils/object'
-import * as z from 'zod'
 
 export const FILE_TYPE = {
   IMAGE: 'image',

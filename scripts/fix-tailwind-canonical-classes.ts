@@ -3,8 +3,8 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import ts from '@typescript/typescript6'
 import { __unstable__loadDesignSystem } from 'tailwindcss'
-import ts from 'typescript'
 
 type DesignSystem = Awaited<ReturnType<typeof __unstable__loadDesignSystem>>
 
@@ -35,7 +35,7 @@ type RunCliOptions = {
 }
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'])
-const IGNORED_DIRS = new Set(['.git', 'node_modules', 'out', 'dist', 'build', 'v2-refactor-temp', 'resources'])
+const IGNORED_DIRS = new Set(['.git', 'node_modules', 'out', 'dist', 'build', 'resources'])
 const CLASS_ATTRIBUTES = new Set(['class', 'className'])
 const CANONICALIZE_OPTIONS = { rem: 16, collapse: false, logicalToPhysical: false }
 

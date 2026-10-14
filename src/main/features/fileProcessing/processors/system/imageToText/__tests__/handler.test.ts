@@ -2,9 +2,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { FILE_TYPE, type FileInfo, FileInfoSchema } from '@shared/types/file'
 import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { FILE_TYPE, type FileInfo, FileInfoSchema } from '@shared/types/file'
 
 import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'
 
@@ -99,7 +100,7 @@ describe('systemImageToTextHandler', () => {
         if ((await sharp(image).metadata()).format !== 'png') {
           throw Object.assign(new Error('Could not recognize file (0x80070005)'), { code: 'GenericFailure' })
         }
-        return { text: 'ocr text', confidence: 1 }
+        return { text: 'ocr text', confidence: 1, lines: [] }
       })
 
       const result = await runHandler(
@@ -134,7 +135,7 @@ describe('systemImageToTextHandler', () => {
       let receivedImage: string | Uint8Array | undefined
       vi.mocked(recognize).mockImplementation(async (image) => {
         receivedImage = image
-        return { text: 'png text', confidence: 1 }
+        return { text: 'png text', confidence: 1, lines: [] }
       })
 
       const result = await runHandler(

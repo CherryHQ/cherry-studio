@@ -1,17 +1,30 @@
-import { mkdir, mkdtemp, open, readdir, readFile, rm, stat as fsStatPromise, utimes, writeFile } from 'node:fs/promises'
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  rm,
+  stat as fsStatPromise,
+  utimes,
+  writeFile
+} from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { ContentHashSchema } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { hashContent } from '../contentHash'
 import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   copy as fsCopy,
+  copyNew as fsCopyNew,
   createAtomicWriteStream,
   createPreparedAtomicWriteStream,
   download as fsDownload,
@@ -120,17 +133,28 @@ describe('probeReadable', () => {
 describe('shouldSilenceFsyncDirError', () => {
   // Pin the silent-vs-warn boundary that atomicWriteFile / createAtomicWriteStream
   // rely on for post-rename durability observability. The list shifted in
-  // c9127b7c3 (EPERM/EACCES moved from silent → warn); a future maintainer
-  // re-adding either would silence a real ACL-drift regression on user machines.
+  // c9127b7c3 (EPERM/EACCES moved from silent → warn); on non-Windows a future
+  // maintainer re-adding either would silence a real ACL-drift regression on
+  // user machines. On Windows dir-fsync always fails with EPERM
+  // (FlushFileBuffers → ERROR_ACCESS_DENIED), so EPERM/EACCES are expected
+  // noise there and must stay silent — otherwise every atomic write warn-logs.
   it('silences EINVAL / EISDIR / ENOTSUP (filesystems that semantically reject dir fsync)', () => {
     expect(shouldSilenceFsyncDirError('EINVAL')).toBe(true)
     expect(shouldSilenceFsyncDirError('EISDIR')).toBe(true)
     expect(shouldSilenceFsyncDirError('ENOTSUP')).toBe(true)
   })
 
-  it('does NOT silence permission errnos (EPERM / EACCES) — real ACL/sandbox regressions', () => {
-    expect(shouldSilenceFsyncDirError('EPERM')).toBe(false)
-    expect(shouldSilenceFsyncDirError('EACCES')).toBe(false)
+  it('does NOT silence permission errnos (EPERM / EACCES) off Windows — real ACL/sandbox regressions', () => {
+    expect(shouldSilenceFsyncDirError('EPERM', 'linux')).toBe(false)
+    expect(shouldSilenceFsyncDirError('EACCES', 'linux')).toBe(false)
+    expect(shouldSilenceFsyncDirError('EPERM', 'darwin')).toBe(false)
+    expect(shouldSilenceFsyncDirError('EACCES', 'darwin')).toBe(false)
+  })
+
+  it('silences EPERM / EACCES on Windows (dir-fsync is always EPERM there)', () => {
+    expect(shouldSilenceFsyncDirError('EPERM', 'win32')).toBe(true)
+    expect(shouldSilenceFsyncDirError('EACCES', 'win32')).toBe(true)
+    expect(shouldSilenceFsyncDirError('EINVAL', 'win32')).toBe(true)
   })
 
   it('does NOT silence real IO errnos (EIO / ENOSPC / others)', () => {
@@ -707,6 +731,25 @@ describe('copy', () => {
     expect(out.equals(bytes)).toBe(true)
   })
 
+  it('copyNew copies content to a fresh destination', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'payload')
+    await fsCopyNew(src as AbsoluteFilePath, dest as AbsoluteFilePath)
+    expect(await readFile(dest, 'utf-8')).toBe('payload')
+  })
+
+  it('copyNew refuses an existing destination (EEXIST) and leaves it untouched', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'new')
+    await writeFile(dest, 'old')
+    await expect(fsCopyNew(src as AbsoluteFilePath, dest as AbsoluteFilePath)).rejects.toMatchObject({
+      code: 'EEXIST'
+    })
+    expect(await readFile(dest, 'utf-8')).toBe('old')
+  })
+
   it('rejects with an AbortError when the signal is already aborted', async () => {
     const src = path.join(tmp, 'src.txt')
     const dest = path.join(tmp, 'dest.txt')
@@ -921,5 +964,74 @@ describe('createAtomicWriteStream', () => {
     expect(await exists(target)).toBe(false)
     const entries = await readdir(tmp)
     expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+
+  it('applies options.mode from tmp creation (stream path)', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'secret.zip') as AbsoluteFilePath
+    const stream = createAtomicWriteStream(target, { mode: 0o600 })
+    stream.write('backup-bytes')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    expect(await readFile(target, 'utf-8')).toBe('backup-bytes')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o600)
+  })
+
+  it('applies options.mode to the tmp file at open time (prepared pause point)', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'paused.zip') as AbsoluteFilePath
+    let observedTmpMode: number | undefined
+    const stream = createPreparedAtomicWriteStream(
+      target,
+      async () => {
+        // The tmp file is alive at this pause point; exactly one exists, so
+        // a post-commit chmod implementation would be caught here.
+        const [entry] = (await readdir(tmp)).filter((e) => e.includes('.tmp-'))
+        observedTmpMode = (await fsStatPromise(path.join(tmp, entry))).mode & 0o777
+      },
+      { mode: 0o600 }
+    )
+    stream.write('secret')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    expect(observedTmpMode).toBe(0o600)
+  })
+
+  it('tightens an existing loose-mode target when stream-overwriting with options.mode', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'existing.zip') as AbsoluteFilePath
+    await writeFile(target, 'loose-bytes')
+    await chmod(target, 0o644)
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o644)
+    const stream = createAtomicWriteStream(target, { mode: 0o600 })
+    stream.write('tightened')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    expect(await readFile(target, 'utf-8')).toBe('tightened')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o600)
+  })
+
+  it('keeps the default (umask) mode on the stream path when options.mode is omitted', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'plain.zip') as AbsoluteFilePath
+    const reference = path.join(tmp, 'reference.txt')
+    const stream = createAtomicWriteStream(target)
+    stream.write('hello')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    await writeFile(reference, 'hello')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe((await fsStatPromise(reference)).mode & 0o777)
   })
 })

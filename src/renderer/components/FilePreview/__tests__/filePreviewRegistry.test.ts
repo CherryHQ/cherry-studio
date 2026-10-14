@@ -1,7 +1,12 @@
 import type { ComponentType } from 'react'
 import { describe, expect, it } from 'vitest'
 
-import { createFilePreviewRegistry, filePreviewRegistry, resolveExtensionPlugin } from '../filePreviewRegistry'
+import {
+  canProduceSelectionReference,
+  createFilePreviewRegistry,
+  filePreviewRegistry,
+  resolveExtensionPlugin
+} from '../filePreviewRegistry'
 import { textFilePreviewPlugin } from '../plugins/text/textFilePreviewPlugin'
 import type { FilePreviewPlugin, FilePreviewPluginProps } from '../types'
 
@@ -155,5 +160,15 @@ describe('file preview registry', () => {
     expect(() => createFilePreviewRegistry({ extensionPlugins: [plugin('pdf', [extension])] })).toThrow(
       `Invalid file preview extension: ${extension}`
     )
+  })
+
+  it('knows which registered plugins can produce a selection reference', () => {
+    expect(canProduceSelectionReference('/tmp/report.docx')).toBe(true)
+    expect(canProduceSelectionReference('/tmp/deck.pptx')).toBe(true)
+    expect(canProduceSelectionReference('/tmp/paper.pdf')).toBe(true)
+    expect(canProduceSelectionReference('/tmp/q1.xlsx')).toBe(true)
+    expect(canProduceSelectionReference('/tmp/README.md')).toBe(false)
+    expect(canProduceSelectionReference('/tmp/photo.png')).toBe(false)
+    expect(canProduceSelectionReference('/tmp/no-extension')).toBe(false)
   })
 })

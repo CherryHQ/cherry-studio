@@ -1,7 +1,8 @@
-import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import AddModelDrawer from '../ModelDrawer/AddModelDrawer'
 import EditModelDrawer from '../ModelDrawer/EditModelDrawer'
@@ -121,8 +122,10 @@ describe('Model drawers', () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'OpenAI' }
     })
+    const onClose = vi.fn()
+    const onSuccess = vi.fn()
 
-    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={onClose} onSuccess={onSuccess} />)
 
     expect(screen.getByTestId('provider-settings-model-add-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('provider-settings-model-add-drawer-content')).toBeInTheDocument()
@@ -151,6 +154,8 @@ describe('Model drawers', () => {
       })
     )
     expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('inputModalities')
+    expect(onSuccess).toHaveBeenCalledWith(['openai::alpha-model'])
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('marks only the model ID as required and blocks empty submission', () => {
@@ -232,6 +237,36 @@ describe('Model drawers', () => {
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
         inputModalities: [MODALITY.IMAGE],
         outputModalities: [MODALITY.IMAGE]
+      })
+    )
+  })
+
+  it('adds a custom chat model without purpose choices in the simplified flow', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom-provider',
+        name: 'Custom Provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
+
+    render(
+      <AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} showPurposeSelection={false} />
+    )
+
+    expect(screen.queryByText('settings.models.add.purpose.label')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'chat-model')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'custom-provider',
+        modelId: 'chat-model',
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
       })
     )
   })

@@ -1,11 +1,12 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Badge } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { McpServerLogEntry } from '@shared/types/mcp'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { formatMcpLogData, formatMcpLogs } from './utils'
 
@@ -73,7 +74,7 @@ const McpLogsTab = ({ serverId }: McpLogsTabProps) => {
               </Badge>
               <LogMessage>{log.message}</LogMessage>
             </LogHeader>
-            {log.data && <PreBlock>{formatMcpLogData(log.data)}</PreBlock>}
+            {log.data !== undefined && <PreBlock>{formatMcpLogData(log.data)}</PreBlock>}
           </LogItem>
         ))}
       </LogList>

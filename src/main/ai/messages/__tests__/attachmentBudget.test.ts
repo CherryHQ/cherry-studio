@@ -1,5 +1,6 @@
-import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import { describe, expect, it } from 'vitest'
+
+import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 
 import { allocateAttachmentBudget, allocateInlineCaps } from '../attachmentBudget'
 

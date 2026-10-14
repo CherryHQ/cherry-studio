@@ -1,1 +1,1 @@
-export { getAppLanguage, SUPPORTED_LANGUAGES, t } from './resolver'
+export { getAppLanguage, resolveSystemLanguage, SUPPORTED_LANGUAGES, t } from './resolver'

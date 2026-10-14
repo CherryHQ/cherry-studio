@@ -1,8 +1,9 @@
+import { t } from 'i18next'
+import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/utils/platform'
 import { classNames } from '@renderer/utils/style'
-import { t } from 'i18next'
-import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
 import {
@@ -13,6 +14,7 @@ import {
 } from './heights'
 import {
   firstQuickPanelSelectableIndex,
+  initialQuickPanelFocusIndex,
   moveQuickPanelSelectableIndex,
   QuickPanelFooter,
   QuickPanelReadOnlyHeader,
@@ -22,6 +24,7 @@ import { QuickPanelContext } from './QuickPanelProvider'
 import {
   type QuickPanelCallBackOptions,
   type QuickPanelCloseAction,
+  type QuickPanelFooterAction,
   type QuickPanelInputAdapter,
   type QuickPanelKeyDownEvent,
   type QuickPanelListItem,
@@ -68,6 +71,25 @@ function getTrackedInputSearchText(options: {
   return options.inputSearchText
 }
 
+function getButtonTrackedSearchText(
+  text: string,
+  queryAnchor: number,
+  cursorOffset: number,
+  leftoverSuffix: string
+): string | undefined {
+  // Draft after the caret at open is leftover, not live-filter text to consume.
+  if (leftoverSuffix.length === 0) {
+    return text.slice(queryAnchor, cursorOffset)
+  }
+
+  const afterAnchor = text.slice(queryAnchor)
+  if (!afterAnchor.endsWith(leftoverSuffix)) {
+    return undefined
+  }
+
+  return afterAnchor.slice(0, afterAnchor.length - leftoverSuffix.length)
+}
+
 interface Props {
   inputAdapter?: QuickPanelInputAdapter
 }
@@ -97,6 +119,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   // Prevent the mouse from interfering during page up/down navigation.
   const [isMouseOver, setIsMouseOver] = useState(false)
 
+  // Hover-mirroring affordances (e.g. the row tooltip) follow the cursor only after keyboard
+  // navigation, never the programmatic focus a panel opens with.
+  const [isKeyboardNavigating, setIsKeyboardNavigating] = useState(false)
+
   const scrollTriggerRef = useRef<QuickPanelScrollTrigger>('initial')
   const [activeIndex, setActiveIndex] = useState(-1)
 
@@ -104,6 +130,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const bodyRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
+  const readOnlyHeaderRef = useRef<HTMLDivElement>(null)
+  const emptyStateRef = useRef<HTMLDivElement>(null)
   // Home placement only: the available height cap between the input and frame top.
   const [availableHeight, setAvailableHeight] = useState<number | null>(null)
   // Fill (home placement) is pushed in explicitly by the composer via context.
@@ -111,9 +139,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const [inputSearchText, setInputSearchText] = useState('')
   const queryAnchorRef = useRef<number | undefined>(undefined)
+  const leftoverSuffixRef = useRef('')
+  const consumableSearchQueryRef = useRef('')
+  const openingSelectionRef = useRef<{ text: string; from: number; to: number } | undefined>(undefined)
   const inputTriggerConsumedRef = useRef(false)
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
+  // Outgoing panel's flag: open() overwrites ctx.consumeQueryOnDismiss before layout runs.
+  const prevConsumeQueryOnDismissRef = useRef(false)
   const inputTriggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
   const isTrackedInputPanel = Boolean(
     ctx.trackInputQuery && (ctx.triggerInfo?.type === 'input' || ctx.triggerInfo?.type === 'button')
@@ -127,12 +160,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   // Track the previous search text and symbol to decide whether to reset index.
   const prevSearchTextRef = useRef('')
   const prevSymbolRef = useRef('')
+  const previousNavigationItemsRef = useRef<QuickPanelListItem[]>([])
 
   // Use injected filter and sort functions, or fall back to defaults
   const filterFn = ctx.filterFn || defaultFilterFn
   const sortFn = ctx.sortFn || defaultSortFn
-  // Handle search and filtering while keeping alwaysVisible items at the top
-  // and fixedToBottom actions outside the searchable result set.
+  // Handle search and filtering while keeping alwaysVisible items at the top.
   const list = useMemo(() => {
     // Reset stale state when panel fully closes (both isVisible false AND symbol cleared)
     if (!ctx.isVisible && !ctx.symbol) {
@@ -140,11 +173,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     const baseList = (ctx.list || []).filter((item) => !item.hidden)
-    const fixedBottomItems = baseList.filter((item) => item.fixedToBottom)
-    const flowItems = baseList.filter((item) => !item.fixedToBottom)
 
     if (ctx.manageListExternally || !isTrackedInputPanel) {
-      return [...flowItems, ...fixedBottomItems]
+      return baseList
     }
 
     const _searchText = activeSearchQuery
@@ -156,8 +187,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const fuzzyRegex = new RegExp(fuzzyPattern, 'ig')
 
     // Split pinned items (not filtered) from regular items.
-    const pinnedItems = flowItems.filter((item) => item.alwaysVisible)
-    const normalItems = flowItems.filter((item) => !item.alwaysVisible)
+    const pinnedItems = baseList.filter((item) => item.alwaysVisible)
+    const normalItems = baseList.filter((item) => !item.alwaysVisible)
 
     // Filter normal items using injected filter function
     const filteredNormalItems = normalItems.filter((item) => {
@@ -167,8 +198,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     // Sort filtered items using injected sort function
     const sortedNormalItems = sortFn(filteredNormalItems, _searchText)
 
-    // Pinned items first, followed by sorted regular items and bottom-fixed actions.
-    return [...pinnedItems, ...sortedNormalItems, ...fixedBottomItems]
+    return [...pinnedItems, ...sortedNormalItems]
   }, [
     ctx.isVisible,
     ctx.symbol,
@@ -179,33 +209,99 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     filterFn,
     sortFn
   ])
-  const fixedBottomItems = useMemo(() => list.filter((item) => item.fixedToBottom), [list])
-  const scrollableItems = useMemo(() => list.filter((item) => !item.fixedToBottom), [list])
+  const footerActions = useMemo(
+    () => (ctx.footerActions ?? []).filter((action) => !activeSearchQuery || !action.hideWhenSearching),
+    [activeSearchQuery, ctx.footerActions]
+  )
+  const navigationItems = useMemo<QuickPanelListItem[]>(() => [...list, ...footerActions], [footerActions, list])
+
+  const consumeInputQuery = useCallback(() => {
+    if (!inputAdapter) return
+
+    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
+    if (queryAnchor === undefined) return
+
+    const text = inputAdapter.getText()
+    if (ctx.triggerInfo?.type === 'button') {
+      const searchQuery = consumableSearchQueryRef.current
+      if (!searchQuery) return
+      const queryEnd = queryAnchor + searchQuery.length
+      if (text.slice(queryAnchor, queryEnd) !== searchQuery) return
+      inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryEnd })
+      return
+    }
+
+    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    if (cursorOffset <= queryAnchor) return
+    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
+  }, [ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
+
+  const consumeInputQueryOnce = useCallback(() => {
+    if (inputQueryConsumedRef.current) return
+    inputQueryConsumedRef.current = true
+    consumeInputQuery()
+  }, [consumeInputQuery])
 
   useLayoutEffect(() => {
     if (!ctx.isVisible && !ctx.symbol) {
       prevSymbolRef.current = ''
       prevSearchTextRef.current = ''
       queryAnchorRef.current = undefined
+      leftoverSuffixRef.current = ''
+      consumableSearchQueryRef.current = ''
+      openingSelectionRef.current = undefined
       inputTriggerConsumedRef.current = false
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = undefined
+      prevConsumeQueryOnDismissRef.current = false
+      previousNavigationItemsRef.current = []
       setActiveIndex(-1)
+      setIsKeyboardNavigating(false)
       return
     }
 
-    if (!ctx.isVisible) return
+    // Retire hover-mirroring state at hide time, not when the cleanup timer finally clears the symbol.
+    if (!ctx.isVisible) {
+      setIsKeyboardNavigating(false)
+      return
+    }
 
     const panelGeneration = getPanelGeneration()
     const isPanelGenerationChanged = prevPanelGenerationRef.current !== panelGeneration
+    const previousNavigationItems = previousNavigationItemsRef.current
+    const preserveActiveItem = (previousIndex: number) => {
+      if (previousIndex === -1) return -1
+
+      const previousItem = previousNavigationItems[previousIndex]
+      if (!previousItem) return firstQuickPanelSelectableIndex(navigationItems)
+
+      const nextIndex = navigationItems.findIndex(
+        (item) => item === previousItem || (previousItem.id !== undefined && item.id === previousItem.id)
+      )
+      return nextIndex === -1 ? firstQuickPanelSelectableIndex(navigationItems) : nextIndex
+    }
     if (isPanelGenerationChanged) {
+      // panel_replaced batches isVisible false->true, so dismiss never runs. Reclaim the outgoing filter.
+      // Skip direct input-suggestion handoffs because ctx already belongs to the new input-triggered panel.
+      const isDirectInputSuggestionHandoff =
+        ctx.trackInputQuery && ctx.triggerInfo?.type === 'input' && !ctx.consumeQueryOnDismiss
+      if (
+        prevPanelGenerationRef.current !== undefined &&
+        prevConsumeQueryOnDismissRef.current &&
+        !isDirectInputSuggestionHandoff
+      ) {
+        consumeInputQueryOnce()
+      }
       listRef.current?.scrollToOffset?.(0, { align: 'start' })
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = panelGeneration
     }
+    prevConsumeQueryOnDismissRef.current = Boolean(ctx.consumeQueryOnDismiss)
 
     if (ctx.readOnly) {
-      setActiveIndex(-1)
+      setActiveIndex(isPanelGenerationChanged ? -1 : preserveActiveItem)
+      if (isPanelGenerationChanged) setIsKeyboardNavigating(false)
+      previousNavigationItemsRef.current = navigationItems
       prevSearchTextRef.current = activeSearchQuery
       prevSymbolRef.current = ctx.symbol
       return
@@ -215,53 +311,58 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       const isSearchChanged = prevSearchTextRef.current !== activeSearchQuery
       const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
       if (isSymbolChanged || (ctx.trackInputQuery && (isSearchChanged || isPanelGenerationChanged))) {
-        setActiveIndex(firstQuickPanelSelectableIndex(list))
+        setIsKeyboardNavigating(false)
+        setActiveIndex(firstQuickPanelSelectableIndex(navigationItems))
       } else {
-        setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
+        setActiveIndex(preserveActiveItem)
       }
 
+      previousNavigationItemsRef.current = navigationItems
       prevSearchTextRef.current = activeSearchQuery
       prevSymbolRef.current = ctx.symbol
       return
     }
 
-    // Reset index only when the search text or panel symbol changes.
+    // Reset on a fresh panel (open, or a same-symbol reopen inside the cleanup window) or a
+    // search change: a fresh panel honors the opener's focus request; typing starts from the top.
+    const isFreshPanel = isPanelGenerationChanged
     const isSearchChanged = prevSearchTextRef.current !== activeSearchQuery
-    const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
-    if (isSearchChanged || isSymbolChanged) {
-      setActiveIndex(firstQuickPanelSelectableIndex(list))
+    if (isFreshPanel || isSearchChanged) {
+      setIsKeyboardNavigating(false)
+      setActiveIndex(
+        isFreshPanel
+          ? initialQuickPanelFocusIndex(navigationItems, ctx.defaultIndex)
+          : firstQuickPanelSelectableIndex(navigationItems)
+      )
     } else {
-      // Clamp the current index into the valid range.
-      setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
+      setActiveIndex(preserveActiveItem)
     }
 
+    previousNavigationItemsRef.current = navigationItems
     prevSearchTextRef.current = activeSearchQuery
     prevSymbolRef.current = ctx.symbol
   }, [
+    activeSearchQuery,
+    consumeInputQueryOnce,
+    ctx.consumeQueryOnDismiss,
     ctx.isVisible,
+    ctx.defaultIndex,
     ctx.manageListExternally,
     ctx.readOnly,
     ctx.symbol,
     ctx.trackInputQuery,
+    ctx.triggerInfo?.type,
     getPanelGeneration,
-    activeSearchQuery,
-    list
+    list,
+    navigationItems
   ])
-
-  const handleClose = useCallback(
-    (action?: QuickPanelCloseAction) => {
-      const cleanSearchText = activeSearchQuery.trim()
-      ctx.close(action, cleanSearchText)
-      scrollTriggerRef.current = 'initial'
-    },
-    [ctx, activeSearchQuery]
-  )
 
   const getCurrentPanelOptions = useCallback(
     (defaultIndex?: number): QuickPanelOpenOptions => ({
       title: ctx.title,
       list: ctx.list,
+      footerActions: ctx.footerActions,
       symbol: ctx.symbol,
       multiple: ctx.multiple,
       readOnly: ctx.readOnly,
@@ -271,6 +372,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       parentPanel: ctx.parentPanel,
       triggerInfo: ctx.triggerInfo,
       trackInputQuery: ctx.trackInputQuery,
+      consumeQueryOnDismiss: ctx.consumeQueryOnDismiss,
       initialSearchText: activeSearchQuery,
       beforeAction: ctx.beforeAction,
       afterAction: ctx.afterAction,
@@ -282,35 +384,23 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     [activeSearchQuery, ctx]
   )
 
-  const consumeInputQuery = useCallback(() => {
-    if (!inputAdapter) return
-
-    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
-    if (queryAnchor === undefined) return
-
-    const text = inputAdapter.getText()
-    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-    if (cursorOffset <= queryAnchor) return
-
-    if (ctx.triggerInfo?.type === 'button') {
-      const currentInputQuery = text.slice(queryAnchor, cursorOffset)
-      if (!activeSearchQuery || currentInputQuery !== activeSearchQuery) return
-    }
-
-    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  }, [activeSearchQuery, ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
-
-  const consumeInputQueryOnce = useCallback(() => {
-    if (inputQueryConsumedRef.current) return
-    inputQueryConsumedRef.current = true
-    consumeInputQuery()
-  }, [consumeInputQuery])
+  const handleClose = useCallback(
+    (action?: QuickPanelCloseAction) => {
+      if (ctx.consumeQueryOnDismiss) {
+        consumeInputQueryOnce()
+      }
+      const cleanSearchText = activeSearchQuery.trim()
+      ctx.close(action, cleanSearchText)
+      scrollTriggerRef.current = 'initial'
+    },
+    [activeSearchQuery, consumeInputQueryOnce, ctx]
+  )
 
   const handleItemAction = useCallback(
-    (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
+    (item: QuickPanelListItem, action?: QuickPanelCloseAction, isFooterAction = false) => {
       // Read-only panels (e.g. MCP status) stay non-interactive, except for pinned footer actions
       // like "open config" which are the panel's one intentional affordance.
-      if (ctx.readOnly && !item.fixedToBottom) return
+      if (ctx.readOnly && !isFooterAction) return
       if (item.disabled) return
       const cleanSearchText = activeSearchQuery
       const parentPanel = getCurrentPanelOptions(activeIndex)
@@ -318,7 +408,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       const panelGenerationBeforeAction = ctx.getPanelGeneration()
 
       // In multi-select mode, update selection state first.
-      if (ctx.multiple && !item.isMenu) {
+      if (ctx.multiple && !item.isMenu && !isFooterAction) {
         const newSelectedState = !item.isSelected
         ctx.updateItemSelection(item, newSelectedState)
 
@@ -334,12 +424,18 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           inputAdapter
         }
 
-        consumeInputQueryOnce()
+        // Button-tracked queries are live filters. Keep them through multi-select picks.
+        const keepLiveFilter = Boolean(ctx.trackInputQuery && ctx.triggerInfo?.type === 'button')
+        if (!keepLiveFilter) {
+          consumeInputQueryOnce()
+        }
         ctx.beforeAction?.(quickPanelCallBackOptions)
         item?.action?.(quickPanelCallBackOptions)
         ctx.afterAction?.(quickPanelCallBackOptions)
-        queryAnchorRef.current = inputAdapter?.getCursorOffset?.() ?? queryAnchor
-        setInputSearchText('')
+        if (!keepLiveFilter) {
+          queryAnchorRef.current = inputAdapter?.getCursorOffset?.() ?? queryAnchor
+          setInputSearchText('')
+        }
         return
       }
 
@@ -361,8 +457,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           inputTriggerConsumedRef.current = true
           consumeInputQuery()
         }
-      } else {
+      } else if (item.keepOpenOnAction) {
+        // Keep-open actions can receive a new filter after each pick.
         consumeInputQuery()
+        inputQueryConsumedRef.current = false
+        queryAnchorRef.current = inputAdapter?.getCursorOffset?.() ?? queryAnchor
+        setInputSearchText('')
+      } else {
+        consumeInputQueryOnce()
       }
       ctx.beforeAction?.(quickPanelCallBackOptions)
       item?.action?.(quickPanelCallBackOptions)
@@ -372,8 +474,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         return
       }
 
-      // Keep the panel open in multi-select mode.
-      if (ctx.multiple || item.keepOpenOnAction) return
+      // Keep multi-select list items open; footer actions remain commands unless explicitly retained.
+      if ((!isFooterAction && ctx.multiple) || item.keepOpenOnAction) return
 
       if (ctx.getPanelGeneration() !== panelGenerationBeforeAction) {
         return
@@ -401,6 +503,18 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const text = inputAdapter.getText()
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    const selectionEndOffset = inputAdapter.getSelectionEndOffset?.() ?? cursorOffset
+    const openingSelection = openingSelectionRef.current
+    if (
+      openingSelection &&
+      (text !== openingSelection.text ||
+        cursorOffset !== openingSelection.from ||
+        selectionEndOffset !== openingSelection.to)
+    ) {
+      inputQueryConsumedRef.current = true
+      closePanel('input_session_invalid')
+      return
+    }
     const shouldRequireInputTrigger = ctx.triggerInfo?.type === 'input' && inputTriggerSymbol !== undefined
 
     if (cursorOffset < queryAnchor) {
@@ -422,7 +536,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    const nextSearchText = text.slice(queryAnchor, cursorOffset)
+    const nextSearchText =
+      ctx.triggerInfo?.type === 'button' && ctx.consumeQueryOnDismiss
+        ? getButtonTrackedSearchText(text, queryAnchor, cursorOffset, leftoverSuffixRef.current)
+        : text.slice(queryAnchor, cursorOffset)
+    if (nextSearchText === undefined) {
+      closePanel('input_session_invalid')
+      return
+    }
     if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
@@ -447,6 +568,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     )
   }, [
     closePanel,
+    ctx.consumeQueryOnDismiss,
     ctx.initialSearchText,
     ctx.triggerInfo?.type,
     inputAdapter,
@@ -460,12 +582,16 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     if (!inputAdapter) {
       queryAnchorRef.current = undefined
+      leftoverSuffixRef.current = ''
+      openingSelectionRef.current = undefined
       setInputSearchText('')
       return
     }
 
     const text = inputAdapter.getText()
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    const selectionEndOffset = inputAdapter.getSelectionEndOffset?.() ?? cursorOffset
+    const hasSelectedText = selectionEndOffset > cursorOffset
     const queryAnchor = Math.max(
       0,
       Math.min(ctx.queryAnchor ?? ctx.triggerInfo?.position ?? cursorOffset, cursorOffset)
@@ -476,7 +602,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     queryAnchorRef.current = queryAnchor
+    openingSelectionRef.current =
+      isTrackedInputPanel && ctx.consumeQueryOnDismiss && ctx.triggerInfo?.type === 'button' && hasSelectedText
+        ? { text, from: cursorOffset, to: selectionEndOffset }
+        : undefined
+    leftoverSuffixRef.current =
+      ctx.consumeQueryOnDismiss && ctx.triggerInfo?.type === 'button' ? text.slice(selectionEndOffset) : ''
     if (!isTrackedInputPanel) {
+      leftoverSuffixRef.current = ''
       setInputSearchText('')
       inputAdapter.focus()
       return
@@ -492,7 +625,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    const nextSearchText = text.slice(queryAnchor, cursorOffset)
+    const nextSearchText =
+      ctx.triggerInfo?.type === 'button' && ctx.consumeQueryOnDismiss
+        ? hasSelectedText
+          ? ''
+          : (getButtonTrackedSearchText(text, queryAnchor, cursorOffset, leftoverSuffixRef.current) ?? '')
+        : text.slice(queryAnchor, cursorOffset)
     if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
@@ -519,6 +657,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     return inputAdapter.subscribeInput?.((event) => {
       if (event?.isComposing) return
+      if (event?.cause === 'state-sync') return
       updateSearchFromInput()
     })
   }, [
@@ -530,6 +669,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     ctx.triggerInfo?.position,
     ctx.triggerInfo?.type,
     ctx.trackInputQuery,
+    ctx.consumeQueryOnDismiss,
     closePanel,
     inputAdapter,
     inputTriggerSymbol,
@@ -537,24 +677,37 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     updateSearchFromInput
   ])
 
+  useLayoutEffect(() => {
+    if (!ctx.isVisible) return
+    // Snapshot only while visible so a resume keystroke cannot widen dismiss consumption.
+    consumableSearchQueryRef.current = activeSearchQuery
+  }, [activeSearchQuery, ctx.isVisible])
+
   useEffect(() => {
     if (ctx.isVisible) return
+
+    if (ctx.consumeQueryOnDismiss) {
+      consumeInputQueryOnce()
+    }
 
     const timer = setTimeout(() => {
       setInputSearchText('')
       queryAnchorRef.current = undefined
+      leftoverSuffixRef.current = ''
+      consumableSearchQueryRef.current = ''
+      openingSelectionRef.current = undefined
       inputTriggerConsumedRef.current = false
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = undefined
     }, 200)
 
     return () => clearTimeout(timer)
-  }, [ctx.isVisible])
+  }, [consumeInputQueryOnce, ctx.consumeQueryOnDismiss, ctx.isVisible])
 
   useLayoutEffect(() => {
     if (!listRef.current || activeIndex < 0 || scrollTriggerRef.current === 'none') return
 
-    if (activeIndex >= scrollableItems.length) {
+    if (activeIndex >= list.length) {
       scrollTriggerRef.current = 'none'
       return
     }
@@ -563,10 +716,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     listRef.current?.scrollToIndex(activeIndex, { align: alignment })
 
     scrollTriggerRef.current = 'none'
-  }, [activeIndex, scrollableItems.length])
+  }, [activeIndex, list.length])
 
   const handlePanelKeyDown = useCallback(
     (e: QuickPanelKeyDownEvent) => {
+      const isReadOnlyHeaderButton =
+        ctx.readOnly && e.target instanceof HTMLButtonElement && readOnlyHeaderRef.current?.contains(e.target)
+      if (isReadOnlyHeaderButton && ['Enter', 'NumpadEnter', 'Tab'].includes(e.key)) return false
+      const isReadOnlyFooterButton =
+        ctx.readOnly && e.target instanceof HTMLButtonElement && footerRef.current?.contains(e.target)
+      if (isReadOnlyFooterButton && e.key === 'Tab' && e.shiftKey) return false
+
       const assistivePressed = isMac ? e.metaKey : e.ctrlKey
 
       if (assistivePressed) {
@@ -584,17 +744,16 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         setIsMouseOver(false)
       }
       if (ctx.readOnly) {
-        // Read-only panels are non-interactive except for pinned footer actions (e.g. "Configure
-        // MCP"), which stay keyboard-selectable: ▲▼ moves onto them and Enter/Tab activates the
-        // highlighted one. Everything else is swallowed so the status list stays inert.
-        const footerNavItems = list.map((item) => ({
-          disabled: !(item.fixedToBottom && !!item.action && !item.disabled)
-        }))
+        const footerNavItems = [
+          ...list.map(() => ({ disabled: true })),
+          ...footerActions.map((item) => ({ disabled: !item.action || item.disabled }))
+        ]
         const hasFooterAction = footerNavItems.some((item) => !item.disabled)
         if (hasFooterAction && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) {
           e.preventDefault()
           e.stopPropagation()
           setIsMouseOver(false)
+          setIsKeyboardNavigating(true)
           const dir = e.key === 'ArrowUp' || e.key === 'PageUp' ? -1 : 1
           setActiveIndex((prev) => moveQuickPanelSelectableIndex(footerNavItems, prev, dir, { wrap: true }))
           return true
@@ -603,8 +762,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           e.preventDefault()
           e.stopPropagation()
           setIsMouseOver(false)
-          const activeItem = list?.[activeIndex]
-          if (activeItem?.fixedToBottom && activeItem.action) handleItemAction(activeItem, 'enter')
+          const activeItem = footerActions[activeIndex - list.length]
+          if (activeItem) handleItemAction(activeItem, 'enter', true)
           return true
         }
         if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter'].includes(e.key)) {
@@ -624,26 +783,30 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       switch (e.key) {
         case 'ArrowUp':
           scrollTriggerRef.current = 'keyboard'
+          setIsKeyboardNavigating(true)
           setActiveIndex((prev) =>
-            moveQuickPanelSelectableIndex(list, prev, assistivePressed ? -ctx.pageSize : -1, { wrap: true })
+            moveQuickPanelSelectableIndex(navigationItems, prev, assistivePressed ? -ctx.pageSize : -1, { wrap: true })
           )
           return true
 
         case 'ArrowDown':
           scrollTriggerRef.current = 'keyboard'
+          setIsKeyboardNavigating(true)
           setActiveIndex((prev) =>
-            moveQuickPanelSelectableIndex(list, prev, assistivePressed ? ctx.pageSize : 1, { wrap: true })
+            moveQuickPanelSelectableIndex(navigationItems, prev, assistivePressed ? ctx.pageSize : 1, { wrap: true })
           )
           return true
 
         case 'PageUp':
           scrollTriggerRef.current = 'keyboard'
-          setActiveIndex((prev) => moveQuickPanelSelectableIndex(list, prev, -ctx.pageSize, { wrap: false }))
+          setIsKeyboardNavigating(true)
+          setActiveIndex((prev) => moveQuickPanelSelectableIndex(navigationItems, prev, -ctx.pageSize, { wrap: false }))
           return true
 
         case 'PageDown':
           scrollTriggerRef.current = 'keyboard'
-          setActiveIndex((prev) => moveQuickPanelSelectableIndex(list, prev, ctx.pageSize, { wrap: false }))
+          setIsKeyboardNavigating(true)
+          setActiveIndex((prev) => moveQuickPanelSelectableIndex(navigationItems, prev, ctx.pageSize, { wrap: false }))
           return true
 
         case 'ArrowRight':
@@ -662,10 +825,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           setIsMouseOver(false)
 
           const hasSearch = activeSearchQuery.length > 0
-          const nonPinnedCount = list.filter((i) => !i.alwaysVisible && !i.fixedToBottom).length
+          const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
           const isCollapsed = !ctx.manageListExternally && hasSearch && nonPinnedCount === 0
-          if (!isCollapsed && list?.[activeIndex]) {
-            handleItemAction(list[activeIndex], 'enter')
+          const activeItem = navigationItems[activeIndex]
+          const isFooterAction = activeIndex >= list.length
+          if ((!isCollapsed || isFooterAction) && activeItem) {
+            handleItemAction(activeItem, 'enter', isFooterAction)
           }
           return true
         }
@@ -682,9 +847,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
           // Intercept while collapsed/soft-hidden so query input is not sent as a message.
           const hasSearch = activeSearchQuery.length > 0
-          const nonPinnedCount = list.filter((i) => !i.alwaysVisible && !i.fixedToBottom).length
+          const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
           const isCollapsed = !ctx.manageListExternally && hasSearch && nonPinnedCount === 0
-          if (isCollapsed) {
+          const activeItem = navigationItems[activeIndex]
+          const isFooterAction = activeIndex >= list.length
+          if (isCollapsed && !isFooterAction) {
             e.preventDefault()
             e.stopPropagation()
             setIsMouseOver(false)
@@ -700,12 +867,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             return true
           }
 
-          if (list?.[activeIndex]) {
+          if (activeItem) {
             e.preventDefault()
             e.stopPropagation()
             setIsMouseOver(false)
 
-            handleItemAction(list[activeIndex], 'enter')
+            handleItemAction(activeItem, 'enter', isFooterAction)
           } else {
             e.preventDefault()
             e.stopPropagation()
@@ -721,7 +888,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
       return false
     },
-    [activeIndex, ctx, list, handleItemAction, handleClose, activeSearchQuery]
+    [activeIndex, ctx, footerActions, list, navigationItems, handleItemAction, handleClose, activeSearchQuery]
   )
 
   useLayoutEffect(() => {
@@ -790,13 +957,19 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const [footerWidth, setFooterWidth] = useState(0)
   const [measuredChromeHeight, setMeasuredChromeHeight] = useState<number | null>(null)
+  const [measuredEmptyStateHeight, setMeasuredEmptyStateHeight] = useState(0)
 
   useLayoutEffect(() => {
-    if (!isPanelPresent || ctx.readOnly) {
+    if (!isPanelPresent) {
+      setFooterWidth(0)
       setMeasuredChromeHeight(null)
       return
     }
-    if (!footerRef.current || !bodyRef.current) return
+    if (!footerRef.current || !bodyRef.current) {
+      setFooterWidth(0)
+      setMeasuredChromeHeight(null)
+      return
+    }
 
     const footerElement = footerRef.current
     const bodyElement = bodyRef.current
@@ -804,7 +977,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       setFooterWidth(footerElement.clientWidth)
       const nextChromeHeight =
         footerElement.clientHeight > 0
-          ? footerElement.clientHeight + getQuickPanelBodyVerticalSpace(getComputedStyle(bodyElement))
+          ? footerElement.clientHeight +
+            (readOnlyHeaderRef.current?.clientHeight ?? 0) +
+            getQuickPanelBodyVerticalSpace(getComputedStyle(bodyElement))
           : null
       setMeasuredChromeHeight((prev) => (prev === nextChromeHeight ? prev : nextChromeHeight))
     }
@@ -815,9 +990,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const resizeObserver = new ResizeObserver(updateFooterMetrics)
     resizeObserver.observe(footerElement)
     resizeObserver.observe(bodyElement)
+    if (readOnlyHeaderRef.current) resizeObserver.observe(readOnlyHeaderRef.current)
 
     return () => resizeObserver.disconnect()
-  }, [isPanelPresent, ctx.readOnly])
+  }, [ctx.readOnly, footerActions.length, isPanelPresent])
 
   // Fill (home placement) measures the available height above the input against the dock layer.
   // Docked composers keep the original fixed height and skip this cap.
@@ -860,11 +1036,28 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const hasSearchText = useMemo(() => activeSearchQuery.length > 0, [activeSearchQuery])
   // Collapse is based only on regular matches. Pinned-only results still count as no match.
-  const visibleNonPinnedCount = useMemo(
-    () => list.filter((item) => !item.alwaysVisible && !item.fixedToBottom).length,
-    [list]
-  )
+  const visibleNonPinnedCount = useMemo(() => list.filter((item) => !item.alwaysVisible).length, [list])
   const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
+  useLayoutEffect(() => {
+    if (!isPanelPresent || !collapsed || !emptyStateRef.current) {
+      setMeasuredEmptyStateHeight(0)
+      return
+    }
+
+    const emptyStateElement = emptyStateRef.current
+    const updateEmptyStateHeight = () => {
+      setMeasuredEmptyStateHeight((prev) =>
+        prev === emptyStateElement.clientHeight ? prev : emptyStateElement.clientHeight
+      )
+    }
+
+    updateEmptyStateHeight()
+    if (typeof ResizeObserver === 'undefined') return
+
+    const resizeObserver = new ResizeObserver(updateEmptyStateHeight)
+    resizeObserver.observe(emptyStateElement)
+    return () => resizeObserver.disconnect()
+  }, [collapsed, isPanelPresent])
   // Read-only panels keep the original fixed height to avoid header offset changes.
   const fillEffective = fill && !ctx.readOnly
   const { panelMaxHeight, listHeight } = getQuickPanelHeights({
@@ -872,15 +1065,13 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     collapsed,
     readOnly: ctx.readOnly ?? false,
     pageSize: ctx.pageSize,
-    fixedItemCount: fixedBottomItems.length,
-    itemCount: scrollableItems.length,
+    itemCount: list.length,
     availableHeight,
     fill: fillEffective,
-    chromeHeight: measuredChromeHeight ?? undefined
+    chromeHeight: measuredChromeHeight ?? undefined,
+    emptyStateHeight: measuredEmptyStateHeight
   })
-  const listContentHeight =
-    Math.min(Math.max(0, ctx.pageSize - fixedBottomItems.length), scrollableItems.length) * ITEM_HEIGHT
-  const fixedBottomHeight = fixedBottomItems.length * ITEM_HEIGHT
+  const listContentHeight = Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   // Home/fill constrains the body only when content overflows and the list shrinks.
   const constrainBody = fillEffective && !collapsed && ctx.isVisible && listHeight < listContentHeight
 
@@ -891,6 +1082,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (!ctx.readOnly) {
       setActiveIndex((active) => (active === -1 ? active : -1))
     }
+    setIsKeyboardNavigating(false)
     setIsMouseOver((prev) => (prev ? prev : true))
   }, [ctx.readOnly])
 
@@ -901,12 +1093,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return (
         <QuickPanelRow
           className={classNames({
-            // In read-only panels only the pinned footer action can be highlighted (via keyboard).
-            focused: (!ctx.readOnly || item.fixedToBottom) && itemIndex === activeIndex,
+            focused: !ctx.readOnly && itemIndex === activeIndex,
             selected: !ctx.readOnly && item.isSelected,
             disabled: item.disabled
           })}
-          active={(!ctx.readOnly || !!item.fixedToBottom) && itemIndex === activeIndex}
+          active={!ctx.readOnly && itemIndex === activeIndex}
+          keyboardActive={isKeyboardNavigating}
           dataId={item.id}
           hoverEnabled={isMouseOver}
           item={item}
@@ -917,7 +1109,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         />
       )
     },
-    [activeIndex, ctx.readOnly, handleItemAction, isMouseOver]
+    [activeIndex, ctx.readOnly, handleItemAction, isKeyboardNavigating, isMouseOver]
   )
 
   return (
@@ -950,47 +1142,51 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         onKeyDown={handlePanelKeyDown}
         onKeyUp={handlePanelKeyUp}
         onMouseMove={handlePanelMouseMove}>
-        {ctx.readOnly ? <QuickPanelReadOnlyHeader title={ctx.title} onClose={() => handleClose('click')} /> : null}
+        {ctx.readOnly ? (
+          <QuickPanelReadOnlyHeader
+            containerRef={readOnlyHeaderRef}
+            title={ctx.title}
+            onClose={() => handleClose('click')}
+          />
+        ) : null}
         {collapsed ? (
-          <div className="p-4 text-center text-[13px] text-muted-foreground">
+          <div ref={emptyStateRef} className="p-4 text-center text-[13px] text-muted-foreground">
             {t('settings.quickPanel.noResult', 'No results')}
           </div>
         ) : null}
-        {!collapsed || fixedBottomItems.length > 0 ? (
-          <div
-            className="relative shrink-0"
-            data-testid="quick-panel-list-region"
-            style={{ height: (collapsed ? 0 : listHeight) + fixedBottomHeight }}>
-            {!collapsed ? (
-              <DynamicVirtualList
-                ref={listRef}
-                list={scrollableItems}
-                size={listHeight}
-                estimateSize={estimateSize}
-                overscan={5}
-                scrollerStyle={{
-                  pointerEvents: ctx.isVisible && isMouseOver ? 'auto' : 'none'
-                }}>
-                {rowRenderer}
-              </DynamicVirtualList>
-            ) : null}
-            {fixedBottomItems.length > 0 ? (
-              <div className="absolute right-0 bottom-0 left-0 bg-transparent" data-testid="quick-panel-fixed-bottom">
-                {fixedBottomItems.map((item, index) => (
-                  <div key={item.id ?? index}>{rowRenderer(item, scrollableItems.length + index)}</div>
-                ))}
-              </div>
-            ) : null}
+        {!collapsed ? (
+          <div className="relative shrink-0" data-testid="quick-panel-list-region" style={{ height: listHeight }}>
+            <DynamicVirtualList
+              ref={listRef}
+              list={list}
+              size={listHeight}
+              estimateSize={estimateSize}
+              overscan={5}
+              scrollerStyle={{
+                pointerEvents: ctx.isVisible && isMouseOver ? 'auto' : 'none'
+              }}>
+              {rowRenderer}
+            </DynamicVirtualList>
           </div>
         ) : null}
-        {!ctx.readOnly ? (
+        {!ctx.readOnly || footerActions.length > 0 ? (
           <QuickPanelFooter
+            actions={footerActions}
+            activeActionId={footerActions[activeIndex - list.length]?.id}
+            compact={footerWidth > 0 && footerWidth <= 620}
             containerRef={footerRef}
-            title={ctx.title}
-            assistiveKey={footerWidth >= 500 ? ASSISTIVE_KEY : undefined}
+            title={ctx.readOnly ? undefined : ctx.title}
+            assistiveKey={ASSISTIVE_KEY}
             assistiveKeyActive={isAssistiveKeyPressed}
             showPageHint
             confirmLabel={ctx.multiple ? t('settings.quickPanel.multiple') : undefined}
+            onAction={(footerAction: QuickPanelFooterAction) => {
+              setActiveIndex(list.length + footerActions.indexOf(footerAction))
+              handleItemAction(footerAction, 'click', true)
+            }}
+            onActionFocus={(footerAction: QuickPanelFooterAction) => {
+              setActiveIndex(list.length + footerActions.indexOf(footerAction))
+            }}
           />
         ) : null}
       </div>

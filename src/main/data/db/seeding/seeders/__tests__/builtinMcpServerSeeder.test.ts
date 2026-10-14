@@ -1,11 +1,12 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { hashObject } from '@data/db/seeding/hashObject'
 import { BuiltinMcpServerSeeder } from '@data/db/seeding/seeders/builtinMcpServerSeeder'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
 
 describe('BuiltinMcpServerSeeder', () => {
   const dbh = setupTestDatabase()

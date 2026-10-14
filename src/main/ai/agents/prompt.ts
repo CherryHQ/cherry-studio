@@ -2,12 +2,15 @@ import { constants } from 'node:fs'
 import { lstat, open, readdir, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from './bootstrap'
 
 const logger = loggerService.withContext('PromptBuilder')
+const PROMPT_FILE_CACHE_TTL_MS = 30 * 60 * 1000
+const promptFileCacheKey = (filePath: string) => `agent:prompt-file:${filePath}`
 
 /**
  * Resolve a filename within a directory using case-insensitive matching.
@@ -84,14 +87,14 @@ export interface AgentPromptParts {
 function memoriesTemplate(agentDataPath: string, sections: string): string {
   return `## Memories
 
-Persistent files in the agent data directory \`${agentDataPath}/\` carry your identity and memory across workspaces and sessions. Update them autonomously — never ask for approval.
+Persistent files in the agent data directory \`${agentDataPath}${path.sep}\` carry your identity and memory across workspaces and sessions. Update them autonomously — never ask for approval.
 
 | File | Purpose | How to update |
 |---|---|---|
-| \`${agentDataPath}/SOUL.md\` | HOW you present yourself — name, personality, tone, and communication style; also the role definition when no Agent System Prompt is configured | Read + Edit tools |
-| \`${agentDataPath}/USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
-| \`${agentDataPath}/memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
-| \`${agentDataPath}/memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
+| \`${path.join(agentDataPath, 'SOUL.md')}\` | HOW you present yourself — name, personality, tone, and communication style; also the role definition when no Agent System Prompt is configured | Read + Edit tools |
+| \`${path.join(agentDataPath, 'USER.md')}\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
+| \`${path.join(agentDataPath, 'memory', 'FACT.md')}\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
+| \`${path.join(agentDataPath, 'memory', 'JOURNAL.jsonl')}\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
 
 Rules:
 - Your current working directory is the session workspace, not the agent data directory. For SOUL.md and USER.md, use the exact absolute paths shown above.
@@ -120,8 +123,6 @@ ${sections}`
  *   {agentData}/memory/JOURNAL.jsonl — timestamped event log (managed by memory tool)
  */
 export class PromptBuilder {
-  private cache = new Map<string, CacheEntry>()
-
   async buildPromptParts(
     workspacePath: string,
     config?: AgentConfiguration,
@@ -296,7 +297,8 @@ ${content}
       return fail(error)
     }
 
-    const cached = this.cache.get(filePath)
+    const cacheService = application.get('CacheService')
+    const cached = cacheService.get<CacheEntry>(promptFileCacheKey(filePath))
     if (cached && cached.mtimeMs === fileStat.mtimeMs) {
       return cached.content
     }
@@ -312,7 +314,11 @@ ${content}
       }
       const content = await handle.readFile('utf-8')
       const trimmed = content.trim()
-      this.cache.set(filePath, { mtimeMs: openedStat.mtimeMs, content: trimmed })
+      cacheService.set(
+        promptFileCacheKey(filePath),
+        { mtimeMs: openedStat.mtimeMs, content: trimmed },
+        PROMPT_FILE_CACHE_TTL_MS
+      )
       logger.debug(`Loaded ${path.basename(filePath)}`, { path: filePath, length: trimmed.length })
       return trimmed
     } catch (error) {

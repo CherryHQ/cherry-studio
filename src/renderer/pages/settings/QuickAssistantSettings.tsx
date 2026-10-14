@@ -1,3 +1,10 @@
+import { useNavigate } from '@tanstack/react-router'
+import { Check, ChevronDown, Info } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useEffect, useId, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Command,
@@ -34,12 +41,6 @@ import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import type { Model } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
-import { Check, ChevronDown, Info } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useEffect, useId, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const QuickAssistantSettings: FC = () => {
   const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
@@ -110,7 +111,7 @@ const QuickAssistantSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.quickAssistant.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-quick-assistant-enable-quick-assistant" className="scroll-mt-6">
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
             <InfoTooltip

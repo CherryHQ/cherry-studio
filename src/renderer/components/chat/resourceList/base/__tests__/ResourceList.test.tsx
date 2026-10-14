@@ -257,6 +257,52 @@ describe('ResourceList', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('error.boundary.default.message')
   })
 
+  it('searches Chinese names by initials and restores sorted rows after clearing the query', async () => {
+    const user = userEvent.setup()
+    const items: TestItem[] = [
+      { ...ITEMS[0], name: '知识库 Alpha' },
+      { ...ITEMS[1], name: 'English' },
+      { ...ITEMS[2], name: '知识库 Beta' }
+    ]
+    const Provider = ResourceList.Provider<TestItem>
+    render(
+      <Provider
+        items={items}
+        defaultSortId="updated"
+        sortOptions={[{ id: 'updated', label: 'Updated', comparator: (a, b) => b.updatedAt - a.updatedAt }]}>
+        <ResourceList.Frame>
+          <ResourceList.Search placeholder="Search resources" />
+          <Inspector />
+          <ResourceList.VirtualItems
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+    const search = screen.getByPlaceholderText('Search resources')
+    await user.type(search, 'ZSK')
+    expect(screen.getByText('知识库 Alpha')).toBeInTheDocument()
+    expect(screen.queryByText('English')).not.toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}').names).toEqual([
+      '知识库 Beta',
+      '知识库 Alpha'
+    ])
+    await user.clear(search)
+    await user.type(search, 'zk')
+    expect(screen.queryByText('知识库 Alpha')).not.toBeInTheDocument()
+    await user.clear(search)
+    expect(screen.getByText('English')).toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}').names).toEqual([
+      'English',
+      '知识库 Beta',
+      '知识库 Alpha'
+    ])
+  })
+
   it('derives search, filter, sort, and group state without mutating items', () => {
     const originalOrder = ITEMS.map((item) => item.id).join(',')
     const Provider = ResourceList.Provider<TestItem>
@@ -2882,5 +2928,37 @@ describe('ResourceList', () => {
       expect(within(screen.getByTestId(`resource-list-${name}`)).getByText(`${name} item`)).toBeInTheDocument()
       unmount()
     }
+  })
+
+  it('keeps the pinned action rail expanded at rest without hover', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={[ITEMS[0]]}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item} data-testid="resource-row">
+                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
+                <ResourceList.ItemActions pinned>
+                  <ResourceList.ItemAction aria-label="Unpin item" aria-pressed>
+                    #
+                  </ResourceList.ItemAction>
+                </ResourceList.ItemActions>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const unpinButton = screen.getByRole('button', { name: 'Unpin item' })
+    expect(unpinButton).toHaveAttribute('aria-pressed', 'true')
+    // The pinned rail reserves space at rest; unpinned rows keep the hover-only rail.
+    expect(unpinButton.closest('[data-resource-list-item-actions]')).toHaveAttribute('data-pinned', 'true')
+    // The toggle itself must carry valid visible-at-rest variants; an unknown
+    // variant (e.g. `aria-pressed:true:`) compiles to no CSS and leaves it hidden.
+    expect(unpinButton).toHaveClass('aria-pressed:opacity-100')
+    expect(unpinButton).toHaveClass('aria-pressed:pointer-events-auto')
   })
 })

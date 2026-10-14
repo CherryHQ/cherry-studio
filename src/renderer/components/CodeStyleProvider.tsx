@@ -1,3 +1,7 @@
+import type React from 'react'
+import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react'
+import type { BundledThemeInfo } from 'shiki/types'
+
 import { type CodeMirrorTheme, getCmThemeByName, getCmThemeNames } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { CodeStyleContext, CodeStyleThemeCatalogContext } from '@renderer/hooks/useCodeStyle'
@@ -5,9 +9,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { shikiStreamService } from '@renderer/services/ShikiStreamService'
 import { getMarkdownIt, getShiki } from '@renderer/utils/shiki'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type React from 'react'
-import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react'
-import type { BundledThemeInfo } from 'shiki/types'
 
 export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const [codeEditorEnabled] = usePreference('chat.code.editor.enabled')
@@ -73,7 +74,13 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     theme === ThemeMode.light ? 'light' : 'dark'
   )
 
+  // The themes-all catalog is only resolved after an editor boundary demands a theme, so
+  // windows that never render a CodeMirror editor never load it.
+  const [cmThemeRequested, setCmThemeRequested] = useState(false)
+  const requestCmTheme = useCallback(() => setCmThemeRequested(true), [])
+
   useEffect(() => {
+    if (!cmThemeRequested) return
     // Every CodeMirror consumer (Notes, MCP editors, ArtifactPane, previews) reads this, so it must
     // not depend on the chat-editor flag. getCmThemeByName already falls back for unknown names.
     const codeStyle = theme === ThemeMode.light ? codeEditorThemeLight : codeEditorThemeDark
@@ -91,7 +98,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     return () => {
       cancelled = true
     }
-  }, [theme, codeEditorThemeLight, codeEditorThemeDark])
+  }, [cmThemeRequested, theme, codeEditorThemeLight, codeEditorThemeDark])
 
   // 自定义 shiki 语言别名
   const languageAliases = useMemo(() => {
@@ -101,7 +108,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       svg: 'xml',
       vab: 'vb',
       graphviz: 'dot'
-    } as Record<string, string>
+    }
   }, [])
 
   useEffect(() => {
@@ -179,7 +186,8 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       shikiMarkdownIt,
       activeShikiTheme,
       isShikiThemeDark,
-      activeCmTheme
+      activeCmTheme,
+      requestCmTheme
     }),
     [
       highlightCodeChunk,
@@ -190,7 +198,8 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       shikiMarkdownIt,
       activeShikiTheme,
       isShikiThemeDark,
-      activeCmTheme
+      activeCmTheme,
+      requestCmTheme
     ]
   )
 

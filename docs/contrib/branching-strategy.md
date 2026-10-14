@@ -17,9 +17,9 @@ Cherry Studio implements a structured branching strategy to maintain code qualit
   - Code may contain features in development and might not be fully stable
 
 - `release/*`: Release branches
-  - Created from `main` branch
+  - Created from the exact current `main` head by the **Pre Release** workflow; do not create them by hand in the normal flow
   - Contains stable code ready for release
-  - Only accepts documentation updates and bug fixes
+  - Only accepts reviewed hotfix backports and release metadata updates; documentation changes continue through `main`
   - Thoroughly tested before production deployment
 
 For details about the `testplan` branch used in the Test Plan, please refer to the [Test Plan](./test-plan.md).
@@ -50,14 +50,22 @@ When contributing to Cherry Studio, please follow these guidelines:
 
    - Create from `main` branch
    - Naming format: `hotfix/issue-number-brief-description`
+   - Use a `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR title
+   - CI synchronizes the required `hotfix` label from the exact title grammar; for a user-facing fix, put exactly one release-note line in English and Chinese inside the PR template's `release-note` fence, otherwise use `NONE`
    - Submit PR back to `main`
 
 5. **Release Branches:**
-   - Create from `main` branch
-   - Naming format: `release/version-number`
+   - Created only by **Pre Release** from the exact validated `main` head
+   - Naming format: `release/v<semantic-version>`
    - Used for final preparation work before version release
-   - Only accepts bug fixes and documentation updates
-   - After testing and preparation, merge back to `main` and tag with version
+   - Only accepts reviewed hotfix backports and release metadata updates; documentation changes continue through `main`
+   - Build and tag releases from this branch, never from `main`
+   - Open PRs that satisfy the exact hotfix title are automatically labeled `hotfix`; after merge, they get a backport PR only when exactly one draft semantic-version release has a matching active release branch, and any provided bilingual note is validated and applied
+   - Merge the backport PR only after its PR CI passes, wait for push CI on the resulting release-branch head, then rebuild the draft release
+   - Resolve any automatically reported backport failure without merging all of `main` into the release branch
+   - Publishing the GitHub Release applies the release metadata delta to the latest `main` and opens a metadata-only sync PR
+   - Squash the metadata PR with the exact title `chore(release): sync v<version> metadata` (plus only GitHub's optional PR-number suffix) and keep `release-metadata-boundary: v<version>` on its own line in the squash commit body
+   - Follow the [Release Workflow Operations](./release-workflow.md) runbook to prepare, build, hotfix, publish, and synchronize a release
 
 ## Workflow Diagram
 
@@ -76,4 +84,4 @@ When contributing to Cherry Studio, please follow these guidelines:
 - Major releases: v1.0.0, v2.0.0, etc.
 - Feature releases: v1.1.0, v1.2.0, etc.
 - Patch releases: v1.0.1, v1.0.2, etc.
-- Hotfix releases: v1.0.1-hotfix, etc.
+- Fixes merged while a draft is active keep that draft's existing version tag. After publication, ship another fix under the next greater semantic version, normally the next patch (for example, `v1.0.2` after `v1.0.1`); do not create a separate `v1.0.1-hotfix` tag.

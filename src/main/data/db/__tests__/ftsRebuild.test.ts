@@ -1,12 +1,13 @@
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import type Database from 'better-sqlite3'
+import { isNull } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { AGENT_SESSION_MESSAGE_FTS_STATEMENTS, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { MESSAGE_FTS_STATEMENTS, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import type Database from 'better-sqlite3'
-import { isNull } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
 
 /**
  * Regression guard for the FTS5-rowid-reshuffle bug.

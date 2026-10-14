@@ -12,9 +12,10 @@
  * would otherwise send unsupported audio/video → provider error.
  */
 
+import type { ImagePart, ModelMessage, ToolResultPart, UIMessage } from 'ai'
+
 import type { Model } from '@shared/data/types/model'
 import { isAudioModel, isVideoModel, isVisionModel } from '@shared/utils/model'
-import type { ImagePart, ModelMessage, ToolResultPart, UIMessage } from 'ai'
 
 import type { TokenDialect } from '../tokens/dialect'
 
@@ -77,7 +78,7 @@ export function stripUnsupportedMedia<T extends UIMessage = UIMessage>(messages:
       changed = true
       return { type: 'text', text: omittedMediaNote(modality) }
     })
-    return changed ? ({ ...message, parts } as T) : message
+    return changed ? { ...message, parts } : message
   })
 }
 

@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 import type { FileContextMenuActions } from '../FileContextMenu'
 import type { FileItem } from '../fileDisplay'
@@ -51,10 +55,11 @@ const file: FileItem = {
 }
 
 const menuActions: FileContextMenuActions = {
+  isSidebarPinned: vi.fn(() => false),
   onRename: vi.fn(),
   onDelete: vi.fn(),
-  onRestore: vi.fn(),
-  onShowInFolder: vi.fn()
+  onShowInFolder: vi.fn(),
+  onToggleSidebar: vi.fn()
 }
 
 function fileListProps(renamingId: string | null): ComponentProps<typeof FileList> {
@@ -64,10 +69,8 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
     onSelect: vi.fn(),
     onOpen: vi.fn(),
     onDelete: vi.fn(),
-    onRestore: vi.fn(),
     onRename: vi.fn(),
     onShowInFolder: vi.fn(),
-    isTrash: false,
     menuActions,
     scrollRef: { current: document.createElement('div') },
     renamingId,
@@ -105,6 +108,22 @@ describe('fileDisplay helpers', () => {
 })
 
 describe('FileList', () => {
+  it('disables row and context-menu deletion while a delete request is pending', async () => {
+    const onDelete = vi.fn()
+    const actions = { ...menuActions, onDelete }
+    render(<FileList {...fileListProps(null)} onDelete={onDelete} menuActions={actions} deleteDisabled />)
+
+    const rowDelete = screen.getByRole('button', { name: 'files.delete.label' })
+    expect(rowDelete).toBeDisabled()
+    fireEvent.contextMenu(screen.getByText('report.md'))
+    const contextDelete = await screen.findByRole('menuitem', { name: 'files.delete.label' })
+    expect(contextDelete).toHaveAttribute('data-disabled')
+
+    fireEvent.click(rowDelete)
+    fireEvent.click(contextDelete)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
   it('virtualizes accumulated files with stable file identity keys', () => {
     const files = Array.from({ length: 100 }, (_, index) => ({
       ...file,
@@ -153,18 +172,21 @@ describe('FileList', () => {
     expect(virtualizerMocks.scrollToIndex).toHaveBeenCalledWith(37, { align: 'auto' })
   })
 
-  it('opens rows while checkbox interactions only select', () => {
+  it('forwards checkbox state and the Shift modifier without opening the row', async () => {
     const onSelect = vi.fn()
     const onOpen = vi.fn()
+    const user = userEvent.setup()
 
     render(<FileList {...fileListProps(null)} onSelect={onSelect} onOpen={onOpen} />)
 
     const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
-    fireEvent.click(checkbox)
-    expect(onSelect).toHaveBeenCalledWith(file.id)
+    await user.keyboard('{Shift>}')
+    await user.click(checkbox)
+    await user.keyboard('{/Shift}')
+    expect(onSelect).toHaveBeenCalledWith(file.id, true, true)
     expect(onOpen).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByText(file.name))
+    await user.click(screen.getByText(file.name))
     expect(onOpen).toHaveBeenCalledWith(file)
     expect(onSelect).toHaveBeenCalledOnce()
   })

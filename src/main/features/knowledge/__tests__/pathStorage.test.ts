@@ -4,8 +4,9 @@
 // helpers (the guard itself is private).
 import path from 'node:path'
 
-import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 // Legitimately branded, not a type lie: `../escape.md` IS a relative POSIX path.
 // Containment is the knowledge layer's rule, so a traversal reaches these helpers
@@ -297,8 +298,8 @@ describe('pathStorage relative-path safety', () => {
     it('ignores items with non-string or missing path fields', () => {
       const reserved = collectKnowledgeReservedRelativePaths([
         { type: 'url', data: { source: 'https://x', url: 'https://x' } },
-        { type: 'file', data: null as unknown as object },
-        { type: 'file', data: { relativePath: 42 } as unknown as object }
+        { type: 'file', data: null },
+        { type: 'file', data: { relativePath: 42 } }
       ])
 
       expect(reserved.size).toBe(0)

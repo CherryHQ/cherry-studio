@@ -6,17 +6,18 @@
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
+import { tool, zodSchema } from 'ai'
+import mime from 'mime'
+
 import type OpenAI from '@cherrystudio/openai'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
-import mime from 'mime'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
+import { jsonSchemaToZod } from './jsonSchemaToZod'
 import type { ReasoningEffort } from './providerOptionsMapper'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
 
@@ -156,9 +157,9 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         }
         continue
       }
-      // EasyInputMessage (role + content)
+      // Input or replayed output message (role + content)
       if ('role' in item && 'content' in item) {
-        const converted = this.convertEasyInputMessage(item as EasyInputMessage)
+        const converted = this.convertMessage(item)
         if (converted) messages.push(converted)
         continue
       }
@@ -189,9 +190,9 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
   }
 
   /**
-   * Convert EasyInputMessage to a UIMessage (or null to skip).
+   * Convert an input or replayed output message to a UIMessage (or null to skip).
    */
-  private convertEasyInputMessage(msg: EasyInputMessage): CherryUIMessage | null {
+  private convertMessage(msg: EasyInputMessage | OpenAI.Responses.ResponseOutputMessage): CherryUIMessage | null {
     switch (msg.role) {
       case 'developer':
       case 'system':
@@ -244,14 +245,16 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     return null
   }
 
-  private convertAssistantMessage(content: EasyInputMessage['content']): CherryUIMessage | null {
+  private convertAssistantMessage(
+    content: EasyInputMessage['content'] | OpenAI.Responses.ResponseOutputMessage['content']
+  ): CherryUIMessage | null {
     const parts: CherryUIMessage['parts'] = []
 
     if (typeof content === 'string') {
       parts.push({ type: 'text', text: content })
     } else {
       for (const part of content) {
-        if (part.type === 'input_text') parts.push({ type: 'text', text: part.text })
+        if (part.type === 'input_text' || part.type === 'output_text') parts.push({ type: 'text', text: part.text })
       }
     }
 
@@ -273,7 +276,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
 
       const funcTool = toolDef
       const rawSchema = funcTool.parameters
-      const schema = rawSchema ? jsonSchemaToZod(rawSchema as JsonSchemaLike) : jsonSchemaToZod({ type: 'object' })
+      const schema = rawSchema ? jsonSchemaToZod(rawSchema) : jsonSchemaToZod({ type: 'object' })
 
       const aiTool = tool({
         description: funcTool.description || '',

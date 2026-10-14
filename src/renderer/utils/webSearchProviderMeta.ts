@@ -23,12 +23,16 @@ const WEB_SEARCH_CAPABILITY_ORDER: readonly WebSearchCapability[] = ['searchKeyw
 
 type WebSearchProviderDisplayMeta = {
   descriptionKey: string
-  iconRef: IconRef
+  iconRef?: IconRef
   officialWebsite?: string
   apiKeyWebsite?: string
 }
 
 const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchProviderDisplayMeta> = {
+  crawl4ai: {
+    descriptionKey: 'settings.tool.websearch.provider_description.crawl4ai',
+    officialWebsite: 'https://docs.crawl4ai.com/core/self-hosting/'
+  },
   bocha: {
     descriptionKey: 'settings.tool.websearch.provider_description.bocha',
     iconRef: providerIconRef('bocha'),
@@ -56,6 +60,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://jina.ai/reader',
     apiKeyWebsite: 'https://jina.ai'
   },
+  parallel: {
+    descriptionKey: 'settings.tool.websearch.provider_description.parallel',
+    iconRef: providerIconRef('parallel'),
+    officialWebsite: 'https://parallel.ai',
+    apiKeyWebsite: 'https://platform.parallel.ai'
+  },
   querit: {
     descriptionKey: 'settings.tool.websearch.provider_description.querit',
     iconRef: providerIconRef('querit'),
@@ -66,6 +76,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     descriptionKey: 'settings.tool.websearch.provider_description.searxng',
     iconRef: providerIconRef('searxng'),
     officialWebsite: 'https://docs.searxng.org'
+  },
+  serply: {
+    descriptionKey: 'settings.tool.websearch.provider_description.serply',
+    iconRef: providerIconRef('serply'),
+    officialWebsite: 'https://serply.io',
+    apiKeyWebsite: 'https://serply.io'
   },
   tavily: {
     descriptionKey: 'settings.tool.websearch.provider_description.tavily',
@@ -91,7 +107,7 @@ export function getWebSearchProviderDescriptionKey(providerId: WebSearchProvider
   return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].descriptionKey
 }
 
-export function getWebSearchProviderIconRef(providerId: WebSearchProviderId): IconRef {
+export function getWebSearchProviderIconRef(providerId: WebSearchProviderId): IconRef | undefined {
   return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].iconRef
 }
 

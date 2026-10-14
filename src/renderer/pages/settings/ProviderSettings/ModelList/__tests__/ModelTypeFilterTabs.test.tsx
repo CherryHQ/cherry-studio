@@ -1,6 +1,7 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import { ModelTypeFilterTabs } from '../ModelTypeFilterTabs'
 
@@ -54,7 +55,7 @@ function triggerResizeObserver() {
 describe('ModelTypeFilterTabs', () => {
   beforeEach(() => {
     resizeObserverInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = { callback, targets: [] }
       resizeObserverInstances.push(instance)
 
@@ -62,7 +63,7 @@ describe('ModelTypeFilterTabs', () => {
         observe: vi.fn((target: Element) => instance.targets.push(target)),
         disconnect: vi.fn()
       } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+    })
   })
 
   afterEach(() => {
@@ -91,5 +92,30 @@ describe('ModelTypeFilterTabs', () => {
     // Overflow ownership must stay on the shared container so it can calculate and control the scroll position.
     expect(tabList).toHaveClass('w-max', 'min-w-full', 'shrink-0')
     expect(tabList).not.toHaveClass('w-full', 'max-w-full', 'overflow-x-auto')
+  })
+
+  it('omits empty model types from the simplified filter row', () => {
+    const counts = {
+      all: 2,
+      text: 2,
+      image: 0,
+      embedding: 0,
+      audio: 0,
+      video: 0,
+      rerank: 0,
+      speech: 0,
+      transcription: 0
+    }
+    const { rerender } = render(
+      <ModelTypeFilterTabs value="all" onValueChange={vi.fn()} counts={counts} hideEmptyFilters />
+    )
+
+    expect(screen.getByRole('tab', { name: /models\.all/ })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /models\.type\.text/ })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /models\.type\.image/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /models\.type\.embedding/ })).not.toBeInTheDocument()
+
+    rerender(<ModelTypeFilterTabs value="image" onValueChange={vi.fn()} counts={counts} hideEmptyFilters />)
+    expect(screen.getByRole('tab', { name: /models\.type\.image/ })).toBeInTheDocument()
   })
 })

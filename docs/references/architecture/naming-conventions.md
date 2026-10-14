@@ -139,7 +139,7 @@ A `*Utils` suffix is used only when the file lives outside any `utils/` director
 |---|---|---|
 | Top-level meta docs at repo root | `UPPERCASE.md` | `README.md`, `CLAUDE.md`, `DESIGN.md`, `CONTRIBUTING.md` |
 | Per-directory README | `README.md` (always uppercase) | `src/main/core/paths/README.md` |
-| All other docs (under `docs/`, `packages/*/docs/`, etc.) | `kebab-case.md` | `database-testing.md`, `lan-transfer-protocol.md` |
+| All other docs (under `docs/`, `packages/*/docs/`, etc.) | `kebab-case.md` | `database-testing.md`, `remote-protocol.md` |
 
 ### 3.7 JSON / YAML / TOML
 
@@ -309,7 +309,7 @@ Names inside source code — separate axis from filenames.
 | Variable, function, method, parameter | `camelCase` | `fetchUser`, `isReady` |
 | Hook | `camelCase` with mandatory `use` prefix | `useChatContext` |
 | Top-level constant | `UPPER_SNAKE_CASE` | `MAX_RETRY_COUNT` |
-| Enum member | Follow the enum's established domain style | `WindowType.Main`, `ThemeMode.dark`, `IpcChannel.App_SetLaunchOnBoot` |
+| Enum member | Follow the enum's established domain style | `WindowType.Main`, `ThemeMode.dark`, `IpcChannel.App_Select` |
 | Private class member | no `_` prefix; use `private` modifier | `private cache` |
 | Generic type parameter | `PascalCase`, prefer descriptive | `<TItem>`, `<TError>` (avoid bare `T` for non-trivial cases) |
 

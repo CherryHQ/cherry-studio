@@ -45,14 +45,11 @@ resolved scope is empty. Do not restate the derivation here.
 Run the review stages defined in `SKILL.md` § Review Stages in order.
 
 1. **Product Demand gate** — follow `SKILL.md` § Review Stages, stage 1 for
-   the skip test and mode rules: skip silently only after inspecting the
-   semantics the change expresses or constrains, never from its change type;
-   interactive is the default (ask the current user for the product decision
-   and stop the whole review if the direction is rejected), and record-only
-   automated behavior applies only when the invocation or workflow context
-   explicitly identifies an automated run, carrying the product-impact
-   summary into Step 4's report. Skip this step when the PR wrapper already
-   ran the gate.
+   the semantic-impact, decision-evidence, and mode rules. Preserve its three
+   states: no product impact, established direction, and open product decision.
+   Only an open product decision may prompt in an interactive run or use
+   record-only behavior in an explicitly automated run. Skip this step when
+   the PR wrapper already ran the gate.
 2. **Consumer review** — whenever the diff adds or expands shared surface,
    judged by diff semantics rather than change label. Follow
    `consumer-review.md`; only surviving surfaces continue to the stages below.
@@ -112,9 +109,9 @@ with their fix guidance or "no issues found". If
 `LIMITED_SINGLE_AGENT = true`, explicitly state that the scope was non-small
 but the runtime had no subagent capability, so the review was single-agent and
 did not include independent adversarial verification. In an automated session
-with product impact, include the Product Demand summary — impact, direction,
-and points needing human confirmation — explicitly marked as awaiting a
-product decision, never as approved.
+with an open product decision, include the Product Demand summary — impact,
+direction, and points needing human confirmation — explicitly marked as
+awaiting a product decision, never as approved.
 
 Validation: when fixes were applied, the session is a coding task — run the
 validation selected per `SKILL.md` § Validation after applied fixes and report

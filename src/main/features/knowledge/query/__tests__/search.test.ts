@@ -1,5 +1,6 @@
-import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
+
+import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from '../search'
 

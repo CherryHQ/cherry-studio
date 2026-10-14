@@ -1,18 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const netMocks = vi.hoisted(() => ({
-  fetch: vi.fn()
-}))
-
-vi.mock('electron', async (importOriginal) => {
-  const actual = (await importOriginal()) as { net: Electron.Net }
-  return {
-    ...actual,
-    net: { ...actual.net, fetch: netMocks.fetch }
-  }
-})
-
 import { net } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { OAuthHttpError, PkceOAuthClient } from '../PkceOAuthClient'
 

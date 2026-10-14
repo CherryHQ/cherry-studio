@@ -3,6 +3,18 @@ import { openaiCompatible } from './types'
 
 export const minimaxOverrides = [
   {
+    modelId: 'minimax-m3-1-flash-preview',
+    apiModelId: 'MiniMax-M3.1-Flash-Preview',
+    endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+    reasoningContracts: {
+      'anthropic-messages': {
+        wire: {
+          effort: { operations: [{ target: 'effort', value: { source: 'effort' } }] }
+        }
+      }
+    }
+  },
+  {
     modelId: 'minimax-m3',
     endpointTypes: ['openai-chat-completions', 'anthropic-messages']
   },
@@ -89,6 +101,7 @@ export const minimaxOverrides = [
 export default openaiCompatible({
   id: 'minimax',
   name: 'MiniMax',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.minimaxi.com/v1/',
   anthropic: 'https://api.minimaxi.com/anthropic',
   website: {

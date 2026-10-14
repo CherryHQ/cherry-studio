@@ -1,5 +1,6 @@
-import { Skeleton } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
+
+import { Skeleton } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Skeleton> = {
   title: 'Components/Primitives/Skeleton',

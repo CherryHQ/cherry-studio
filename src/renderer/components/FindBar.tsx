@@ -1,12 +1,13 @@
+import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
+import type { KeyboardEvent, PropsWithChildren, Ref } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { cn } from '@renderer/utils/style'
-import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
-import type { KeyboardEvent, PropsWithChildren, Ref } from 'react'
-import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export interface FindBarState {
   enabled: boolean
@@ -134,7 +135,7 @@ export function FindBar({
           onChange={(event) => setState((current) => ({ ...current, query: event.target.value }))}
           onKeyDown={handleInputKeyDown}
           placeholder={t('chat.assistant.search.placeholder')}
-          className="w-full flex-1 border-none bg-transparent px-[5px] py-0 font-[Ubuntu] text-[14px] text-foreground leading-5 outline-none"
+          className="w-full flex-1 border-none bg-transparent px-[5px] py-0 font-[Ubuntu] text-[14px] leading-5 text-foreground outline-none"
         />
         <div className="flex flex-row items-center">
           {showUserToggle && (
