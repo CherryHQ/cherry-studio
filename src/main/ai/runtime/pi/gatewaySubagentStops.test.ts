@@ -11,6 +11,7 @@ import {
   outputText,
   recordingSubagentPort,
   routedModel,
+  stopTurnTool,
   subagentCall,
   toolCallPart,
   toolResultOf,
@@ -97,23 +98,9 @@ describe('subagent stops', () => {
   it('stops the subagent and shuts it down when the parent turn aborts', async () => {
     const parent: { session?: AgentSession } = {}
     let shutdowns = 0
-    const waitTool = defineTool({
-      name: 'wait',
-      label: 'Wait',
-      description: 'Wait until stopped',
-      parameters: Type.Object({}),
-      async execute(_id, _params, signal) {
-        void parent.session!.abort()
-        await new Promise<void>((resolve) => {
-          if (signal?.aborted) resolve()
-          else signal?.addEventListener('abort', () => resolve(), { once: true })
-        })
-        return { content: [{ type: 'text', text: 'stopped' }], details: undefined }
-      }
-    })
     const { model, calls } = delegate((lastRole) =>
       lastRole === 'user'
-        ? [toolCallPart('wait_1', 'wait'), finish('tool-calls')]
+        ? [toolCallPart('stop_1', 'stop_turn'), finish('tool-calls')]
         : [...textParts('r', 'LATE'), finish('stop')]
     )
     const host = recordingSubagentPort(() => ({
@@ -125,7 +112,7 @@ describe('subagent stops', () => {
     }))
     const runtime = await createTestSession({
       port: streamTextPort(model).port,
-      tools: [waitTool],
+      tools: [stopTurnTool(parent)],
       subagents: host.port
     })
     parent.session = runtime.session
