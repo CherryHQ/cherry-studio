@@ -1,6 +1,7 @@
 import {
   Activity,
   Archive,
+  AudioLines,
   Bell,
   CalendarClock,
   Cloud,
@@ -12,6 +13,7 @@ import {
   HardDrive,
   Info,
   MonitorSmartphone,
+  MousePointer2,
   Package,
   Palette,
   PictureInPicture2,
@@ -85,6 +87,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
+    route: '/settings/computer-use',
+    titleKey: 'settings.computerUse.title',
+    icon: createElement(MousePointer2),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
     route: '/settings/browser',
     titleKey: 'settings.browser.title',
     icon: createElement(Globe),
@@ -124,6 +132,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/notifications',
     titleKey: 'settings.notification.title',
     icon: createElement(Bell),
+    groupKey: 'settings.menuGroups.personal'
+  },
+  {
+    route: '/settings/voice',
+    titleKey: 'settings.voice.title',
+    icon: createElement(AudioLines),
     groupKey: 'settings.menuGroups.personal'
   },
   {

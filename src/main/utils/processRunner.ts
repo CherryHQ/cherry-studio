@@ -180,6 +180,21 @@ export class CommandOutputLimitError extends Error {
   }
 }
 
+/** Rejection of `executeCommand` when the command ran to completion with a non-zero exit code. */
+export class CommandFailedError extends Error {
+  readonly code: number
+  readonly stdout: string
+  readonly stderr: string
+
+  constructor(code: number, stdout: string, stderr: string) {
+    super(stderr || `Command failed with code ${code}`)
+    this.name = 'CommandFailedError'
+    this.code = code
+    this.stdout = stdout
+    this.stderr = stderr
+  }
+}
+
 /**
  * Execute a command and return its output.
  * Uses crossPlatformSpawn internally for proper Windows .cmd handling.
@@ -251,7 +266,7 @@ export async function executeCommand(
       } else if (code === 0) {
         resolve(options?.capture !== false ? stdout : '')
       } else {
-        reject(new Error(stderr || `Command failed with code ${code}`))
+        reject(new CommandFailedError(code ?? -1, stdout, stderr))
       }
     })
   })
