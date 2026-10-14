@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { ToolArgsTable } from '../shared/ArgsTable'
 import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { ToolResultLinkList } from '../shared/ToolResultLinkList'
+import { getToolResultLinks, type ToolResultLinkData } from '../shared/toolResultLinks'
 
 interface UnknownToolProps {
   toolName: string
@@ -29,20 +31,28 @@ const getToolDisplayName = (name: string) => {
  */
 function extractMcpContent(
   output: unknown
-): { text: string | null; images: Array<{ data: string; mimeType: string }> } | null {
+): { text: string | null; images: Array<{ data: string; mimeType: string }>; links: ToolResultLinkData[] } | null {
   const result = CallToolResultSchema.safeParse(output)
   if (!result.success) return null
 
   const textParts: string[] = []
   const images: Array<{ data: string; mimeType: string }> = []
+  const links: ToolResultLinkData[] = []
   for (const item of result.data.content) {
     if (item.type === 'text' && item.text) {
-      textParts.push(item.text)
+      const textLinks = getToolResultLinks(item)
+      if (textLinks) {
+        for (const link of textLinks) links.push(link)
+      } else textParts.push(item.text)
     } else if (item.type === 'image' && item.data) {
       images.push({ data: item.data, mimeType: item.mimeType ?? 'image/png' })
+    } else if (item.type === 'resource_link') {
+      const resourceLinks = getToolResultLinks(item)
+      if (resourceLinks) links.push(...resourceLinks)
+      else textParts.push(item.uri)
     }
   }
-  return { text: textParts.length > 0 ? textParts.join('\n\n') : null, images }
+  return { text: textParts.length > 0 ? textParts.join('\n\n') : null, images, links }
 }
 
 /**
@@ -74,11 +84,18 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
   // Try MCP CallToolResult format first — text into the output table, image blocks rendered inline.
   const mcpContent = extractMcpContent(output)
   const mcpImages = mcpContent?.images ?? []
+  const links =
+    mcpContent?.links ??
+    (typeof output === 'string' || Array.isArray(output)
+      ? getToolResultLinks({ type: 'text', text: typeof output === 'string' ? output : JSON.stringify(output) })
+      : null)
   const normalizedOutput = mcpContent
     ? mcpContent.text !== null
       ? { value: mcpContent.text }
       : null
-    : normalizeArgs(output)
+    : links
+      ? null
+      : normalizeArgs(output)
   const displayLabel = isMcpTool ? `${getToolDescription(toolName)} ${displayName}` : undefined
 
   return {
@@ -96,6 +113,7 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
       <div className="space-y-1">
         {normalizedInput && <ToolArgsTable args={normalizedInput} title={t('message.tools.sections.input')} />}
         {normalizedOutput && <ToolArgsTable args={normalizedOutput} title={t('message.tools.sections.output')} />}
+        {links && <ToolResultLinkList links={links} />}
         {mcpImages.map((img, idx) => (
           <img
             key={idx}
@@ -104,7 +122,7 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
             className="mt-2 max-w-[300px] rounded"
           />
         ))}
-        {!normalizedInput && !normalizedOutput && mcpImages.length === 0 && (
+        {!normalizedInput && !normalizedOutput && mcpImages.length === 0 && !links?.length && (
           <div className="text-foreground-500 p-3 text-xs">{t('message.tools.noData')}</div>
         )}
       </div>

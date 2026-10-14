@@ -983,6 +983,9 @@ describe('Sessions', () => {
       if (route === 'ai.agent.workspace.delete') {
         return dataApiMocks.deleteWorkspace({ params: { workspaceId: input.workspaceId } })
       }
+      if (route === 'ai.agent.workspace.register') {
+        return dataApiMocks.findOrCreateWorkspace({ body: { path: input.path as string } })
+      }
       return Promise.resolve(undefined)
     })
     conversationOwnerPopupMocks.show.mockImplementation(

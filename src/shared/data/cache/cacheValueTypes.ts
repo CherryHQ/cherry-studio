@@ -148,6 +148,8 @@ export interface CacheComposerSerializedToken {
 
 export interface CacheComposerAttachment {
   fileTokenSourceId: string
+  /** In-memory attachment; shared by drafts, undo history and queued sends. */
+  blob?: Blob
   path?: AbsoluteFilePath
   name: string
   origin_name: string
