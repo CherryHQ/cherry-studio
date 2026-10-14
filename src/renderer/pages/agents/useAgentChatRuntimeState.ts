@@ -18,23 +18,27 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import { cacheService } from '@renderer/data/CacheService'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
   type ConversationHistoryAdapter,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
-import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
+import { autoReadService } from '@renderer/services/voice'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_CLOSING_CACHE_KEY, agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
@@ -150,6 +154,7 @@ export function useAgentChatRuntimeState({
   sessionHistoryFetchOnMount,
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
+  const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const { t } = useTranslation()
   const [editDraft, setEditDraft] = useState<AgentSessionEditDraft & { sessionId: string }>()
   const editing = editDraft?.sessionId === sessionId ? editDraft : undefined
@@ -197,6 +202,8 @@ export function useAgentChatRuntimeState({
     enabled: sessionMessagesEnabled,
     fetchOnMount: sessionHistoryFetchOnMount
   })
+  const latestUiMessagesRef = useRef(uiMessages)
+  latestUiMessagesRef.current = uiMessages
 
   useLayoutEffect(() => {
     if (!sessionMessagesEnabled || reservedMessages.length === 0) return
@@ -262,11 +269,29 @@ export function useAgentChatRuntimeState({
     [deleteSessionMessage, setMessages]
   )
 
+  const handleExecutionFinish = useCallback(
+    (_executionId: string, event: ExecutionFinishEvent) => {
+      const projectedMessage = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
+      const turnOrigin =
+        cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, event.message.id)) ??
+        projectedMessage?.metadata?.turnOrigin ??
+        event.message.metadata?.turnOrigin
+      void autoReadService.consume({
+        enabled: autoReadEnabled,
+        message: event.message,
+        attemptId: event.attemptId,
+        isAbort: event.isAbort,
+        isError: event.isError,
+        eligible: !turnOrigin
+      })
+    },
+    [autoReadEnabled, sessionId]
+  )
   const {
     overlay,
     liveAssistants,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages)
+  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, { onFinish: handleExecutionFinish })
   const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
     messages: optimisticMessages ?? uiMessages,
     overlay,
