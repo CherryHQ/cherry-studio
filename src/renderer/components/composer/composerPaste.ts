@@ -1,7 +1,8 @@
+import type { JSONContent } from '@tiptap/core'
+
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
-import type { JSONContent } from '@tiptap/core'
 
 import {
   type ComposerTokenMarkerRule,
@@ -133,13 +134,13 @@ export function getComposerClipboardPasteOverride(
 
   for (const segment of fragment.segments) {
     if (segment.type === 'text') {
-      content.push(...createComposerPlainTextContent(segment.text))
+      for (const node of createComposerPlainTextContent(segment.text)) content.push(node)
       continue
     }
 
     const resolved = resolvePrivateClipboardToken(segment.token, options)
     if (!resolved) {
-      content.push(...createComposerPlainTextContent(segment.fallbackText))
+      for (const node of createComposerPlainTextContent(segment.fallbackText)) content.push(node)
       continue
     }
 

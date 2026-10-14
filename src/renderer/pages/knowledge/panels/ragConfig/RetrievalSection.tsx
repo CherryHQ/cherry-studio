@@ -43,10 +43,10 @@ const RetrievalSection = ({
           onValueChange={onThresholdChange}
           min={0}
           max={1}
-          step={0.1}
-          minLabel="0.0"
-          maxLabel="1.0"
-          formatValue={(value) => value.toFixed(1)}
+          step={0.01}
+          minLabel="0.00"
+          maxLabel="1.00"
+          formatValue={(value) => value.toFixed(2)}
         />
       ) : null}
     </div>

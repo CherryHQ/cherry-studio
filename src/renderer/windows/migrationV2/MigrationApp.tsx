@@ -1,4 +1,27 @@
 import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  Copy,
+  Database,
+  Download,
+  FolderOpen,
+  History,
+  Loader2,
+  Monitor,
+  Moon,
+  Rocket,
+  RotateCcw,
+  Shield,
+  Sparkles,
+  Sun,
+  Wrench,
+  X
+} from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
   Alert,
   Button,
   Dialog,
@@ -30,28 +53,6 @@ import {
   type MigrationStage,
   type PreparedMigrationExportPaths
 } from '@shared/data/migration/v2/types'
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  Copy,
-  Database,
-  Download,
-  FolderOpen,
-  History,
-  Loader2,
-  Monitor,
-  Moon,
-  Rocket,
-  RotateCcw,
-  Shield,
-  Sparkles,
-  Sun,
-  Wrench,
-  X
-} from 'lucide-react'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   CloseMigrationDialog,
@@ -653,7 +654,11 @@ const MigrationApp: React.FC = () => {
 
       case 'completed': {
         const summary = progress.summary
-        const warnings = progress.warnings ?? []
+        const warnings = [
+          ...(progress.warningMessages ?? []).map((warning) => t(warning.key, warning.params)),
+          ...(progress.warnings ?? [])
+        ]
+        const hasWarnings = warnings.length > 0
         return (
           <div className="space-y-5">
             <TopContent>
@@ -665,7 +670,7 @@ const MigrationApp: React.FC = () => {
                 {t('migration.completed.title')}
               </h2>
               <p className="mt-2.5 text-muted-foreground text-sm leading-relaxed">
-                {t('migration.completed.description')}
+                {t(hasWarnings ? 'migration.completed.description_with_warnings' : 'migration.completed.description')}
               </p>
             </TopContent>
 
@@ -690,12 +695,7 @@ const MigrationApp: React.FC = () => {
               </div>
             )}
 
-            <Button variant="default" size="lg" className="w-full gap-2" onClick={() => actions.restart()}>
-              <RotateCcw size={14} />
-              {t('migration.buttons.restart')}
-            </Button>
-
-            {warnings.length > 0 && (
+            {hasWarnings && (
               <Dialog open={warningsDialogOpen} onOpenChange={setWarningsDialogOpen}>
                 <div className="flex justify-center" data-migration-warning-trigger="">
                   <DialogTrigger asChild>
@@ -735,6 +735,11 @@ const MigrationApp: React.FC = () => {
                 </DialogContent>
               </Dialog>
             )}
+
+            <Button variant="default" size="lg" className="w-full gap-2" onClick={() => actions.restart()}>
+              <RotateCcw size={14} />
+              {t('migration.buttons.restart')}
+            </Button>
           </div>
         )
       }

@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import type { IncomingMessage } from 'node:http'
 import type { RequestOptions } from 'node:https'
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const httpRequestMock = vi.hoisted(() => vi.fn())
@@ -20,7 +21,7 @@ vi.mock('node:dns/promises', () => ({
   lookup: lookupMock
 }))
 
-import { fetchRemoteText } from '../remoteFetch'
+import { fetchRemoteBytes, fetchRemoteText } from '../remoteFetch'
 
 type MockResponseOptions = {
   readonly body?: Buffer | string
@@ -34,7 +35,10 @@ function mockHttpsResponse({ body = 'ok', headers = {}, statusCode = 200 }: Mock
     headers,
     resume: vi.fn(),
     destroy: vi.fn()
-  }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+  }) as IncomingMessage & {
+    resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  }
   const request = Object.assign(new EventEmitter(), {
     end: vi.fn(),
     destroy: vi.fn()
@@ -59,6 +63,32 @@ describe('fetchRemoteText', () => {
     httpsRequestMock.mockReset()
     lookupMock.mockReset()
     lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+    MockMainPreferenceServiceUtils.resetMocks()
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', false)
+  })
+
+  it('preserves arbitrary binary bytes and response metadata', async () => {
+    const body = Buffer.from([0, 255, 128, 195, 40])
+    mockHttpsResponse({ body, headers: { 'content-disposition': 'attachment; filename="test.bin"' } })
+    const result = await fetchRemoteBytes('https://example.com/file', { maxBytes: 5 })
+    expect(result).toEqual({ body, headers: { 'content-disposition': 'attachment; filename="test.bin"' } })
+  })
+
+  it('enforces the binary size limit without trusting Content-Length', async () => {
+    mockHttpsResponse({ body: Buffer.alloc(6) })
+    await expect(fetchRemoteBytes('https://example.com/file', { maxBytes: 5 })).rejects.toThrow(/too large/)
+  })
+
+  it('shares a byte budget across concurrent responses before buffering their bodies', async () => {
+    mockHttpsResponse({ body: Buffer.alloc(4) })
+    const byteBudget = { remaining: 6 }
+    const results = await Promise.allSettled([
+      fetchRemoteBytes('https://example.com/first', { maxBytes: 5, byteBudget }),
+      fetchRemoteBytes('https://example.com/second', { maxBytes: 5, byteBudget })
+    ])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1)
+    expect(byteBudget.remaining).toBe(2)
   })
 
   it('fetches through a prevalidated DNS address without re-resolving at connection time', async () => {
@@ -111,6 +141,37 @@ describe('fetchRemoteText', () => {
     await expect(fetchRemoteText('https://example.com/article')).rejects.toThrow(/DNS resolved/)
 
     expect(httpRequestMock).not.toHaveBeenCalled()
+    expect(httpsRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('reaches a private DNS answer when app.fetch.allow_private_network is on', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', true)
+    lookupMock.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
+    mockHttpsResponse({ body: 'intranet' })
+
+    await expect(fetchRemoteText('https://wiki.internal/page')).resolves.toBe('intranet')
+
+    const requestOptions = httpsRequestMock.mock.calls[0]?.[0] as RequestOptions
+    const callback = vi.fn()
+    requestOptions.lookup?.('wiki.internal', {}, callback)
+    expect(callback).toHaveBeenCalledWith(null, '10.0.0.5', 4)
+  })
+
+  it('reaches a literal LAN address when app.fetch.allow_private_network is on', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', true)
+    mockHttpsResponse({ body: 'nas' })
+
+    await expect(fetchRemoteText('https://192.168.1.10:8080/docs')).resolves.toBe('nas')
+
+    expect(lookupMock).not.toHaveBeenCalled()
+  })
+
+  it('still rejects non-http schemes and credentials when app.fetch.allow_private_network is on', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', true)
+
+    await expect(fetchRemoteText('file:///etc/passwd')).rejects.toThrow(/Invalid remote url/)
+    await expect(fetchRemoteText('https://user:pass@192.168.1.10/x')).rejects.toThrow(/credentials are not allowed/)
+
     expect(httpsRequestMock).not.toHaveBeenCalled()
   })
 
@@ -198,13 +259,19 @@ describe('fetchRemoteText', () => {
       headers: { location: 'https://cdn.example.com/article' },
       resume: vi.fn(),
       destroy: vi.fn()
-    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    }) as IncomingMessage & {
+      resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     const finalResponse = Object.assign(new EventEmitter(), {
       statusCode: 200,
       headers: {},
       resume: vi.fn(),
       destroy: vi.fn()
-    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    }) as IncomingMessage & {
+      resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     const requests = [redirectResponse, finalResponse]
     httpsRequestMock.mockImplementation((options: RequestOptions, callback: (response: IncomingMessage) => void) => {
       const response = requests.shift()
@@ -262,7 +329,10 @@ describe('fetchRemoteText', () => {
       headers: { location: 'https://private.example/article' },
       resume: vi.fn(),
       destroy: vi.fn()
-    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    }) as IncomingMessage & {
+      resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     httpsRequestMock.mockImplementation((_options: RequestOptions, callback: (response: IncomingMessage) => void) => {
       queueMicrotask(() => callback(redirectResponse))
       return Object.assign(new EventEmitter(), { end: vi.fn(), destroy: vi.fn() })
@@ -285,7 +355,12 @@ describe('fetchRemoteText', () => {
         resume: vi.fn(),
         destroy: vi.fn()
       })
-    ) as Array<IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }>
+    ) as Array<
+      IncomingMessage & {
+        resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+        destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      }
+    >
     httpsRequestMock.mockImplementation((_options: RequestOptions, callback: (response: IncomingMessage) => void) => {
       const response = responses[httpsRequestMock.mock.calls.length - 1]
       if (!response) throw new Error('Unexpected HTTPS request')
@@ -335,7 +410,10 @@ describe('fetchRemoteText', () => {
       headers: {},
       resume: vi.fn(),
       destroy: vi.fn()
-    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    }) as IncomingMessage & {
+      resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     const request = Object.assign(new EventEmitter(), {
       end: vi.fn(),
       destroy: vi.fn()
@@ -367,7 +445,10 @@ describe('fetchRemoteText', () => {
       headers: {},
       resume: vi.fn(),
       destroy: vi.fn()
-    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    }) as IncomingMessage & {
+      resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     const request = Object.assign(new EventEmitter(), {
       end: vi.fn(),
       destroy: vi.fn()

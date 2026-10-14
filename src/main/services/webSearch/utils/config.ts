@@ -1,3 +1,4 @@
+import { providerService } from '@main/data/services/ProviderService'
 import type {
   PreferenceDefaultScopeType,
   PreferenceKeyType,
@@ -99,10 +100,32 @@ function inheritExaMcpApiKeys(
   return { ...provider, apiKeys: exaKeys }
 }
 
+/**
+ * Zhipu web search authenticates with the same key as the Zhipu model provider, so its
+ * settings section deliberately has no key input and points users at model provider
+ * settings instead. Read that key at search time rather than mirroring it into a second
+ * store, so rotating or disabling it there takes effect here too.
+ */
+function inheritZhipuModelProviderApiKeys(provider: WebSearchProvider): WebSearchProvider {
+  if (provider.id !== 'zhipu') {
+    return provider
+  }
+
+  let modelProviderKeys: string[] = []
+  try {
+    modelProviderKeys = trimStringList(providerService.getApiKeys('zhipu', { enabled: true }).map((entry) => entry.key))
+  } catch {
+    // No Zhipu model provider row: the user simply has not configured Zhipu at all.
+    return { ...provider, apiKeys: [] }
+  }
+
+  return { ...provider, apiKeys: modelProviderKeys }
+}
+
 export function resolveProviders(providerOverrides: WebSearchProviderOverrides): WebSearchProvider[] {
   return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
     const provider = mergeWebSearchProviderPreset(preset, providerOverrides[preset.id])
-    return inheritExaMcpApiKeys(provider, providerOverrides)
+    return inheritZhipuModelProviderApiKeys(inheritExaMcpApiKeys(provider, providerOverrides))
   })
 }
 
@@ -147,7 +170,9 @@ export async function getProviderById<TProviderId extends WebSearchProvider['id'
 
   const provider = mergeWebSearchProviderPreset(preset, override)
 
-  return inheritExaMcpApiKeys(provider, providerOverrides) as WebSearchProvider & { id: TProviderId }
+  return inheritZhipuModelProviderApiKeys(inheritExaMcpApiKeys(provider, providerOverrides)) as WebSearchProvider & {
+    id: TProviderId
+  }
 }
 
 export async function getProviderForCapability(

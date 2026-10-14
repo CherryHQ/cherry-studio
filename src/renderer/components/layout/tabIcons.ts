@@ -1,4 +1,3 @@
-import type { Tab } from '@renderer/hooks/tab'
 import {
   Code,
   FileSearch,
@@ -12,8 +11,11 @@ import {
   Palette,
   Rocket,
   ScanSearch,
-  Settings
+  Settings,
+  Sparkles
 } from 'lucide-react'
+
+import type { Tab } from '@renderer/hooks/tab'
 
 export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; className?: string }>
 
@@ -21,6 +23,7 @@ export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; clas
 
 export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/chat': MessageCircle,
+  '/app/browser': Globe,
   '/app/agents': MousePointerClick,
   '/app/paintings': Palette,
   '/app/translate': Languages,
@@ -31,6 +34,7 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/files': Folder,
   '/app/code': Code,
   '/app/notes': NotepadText,
+  '/app/release-notes': Sparkles,
   '/settings': Settings
 }
 

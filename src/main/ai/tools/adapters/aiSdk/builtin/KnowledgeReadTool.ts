@@ -16,9 +16,10 @@
  * identical logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
-import { KB_READ_TOOL_NAME, kbGrepOutputSchema, kbReadInputSchema, kbReadOutputSchema } from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
+
+import { KB_READ_TOOL_NAME, kbGrepOutputSchema, kbReadInputSchema, kbReadOutputSchema } from '@shared/ai/builtinTools'
 
 import {
   KNOWLEDGE_READ_DESCRIPTION,

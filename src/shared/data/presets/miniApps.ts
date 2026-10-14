@@ -4,6 +4,7 @@
  * Single source of truth for all built-in miniApps.
  * Both renderer (UI display) and main process (DB merge logic) import from here.
  */
+import type { LocalizedText } from '@shared/types/miniAppManifest'
 
 export interface MiniAppPreset {
   id: string
@@ -32,7 +33,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     url: 'https://chatgpt.com/',
     logo: 'openai',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'gemini',
@@ -40,7 +41,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     url: 'https://gemini.google.com/',
     logo: 'gemini',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'silicon',
@@ -119,7 +120,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     name: 'Cici',
     url: 'https://www.cici.com/chat/',
     logo: 'bytedance',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'hailuo',
@@ -146,7 +147,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     url: 'https://agent.minimax.io/',
     logo: 'minimax',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'ima',
@@ -162,14 +163,14 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     name: 'Groq',
     url: 'https://chat.groq.com/',
     logo: 'groq',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'anthropic',
     name: 'Claude',
     url: 'https://claude.ai/',
     logo: 'claude',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'google',
@@ -180,7 +181,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     style: {
       padding: 5
     },
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'baidu-ai-chat',
@@ -240,14 +241,14 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     name: 'Poe',
     logo: 'poe',
     url: 'https://poe.com',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'perplexity',
     name: 'Perplexity',
     logo: 'perplexity',
     url: 'https://www.perplexity.ai/',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'devv',
@@ -271,14 +272,14 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'felo',
     url: 'https://felo.ai/',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'duckduckgo',
     name: 'DuckDuckGo',
     logo: 'duck',
     url: 'https://duck.ai',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'bolt',
@@ -286,7 +287,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'bolt',
     url: 'https://bolt.new/',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'nm',
@@ -313,14 +314,14 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     name: 'GitHub Copilot',
     logo: 'githubcopilot',
     url: 'https://github.com/copilot',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'genspark',
     name: 'Genspark',
     logo: 'genspark',
     url: 'https://www.genspark.ai/',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'grok',
@@ -328,7 +329,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'grok',
     url: 'https://grok.com',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'grok-x',
@@ -336,14 +337,14 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'twitter',
     url: 'https://x.com/i/grok',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'qwenlm',
     name: 'QwenChat',
     logo: 'qwen',
     url: 'https://chat.qwen.ai',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'flowith',
@@ -351,7 +352,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'flowith',
     url: 'https://www.flowith.io/',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: '3mintop',
@@ -366,7 +367,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     name: 'AI Studio',
     logo: 'aistudio',
     url: 'https://aistudio.google.com/',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'xiaoyi',
@@ -382,7 +383,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     name: 'NotebookLM',
     logo: 'notebooklm',
     url: 'https://notebooklm.google.com/',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'coze',
@@ -390,7 +391,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'coze',
     url: 'https://www.coze.com/space',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'dify',
@@ -401,7 +402,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     style: {
       padding: 5
     },
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'wpslingxi',
@@ -418,7 +419,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'mistral',
     url: 'https://chat.mistral.ai/chat',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'abacus',
@@ -426,7 +427,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'abacus',
     url: 'https://apps.abacus.ai/chatllm',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'lambdachat',
@@ -434,7 +435,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'lambda',
     url: 'https://lambda.chat/',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'monica',
@@ -442,14 +443,14 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'monica',
     url: 'https://monica.im/home/',
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'you',
     name: 'You',
     logo: 'you',
     url: 'https://you.com/',
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'zhihu',
@@ -475,7 +476,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     logo: 'zai',
     url: `https://chat.z.ai/`,
     bordered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'n8n',
@@ -486,7 +487,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     style: {
       padding: 5
     },
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   },
   {
     id: 'longcat',
@@ -517,6 +518,23 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     style: {
       padding: 6
     },
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['Global']
   }
 ]
+
+/**
+ * A mini app that ships inside the Cherry package, listed for the launcher BEFORE it
+ * is installed. Display data only — `resources/builtin-mini-apps/<appId>/manifest.json`
+ * is the source of truth, re-read and fully validated at install time. Permissions,
+ * network and version are never taken from here.
+ */
+export interface BuiltinMiniApp {
+  appId: string
+  /** The manifest field verbatim — the CI test asserts equality with the shipped package. */
+  name: LocalizedText
+  /** Package-relative path to a build-time 128x128 WebP. See the catalog test. */
+  icon: string
+}
+
+/** Empty on purpose: this release ships the slot, not the contents. */
+export const BUILTIN_MINI_APPS: BuiltinMiniApp[] = []

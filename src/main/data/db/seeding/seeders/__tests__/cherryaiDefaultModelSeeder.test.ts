@@ -1,3 +1,8 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { and, eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { preferenceTable } from '@data/db/schemas/preference'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -7,6 +12,7 @@ import {
 } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import {
+  CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_API_BASE_URL,
   CHERRYAI_DEFAULT_MODEL_GROUP,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -15,10 +21,6 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { and, eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
 
 describe('CherryAiDefaultModelSeeder', () => {
   const dbh = setupTestDatabase()
@@ -42,7 +44,7 @@ describe('CherryAiDefaultModelSeeder', () => {
     }
   }
 
-  it('seeds CherryAI provider, Qwen model, and missing default model preferences', async () => {
+  it('seeds branded CherryAI providers, Qwen model, and missing default model preferences', async () => {
     new CherryAiDefaultModelSeeder().run(dbh.db)
 
     const [provider] = await dbh.db
@@ -55,6 +57,11 @@ describe('CherryAiDefaultModelSeeder', () => {
       .from(userModelTable)
       .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
       .limit(1)
+    const [cloudProvider] = await dbh.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, CHERRY_CLOUD_PROVIDER_ID))
+      .limit(1)
 
     expect(provider).toMatchObject({
       providerId: CHERRYAI_PROVIDER_ID,
@@ -64,6 +71,13 @@ describe('CherryAiDefaultModelSeeder', () => {
       isEnabled: true
     })
     expect(provider?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe(CHERRYAI_API_BASE_URL)
+    expect(cloudProvider).toMatchObject({
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      presetProviderId: CHERRYAI_PROVIDER_ID,
+      name: 'CherryAI',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      isEnabled: true
+    })
     expect(model).toMatchObject({
       id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
       providerId: CHERRYAI_PROVIDER_ID,
@@ -84,6 +98,7 @@ describe('CherryAiDefaultModelSeeder', () => {
       key: 'chat.default_model_id',
       value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
     })
+    expect(await readPreferenceValue('topic.naming.model_id')).toBeUndefined()
   })
 
   it('does not overwrite existing non-empty default model preferences', async () => {
@@ -92,11 +107,6 @@ describe('CherryAiDefaultModelSeeder', () => {
         scope: 'default',
         key: 'chat.default_model_id',
         value: 'openai::gpt-4o'
-      },
-      {
-        scope: 'default',
-        key: 'topic.naming.model_id',
-        value: 'openai::gpt-4o-mini'
       },
       {
         scope: 'default',
@@ -113,7 +123,6 @@ describe('CherryAiDefaultModelSeeder', () => {
     new CherryAiDefaultModelSeeder().run(dbh.db)
 
     expect(await readPreferenceValue('chat.default_model_id')).toBe('openai::gpt-4o')
-    expect(await readPreferenceValue('topic.naming.model_id')).toBe('openai::gpt-4o-mini')
     expect(await readPreferenceValue('feature.quick_assistant.model_id')).toBe('anthropic::claude-3-haiku')
     expect(await readPreferenceValue('feature.translate.model_id')).toBe('google::gemini-2.5-flash')
   })

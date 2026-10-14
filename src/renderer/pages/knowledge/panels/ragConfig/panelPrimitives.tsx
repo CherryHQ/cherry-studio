@@ -1,13 +1,14 @@
+import { Info } from 'lucide-react'
+import type { ReactNode } from 'react'
+
 import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
-import { Info } from 'lucide-react'
-import type { ReactNode } from 'react'
 
 export const RagFieldLabel = ({ className, label, hint }: { className?: string; label: string; hint?: string }) => {
   return (
     <div className={cn('mb-2 flex items-center gap-1.5', className)}>
-      <span className="font-medium text-foreground text-sm">{label}</span>
+      <span className="text-sm font-medium text-foreground">{label}</span>
       {hint ? (
         <Tooltip content={hint} placement="top" className="w-fit max-w-sm px-2.5 py-1.5 text-[10px] leading-relaxed">
           <Info size={12} className="cursor-help text-muted-foreground" />
@@ -85,7 +86,7 @@ export const RagInlineField = ({
           className={cn('shadow-none', suffix ? 'pr-14' : undefined)}
         />
         {suffix ? (
-          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-foreground-tertiary text-xs leading-4">
+          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs leading-4 text-foreground-tertiary">
             {suffix}
           </span>
         ) : null}
@@ -112,13 +113,13 @@ export const RagHintText = ({
 }) => {
   if (tone === 'error') {
     return (
-      <div className="rounded-md border border-error-border bg-error-subtle px-2.5 py-1.5 text-error-subtle-foreground text-xs leading-4">
+      <div className="rounded-md border border-error-border bg-error-subtle px-2.5 py-1.5 text-xs leading-4 text-error-subtle-foreground">
         {children}
       </div>
     )
   }
 
-  return <p className="text-muted-foreground text-xs leading-4">{children}</p>
+  return <p className="text-xs leading-4 text-muted-foreground">{children}</p>
 }
 
 export const RagSliderField = ({
@@ -150,7 +151,7 @@ export const RagSliderField = ({
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
         <RagFieldLabel label={label} hint={hint} className="mb-0" />
-        <span className="text-muted-foreground text-xs tabular-nums leading-4">{formatValue(value)}</span>
+        <span className="text-xs leading-4 text-muted-foreground tabular-nums">{formatValue(value)}</span>
       </div>
 
       <div className={disabled ? 'opacity-50' : undefined}>
@@ -163,10 +164,10 @@ export const RagSliderField = ({
           step={step}
           size="md"
           disabled={disabled}
-          className="w-full **:data-[slot=slider-thumb]:border-primary **:data-[slot=slider-range]:bg-primary **:data-[slot=slider-thumb]:bg-background **:data-[slot=slider-track]:bg-muted **:data-[slot=slider-thumb]:shadow-sm"
+          className="w-full **:data-[slot=slider-range]:bg-primary **:data-[slot=slider-thumb]:border-primary **:data-[slot=slider-thumb]:bg-background **:data-[slot=slider-thumb]:shadow-sm **:data-[slot=slider-track]:bg-muted"
         />
 
-        <div className="mt-px flex items-center justify-between text-foreground-tertiary text-xs leading-4">
+        <div className="mt-px flex items-center justify-between text-xs leading-4 text-foreground-tertiary">
           <span>{minLabel}</span>
           <span>{maxLabel}</span>
         </div>

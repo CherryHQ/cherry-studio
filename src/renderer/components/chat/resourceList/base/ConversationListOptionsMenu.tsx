@@ -1,7 +1,8 @@
-import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { ChevronsDownUp, ChevronsUpDown, ListFilter } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
+
+import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 
 import { ResourceList } from './ResourceList'
 

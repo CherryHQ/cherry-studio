@@ -28,9 +28,8 @@
  * `AbsoluteFilePathSchema` currently hand-rolls a union of POSIX / drive / UNC
  * shapes that belongs here).
  *
- * Nothing here is re-exported from the directory barrel: `relativeFilePath.ts` is
- * the only consumer so far, and the syntax layer stays internal until something
- * outside `utils/file` genuinely needs it.
+ * Only helpers with a concrete external consumer are re-exported from the
+ * directory barrel; the remaining syntax details stay internal.
  *
  * ## `.` and `..` are structure, not filenames
  *
@@ -41,8 +40,9 @@
  * to.
  */
 
-import { isValidPosixFileName, isValidWindowsFileName } from '@shared/utils/file/filename'
 import * as z from 'zod'
+
+import { isValidPosixFileName, isValidWindowsFileName } from '@shared/utils/file/filename'
 
 /** A path decomposed by one platform's syntax rules. */
 export interface ParsedPath {

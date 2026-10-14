@@ -1,12 +1,12 @@
 import '@testing-library/jest-dom/vitest'
-
-import { defaultMessageRenderConfig, type MessageListItem } from '@renderer/components/chat/messages/types'
-import type { CherryUIMessage } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
 import { render, screen } from '@testing-library/react'
 import dayjs from 'dayjs'
 import type { HTMLAttributes, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { defaultMessageRenderConfig, type MessageListItem } from '@renderer/components/chat/messages/types'
+import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 
 import QuickAssistantMessageList from '../QuickAssistantMessageList'
 
@@ -25,7 +25,9 @@ vi.mock('@renderer/components/SelectionContextMenu', () => ({
 vi.mock('@renderer/components/chat/messages/layout/NarrowLayout', () => ({
   default: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
-vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({ default: () => null }))
+vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
+  default: ({ message }: { message: MessageListItem }) => <span>{message.id}</span>
+}))
 vi.mock('@renderer/components/chat/messages/frame/MessageMenuBar', () => ({ default: () => null }))
 vi.mock('@renderer/components/chat/messages/frame/MessageOutline', () => ({ default: () => null }))
 vi.mock('@renderer/components/chat/messages/list/MessageAnchorLine', () => ({ default: () => null }))
@@ -127,7 +129,7 @@ describe('QuickAssistantMessageList display metadata', () => {
         route="chat"
         topicId="topic-1"
         assistant={null}
-        model={model}
+        model={{ ...model, id: 'cherryai::other', name: 'Other model' }}
         isOutputted
         messages={[{ ...message }]}
         partsByMessageId={{ [message.id]: message.parts ?? [] }}
@@ -136,6 +138,28 @@ describe('QuickAssistantMessageList display metadata', () => {
     )
 
     expect(screen.getByText(timestamp)).toBeInTheDocument()
+    expect(screen.getAllByText('Qwen')).not.toHaveLength(0)
+    expect(screen.queryByText('Other model')).not.toBeInTheDocument()
     expect(screen.queryByText(dayjs().format('MM/DD HH:mm'))).not.toBeInTheDocument()
+  })
+
+  it('omits the summary source and clears the previous conversation on reset', () => {
+    const source: CherryUIMessage = { id: 'source', role: 'user', parts: [{ type: 'text', text: 'Source' }] }
+    const response = createModelOnlyMessage()
+    const props = {
+      route: 'summary' as const,
+      topicId: 'topic-1',
+      assistant: null,
+      model,
+      isOutputted: true,
+      messages: [source, response],
+      partsByMessageId: { source: source.parts, [response.id]: response.parts },
+      streamingLayers: { historyPartsByMessageId: {}, liveMessageIds: [] }
+    }
+    const view = render(<QuickAssistantMessageList {...props} />)
+    expect(screen.queryByText('source')).not.toBeInTheDocument()
+    expect(screen.getByText(response.id)).toBeInTheDocument()
+    view.rerender(<QuickAssistantMessageList {...props} topicId="topic-2" messages={[]} partsByMessageId={{}} />)
+    expect(screen.queryByText(response.id)).not.toBeInTheDocument()
   })
 })

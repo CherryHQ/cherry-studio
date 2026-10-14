@@ -1,8 +1,20 @@
+---
+description: Current Knowledge backend - persistence, IPC, ingestion, retrieval, Concept IDs, and agent tools
+sources:
+  - src/main/features/knowledge
+  - src/main/data/db/schemas/knowledge.ts
+  - src/main/data/services/KnowledgeBaseService.ts
+  - src/main/data/services/KnowledgeItemService.ts
+  - src/shared/ipc/schemas/knowledge.ts
+  - src/main/ipc/handlers/knowledge.ts
+  - src/main/ai/tools/knowledgeLookup.ts
+---
+
 # Knowledge Service
 
-This document records the current v2 knowledge backend shape in the main process.
-
-It covers the `src/main/features/knowledge` workflow path and the SQLite-backed data services. It does not describe the legacy `src/main/knowledge` service or the old `knowledge-base:*` IPC channels.
+This document records the current Knowledge backend in the main process. It
+covers the SQLite business state, Knowledge-owned files and index stores,
+workflow IPC, retrieval, and the agent-facing Concept ID surface.
 
 For workflow guard details, see [Knowledge Operation Guards](./operation-guards.md). For the workflow architecture overview, see [Knowledge Workflow Architecture](./workflow-architecture.md).
 
@@ -12,7 +24,9 @@ The current implementation is split into four responsibility areas:
 
 1. `KnowledgeBaseService` / `KnowledgeItemService`
    - Persist SQLite-backed knowledge base and knowledge item data.
-   - Persist `knowledge_base.status` and `error`; migrated bases with missing embedding models remain as recoverable `failed` bases.
+   - Persist `knowledge_base.status` and `error`; migrated bases with an
+     unresolved embedding model or vector store remain recoverable `failed`
+     bases.
    - Persist `knowledge_base.groupId` and `dimensions`; `dimensions` is `null` for BM25-only completed bases (no embedding model) and for failed bases whose embedding contract is unknown.
    - Validate item `type` / `data` consistency.
    - Persist `knowledge_item.status` and `error`.
@@ -24,7 +38,9 @@ The current implementation is split into four responsibility areas:
    - Thin lifecycle facade: registers Knowledge JobManager handlers, runs boot recovery, and delegates every public method to `base/`, `ingestion/`, and `query/`.
    - `base/` (`KnowledgeBaseAdminService`) creates/deletes/restores bases through data services and vector store services. The per-base mutation lock (a core `KeyedMutex`) is created by the `KnowledgeService` facade and shared with `base/`, `ingestion/`, and the job handlers.
    - `ingestion/` (`KnowledgeIngestionService`) collapses delete/reindex item inputs to top-level roots, enforces runtime guards, and schedules the next workflow step.
-   - `query/` (`KnowledgeQueryService` / `KnowledgeConceptService`) serves search and the Concept ID tool surface.
+   - `query/` (`KnowledgeQueryService` / `KnowledgeConceptService`) serves
+     search, source preview, document read/grep, tree browsing, and Concept
+     ID-addressed delete/reindex.
 4. Knowledge job handlers
    - Execute durable workflow stages through JobManager.
    - Use `KnowledgeIngestionService` for next-step scheduling.
@@ -41,6 +57,7 @@ caller
         -> KnowledgeIngestionService
         -> JobManager
            -> knowledge.prepare-root / knowledge.index-documents
+           -> knowledge.check-file-processing-result
            -> knowledge.delete-subtree / knowledge.reindex-subtree
               -> KeyedMutex.runExclusive
                  -> KnowledgeBaseService / KnowledgeItemService
@@ -48,6 +65,32 @@ caller
 ```
 
 There is no current `KnowledgeRuntimeService` and no in-memory Knowledge queue. Durable work is owned by `JobManager`.
+
+## Storage Boundaries
+
+The main SQLite database owns `knowledge_base` and `knowledge_item`. These rows
+are the business authority for base configuration, item identity, hierarchy,
+status, and errors. The renderer never derives the item list from a filesystem
+scan.
+
+Each base also owns a directory under
+`application.getPath('feature.knowledgebase.data', baseId)`:
+
+```text
+{baseId}/
+  raw/                   # copied files and captured URL/note snapshots
+  .cherry/index.sqlite   # derived retrieval index
+```
+
+Item `relativePath` values are POSIX-style paths relative to `raw/`; main-process
+path guards reject absolute, escaping, and `.cherry/**` paths. Directory imports
+retain their subtree below one reserved top-level prefix. URL and note snapshots
+are Markdown with OKF frontmatter, which readers strip before indexing.
+
+The per-base index is a rebuildable seven-table SQLite projection (`meta`,
+`material`, `content`, `search_unit`, `search_text`, `embedding`, and
+`search_text_fts`). `knowledge_item` remains authoritative for visibility and
+lifecycle; index rows are never the renderer's business-data source.
 
 ## Caller Contract
 
@@ -59,7 +102,10 @@ Current Data API knowledge endpoints are read/update-only for database state tha
 - `GET /knowledge-bases/:id/items`
 - `GET /knowledge-items/:id`
 
-Caller-facing create/delete/index/search operations go through `KnowledgeService` IPC.
+Base lifecycle, item workflow, source preview, chunk inspection, and direct
+search operations go through `KnowledgeService` IPC. Agent read/list/manage
+operations call the same service from the AI tool layer rather than adding a
+second renderer IPC surface.
 
 The caller-facing add model is payload-based:
 
@@ -111,10 +157,12 @@ reindex-items(baseId, itemIds)
 - `knowledge.add_items`
 - `knowledge.delete_items`
 - `knowledge.reindex_items`
+- `knowledge.enable_embedding_model`
 - `knowledge.search`
+- `knowledge.get_file_path`
 - `knowledge.list_item_chunks`
 
-These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. (The former `knowledge:delete-item-chunk` entrypoint was removed with the per-base index store cutover — chunks are derived index rows, replaced wholesale by reindexing.)
+These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. Chunks are derived index rows and are replaced wholesale by reindexing; there is no chunk-delete mutation.
 
 The chunk IPC entrypoint is a runtime inspection helper:
 
@@ -128,6 +176,7 @@ Knowledge runtime work is persisted in JobManager. `KnowledgeService.onInit` reg
 
 - `knowledge.prepare-root`
 - `knowledge.index-documents`
+- `knowledge.check-file-processing-result`
 - `knowledge.delete-subtree`
 - `knowledge.reindex-subtree`
 
@@ -164,7 +213,14 @@ Current persisted `knowledge_base` columns include:
 - `embeddingModelId`: the embedding model; `null` for BM25-only bases.
 - `dimensions`: positive embedding vector width for vector-capable bases; `null` for BM25-only completed bases (no embedding model) and for failed migrated bases with unknown dimensions. On a completed base it is paired with `embeddingModelId` — both set, or both `null` for BM25-only retrieval (enforced by the DB CHECK and the entity schema).
 - `status`: `completed` for runnable bases, `failed` for recoverable base-level migration failures.
-- `error`: nullable `KnowledgeBaseErrorCode`; currently `missing_embedding_model` for recoverable failed bases.
+- `error`: nullable `KnowledgeBaseErrorCode`; recoverable failed bases use
+  `missing_embedding_model` or `missing_vector_store`.
+
+For a completed BM25-only base, `knowledge.enable_embedding_model` sets the
+first embedding model and dimensions in place, then reindexes all non-deleting
+roots to backfill vectors. Changing a base that already has an embedding model
+is rejected by this path; that operation uses `restore_base` because the
+existing vector contract must be rebuilt in a new base.
 
 ## Delete And Reindex
 
@@ -219,9 +275,14 @@ restore-base(sourceBaseId, embeddingModelId, dimensions)
 
 The source base is preserved. Restore is allowed for failed bases and completed bases, including completed bases whose `embeddingModelId` and `dimensions` are unchanged. Same-config restore is a valid clone/rebuild workflow, not rejected as a no-op.
 
-If one or more root items cannot be accepted into the restored base, orchestration best-effort deletes the new base and rethrows an `invalidOperation`. Later background indexing failures are recorded on item status instead of this synchronous restore error.
+Before creating the replacement base, restore probes each source root. Roots
+whose source is confirmed missing are skipped and counted in
+`skippedMissingSourceCount`; sources that are merely unverifiable remain in the
+restore attempt. If an accepted root cannot be added, orchestration best-effort
+deletes the new base and rethrows an `invalidOperation`. Later background
+indexing failures are recorded on item status.
 
-### Migrated Bases With Missing Embedding Models
+### Recoverable Migrated Bases
 
 During v1-to-v2 migration, a legacy knowledge base may reference an embedding model that does not exist in the migrated `user_model` table. For example, a legacy model id such as `ollama::dengcao/Qwen3-Embedding-0.6B:Q8_0` can be present in Redux knowledge data while no matching V2 user model row exists.
 
@@ -234,11 +295,20 @@ In that case, migration must preserve the user-created knowledge data instead of
 - `knowledge_item` rows under that base continue to migrate
 - legacy vectors for that base are skipped because there is no confirmed embedding model contract
 
-`knowledge_base.error` is a shared `KnowledgeBaseErrorCode` value, not a free-form string. The current recoverable base-level error code is `missing_embedding_model`.
+If the embedding model resolves but the legacy vector store is missing, empty,
+locked, or invalid, migration instead preserves the resolved
+`embeddingModelId`, stores `dimensions = null`, and marks the base
+`failed`/`missing_vector_store`. The same restore flow rebuilds either failure
+kind into a new completed base.
+
+`knowledge_base.error` is a shared `KnowledgeBaseErrorCode` value, not a
+free-form string. Migration uses `missing_embedding_model` when the model cannot
+be resolved and `missing_vector_store` when the model is known but the legacy
+store cannot provide a usable vector contract.
 
 This means the migrated base is visible as recoverable data, but it is not usable for search/index operations until the user chooses a valid embedding model.
 
-The failed-base recovery path is `knowledge:restore-base`, not an in-place rebuild:
+The failed-base recovery path is `knowledge.restore_base`, not an in-place rebuild:
 
 ```text
 user selects a valid embedding model for the failed base
@@ -272,19 +342,36 @@ Current `KnowledgeSearchResult` includes:
 - `metadata`
 - optional `itemId`
 - required `chunkId`
+- optional `conceptId`
+- optional `title`
 
 `chunkId` is the search unit identity (`search_unit.unit_id`) used for result-level attribution. `itemId` equals the unit's `material_id` (= `knowledge_item.id`).
 
+`conceptId` is the material's relative path inside the base index, not an
+absolute filesystem path. Search exposes it so an agent can address the same
+completed document through `kb_read` or `kb_manage`.
+
+## Agent Tool Surface
+
+`src/main/ai/tools/knowledgeLookup.ts` is shared by the AI SDK builtins and the
+Claude Code in-process MCP bridge.
+
+| Tool | Current operation |
+|---|---|
+| `kb_list` | Page through in-scope bases, or return one base's logical item tree |
+| `kb_search` | Search explicit in-scope base IDs and return cited chunks plus Concept IDs |
+| `kb_read` | Read a bounded document slice, or grep one document with a regular expression |
+| `kb_manage` | Add a source, delete Concept IDs, or refresh/reindex Concept IDs behind user approval |
+
+The assistant or agent's configured Knowledge bindings form the scope ceiling;
+a per-turn composer selection may narrow that scope but cannot widen it. The
+tool layer enforces scope before delegating to `KnowledgeService`.
+
 ### Current Retrieval Cost Assumption
 
-The current v2 implementation intentionally does not create a vector index and does not use an indexed approximate-nearest-neighbor lookup.
+The implementation does not create a vector index and does not use an indexed approximate-nearest-neighbor lookup.
 Similarity search scans the `embedding` rows directly and sorts by the engine's scalar cosine distance (`vec_distance_cosine` on sqlite-vec, with the query vector bound as a raw little-endian float32 BLOB).
 
 This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
-That tradeoff is currently accepted because it keeps the runtime path simpler for expected near-term corpus sizes.
-
-Current guidance:
-
-1. Treat the no-index design as the default for now, not as an unlimited scaling guarantee.
-2. Re-evaluate indexed search if real single-base corpora grow toward `100k+` rows or retrieval latency budgets can no longer tolerate a few hundred milliseconds per query.
-3. If future product requirements change, adding a vector index remains a valid follow-up optimization rather than a blocked prerequisite for the current design.
+This is an exact implementation boundary, not an indexed-ANN scaling
+guarantee. No second vector index exists in the current contract.

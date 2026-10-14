@@ -1,4 +1,16 @@
+import { pathToFileURL } from 'node:url'
+
 import type { LoadParameters } from 'pdf-parse'
+
+export async function getPdfPageCount(filePath: string): Promise<number> {
+  const parser = await createPdfParser({ url: pathToFileURL(filePath).href })
+  try {
+    const info = await parser.getInfo()
+    return info.total
+  } finally {
+    await parser.destroy()
+  }
+}
 
 /**
  * Extract text content from PDF data.

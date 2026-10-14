@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('useAvailableFileProcessors')
 

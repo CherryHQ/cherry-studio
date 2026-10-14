@@ -1,13 +1,16 @@
 import type { Span } from '@opentelemetry/api'
+import type { UIMessageChunk } from 'ai'
+
+import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
 
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import type { PersistedAssistant } from './persistence/PersistenceBackend'
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -38,10 +41,16 @@ export interface TransportTimings {
 
 // ── Stream terminal results ─────────────────────────────────────────
 
-export interface StreamDoneResult {
+interface TerminalOutcome {
+  persistence?: { status: 'saved'; message: PersistedAssistant } | { status: 'failed'; failure: ExecutionFailure }
+}
+
+export interface StreamDoneResult extends TerminalOutcome {
   finalMessage?: CherryUIMessage
   status: 'success'
   modelId?: UniqueModelId
+  attemptId?: number
+  topicAttemptWatermark?: number
   anchorMessageId?: string
   /** True when all executions in the topic are done. */
   isTopicDone?: boolean
@@ -49,22 +58,27 @@ export interface StreamDoneResult {
   runtimeTiming?: MessageRuntimeTiming
 }
 
-export interface StreamPausedResult {
+export interface StreamPausedResult extends TerminalOutcome {
   finalMessage?: CherryUIMessage
   status: 'paused'
   modelId?: UniqueModelId
+  attemptId?: number
+  topicAttemptWatermark?: number
   anchorMessageId?: string
   isTopicDone?: boolean
   timings?: TransportTimings
   runtimeTiming?: MessageRuntimeTiming
 }
 
-export interface StreamErrorResult {
+export interface StreamErrorResult extends TerminalOutcome {
+  failure?: ExecutionFailure
   error: SerializedError
   /** Whatever accumulated before the error — same shape as the success case. */
   finalMessage?: CherryUIMessage
   status: 'error'
   modelId?: UniqueModelId
+  attemptId?: number
+  topicAttemptWatermark?: number
   anchorMessageId?: string
   isTopicDone?: boolean
   timings?: TransportTimings
@@ -74,10 +88,13 @@ export interface StreamErrorResult {
 // ── StreamListener ──────────────────────────────────────────────────
 
 export interface StreamListener {
+  readonly windowId?: string
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
+  /** Orders terminal persistence before notifications and cleanup work after them. */
+  readonly terminalPhase?: 'persistence' | 'cleanup'
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>
@@ -95,8 +112,12 @@ export interface StreamListener {
 export interface StreamExecution {
   /** Format: "providerId::modelId". */
   modelId: UniqueModelId
+  /** Unique identity for this run, even when modelId and anchorMessageId are reused by retry. Monotonic within the Main-process lifetime; newer attempts have larger values. */
+  attemptId: number
   /** Placeholder id for fresh/regenerate, anchor id for tool-approval continue. Undefined for temporary topics. */
   anchorMessageId?: string
+  /** Renderer readers must start from an empty anchor instead of cached persisted parts. */
+  seedFromEmpty?: boolean
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
@@ -120,6 +141,8 @@ export interface StreamExecution {
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
   pendingApprovalToolCallIds?: Set<string>
+  /** Approval ids already published during this execution. */
+  publishedApprovalIds?: Set<string>
   error?: SerializedError
   siblingsGroupId?: number
   /** Resolves when the execution loop terminates. Awaited by `onStop` for graceful shutdown. */
@@ -131,6 +154,13 @@ export interface StreamExecution {
 }
 
 // ── ActiveStream ────────────────────────────────────────────────────
+
+export interface ConversationCompletedEvent {
+  responseText?: string
+  topicId: string
+  turnId: string
+  completedAt: number
+}
 
 /**
  * Topic-level stream state, keyed by `topicId` in AiStreamManager. A topic
@@ -150,6 +180,8 @@ export interface ActiveStream {
   status: TopicStreamStatus
   isMultiModel: boolean
   lifecycle: StreamLifecycle
+  /** Snapshotted at admission so temporary/internal streams never emit a conversation completion. */
+  isPersistentConversation: boolean
 
   /** Grace-period expiry (ms epoch); written by `lifecycle.cleanup` if it defers eviction. */
   expiresAt?: number

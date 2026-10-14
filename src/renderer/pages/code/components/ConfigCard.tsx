@@ -1,12 +1,13 @@
+import { ArrowUpToLine, CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, NormalTooltip } from '@cherrystudio/ui'
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
 import { isApiGatewayProviderId } from '@shared/types/codeCli'
-import { ArrowUpToLine, CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export interface ProviderCardProps {
   provider: Provider
@@ -15,6 +16,7 @@ export interface ProviderCardProps {
   /** Optional one-line blurb shown under the name — used to promote the unified gateway. */
   description?: string
   isCurrent: boolean
+  actionsDisabled?: boolean
   dragging?: boolean
   onMoveToTop?: (provider: Provider) => void
   onConfigure: (provider: Provider) => void
@@ -29,6 +31,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
   modelName,
   description,
   isCurrent,
+  actionsDisabled,
   dragging,
   onMoveToTop,
   onConfigure,
@@ -72,17 +75,17 @@ export const ProviderCard: FC<ProviderCardProps> = ({
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="min-w-0 truncate text-foreground text-sm">{providerName}</span>
+            <span className="min-w-0 truncate text-sm text-foreground">{providerName}</span>
             {modelName && (
               <>
-                <span aria-hidden className="shrink-0 text-foreground-tertiary text-xs">
+                <span aria-hidden className="shrink-0 text-xs text-foreground-tertiary">
                   ｜
                 </span>
                 <span className="min-w-0 truncate font-mono text-[11px] text-foreground-tertiary">{modelName}</span>
               </>
             )}
           </div>
-          {description && <p className="mt-0.5 truncate text-muted-foreground text-xs">{description}</p>}
+          {description && <p className="mt-0.5 truncate text-xs text-muted-foreground">{description}</p>}
         </div>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
@@ -104,6 +107,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant="outline"
             size="sm"
             onClick={() => onConfigure(provider)}
+            disabled={actionsDisabled}
             className="min-h-0 border-border-subtle px-2.5 py-1">
             <SquarePen size={11} />
             {t('code.configure')}
@@ -113,6 +117,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant={isCurrent ? 'destructive' : 'default'}
             size="sm"
             onClick={() => onToggleCurrent(provider)}
+            disabled={actionsDisabled}
             className="min-h-0 px-2.5 py-1">
             {isCurrent ? <CircleMinus size={11} /> : <Play size={11} />}
             {isCurrent ? t('code.disable') : t('code.enable')}

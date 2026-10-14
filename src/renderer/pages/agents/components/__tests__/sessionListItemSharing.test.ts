@@ -1,5 +1,6 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { describe, expect, it } from 'vitest'
+
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import { reconcileSessionListItems } from '../sessionListItemSharing'
 
@@ -21,6 +22,7 @@ function createSession(id: string, overrides: Partial<AgentSessionEntity> = {}):
       updatedAt: '2026-01-01T00:00:00.000Z'
     },
     orderKey: id,
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides

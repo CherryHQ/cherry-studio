@@ -13,15 +13,16 @@ import * as path from 'node:path'
 import { serializeProductManifest } from './generators/manifest'
 
 const ROOT_DIR = path.resolve(__dirname, '..', '..')
-const AGENT_DIR = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant')
+const ASSISTANT_DIR = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant')
+const SUPPORT_DIR = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-support')
 
 interface GeneratedOutput {
   path: string
   content: string
 }
 
-function serializeAgentTemplate(): string {
-  const templatePath = path.join(AGENT_DIR, 'agent-template.json')
+function serializeAgentTemplate(agentDir: string): string {
+  const templatePath = path.join(agentDir, 'agent-template.json')
   const parsed = JSON.parse(fs.readFileSync(templatePath, 'utf-8')) as Record<string, unknown>
   const agent = Object.fromEntries(Object.entries(parsed).filter(([key]) => !key.startsWith('_')))
   return `${JSON.stringify(agent, null, 2)}\n`
@@ -29,19 +30,23 @@ function serializeAgentTemplate(): string {
 
 const outputs: GeneratedOutput[] = [
   {
-    path: path.join(AGENT_DIR, 'product-manifest.json'),
+    path: path.join(ASSISTANT_DIR, 'product-manifest.json'),
     content: serializeProductManifest()
   },
   {
-    path: path.join(AGENT_DIR, '.claude/skills/cherry-assistant-guide/SKILL.md'),
+    path: path.join(ASSISTANT_DIR, '.claude/skills/cherry-assistant-guide/SKILL.md'),
     content: fs.readFileSync(
-      path.join(AGENT_DIR, '.claude/skills/cherry-assistant-guide/skill-zh-cn-template.md'),
+      path.join(ASSISTANT_DIR, '.claude/skills/cherry-assistant-guide/skill-zh-cn-template.md'),
       'utf-8'
     )
   },
   {
-    path: path.join(AGENT_DIR, 'agent.json'),
-    content: serializeAgentTemplate()
+    path: path.join(ASSISTANT_DIR, 'agent.json'),
+    content: serializeAgentTemplate(ASSISTANT_DIR)
+  },
+  {
+    path: path.join(SUPPORT_DIR, 'agent.json'),
+    content: serializeAgentTemplate(SUPPORT_DIR)
   }
 ]
 

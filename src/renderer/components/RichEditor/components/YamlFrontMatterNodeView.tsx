@@ -1,12 +1,13 @@
-import { Checkbox, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { loggerService } from '@logger'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
 import { Calendar, Check, FileText, Hash, MoreHorizontal, Plus, Tag as TagIcon, Trash2, Type, X } from 'lucide-react'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parse, stringify } from 'yaml'
+
+import { Checkbox, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 
 const logger = loggerService.withContext('YamlFrontMatterNodeView')
 
@@ -271,7 +272,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
         {t('richEditor.frontMatter.editValue')}
       </button>
       <div className="-mx-1 my-1 h-px bg-border" />
-      <div className="px-2 py-1 text-muted-foreground text-xs">{t('richEditor.frontMatter.changeType')}</div>
+      <div className="px-2 py-1 text-xs text-muted-foreground">{t('richEditor.frontMatter.changeType')}</div>
       {typeOptions.map((option) => (
         <button
           key={option.type}
@@ -289,7 +290,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
       <div className="-mx-1 my-1 h-px bg-border" />
       <button
         type="button"
-        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-destructive text-sm hover:bg-destructive hover:text-destructive-foreground"
+        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive hover:text-destructive-foreground"
         onClick={() => {
           handleDeleteProperty(property.key)
           setOpenDropdown(null)
@@ -312,7 +313,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
           {property.value.map((item, index) => (
             <span
               key={index}
-              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-foreground text-xs hover:bg-accent">
+              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-foreground hover:bg-accent">
               {String(item)}
               <button
                 type="button"
@@ -345,12 +346,12 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
                 }
               }}
               autoFocus
-              className="h-6 min-w-20 max-w-30 rounded-full px-2 py-0 text-xs"
+              className="h-6 max-w-30 min-w-20 rounded-full px-2 py-0 text-xs"
             />
           ) : (
             <button
               type="button"
-              className="inline-flex size-5 items-center justify-center rounded-full border border-border border-dashed text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+              className="inline-flex size-5 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
               onClick={() => setShowArrayInput((prev) => ({ ...prev, [property.key]: true }))}>
               <Plus size={12} />
             </button>
@@ -398,7 +399,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
     return (
       <button
         type="button"
-        className="flex min-h-5 flex-1 items-center rounded px-2 py-1 text-left text-foreground text-sm"
+        className="flex min-h-5 flex-1 items-center rounded px-2 py-1 text-left text-sm text-foreground"
         onClick={() => setEditingProperty(property.key)}>
         {property.value ? (
           String(property.value)
@@ -443,7 +444,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
               <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
                 {getPropertyIcon(property.type)}
               </div>
-              <div className="mr-3 w-[100px] shrink-0 truncate font-medium text-foreground text-sm capitalize">
+              <div className="mr-3 w-[100px] shrink-0 truncate text-sm font-medium text-foreground capitalize">
                 {property.key}
               </div>
               {renderPropertyValue(property)}
@@ -509,7 +510,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
             <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
               <Plus size={16} />
             </div>
-            <div className="text-muted-foreground text-sm">{t('richEditor.frontMatter.addProperty')}</div>
+            <div className="text-sm text-muted-foreground">{t('richEditor.frontMatter.addProperty')}</div>
           </button>
         )}
       </div>

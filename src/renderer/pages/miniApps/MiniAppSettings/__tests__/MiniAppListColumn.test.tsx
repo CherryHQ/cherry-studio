@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MiniAppListColumn from '../MiniAppListColumn'
 
@@ -43,6 +43,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const miniApp = (appId: string, name: string): MiniApp => ({
+  kind: 'site',
   appId,
   presetMiniAppId: appId,
   name,

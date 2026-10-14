@@ -1,10 +1,11 @@
-import { toast } from '@renderer/services/toast'
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 
 import DataSourcePanelComponent, { type DataSourcePanelProps } from '../DataSourcePanel'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
@@ -308,6 +309,8 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.empty.shortcuts.directory.title': '目录导入',
             'knowledge.data_source.bulk.delete': '删除',
             'knowledge.data_source.bulk.reindex': '重新索引',
+            'knowledge.data_source.bulk.reindex_skipped': `已跳过 ${options?.count} 个处理中的数据源`,
+            'knowledge.data_source.bulk.reindex_none_eligible': '选中的数据源都在处理中，暂时无法重新索引',
             'knowledge.data_source.bulk.delete_confirm_title': '确认批量删除',
             'knowledge.data_source.table.columns.name': '名称',
             'knowledge.data_source.table.columns.type': '类型',
@@ -329,6 +332,7 @@ vi.mock('react-i18next', () => ({
             'common.more': '更多',
             'common.no_results': '暂无结果',
             'common.go_to_settings': '前往设置',
+            'files.drag_upload': '拖拽文件到此处上传',
             'knowledge.data_source.actions.preview_source': '预览原文',
             'knowledge.data_source.actions.view_chunks': '查看 Chunks',
             'knowledge.data_source.actions.reindex': '重新索引',
@@ -356,7 +360,6 @@ vi.mock('react-i18next', () => ({
             'knowledge.rag.download_local_model': '下载本地模型',
             'knowledge.file_hint': `支持 ${options?.file_types} 格式`,
             'knowledge.status.processing': '处理中',
-            'knowledge.rag.file_processing': '文件处理',
             'settings.dependencies.localModels.embedding.name': '本地嵌入模型',
             'settings.dependencies.localModels.status.downloading': '下载中…',
             'settings.dependencies.localModels.unsupported': '当前平台不支持本地模型。'
@@ -553,6 +556,37 @@ describe('DataSourcePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '链接' }))
 
     expect(onAdd).toHaveBeenCalledWith('url')
+  })
+
+  it('sends dropped files through the existing file add flow while preserving the picker entry', () => {
+    const onAdd = vi.fn()
+    const files = [
+      new File(['report'], 'report.pdf', { type: 'application/pdf' }),
+      new File(['unsupported'], 'unsupported.exe', { type: 'application/octet-stream' })
+    ]
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={onAdd}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    const dropTarget = screen.getByText('上传第一个数据源')
+    expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
+
+    fireEvent.dragEnter(dropTarget, { dataTransfer: { files } })
+    expect(screen.getByText('拖拽文件到此处上传')).toBeInTheDocument()
+
+    fireEvent.drop(dropTarget, { dataTransfer: { files } })
+
+    expect(onAdd).toHaveBeenCalledWith('file', files)
+    expect(screen.queryByText('拖拽文件到此处上传')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
   })
 
   it('uses the first non-empty note line as the title and leaves blank notes without the old fallback label', () => {
@@ -1066,6 +1100,66 @@ describe('DataSourcePanel', () => {
     await waitFor(() => {
       expect(screen.queryByText('已选 1 项')).not.toBeInTheDocument()
     })
+  })
+
+  // The main process rejects a reindex batch outright when any selected subtree is still
+  // active, so sending in-flight rows would also drop the failed ones the user meant to retry
+  // (issue #18508: concurrent embedding leaves some rows processing, select-all then fails).
+  it('sends only completed/failed rows to bulk reindex and reports the skipped in-flight ones', async () => {
+    const onReindexItems = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf', status: 'failed' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf', status: 'processing' }),
+          createFileItem({ id: 'file-3', originName: '年度总结.pdf', status: 'completed' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    await waitFor(() => {
+      expect(onReindexItems).toHaveBeenCalledWith(['file-1', 'file-3'])
+    })
+    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个处理中的数据源')
+  })
+
+  it('skips the reindex request entirely when every selected row is still in flight', async () => {
+    const onReindexItems = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf', status: 'processing' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf', status: 'embedding' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('选中的数据源都在处理中，暂时无法重新索引')
+    })
+    expect(onReindexItems).not.toHaveBeenCalled()
+    // Selection survives so the user can switch to another bulk action (delete allows in-flight rows).
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
   })
 
   it('confirms bulk delete for selected rows and clears selection after one bulk operation', async () => {

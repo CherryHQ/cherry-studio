@@ -12,13 +12,14 @@
 import { open } from 'node:fs/promises'
 import path from 'node:path'
 
-import { type AbsoluteFilePath, FILE_TYPE, type FileType } from '@shared/types/file'
-import { KB, MB } from '@shared/utils/constants'
-import { getFileTypeByExt } from '@shared/utils/file'
 import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { isBinaryFileSync } from 'isbinaryfile'
 import mime from 'mime'
+
+import { type AbsoluteFilePath, FILE_TYPE, type FileType } from '@shared/types/file'
+import { KB, MB } from '@shared/utils/constants'
+import { getFileTypeByExt } from '@shared/utils/file'
 
 const MIN_LEGACY_ENCODING_CONFIDENCE = 80
 const RELIABLE_LEGACY_ENCODINGS = new Set(['BIG5', 'EUC-JP', 'EUC-KR', 'GB18030', 'SHIFT_JIS', 'UTF-16BE', 'UTF-16LE'])

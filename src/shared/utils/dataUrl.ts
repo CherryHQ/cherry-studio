@@ -37,11 +37,10 @@ export function parseDataUrl(url: string): DataUrlParts | null {
   }
 
   const header = url.slice(5, commaIndex)
+  const [rawMediaType, ...parameters] = header.split(';')
 
-  const isBase64 = header.includes(';base64')
-
-  const semicolonIndex = header.indexOf(';')
-  const mediaType = (semicolonIndex === -1 ? header : header.slice(0, semicolonIndex)).trim() || undefined
+  const isBase64 = parameters.some((parameter) => parameter.trim().toLowerCase() === 'base64')
+  const mediaType = rawMediaType.trim() || undefined
 
   const data = url.slice(commaIndex + 1)
 
@@ -65,13 +64,6 @@ export function isDataUrl(url: string): boolean {
  * @returns true if the URL is a base64-encoded image data URL
  */
 export function isBase64ImageDataUrl(url: string): boolean {
-  if (!url.startsWith('data:image/')) {
-    return false
-  }
-  const commaIndex = url.indexOf(',')
-  if (commaIndex === -1) {
-    return false
-  }
-  const header = url.slice(5, commaIndex)
-  return header.includes(';base64')
+  const parsed = parseDataUrl(url)
+  return parsed?.mediaType?.startsWith('image/') === true && parsed.isBase64
 }

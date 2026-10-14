@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-08-11T04:29:58.855Z
+ * Generated at: 2026-09-14T04:01:57.969Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -15,12 +15,12 @@
  */
 export const ELECTRON_STORE_MAPPINGS = [
   {
-    originalKey: 'ZoomFactor',
-    targetKey: 'app.zoom_factor'
+    "originalKey": "ZoomFactor",
+    "targetKey": "app.zoom_factor"
   },
   {
-    originalKey: 'clientId',
-    targetKey: 'app.user.id'
+    "originalKey": "clientId",
+    "targetKey": "app.user.id"
   }
 ] as const
 
@@ -33,718 +33,726 @@ export const ELECTRON_STORE_MAPPINGS = [
  * - 多层嵌套: "exportMenuOptions.docx" -> reduxData.settings.exportMenuOptions.docx
  */
 export const REDUX_STORE_MAPPINGS = {
-  settings: [
+  "settings": [
     {
-      originalKey: 'language',
-      targetKey: 'app.language'
+      "originalKey": "language",
+      "targetKey": "app.language"
     },
     {
-      originalKey: 'theme',
-      targetKey: 'ui.theme_mode'
+      "originalKey": "theme",
+      "targetKey": "ui.theme_mode"
     },
     {
-      originalKey: 'launchToTray',
-      targetKey: 'app.tray.on_launch'
+      "originalKey": "launchToTray",
+      "targetKey": "app.tray.on_launch"
     },
     {
-      originalKey: 'tray',
-      targetKey: 'app.tray.enabled'
+      "originalKey": "tray",
+      "targetKey": "app.tray.enabled"
     },
     {
-      originalKey: 'trayOnClose',
-      targetKey: 'app.tray.on_close'
+      "originalKey": "trayOnClose",
+      "targetKey": "app.tray.on_close"
     },
     {
-      originalKey: 'clickTrayToShowQuickAssistant',
-      targetKey: 'feature.quick_assistant.click_tray_to_show'
+      "originalKey": "clickTrayToShowQuickAssistant",
+      "targetKey": "feature.quick_assistant.click_tray_to_show"
     },
     {
-      originalKey: 'enableQuickAssistant',
-      targetKey: 'feature.quick_assistant.enabled'
+      "originalKey": "enableQuickAssistant",
+      "targetKey": "feature.quick_assistant.enabled"
     },
     {
-      originalKey: 'autoCheckUpdate',
-      targetKey: 'app.dist.auto_update.enabled'
+      "originalKey": "autoCheckUpdate",
+      "targetKey": "app.dist.auto_update.enabled"
     },
     {
-      originalKey: 'testPlan',
-      targetKey: 'app.dist.test_plan.enabled'
+      "originalKey": "testPlan",
+      "targetKey": "app.dist.test_plan.enabled"
     },
     {
-      originalKey: 'testChannel',
-      targetKey: 'app.dist.test_plan.channel'
+      "originalKey": "testChannel",
+      "targetKey": "app.dist.test_plan.channel"
     },
     {
-      originalKey: 'enableDataCollection',
-      targetKey: 'app.privacy.data_collection.enabled'
+      "originalKey": "enableDataCollection",
+      "targetKey": "app.privacy.data_collection.enabled"
     },
     {
-      originalKey: 'enableDeveloperMode',
-      targetKey: 'app.developer_mode.enabled'
+      "originalKey": "enableDeveloperMode",
+      "targetKey": "app.developer_mode.enabled"
     },
     {
-      originalKey: 'showTopics',
-      targetKey: 'topic.tab.show'
+      "originalKey": "showTopics",
+      "targetKey": "topic.tab.show"
     },
     {
-      originalKey: 'assistantsTabSortType',
-      targetKey: 'assistant.tab.sort_type'
+      "originalKey": "assistantsTabSortType",
+      "targetKey": "assistant.tab.sort_type"
     },
     {
-      originalKey: 'sendMessageShortcut',
-      targetKey: 'chat.input.send_message_shortcut'
+      "originalKey": "sendMessageShortcut",
+      "targetKey": "chat.input.send_message_shortcut"
     },
     {
-      originalKey: 'targetLanguage',
-      targetKey: 'chat.input.translate.target_language'
+      "originalKey": "targetLanguage",
+      "targetKey": "chat.input.translate.target_language"
     },
     {
-      originalKey: 'proxyMode',
-      targetKey: 'app.proxy.mode'
+      "originalKey": "proxyMode",
+      "targetKey": "app.proxy.mode"
     },
     {
-      originalKey: 'proxyUrl',
-      targetKey: 'app.proxy.url'
+      "originalKey": "proxyUrl",
+      "targetKey": "app.proxy.url"
     },
     {
-      originalKey: 'proxyBypassRules',
-      targetKey: 'app.proxy.bypass_rules'
+      "originalKey": "proxyBypassRules",
+      "targetKey": "app.proxy.bypass_rules"
     },
     {
-      originalKey: 'userName',
-      targetKey: 'app.user.name'
+      "originalKey": "userName",
+      "targetKey": "app.user.name"
     },
     {
-      originalKey: 'showMessageDivider',
-      targetKey: 'chat.message.show_divider'
+      "originalKey": "showMessageDivider",
+      "targetKey": "chat.message.show_divider"
     },
     {
-      originalKey: 'messageFont',
-      targetKey: 'chat.message.font'
+      "originalKey": "messageFont",
+      "targetKey": "chat.message.font"
     },
     {
-      originalKey: 'showInputEstimatedTokens',
-      targetKey: 'chat.input.show_estimated_tokens'
+      "originalKey": "showInputEstimatedTokens",
+      "targetKey": "chat.input.show_estimated_tokens"
     },
     {
-      originalKey: 'launchOnBoot',
-      targetKey: 'app.launch_on_boot'
+      "originalKey": "launchOnBoot",
+      "targetKey": "app.launch_on_boot"
     },
     {
-      originalKey: 'userTheme.colorPrimary',
-      targetKey: 'ui.theme_user.color_primary'
+      "originalKey": "userTheme.colorPrimary",
+      "targetKey": "ui.theme_user.color_primary"
     },
     {
-      originalKey: 'userTheme.userFontFamily',
-      targetKey: 'ui.theme_user.font_family'
+      "originalKey": "userTheme.userFontFamily",
+      "targetKey": "ui.theme_user.font_family"
     },
     {
-      originalKey: 'userTheme.userCodeFontFamily',
-      targetKey: 'ui.theme_user.code_font_family'
+      "originalKey": "userTheme.userCodeFontFamily",
+      "targetKey": "ui.theme_user.code_font_family"
     },
     {
-      originalKey: 'windowStyle',
-      targetKey: 'ui.window_style'
+      "originalKey": "windowStyle",
+      "targetKey": "ui.window_style"
     },
     {
-      originalKey: 'fontSize',
-      targetKey: 'chat.message.font_size'
+      "originalKey": "fontSize",
+      "targetKey": "chat.message.font_size"
     },
     {
-      originalKey: 'topicPosition',
-      targetKey: 'topic.tab.position'
+      "originalKey": "topicPosition",
+      "targetKey": "topic.tab.position"
     },
     {
-      originalKey: 'assistantIconType',
-      targetKey: 'assistant.icon_type'
+      "originalKey": "assistantIconType",
+      "targetKey": "assistant.icon_type"
     },
     {
-      originalKey: 'renderInputMessageAsMarkdown',
-      targetKey: 'chat.message.render_as_markdown'
+      "originalKey": "pasteLongTextAsFile",
+      "targetKey": "chat.input.paste_long_text_as_file"
     },
     {
-      originalKey: 'codeExecution.enabled',
-      targetKey: 'chat.code.execution.enabled'
+      "originalKey": "pasteLongTextThreshold",
+      "targetKey": "chat.input.paste_long_text_threshold"
     },
     {
-      originalKey: 'codeExecution.timeoutMinutes',
-      targetKey: 'chat.code.execution.timeout_minutes'
+      "originalKey": "renderInputMessageAsMarkdown",
+      "targetKey": "chat.message.render_as_markdown"
     },
     {
-      originalKey: 'codeEditor.enabled',
-      targetKey: 'chat.code.editor.enabled'
+      "originalKey": "codeExecution.enabled",
+      "targetKey": "chat.code.execution.enabled"
     },
     {
-      originalKey: 'codeEditor.themeLight',
-      targetKey: 'chat.code.editor.theme_light'
+      "originalKey": "codeExecution.timeoutMinutes",
+      "targetKey": "chat.code.execution.timeout_minutes"
     },
     {
-      originalKey: 'codeEditor.themeDark',
-      targetKey: 'chat.code.editor.theme_dark'
+      "originalKey": "codeEditor.enabled",
+      "targetKey": "chat.code.editor.enabled"
     },
     {
-      originalKey: 'codeEditor.highlightActiveLine',
-      targetKey: 'chat.code.editor.highlight_active_line'
+      "originalKey": "codeEditor.themeLight",
+      "targetKey": "chat.code.editor.theme_light"
     },
     {
-      originalKey: 'codeEditor.foldGutter',
-      targetKey: 'chat.code.editor.fold_gutter'
+      "originalKey": "codeEditor.themeDark",
+      "targetKey": "chat.code.editor.theme_dark"
     },
     {
-      originalKey: 'codeEditor.autocompletion',
-      targetKey: 'chat.code.editor.autocompletion'
+      "originalKey": "codeEditor.highlightActiveLine",
+      "targetKey": "chat.code.editor.highlight_active_line"
     },
     {
-      originalKey: 'codeEditor.keymap',
-      targetKey: 'chat.code.editor.keymap'
+      "originalKey": "codeEditor.foldGutter",
+      "targetKey": "chat.code.editor.fold_gutter"
     },
     {
-      originalKey: 'codePreview.themeLight',
-      targetKey: 'chat.code.preview.theme_light'
+      "originalKey": "codeEditor.autocompletion",
+      "targetKey": "chat.code.editor.autocompletion"
     },
     {
-      originalKey: 'codePreview.themeDark',
-      targetKey: 'chat.code.preview.theme_dark'
+      "originalKey": "codeEditor.keymap",
+      "targetKey": "chat.code.editor.keymap"
     },
     {
-      originalKey: 'codeViewer.themeLight',
-      targetKey: 'chat.code.viewer.theme_light'
+      "originalKey": "codePreview.themeLight",
+      "targetKey": "chat.code.preview.theme_light"
     },
     {
-      originalKey: 'codeViewer.themeDark',
-      targetKey: 'chat.code.viewer.theme_dark'
+      "originalKey": "codePreview.themeDark",
+      "targetKey": "chat.code.preview.theme_dark"
     },
     {
-      originalKey: 'codeShowLineNumbers',
-      targetKey: 'chat.code.show_line_numbers'
+      "originalKey": "codeViewer.themeLight",
+      "targetKey": "chat.code.viewer.theme_light"
     },
     {
-      originalKey: 'codeCollapsible',
-      targetKey: 'chat.code.collapsible'
+      "originalKey": "codeViewer.themeDark",
+      "targetKey": "chat.code.viewer.theme_dark"
     },
     {
-      originalKey: 'codeWrappable',
-      targetKey: 'chat.code.wrappable'
+      "originalKey": "codeShowLineNumbers",
+      "targetKey": "chat.code.show_line_numbers"
     },
     {
-      originalKey: 'codeImageTools',
-      targetKey: 'chat.code.image_tools'
+      "originalKey": "codeCollapsible",
+      "targetKey": "chat.code.collapsible"
     },
     {
-      originalKey: 'codeFancyBlock',
-      targetKey: 'chat.code.fancy_block'
+      "originalKey": "codeWrappable",
+      "targetKey": "chat.code.wrappable"
     },
     {
-      originalKey: 'mathEnableSingleDollar',
-      targetKey: 'chat.message.math.single_dollar'
+      "originalKey": "codeImageTools",
+      "targetKey": "chat.code.image_tools"
     },
     {
-      originalKey: 'messageStyle',
-      targetKey: 'chat.message.style'
+      "originalKey": "codeFancyBlock",
+      "targetKey": "chat.code.fancy_block"
     },
     {
-      originalKey: 'foldDisplayMode',
-      targetKey: 'chat.message.multi_model.fold_display_mode'
+      "originalKey": "mathEnableSingleDollar",
+      "targetKey": "chat.message.math.single_dollar"
     },
     {
-      originalKey: 'gridColumns',
-      targetKey: 'chat.message.multi_model.grid_columns'
+      "originalKey": "messageStyle",
+      "targetKey": "chat.message.style"
     },
     {
-      originalKey: 'gridPopoverTrigger',
-      targetKey: 'chat.message.multi_model.grid_popover_trigger'
+      "originalKey": "foldDisplayMode",
+      "targetKey": "chat.message.multi_model.fold_display_mode"
     },
     {
-      originalKey: 'messageNavigation',
-      targetKey: 'chat.message.navigation_mode'
+      "originalKey": "gridColumns",
+      "targetKey": "chat.message.multi_model.grid_columns"
     },
     {
-      originalKey: 'skipBackupFile',
-      targetKey: 'data.backup.general.skip_backup_file'
+      "originalKey": "gridPopoverTrigger",
+      "targetKey": "chat.message.multi_model.grid_popover_trigger"
     },
     {
-      originalKey: 'webdavHost',
-      targetKey: 'data.backup.webdav.host'
+      "originalKey": "messageNavigation",
+      "targetKey": "chat.message.navigation_mode"
     },
     {
-      originalKey: 'webdavUser',
-      targetKey: 'data.backup.webdav.user'
+      "originalKey": "skipBackupFile",
+      "targetKey": "data.backup.general.skip_backup_file"
     },
     {
-      originalKey: 'webdavPass',
-      targetKey: 'data.backup.webdav.pass'
+      "originalKey": "webdavHost",
+      "targetKey": "data.backup.webdav.host"
     },
     {
-      originalKey: 'webdavPath',
-      targetKey: 'data.backup.webdav.path'
+      "originalKey": "webdavUser",
+      "targetKey": "data.backup.webdav.user"
     },
     {
-      originalKey: 'webdavAutoSync',
-      targetKey: 'data.backup.webdav.auto_sync'
+      "originalKey": "webdavPass",
+      "targetKey": "data.backup.webdav.pass"
     },
     {
-      originalKey: 'webdavSyncInterval',
-      targetKey: 'data.backup.webdav.sync_interval'
+      "originalKey": "webdavPath",
+      "targetKey": "data.backup.webdav.path"
     },
     {
-      originalKey: 'webdavMaxBackups',
-      targetKey: 'data.backup.webdav.max_backups'
+      "originalKey": "webdavAutoSync",
+      "targetKey": "data.backup.webdav.auto_sync"
     },
     {
-      originalKey: 'webdavSkipBackupFile',
-      targetKey: 'data.backup.webdav.skip_backup_file'
+      "originalKey": "webdavSyncInterval",
+      "targetKey": "data.backup.webdav.sync_interval"
     },
     {
-      originalKey: 'webdavDisableStream',
-      targetKey: 'data.backup.webdav.disable_stream'
+      "originalKey": "webdavMaxBackups",
+      "targetKey": "data.backup.webdav.max_backups"
     },
     {
-      originalKey: 'translateModelPrompt',
-      targetKey: 'feature.translate.model_prompt'
+      "originalKey": "webdavSkipBackupFile",
+      "targetKey": "data.backup.webdav.skip_backup_file"
     },
     {
-      originalKey: 'autoTranslateWithSpace',
-      targetKey: 'chat.input.translate.auto_translate_with_space'
+      "originalKey": "webdavDisableStream",
+      "targetKey": "data.backup.webdav.disable_stream"
     },
     {
-      originalKey: 'showTranslateConfirm',
-      targetKey: 'chat.input.translate.show_confirm'
+      "originalKey": "translateModelPrompt",
+      "targetKey": "feature.translate.model_prompt"
     },
     {
-      originalKey: 'enableTopicNaming',
-      targetKey: 'topic.naming.enabled'
+      "originalKey": "autoTranslateWithSpace",
+      "targetKey": "chat.input.translate.auto_translate_with_space"
     },
     {
-      originalKey: 'topicNamingPrompt',
-      targetKey: 'topic.naming_prompt'
+      "originalKey": "showTranslateConfirm",
+      "targetKey": "chat.input.translate.show_confirm"
     },
     {
-      originalKey: 'confirmDeleteMessage',
-      targetKey: 'chat.message.confirm_delete'
+      "originalKey": "enableTopicNaming",
+      "targetKey": "topic.naming.enabled"
     },
     {
-      originalKey: 'confirmRegenerateMessage',
-      targetKey: 'chat.message.confirm_regenerate'
+      "originalKey": "topicNamingPrompt",
+      "targetKey": "topic.naming_prompt"
     },
     {
-      originalKey: 'narrowMode',
-      targetKey: 'chat.narrow_mode'
+      "originalKey": "confirmDeleteMessage",
+      "targetKey": "chat.message.confirm_delete"
     },
     {
-      originalKey: 'multiModelMessageStyle',
-      targetKey: 'chat.message.multi_model.style'
+      "originalKey": "confirmRegenerateMessage",
+      "targetKey": "chat.message.confirm_regenerate"
     },
     {
-      originalKey: 'readClipboardAtStartup',
-      targetKey: 'feature.quick_assistant.read_clipboard_at_startup'
+      "originalKey": "narrowMode",
+      "targetKey": "chat.narrow_mode"
     },
     {
-      originalKey: 'notionDatabaseID',
-      targetKey: 'data.integration.notion.database_id'
+      "originalKey": "multiModelMessageStyle",
+      "targetKey": "chat.message.multi_model.style"
     },
     {
-      originalKey: 'notionApiKey',
-      targetKey: 'data.integration.notion.api_key'
+      "originalKey": "readClipboardAtStartup",
+      "targetKey": "feature.quick_assistant.read_clipboard_at_startup"
     },
     {
-      originalKey: 'notionPageNameKey',
-      targetKey: 'data.integration.notion.page_name_key'
+      "originalKey": "notionDatabaseID",
+      "targetKey": "data.integration.notion.database_id"
     },
     {
-      originalKey: 'markdownExportPath',
-      targetKey: 'data.export.markdown.path'
+      "originalKey": "notionApiKey",
+      "targetKey": "data.integration.notion.api_key"
     },
     {
-      originalKey: 'forceDollarMathInMarkdown',
-      targetKey: 'data.export.markdown.force_dollar_math'
+      "originalKey": "notionPageNameKey",
+      "targetKey": "data.integration.notion.page_name_key"
     },
     {
-      originalKey: 'useTopicNamingForMessageTitle',
-      targetKey: 'data.export.markdown.use_topic_naming_for_message_title'
+      "originalKey": "markdownExportPath",
+      "targetKey": "data.export.markdown.path"
     },
     {
-      originalKey: 'showModelNameInMarkdown',
-      targetKey: 'data.export.markdown.show_model_name'
+      "originalKey": "forceDollarMathInMarkdown",
+      "targetKey": "data.export.markdown.force_dollar_math"
     },
     {
-      originalKey: 'showModelProviderInMarkdown',
-      targetKey: 'data.export.markdown.show_model_provider'
+      "originalKey": "useTopicNamingForMessageTitle",
+      "targetKey": "data.export.markdown.use_topic_naming_for_message_title"
     },
     {
-      originalKey: 'thoughtAutoCollapse',
-      targetKey: 'chat.message.thought.auto_collapse'
+      "originalKey": "showModelNameInMarkdown",
+      "targetKey": "data.export.markdown.show_model_name"
     },
     {
-      originalKey: 'notionExportReasoning',
-      targetKey: 'data.integration.notion.export_reasoning'
+      "originalKey": "showModelProviderInMarkdown",
+      "targetKey": "data.export.markdown.show_model_provider"
     },
     {
-      originalKey: 'excludeCitationsInExport',
-      targetKey: 'data.export.markdown.exclude_citations'
+      "originalKey": "thoughtAutoCollapse",
+      "targetKey": "chat.message.thought.auto_collapse"
     },
     {
-      originalKey: 'standardizeCitationsInExport',
-      targetKey: 'data.export.markdown.standardize_citations'
+      "originalKey": "notionExportReasoning",
+      "targetKey": "data.integration.notion.export_reasoning"
     },
     {
-      originalKey: 'yuqueToken',
-      targetKey: 'data.integration.yuque.token'
+      "originalKey": "excludeCitationsInExport",
+      "targetKey": "data.export.markdown.exclude_citations"
     },
     {
-      originalKey: 'yuqueUrl',
-      targetKey: 'data.integration.yuque.url'
+      "originalKey": "standardizeCitationsInExport",
+      "targetKey": "data.export.markdown.standardize_citations"
     },
     {
-      originalKey: 'yuqueRepoId',
-      targetKey: 'data.integration.yuque.repo_id'
+      "originalKey": "yuqueToken",
+      "targetKey": "data.integration.yuque.token"
     },
     {
-      originalKey: 'joplinToken',
-      targetKey: 'data.integration.joplin.token'
+      "originalKey": "yuqueUrl",
+      "targetKey": "data.integration.yuque.url"
     },
     {
-      originalKey: 'joplinUrl',
-      targetKey: 'data.integration.joplin.url'
+      "originalKey": "yuqueRepoId",
+      "targetKey": "data.integration.yuque.repo_id"
     },
     {
-      originalKey: 'joplinExportReasoning',
-      targetKey: 'data.integration.joplin.export_reasoning'
+      "originalKey": "joplinToken",
+      "targetKey": "data.integration.joplin.token"
     },
     {
-      originalKey: 'defaultObsidianVault',
-      targetKey: 'data.integration.obsidian.default_vault'
+      "originalKey": "joplinUrl",
+      "targetKey": "data.integration.joplin.url"
     },
     {
-      originalKey: 'siyuanApiUrl',
-      targetKey: 'data.integration.siyuan.api_url'
+      "originalKey": "joplinExportReasoning",
+      "targetKey": "data.integration.joplin.export_reasoning"
     },
     {
-      originalKey: 'siyuanToken',
-      targetKey: 'data.integration.siyuan.token'
+      "originalKey": "defaultObsidianVault",
+      "targetKey": "data.integration.obsidian.default_vault"
     },
     {
-      originalKey: 'siyuanBoxId',
-      targetKey: 'data.integration.siyuan.box_id'
+      "originalKey": "siyuanApiUrl",
+      "targetKey": "data.integration.siyuan.api_url"
     },
     {
-      originalKey: 'siyuanRootPath',
-      targetKey: 'data.integration.siyuan.root_path'
+      "originalKey": "siyuanToken",
+      "targetKey": "data.integration.siyuan.token"
     },
     {
-      originalKey: 'maxKeepAliveMinapps',
-      targetKey: 'feature.mini_app.max_keep_alive'
+      "originalKey": "siyuanBoxId",
+      "targetKey": "data.integration.siyuan.box_id"
     },
     {
-      originalKey: 'minappsOpenLinkExternal',
-      targetKey: 'feature.mini_app.open_link_external'
+      "originalKey": "siyuanRootPath",
+      "targetKey": "data.integration.siyuan.root_path"
     },
     {
-      originalKey: 'minAppRegion',
-      targetKey: 'feature.mini_app.region'
+      "originalKey": "maxKeepAliveMinapps",
+      "targetKey": "feature.mini_app.max_keep_alive"
     },
     {
-      originalKey: 'privacyPolicyVersion',
-      targetKey: 'app.privacy.policy_version'
+      "originalKey": "minappsOpenLinkExternal",
+      "targetKey": "feature.mini_app.open_link_external"
     },
     {
-      originalKey: 'enableSpellCheck',
-      targetKey: 'app.spell_check.enabled'
+      "originalKey": "minAppRegion",
+      "targetKey": "feature.mini_app.region"
     },
     {
-      originalKey: 'spellCheckLanguages',
-      targetKey: 'app.spell_check.languages'
+      "originalKey": "privacyPolicyVersion",
+      "targetKey": "app.privacy.policy_version"
     },
     {
-      originalKey: 'useSystemTitleBar',
-      targetKey: 'app.use_system_title_bar'
+      "originalKey": "enableSpellCheck",
+      "targetKey": "app.spell_check.enabled"
     },
     {
-      originalKey: 'exportMenuOptions.image',
-      targetKey: 'data.export.menus.image'
+      "originalKey": "spellCheckLanguages",
+      "targetKey": "app.spell_check.languages"
     },
     {
-      originalKey: 'exportMenuOptions.markdown',
-      targetKey: 'data.export.menus.markdown'
+      "originalKey": "useSystemTitleBar",
+      "targetKey": "app.use_system_title_bar"
     },
     {
-      originalKey: 'exportMenuOptions.markdown_reason',
-      targetKey: 'data.export.menus.markdown_reason'
+      "originalKey": "exportMenuOptions.image",
+      "targetKey": "data.export.menus.image"
     },
     {
-      originalKey: 'exportMenuOptions.notion',
-      targetKey: 'data.export.menus.notion'
+      "originalKey": "exportMenuOptions.markdown",
+      "targetKey": "data.export.menus.markdown"
     },
     {
-      originalKey: 'exportMenuOptions.yuque',
-      targetKey: 'data.export.menus.yuque'
+      "originalKey": "exportMenuOptions.markdown_reason",
+      "targetKey": "data.export.menus.markdown_reason"
     },
     {
-      originalKey: 'exportMenuOptions.joplin',
-      targetKey: 'data.export.menus.joplin'
+      "originalKey": "exportMenuOptions.notion",
+      "targetKey": "data.export.menus.notion"
     },
     {
-      originalKey: 'exportMenuOptions.obsidian',
-      targetKey: 'data.export.menus.obsidian'
+      "originalKey": "exportMenuOptions.yuque",
+      "targetKey": "data.export.menus.yuque"
     },
     {
-      originalKey: 'exportMenuOptions.siyuan',
-      targetKey: 'data.export.menus.siyuan'
+      "originalKey": "exportMenuOptions.joplin",
+      "targetKey": "data.export.menus.joplin"
     },
     {
-      originalKey: 'exportMenuOptions.docx',
-      targetKey: 'data.export.menus.docx'
+      "originalKey": "exportMenuOptions.obsidian",
+      "targetKey": "data.export.menus.obsidian"
     },
     {
-      originalKey: 'exportMenuOptions.plain_text',
-      targetKey: 'data.export.menus.plain_text'
+      "originalKey": "exportMenuOptions.siyuan",
+      "targetKey": "data.export.menus.siyuan"
     },
     {
-      originalKey: 'notification.assistant',
-      targetKey: 'app.notification.assistant.enabled'
+      "originalKey": "exportMenuOptions.docx",
+      "targetKey": "data.export.menus.docx"
     },
     {
-      originalKey: 'notification.backup',
-      targetKey: 'app.notification.backup.enabled'
+      "originalKey": "exportMenuOptions.plain_text",
+      "targetKey": "data.export.menus.plain_text"
     },
     {
-      originalKey: 'notification.knowledge',
-      targetKey: 'app.notification.knowledge.enabled'
+      "originalKey": "notification.assistant",
+      "targetKey": "app.notification.assistant.enabled"
     },
     {
-      originalKey: 'localBackupDir',
-      targetKey: 'data.backup.local.dir'
+      "originalKey": "notification.backup",
+      "targetKey": "app.notification.backup.enabled"
     },
     {
-      originalKey: 'localBackupAutoSync',
-      targetKey: 'data.backup.local.auto_sync'
+      "originalKey": "notification.knowledge",
+      "targetKey": "app.notification.knowledge.enabled"
     },
     {
-      originalKey: 'localBackupSyncInterval',
-      targetKey: 'data.backup.local.sync_interval'
+      "originalKey": "localBackupDir",
+      "targetKey": "data.backup.local.dir"
     },
     {
-      originalKey: 'localBackupMaxBackups',
-      targetKey: 'data.backup.local.max_backups'
+      "originalKey": "localBackupAutoSync",
+      "targetKey": "data.backup.local.auto_sync"
     },
     {
-      originalKey: 'localBackupSkipBackupFile',
-      targetKey: 'data.backup.local.skip_backup_file'
+      "originalKey": "localBackupSyncInterval",
+      "targetKey": "data.backup.local.sync_interval"
     },
     {
-      originalKey: 'defaultPaintingProvider',
-      targetKey: 'feature.paintings.default_provider'
+      "originalKey": "localBackupMaxBackups",
+      "targetKey": "data.backup.local.max_backups"
     },
     {
-      originalKey: 's3.endpoint',
-      targetKey: 'data.backup.s3.endpoint'
+      "originalKey": "localBackupSkipBackupFile",
+      "targetKey": "data.backup.local.skip_backup_file"
     },
     {
-      originalKey: 's3.region',
-      targetKey: 'data.backup.s3.region'
+      "originalKey": "defaultPaintingProvider",
+      "targetKey": "feature.paintings.default_provider"
     },
     {
-      originalKey: 's3.bucket',
-      targetKey: 'data.backup.s3.bucket'
+      "originalKey": "s3.endpoint",
+      "targetKey": "data.backup.s3.endpoint"
     },
     {
-      originalKey: 's3.accessKeyId',
-      targetKey: 'data.backup.s3.access_key_id'
+      "originalKey": "s3.region",
+      "targetKey": "data.backup.s3.region"
     },
     {
-      originalKey: 's3.secretAccessKey',
-      targetKey: 'data.backup.s3.secret_access_key'
+      "originalKey": "s3.bucket",
+      "targetKey": "data.backup.s3.bucket"
     },
     {
-      originalKey: 's3.root',
-      targetKey: 'data.backup.s3.root'
+      "originalKey": "s3.accessKeyId",
+      "targetKey": "data.backup.s3.access_key_id"
     },
     {
-      originalKey: 's3.autoSync',
-      targetKey: 'data.backup.s3.auto_sync'
+      "originalKey": "s3.secretAccessKey",
+      "targetKey": "data.backup.s3.secret_access_key"
     },
     {
-      originalKey: 's3.syncInterval',
-      targetKey: 'data.backup.s3.sync_interval'
+      "originalKey": "s3.root",
+      "targetKey": "data.backup.s3.root"
     },
     {
-      originalKey: 's3.maxBackups',
-      targetKey: 'data.backup.s3.max_backups'
+      "originalKey": "s3.autoSync",
+      "targetKey": "data.backup.s3.auto_sync"
     },
     {
-      originalKey: 's3.skipBackupFile',
-      targetKey: 'data.backup.s3.skip_backup_file'
+      "originalKey": "s3.syncInterval",
+      "targetKey": "data.backup.s3.sync_interval"
     },
     {
-      originalKey: 'navbarPosition',
-      targetKey: 'ui.navbar.position'
+      "originalKey": "s3.maxBackups",
+      "targetKey": "data.backup.s3.max_backups"
     },
     {
-      originalKey: 'apiServer.enabled',
-      targetKey: 'feature.api_gateway.enabled'
+      "originalKey": "s3.skipBackupFile",
+      "targetKey": "data.backup.s3.skip_backup_file"
     },
     {
-      originalKey: 'apiServer.host',
-      targetKey: 'feature.api_gateway.host'
+      "originalKey": "navbarPosition",
+      "targetKey": "ui.navbar.position"
     },
     {
-      originalKey: 'apiServer.port',
-      targetKey: 'feature.api_gateway.port'
+      "originalKey": "apiServer.enabled",
+      "targetKey": "feature.api_gateway.enabled"
     },
     {
-      originalKey: 'apiServer.apiKey',
-      targetKey: 'feature.api_gateway.api_key'
+      "originalKey": "apiServer.host",
+      "targetKey": "feature.api_gateway.host"
     },
     {
-      originalKey: 'showMessageOutline',
-      targetKey: 'chat.message.show_outline'
+      "originalKey": "apiServer.port",
+      "targetKey": "feature.api_gateway.port"
+    },
+    {
+      "originalKey": "apiServer.apiKey",
+      "targetKey": "feature.api_gateway.api_key"
+    },
+    {
+      "originalKey": "showMessageOutline",
+      "targetKey": "chat.message.show_outline"
     }
   ],
-  selectionStore: [
+  "selectionStore": [
     {
-      originalKey: 'selectionEnabled',
-      targetKey: 'feature.selection.enabled'
+      "originalKey": "selectionEnabled",
+      "targetKey": "feature.selection.enabled"
     },
     {
-      originalKey: 'triggerMode',
-      targetKey: 'feature.selection.trigger_mode'
+      "originalKey": "triggerMode",
+      "targetKey": "feature.selection.trigger_mode"
     },
     {
-      originalKey: 'isFollowToolbar',
-      targetKey: 'feature.selection.follow_toolbar'
+      "originalKey": "isFollowToolbar",
+      "targetKey": "feature.selection.follow_toolbar"
     },
     {
-      originalKey: 'isRemeberWinSize',
-      targetKey: 'feature.selection.remember_win_size'
+      "originalKey": "isRemeberWinSize",
+      "targetKey": "feature.selection.remember_win_size"
     },
     {
-      originalKey: 'filterMode',
-      targetKey: 'feature.selection.filter_mode'
+      "originalKey": "filterMode",
+      "targetKey": "feature.selection.filter_mode"
     },
     {
-      originalKey: 'filterList',
-      targetKey: 'feature.selection.filter_list'
+      "originalKey": "filterList",
+      "targetKey": "feature.selection.filter_list"
     },
     {
-      originalKey: 'isCompact',
-      targetKey: 'feature.selection.compact'
+      "originalKey": "isCompact",
+      "targetKey": "feature.selection.compact"
     },
     {
-      originalKey: 'isAutoClose',
-      targetKey: 'feature.selection.auto_close'
+      "originalKey": "isAutoClose",
+      "targetKey": "feature.selection.auto_close"
     },
     {
-      originalKey: 'isAutoPin',
-      targetKey: 'feature.selection.auto_pin'
+      "originalKey": "isAutoPin",
+      "targetKey": "feature.selection.auto_pin"
     },
     {
-      originalKey: 'actionWindowOpacity',
-      targetKey: 'feature.selection.action_window_opacity'
+      "originalKey": "actionWindowOpacity",
+      "targetKey": "feature.selection.action_window_opacity"
     },
     {
-      originalKey: 'actionItems',
-      targetKey: 'feature.selection.action_items'
+      "originalKey": "actionItems",
+      "targetKey": "feature.selection.action_items"
     }
   ],
-  llm: [
+  "llm": [
     {
-      originalKey: 'quickAssistantId',
-      targetKey: 'feature.quick_assistant.assistant_id'
+      "originalKey": "quickAssistantId",
+      "targetKey": "feature.quick_assistant.assistant_id"
     }
   ],
-  nutstore: [
+  "nutstore": [
     {
-      originalKey: 'nutstoreToken',
-      targetKey: 'data.backup.nutstore.token'
+      "originalKey": "nutstoreToken",
+      "targetKey": "data.backup.nutstore.token"
     },
     {
-      originalKey: 'nutstorePath',
-      targetKey: 'data.backup.nutstore.path'
+      "originalKey": "nutstorePath",
+      "targetKey": "data.backup.nutstore.path"
     },
     {
-      originalKey: 'nutstoreAutoSync',
-      targetKey: 'data.backup.nutstore.auto_sync'
+      "originalKey": "nutstoreAutoSync",
+      "targetKey": "data.backup.nutstore.auto_sync"
     },
     {
-      originalKey: 'nutstoreSyncInterval',
-      targetKey: 'data.backup.nutstore.sync_interval'
+      "originalKey": "nutstoreSyncInterval",
+      "targetKey": "data.backup.nutstore.sync_interval"
     },
     {
-      originalKey: 'nutstoreSkipBackupFile',
-      targetKey: 'data.backup.nutstore.skip_backup_file'
+      "originalKey": "nutstoreSkipBackupFile",
+      "targetKey": "data.backup.nutstore.skip_backup_file"
     },
     {
-      originalKey: 'nutstoreMaxBackups',
-      targetKey: 'data.backup.nutstore.max_backups'
+      "originalKey": "nutstoreMaxBackups",
+      "targetKey": "data.backup.nutstore.max_backups"
     }
   ],
-  preprocess: [
+  "preprocess": [
     {
-      originalKey: 'defaultProvider',
-      targetKey: 'feature.file_processing.default_document_to_markdown'
+      "originalKey": "defaultProvider",
+      "targetKey": "feature.file_processing.default_document_to_markdown"
     }
   ],
-  translate: [
+  "translate": [
     {
-      originalKey: 'settings.autoCopy',
-      targetKey: 'feature.translate.page.auto_copy'
+      "originalKey": "settings.autoCopy",
+      "targetKey": "feature.translate.page.auto_copy"
     }
   ],
-  websearch: [
+  "websearch": [
     {
-      originalKey: 'maxResults',
-      targetKey: 'chat.web_search.max_results'
+      "originalKey": "maxResults",
+      "targetKey": "chat.web_search.max_results"
     },
     {
-      originalKey: 'excludeDomains',
-      targetKey: 'chat.web_search.exclude_domains'
+      "originalKey": "excludeDomains",
+      "targetKey": "chat.web_search.exclude_domains"
     }
   ],
-  ocr: [
+  "ocr": [
     {
-      originalKey: 'imageProviderId',
-      targetKey: 'feature.file_processing.default_image_to_text'
+      "originalKey": "imageProviderId",
+      "targetKey": "feature.file_processing.default_image_to_text"
     }
   ],
-  note: [
+  "note": [
     {
-      originalKey: 'settings.isFullWidth',
-      targetKey: 'feature.notes.full_width'
+      "originalKey": "settings.isFullWidth",
+      "targetKey": "feature.notes.full_width"
     },
     {
-      originalKey: 'settings.fontFamily',
-      targetKey: 'feature.notes.font_family'
+      "originalKey": "settings.fontFamily",
+      "targetKey": "feature.notes.font_family"
     },
     {
-      originalKey: 'settings.fontSize',
-      targetKey: 'feature.notes.font_size'
+      "originalKey": "settings.fontSize",
+      "targetKey": "feature.notes.font_size"
     },
     {
-      originalKey: 'settings.showTableOfContents',
-      targetKey: 'feature.notes.show_table_of_contents'
+      "originalKey": "settings.showTableOfContents",
+      "targetKey": "feature.notes.show_table_of_contents"
     },
     {
-      originalKey: 'settings.defaultViewMode',
-      targetKey: 'feature.notes.default_view_mode'
+      "originalKey": "settings.defaultViewMode",
+      "targetKey": "feature.notes.default_view_mode"
     },
     {
-      originalKey: 'settings.defaultEditMode',
-      targetKey: 'feature.notes.default_edit_mode'
+      "originalKey": "settings.defaultEditMode",
+      "targetKey": "feature.notes.default_edit_mode"
     },
     {
-      originalKey: 'settings.showTabStatus',
-      targetKey: 'feature.notes.show_tab_status'
+      "originalKey": "settings.showTabStatus",
+      "targetKey": "feature.notes.show_tab_status"
     },
     {
-      originalKey: 'settings.showWorkspace',
-      targetKey: 'feature.notes.show_workspace'
+      "originalKey": "settings.showWorkspace",
+      "targetKey": "feature.notes.show_workspace"
     },
     {
-      originalKey: 'notesPath',
-      targetKey: 'feature.notes.path'
+      "originalKey": "notesPath",
+      "targetKey": "feature.notes.path"
     },
     {
-      originalKey: 'sortType',
-      targetKey: 'feature.notes.sort_type'
+      "originalKey": "sortType",
+      "targetKey": "feature.notes.sort_type"
     }
   ]
 } as const
@@ -761,24 +769,24 @@ export const REDUX_STORE_MAPPINGS = {
  */
 export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [
   {
-    originalKey: 'translate:detect:method',
-    targetKey: 'feature.translate.auto_detection_method'
+    "originalKey": "translate:detect:method",
+    "targetKey": "feature.translate.auto_detection_method"
   },
   {
-    originalKey: 'image://avatar',
-    targetKey: 'app.user.avatar'
+    "originalKey": "image://avatar",
+    "targetKey": "app.user.avatar"
   },
   {
-    originalKey: 'translate:markdown:enabled',
-    targetKey: 'feature.translate.page.enable_markdown'
+    "originalKey": "translate:markdown:enabled",
+    "targetKey": "feature.translate.page.enable_markdown"
   },
   {
-    originalKey: 'translate:scroll:sync',
-    targetKey: 'feature.translate.page.scroll_sync'
+    "originalKey": "translate:scroll:sync",
+    "targetKey": "feature.translate.page.scroll_sync"
   },
   {
-    originalKey: 'translate:bidirectional:enabled',
-    targetKey: 'feature.translate.page.bidirectional_enabled'
+    "originalKey": "translate:bidirectional:enabled",
+    "targetKey": "feature.translate.page.bidirectional_enabled"
   }
 ] as const
 
@@ -799,11 +807,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 2
- * - Redux Store项: 174
+ * - Redux Store项: 176
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 5
  * - localStorage项: 0
- * - 总配置项: 181
+ * - 总配置项: 183
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

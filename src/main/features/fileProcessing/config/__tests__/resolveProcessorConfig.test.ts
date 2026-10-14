@@ -7,13 +7,14 @@ const { isSupportedSystemMock, isLocalModelReadyMock } = vi.hoisted(() => ({
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-
-  return mockApplicationFactory()
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
+    return originalGet(name)
+  })
+  return result
 })
-
-vi.mock('@main/services/localModel', () => ({
-  isLocalModelReady: isLocalModelReadyMock
-}))
 
 vi.mock('../../processors/registry', () => ({
   processorRegistry: {
@@ -39,6 +40,8 @@ vi.mock('../defaultImageToTextProcessor', () => ({
 }))
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+
+import { MB } from '@shared/utils/constants'
 
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from '../resolveProcessorConfig'
 
@@ -74,7 +77,8 @@ describe('resolveProcessorConfig', () => {
           feature: 'document_to_markdown',
           inputs: ['document'],
           output: 'markdown',
-          apiHost: 'http://127.0.0.1:9000'
+          apiHost: 'http://127.0.0.1:9000',
+          maxInputBytes: 200 * MB
         }
       ],
       apiKeys: ['secret-key'],

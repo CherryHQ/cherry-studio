@@ -1,7 +1,8 @@
-import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type RefObject, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 
@@ -10,7 +11,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
@@ -58,7 +60,8 @@ describe('NotesEditor RichEditor integration', () => {
     }
     const { container } = render(<TestEditor />)
 
-    await waitFor(() => expect(editorRef.current).not.toBeNull())
+    // NotesEditor lazy-loads RichEditor; the real module is heavy enough to exceed the 1s default.
+    await waitFor(() => expect(editorRef.current).not.toBeNull(), { timeout: 10_000 })
     expect(screen.getByText('notes.characters: 20')).toBeInTheDocument()
     expect(screen.queryByTestId('toolbar-image')).not.toBeInTheDocument()
     expect(screen.queryByTestId('toolbar-inlineMath')).not.toBeInTheDocument()

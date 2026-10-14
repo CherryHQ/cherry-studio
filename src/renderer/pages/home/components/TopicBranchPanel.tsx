@@ -1,5 +1,10 @@
+import { CopyPlus, GitBranch } from 'lucide-react'
+import type { FC, MouseEvent } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -15,10 +20,6 @@ import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
-import { CopyPlus, GitBranch } from 'lucide-react'
-import type { FC, MouseEvent } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
 
@@ -65,6 +66,13 @@ const TopicBranchPanel: FC<Props> = ({
     params: { topicId },
     query: { depth: -1 }
   })
+  useDataChange(
+    '/topics/:topicId/tree',
+    () => {
+      if (open) void refetch()
+    },
+    { routeParams: { topicId } }
+  )
   const { trigger: setActiveNode } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: [messagesCachePath, treeCachePath]
   })
@@ -100,7 +108,6 @@ const TopicBranchPanel: FC<Props> = ({
           params: { id: topicId },
           body: { nodeId: leafId }
         })
-        await refetch()
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch from topic flow on missing message', { messageId, topicId })
@@ -110,7 +117,7 @@ const TopicBranchPanel: FC<Props> = ({
         toast.error(t('common.error'))
       }
     },
-    [graph.activeNodeId, graph.nodes, onLocateMessage, refetch, setActiveNode, t, topicId]
+    [graph.activeNodeId, graph.nodes, onLocateMessage, setActiveNode, t, topicId]
   )
 
   const handleStartNodeBranch = useCallback(

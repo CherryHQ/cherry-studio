@@ -1,3 +1,5 @@
+import type * as NodePathModule from 'node:path'
+
 import { createMockApplication } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +12,7 @@ const MARKER_ASIDE = `${USER_DATA}/data-reset.pending.invalid`
 const DATABASE_FILE = `${USER_DATA}/Data/cherrystudio.sqlite`
 const CLAUDE_ROOT = `${USER_DATA}/Data/Agents/.claude`
 const VERSION_LOG_FILE = `${USER_DATA}/version.log`
+const REGISTRY_OVERRIDE = `${USER_DATA}/Runtime/provider-registry-override`
 
 let applicationMock: ReturnType<typeof createMockApplication>
 const showErrorBoxMock = vi.fn()
@@ -167,6 +170,7 @@ function stubApplication(userData: string = USER_DATA, opts: { throwOnUserData?:
     if (key === 'app.database.file') return `${userData}/Data/cherrystudio.sqlite`
     if (key === 'feature.agents.claude.root') return `${userData}/Data/Agents/.claude`
     if (key === 'feature.version_log.file') return `${userData}/version.log`
+    if (key === 'feature.provider_registry.override') return `${userData}/Runtime/provider-registry-override`
     return '/mock/unknown'
   })
   vi.doMock('@application', () => ({ application: applicationMock }))
@@ -292,11 +296,21 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
   vi.doMock('node:fs', () => ({ __esModule: true, default: fsMock, ...fsMock }))
 }
 
+// The in-memory filesystem above is keyed by POSIX literals, so the module under test
+// has to join them the same way regardless of host.
+function stubPath() {
+  vi.doMock('node:path', async () => {
+    const actual: typeof NodePathModule = await vi.importActual('node:path')
+    return { __esModule: true, default: actual.posix, ...actual.posix }
+  })
+}
+
 function stubAll(marker: DataResetMarker) {
   stubElectron()
   stubApplication()
   stubI18n()
   stubFs()
+  stubPath()
   if (marker) seedMarker(marker)
 }
 
@@ -397,6 +411,7 @@ describe('runDataReset', () => {
       expect(wiped).not.toContain(`${USER_DATA}/${entry}`)
     }
     expect(rmSyncMock).toHaveBeenCalledWith(APP_TEMP, expect.anything())
+    expect(rmSyncMock).toHaveBeenCalledWith(REGISTRY_OVERRIDE, expect.anything())
 
     expect(fsCtl.commits.map((c) => c?.status)).toEqual(['pending', 'completed'])
     expect(markerExists()).toBe(false)

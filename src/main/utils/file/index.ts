@@ -4,7 +4,7 @@
  * ## Layout
  *
  * This topic holds the main-process FS/path primitives, each reached through
- * this single barrel (naming-conventions.md §6.4 / main-process-architecture.md
+ * this single barrel (naming-conventions.md §6.4 / architecture/main-process.md
  * §2.1) — consumers import `from '@main/utils/file'`, never a sub-path:
  *
  * - `./fs` — raw file IO (`read`, `write`, `atomicWriteFile`, `stat`, `copy`,
@@ -48,6 +48,7 @@
  */
 
 export { createContentHasher, hashContent, parseContentHash } from './contentHash'
+export { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from './pathIdentity'
 export {
   assertPathVersionUnchanged,
   atomicWriteFile,
@@ -55,6 +56,7 @@ export {
   type AtomicWriteStream,
   compressImage,
   copy,
+  copyNew,
   createAtomicWriteStream,
   createPreparedAtomicWriteStream,
   download,
@@ -87,6 +89,15 @@ export {
   write
 } from './fs'
 export { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from './metadata'
-export { canWrite, isNotEmptyDir, isPathInside, isSameOrInside, resolvePath } from './path'
+export {
+  canonicalizePathForContainment,
+  canWrite,
+  foldPathSegment,
+  isNotEmptyDir,
+  isOutsidePath,
+  isPathInside,
+  isSameOrInside,
+  resolvePath
+} from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

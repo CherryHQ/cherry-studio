@@ -1,5 +1,6 @@
+import { test } from 'vitest'
+
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { bench, describe } from 'vitest'
 
 import { reconcileSessionListItems } from './sessionListItemSharing'
 
@@ -23,6 +24,7 @@ function createSessions(count: number, renamedId?: string): AgentSessionEntity[]
         updatedAt: '2026-01-01T00:00:00.000Z'
       },
       orderKey: String(index).padStart(5, '0'),
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }
@@ -62,20 +64,24 @@ function createScenario(count: number) {
 let benchmarkSink: readonly unknown[] = []
 
 for (const count of [200, 1000]) {
-  describe(`${count} session list items`, () => {
+  test(`${count} session list items`, async ({ bench }) => {
     const scenario = createScenario(count)
 
-    bench(`equal refresh (${count}/${count} item refs reused; 0 memo-row invalidations)`, () => {
-      benchmarkSink = reconcileSessionListItems(scenario.equalRefreshSessions, new Map(), scenario.initial).items
-    })
-
-    bench(`pin update (${count - 1}/${count} item refs reused; 1 memo-row invalidation)`, () => {
-      benchmarkSink = reconcileSessionListItems(scenario.equalRefreshSessions, scenario.pinned, scenario.initial).items
-    })
-
-    bench(`name update (${count - 1}/${count} item refs reused; 1 memo-row invalidation)`, () => {
-      benchmarkSink = reconcileSessionListItems(scenario.renamedSessions, new Map(), scenario.initial).items
-    })
+    await bench.compare(
+      bench(`equal refresh (${count}/${count} item refs reused; 0 memo-row invalidations)`, () => {
+        benchmarkSink = reconcileSessionListItems(scenario.equalRefreshSessions, new Map(), scenario.initial).items
+      }),
+      bench(`pin update (${count - 1}/${count} item refs reused; 1 memo-row invalidation)`, () => {
+        benchmarkSink = reconcileSessionListItems(
+          scenario.equalRefreshSessions,
+          scenario.pinned,
+          scenario.initial
+        ).items
+      }),
+      bench(`name update (${count - 1}/${count} item refs reused; 1 memo-row invalidation)`, () => {
+        benchmarkSink = reconcileSessionListItems(scenario.renamedSessions, new Map(), scenario.initial).items
+      })
+    )
   })
 }
 

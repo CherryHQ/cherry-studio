@@ -1,7 +1,8 @@
-import type { SpanEntity } from '@mcp-trace/trace-core'
 import { trace } from '@opentelemetry/api'
 import { AlwaysOnSampler, BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { SpanEntity } from '@shared/data/types/trace'
 
 const { warnSpy } = vi.hoisted(() => ({ warnSpy: vi.fn() }))
 vi.mock('@logger', () => ({

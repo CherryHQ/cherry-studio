@@ -8,13 +8,42 @@
 
 import { readFileSync } from 'node:fs'
 
+import semver from 'semver'
+
+import { type CatalogManifest, REGISTRY_SCHEMA_VERSION } from './catalog'
+import { ModelIndex, ProviderModelIndex } from './registry-index'
 import type { ModelConfig } from './schemas/model'
 import { ModelListSchema } from './schemas/model'
 import type { ProviderConfig } from './schemas/provider'
 import { ProviderListSchema } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
 import { ProviderModelListSchema } from './schemas/provider-models'
-import { colonVariantTagToHyphen, normalizeModelId } from './utils/normalize'
+
+// Re-export the top-level list schemas so Node-side consumers (e.g. the remote
+// registry updater) can validate a downloaded payload in memory before writing
+// it to disk — the same schemas this loader validates with on read.
+export { ModelListSchema } from './schemas/model'
+export { ProviderListSchema } from './schemas/provider'
+export { ProviderModelListSchema } from './schemas/provider-models'
+
+export type { CatalogManifest, RegistryFileName, RemoteRegistryFileName } from './catalog'
+export {
+  CatalogManifestSchema,
+  REGISTRY_FILES,
+  REGISTRY_MIN_APP_VERSION,
+  REGISTRY_SCHEMA_VERSION,
+  REMOTE_REGISTRY_FILES
+} from './catalog'
+
+/** Whether this app lies inside the manifest's explicit semantic and freshness range. */
+export function isCatalogManifestCompatible(manifest: CatalogManifest, appVersion: string): boolean {
+  if (manifest.schemaVersion !== REGISTRY_SCHEMA_VERSION) return false
+  const app = semver.coerce(appVersion)?.version
+  const minimum = semver.coerce(manifest.minAppVersion)?.version
+  const source = semver.coerce(manifest.sourceAppVersion)?.version
+  if (!app || !minimum || !source) return false
+  return semver.gte(app, minimum) && semver.lte(app, source)
+}
 
 function readAndParse<T>(jsonPath: string, schema: { parse: (data: unknown) => T }): T {
   try {
@@ -63,14 +92,8 @@ export class RegistryLoader {
   private providersVersion: string | null = null
   private providerModelsVersion: string | null = null
 
-  private modelById: Map<string, ModelConfig> | null = null
-  private modelByNormId: Map<string, ModelConfig> | null = null
-  private modelBySizedNorm: Map<string, ModelConfig> | null = null
-  private overrideByKey: Map<string, ProviderModelOverride> | null = null
-  private overrideByNormKey: Map<string, ProviderModelOverride> | null = null
-  private overrideByApiKey: Map<string, ProviderModelOverride> | null = null
-  private overrideByNormApiKey: Map<string, ProviderModelOverride> | null = null
-  private overridesByProvider: Map<string, ProviderModelOverride[]> | null = null
+  private modelIndex: ModelIndex | null = null
+  private overrideIndex: ProviderModelIndex | null = null
 
   private idleTimer: ReturnType<typeof setTimeout> | null = null
   private readonly idleTtlMs: number
@@ -95,7 +118,7 @@ export class RegistryLoader {
     const data = readModelRegistry(this.paths.models)
     this.models = data.models ?? []
     this.modelsVersion = data.version
-    this.buildModelIndex()
+    this.modelIndex = new ModelIndex(this.models)
     return this.models
   }
 
@@ -116,7 +139,7 @@ export class RegistryLoader {
     const data = readProviderModelRegistry(this.paths.providerModels)
     this.providerModels = data.overrides ?? []
     this.providerModelsVersion = data.version
-    this.buildOverrideIndex()
+    this.overrideIndex = new ProviderModelIndex(this.providerModels)
     return this.providerModels
   }
 
@@ -138,103 +161,24 @@ export class RegistryLoader {
     return this.providerModelsVersion!
   }
 
-  private buildModelIndex(): void {
-    this.modelById = new Map()
-    this.modelByNormId = new Map()
-    this.modelBySizedNorm = new Map()
-    for (const m of this.models!) {
-      this.modelById.set(m.id, m)
-      const nid = normalizeModelId(m.id)
-      if (!this.modelByNormId.has(nid)) {
-        this.modelByNormId.set(nid, m)
-      }
-      // Size-preserving key: `gpt-oss-20b` and `gpt-oss-120b` stay distinct here (they collapse to the
-      // same `gpt-oss` key above), so a registry-tagged `:20b`/`:120b` pull resolves to its own row.
-      const sid = normalizeModelId(m.id, { keepParameterSize: true })
-      if (!this.modelBySizedNorm.has(sid)) {
-        this.modelBySizedNorm.set(sid, m)
-      }
-    }
-  }
-
-  private buildOverrideIndex(): void {
-    this.overrideByKey = new Map()
-    this.overrideByNormKey = new Map()
-    this.overrideByApiKey = new Map()
-    this.overrideByNormApiKey = new Map()
-    this.overridesByProvider = new Map()
-    for (const pm of this.providerModels!) {
-      const key = `${pm.providerId}::${pm.modelId}`
-      // `modelId` is NOT unique: a provider may serve one canonical model under several apiModelIds
-      // (tokenhub's dated 原厂直供 variants share `deepseek-v4-flash`). The canonical key must resolve to
-      // the undated/self variant (`apiModelId === modelId`) — the dated ones stay reachable only via the
-      // apiModelId index below. Order-independent: a self variant claims the slot whenever it appears.
-      if (!this.overrideByKey.has(key) || pm.apiModelId === pm.modelId) {
-        this.overrideByKey.set(key, pm)
-      }
-      const normKey = `${pm.providerId}::${normalizeModelId(pm.modelId)}`
-      if (!this.overrideByNormKey.has(normKey)) {
-        this.overrideByNormKey.set(normKey, pm)
-      }
-      if (pm.apiModelId) {
-        const apiKey = `${pm.providerId}::${pm.apiModelId}`
-        this.overrideByApiKey.set(apiKey, pm)
-        const normApiKey = `${pm.providerId}::${normalizeModelId(pm.apiModelId)}`
-        if (!this.overrideByNormApiKey.has(normApiKey)) {
-          this.overrideByNormApiKey.set(normApiKey, pm)
-        }
-      }
-      let arr = this.overridesByProvider.get(pm.providerId)
-      if (!arr) {
-        arr = []
-        this.overridesByProvider.set(pm.providerId, arr)
-      }
-      arr.push(pm)
-    }
-  }
-
-  findModel(modelId: string): ModelConfig | null {
-    this.loadModels()
-    const exact = this.modelById!.get(modelId)
-    if (exact) return exact
-    // A registry-tag id (`gpt-oss:20b`) carries its size/quant AFTER a colon. Match it size-first so
-    // `:20b` lands on `gpt-oss-20b`, never collapsing onto the `gpt-oss-120b` sibling that shares the
-    // size-agnostic key. If no exact-size catalog row exists (`qwen2.5:7b` → the catalog only has
-    // `qwen2-5-*-instruct`), return null rather than a size-agnostic guess — a wrong sibling's pricing,
-    // limits, and presetModelId are worse than no metadata.
-    if (colonVariantTagToHyphen(modelId) !== modelId) {
-      return this.modelBySizedNorm!.get(normalizeModelId(modelId, { keepParameterSize: true })) ?? null
-    }
-    return this.modelByNormId!.get(normalizeModelId(modelId)) ?? null
-  }
-
   findProvider(providerId: string): ProviderConfig | null {
     const providers = this.loadProviders()
     return providers.find((p) => p.id === providerId) ?? null
   }
 
-  findOverride(providerId: string, modelId: string): ProviderModelOverride | null {
-    this.loadProviderModels()
-    const key = `${providerId}::${modelId}`
-    const normKey = `${providerId}::${normalizeModelId(modelId)}`
-    // BOTH exact lookups (canonical modelId, then provider apiModelId) must precede BOTH normalized
-    // fallbacks. `normalizeModelId` strips size/date suffixes, so several distinct rows collapse to one
-    // normalized key (`google.gemma-3-27b-it` and `gemma-3-12b-it` both → `gemma-3-it`). If the normalized
-    // canonical fallback ran before the exact apiModelId map, an exact SDK id like `google.gemma-3-27b-it`
-    // would resolve through whichever same-family row was indexed first instead of its own row.
-    return (
-      this.overrideByKey!.get(key) ??
-      this.overrideByApiKey!.get(key) ??
-      this.overrideByNormKey!.get(normKey) ??
-      this.overrideByNormApiKey!.get(normKey) ??
-      null
-    )
+  findModel(modelId: string): ModelConfig | null {
+    this.loadModels()
+    return this.modelIndex!.findModel(modelId)
   }
 
-  /** O(1) get all overrides for a provider. */
+  findOverride(providerId: string, modelId: string): ProviderModelOverride | null {
+    this.loadProviderModels()
+    return this.overrideIndex!.findOverride(providerId, modelId)
+  }
+
   getOverridesForProvider(providerId: string): ProviderModelOverride[] {
     this.loadProviderModels()
-    return this.overridesByProvider!.get(providerId) ?? []
+    return this.overrideIndex!.getOverridesForProvider(providerId)
   }
 
   /** Release all cached data and indexes. Next access triggers a fresh load. */
@@ -245,14 +189,8 @@ export class RegistryLoader {
     this.modelsVersion = null
     this.providersVersion = null
     this.providerModelsVersion = null
-    this.modelById = null
-    this.modelByNormId = null
-    this.modelBySizedNorm = null
-    this.overrideByKey = null
-    this.overrideByNormKey = null
-    this.overrideByApiKey = null
-    this.overrideByNormApiKey = null
-    this.overridesByProvider = null
+    this.modelIndex = null
+    this.overrideIndex = null
     if (this.idleTimer) {
       clearTimeout(this.idleTimer)
       this.idleTimer = null

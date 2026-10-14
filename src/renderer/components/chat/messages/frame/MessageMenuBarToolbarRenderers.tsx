@@ -1,9 +1,10 @@
-import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
-import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
-import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import type { ReactNode } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
+import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 
 import { MessageActionButton } from './MessageActionButton'
 import type {
@@ -284,18 +285,20 @@ export function renderModelPickerToolbarAction({
   const label = typeof action.label === 'string' ? action.label : undefined
 
   return (
-    <Tooltip content={action.label} delay={800}>
-      {actionContext.actions.renderRegenerateModelPicker?.({
-        message: actionContext.message,
-        messageParts: actionContext.messageParts,
-        trigger: (
-          <MessageActionButton className="message-action-button" aria-label={label} softHoverBg={softHoverBg}>
-            {action.icon}
-          </MessageActionButton>
-        ),
-        onOpenChange: onMenuOpenChange
-      }) ?? null}
-    </Tooltip>
+    <span className="contents" onClick={(event) => event.stopPropagation()}>
+      <Tooltip content={action.label} delay={800}>
+        {actionContext.actions.renderRegenerateModelPicker?.({
+          message: actionContext.message,
+          messageParts: actionContext.messageParts,
+          trigger: (
+            <MessageActionButton className="message-action-button" aria-label={label} softHoverBg={softHoverBg}>
+              {action.icon}
+            </MessageActionButton>
+          ),
+          onOpenChange: onMenuOpenChange
+        }) ?? null}
+      </Tooltip>
+    </span>
   )
 }
 

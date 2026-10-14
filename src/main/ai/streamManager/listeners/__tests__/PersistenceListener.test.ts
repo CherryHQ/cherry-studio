@@ -3,15 +3,18 @@
  *
  * These tests use `TemporaryChatBackend` as a convenient concrete backend
  * — the observer protocol (modelId filtering, error-part assembly,
- * skip-when-no-finalMessage, swallow-errors) is identical regardless of
+ * skip-when-no-finalMessage, persistence-failure signalling) is identical regardless of
  * which backend is wired in.
  */
+
+import type { UIMessage } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessage } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { StreamErrorResult } from '../../types'
 
 const appendAssistantMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
@@ -30,7 +33,7 @@ vi.mock('@main/data/services/MessageService', () => ({
   }
 }))
 
-const { PersistenceListener } = await import('../PersistenceListener')
+const { PersistenceListener, TerminalPersistenceError } = await import('../PersistenceListener')
 const { TemporaryChatBackend } = await import('../../persistence/backends/TemporaryChatBackend')
 const { MessageServiceBackend } = await import('../../persistence/backends/MessageServiceBackend')
 
@@ -57,7 +60,7 @@ function makeStreamingReasoningMessage(startedAt: number): CherryUIMessage {
   } as unknown as CherryUIMessage
 }
 
-function makeListener(modelId?: UniqueModelId) {
+function makeListener(modelId?: UniqueModelId, onPersistFailed = vi.fn()) {
   return new PersistenceListener({
     topicId: 'abc',
     modelId,
@@ -66,11 +69,38 @@ function makeListener(modelId?: UniqueModelId) {
       messageId: 'assistant-message-id',
       modelId,
       messageSnapshot: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
-    })
+    }),
+    onPersistFailed
   })
 }
 
 describe('PersistenceListener + TemporaryChatBackend', () => {
+  it('retains the execution failure and reports a distinct persistence failure to cleanup observers', async () => {
+    const result: StreamErrorResult = {
+      status: 'error',
+      anchorMessageId: 'owner-message',
+      error: { name: 'Error', message: '403 forbidden', stack: null }
+    }
+    let attempted: CherryUIMessage | undefined
+    const listener = new PersistenceListener({
+      topicId: 'abc',
+      backend: {
+        kind: 'test',
+        persistAssistant: ({ finalMessage }) => {
+          attempted = finalMessage
+          throw new Error('Disk full')
+        }
+      },
+      onPersistFailed: () => {}
+    })
+    await expect(listener.onError(result)).rejects.toThrow('Terminal persistence failed')
+    expect(attempted?.id).toBe('owner-message')
+    expect(result.failure?.failure.reasonCode).toBe('permission')
+    expect(result.persistence).toMatchObject({
+      status: 'failed',
+      failure: { failure: { reasonCode: 'internal', source: { layer: 'host' } } }
+    })
+  })
   beforeEach(() => {
     appendAssistantMessageMock.mockReset()
     appendAssistantMessageMock.mockReturnValue({ id: 'msg-a' })
@@ -292,7 +322,10 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(payload.status).toBe('error')
     const parts = payload.data.parts as Array<{ type: string }>
     expect(parts).toHaveLength(1)
-    expect(parts[0]).toEqual({ type: 'data-error', data: err })
+    expect(parts[0]).toMatchObject({
+      type: 'data-error',
+      data: { ...err, executionFailure: { message: 'boom', failure: { reasonCode: 'unknown' } } }
+    })
   })
 
   it('skips persistence when onDone arrives without a finalMessage', async () => {
@@ -315,13 +348,15 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendAssistantMessageMock).not.toHaveBeenCalled()
   })
 
-  it('swallows append errors so stream teardown is not disrupted', async () => {
+  it('surfaces append errors through the terminal persistence control signal', async () => {
     appendAssistantMessageMock.mockImplementationOnce(() => {
       throw new Error('write failed')
     })
     const listener = makeListener()
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
+      TerminalPersistenceError
+    )
   })
 })
 
@@ -334,7 +369,8 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   function makeMessageServiceListener() {
     return new PersistenceListener({
       topicId: 'topic-1',
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
+      onPersistFailed: vi.fn()
     })
   }
 
@@ -351,6 +387,15 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
+  it('does not create an empty successful ordinary-chat reply', async () => {
+    const listener = makeMessageServiceListener()
+
+    await listener.onDone({ finalMessage: undefined, status: 'success' })
+
+    expect(messageFinalizeMock).not.toHaveBeenCalled()
+    expect(messageUpdateMock).not.toHaveBeenCalled()
+  })
+
   it('drives the placeholder row to status=error when the persist write fails', async () => {
     messageFinalizeMock.mockImplementationOnce(() => {
       throw new Error('write failed')
@@ -358,7 +403,9 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     messageUpdateMock.mockReturnValueOnce({ id: 'assistant-1' })
     const listener = makeMessageServiceListener()
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
+      TerminalPersistenceError
+    )
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
@@ -371,8 +418,9 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       topicId: 'topic-1',
       backend: new MessageServiceBackend({
         assistantMessageId: 'assistant-1',
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
-      })
+        turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
+      }),
+      onPersistFailed: vi.fn()
     })
 
     await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
@@ -380,7 +428,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: {
         parts: makeFinalMessage().parts,
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
       },
       status: 'success',
       runtimeStats: undefined
@@ -388,7 +436,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
-  it('swallows a failure of the terminal-error recovery write itself', async () => {
+  it('still raises the control signal when the terminal-error recovery write also fails', async () => {
     messageFinalizeMock.mockImplementation(() => {
       throw new Error('db down')
     })
@@ -397,7 +445,9 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     })
     const listener = makeMessageServiceListener()
 
-    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
+      TerminalPersistenceError
+    )
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
@@ -415,12 +465,33 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       onPersistFailed
     })
 
-    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
+      TerminalPersistenceError
+    )
 
     expect(onPersistFailed).toHaveBeenCalledTimes(1)
     expect(onPersistFailed).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining('write failed') })
     )
+  })
+
+  it('raises the control signal even when the persistence-failure callback throws', async () => {
+    messageFinalizeMock.mockImplementationOnce(() => {
+      throw new Error('write failed')
+    })
+    const onPersistFailed = vi.fn(() => {
+      throw new Error('renderer notification failed')
+    })
+    const listener = new PersistenceListener({
+      topicId: 'topic-1',
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
+      onPersistFailed
+    })
+
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
+      TerminalPersistenceError
+    )
+    expect(onPersistFailed).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -443,15 +514,16 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
 
     const listener = new PersistenceListener({
       topicId: 'topic-1',
-      modelId: 'openrouter::x' as UniqueModelId,
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
+      modelId: 'openrouter::x',
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
+      onPersistFailed: vi.fn()
     })
 
     const runtimeTiming = { startedAt: 1_000, completedAt: 1_160, spans: [] }
     await listener.onDone({
       finalMessage,
       status: 'success',
-      modelId: 'openrouter::x' as UniqueModelId,
+      modelId: 'openrouter::x',
       timings: { startedAt: 100, completedAt: 260 },
       runtimeTiming
     })

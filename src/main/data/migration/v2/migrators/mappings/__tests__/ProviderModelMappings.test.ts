@@ -1,5 +1,6 @@
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
+
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 
 import { transformModel, transformProvider } from '../ProviderModelMappings'
 
@@ -132,6 +133,30 @@ describe('ProviderModelMappings', () => {
         }
       })
     })
+
+    it.each(['https://aiplatform.googleapis.com', 'https://us-central1-aiplatform.googleapis.com'])(
+      'drops the official VertexAI host %s instead of migrating it as an override',
+      (apiHost) => {
+        // v1 rebuilt the resource path from this host per request; carrying it
+        // over would persist an override that means "default" and 404 in v2.
+        const result = transformProvider(
+          {
+            id: 'vertexai',
+            name: 'VertexAI',
+            type: 'vertexai',
+            apiKey: '',
+            apiHost,
+            models: [],
+            enabled: true,
+            isSystem: true,
+            isVertex: true
+          } as never,
+          {}
+        )
+
+        expect(result.endpointConfigs).toBeNull()
+      }
+    )
 
     it('migrates Azure OpenAI as an Azure provider with an OpenAI-compatible endpoint', () => {
       const result = transformProvider(
@@ -294,7 +319,7 @@ describe('ProviderModelMappings', () => {
             authType: 'apiKey',
             region: 'us-east-1'
           }
-        } as never
+        }
       )
 
       expect(result.authConfig).toEqual({ type: 'api-key-aws', region: 'us-east-1' })

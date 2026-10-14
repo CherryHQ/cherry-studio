@@ -1,7 +1,8 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { streamDispatchService } from '../StreamDispatchService'
 
@@ -28,8 +29,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0))
 describe('StreamDispatchService', () => {
   it('routes a resolved ack to subscribers', async () => {
     const ack: AiStreamOpenResponse = {
-      mode: 'started',
-      userMessageId: 'u-1'
+      mode: 'started'
     }
     streamOpen.mockResolvedValue(ack)
     const seen: unknown[] = []

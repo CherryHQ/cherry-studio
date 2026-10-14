@@ -1,3 +1,6 @@
+import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import {
   ResourceCreateWizard,
@@ -5,7 +8,6 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
@@ -13,8 +15,6 @@ import type { AgentDetail, ResourceEditDialogTarget } from '@renderer/types/reso
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
-import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 
@@ -68,7 +68,6 @@ export function AgentSelector(props: AgentSelectorProps) {
     mountStrategy
   } = props
   const { t } = useTranslation()
-  const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -85,7 +84,10 @@ export function AgentSelector(props: AgentSelectorProps) {
 
   // Keep in lockstep with TasksSettings' agents query — they share one SWR
   // cache entry only while path + query serialize identically.
-  const { data, isLoading, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
+  const { data, isLoading, refetch } = useQuery('/agents', {
+    enabled: selectorOpen,
+    query: { limit: AGENTS_MAX_LIMIT }
+  })
   const { createAgent, isCreatingAgent } = useAgentMutations()
   const {
     isLoading: isPinnedLoading,
@@ -94,7 +96,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     pinnedIds,
     refetch: refetchPins,
     togglePin
-  } = usePins('agent')
+  } = usePins('agent', { enabled: selectorOpen })
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const items: AgentSelectorItem[] = useMemo(
@@ -195,7 +197,6 @@ export function AgentSelector(props: AgentSelectorProps) {
       isSubmitting={isCreatingAgent}
       onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
-      modelFilter={modelFilter}
     />
   )
 

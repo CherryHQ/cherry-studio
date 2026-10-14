@@ -1,11 +1,22 @@
-import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_DEFAULT_MODEL_ID,
+  CHERRYAI_PROVIDER_ID
+} from '@shared/data/presets/cherryai'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { AppEdition } from '@shared/types/appEdition'
+
 const mocks = vi.hoisted(() => ({
+  appEdition: 'cn' as AppEdition,
   getProvider: vi.fn(),
   listProviders: vi.fn(),
   listModels: vi.fn()
+}))
+
+vi.mock('@main/utils/appEdition', () => ({
+  getAppEdition: () => mocks.appEdition
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -32,6 +43,7 @@ import { getModels, resolveGatewayModelAddress } from '../models'
 describe('api gateway model listing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.appEdition = 'cn'
     mocks.getProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: true })
     mocks.listProviders.mockReturnValue([
       { id: CHERRYAI_PROVIDER_ID, name: 'CherryAI' },
@@ -165,6 +177,31 @@ describe('api gateway model listing', () => {
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
   })
 
+  it('keeps valid models when another provider lookup throws', async () => {
+    mocks.listProviders.mockReturnValue([
+      { id: 'broken', name: 'Broken' },
+      { id: 'openai', name: 'OpenAI' }
+    ])
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => {
+      if (providerId === 'broken') {
+        throw new Error('provider lookup failed')
+      }
+      return [
+        {
+          id: 'openai::gpt-4o',
+          providerId: 'openai',
+          apiModelId: 'gpt-4o',
+          ownedBy: 'OpenAI',
+          capabilities: []
+        }
+      ]
+    })
+
+    const response = await getModels()
+
+    expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+  })
+
   // Reviewer A1: an external-cli provider (e.g. claude-code) authenticates via its own CLI login,
   // not an app-side key, so the proxy's AI-SDK path cannot call it. Its chat models pass the routable
   // predicate but must never be advertised, or a client that picks them from /v1/models fails auth.
@@ -191,5 +228,49 @@ describe('api gateway model listing', () => {
     const response = await getModels()
 
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+  })
+
+  describe('Cherry Cloud audience', () => {
+    const cloudModel = {
+      id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      apiModelId: 'deepseek-free',
+      ownedBy: 'CherryAI',
+      capabilities: []
+    }
+
+    beforeEach(() => {
+      mocks.listProviders.mockReturnValue([
+        { id: CHERRY_CLOUD_PROVIDER_ID, name: 'CherryAI', isEnabled: true },
+        { id: 'openai', name: 'OpenAI', isEnabled: true }
+      ])
+      mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) =>
+        providerId === CHERRY_CLOUD_PROVIDER_ID
+          ? [cloudModel]
+          : [{ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', ownedBy: 'OpenAI', capabilities: [] }]
+      )
+      mocks.getProvider.mockReturnValue({ id: CHERRY_CLOUD_PROVIDER_ID, name: 'CherryAI', isEnabled: true })
+    })
+
+    it('hides Cherry Cloud models from external callers in the cn edition', async () => {
+      const response = await getModels()
+      expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+
+      expect(() => resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).toThrow(
+        'not available through the API gateway'
+      )
+      expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, true).model).toBe(cloudModel)
+    })
+
+    it('exposes Cherry Cloud models to every caller in the global edition', async () => {
+      mocks.appEdition = 'global'
+
+      const response = await getModels()
+      expect(response.data.map((model) => model.id)).toEqual([
+        `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`,
+        'openai:gpt-4o'
+      ])
+      expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`).model).toBe(cloudModel)
+    })
   })
 })

@@ -11,13 +11,11 @@ export class NotificationService {
     const notificationSettings = await preferenceService.getMultiple({
       assistant: 'app.notification.assistant.enabled',
       backup: 'app.notification.backup.enabled',
-      knowledge: 'app.notification.knowledge.enabled'
+      knowledge: 'app.notification.knowledge.enabled',
+      update: 'app.notification.update.enabled',
+      'mini-app': 'app.notification.mini_app.enabled'
     })
 
-    // TODO(notification): sources without a configured preference key (e.g. 'update')
-    // are silently dropped here — there is no `app.notification.update.enabled`
-    // preference, so update notifications never fire. Add a real preference/default
-    // policy for such sources, or remove the dead path, in a follow-up.
     if (notificationSettings[notification.source]) {
       void ipcApi.request('notification.send', notification)
     }

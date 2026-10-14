@@ -11,6 +11,11 @@
  * integration test, not here.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
@@ -18,10 +23,6 @@ import type { JobHandler } from '@main/core/job/types'
 import { JOB_PROGRESS_KEY_PREFIX, JOB_STATE_KEY_PREFIX } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { drainTrailingDispatch as drainHelper } from './_helpers'
 
@@ -152,7 +153,7 @@ describe('JobManager smoke (dummy.echo)', () => {
     const dbSvc = MockMainDbServiceExport.dbService
     const cacheSvc = MockMainCacheServiceExport.cacheService
 
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       switch (name) {
         case 'DbService':
           return dbSvc
@@ -170,8 +171,8 @@ describe('JobManager smoke (dummy.echo)', () => {
 
     await scheduler._doInit()
     await jobManager._doInit()
-    jobManager.registerHandler('dummy.echo' as never, makeEchoHandler() as JobHandler)
-    jobManager.registerHandler('dummy.stubborn' as never, makeStubbornHandler() as JobHandler)
+    jobManager.registerHandler('dummy.echo' as never, makeEchoHandler())
+    jobManager.registerHandler('dummy.stubborn' as never, makeStubbornHandler())
 
     // `onAllReady` now schedules startup recovery via a setTimeout and returns
     // synchronously (the framework runs `_doAllReady` fire-and-forget). Skip
@@ -295,13 +296,9 @@ describe('JobManager smoke (dummy.echo)', () => {
   }, 10_000)
 
   it('reports cancelled for a not-in-flight delayed job', async () => {
-    const handle = jobManager.enqueue(
-      'dummy.echo' as never,
-      { message: 'later' } as never,
-      {
-        scheduledAt: Date.now() + 60_000
-      } as never
-    )
+    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'later' } as never, {
+      scheduledAt: Date.now() + 60_000
+    })
     expect(handle.snapshot.status).toBe('delayed')
 
     const result = await jobManager.cancel(handle.id)
@@ -323,17 +320,13 @@ describe('JobManager smoke (dummy.echo)', () => {
 
   it('reuses an existing handle when idempotencyKey matches a non-terminal job', async () => {
     const key = `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const first = jobManager.enqueue(
-      'dummy.echo' as never,
-      { message: 'unique', sleepMs: 500 } as never,
-      { idempotencyKey: key } as never
-    )
+    const first = jobManager.enqueue('dummy.echo' as never, { message: 'unique', sleepMs: 500 } as never, {
+      idempotencyKey: key
+    })
     await drainTrailingDispatch()
-    const second = jobManager.enqueue(
-      'dummy.echo' as never,
-      { message: 'unique', sleepMs: 500 } as never,
-      { idempotencyKey: key } as never
-    )
+    const second = jobManager.enqueue('dummy.echo' as never, { message: 'unique', sleepMs: 500 } as never, {
+      idempotencyKey: key
+    })
 
     expect(second.id).toBe(first.id)
 
@@ -363,10 +356,8 @@ describe('JobManager smoke (dummy.echo)', () => {
   // cap, the gate blocked every claim and no further job was ever dispatched.
   it('drains a single queue when jobs exceed concurrency (regression: pending-count deadlock)', async () => {
     // makeEchoHandler caps concurrency at 2; 6 jobs share the default queue.
-    const handles = await Promise.all(
-      Array.from({ length: 6 }, (_, i) =>
-        jobManager.enqueue('dummy.echo' as never, { message: `m${i}`, sleepMs: 20 } as never)
-      )
+    const handles = Array.from({ length: 6 }, (_, i) =>
+      jobManager.enqueue('dummy.echo' as never, { message: `m${i}`, sleepMs: 20 } as never)
     )
     const settled = await Promise.all(handles.map((h) => h.finished))
     expect(settled.map((s) => s.status)).toEqual(Array(6).fill('completed'))
@@ -399,7 +390,7 @@ describe('JobManager smoke (dummy.echo)', () => {
         return { echoed: `echo: ${ctx.input.message}` } satisfies EchoOutput
       }
     }
-    jobManager.registerHandler('dummy.inflight.guard' as never, gateHandler as JobHandler)
+    jobManager.registerHandler('dummy.inflight.guard' as never, gateHandler)
 
     const handle = jobManager.enqueue('dummy.inflight.guard' as never, { message: 'once' } as never)
     await drainTrailingDispatch()

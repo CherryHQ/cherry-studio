@@ -1,7 +1,9 @@
-import { execFileSync, spawn } from 'child_process'
+import { execFile, execFileSync, spawn } from 'child_process'
 import { EventEmitter } from 'events'
 import fs from 'fs'
+import type * as UtilModule from 'node:util'
 import path from 'path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import which from 'which'
 
@@ -16,11 +18,41 @@ import {
 } from '../commandResolver'
 
 // Mock dependencies
+const lookup = vi.hoisted(() => ({ execFileAsync: vi.fn() }))
+vi.mock('node:util', async (importOriginal) => {
+  const actual = await importOriginal<typeof UtilModule>()
+  return {
+    ...actual,
+    promisify: (fn: typeof execFile) => (fn === execFile ? lookup.execFileAsync : actual.promisify(fn))
+  }
+})
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
-vi.mock('../shellEnv', () => ({ getShellEnv: vi.fn() }))
+vi.mock('../shellEnv', () => ({
+  getShellEnv: vi.fn(),
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+}))
 vi.mock('which')
+
+// On win32 `path` and `path.win32` are the same object, so a mock installed on one is
+// visible through the other — both must share this implementation or they clobber it.
+function resolveWindowsPath(...args: string[]): string {
+  let result = args.join('\\')
+
+  // Handle .. navigation
+  while (result.includes('\\..')) {
+    result = result.replace(/\\[^\\]+\\\.\./g, '')
+  }
+
+  // Ensure absolute path
+  if (!result.match(/^[A-Z]:/)) {
+    result = `C:\\cwd\\${result}`
+  }
+
+  return result
+}
 
 // These tests only run on Windows since the functions have platform guards
 describe.skipIf(process.platform !== 'win32')('process utilities', () => {
@@ -37,21 +69,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
     vi.mocked(path.join).mockImplementation((...args) => args.join('\\'))
 
     // Mock path.resolve to handle path resolution with .. support
-    vi.mocked(path.resolve).mockImplementation((...args) => {
-      let result = args.join('\\')
-
-      // Handle .. navigation
-      while (result.includes('\\..')) {
-        result = result.replace(/\\[^\\]+\\\.\./g, '')
-      }
-
-      // Ensure absolute path
-      if (!result.match(/^[A-Z]:/)) {
-        result = `C:\\cwd\\${result}`
-      }
-
-      return result
-    })
+    vi.mocked(path.resolve).mockImplementation(resolveWindowsPath)
 
     // Mock path.dirname
     vi.mocked(path.dirname).mockImplementation((p) => {
@@ -60,9 +78,11 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       return parts.join('\\')
     })
 
+    vi.mocked(path.basename).mockImplementation((p) => p.split('\\').at(-1) ?? p)
+
     // Mock path.sep
     Object.defineProperty(path, 'sep', { value: '\\', writable: true })
-    vi.mocked(path.win32.resolve).mockImplementation((...args) => args[args.length - 1])
+    vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
     vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
     vi.mocked(path.win32.relative).mockImplementation((from, to) => {
       const lowerFrom = from.toLowerCase()
@@ -751,6 +771,21 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
   })
 })
 
+describe('validateGitBashPath filename validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(path.resolve).mockImplementation((input) => input)
+    vi.mocked(path.basename).mockImplementation((input) => input.split('\\').at(-1) ?? input)
+  })
+
+  it('rejects the Git Bash terminal launcher', () => {
+    const launcherPath = 'C:\\PortableGit\\git-bash.exe'
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+
+    expect(validateGitBashPath(launcherPath)).toBeNull()
+  })
+})
+
 describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
   const misePath = 'C:\\Users\\User\\AppData\\Local\\mise\\bin\\mise.exe'
   const env = { PATH: 'C:\\Windows\\system32' }
@@ -760,7 +795,7 @@ describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
     vi.mocked(which)
       .mockReset()
       .mockResolvedValue(null as never)
-    vi.mocked(path.win32.resolve).mockImplementation((...args) => args[args.length - 1])
+    vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
     vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
     vi.mocked(path.win32.relative).mockImplementation((_from, to) => to)
     vi.mocked(path.win32.isAbsolute).mockImplementation((p) => /^[A-Z]:/i.test(p))
@@ -772,14 +807,12 @@ describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
     const result = await findViaMise('node', env)
 
     expect(result).toBeNull()
-    expect(execFileSync).not.toHaveBeenCalled()
+    expect(lookup.execFileAsync).not.toHaveBeenCalled()
   })
 
   it('returns null when mise is installed but tool is not managed', async () => {
     vi.mocked(which).mockResolvedValue([misePath] as never)
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error('No runtime found for node')
-    })
+    lookup.execFileAsync.mockRejectedValue(Object.assign(new Error('No runtime found for node'), { code: 1 }))
 
     const result = await findViaMise('node', env)
 
@@ -790,7 +823,7 @@ describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
     const nodePath = 'C:\\Users\\User\\AppData\\Local\\mise\\installs\\node\\22.0.0\\node.exe'
 
     vi.mocked(which).mockResolvedValue([misePath] as never)
-    vi.mocked(execFileSync).mockReturnValue(`${nodePath}\n`)
+    lookup.execFileAsync.mockResolvedValue({ stdout: `${nodePath}\n` })
     vi.mocked(fs.existsSync).mockImplementation((p) => p === nodePath)
 
     const result = await findViaMise('node', env)
@@ -798,24 +831,17 @@ describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
     expect(result).toBe(nodePath)
   })
 
-  it('returns null when mise which times out', async () => {
+  it('reports mise timeouts as query failures rather than missing commands', async () => {
     vi.mocked(which).mockResolvedValue([misePath] as never)
-    vi.mocked(execFileSync).mockImplementation(() => {
-      const err = new Error('ETIMEDOUT') as NodeJS.ErrnoException
-      err.code = 'ETIMEDOUT'
-      throw err
-    })
-
-    const result = await findViaMise('node', env)
-
-    expect(result).toBeNull()
+    lookup.execFileAsync.mockRejectedValue(Object.assign(new Error('ETIMEDOUT'), { code: 'ETIMEDOUT' }))
+    await expect(findViaMise('node', env)).rejects.toThrow('ETIMEDOUT')
   })
 
   it('returns null when mise which returns a non-existent path', async () => {
     const ghostPath = 'C:\\Users\\User\\AppData\\Local\\mise\\installs\\node\\22.0.0\\node.exe'
 
     vi.mocked(which).mockResolvedValue([misePath] as never)
-    vi.mocked(execFileSync).mockReturnValue(`${ghostPath}\n`)
+    lookup.execFileAsync.mockResolvedValue({ stdout: `${ghostPath}\n` })
     // The resolved path does not exist on disk
     vi.mocked(fs.existsSync).mockReturnValue(false)
 
@@ -832,7 +858,7 @@ function createMockChildProcess() {
   const mockChild = new EventEmitter() as EventEmitter & {
     stdout: EventEmitter
     stderr: EventEmitter
-    kill: ReturnType<typeof vi.fn>
+    kill: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
   mockChild.stdout = new EventEmitter()
   mockChild.stderr = new EventEmitter()
@@ -851,7 +877,8 @@ describe('findCommandInShellEnv', () => {
       .mockReturnValue(null as never)
     // Reset path.isAbsolute to real implementation for these tests
     vi.mocked(path.isAbsolute).mockImplementation((p) => p.startsWith('/') || /^[A-Z]:/i.test(p))
-    vi.mocked(path.win32.resolve).mockImplementation((...args) => args[args.length - 1])
+    vi.mocked(path.resolve).mockImplementation((p: string) => p)
+    vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
     vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
     vi.mocked(path.win32.relative).mockImplementation((from, to) => {
       const lowerFrom = from.toLowerCase()
@@ -863,10 +890,14 @@ describe('findCommandInShellEnv', () => {
   })
 
   describe('command name validation', () => {
+    // Clearing validation means the platform lookup ran: `which` on Windows,
+    // `sh -c 'command -v'` everywhere else.
+    const commandLookup = () => (process.platform === 'win32' ? which : spawn)
+
     it('should reject empty command name', async () => {
       const result = await findCommandInShellEnv('', {})
       expect(result).toBeNull()
-      expect(spawn).not.toHaveBeenCalled()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should reject command names with shell metacharacters', async () => {
@@ -882,14 +913,14 @@ describe('findCommandInShellEnv', () => {
       for (const cmd of maliciousCommands) {
         const result = await findCommandInShellEnv(cmd, {})
         expect(result).toBeNull()
-        expect(spawn).not.toHaveBeenCalled()
+        expect(commandLookup()).not.toHaveBeenCalled()
       }
     })
 
     it('should reject command names starting with hyphen', async () => {
       const result = await findCommandInShellEnv('-npx', {})
       expect(result).toBeNull()
-      expect(spawn).not.toHaveBeenCalled()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should reject path traversal attempts', async () => {
@@ -898,15 +929,59 @@ describe('findCommandInShellEnv', () => {
       for (const cmd of pathTraversalCommands) {
         const result = await findCommandInShellEnv(cmd, {})
         expect(result).toBeNull()
-        expect(spawn).not.toHaveBeenCalled()
+        expect(commandLookup()).not.toHaveBeenCalled()
       }
+    })
+
+    it('should return an existing absolute executable without shell lookup', async () => {
+      const absolute = 'C:\\Program Files\\nodejs\\npx.cmd'
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue(absolute)
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.mocked(fs.statSync).mockReturnValue({ isFile: () => true } as fs.Stats)
+
+      await expect(findCommandInShellEnv(absolute, {})).resolves.toBe(absolute)
+      expect(commandLookup()).not.toHaveBeenCalled()
+    })
+
+    it('should reject an absolute path that does not exist', async () => {
+      const absolute = 'C:\\missing\\uvx.exe'
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue(absolute)
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+      vi.mocked(fs.statSync).mockImplementationOnce(() => {
+        throw Object.assign(new Error('not found'), { code: 'ENOENT' })
+      })
+
+      await expect(findCommandInShellEnv(absolute, {})).resolves.toBeNull()
+      expect(commandLookup()).not.toHaveBeenCalled()
+    })
+
+    it('does not claim an inaccessible absolute executable is missing', async () => {
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue('/private/tool')
+      vi.mocked(fs.statSync).mockImplementationOnce(() => {
+        throw Object.assign(new Error('permission denied'), { code: 'EACCES' })
+      })
+      await expect(findCommandInShellEnv('/private/tool', {})).rejects.toThrow('permission denied')
+    })
+
+    it('should reject an absolute path that is a directory', async () => {
+      const absolute = '/usr/local/bin'
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue(absolute)
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.mocked(fs.statSync).mockReturnValue({ isFile: () => false } as fs.Stats)
+
+      await expect(findCommandInShellEnv(absolute, {})).resolves.toBeNull()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should reject command names exceeding max length', async () => {
       const longCommand = 'a'.repeat(129)
       const result = await findCommandInShellEnv(longCommand, {})
       expect(result).toBeNull()
-      expect(spawn).not.toHaveBeenCalled()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should accept valid command names', async () => {
@@ -921,7 +996,7 @@ describe('findCommandInShellEnv', () => {
 
       const result = await resultPromise
       expect(result).toBeNull()
-      expect(spawn).toHaveBeenCalled()
+      expect(commandLookup()).toHaveBeenCalled()
     })
 
     it('should accept command names with underscores and hyphens', async () => {
@@ -932,7 +1007,7 @@ describe('findCommandInShellEnv', () => {
       mockChild.emit('close', 1)
 
       await resultPromise
-      expect(spawn).toHaveBeenCalled()
+      expect(commandLookup()).toHaveBeenCalled()
     })
 
     it('should accept command names at max length (128 chars)', async () => {
@@ -944,7 +1019,7 @@ describe('findCommandInShellEnv', () => {
       mockChild.emit('close', 1)
 
       await resultPromise
-      expect(spawn).toHaveBeenCalled()
+      expect(commandLookup()).toHaveBeenCalled()
     })
   })
 
@@ -978,20 +1053,29 @@ describe('findCommandInShellEnv', () => {
       expect(result).toBeNull()
     })
 
-    it('should return null when command not found', async () => {
+    it.each([1, 127])('returns null for command-not-found shell exit code %i', async (code) => {
       const mockChild = createMockChildProcess()
       vi.mocked(spawn).mockReturnValue(mockChild as never)
 
       const resultPromise = findCommandInShellEnv('nonexistent', { PATH: '/usr/bin' })
 
-      // Simulate command not found (exit code 1)
-      mockChild.emit('close', 1)
+      mockChild.emit('close', code)
 
       const result = await resultPromise
       expect(result).toBeNull()
     })
 
-    it('should handle spawn errors gracefully', async () => {
+    it('rejects shell execution errors instead of reporting a missing executable', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('npx', { PATH: '/usr/bin' })
+      mockChild.emit('close', 2)
+
+      await expect(resultPromise).rejects.toThrow('Command lookup exited with code 2')
+    })
+
+    it('surfaces spawn failures separately from missing executables', async () => {
       const mockChild = createMockChildProcess()
       vi.mocked(spawn).mockReturnValue(mockChild as never)
 
@@ -1000,11 +1084,10 @@ describe('findCommandInShellEnv', () => {
       // Simulate spawn error
       mockChild.emit('error', new Error('spawn failed'))
 
-      const result = await resultPromise
-      expect(result).toBeNull()
+      await expect(resultPromise).rejects.toThrow('spawn failed')
     })
 
-    it('should handle timeout gracefully', async () => {
+    it('kills timed out lookups and reports a query failure', async () => {
       vi.useFakeTimers()
       const mockChild = createMockChildProcess()
       vi.mocked(spawn).mockReturnValue(mockChild as never)
@@ -1014,8 +1097,7 @@ describe('findCommandInShellEnv', () => {
       // Fast-forward past timeout (5000ms)
       vi.advanceTimersByTime(6000)
 
-      const result = await resultPromise
-      expect(result).toBeNull()
+      await expect(resultPromise).rejects.toThrow('Timed out')
       expect(mockChild.kill).toHaveBeenCalledWith('SIGKILL')
 
       vi.useRealTimers()
@@ -1056,11 +1138,10 @@ describe('findCommandInShellEnv', () => {
       expect(result).toBe('C:\\Program Files\\nodejs\\npx.exe')
     })
 
-    it('should handle lookup errors gracefully', async () => {
+    it('distinguishes Windows lookup failures from missing commands', async () => {
       vi.mocked(which).mockRejectedValue(new Error('lookup failed'))
 
-      const result = await findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
-      expect(result).toBeNull()
+      await expect(findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })).rejects.toThrow('lookup failed')
     })
 
     it('findExecutableInEnv should resolve npx.cmd through the shell PATH', async () => {

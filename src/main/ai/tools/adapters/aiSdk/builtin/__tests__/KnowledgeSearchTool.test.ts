@@ -1,6 +1,7 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import type { Assistant } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Assistant } from '@shared/data/types/assistant'
 
 const knowledgeServiceSearch = vi.fn()
 // Hoisted: the SUT calls `loggerService.withContext()` at module load (before the plain consts run),
@@ -50,7 +51,7 @@ function callExecute(
       knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
       abortSignal: ctx.abortSignal ?? new AbortController().signal
     }
-  } as ToolExecutionOptions)
+  })
 }
 
 describe('kb_search', () => {
@@ -69,6 +70,11 @@ describe('kb_search', () => {
     // per-entity while id/baseId/conceptId/title anchors ride the skeleton.
     expect(entry.truncatable).toBeUndefined()
     expect(entry.codec).toBeDefined()
+  })
+
+  it('searches directly when a relevant base id is already known', () => {
+    expect(entry.tool.description).toMatch(/base id.*already.*kb_search directly/i)
+    expect(entry.tool.description).toMatch(/kb_list.*only.*no relevant base id/i)
   })
 
   it('returns [] and does not search when every requested baseId is outside the assistant scope', async () => {

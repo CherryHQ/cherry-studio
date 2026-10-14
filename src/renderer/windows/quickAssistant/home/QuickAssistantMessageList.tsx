@@ -1,3 +1,7 @@
+import { Loader2 } from 'lucide-react'
+import { useMemo, useRef } from 'react'
+
+import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
 import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -15,8 +19,6 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import { Loader2 } from 'lucide-react'
-import { useMemo, useRef } from 'react'
 
 const EMPTY_TOPIC_MESSAGES: Topic['messages'] = []
 
@@ -42,13 +44,16 @@ function useQuickAssistantMessageListProviderValue({
 }: Omit<QuickAssistantMessageListProps, 'isOutputted'>): MessageListProviderValue {
   const { renderConfig } = useMessageListRenderConfig()
   const platformActions = useMessagePlatformActions()
+  const activity = useMessageActivityState(topicId)
   const visibleMessages = useMemo(() => (route === 'chat' ? messages : messages.slice(1)), [messages, route])
   const messageItemCacheRef = useRef(
     new WeakMap<CherryUIMessage, { assistantId?: string; item: MessageListItem; modelId?: string; topicId: string }>()
   )
   const createdAtCacheRef = useRef({ topicId, byMessageId: new Map<string, string>() })
+  const modelCacheRef = useRef({ topicId, byMessageId: new Map<string, Pick<MessageListItem, 'model' | 'modelId'>>() })
   if (createdAtCacheRef.current.topicId !== topicId) {
     createdAtCacheRef.current = { topicId, byMessageId: new Map() }
+    modelCacheRef.current = { topicId, byMessageId: new Map() }
   }
   const fallbackModel = useMemo(() => {
     if (!model) return undefined
@@ -80,12 +85,18 @@ function useQuickAssistantMessageListProviderValue({
           createdAt = new Date().toISOString()
           createdAtCacheRef.current.byMessageId.set(message.id, createdAt)
         }
+        let messageModel = modelCacheRef.current.byMessageId.get(message.id)
+        if (!messageModel && message.role === 'assistant') {
+          messageModel = { modelId: baseItem.modelId ?? model?.id, model: baseItem.model ?? fallbackModel }
+          if (messageModel.modelId || messageModel.model)
+            modelCacheRef.current.byMessageId.set(message.id, messageModel)
+        }
         const item = {
           ...baseItem,
           createdAt,
           ...(message.role === 'assistant' && {
-            modelId: baseItem.modelId ?? model?.id,
-            model: baseItem.model ?? fallbackModel
+            modelId: baseItem.modelId ?? messageModel?.modelId,
+            model: baseItem.model ?? messageModel?.model
           })
         }
         messageItemCacheRef.current.set(message, { assistantId: assistant?.id, item, modelId: model?.id, topicId })
@@ -112,12 +123,14 @@ function useQuickAssistantMessageListProviderValue({
       messages: messageItems,
       partsByMessageId,
       streamingLayers,
+      messageActivityStore: activity.store,
+      getMessageActivityState: activity.getMessageActivityState,
       messageNavigation: 'none',
       listKey: topicId,
       renderConfig,
       ...DEFAULT_MESSAGE_LIST_CONFIG
     }),
-    [messageItems, partsByMessageId, renderConfig, streamingLayers, topic, topicId]
+    [activity, messageItems, partsByMessageId, renderConfig, streamingLayers, topic, topicId]
   )
   const meta = useMemo<MessageListMeta>(
     () => ({

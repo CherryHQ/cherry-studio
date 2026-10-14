@@ -132,7 +132,7 @@ function normalizeWebResults(results: unknown): Citation[] {
           showFavicon: true,
           type: 'websearch',
           ...(groundingSupports ? { metadata: groundingSupports } : {})
-        } as Citation
+        }
       })
       .filter(Boolean) as Citation[]
   }

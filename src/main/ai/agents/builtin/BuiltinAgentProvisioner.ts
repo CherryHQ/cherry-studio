@@ -1,3 +1,4 @@
+import fs from 'fs'
 /**
  * BuiltinAgentProvisioner
  *
@@ -6,14 +7,14 @@
  * resources directory and are injected as a local Claude plugin.
  */
 import { createHash } from 'node:crypto'
+import path from 'path'
 
 import { loggerService } from '@logger'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import fs from 'fs'
-import path from 'path'
 
 import {
   type BuiltinAgentDefinition,
+  getBuiltinAgentPluginTemplateDirectory,
   getBuiltinAgentTemplateDirectory,
   loadBuiltinAgentDefinition
 } from './builtinAgentDefinition'
@@ -45,7 +46,7 @@ function sha256(buffer: Buffer): string {
 }
 
 export function getBuiltinAgentPluginDirectory(builtinRole: string): string | undefined {
-  const templateDir = getBuiltinAgentTemplateDirectory(builtinRole)
+  const templateDir = getBuiltinAgentPluginTemplateDirectory(builtinRole)
   if (!templateDir) return undefined
 
   // Claude Code runs out of process and cannot resolve Electron's virtual app.asar paths.
@@ -84,7 +85,7 @@ export { loadBuiltinAgentDefinition } from './builtinAgentDefinition'
  * modified by this function. Bundled skills are loaded from the app-owned plugin directory.
  *
  * @param agentDataPath - The agent's persistent identity and memory directory
- * @param builtinRole - The built-in role identifier (currently only 'assistant')
+ * @param builtinRole - The built-in role identifier
  * @returns The parsed agent.json config, or undefined if not found
  */
 export async function provisionBuiltinAgent(

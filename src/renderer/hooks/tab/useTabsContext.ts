@@ -1,5 +1,6 @@
-import type { Tab, TabType } from '@shared/data/cache/cacheValueTypes'
 import { createContext, use } from 'react'
+
+import type { Tab, TabType } from '@shared/data/cache/cacheValueTypes'
 
 /**
  * Options for opening a tab
@@ -50,7 +51,7 @@ export interface TabsContextValue {
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
 
   // Detach
-  detachTab: (tabId: string) => void
+  detachTab: (tabId: string, activateId?: string) => void
 
   // Attach (from detached window)
   attachTab: (tabData: Tab) => void

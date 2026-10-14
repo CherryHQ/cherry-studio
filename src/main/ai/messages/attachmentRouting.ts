@@ -12,11 +12,12 @@
  *     error.
  *
  * Content is always inlined, so visibility never depends on the model choosing
- * to call `read_file` — weak and non-tool models see it too. Every failure
- * (missing entry, parse error, native materialization)
- * degrades to a model-visible note rather than silently dropping the file or
- * failing the request. Legacy / gateway parts (no `fileEntryId`) keep the eager
- * materialization path, but their image/audio/video parts remain capability-gated.
+ * to call `read_file` — weak and non-tool models see it too. Other failures
+ * (missing entry, parse error, native materialization) degrade to a model-visible
+ * note rather than silently dropping the file or failing the request. Unreadable
+ * non-vision images stop the request. Legacy / gateway parts (no `fileEntryId`)
+ * keep the eager materialization path, but their image/audio/video parts remain
+ * capability-gated.
  *
  * `collectFileAttachments` builds the per-request allow-list `read_file` resolves
  * handles against (unique handles; the internal `fileEntryId` never reaches the
@@ -24,6 +25,8 @@
  */
 
 import { isAbortError } from '@ai-sdk/provider-utils'
+import type { UIMessage } from 'ai'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
@@ -34,15 +37,16 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import type { UIMessage } from 'ai'
 
+import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
+import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
 
 const NON_VISION_IMAGE_OCR_ERROR_MESSAGE =
-  "The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again."
+  "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
 
 class NonVisionImageOcrError extends Error {
   readonly i18nKey = 'image_unreadable_for_non_vision_model'
@@ -71,10 +75,12 @@ export function collectFileAttachments(messages: UIMessage[] | undefined): FileA
   const refs: FileAttachmentRef[] = []
   const used = new Set<string>()
   for (const message of messages ?? []) {
+    const composerFileTokenIds = collectComposerFileTokenIds(message)
     for (const part of message.parts ?? []) {
       if (part.type !== 'file') continue
       const fileEntryId = readCherryMeta(part)?.fileEntryId
       if (!fileEntryId) continue
+      if (!isActiveManagedFilePart(part, composerFileTokenIds)) continue
       const displayName = part.filename ?? 'file'
       const handle = uniqueHandle(displayName.trim() || 'file', used)
       refs.push({ fileEntryId, handle, displayName })
@@ -90,8 +96,15 @@ export interface PrepareChatContext {
   nativeSupport: NativeFileSupport
   /** Whether the model can call `read_file` (controls the overflow pointer wording). */
   isToolCapable: boolean
-  /** Inline cap per file. */
-  cap: number
+  /** Shared token pool for inlined text. Absent → every file gets the flat page size. */
+  budget?: AttachmentBudget
+  /**
+   * Path-forwarding caller (agent runtime): keep a first-party part whose extension is
+   * unlisted (`FILE_TYPE.OTHER` — e.g. an AVIF/HEIC image) as a file part instead of
+   * replacing it with an unsupported-type note, so the caller's local-path fallback still
+   * has the file reference.
+   */
+  keepUnroutableFileParts?: boolean
   signal?: AbortSignal
 }
 
@@ -162,20 +175,25 @@ function rejectedMediaKind(mediaType: string, ns: NativeFileSupport): 'image' | 
   return undefined
 }
 
-async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareChatContext): Promise<T> {
+async function prepareChatMessage<T extends UIMessage>(
+  message: T,
+  ctx: PrepareChatContext,
+  pending: PendingInline[]
+): Promise<T> {
   if (!message.parts?.length) return message
 
   const kept: UIMessage['parts'] = []
+  const composerFileTokenIds = collectComposerFileTokenIds(message)
   const inlineNative = async (part: FileUIPart): Promise<boolean> => {
     const inlined = await materializeNativeFilePart(part)
     if (!inlined) return false
-    kept.push(inlined as UIMessage['parts'][number])
+    kept.push(inlined)
     return true
   }
 
   for (const part of message.parts) {
     if (part.type !== 'file') {
-      kept.push(part as UIMessage['parts'][number])
+      kept.push(part)
       continue
     }
 
@@ -187,18 +205,27 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
       const inlined = await materializeNativeFilePart(part)
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
-        kept.push(noteOf(name) as UIMessage['parts'][number])
+        kept.push(noteOf(name))
       } else {
         const rejectedKind = rejectedMediaKind(inlined.mediaType, ctx.nativeSupport)
         if (rejectedKind) {
           kept.push({
             type: 'text',
             text: `[${rejectedKind} attachment omitted: this model does not accept ${rejectedKind} input]`
-          } as UIMessage['parts'][number])
+          })
         } else {
-          kept.push(inlined as UIMessage['parts'][number])
+          kept.push(inlined)
         }
       }
+      continue
+    }
+
+    if (!isActiveManagedFilePart(part, composerFileTokenIds)) {
+      logger.warn('Ignoring orphaned managed file part', {
+        messageId: message.id,
+        displayName: part.filename ?? 'file',
+        fileEntryId
+      })
       continue
     }
 
@@ -217,35 +244,46 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
         if (!(await inlineNative(part))) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
-          kept.push(noteOf(handle) as UIMessage['parts'][number])
+          kept.push(noteOf(handle))
         }
         continue
       }
 
-      // Non-vision image → OCR text when it finds any. If OCR cannot produce
-      // text, stop before opening a provider request: sending the native image
-      // to a known non-vision model would only produce a deterministic API error.
+      // Non-vision image → OCR text when available; otherwise stop before the
+      // provider request. Gateway-backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
         const ocrText = await ocrNonVisionImage(fileEntryId, ctx.signal)
-        if (ocrText === null) throw new NonVisionImageOcrError()
-        const text = `Attached file "${handle}":\n${capInlineText(handle, ocrText, ctx.isToolCapable, ctx.cap)}`
-        kept.push({ type: 'text', text } as UIMessage['parts'][number])
+        if (ocrText === null) {
+          logger.warn('Non-vision image OCR produced no readable text', {
+            messageId: message.id,
+            displayName,
+            fileEntryId
+          })
+          throw new NonVisionImageOcrError()
+        }
+        defer(kept, pending, handle, ocrText)
+        continue
+      }
+
+      // The caller forwards the file by local path (agent runtime), and the note below would
+      // drop the only usable reference to it.
+      if (ctx.keepUnroutableFileParts && fileType === FILE_TYPE.OTHER) {
+        kept.push(part)
         continue
       }
 
       // Non-native first-party attachment → inline its (capped) text.
       const body = await extractNonNativeText(fileEntryId, bareExt, fileType, handle, ctx.signal)
-      const text = `Attached file "${handle}":\n${capInlineText(handle, body, ctx.isToolCapable, ctx.cap)}`
-      kept.push({ type: 'text', text } as UIMessage['parts'][number])
+      defer(kept, pending, handle, body)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
       if (error instanceof NonVisionImageOcrError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
-      kept.push(noteOf(handle) as UIMessage['parts'][number])
+      kept.push(noteOf(handle))
     }
   }
 
-  return { ...message, parts: kept } as T
+  return { ...message, parts: kept }
 }
 
 /**
@@ -255,8 +293,40 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
  */
 export async function prepareChatMessages<T extends UIMessage = UIMessage>(
   messages: T[],
-  ctx: Omit<PrepareChatContext, 'cap'> & { cap?: number }
+  ctx: PrepareChatContext
 ): Promise<T[]> {
-  const full: PrepareChatContext = { ...ctx, cap: ctx.cap ?? READ_FILE_PAGE_SIZE }
-  return Promise.all(messages.map((message) => prepareChatMessage(message, full)))
+  const pending: PendingInline[] = []
+  const prepared = await Promise.all(messages.map((message) => prepareChatMessage(message, ctx, pending)))
+  applyInlineCaps(pending, ctx)
+  return prepared
+}
+
+/**
+ * A text inline whose cap is not known yet: capping needs every candidate's
+ * size, and those only exist once extraction has run across all messages.
+ */
+interface PendingInline {
+  parts: UIMessage['parts']
+  index: number
+  handle: string
+  body: string
+}
+
+function defer(parts: UIMessage['parts'], pending: PendingInline[], handle: string, body: string): void {
+  pending.push({ parts, index: parts.length, handle, body })
+  parts.push({ type: 'text', text: '' })
+}
+
+function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): void {
+  const caps = ctx.budget
+    ? allocateInlineCaps(
+        pending.map((entry) => entry.body),
+        ctx.budget
+      )
+    : pending.map(() => READ_FILE_PAGE_SIZE)
+
+  pending.forEach((entry, index) => {
+    const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable, caps[index])
+    entry.parts[entry.index] = { type: 'text', text: `Attached file "${entry.handle}":\n${capped}` }
+  })
 }

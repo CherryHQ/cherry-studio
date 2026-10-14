@@ -41,7 +41,7 @@ const CustomTag: FC<CustomTagProps> = ({
   const tagContent = useMemo(
     () => (
       <div
-        className={`inline-flex items-center gap-1 rounded-full whitespace-nowrap relative transition-opacity duration-200 ${
+        className={`relative inline-flex items-center gap-1 rounded-full whitespace-nowrap transition-opacity duration-200 ${
           !disabled && onClick ? 'cursor-pointer hover:opacity-80' : disabled ? 'cursor-not-allowed' : 'cursor-auto'
         } ${className}`}
         style={{
@@ -64,7 +64,7 @@ const CustomTag: FC<CustomTagProps> = ({
         {children}
         {closable && (
           <div
-            className="absolute flex items-center justify-center cursor-pointer rounded-full transition-all duration-200 hover:bg-[#da8a8a] hover:text-white"
+            className="absolute flex cursor-pointer items-center justify-center rounded-full transition-all duration-200 hover:bg-[#da8a8a] hover:text-white"
             style={{
               right: `${size * 0.2}px`,
               top: `${size * 0.2}px`,

@@ -2,20 +2,19 @@ import type { JobContext, JobHandler } from '@main/core/job/types'
 
 import { createFileProcessingJobOutput } from '../persistence/artifacts'
 import { prepareFileProcessingJob } from './jobExecution'
+import { executeRemotePolling } from './remotePolling'
 import { type FileProcessingJobPayload, fileProcessingQueue, localFileProcessingQueue } from './shared'
 
-/**
- * Runs a capability handler whose execution is a single awaited call returning
- * the final output in one shot (tesseract, system OCR, mistral OCR, …). Shared
- * verbatim by both background job types below — they differ only in which queue
- * they dispatch on and how many jobs that queue admits at once.
- */
+// Auto capabilities keep their persisted job type while selecting a protocol at execution time.
 async function executeBackgroundJob(ctx: JobContext<FileProcessingJobPayload>): Promise<unknown> {
-  const { prepared } = await prepareFileProcessingJob(ctx, 'background')
-  const output = await prepared.execute({
-    signal: ctx.signal,
-    reportProgress: (progress) => ctx.reportProgress(progress)
-  })
+  const { config, prepared } = await prepareFileProcessingJob(ctx, 'background')
+  const output =
+    prepared.mode === 'remote-poll'
+      ? await executeRemotePolling(ctx, prepared, config)
+      : await prepared.execute({
+          signal: ctx.signal,
+          reportProgress: (progress) => ctx.reportProgress(progress)
+        })
 
   if (ctx.signal.aborted) {
     throw new DOMException('aborted', 'AbortError')
@@ -32,8 +31,8 @@ async function executeBackgroundJob(ctx: JobContext<FileProcessingJobPayload>): 
  * the prior attempt — re-running has a non-zero refund cost but is preferable
  * to silently dropping the request.
  *
- * No metadata persistence: a background attempt is stateless from JobManager's
- * point of view. Re-running starts from progress 0 every time.
+ * Auto capabilities may prepare a remote job and resume it from metadata.
+ * Single-call background capabilities restart from progress 0.
  */
 const backgroundJobDefaults = {
   recovery: 'retry',

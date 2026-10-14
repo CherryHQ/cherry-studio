@@ -1,4 +1,4 @@
-import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 export interface TraceSpanMeta {
   topicId?: string

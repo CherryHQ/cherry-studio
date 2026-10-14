@@ -23,46 +23,46 @@ vi.mock('@main/core/platform', () => platform)
 
 interface MockBrowserWindow {
   id: number
-  show: ReturnType<typeof vi.fn>
-  showInactive: ReturnType<typeof vi.fn>
-  hide: ReturnType<typeof vi.fn>
-  focus: ReturnType<typeof vi.fn>
-  close: ReturnType<typeof vi.fn>
-  destroy: ReturnType<typeof vi.fn>
-  minimize: ReturnType<typeof vi.fn>
-  maximize: ReturnType<typeof vi.fn>
-  unmaximize: ReturnType<typeof vi.fn>
-  restore: ReturnType<typeof vi.fn>
-  isDestroyed: ReturnType<typeof vi.fn>
-  isMaximized: ReturnType<typeof vi.fn>
-  isMinimized: ReturnType<typeof vi.fn>
-  isFullScreen: ReturnType<typeof vi.fn>
-  isVisible: ReturnType<typeof vi.fn>
-  isFocused: ReturnType<typeof vi.fn>
-  isFocusable: ReturnType<typeof vi.fn>
-  setFullScreen: ReturnType<typeof vi.fn>
-  setBounds: ReturnType<typeof vi.fn>
-  setContentBounds: ReturnType<typeof vi.fn>
-  setPosition: ReturnType<typeof vi.fn>
-  setAlwaysOnTop: ReturnType<typeof vi.fn>
-  setFocusable: ReturnType<typeof vi.fn>
-  setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
-  center: ReturnType<typeof vi.fn>
-  getTitle: ReturnType<typeof vi.fn>
-  setTitleBarOverlay: ReturnType<typeof vi.fn>
-  loadURL: ReturnType<typeof vi.fn>
-  loadFile: ReturnType<typeof vi.fn>
-  once: ReturnType<typeof vi.fn>
-  on: ReturnType<typeof vi.fn>
-  emit: ReturnType<typeof vi.fn>
-  removeAllListeners: ReturnType<typeof vi.fn>
+  show: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  showInactive: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  hide: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  focus: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  close: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  minimize: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  maximize: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  unmaximize: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  restore: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isDestroyed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isMaximized: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isMinimized: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isFullScreen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isVisible: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isFocused: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isFocusable: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setFullScreen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setContentBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setPosition: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setAlwaysOnTop: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setFocusable: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  center: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getTitle: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setTitleBarOverlay: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  loadURL: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  loadFile: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  once: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  on: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  emit: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  removeAllListeners: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   webContents: {
-    send: ReturnType<typeof vi.fn>
-    sendInputEvent: ReturnType<typeof vi.fn>
-    isCrashed: ReturnType<typeof vi.fn>
-    setWindowOpenHandler: ReturnType<typeof vi.fn>
-    on: ReturnType<typeof vi.fn>
-    getURL: ReturnType<typeof vi.fn>
+    send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    sendInputEvent: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    isCrashed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    setWindowOpenHandler: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    on: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    getURL: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
 }
 
@@ -149,7 +149,7 @@ vi.mock('electron', () => {
       const win = createMockBrowserWindow()
       createdWindows.push(win)
       allWindows.push(win)
-      return win as never
+      return win
     }
 
     static fromWebContents(): null {
@@ -207,7 +207,7 @@ vi.mock('../windowRegistry', () => {
       quirks: {
         macRestoreFocusOnHide: true,
         macClearHoverOnHide: true,
-        macReapplyAlwaysOnTop: true
+        reapplyAlwaysOnTop: true
       }
     },
     // Pooled action with only restoreFocusOnHide (like SelectionAction)
@@ -233,7 +233,7 @@ vi.mock('../windowRegistry', () => {
       lifecycle: 'default',
       htmlPath: 'floatingTop/index.html',
       windowOptions: {},
-      quirks: { macReapplyAlwaysOnTop: true }
+      quirks: { reapplyAlwaysOnTop: true }
     },
     // behavior.hideOnBlur — singleton, declarative blur→hide
     blurHider: {
@@ -512,9 +512,9 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
     })
   })
 
-  // ─── macReapplyAlwaysOnTop ──────────────────────────────────
+  // ─── reapplyAlwaysOnTop ──────────────────────────────────
 
-  describe('macReapplyAlwaysOnTop', () => {
+  describe('reapplyAlwaysOnTop', () => {
     it('re-applies setAlwaysOnTop(true, level) after show()', () => {
       wm.open('toolbar' as never)
       const toolbar = firstWindow()
@@ -569,27 +569,42 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
     })
   })
 
-  // ─── Non-mac identity check ─────────────────────────────────
+  // ─── Non-mac platform boundaries ────────────────────────────
 
   describe('non-mac platforms', () => {
-    it('does NOT patch any method when isMac=false — identity preserved', () => {
+    it('leaves the mac-only hide/close quirks unpatched — identity preserved', () => {
       platform.isMac = false
       platform.isLinux = true
 
       wm.open('toolbar' as never)
       const toolbar = firstWindow()
 
-      // Capture the mock fn refs stored at construction time
-      const hideMock = toolbar.hide
-      const closeMock = toolbar.close
-      const showMock = toolbar.show
-      const showInactiveMock = toolbar.showInactive
+      // A patched method is a plain arrow wrapper; an untouched one is still the
+      // constructor's vi mock.
+      expect(vi.isMockFunction(toolbar.hide)).toBe(true)
+      expect(vi.isMockFunction(toolbar.close)).toBe(true)
 
-      // After applyQuirks on non-mac: methods must remain the original mock fns
-      expect(toolbar.hide).toBe(hideMock)
-      expect(toolbar.close).toBe(closeMock)
-      expect(toolbar.show).toBe(showMock)
-      expect(toolbar.showInactive).toBe(showInactiveMock)
+      toolbar.hide()
+      expect(toolbar.webContents.sendInputEvent).not.toHaveBeenCalled()
+    })
+
+    it('still re-applies setAlwaysOnTop after show()/showInactive() on Windows', () => {
+      // Regression for #18092: the selection toolbar sank behind third-party
+      // topmost windows because this re-assert used to be gated on isMac, and
+      // Windows resolves topmost z-order by whoever asserted it last.
+      platform.isMac = false
+      platform.isWin = true
+
+      wm.open('toolbar' as never)
+      const toolbar = firstWindow()
+
+      toolbar.setAlwaysOnTop.mockClear()
+      toolbar.show()
+      expect(toolbar.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
+
+      toolbar.setAlwaysOnTop.mockClear()
+      toolbar.showInactive()
+      expect(toolbar.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
     })
   })
 
@@ -721,7 +736,7 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       const win = firstWindow()
 
       // The initial call from applyWindowBehavior (pre-quirk-patch) uses 2 args.
-      // Subsequent patched show() calls also re-apply via the macReapplyAlwaysOnTop
+      // Subsequent patched show() calls also re-apply via the reapplyAlwaysOnTop
       // quirk — but 'topWithLevel' does not declare that quirk, so show()s do
       // not add more setAlwaysOnTop calls. Filter by the 2-arg shape to assert
       // the initial application specifically.

@@ -1,12 +1,15 @@
+import { Icon } from '@iconify/react'
+import type { Editor } from '@tiptap/core'
+import { Folder } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { FILE_TYPE } from '@renderer/types/file'
+import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, type DirectoryEntry } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import type { Editor } from '@tiptap/core'
-import { File, Folder } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { serializeComposerDocument } from '../../composerDraft'
 import { createComposerFolderToken } from '../../folderToken'
@@ -54,7 +57,9 @@ const createAgentResourceItemId = (filePath: string) =>
   `agent-resource:${createStablePathHash(filePath.replace(/\\/g, '/'))}`
 
 const EMPTY_QUERY_RESOURCE_LIMIT = 5
-const RESOURCE_SEARCH_MAX_DEPTH = 3
+// Matches main's own `listDirectory` default depth; the previous 3 hid every file
+// nested deeper than three levels in a real workspace.
+const RESOURCE_SEARCH_MAX_DEPTH = 10
 const RESOURCE_RESULT_LIMIT = 40
 const RESOURCE_SEARCH_DEBOUNCE_MS = 200
 
@@ -76,7 +81,7 @@ const createGroupHeaderItem = (id: string, label: string): ComposerSuggestionIte
 })
 
 interface AgentResourceMentionOptions {
-  accessiblePaths: readonly string[]
+  accessiblePaths: readonly AbsoluteFilePath[]
   files: ComposerAttachment[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   /** Whether the agent session exposes any accessible workspace paths to mention. */
@@ -244,8 +249,8 @@ export function useAgentResourceMentionSource({
                 const entryPathKey = getPathComparisonKey(entryPath)
                 resourceItems.push({
                   id: createAgentResourceItemId(entryPath),
-                  label: relativePath,
-                  description: entryPath,
+                  label: getBaseName(entryPath),
+                  description: relativePath,
                   icon: <Folder size={16} />,
                   filterText: `${relativePath} ${entryPath}`,
                   disabled: mentionedFolderPathKeys.has(entryPathKey),
@@ -277,9 +282,9 @@ export function useAgentResourceMentionSource({
 
               resourceItems.push({
                 id: createAgentResourceItemId(filePath),
-                label: relativePath,
-                description: filePath,
-                icon: <File size={16} />,
+                label: getBaseName(filePath),
+                description: relativePath,
+                icon: <Icon icon={`material-icon-theme:${getFileIconName(filePath)}`} width={16} height={16} />,
                 filterText: `${relativePath} ${filePath}`,
                 disabled: files.some(isSelectedFile),
                 command: ({ editor }) => {

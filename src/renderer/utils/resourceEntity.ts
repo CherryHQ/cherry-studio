@@ -67,3 +67,23 @@ export function findLatestUpdated<T extends { updatedAt?: string }>(items: reado
 
   return latest
 }
+
+/**
+ * Return the entity with the most recent conversation activity. Metadata-only
+ * writes deliberately do not influence this selection.
+ */
+export function findLatestActive<T extends { lastActivityAt: string }>(items: readonly T[]): T | undefined {
+  let latest: T | undefined
+  let latestActivityAtMs = Number.NEGATIVE_INFINITY
+
+  for (const item of items) {
+    const parsedActivityAtMs = Date.parse(item.lastActivityAt)
+    const activityAtMs = Number.isFinite(parsedActivityAtMs) ? parsedActivityAtMs : Number.NEGATIVE_INFINITY
+    if (!latest || activityAtMs > latestActivityAtMs) {
+      latest = item
+      latestActivityAtMs = activityAtMs
+    }
+  }
+
+  return latest
+}

@@ -1,22 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { acknowledgeMainWindowNavigationMock, openRouteInMainWindowMock, protocolServiceMock, loggerMock } = vi.hoisted(
-  () => ({
-    acknowledgeMainWindowNavigationMock: vi.fn(),
-    openRouteInMainWindowMock: vi.fn(),
-    protocolServiceMock: {
-      onMainRendererReady: vi.fn()
-    },
-    loggerMock: {
-      warn: vi.fn()
-    }
-  })
-)
+const {
+  acknowledgeMainWindowNavigationMock,
+  conversationNavigationServiceMock,
+  openRouteInMainWindowMock,
+  markMainRendererReadyForTabAttachMock,
+  protocolServiceMock,
+  loggerMock
+} = vi.hoisted(() => ({
+  acknowledgeMainWindowNavigationMock: vi.fn(),
+  conversationNavigationServiceMock: {
+    focusOrOpen: vi.fn(),
+    reportOwnership: vi.fn()
+  },
+  openRouteInMainWindowMock: vi.fn(),
+  markMainRendererReadyForTabAttachMock: vi.fn(),
+  protocolServiceMock: {
+    onMainRendererReady: vi.fn()
+  },
+  loggerMock: {
+    warn: vi.fn()
+  }
+}))
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'ProtocolService') return protocolServiceMock
+      if (name === 'ConversationNavigationService') return conversationNavigationServiceMock
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -25,7 +36,8 @@ vi.mock('@application', () => ({
 vi.mock('@main/services/mainWindowNavigation', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   acknowledgeMainWindowNavigation: acknowledgeMainWindowNavigationMock,
-  openRouteInMainWindow: openRouteInMainWindowMock
+  openRouteInMainWindow: openRouteInMainWindowMock,
+  markMainRendererReadyForTabAttach: markMainRendererReadyForTabAttachMock
 }))
 
 vi.mock('@logger', () => ({
@@ -62,21 +74,40 @@ describe('navigationHandlers', () => {
     expect(loggerMock.warn).toHaveBeenCalled()
   })
 
-  it('notifies the protocol service when the main renderer is ready', async () => {
+  it('notifies protocol dispatch and tab-attach delivery when the main renderer is ready', async () => {
     await navigationHandlers['navigation.protocol_dispatch_ready'](undefined, ctx)
 
     expect(protocolServiceMock.onMainRendererReady).toHaveBeenCalledWith('w1')
+    expect(markMainRendererReadyForTabAttachMock).toHaveBeenCalledWith('w1')
   })
 
   it('ignores renderer readiness from an untracked caller', async () => {
     await navigationHandlers['navigation.protocol_dispatch_ready'](undefined, { senderId: null })
 
     expect(protocolServiceMock.onMainRendererReady).not.toHaveBeenCalled()
+    expect(markMainRendererReadyForTabAttachMock).not.toHaveBeenCalled()
   })
 
   it('acknowledges navigation init data for the caller window', async () => {
     await navigationHandlers['navigation.ack_open_route']({ requestId: 7 }, ctx)
 
     expect(acknowledgeMainWindowNavigationMock).toHaveBeenCalledWith('w1', 7)
+  })
+
+  it('delegates conversation focus-or-open with the trusted caller window id', async () => {
+    const target = { conversationType: 'assistant' as const, conversationId: 'topic-1' }
+
+    await navigationHandlers['navigation.focus_or_open_conversation']({ target, title: 'Research notes' }, ctx)
+
+    expect(conversationNavigationServiceMock.focusOrOpen).toHaveBeenCalledWith(target, 'Research notes', 'w1')
+  })
+
+  it('reports conversation ownership against the trusted caller window id', async () => {
+    await navigationHandlers['navigation.report_conversation_ownership'](
+      { requestId: 'request-1', ownsTarget: true },
+      ctx
+    )
+
+    expect(conversationNavigationServiceMock.reportOwnership).toHaveBeenCalledWith('request-1', 'w1', true)
   })
 })

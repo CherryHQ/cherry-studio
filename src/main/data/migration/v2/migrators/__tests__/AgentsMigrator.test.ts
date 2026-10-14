@@ -4,6 +4,12 @@ import { join } from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AgentsFilesystemMigrationModule from '../agentsFilesystemMigration'
+
+const { stageLegacyAgentFilesMock } = vi.hoisted(() => ({
+  stageLegacyAgentFilesMock: vi.fn()
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: vi.fn(() => ({
@@ -24,6 +30,11 @@ vi.mock('@application', async () => {
     FileManager: { createInternalEntry: vi.fn(), getUrl: vi.fn() }
   } as Parameters<typeof mockApplicationFactory>[0]
   return mockApplicationFactory(overrides)
+})
+
+vi.mock('../agentsFilesystemMigration', async (importOriginal) => {
+  const original = await importOriginal<typeof AgentsFilesystemMigrationModule>()
+  return { ...original, stageLegacyAgentFiles: stageLegacyAgentFilesMock }
 })
 
 import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
@@ -72,7 +83,7 @@ function createMigrationContext(overrides: Record<string, unknown> = {}) {
   } as never
 }
 
-function getExecutedSql(run: ReturnType<typeof vi.fn>) {
+function getExecutedSql(run: ReturnType<typeof vi.fn<(...args: any[]) => any>>) {
   return run.mock.calls.map(([statement]) => statement.queryChunks[0]?.value?.[0])
 }
 
@@ -89,6 +100,8 @@ describe('AgentsMigrator', () => {
   beforeEach(() => {
     migrator = new AgentsMigrator()
     vi.restoreAllMocks()
+    stageLegacyAgentFilesMock.mockReset()
+    stageLegacyAgentFilesMock.mockResolvedValue({ skippedTargetCount: 0 })
   })
 
   it('prepare skips cleanly when no legacy agents db exists', async () => {
@@ -99,6 +112,49 @@ describe('AgentsMigrator', () => {
     expect(result.success).toBe(true)
     expect(result.itemCount).toBe(0)
     expect(result.warnings).toEqual(['agents.db not found - no agents data to migrate'])
+  })
+
+  it('preserves a non-SQLite legacy agents db and lets the remaining migration continue', async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), 'agents-migrator-invalid-db-'))
+    const dataDir = join(tempRoot, 'Data')
+    const dbPath = join(dataDir, 'agents.db')
+    const context = createMigrationContext({
+      paths: {
+        legacyAgentDbFile: dbPath,
+        legacyClaudeConfigDir: join(tempRoot, '.claude'),
+        legacyClaudeProjectsDir: join(tempRoot, '.claude', 'projects'),
+        claudeConfigDir: join(dataDir, 'Agents', '.claude'),
+        claudeProjectsDir: join(dataDir, 'Agents', '.claude', 'projects')
+      }
+    })
+    await mkdir(dataDir)
+    await writeFile(dbPath, 'not a sqlite database')
+
+    try {
+      const prepareResult = await migrator.prepare(context)
+      const executeResult = await migrator.execute(context)
+      const validateResult = await migrator.validate(context)
+
+      expect(prepareResult).toEqual({
+        success: true,
+        itemCount: 0,
+        warningMessages: [{ key: 'migration.completed.agent_database_unreadable' }]
+      })
+      expect(executeResult).toEqual({ success: true, processedCount: 0 })
+      expect(validateResult.success).toBe(true)
+      expect(await readFile(dbPath, 'utf8')).toBe('not a sqlite database')
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('does not hide retryable legacy agents database errors', async () => {
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockImplementation(() => {
+      throw Object.assign(new Error('database is locked'), { code: 'SQLITE_BUSY' })
+    })
+
+    await expect(migrator.prepare(createMigrationContext())).rejects.toMatchObject({ code: 'SQLITE_BUSY' })
   })
 
   it('copies the legacy Claude config even when no legacy agents db exists', async () => {
@@ -159,7 +215,7 @@ describe('AgentsMigrator', () => {
 
   it('prepare counts all legacy agents rows', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     const result = await migrator.prepare(createMigrationContext())
@@ -171,7 +227,7 @@ describe('AgentsMigrator', () => {
     expect(result.itemCount).toBe(26)
   })
 
-  it('execute attaches the legacy db and imports every table without per-migrator FK toggling', async () => {
+  it('execute imports every table and reports skipped filesystem targets', async () => {
     const run = vi.fn().mockReturnValue(undefined)
     // remapAgentPrefixIds calls db.select().from().where() to find old-prefix IDs;
     // mock to return empty arrays so the remap loop is a no-op.
@@ -201,8 +257,9 @@ describe('AgentsMigrator', () => {
     const all = vi.fn().mockReturnValue([])
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
+    stageLegacyAgentFilesMock.mockResolvedValueOnce({ skippedTargetCount: 2 })
 
     await migrator.prepare(createMigrationContext())
     const db = withSynchronousTransaction({ run, select, update, all, delete: del, insert })
@@ -213,6 +270,12 @@ describe('AgentsMigrator', () => {
     // task-related sources are handled by the TS-loop). 45 - (5 scheduled
     // tasks + 6 run logs + 8 channel_task_subscriptions) = 26.
     expect(result.processedCount).toBe(26)
+    expect(result.warningMessages).toEqual([
+      {
+        key: 'migration.completed.agent_files_skipped',
+        params: { count: 2 }
+      }
+    ])
 
     const outer = getExecutedSql(run)
     // FK is managed globally by the engine (MigrationDbService sets foreign_keys = OFF once) — no per-migrator
@@ -280,7 +343,7 @@ describe('AgentsMigrator', () => {
       .mockReturnValue(undefined) // ROLLBACK, DETACH
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
@@ -295,7 +358,7 @@ describe('AgentsMigrator', () => {
 
   it('validate fails when imported table counts are lower than the expected filtered counts', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     // Workspace prelude (3 calls): selectLegacySessionWorkspaceRows skips
@@ -346,7 +409,7 @@ describe('AgentsMigrator', () => {
     const partialCounts = { ...createCounts(), agent_skills: 0, session_messages: 0 }
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(partialSchema as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(partialSchema)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(partialCounts)
 
     // 3 workspace-prelude calls + 4 present specs × 2 = 11 total. Each present
@@ -378,7 +441,7 @@ describe('AgentsMigrator', () => {
 
   it('validate flags target tables whose row count exceeds the expected filtered count', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     const all = vi
@@ -419,7 +482,7 @@ describe('AgentsMigrator', () => {
     const resolvePath = vi
       .spyOn(LegacyAgentsDbReader.prototype, 'resolvePath')
       .mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     const run = vi.fn().mockReturnValue(undefined)
@@ -455,7 +518,7 @@ describe('AgentsMigrator', () => {
 
   it('validate attaches the legacy db to compare against expected filtered counts', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo())
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     const run = vi.fn().mockReturnValue(undefined)

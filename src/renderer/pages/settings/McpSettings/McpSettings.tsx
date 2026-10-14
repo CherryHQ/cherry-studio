@@ -1,35 +1,38 @@
-import { Alert, Badge, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { getRouteApi, useNavigate, useParams } from '@tanstack/react-router'
+import { ArrowLeft, SaveIcon } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
+import { Alert, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import CopyButton from '@renderer/components/CopyButton'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
-import { useMcpServer } from '@renderer/hooks/useMcpServer'
+import { useMcpServer, useMcpServerMutations } from '@renderer/hooks/useMcpServer'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import McpDescription from '@renderer/pages/settings/McpSettings/McpDescription'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { AppRouter } from '@renderer/types/router'
 import type { McpTool } from '@renderer/types/tool'
 import { formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
-import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
+import type { McpPrompt, McpResource, McpResourceTemplate } from '@shared/types/mcp'
 import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { ArrowLeft, SaveIcon } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
+import McpInstructions from './McpInstructions'
+import McpLogsTab from './McpLogsTab'
 import McpPromptsSection from './McpPrompt'
 import McpResourcesSection from './McpResource'
+import McpResourceTemplateView from './McpResourceTemplate'
 import {
   buildMcpSchema,
   McpEndpointField,
@@ -44,19 +47,20 @@ import {
   useMcpRegistryState
 } from './McpServerFields'
 import McpToolsSection from './McpTool'
+import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
-import { formatMcpLogData, formatMcpLogs, toUpdateMcpServerDto } from './utils'
+import { toUpdateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpSettings')
+const mcpSettingsRouteApi = getRouteApi('/settings/mcp/settings/$serverId')
 
-type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources'
+type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources' | 'instructions'
 type McpTabItem = {
   key: TabKey
   label: React.ReactNode
   children: React.ReactNode
 }
 type McpToolsCacheKey = `mcp.tools.${string}`
-type McpSettingsSearch = { autoEnable?: 'true' }
 
 const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${serverId}`
 
@@ -66,12 +70,11 @@ const EMPTY_MCP_TOOLS: McpTool[] = []
 interface McpSettingsContentProps {
   server: McpServer
   updateMcpServer: ReturnType<typeof useMcpServer>['updateMcpServer']
-  deleteMcpServer: ReturnType<typeof useMcpServer>['deleteMcpServer']
 }
 
-const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateMcpServer, deleteMcpServer }) => {
+const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateMcpServer }) => {
   const { t } = useTranslation()
-  const search = useSearch({ strict: false }) as McpSettingsSearch
+  const search = mcpSettingsRouteApi.useSearch<AppRouter>()
   const serverId = server.id
   const [initialFormValues] = useState(() => toMcpFormDefaultValues(server))
 
@@ -94,14 +97,12 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   const [prompts, setPrompts] = useState<McpPrompt[]>([])
   const [resources, setResources] = useState<McpResource[]>([])
+  const [templates, setTemplates] = useState<McpResourceTemplate[]>([])
   const registryState = useMcpRegistryState(form, () => setIsFormChanged(true), server)
 
   const [serverVersion, setServerVersion] = useState<string | null>(null)
-  const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
-  const fetchServerLogsRequestRef = useRef(0)
   const handledAutoEnableServerIdRef = useRef<string | null>(null)
-
-  const logsText = useMemo(() => formatMcpLogs(logs), [logs])
+  const loadedCapabilityTabsRef = useRef<{ serverId: string; tabs: Set<TabKey> } | null>(null)
 
   const { theme } = useTheme()
 
@@ -115,6 +116,21 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }, [watchedServerType])
 
+  const markCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) => {
+    if (loadedCapabilityTabsRef.current?.serverId !== server.id) {
+      loadedCapabilityTabsRef.current = { serverId: server.id, tabs: new Set() }
+    }
+    loadedCapabilityTabsRef.current.tabs.add(tab)
+  }
+
+  const unmarkCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) => {
+    if (loadedCapabilityTabsRef.current?.serverId !== server.id) return
+    loadedCapabilityTabsRef.current.tabs.delete(tab)
+  }
+
+  const wasCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) =>
+    loadedCapabilityTabsRef.current?.serverId === server.id && loadedCapabilityTabsRef.current.tabs.has(tab)
+
   const fetchTools = async () => {
     if (server?.isActive) {
       try {
@@ -122,6 +138,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         await ipcApi.request('mcp.server.refresh_tools', { serverId: server.id })
       } catch (error) {
         logger.error('Failed to list MCP tools', error as Error)
+        unmarkCapabilityLoaded('tools')
       } finally {
         setLoadingServer(null)
       }
@@ -137,6 +154,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       } catch (error) {
         logger.error('Failed to list MCP prompts', error as Error)
         setPrompts([])
+        unmarkCapabilityLoaded('prompts')
       } finally {
         setLoadingServer(null)
       }
@@ -147,11 +165,17 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     if (server?.isActive) {
       try {
         setLoadingServer(server.id)
-        const localResources = await ipcApi.request('mcp.server.list_resources', { serverId: server.id })
+        const [localResources, localTemplates] = await Promise.all([
+          ipcApi.request('mcp.server.list_resources', { serverId: server.id }),
+          ipcApi.request('mcp.server.list_resource_templates', { serverId: server.id })
+        ])
         setResources(localResources)
+        setTemplates(localTemplates)
       } catch (error) {
         logger.error('Failed to list MCP resources', error as Error)
         setResources([])
+        setTemplates([])
+        unmarkCapabilityLoaded('resources')
       } finally {
         setLoadingServer(null)
       }
@@ -170,57 +194,63 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }
 
-  const fetchServerLogs = async (serverId = server?.id) => {
-    if (!serverId) return
-    const requestId = ++fetchServerLogsRequestRef.current
+  const retryConnection = async () => {
+    setLoadingServer(server.id)
     try {
-      const history = await ipcApi.request('mcp.server.get_logs', { serverId })
-      if (requestId === fetchServerLogsRequestRef.current && serverId === server?.id) {
-        setLogs((prev) => mergeServerLogs(history, prev))
-      }
+      await ipcApi.request('mcp.server.restart', { serverId: server.id })
+      await fetchServerVersion()
     } catch (error) {
-      logger.warn('Failed to load server logs', error as Error)
+      logger.warn('MCP server retry failed', { error })
+    } finally {
+      setLoadingServer(null)
     }
   }
 
+  const refreshCatalog = useEffectEvent((kind: 'prompts' | 'resources') => {
+    if (kind === 'prompts') void fetchPrompts()
+    else void fetchResources()
+  })
   useEffect(() => {
-    const unsubscribe = ipcApi.on('mcp.server.log', (log) => {
-      if (log.serverId && log.serverId !== server?.id) return
-      setLogs((prev) => {
-        const merged = [...prev, log]
-        if (merged.length > 200) {
-          return merged.slice(merged.length - 200)
-        }
-        return merged
-      })
+    if (!server.isActive) return
+    const requestId = crypto.randomUUID()
+    const unsubscribe = ipcApi.on('mcp.catalog.changed', (event) => {
+      if (event.serverId === serverId) refreshCatalog(event.kind)
     })
-
+    void ipcApi
+      .request('mcp.catalog.observe', { serverId, requestId })
+      .catch((error) => logger.warn('MCP catalog observation failed', { error }))
     return () => {
-      unsubscribe?.()
+      unsubscribe()
+      void ipcApi.request('mcp.request.cancel', { requestId }).catch(() => undefined)
     }
-  }, [server?.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Effect events read current values without resubscribing.
+  }, [serverId, server.isActive])
 
   useEffect(() => {
-    fetchServerLogsRequestRef.current += 1
-    setLogs([])
-  }, [server?.id])
-
-  useEffect(() => {
-    if (activeTab === 'logs') {
-      void fetchServerLogs()
+    if (!server?.isActive) {
+      setPrompts([])
+      setResources([])
+      setTemplates([])
+      setServerVersion(null)
+      loadedCapabilityTabsRef.current = null
+      return
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, server?.id])
 
-  useEffect(() => {
-    if (server?.isActive) {
-      void fetchTools()
-      void fetchPrompts()
-      void fetchResources()
-      void fetchServerVersion()
-    }
+    void fetchServerVersion()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server?.id, server?.isActive])
+
+  useEffect(() => {
+    if (!server?.isActive) return
+    if (activeTab !== 'tools' && activeTab !== 'prompts' && activeTab !== 'resources') return
+    if (wasCapabilityLoaded(activeTab)) return
+
+    markCapabilityLoaded(activeTab)
+    if (activeTab === 'tools') void fetchTools()
+    if (activeTab === 'prompts') void fetchPrompts()
+    if (activeTab === 'resources') void fetchResources()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, server?.id, server?.isActive])
 
   // Save the form data
   const onSave = async () => {
@@ -274,33 +304,38 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }
 
-  const onDeleteMcpServer = useCallback(
-    async (serverToDelete: McpServer) => {
-      try {
-        const confirmed = await popup.confirm({
-          title: t('settings.mcp.deleteServer'),
-          content: t('settings.mcp.deleteServerConfirm'),
-          centered: true,
-          okButtonProps: { danger: true }
-        })
-        if (!confirmed) return
+  const { removeMcpServer } = useMcpServerMutations(server.id)
+  const onDeleteMcpServer = useCallback(async () => {
+    try {
+      const confirmed = await popup.confirm({
+        title: t('settings.mcp.deleteServer'),
+        content: t('settings.mcp.deleteServerConfirm'),
+        centered: true,
+        okButtonProps: { danger: true }
+      })
+      if (!confirmed) return
 
-        await ipcApi.request('mcp.server.remove', { serverId: serverToDelete.id })
-        await deleteMcpServer({})
-        toast.success(t('settings.mcp.deleteSuccess'))
-        void navigate({ to: '/settings/mcp' })
-      } catch (error: any) {
-        toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
-      }
-    },
-
-    [deleteMcpServer, t, navigate]
-  )
+      await removeMcpServer()
+      toast.success(t('settings.mcp.deleteSuccess'))
+      void navigate({ to: '/settings/mcp' })
+    } catch (error: any) {
+      toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+    }
+  }, [removeMcpServer, t, navigate])
 
   const onToggleActive = async (active: boolean) => {
     if (!server) return
     if (isFormChanged && active) {
       await onSave()
+      return
+    }
+
+    if (active && isQVerisApiKeyMissing(server)) {
+      void popup.error({
+        title: t('settings.mcp.startError'),
+        content: <QVerisApiKeyGuide />,
+        centered: true
+      })
       return
     }
 
@@ -326,31 +361,41 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         try {
           await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
 
-          const localPrompts = await ipcApi.request('mcp.server.list_prompts', { serverId: serverForUpdate.id })
+          const serverId = serverForUpdate.id
+          const [localPrompts, localResources, localTemplates, version] = await Promise.all([
+            ipcApi.request('mcp.server.list_prompts', { serverId }),
+            ipcApi.request('mcp.server.list_resources', { serverId }),
+            ipcApi.request('mcp.server.list_resource_templates', { serverId }),
+            ipcApi.request('mcp.server.get_version', { serverId })
+          ])
           setPrompts(localPrompts)
-
-          const localResources = await ipcApi.request('mcp.server.list_resources', { serverId: serverForUpdate.id })
           setResources(localResources)
-
-          const version = await ipcApi.request('mcp.server.get_version', { serverId: serverForUpdate.id })
+          setTemplates(localTemplates)
           setServerVersion(version)
+
+          markCapabilityLoaded('tools')
+          markCapabilityLoaded('prompts')
+          markCapabilityLoaded('resources')
         } catch (error: any) {
           void popup.error({
             title: t('settings.mcp.startError'),
-            content: formatMcpError(error as McpError),
+            content: formatMcpError(error as { message: string }),
             centered: true
           })
         }
       } else {
         await updateMcpServer({ body: { isActive: false } })
         await ipcApi.request('mcp.server.stop', { serverId: serverForUpdate.id })
+        setPrompts([])
+        setResources([])
         setServerVersion(null)
+        loadedCapabilityTabsRef.current = null
       }
       form.setValue('isActive', active)
     } catch (error: any) {
       void popup.error({
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
-        content: formatMcpError(error as McpError),
+        content: formatMcpError(error as { message: string }),
         centered: true
       })
     } finally {
@@ -425,9 +470,12 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   )
 
   const runtimeError = server.isActive && runtimeStatus.state === 'error' ? runtimeStatus.lastError : undefined
+  const authorizing = server.isActive && runtimeStatus.state === 'connecting' && runtimeStatus.authorizing
   const runtimeStatusLabel = {
     disabled: t('settings.mcp.runtimeStatus.disabled', 'Disabled'),
-    connecting: t('settings.mcp.runtimeStatus.connecting', 'Connecting'),
+    connecting: authorizing
+      ? t('settings.mcp.runtimeStatus.authorizing')
+      : t('settings.mcp.runtimeStatus.connecting', 'Connecting'),
     connected: t('settings.mcp.runtimeStatus.connected', 'Connected'),
     error: t('settings.mcp.runtimeStatus.error', 'Error')
   }[server.isActive ? runtimeStatus.state : 'disabled']
@@ -437,7 +485,9 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     serverType,
     onServerTypeChange: setServerType,
     registryState,
-    isBuiltin: server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)
+    isBuiltin: server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server),
+    builtinRequiresEnv:
+      (server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)) && Boolean(server.shouldConfig)
   }
 
   const tabs: McpTabItem[] = [
@@ -480,6 +530,14 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   if (server.isActive) {
     tabs.push({
+      key: 'instructions',
+      label: t('settings.mcp.instructions.title'),
+      children:
+        activeTab === 'instructions' ? (
+          <McpInstructions key={server.id} serverId={server.id} connectionState={runtimeStatus.state} />
+        ) : null
+    })
+    tabs.push({
       key: 'tools',
       label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
       children: (
@@ -513,7 +571,17 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       {
         key: 'resources',
         label: t('settings.mcp.tabs.resources') + (resources.length > 0 ? ` (${resources.length})` : ''),
-        children: <McpResourcesSection resources={resources} />
+        children: (
+          <>
+            <McpResourcesSection resources={resources} />
+            {templates.length > 0 ? (
+              <h3 className="mt-4 text-sm font-medium">{t('settings.mcp.templates.title')}</h3>
+            ) : null}
+            {templates.map((template) => (
+              <McpResourceTemplateView key={`${template.serverId}:${template.uriTemplate}`} template={template} />
+            ))}
+          </>
+        )
       }
     )
   }
@@ -521,39 +589,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   tabs.push({
     key: 'logs',
     label: t('settings.mcp.logs', 'Logs'),
-    children: (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-foreground-tertiary text-sm">
-            {t('settings.mcp.logsHint', 'Logs from the MCP server process')}
-          </span>
-          <CopyButton
-            textToCopy={logsText}
-            size={14}
-            successFeedback="icon"
-            disabled={logs.length === 0}
-            tooltip={t('settings.mcp.copyLogs', 'Copy logs')}
-          />
-        </div>
-        <LogList className="selectable pt-0">
-          {logs.length === 0 && (
-            <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
-          )}
-          {logs.map((log, idx) => (
-            <LogItem key={`${log.timestamp}-${idx}`}>
-              <LogHeader>
-                <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
-                <Badge variant="outline" className={mapLogLevelClass(log.level)}>
-                  {log.level}
-                </Badge>
-                <LogMessage>{log.message}</LogMessage>
-              </LogHeader>
-              {log.data && <PreBlock>{formatMcpLogData(log.data)}</PreBlock>}
-            </LogItem>
-          ))}
-        </LogList>
-      </div>
-    )
+    children: activeTab === 'logs' ? <McpLogsTab serverId={server.id} /> : null
   })
 
   const activeTabValue = tabs.some((tab) => tab.key === activeTab) ? activeTab : 'settings'
@@ -588,6 +624,29 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
                     <McpRuntimeStatusBadge state={server.isActive ? runtimeStatus.state : 'disabled'}>
                       {runtimeStatusLabel}
                     </McpRuntimeStatusBadge>
+                    {authorizing && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          void ipcApi
+                            .request('mcp.server.cancel_authorization', { serverId: server.id })
+                            .catch((error) => logger.warn('Failed to cancel MCP authorization', { error }))
+                        }>
+                        {t('common.cancel')}
+                      </Button>
+                    )}
+                    {runtimeError && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={loadingServer === server.id}
+                        onClick={() => void retryConnection()}>
+                        {t('common.retry')}
+                      </Button>
+                    )}
                     {serverVersion && <VersionText>{serverVersion}</VersionText>}
                   </Flex>
                 </Flex>
@@ -640,7 +699,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => onDeleteMcpServer(server)}
+                  onClick={() => void onDeleteMcpServer()}
                   className="-ml-2 -mt-1 hover:!bg-destructive hover:!text-destructive-foreground rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
@@ -666,20 +725,13 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 const McpSettings: React.FC = () => {
   const params = useParams({ strict: false })
   const serverId = params.serverId
-  const { server, isLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
+  const { server, isLoading, updateMcpServer } = useMcpServer(serverId ?? '')
 
   if (!server || isLoading) {
     return null
   }
 
-  return (
-    <McpSettingsContent
-      key={server.id}
-      server={server}
-      updateMcpServer={updateMcpServer}
-      deleteMcpServer={deleteMcpServer}
-    />
-  )
+  return <McpSettingsContent key={server.id} server={server} updateMcpServer={updateMcpServer} />
 }
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -693,71 +745,6 @@ const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'spa
 const McpFormSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={className} {...props} />
 )
-
-const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
-)
-
-const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-card-foreground', className)}
-    {...props}
-  />
-)
-
-const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-wrap items-baseline gap-2', className)} {...props} />
-)
-
-const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('shrink-0 text-foreground-tertiary text-xs', className)} {...props} />
-)
-
-const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('wrap-break-word text-[13px] leading-normal', className)} {...props} />
-)
-
-const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>) => (
-  <pre
-    className={cn(
-      'wrap-break-word mt-1.5 whitespace-pre-wrap rounded-md border border-border bg-background px-2 py-2 text-foreground text-xs',
-      className
-    )}
-    {...props}
-  />
-)
-
-function mapLogLevelClass(level: McpServerLogEntry['level']) {
-  switch (level) {
-    case 'error':
-    case 'stderr':
-      return 'border-error-border bg-error-subtle text-error-subtle-foreground'
-    case 'warn':
-      return 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
-    case 'info':
-    case 'stdout':
-      return 'border-info-border bg-info-subtle text-info-subtle-foreground'
-    default:
-      return 'border-border-subtle bg-muted text-muted-foreground'
-  }
-}
-
-function mergeServerLogs(
-  history: McpServerLogEntry[],
-  current: (McpServerLogEntry & { serverId?: string })[]
-): (McpServerLogEntry & { serverId?: string })[] {
-  const seen = new Set<string>()
-  const merged: (McpServerLogEntry & { serverId?: string })[] = []
-
-  for (const log of [...history, ...current]) {
-    const key = `${log.timestamp}:${log.level}:${log.source ?? ''}:${log.message}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    merged.push(log)
-  }
-
-  return merged.length > 200 ? merged.slice(merged.length - 200) : merged
-}
 
 const VersionText = ({ className, ...props }: React.ComponentProps<'span'>) => (
   <span className={cn('shrink-0 text-[11px] text-muted-foreground leading-4', className)} {...props} />

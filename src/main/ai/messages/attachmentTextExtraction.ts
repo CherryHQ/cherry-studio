@@ -17,7 +17,6 @@ import { decodeTextWithAutoEncoding } from '@main/utils/legacyFile'
 import { extractPdfText } from '@main/utils/pdf'
 import type { FileEntryId } from '@shared/data/types/file'
 import { documentExts } from '@shared/utils/file'
-import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('ai:documentExtraction')
 
@@ -40,6 +39,7 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string | null
 
   const buffer = Buffer.from(content)
   if (ext === 'doc') {
+    const { default: WordExtractor } = await import('word-extractor')
     const extracted = await new WordExtractor().extract(buffer)
     return extracted.getBody().trim()
   }
