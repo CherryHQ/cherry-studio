@@ -1,118 +1,121 @@
-import type { McpCallToolResponse } from '@main/ai/mcp/types'
+import type { CallToolResult } from '@modelcontextprotocol/client'
 import { describe, expect, it } from 'vitest'
 
-import { hasMultimodalContent, mcpResultToTextSummary } from '../utils'
+import { mcpResultToModelOutput, mcpResultToTextSummary } from '../utils'
 
 describe('mcpResultToTextSummary', () => {
-  it('returns JSON string for null / invalid shapes', () => {
-    expect(mcpResultToTextSummary(null as unknown as McpCallToolResponse)).toBe('null')
-    expect(mcpResultToTextSummary({} as McpCallToolResponse)).toBe('{}')
-    expect(mcpResultToTextSummary({ content: 'not-an-array' } as unknown as McpCallToolResponse)).toContain(
-      '"not-an-array"'
+  it.each([null, false, 0, 'value', [1, 2], { answer: 42 }])(
+    'includes structured-only JSON: %j',
+    (structuredContent) => {
+      expect(mcpResultToTextSummary({ content: [], structuredContent })).toBe(JSON.stringify(structuredContent))
+    }
+  )
+
+  it('preserves media and text, without repeating the structured JSON fallback', () => {
+    const result = {
+      content: [
+        { type: 'text' as const, text: 'Answer' },
+        { type: 'image' as const, data: 'x', mimeType: 'image/png' }
+      ],
+      structuredContent: { answer: 42 }
+    }
+    expect(mcpResultToTextSummary(result)).toBe(
+      'Answer\n[Image: image/png — the model cannot see this content]\n{"answer":42}'
     )
+    expect(
+      mcpResultToTextSummary({
+        ...result,
+        content: [{ type: 'text', text: '{ "answer": 42 }' }]
+      })
+    ).toBe('{ "answer": 42 }')
+    expect(result.content).toHaveLength(2)
   })
 
-  it('joins text parts verbatim', () => {
-    const out = mcpResultToTextSummary({
-      content: [
-        { type: 'text', text: 'hello' },
-        { type: 'text', text: 'world' }
-      ]
-    })
-    expect(out).toBe('hello\nworld')
-  })
-
-  it('turns image parts into placeholders', () => {
-    const out = mcpResultToTextSummary({
-      content: [{ type: 'image', data: 'base64', mimeType: 'image/png' }]
-    })
-    expect(out).toBe('[Image: image/png, delivered to user]')
-  })
-
-  it('turns audio parts into placeholders', () => {
-    const out = mcpResultToTextSummary({
-      content: [{ type: 'audio', data: 'base64', mimeType: 'audio/mp3' }]
-    })
-    expect(out).toBe('[Audio: audio/mp3, delivered to user]')
-  })
-
-  it('uses placeholder for blob resources, text for inline resources', () => {
-    const blob = mcpResultToTextSummary({
-      content: [
-        {
-          type: 'resource',
-          resource: { uri: 'file://x.pdf', mimeType: 'application/pdf', blob: 'base64' }
-        }
-      ]
-    })
-    expect(blob).toBe('[Resource: application/pdf, uri=file://x.pdf, delivered to user]')
-
-    const inlineText = mcpResultToTextSummary({
-      content: [{ type: 'resource', resource: { uri: 'note://a', text: 'the body' } }]
-    })
-    expect(inlineText).toBe('the body')
-  })
-
-  it('mixes part types in declaration order', () => {
-    const out = mcpResultToTextSummary({
-      content: [
-        { type: 'text', text: 'intro' },
-        { type: 'image', data: 'x', mimeType: 'image/jpeg' },
-        { type: 'text', text: 'outro' }
-      ]
-    })
-    expect(out).toBe('intro\n[Image: image/jpeg, delivered to user]\noutro')
-  })
-
-  it('defaults to JSON.stringify for unknown part types', () => {
-    const out = mcpResultToTextSummary({
-      content: [{ type: 'future-kind', payload: 42 } as never]
-    })
-    expect(out).toContain('"future-kind"')
-    expect(out).toContain('42')
+  it('returns JSON string for null / invalid shapes', () => {
+    expect(mcpResultToTextSummary(null as unknown as CallToolResult)).toBe('null')
+    expect(mcpResultToTextSummary({} as CallToolResult)).toBe('{}')
+    expect(mcpResultToTextSummary({ content: 'not-an-array' } as unknown as CallToolResult)).toContain('"not-an-array"')
   })
 })
 
-describe('hasMultimodalContent', () => {
-  it('false for pure text', () => {
-    expect(
-      hasMultimodalContent({
-        content: [{ type: 'text', text: 'hi' }]
-      })
-    ).toBe(false)
+describe('MCP tool-result delivery', () => {
+  it.each([
+    { structuredContent: null, text: 'null' },
+    { structuredContent: false, text: 'false' },
+    { structuredContent: [1, 2], text: '[1,2]' }
+  ])('preserves structured-only output for the model: $text', ({ structuredContent, text }) => {
+    expect(mcpResultToModelOutput({ content: [], structuredContent })).toEqual({ type: 'text', value: text })
   })
 
-  it('true when an image part exists', () => {
-    expect(
-      hasMultimodalContent({
-        content: [{ type: 'image', data: 'x', mimeType: 'image/png' }]
-      })
-    ).toBe(true)
+  it('keeps structured output beside native media without duplicating a JSON fallback', () => {
+    const image = { type: 'image' as const, data: 'aW1hZ2U=', mimeType: 'image/png' }
+    const fallback = { type: 'text' as const, text: '[1,2]' }
+    const expected = {
+      type: 'content',
+      value: [{ type: 'image-data', data: image.data, mediaType: image.mimeType }, fallback]
+    }
+    expect(mcpResultToModelOutput({ content: [image], structuredContent: [1, 2] })).toEqual(expected)
+    expect(mcpResultToModelOutput({ content: [image, fallback], structuredContent: [1, 2] })).toEqual(expected)
   })
 
-  it('true when an audio part exists', () => {
-    expect(
-      hasMultimodalContent({
-        content: [{ type: 'audio', data: 'x', mimeType: 'audio/wav' }]
-      })
-    ).toBe(true)
+  it.each([
+    { type: 'image', mimeType: 'image/png', outputType: 'image-data' },
+    { type: 'audio', mimeType: 'audio/wav', outputType: 'file-data' }
+  ] as const)('delivers $type bytes as native media, not encoded text', ({ type, mimeType, outputType }) => {
+    const data = Buffer.from('tool media bytes').toString('base64')
+    const output = mcpResultToModelOutput({ content: [{ type, data, mimeType }] })
+
+    expect(output).toEqual({
+      type: 'content',
+      value: [{ type: outputType, data, mediaType: mimeType }]
+    })
   })
 
-  it('true only for blob-backed resources, not text-backed', () => {
-    expect(
-      hasMultimodalContent({
-        content: [{ type: 'resource', resource: { uri: 'u', text: 'body' } }]
-      })
-    ).toBe(false)
-    expect(
-      hasMultimodalContent({
-        content: [{ type: 'resource', resource: { uri: 'u', blob: 'b' } }]
-      })
-    ).toBe(true)
+  it('keeps descriptions and resources in their original positions between media blocks', () => {
+    const firstImage = Buffer.from('first image').toString('base64')
+    const secondImage = Buffer.from('second image').toString('base64')
+    const audio = Buffer.from('recording').toString('base64')
+    const output = mcpResultToModelOutput({
+      content: [
+        { type: 'text', text: 'Before:' },
+        { type: 'image', data: firstImage, mimeType: 'image/png' },
+        { type: 'text', text: 'After:' },
+        { type: 'image', data: secondImage, mimeType: 'image/png' },
+        { type: 'resource', resource: { uri: 'note://source', text: 'Audio commentary:' } },
+        { type: 'audio', data: audio, mimeType: 'audio/wav' },
+        { type: 'text', text: 'Compare the two images.' }
+      ]
+    })
+
+    expect(output).toEqual({
+      type: 'content',
+      value: [
+        { type: 'text', text: 'Before:' },
+        { type: 'image-data', data: firstImage, mediaType: 'image/png' },
+        { type: 'text', text: 'After:' },
+        { type: 'image-data', data: secondImage, mediaType: 'image/png' },
+        { type: 'text', text: 'Audio commentary:' },
+        { type: 'file-data', data: audio, mediaType: 'audio/wav' },
+        { type: 'text', text: 'Compare the two images.' }
+      ]
+    })
   })
 
-  it('false for empty or malformed input', () => {
-    expect(hasMultimodalContent({ content: [] })).toBe(false)
-    expect(hasMultimodalContent(null as unknown as McpCallToolResponse)).toBe(false)
+  it('keeps binary payloads out of text summaries while preserving readable content', () => {
+    const data = Buffer.from('binary payload must not consume text context').toString('base64')
+    const result: CallToolResult = {
+      content: [
+        { type: 'text', text: 'Result description' },
+        { type: 'image', data, mimeType: 'image/png' },
+        { type: 'audio', data, mimeType: 'audio/wav' },
+        { type: 'resource', resource: { uri: 'file://report.pdf', mimeType: 'application/pdf', blob: data } },
+        { type: 'resource', resource: { uri: 'note://source', text: 'Readable source' } }
+      ]
+    }
+
+    const summary = mcpResultToTextSummary(result)
+    expect(summary).not.toContain(data)
+    expect(summary).toContain('Result description')
+    expect(summary).toContain('Readable source')
   })
 })

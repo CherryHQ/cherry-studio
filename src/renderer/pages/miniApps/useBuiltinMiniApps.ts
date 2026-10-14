@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+
 import { useCache } from '@data/hooks/useCache'
 import { joinPath } from '@renderer/utils/path'
 import { BUILTIN_MINI_APPS } from '@shared/data/presets/miniApps'
@@ -5,7 +7,6 @@ import type { MiniApp } from '@shared/data/types/miniApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
 import { toFileUrl } from '@shared/utils/file'
-import { useMemo } from 'react'
 
 export interface BuiltinMiniAppEntry {
   appId: string

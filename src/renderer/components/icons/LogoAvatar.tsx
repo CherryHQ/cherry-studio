@@ -1,6 +1,7 @@
+import type { FC } from 'react'
+
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarImage } from '@cherrystudio/ui'
-import type { FC } from 'react'
 
 interface Props {
   logo: string | object | undefined

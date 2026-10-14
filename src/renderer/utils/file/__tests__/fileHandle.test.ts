@@ -1,5 +1,6 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { fileHandleFromPart } from '../fileHandle'
 
@@ -33,6 +34,6 @@ describe('fileHandleFromPart', () => {
   it('returns undefined rather than a broken handle for unusable parts', () => {
     expect(fileHandleFromPart(filePart({}))).toBeUndefined()
     expect(fileHandleFromPart(filePart({ url: 'https://example.com/note.md' }))).toBeUndefined()
-    expect(fileHandleFromPart({ type: 'text', text: 'hi' } as CherryMessagePart)).toBeUndefined()
+    expect(fileHandleFromPart({ type: 'text', text: 'hi' })).toBeUndefined()
   })
 })

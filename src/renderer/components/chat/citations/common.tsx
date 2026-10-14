@@ -1,16 +1,19 @@
-import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import type { Citation } from '@renderer/types/message'
 import { Check, Copy } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
+import type { Citation } from '@renderer/types/message'
+import { isHttpUrl } from '@shared/utils/url'
 
 import { useOptionalMessageListActions } from '../messages/MessageListProvider'
 import type { MessageListActions } from '../messages/types'
 
 export type CitationCopyActions = Pick<MessageListActions, 'copyText' | 'notifyError'>
 export type CitationPanelActions = CitationCopyActions & {
+  openBrowserUrl?: MessageListActions['openBrowserUrl']
   openPath?: (path: string) => void | Promise<void>
-  openExternalUrl?: (url: string) => void | Promise<void>
 }
 
 export const truncateText = (text: string, maxLength = 100) =>
@@ -29,19 +32,19 @@ export const handleLinkClick = (
   url: string,
   event: React.MouseEvent,
   actions?: {
+    openBrowserUrl?: MessageListActions['openBrowserUrl']
     openPath?: (path: string) => void | Promise<void>
-    openExternalUrl?: (url: string) => void | Promise<void>
   }
 ) => {
-  if (!url) return
-  if (url.startsWith('http')) {
-    if (!actions?.openExternalUrl) return
+  if (!url || (event.button !== 0 && event.button !== 1)) return
+  if (isHttpUrl(url)) {
     event.preventDefault()
-    void actions.openExternalUrl(url)
+    if (event.button === 0 && actions?.openBrowserUrl) actions.openBrowserUrl(url)
+    else openRoute('/app/browser', { url })
     return
   }
 
-  if (!actions?.openPath) return
+  if (event.button !== 0 || !actions?.openPath) return
   event.preventDefault()
   void actions.openPath(url)
 }
@@ -69,7 +72,7 @@ export const CopyButton: React.FC<{ content: string; actions?: CitationCopyActio
 
   return (
     <div
-      className="-translate-y-1/2 absolute top-1/2 right-0 flex cursor-pointer items-center justify-center rounded p-1 text-muted-foreground opacity-0 transition-opacity duration-300 hover:bg-muted hover:opacity-100 group-hover:opacity-100"
+      className="text-muted-foreground absolute top-1/2 right-0 flex -translate-y-1/2 cursor-pointer items-center justify-center rounded p-1 opacity-0 transition-opacity duration-300 group-hover:opacity-100 hover:bg-muted hover:opacity-100"
       onClick={handleCopy}>
       {copied ? <Check size={14} /> : <Copy size={14} />}
     </div>

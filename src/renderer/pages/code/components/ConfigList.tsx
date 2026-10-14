@@ -1,10 +1,11 @@
+import { type FC, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState, ReorderableList } from '@cherrystudio/ui'
 import { isOwnLoginConfigurable } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { type FC, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ProviderCard } from './ConfigCard'
 import { OwnLoginCard } from './OwnLoginCard'
@@ -72,7 +73,7 @@ export const ConfigList: FC<ConfigListProps> = ({
   }
 
   if (displayedProviders.length === 0) {
-    return <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_matching_providers')}</div>
+    return <div className="py-8 text-center text-xs text-foreground-tertiary">{t('code.no_matching_providers')}</div>
   }
 
   return (

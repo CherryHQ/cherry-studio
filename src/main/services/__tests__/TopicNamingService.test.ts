@@ -1,12 +1,13 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-import { WindowType } from '@main/core/window/types'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WindowType } from '@main/core/window/types'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
@@ -129,7 +130,7 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        chatId: 'topic-1',
+        conversation: { id: 'topic-1', topicId: 'topic-1' },
         uniqueModelId: 'openai::gpt-4o-mini'
       })
     )
@@ -280,7 +281,7 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        chatId: 'session-1',
+        conversation: { id: 'session-1', topicId: 'session-1' },
         uniqueModelId: 'openai::gpt-4o-mini'
       })
     )

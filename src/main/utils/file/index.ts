@@ -48,6 +48,7 @@
  */
 
 export { createContentHasher, hashContent, parseContentHash } from './contentHash'
+export { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from './pathIdentity'
 export {
   assertPathVersionUnchanged,
   atomicWriteFile,
@@ -88,6 +89,15 @@ export {
   write
 } from './fs'
 export { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from './metadata'
-export { canWrite, isNotEmptyDir, isOutsidePath, isPathInside, isSameOrInside, resolvePath } from './path'
+export {
+  canonicalizePathForContainment,
+  canWrite,
+  foldPathSegment,
+  isNotEmptyDir,
+  isOutsidePath,
+  isPathInside,
+  isSameOrInside,
+  resolvePath
+} from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

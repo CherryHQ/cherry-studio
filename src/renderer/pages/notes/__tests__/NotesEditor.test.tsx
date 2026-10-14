@@ -46,7 +46,8 @@ vi.mock('@renderer/components/Selector', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
@@ -85,6 +86,22 @@ describe('NotesEditor focus behavior', () => {
 
     expect(await screen.findByTestId('code-editor')).toBeInTheDocument()
     expect(mocks.codeEditorEvaluations).toBe(1)
+  })
+
+  it('marks the active note surface with its node id', async () => {
+    render(
+      <NotesEditor
+        activeNodeId="/notes/example.md"
+        currentContent="note"
+        tokenCount={4}
+        editorRef={{ current: null }}
+        codeEditorRef={{ current: null }}
+        onMarkdownChange={vi.fn()}
+      />
+    )
+
+    await screen.findByTestId('rich-editor')
+    expect(document.querySelector('[data-ui="notes.editor"]')).toHaveAttribute('data-note-id', '/notes/example.md')
   })
 
   it.each([

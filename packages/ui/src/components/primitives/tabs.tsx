@@ -1,7 +1,8 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { cva } from 'class-variance-authority'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 const TabsContext = React.createContext<{
   variant?: 'default' | 'line' | 'underline' | 'workflow'
@@ -34,14 +35,14 @@ function Tabs({
 const tabsListVariants = cva('inline-flex items-center justify-center', {
   variants: {
     variant: {
-      default: 'bg-muted text-muted-foreground h-9 w-fit rounded-lg p-[3px]',
-      line: 'bg-transparent gap-4 justify-start border-b-0 p-0',
-      underline: 'bg-transparent gap-0 justify-start border-b-0 p-0',
-      workflow: 'bg-transparent gap-3 justify-start border-b-0 p-0'
+      default: 'h-9 w-fit rounded-lg bg-muted p-[3px] text-muted-foreground',
+      line: 'justify-start gap-4 border-b-0 bg-transparent p-0',
+      underline: 'justify-start gap-0 border-b-0 bg-transparent p-0',
+      workflow: 'justify-start gap-3 border-b-0 bg-transparent p-0'
     },
     orientation: {
       horizontal: 'flex-row',
-      vertical: 'flex-col h-fit'
+      vertical: 'h-fit flex-col'
     }
   },
   compoundVariants: [
@@ -75,7 +76,7 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
 
 const tabsTriggerVariants = cva(
   [
-    'inline-flex items-center justify-center whitespace-nowrap text-sm font-medium',
+    'inline-flex items-center justify-center text-sm font-medium whitespace-nowrap',
     'disabled:pointer-events-none disabled:opacity-50',
     'transition-all outline-none',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4'
@@ -84,12 +85,12 @@ const tabsTriggerVariants = cva(
     variants: {
       variant: {
         default: [
-          'h-[calc(100%-1px)] flex-1 gap-1.5 px-2 py-1 rounded-md',
-          'text-foreground border border-transparent',
+          'h-[calc(100%-1px)] flex-1 gap-1.5 rounded-md px-2 py-1',
+          'border border-transparent text-foreground',
           'dark:text-muted-foreground',
           'focus-visible:border-primary focus-visible:bg-accent',
           'data-[state=active]:bg-background data-[state=active]:shadow-sm',
-          'dark:data-[state=active]:text-foreground dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30'
+          'dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 dark:data-[state=active]:text-foreground'
         ],
         line: [
           'relative gap-2 px-2 py-2',
@@ -111,8 +112,8 @@ const tabsTriggerVariants = cva(
           'relative gap-1.5 px-1 py-1.5 text-sm font-normal',
           'text-muted-foreground hover:text-foreground',
           'rounded-sm focus-visible:text-foreground focus-visible:underline focus-visible:underline-offset-4',
-          'data-[state=active]:text-foreground data-[state=active]:font-semibold',
-          'data-[state=active]:underline data-[state=active]:underline-offset-4 data-[state=active]:decoration-1',
+          'data-[state=active]:font-semibold data-[state=active]:text-foreground',
+          'data-[state=active]:underline data-[state=active]:decoration-1 data-[state=active]:underline-offset-4',
           "[&:not(:first-child)]:before:content-['›']",
           '[&:not(:first-child)]:before:mr-3 [&:not(:first-child)]:before:text-base',
           '[&:not(:first-child)]:before:font-normal [&:not(:first-child)]:before:no-underline',
@@ -135,7 +136,7 @@ const tabsTriggerVariants = cva(
         orientation: 'vertical',
         class: [
           'justify-center after:bottom-0 after:left-0 after:h-[4px] after:w-full after:bg-transparent data-[state=active]:after:bg-primary',
-          'hover:text-primary hover:bg-primary/10'
+          'hover:bg-primary/10 hover:text-primary'
         ]
       },
       {

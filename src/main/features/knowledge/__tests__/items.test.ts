@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MaterialFieldSource } from '../items'
 import type * as PathStorage from '../pathStorage'

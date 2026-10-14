@@ -1,9 +1,10 @@
+import { ChevronDown } from 'lucide-react'
+import { type ComponentProps, type ComponentPropsWithoutRef, type FC, type ReactNode } from 'react'
+
 import { Button, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { EmojiPicker } from '@renderer/components/EmojiPicker'
-import { ChevronDown } from 'lucide-react'
-import { type ComponentProps, type ComponentPropsWithoutRef, type FC, type ReactNode } from 'react'
 
 export const EmojiAvatarPicker: FC<{
   value: string
@@ -110,7 +111,7 @@ export const DialogModelTrigger = ({
     aria-labelledby={ariaLabelledBy}
     className={cn(
       // Mirrors the shared SelectTrigger recipe (bg-muted/50, borderless, rounded-lg).
-      'h-8 min-w-0 max-w-full shrink-0 justify-between gap-2 rounded-lg bg-muted/50 px-2.5 font-normal text-sm shadow-none transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground aria-expanded:bg-muted',
+      'h-8 max-w-full min-w-0 shrink-0 justify-between gap-2 rounded-lg bg-muted/50 px-2.5 text-sm font-normal shadow-none transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground aria-expanded:bg-muted',
       model ? 'text-foreground' : 'text-muted-foreground',
       className
     )}>

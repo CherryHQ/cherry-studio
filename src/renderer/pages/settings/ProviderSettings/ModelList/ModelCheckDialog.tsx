@@ -1,3 +1,8 @@
+import { sortBy } from 'es-toolkit/compat'
+import { AlertTriangle, ChevronRight } from 'lucide-react'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Alert,
   Avatar,
@@ -26,10 +31,6 @@ import { maskApiKey } from '@renderer/utils/api'
 import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { sortBy } from 'es-toolkit/compat'
-import { AlertTriangle, ChevronRight } from 'lucide-react'
-import { useEffect, useId, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'

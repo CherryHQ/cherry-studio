@@ -1,14 +1,14 @@
+import type { ReactNode } from 'react'
+
 import { NavbarHeader } from '@renderer/components/Navbar'
 import { cn } from '@renderer/utils/style'
 import type { AgentEntity } from '@shared/data/types/agent'
-import type { ReactNode } from 'react'
 
 import AgentContent from './AgentContent'
 
 interface Props {
   activeAgent: AgentEntity | null
   conversationControls?: ReactNode
-  conversationTitle?: string
   tools?: ReactNode
   className?: string
   showSidebarControls?: boolean
@@ -19,7 +19,6 @@ interface Props {
 const AgentChatNavbar = ({
   activeAgent,
   conversationControls,
-  conversationTitle,
   tools,
   className,
   showSidebarControls = true,
@@ -32,7 +31,6 @@ const AgentChatNavbar = ({
         <AgentContent
           activeAgent={activeAgent}
           conversationControls={conversationControls}
-          conversationTitle={conversationTitle}
           tools={tools}
           showSidebarControls={showSidebarControls}
           sidebarOpen={sidebarOpen}

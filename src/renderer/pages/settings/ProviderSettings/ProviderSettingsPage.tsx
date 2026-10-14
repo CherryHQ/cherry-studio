@@ -1,23 +1,19 @@
-import { Alert, Button, Spinner } from '@cherrystudio/ui'
-import { usePersistCache } from '@data/hooks/useCache'
-import { useProviders } from '@renderer/hooks/useProvider'
-import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
-import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { omit } from 'es-toolkit/compat'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Alert, Button, Spinner } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
+import { useProviders } from '@renderer/hooks/useProvider'
+import type { AppRouter } from '@renderer/types/router'
+import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
+import type { Provider } from '@shared/data/types/provider'
+
 import type { ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
 import { ProviderList } from './ProviderList'
 import ProviderSetting from './ProviderSetting'
-
-interface ProviderSettingsSearch {
-  addProviderData?: string
-  filter?: string
-  id?: string
-}
 
 interface PendingApiSetup {
   providerId: string
@@ -29,7 +25,7 @@ interface ProviderSettingsContentProps {
 }
 
 function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps) {
-  const search = useSearch({ strict: false }) as ProviderSettingsSearch
+  const search = useSearch<AppRouter, undefined, false>({ strict: false })
   const navigate = useNavigate()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
     'settings.provider.last_selected_provider_id'
@@ -96,7 +92,7 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
 
     if (shouldConsume) {
       const restSearch = omit(search, ['filter', 'id'])
-      void navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
+      void navigate({ to: '/settings/provider', search: restSearch, replace: true })
     }
   }, [navigate, search, setSelectedProviderId, visibleProviders])
 

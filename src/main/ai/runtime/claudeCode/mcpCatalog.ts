@@ -4,7 +4,8 @@
  * keeps a cold or dead server from stalling session start (issue #16242).
  */
 
-import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
+import type { McpSdkServerConfigWithInstance, McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
@@ -44,8 +45,17 @@ export function buildMcpServers(
     selectedKnowledgeBaseIds,
     notificationContext
   )
+
   return Object.fromEntries(
-    Object.entries(servers).map(([id, server]) => [id, { type: 'sdk', ...server } satisfies McpServerConfig])
+    Object.entries(servers).map(([id, { name, connect }]) => [
+      id,
+      {
+        type: 'sdk',
+        name,
+        // The SDK only calls `connect` on its own 2025-era transport; v2 serves that era.
+        instance: { connect } as unknown as McpSdkServerConfigWithInstance['instance']
+      } satisfies McpServerConfig
+    ])
   )
 }
 

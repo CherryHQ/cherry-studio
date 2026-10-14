@@ -1,7 +1,8 @@
-import type { RetryPartData } from '@shared/data/types/uiParts'
 import { RefreshCw } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { RetryPartData } from '@shared/data/types/uiParts'
 
 /**
  * Live status shown while a chat model call is being retried or failed over to

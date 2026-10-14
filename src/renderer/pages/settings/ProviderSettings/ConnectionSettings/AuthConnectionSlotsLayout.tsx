@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
+
 import { useProvider } from '@renderer/hooks/useProvider'
 import { cn } from '@renderer/utils/style'
 import { isLoginBasedProvider, matchesPreset } from '@shared/utils/provider'
-import type { ReactNode } from 'react'
 
 import { authConnectionClasses } from '../primitives/ProviderSettingsPrimitives'
 import ProviderSpecificSettings from '../ProviderSpecific/ProviderSpecificSettings'

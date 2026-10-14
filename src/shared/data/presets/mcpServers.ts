@@ -110,7 +110,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   {
     name: BuiltinMcpServerNames.filesystem,
     type: 'inMemory',
-    args: ['/Users/username/Desktop'],
+    // An unconfigured server uses <userData>/Workspace; a platform-shaped path would bypass that fallback.
     disabledAutoApproveTools: [...filesystemManualApprovalTools],
     shouldConfig: true,
     isActive: false,
@@ -147,14 +147,6 @@ export const PRESET_MCP_SERVERS = freezePresets([
       DIDI_API_KEY: 'YOUR_DIDI_API_KEY'
     },
     shouldConfig: true,
-    provider: 'CherryAI',
-    installSource: 'builtin',
-    isTrusted: true
-  },
-  {
-    name: BuiltinMcpServerNames.browser,
-    type: 'inMemory',
-    isActive: false,
     provider: 'CherryAI',
     installSource: 'builtin',
     isTrusted: true

@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { Notification, NotificationSource } from '@renderer/types/notification'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   request: vi.fn()

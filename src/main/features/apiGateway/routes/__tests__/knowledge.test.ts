@@ -1,6 +1,7 @@
-import { DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
 import { Elysia } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
 
 /**
  * Exercises the knowledge routes through a wrapper app that includes the real
