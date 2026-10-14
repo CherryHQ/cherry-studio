@@ -20,6 +20,34 @@ const logger = loggerService.withContext('ProviderSettings:EndpointActions')
 // network writes per provider makes the last computed snapshot win instead of racing.
 const endpointConfigWriteLocks = new Map<string, Promise<unknown>>()
 
+/** Last endpointConfigs map successfully persisted per provider (survives failed revalidation). */
+const committedEndpointConfigsByProviderId = new Map<string, Provider['endpointConfigs']>()
+
+/** Record a successful whole-map endpointConfigs write for later snapshot writers. */
+export function commitCommittedEndpointConfigs(providerId: string, endpointConfigs: Provider['endpointConfigs']): void {
+  if (endpointConfigs) {
+    committedEndpointConfigsByProviderId.set(providerId, endpointConfigs)
+  }
+}
+
+function resolveEndpointConfigsForWrite(
+  providerId: string,
+  providerRef: { current: Provider | undefined },
+  fallbackProvider: Provider
+): Provider['endpointConfigs'] {
+  const liveConfigs = (providerRef.current ?? fallbackProvider).endpointConfigs
+  const committed = committedEndpointConfigsByProviderId.get(providerId)
+  if (!committed) {
+    return liveConfigs
+  }
+  return { ...liveConfigs, ...committed }
+}
+
+/** @internal Test-only reset for module-level committed endpoint state. */
+export function resetCommittedEndpointConfigsForTests(): void {
+  committedEndpointConfigsByProviderId.clear()
+}
+
 /** Run `write` after all previously registered endpoint-config writes for this provider settle. */
 export function withEndpointConfigWriteLock<T>(providerId: string, write: () => Promise<T>): Promise<T> {
   const previous = endpointConfigWriteLocks.get(providerId) ?? Promise.resolve()
@@ -34,6 +62,17 @@ export function withEndpointConfigWriteLock<T>(providerId: string, write: () => 
 /** Resolve once every registered endpoint-config write for this provider has settled. */
 export function awaitEndpointConfigWrites(providerId: string): Promise<void> {
   return endpointConfigWriteLocks.get(providerId)?.then(() => undefined) ?? Promise.resolve()
+}
+
+function commitEndpointConfigsToProviderRef(
+  providerId: string,
+  providerRef: { current: Provider | undefined },
+  fallbackProvider: Provider,
+  nextEndpointConfigs: Provider['endpointConfigs']
+): void {
+  const live = providerRef.current ?? fallbackProvider
+  providerRef.current = { ...live, endpointConfigs: nextEndpointConfigs }
+  commitCommittedEndpointConfigs(providerId, nextEndpointConfigs)
 }
 
 function getEndpointActionErrorMessage(error: unknown, fallback: string): string {
@@ -116,16 +155,18 @@ export function useProviderEndpointActions({
 
       await awaitEndpointConfigWrites(currentProvider.id)
 
-      await withEndpointConfigWriteLock(currentProvider.id, () => {
+      await withEndpointConfigWriteLock(currentProvider.id, async () => {
         const liveProvider = providerRef.current ?? currentProvider
+        const baseEndpointConfigs = resolveEndpointConfigsForWrite(currentProvider.id, providerRef, liveProvider)
         const nextEndpointConfigs = {
-          ...liveProvider.endpointConfigs,
+          ...baseEndpointConfigs,
           [primaryEndpoint]: {
-            ...liveProvider.endpointConfigs?.[primaryEndpoint],
+            ...baseEndpointConfigs?.[primaryEndpoint],
             baseUrl: trimmedApiHost
           }
         }
-        return patchProvider({ endpointConfigs: nextEndpointConfigs })
+        await patchProvider({ endpointConfigs: nextEndpointConfigs })
+        commitEndpointConfigsToProviderRef(currentProvider.id, providerRef, liveProvider, nextEndpointConfigs)
       })
       lastPersistedApiHostRef.current = trimmedApiHost
       return true
@@ -203,16 +244,18 @@ export function useProviderEndpointActions({
         }
 
         if (trimmedApiHost !== lastPersistedApiHostRef.current) {
-          await withEndpointConfigWriteLock(provider.id, () => {
+          await withEndpointConfigWriteLock(provider.id, async () => {
             const liveProvider = providerRef.current ?? provider
+            const baseEndpointConfigs = resolveEndpointConfigsForWrite(provider.id, providerRef, liveProvider)
             const nextEndpointConfigs = {
-              ...liveProvider.endpointConfigs,
+              ...baseEndpointConfigs,
               [primaryEndpoint]: {
-                ...liveProvider.endpointConfigs?.[primaryEndpoint],
+                ...baseEndpointConfigs?.[primaryEndpoint],
                 baseUrl: trimmedApiHost
               }
             }
-            return patchProvider({ endpointConfigs: nextEndpointConfigs })
+            await patchProvider({ endpointConfigs: nextEndpointConfigs })
+            commitEndpointConfigsToProviderRef(provider.id, providerRef, liveProvider, nextEndpointConfigs)
           })
           lastPersistedApiHostRef.current = trimmedApiHost
         }
@@ -238,26 +281,30 @@ export function useProviderEndpointActions({
       try {
         await awaitEndpointConfigWrites(provider.id)
         if (trimmedHost) {
-          await withEndpointConfigWriteLock(provider.id, () => {
+          await withEndpointConfigWriteLock(provider.id, async () => {
             const liveProvider = providerRef.current ?? provider
+            const baseEndpointConfigs = resolveEndpointConfigsForWrite(provider.id, providerRef, liveProvider)
             const nextEndpointConfigs = {
-              ...liveProvider.endpointConfigs,
+              ...baseEndpointConfigs,
               [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
-                ...liveProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+                ...baseEndpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
                 baseUrl: trimmedHost
               }
             }
-            return patchProvider({ endpointConfigs: nextEndpointConfigs })
+            await patchProvider({ endpointConfigs: nextEndpointConfigs })
+            commitEndpointConfigsToProviderRef(provider.id, providerRef, liveProvider, nextEndpointConfigs)
           })
           setAnthropicApiHost(trimmedHost)
           return true
         }
 
-        await withEndpointConfigWriteLock(provider.id, () => {
+        await withEndpointConfigWriteLock(provider.id, async () => {
           const liveProvider = providerRef.current ?? provider
-          const nextConfigs = { ...liveProvider.endpointConfigs }
+          const baseEndpointConfigs = resolveEndpointConfigsForWrite(provider.id, providerRef, liveProvider)
+          const nextConfigs = { ...baseEndpointConfigs }
           delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-          return patchProvider({ endpointConfigs: nextConfigs })
+          await patchProvider({ endpointConfigs: nextConfigs })
+          commitEndpointConfigsToProviderRef(provider.id, providerRef, liveProvider, nextConfigs)
         })
         setAnthropicApiHost('')
         return true
@@ -300,16 +347,18 @@ export function useProviderEndpointActions({
     setApiHost(nextBaseUrl)
     try {
       await awaitEndpointConfigWrites(currentProvider.id)
-      await withEndpointConfigWriteLock(currentProvider.id, () => {
+      await withEndpointConfigWriteLock(currentProvider.id, async () => {
         const liveProvider = providerRef.current ?? currentProvider
+        const baseEndpointConfigs = resolveEndpointConfigsForWrite(currentProvider.id, providerRef, liveProvider)
         const nextEndpointConfigs = {
-          ...liveProvider.endpointConfigs,
+          ...baseEndpointConfigs,
           [primaryEndpoint]: {
-            ...liveProvider.endpointConfigs?.[primaryEndpoint],
+            ...baseEndpointConfigs?.[primaryEndpoint],
             baseUrl: nextBaseUrl
           }
         }
-        return patchProvider({ endpointConfigs: nextEndpointConfigs })
+        await patchProvider({ endpointConfigs: nextEndpointConfigs })
+        commitEndpointConfigsToProviderRef(currentProvider.id, providerRef, liveProvider, nextEndpointConfigs)
       })
       lastPersistedApiHostRef.current = nextBaseUrl
       return true

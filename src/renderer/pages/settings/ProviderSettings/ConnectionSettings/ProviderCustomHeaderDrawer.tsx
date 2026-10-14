@@ -26,6 +26,7 @@ import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import {
   awaitEndpointConfigWrites,
+  commitCommittedEndpointConfigs,
   withEndpointConfigWriteLock
 } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderEndpointActions'
 import { toast } from '@renderer/services/toast'
@@ -357,6 +358,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
+    const reasoningFormatTouchedSnapshot = new Set(reasoningFormatTouchedRef.current)
+    const openReasoningFormatSnapshot = { ...openReasoningFormatRef.current }
+
     // Other whole-endpoint-snapshot writers (API host, reasoning format) may be
     // mid-flight; let them land, pull their result, and join the same write lock
     // so this snapshot can't erase a concurrent field.
@@ -416,8 +420,8 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
         const endpointDraftsForSave = sanitizeEndpointDraftsForSave(
           endpointDrafts,
-          reasoningFormatTouchedRef.current,
-          openReasoningFormatRef.current,
+          reasoningFormatTouchedSnapshot,
+          openReasoningFormatSnapshot,
           current.endpointConfigs
         )
 
@@ -436,6 +440,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
             extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
           }
         })
+        commitCommittedEndpointConfigs(providerId, nextEndpointConfigs)
       })
     } catch (error) {
       // Surface the failure and keep the drawer open so the user can retry
