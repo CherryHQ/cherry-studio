@@ -473,6 +473,32 @@ describe('MainWindowService', () => {
       )
     })
 
+    it('shows the unusable mapping detail for an empty configured directory', () => {
+      userDataMappingFallback.current = {
+        exe: '/mock/exe',
+        effectivePath: '/mock/userData',
+        mappedPath: '',
+        reason: 'mapped-directory-unusable'
+      }
+      ;(svc as any).setupWindowEvents(win)
+
+      win.emit('show')
+
+      expect(dialog.showMessageBox).toHaveBeenCalledWith(
+        win,
+        expect.objectContaining({
+          message: expect.stringContaining('/mock/userData'),
+          detail: expect.stringContaining('could not be used')
+        })
+      )
+      expect(dialog.showMessageBox).not.toHaveBeenCalledWith(
+        win,
+        expect.objectContaining({
+          detail: expect.stringContaining('maps data directories for other Cherry Studio installations')
+        })
+      )
+    })
+
     it('does not open a dialog without a fallback', () => {
       ;(svc as any).setupWindowEvents(win)
 

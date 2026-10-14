@@ -321,6 +321,25 @@ describe('userData mapping fallback reporting', () => {
     expect(setPathMock).not.toHaveBeenCalled()
   })
 
+  it('reports an empty mapped directory as unusable while keeping Electron default', async () => {
+    stubConstants(nonPortable)
+    stubElectron()
+    stubBootConfig({ 'app.user_data_path': { '/mock/exe': '' } })
+    stubFs()
+    const { resolveUserDataLocation, getUserDataMappingFallback } = await loadModule()
+
+    resolveUserDataLocation()
+
+    expect(getUserDataMappingFallback()).toEqual({
+      exe: '/mock/exe',
+      effectivePath: '/mock/userData',
+      mappedPath: '',
+      reason: 'mapped-directory-unusable'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledOnce()
+    expect(setPathMock).not.toHaveBeenCalled()
+  })
+
   it('reports a mapping for another executable while keeping Electron default', async () => {
     stubConstants(nonPortable)
     stubElectron()

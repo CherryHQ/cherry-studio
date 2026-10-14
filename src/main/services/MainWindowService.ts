@@ -532,9 +532,10 @@ export class MainWindowService extends BaseService {
     await dialog.showMessageBox(mainWindow, {
       type: 'warning',
       message: t('dialog.user_data_mapping_fallback.message', { path: fallback.effectivePath }),
-      detail: fallback.mappedPath
-        ? t('dialog.user_data_mapping_fallback.detail_unusable_mapping', { mappedPath: fallback.mappedPath })
-        : t('dialog.user_data_mapping_fallback.detail_not_configured', { exe: fallback.exe }),
+      detail:
+        fallback.reason === 'mapped-directory-unusable'
+          ? t('dialog.user_data_mapping_fallback.detail_unusable_mapping', { mappedPath: fallback.mappedPath ?? '' })
+          : t('dialog.user_data_mapping_fallback.detail_not_configured', { exe: fallback.exe }),
       buttons: [t('dialog.user_data_mapping_fallback.ok')],
       noLink: true
     })
