@@ -487,7 +487,7 @@ export class KnowledgeItemService {
     }
 
     const dbService = application.get('DbService')
-    const deleted = dbService.withWriteTx((tx) => {
+    const rowsAffected = dbService.withWriteTx((tx) => {
       const targetRows = tx
         .select({ groupId: knowledgeItemTable.groupId })
         .from(knowledgeItemTable)
@@ -496,15 +496,15 @@ export class KnowledgeItemService {
       tx.delete(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
         .run()
-      return {
-        rowsAffected: targetRows.length,
-        groupIds: targetRows.map((row) => row.groupId)
-      }
+      this.reconcileContainersTx(
+        tx,
+        baseId,
+        targetRows.map((row) => row.groupId)
+      )
+      return targetRows.length
     })
 
-    this.reconcileContainers(baseId, deleted.groupIds)
-
-    logger.info('Deleted knowledge items by ids', { baseId, count: deleted.rowsAffected })
+    logger.info('Deleted knowledge items by ids', { baseId, count: rowsAffected })
   }
 
   getSubtreeItems(baseId: string, rootIds: string[], options: GetSubtreeItemsOptions = {}): KnowledgeItem[] {
@@ -800,7 +800,7 @@ export class KnowledgeItemService {
 
   delete(id: string): void {
     const dbService = application.get('DbService')
-    const deleted = dbService.withWriteTx((tx) => {
+    dbService.withWriteTx((tx) => {
       const [existingRow] = tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
 
       if (!existingRow) {
@@ -819,10 +819,9 @@ export class KnowledgeItemService {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
 
-      return { baseId: existingRow.baseId, groupId: existingRow.groupId }
+      this.reconcileContainersTx(tx, existingRow.baseId, [existingRow.groupId])
     })
 
-    this.reconcileContainers(deleted.baseId, [deleted.groupId])
     logger.info('Deleted knowledge item', { id })
   }
 }

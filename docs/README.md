@@ -146,6 +146,7 @@
 | [File Entry Cleanup](./references/file/file-entry-cleanup.md) | Scan-based cleanup of unreferenced file entries using the per-entry cleanup policy |
 | [FileManager Architecture](./references/file/file-manager-architecture.md) | Current FileManager storage, lifecycle, atomic-write, watcher, dangling-cache, and orphan-cleanup behavior |
 | [Fuzzy Search for Directory Listings](./references/file/fuzzy-search.md) | Current list and fuzzy-search behavior for the legacy directory-listing IPC methods |
+| [Upload Integrity](./references/file/upload-integrity.md) | Implementation plan for native mobile SHA-256, verified upload completion, and restart-safe integrity checks |
 
 ### i18n
 
@@ -183,12 +184,6 @@
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard and recovery semantics for Knowledge add, delete, reindex, and embedding-enable operations |
 | [Knowledge Workflow Architecture](./references/knowledge/workflow-architecture.md) | Knowledge workflow architecture: scheduling model, durable JobManager jobs, per-base mutation lock, crash semantics |
 | [Knowledge Storage and Retrieval Implementation](./references/knowledge/experiment/knowledge-technical-design.md) | Current Knowledge storage and retrieval implementation - raw files, per-base index schema, invariants, and migration validation |
-
-### LAN Transfer
-
-| Document | Description |
-|----------|-------------|
-| [Cherry Studio LAN Transfer Protocol Specification](./references/lan-transfer/README.md) | LAN transfer protocol spec for desktop-mobile sync covering mDNS discovery, TCP handshake, and file transfer |
 
 ### Lifecycle
 

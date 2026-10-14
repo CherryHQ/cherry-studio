@@ -22,6 +22,25 @@ function includesFile(filename: string, patterns = config.files): boolean {
 }
 
 describe('packaged dependency contents', () => {
+  it('keeps the SDK but excludes every native Claude payload, including nested packages', () => {
+    for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
+      expect(includesFile(`${modules}/@anthropic-ai/claude-agent-sdk/sdk.mjs`)).toBe(true)
+      for (const target of [
+        'darwin-arm64',
+        'darwin-x64',
+        'linux-arm64',
+        'linux-x64',
+        'linux-arm64-musl',
+        'linux-x64-musl',
+        'win32-arm64',
+        'win32-x64'
+      ]) {
+        for (const file of ['claude', 'claude.exe', 'package.json']) {
+          expect(includesFile(`${modules}/@anthropic-ai/claude-agent-sdk-${target}/${file}`)).toBe(false)
+        }
+      }
+    }
+  })
   it.each([
     ['darwin', 'arm64', 'darwin-arm64'],
     ['darwin', 'x64', 'darwin-x64'],
@@ -39,8 +58,7 @@ describe('packaged dependency contents', () => {
           for (const file of [
             `@koromix/koffi-${target}/koffi.node`,
             `node-pty/prebuilds/${target}/pty.node`,
-            `selection-hook/prebuilds/${target}/selection.node`,
-            `@anthropic-ai/claude-agent-sdk-${target}/claude`
+            `selection-hook/prebuilds/${target}/selection.node`
           ]) {
             expect(includesFile(`${modules}/${file}`, patterns), file).toBe(keep)
           }
@@ -101,8 +119,6 @@ describe('packaged dependency contents', () => {
     }
     for (const file of [
       'node_modules/koffi/src/koffi/index.cjs',
-      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/cherry_acl.ps1',
-      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/SKILL.md',
       'node_modules/pdfjs-dist/cmaps/Adobe-GB1-UCS2.bcmap',
       'resources/builtin-agents/icon.png'
     ]) {

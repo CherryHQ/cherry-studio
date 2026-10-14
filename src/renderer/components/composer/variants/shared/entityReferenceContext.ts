@@ -57,14 +57,8 @@ export function buildEntityReferencePromptText(options: {
   return `${openTag}\n${REFERENCE_CONTEXT_BOUNDARY}${note}${body}\n</referenced-conversation>`
 }
 
-/**
- * Fetches the referenced conversation's newest messages and formats them into token prompt text.
- * `maxTotalChars` lets the caller shrink the block to the composer's remaining input budget.
- */
-export async function fetchEntityReferencePromptText(
-  target: EntityReferenceTarget,
-  options: { maxTotalChars?: number } = {}
-): Promise<string> {
+/** Fetches the referenced conversation's newest messages and formats them into token prompt text. */
+export async function fetchEntityReferencePromptText(target: EntityReferenceTarget): Promise<string> {
   const messages =
     target.entityType === 'topic'
       ? await getTopicMessages(target.id, { maxMessages: REFERENCE_CONTEXT_MAX_MESSAGES })
@@ -73,16 +67,9 @@ export async function fetchEntityReferencePromptText(
           { maxMessages: REFERENCE_CONTEXT_MAX_MESSAGES }
         )
 
-  const maxTotalChars = Math.min(
-    options.maxTotalChars ?? REFERENCE_CONTEXT_MAX_TOTAL_CHARS,
-    REFERENCE_CONTEXT_MAX_TOTAL_CHARS
-  )
   return buildEntityReferencePromptText({
     name: target.name,
     entityType: target.entityType,
-    entries: messages.map((message) => ({ role: message.role, text: getNamingTextContent(message) })),
-    maxTotalChars,
-    // A single message is never allowed to blow past the caller's budget either.
-    maxMessageChars: Math.min(maxTotalChars, REFERENCE_CONTEXT_MAX_MESSAGE_CHARS)
+    entries: messages.map((message) => ({ role: message.role, text: getNamingTextContent(message) }))
   })
 }

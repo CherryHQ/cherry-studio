@@ -71,23 +71,6 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       ...config,
       modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
     }
-    // Built fresh every execution and held in memory only. Upstream persists this
-    // to job metadata so a resumed run can still attribute its cost; with
-    // `recovery: 'abandon'` no run outlives the process, so persisting it would be
-    // a write nobody reads — and would imply a durability this handler does not have.
-    const captureContext = createAiUsageCaptureContext({
-      providerId: provider.id,
-      providerName: provider.name,
-      modelId: sdkConfig.modelId,
-      modelName: model.name,
-      pricing: model.pricing,
-      trustProviderReportedCost: provider.reportsActualCost,
-      reportedCostCurrency: provider.reportedCostCurrency,
-      credentialReceipt,
-      source: input.source ?? null,
-      messageRef: null
-    })
-    const usageStartedAt = Date.now()
 
     const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
     if (!transport) {
@@ -99,7 +82,27 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     // No persisted-task resume branch: `recovery: 'abandon'` means a job never
     // outlives the process that enqueued it, so every execution starts at submit.
     let urls: string[]
-    const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
+    const submitInput = await buildSubmitInput(input, sdkConfig.modelId, ctx.signal)
+    // Built fresh every execution and held in memory only. Upstream persists this
+    // to job metadata so a resumed run can still attribute its cost; with
+    // `recovery: 'abandon'` no run outlives the process, so persisting it would be
+    // a write nobody reads — and would imply a durability this handler does not have.
+    const captureContext = createAiUsageCaptureContext({
+      providerId: provider.id,
+      providerName: provider.name,
+      modelId: sdkConfig.modelId,
+      modelName: model.name,
+      pricing: modelService.getByKey(providerId, modelId).pricing,
+      billing: providerService.getByProviderId(providerId).settings.billing,
+      billingModelId: modelId,
+      trustProviderReportedCost: provider.reportsActualCost,
+      reportedCostCurrency: provider.reportedCostCurrency,
+      credentialReceipt,
+      source: input.source ?? null,
+      messageRef: null
+    })
+    const usageStartedAt = Date.now()
+    const submit = await transport.submit(submitInput)
     if (submit.imageUrls) {
       urls = submit.imageUrls
     } else if (submit.taskId) {

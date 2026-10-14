@@ -12,8 +12,7 @@ const SECTION_TITLES: Record<string, string> = {
   ai: 'AI',
   'api-gateway': 'API Gateway',
   i18n: 'i18n',
-  ipc: 'IPC',
-  'lan-transfer': 'LAN Transfer'
+  ipc: 'IPC'
 }
 
 const titleForDomain = (domain: string): string =>

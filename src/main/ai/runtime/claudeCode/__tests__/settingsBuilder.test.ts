@@ -1,5 +1,4 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
-import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -66,28 +65,14 @@ const mocks = vi.hoisted(() => ({
   ensureAgentStorageDirectory: vi.fn(),
   buildPrompt: vi.fn(),
   getAppLanguage: vi.fn(),
-  resolveRequire: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   rtkRewrite: vi.fn(),
-  createAgentsMdLoader: vi.fn(),
-  loadAgentsMdInitialContext: vi.fn(),
-  agentsMdHook: vi.fn(async () => ({})),
   platform: { isLinux: false, isMac: false },
   isWin: false
 }))
-
-vi.mock('node:module', async (importOriginal) => {
-  const actual = await importOriginal<typeof NodeModule>()
-  return {
-    ...actual,
-    createRequire: vi.fn(() => ({
-      resolve: mocks.resolveRequire
-    }))
-  }
-})
 
 vi.mock('electron', () => ({
   app: { getVersion: vi.fn(() => '1.0.0-test') }
@@ -175,6 +160,7 @@ vi.mock('@application', () => ({
     // Session-keyed live state always resolves to the one real service instance (created below),
     // so the many per-test `applicationGet` overrides don't each have to register it.
     get: (name: string) => {
+      if (name === 'ClaudeCodeBinaryService') return { requireExecutable: () => '/sdk/claude' }
       if (name === 'ClaudeCodeSessionStateService') return sessionStateService
       if (name === 'AgentSessionRuntimeService') {
         try {
@@ -205,10 +191,6 @@ vi.mock('@main/services/proxy/proxyEnv', () => ({
   CHERRY_NODE_PROXY_BYPASS_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
   CHERRY_NODE_PROXY_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_RULES',
   getProxyEnvironment: mocks.getProxyEnvironment
-}))
-
-vi.mock('@main/utils/asar', () => ({
-  toAsarUnpackedPath: (input: string) => input
 }))
 
 vi.mock('@main/utils/file', async (importOriginal) => ({
@@ -254,12 +236,6 @@ vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
   toolApprovalRegistry: {
     abort: vi.fn(),
     register: mocks.approvalRegister
-  }
-}))
-
-vi.mock('../AgentsMdLoader', () => ({
-  AgentsMdLoader: {
-    create: mocks.createAgentsMdLoader
   }
 }))
 
@@ -313,10 +289,6 @@ describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
-    mocks.resolveRequire.mockImplementation((specifier: string) => {
-      if (specifier === '@anthropic-ai/claude-agent-sdk') return '/sdk/index.js'
-      return `/native/${specifier}/claude`
-    })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -342,12 +314,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listMcpTools.mockReturnValue([])
     mocks.onToolsCacheUpdated.mockReturnValue({ dispose: mocks.mcpSubscriptionDispose })
     mocks.findByIdOrName.mockImplementation((idOrName: string) => ({ id: idOrName, name: idOrName }))
-    mocks.loadAgentsMdInitialContext.mockResolvedValue(undefined)
-    mocks.agentsMdHook.mockResolvedValue({})
-    mocks.createAgentsMdLoader.mockResolvedValue({
-      loadInitialContext: mocks.loadAgentsMdInitialContext,
-      createPreToolUseHook: () => mocks.agentsMdHook
-    })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -605,8 +571,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
-  it('appends root AGENTS.md context and wires lazy nested-instruction loading', async () => {
-    mocks.loadAgentsMdInitialContext.mockResolvedValue('ROOT AGENTS INSTRUCTIONS')
+  it.each([undefined, 'support'])('enables native AGENTS.md alongside CLAUDE.md (role: %s)', async (builtinRole) => {
+    mocks.getAgent.mockReturnValue({
+      ...mocks.getAgent(),
+      configuration: { builtin_role: builtinRole }
+    })
 
     const settings = await buildClaudeCodeSessionSettings(
       {
@@ -617,9 +586,12 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
 
-    expect(mocks.createAgentsMdLoader).toHaveBeenCalledWith('/workspace/project')
-    expect(systemPromptText(settings.systemPrompt)).toContain('ROOT AGENTS INSTRUCTIONS')
-    expect(settings.hooks?.PreToolUse?.[0]?.hooks).toContain(mocks.agentsMdHook)
+    expect(settings.settings).toMatchObject({
+      pluginConfigs: {
+        'agents-md@builtin': { options: { instructionFiles: 'claude-md-and-agents-md' } }
+      }
+    })
+    expect(settings.settingSources).toEqual(builtinRole === 'support' ? [] : ['user', 'project', 'local'])
   })
 
   // The 400 this whole path exists to prevent: a turn is billed `input + max_tokens` against the
@@ -2849,10 +2821,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // toolGuardHook (the declarative guard table) + skillDependencyAdvisoryHook + agentsMdHook +
-    // rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(5)
-
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>

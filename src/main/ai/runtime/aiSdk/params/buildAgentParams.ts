@@ -56,7 +56,7 @@ import {
   filterStandardParams,
   getTemperature,
   getTopP,
-  stripRejectedSamplingParams
+  stripUnsupportedModelParams
 } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
@@ -675,7 +675,7 @@ function buildAgentOptions(
     delete standardParams.maxOutputTokens
   }
 
-  const sanitized = stripRejectedSamplingParams(
+  const sanitized = stripUnsupportedModelParams(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
     model
   )

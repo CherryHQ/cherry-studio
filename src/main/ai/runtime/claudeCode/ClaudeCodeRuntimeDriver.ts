@@ -1154,7 +1154,8 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  * current local paths so the Agent decides how to inspect them with its tools. Images
  * keep the capability-aware path: supported formats become native Anthropic image
  * blocks, while first-party images use shared OCR/native-fallback routing when vision
- * is unavailable. Assistant attachment handles remain an additional compatibility
+ * is unavailable, and unlisted-extension images survive routing as file parts for the
+ * path fallback. Assistant attachment handles remain an additional compatibility
  * interface; external files and images that cannot be materialized fall back to paths.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
@@ -1195,7 +1196,10 @@ async function materializeUserContent(
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
-      isToolCapable: supportsAttachmentReads
+      isToolCapable: supportsAttachmentReads,
+      // An unlisted-extension image (AVIF/HEIC — accepted wildcard on the agent surface) must
+      // stay a file part so the local-path fallback below still holds its file reference.
+      keepUnroutableFileParts: true
     })
     preparedParts = prepared.parts
   }
@@ -1207,6 +1211,15 @@ async function materializeUserContent(
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []
+  // A part that cannot become an image block still reaches the agent through its own path;
+  // only one with nowhere to point is unavailable.
+  const routeWithoutImage = (originalPart: FileUIPart): void => {
+    const target =
+      readCherryMeta(originalPart)?.fileEntryId || originalPart.url?.startsWith('file://')
+        ? fallbackParts
+        : unavailableParts
+    target.push(originalPart)
+  }
 
   for (const part of [
     ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
@@ -1216,8 +1229,7 @@ async function materializeUserContent(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
     if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
-      const target = fileEntryId || originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
-      target.push(originalPart)
+      routeWithoutImage(originalPart)
       continue
     }
 
@@ -1226,14 +1238,15 @@ async function materializeUserContent(
     if (!parsed) {
       const materialized = await materializeNativeFilePart(part)
       if (!materialized) {
-        unavailableParts.push(originalPart)
+        // Conversion found nothing sendable — the file itself may still be readable at its path.
+        routeWithoutImage(originalPart)
         continue
       }
       parsed = materialized.url ? parseDataUrl(materialized.url) : null
     }
 
     if (!parsed?.isBase64 || parsed.data.length === 0) {
-      unavailableParts.push(originalPart)
+      routeWithoutImage(originalPart)
       continue
     }
 
@@ -1246,11 +1259,8 @@ async function materializeUserContent(
       continue
     }
 
-    if (originalPart.url?.startsWith('file://')) {
-      fallbackParts.push(originalPart)
-    } else {
-      unavailableParts.push(originalPart)
-    }
+    // Converted, but into a type the image blocks cannot carry (BMP, TIFF …).
+    routeWithoutImage(originalPart)
   }
 
   const resolvedPaths = await extractAttachmentPaths(fallbackParts)
@@ -1297,7 +1307,9 @@ async function extractAttachmentPaths(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     try {
       let resolved: AbsoluteFilePath
-      if (fileEntryId) {
+      if (readCherryMeta(part)?.remoteAttachment && part.url?.startsWith('file://')) {
+        resolved = AbsoluteFilePathSchema.parse(fileURLToPath(part.url))
+      } else if (fileEntryId) {
         resolved = application.get('FileManager').getPhysicalPath(fileEntryId)
       } else if (part.url?.startsWith('file://')) {
         resolved = AbsoluteFilePathSchema.parse(fileURLToPath(part.url))
@@ -1330,9 +1342,16 @@ function isImageFilePart(part: FileUIPart): boolean {
   return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
 }
 
+/**
+ * Whether the part can become one of Claude's image blocks at all. A declared image type the
+ * blocks cannot carry (TIFF, AVIF, HEIC …) answers here, before its bytes are converted: the
+ * conversion can only fail, and the local-path fallback delivers the file either way.
+ */
 function canBeClaudeImage(part: FileUIPart): boolean {
-  const mediaType = part.mediaType?.toLowerCase()
-  if (!mediaType || mediaType === 'application/octet-stream' || mediaType.startsWith('image/')) return true
+  const inlineType = part.url?.startsWith('data:') ? parseDataUrl(part.url)?.mediaType : undefined
+  const mediaType = (inlineType ?? part.mediaType)?.toLowerCase()
+  if (!mediaType || mediaType === 'application/octet-stream') return true
+  if (mediaType.startsWith('image/')) return toClaudeImageMediaType(mediaType) !== null
 
   const filename = part.filename?.toLowerCase()
   const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
@@ -1363,6 +1382,7 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly capabilities = ['agent-session'] as const
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
+    await application.get('ClaudeCodeBinaryService').ensureExecutable()
     const cwd = session.workspace?.path
     if (!cwd) {
       throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
