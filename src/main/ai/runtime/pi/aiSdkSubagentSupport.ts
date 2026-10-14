@@ -1,6 +1,6 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3Message, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type, type ToolResultMessage } from '@earendil-works/pi-ai'
-import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
+import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 
@@ -14,6 +14,7 @@ import {
   type SubagentView,
   type TranscriptEntry
 } from '../src'
+import { finish, textParts } from './support'
 
 export interface RoutedCall {
   /** Role of the last prompt message: `user` on a new request, `tool` after tool results. */
@@ -32,6 +33,12 @@ export interface RoutedCall {
 
 /** The first line of every notification the parent's model gets. */
 export const NOTE = 'Background subagent update (automatic message, not from the user):'
+
+/** A final reply; `input` is its uncached input tokens (2 more are cached), `output` its output tokens. */
+export const reply = (text: string, input = 10, output = 5): LanguageModelV3StreamPart[] => [
+  ...textParts('t', text),
+  finish('stop', input, output)
+]
 
 function humanTextOf(prompt: LanguageModelV3Message[]): string {
   const trailing: string[] = []
@@ -186,6 +193,25 @@ const untilAborted = (signal: AbortSignal | undefined) =>
     else signal?.addEventListener('abort', () => resolve(), { once: true })
   })
 
+/**
+ * `stop_turn`: does to `parent.session`'s turn what the user's stop button does, then returns once
+ * its own call is aborted. `before` runs first.
+ */
+export function stopTurnTool(parent: { session?: AgentSession }, before?: () => Promise<unknown>) {
+  return defineTool({
+    name: 'stop_turn',
+    label: 'Stop turn',
+    description: 'The user presses stop',
+    parameters: Type.Object({}),
+    async execute(_id, _params, signal) {
+      await before?.()
+      void parent.session!.abort()
+      await untilAborted(signal)
+      return { content: [{ type: 'text', text: 'stopped' }], details: undefined }
+    }
+  })
+}
+
 /** `work`: a subagent tool that runs until its run is stopped; `reached` resolves once it runs. */
 export function untilStopped() {
   const started = gate()
@@ -201,6 +227,16 @@ export function untilStopped() {
     }
   })
   return { tool, reached: started.reached }
+}
+
+/** `/round`: a command that starts a turn of its own with a `ROUND` message, as `/goal resume` does. */
+export const roundCommand: ExtensionFactory = (pi) => {
+  pi.registerCommand('round', {
+    description: 'Starts a turn of its own',
+    handler: async () => {
+      pi.sendMessage({ customType: 'test.round', content: 'ROUND', display: false }, { triggerTurn: true })
+    }
+  })
 }
 
 export const noteTool = defineTool({
@@ -222,3 +258,14 @@ export const subagentStates = (entries: readonly TranscriptEntry[]): SubagentSta
 /** The lists the parent's `subagents` events carried, in order. */
 export const subagentViews = (events: readonly AgentRuntimeEvent[]): SubagentView[][] =>
   events.flatMap((event) => (event.type === 'subagents' ? [event.subagents] : []))
+
+/** Resolves once every background subagent the parent's events list has finished and the parent is idle. */
+export async function subagentsDone(session: AgentSession, events: readonly AgentRuntimeEvent[]): Promise<void> {
+  await waitFor(
+    () =>
+      subagentViews(events)
+        .at(-1)
+        ?.every((view) => view.status === 'finished') ?? false
+  )
+  await session.waitForIdle()
+}

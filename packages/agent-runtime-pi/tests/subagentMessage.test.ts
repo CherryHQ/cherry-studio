@@ -1,24 +1,24 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import {
   gate,
+  NOTE,
   recordingSubagentPort,
+  reply,
   routedModel,
   subagentCall,
+  subagentsDone,
   subagentStates,
   toolCallPart,
   toolResultOf,
   waitFor
 } from './subagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort, textParts } from './support'
+import { createTestSession, finish, hostStore, streamTextPort } from './support'
 import { textOf } from './toolResults'
 
-const NOTE = 'Background subagent update (automatic message, not from the user):'
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
-const reply = (text: string): LanguageModelV3StreamPart[] => [...textParts('t', text), finish('stop')]
 
 describe('message_subagent to a running subagent', () => {
   // Breaks when the message is lost, interrupts the subagent's running tool, or reaches it before
@@ -131,7 +131,12 @@ describe('message_subagent to a running subagent', () => {
         ]
       return reply('OK.')
     })
-    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const parent = hostStore()
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: host.port,
+      onEvent: parent.onEvent
+    })
     await session.prompt('Check A in the background')
     await session.prompt('Message someone else')
 
@@ -141,6 +146,7 @@ describe('message_subagent to a running subagent', () => {
       `No subagent with id not-a-subagent in this conversation. Subagents you can address:\n${host.subagents[0].sessionId} — Check A — running`
     )
     held.open()
+    await subagentsDone(session, parent.events)
   })
 
   // Breaks when a finished subagent is said to be messaged although nothing can continue it.
