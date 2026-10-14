@@ -68,6 +68,7 @@ import type {
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
+import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import {
   materializePiProviderStream,
@@ -386,6 +387,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
           createPiApprovalExtension(approvalContext),
+          createPiIdentityExtension(agentDataPath),
           pi.createCodemodeExtension({ models: false }),
           pi.createToolSearchExtension(),
           createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log')),

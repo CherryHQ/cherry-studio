@@ -26,6 +26,7 @@ import type { AgentRuntimeUserInput } from '../types'
 import type { AgentsMdLoader } from './AgentsMdLoader'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
+import { createClaudeCodeIdentityHooks } from './identityHooks'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 import type { ClaudeCodeSettings } from './types'
 
@@ -304,6 +305,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   }
 
   return {
+    ...createClaudeCodeIdentityHooks(agentDataPath),
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],

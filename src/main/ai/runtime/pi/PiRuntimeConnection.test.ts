@@ -70,6 +70,7 @@ const mocks = vi.hoisted(() => ({
   // agent MCP collaborators
   findChannelBySessionId: vi.fn(),
   buildPromptParts: vi.fn(),
+  buildMemoriesSection: vi.fn(),
   buildCitationsGuidance: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn(),
@@ -172,6 +173,7 @@ vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: m
 vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: class {
     buildPromptParts = mocks.buildPromptParts
+    buildMemoriesSection = mocks.buildMemoriesSection
   }
 }))
 // The MCP adapter needs the full MCP service graph; mock it to a wiring seam so this suite asserts
@@ -2105,6 +2107,30 @@ describe('PiRuntimeConnection', () => {
       workspaceId: 'ws-1',
       workspace: { path: WORKSPACE, type: 'user' as const }
     }
+
+    it('refreshes identity through the extension mounted on a reused Pi connection', async () => {
+      mocks.createPiMcpExtension.mockReturnValue(() => {})
+      await new PiRuntimeConnection(input).start()
+      let beforeStart!: (event: { systemPromptOptions: { sections: Record<string, string> } }) => Promise<void>
+      const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void | Promise<void>> })
+        .extensionFactories
+      for (const factory of factories) {
+        await factory({
+          registerProvider: vi.fn(),
+          on: (event: string, handler: typeof beforeStart) => {
+            if (event === 'before_agent_start') beforeStart = handler
+          }
+        })
+      }
+      const event = { systemPromptOptions: { sections: {} as Record<string, string> } }
+      mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona A</agent_identity>')
+      await beforeStart(event)
+      expect(event.systemPromptOptions.sections.agent_identity).toContain('Persona A')
+      mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona B</agent_identity>')
+      await beforeStart(event)
+      expect(event.systemPromptOptions.sections.agent_identity).toContain('Persona B')
+      expect(event.systemPromptOptions.sections.agent_identity).not.toContain('Persona A')
+    })
 
     it('uses the PromptBuilder persona with native tools', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: {} })

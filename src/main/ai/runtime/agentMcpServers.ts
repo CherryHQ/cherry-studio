@@ -132,9 +132,11 @@ export function buildAgentMcpServers(
       })
     )
   }
-  servers['agent-memory'] = {
-    name: CHERRY_MCP_SERVER.AGENT_MEMORY,
-    connect: serveAgentMcpServer(() => createAgentMemoryServer({ agentId: agent.id, agentDataPath }))
+  if (mountedServers.has(CHERRY_MCP_SERVER.AGENT_MEMORY)) {
+    servers['agent-memory'] = {
+      name: CHERRY_MCP_SERVER.AGENT_MEMORY,
+      connect: serveAgentMcpServer(() => createAgentMemoryServer({ agentId: agent.id, agentDataPath }))
+    }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
     servers.skills = {

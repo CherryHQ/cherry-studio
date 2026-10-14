@@ -53,8 +53,8 @@ export class PiInvalidConnectionSnapshotError extends Error {}
 
 /**
  * Capture every reconcilable fact consumed while constructing a Pi connection.
- * Prompt files intentionally remain connection-lifetime snapshots: changing them
- * does not invalidate a warm connection or its provider prompt cache.
+ * Workspace prompt files remain connection-lifetime snapshots. Agent identity
+ * files refresh through the turn hook without invalidating the warm connection.
  * The effective agent language (per-agent `configuration.language` or global
  * `agent.language` preference) is a rebuild fact: changing it invalidates the
  * warm connection so the new language instruction is baked into the next

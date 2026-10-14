@@ -119,7 +119,13 @@ export function resolveMountedMcpServers(
   agent: Pick<AgentEntity, 'type' | 'configuration' | 'disabledTools'>,
   { channelLinked, browserEnabled = false }: { channelLinked: boolean; browserEnabled?: boolean }
 ): ReadonlySet<string> {
-  const mounted = new Set<string>([CHERRY_MCP_SERVER.CHERRY_TOOLS, CHERRY_MCP_SERVER.AGENT_MEMORY])
+  const mounted = new Set<string>([CHERRY_MCP_SERVER.CHERRY_TOOLS])
+  const memoryDisabled = agent.disabledTools?.some((name) =>
+    ['mcp__*', 'mcp__agent_memory', 'mcp__agent_memory__*', 'mcp__agent_memory__memory'].includes(
+      name.replaceAll('-', '_')
+    )
+  )
+  if (!memoryDisabled) mounted.add(CHERRY_MCP_SERVER.AGENT_MEMORY)
   if (resolveAgentCapabilities(agent).environment === 'open') {
     if (browserEnabled && !channelLinked && !agent.disabledTools?.includes(BROWSER_TOOL_GROUP))
       mounted.add(CHERRY_MCP_SERVER.BROWSER)
