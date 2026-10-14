@@ -521,6 +521,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
           const time = /pts_time:\s*([0-9]*\.?[0-9]+)/.exec(line)
           if (time?.[1]) {
             // Floor so a seek cannot start after the frame that produced this PTS.
+            // No -copyts: FFmpeg already removed the format start, so this matches input -ss.
             timestampMs = Math.floor(Number(time[1]) * 1000)
             return
           }
