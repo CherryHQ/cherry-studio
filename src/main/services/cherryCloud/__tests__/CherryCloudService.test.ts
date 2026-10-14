@@ -74,16 +74,15 @@ vi.mock('../CherryAccountCredentialStore', () => ({
   }
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'ApiGatewayService') return { start: mocks.gatewayStart }
-      if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
-      if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
-      throw new Error(`Unexpected service: ${name}`)
-    }
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const overrides = {
+    ApiGatewayService: { start: mocks.gatewayStart },
+    IpcApiService: { broadcast: mocks.broadcast },
+    MainWindowService: { showMainWindow: mocks.showMainWindow }
   }
-}))
+  return mockApplicationFactory(overrides)
+})
 
 vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => mocks.appEdition
@@ -1534,6 +1533,56 @@ describe('CherryCloudService', () => {
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
       expect(mocks.savedSession).toBeNull()
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it.each([0, 1, 2, 3])('reuses credentials rotated during 401 recovery (response delay %s)', async (delay) => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
+    try {
+      const service = await createSignedInService()
+      const unauthorized = deferred<Response>()
+      const tokens = deferred<ReturnType<typeof refreshedTokenSet>>()
+      const refreshed = jsonResponse(refreshedTokenSet())
+      vi.spyOn(refreshed, 'json').mockReturnValue(tokens.promise)
+      mockCloudRoute('/v1/messages', unauthorized.promise, jsonResponse({ result: 'recovered' }))
+      mockCloudRoute('/api/v1/product-sessions/refresh', refreshed)
+      mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
+      const first = service.authenticatedFetch('/v1/messages', { method: 'POST' })
+      await vi.waitFor(() => expect(requestCalls('/v1/messages')).toHaveLength(1))
+      clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
+      const second = service.authenticatedFetch('/v1/models')
+      await vi.waitFor(() => expect(refreshed.json).toHaveBeenCalled())
+      unauthorized.resolve(cloudErrorResponse(401, 'AUTH_REQUIRED'))
+      for (let i = 0; i < delay; i += 1) await Promise.resolve()
+      tokens.resolve(refreshedTokenSet())
+      expect(await (await first).json()).toEqual({ result: 'recovered' })
+      expect((await second).status).toBe(200)
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
+      expect(new Headers(requestCalls('/v1/messages')[1][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('observes recovery rejection when session expiry synchronously cancels model sync', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
+    try {
+      const service = await createSignedInService()
+      const unauthorized = deferred<Response>()
+      mockCloudRoute('/api/v1/account', unauthorized.promise)
+      mockCloudRoute('/v1/models?limit=1000', jsonResponse({ data: [] }))
+      clock.mockReturnValue(Date.parse('2030-01-02T03:02:00Z'))
+      const sync = service.syncEntitledModelsIfStale()
+      const cancelled = expect(sync).rejects.toMatchObject({ name: 'AbortError' })
+      await vi.waitFor(() => expect(requestCalls('/api/v1/account')).toHaveLength(1))
+      clock.mockReturnValue(Date.parse('2030-02-02T03:00:00Z'))
+      unauthorized.resolve(cloudErrorResponse(401, 'AUTH_REQUIRED'))
+      await cancelled
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(await service.getStatus()).toMatchObject({ phase: 'signed-out' })
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
     } finally {
       clock.mockRestore()
     }

@@ -126,7 +126,10 @@ function discardResponse(response: Response): void {
 
 function abortable<T>(promise: Promise<T>, signal?: AbortSignal | null): Promise<T> {
   if (!signal) return promise
-  if (signal.aborted) return Promise.reject(signal.reason)
+  if (signal.aborted) {
+    void promise.catch(() => undefined)
+    return Promise.reject(signal.reason)
+  }
   return new Promise<T>((resolve, reject) => {
     const onAbort = (): void => reject(signal.reason)
     signal.addEventListener('abort', onAbort, { once: true })
@@ -832,7 +835,8 @@ export class CherryCloudService extends BaseService {
       if (error instanceof CherryCloudRefreshError) return error.response.clone()
       throw error
     }
-    if (generation !== this.sessionGeneration || this.cloudState.session !== session) return response
+    if (generation !== this.sessionGeneration || !this.cloudState.session) return response
+    session = this.cloudState.session
 
     discardResponse(response)
     response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
@@ -882,9 +886,11 @@ export class CherryCloudService extends BaseService {
   }
 
   private async activeSession(forceRefresh = false, expectedSession?: ProductSession): Promise<ProductSession> {
+    const generation = this.sessionGeneration
     await this.pruneExpiredState()
     const session = this.cloudState.session
-    if (!session || (expectedSession && session !== expectedSession)) throw new CherryCloudSessionRequiredError()
+    if (!session || generation !== this.sessionGeneration) throw new CherryCloudSessionRequiredError()
+    if (expectedSession && session !== expectedSession) return session
     if (!forceRefresh && session.accessExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS > Date.now()) return session
     if (this.refreshPromise?.session === session) return this.refreshPromise.promise
 

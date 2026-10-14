@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Model } from '@shared/data/types/model'
@@ -9,6 +10,7 @@ import type { DoctorAgentState } from '@shared/types/doctorAgent'
 
 const mocks = vi.hoisted(() => ({
   start: vi.fn(),
+  syncCloudModels: vi.fn(),
   checkDoctorAgentModel: vi.fn(),
   openSettings: vi.fn(),
   defaultModelId: 'openai::gpt-5',
@@ -29,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   ] as unknown as Model[]
 }))
 
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.syncCloudModels }, useIpcOn: () => {} }))
 vi.mock('@data/hooks/useCache', () => ({
   useSharedCacheValue: (key: string) => (key.startsWith('doctor.state.') ? mocks.doctorState : mocks.agentState)
 }))
@@ -61,9 +64,11 @@ vi.mock('@renderer/components/DefaultModelSelector', () => ({
   DefaultModelSelector: ({
     model,
     filter,
+    isModelDisabled,
     onSelect
   }: {
     model?: Model
+    isModelDisabled: (model: Model) => boolean
     filter: (model: Model, provider?: { id: string; name: string; isEnabled: boolean }) => boolean
     onSelect: (model: Model | undefined) => void
   }) => {
@@ -81,7 +86,7 @@ vi.mock('@renderer/components/DefaultModelSelector', () => ({
         onChange={(event) => onSelect(options.find((candidate) => candidate.id === event.target.value))}>
         <option value="" />
         {options.map((candidate) => (
-          <option key={candidate.id} value={candidate.id}>
+          <option key={candidate.id} value={candidate.id} disabled={isModelDisabled(candidate)}>
             {candidate.name}
           </option>
         ))}
@@ -291,4 +296,47 @@ describe('DoctorAgentConsultation', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.restart' })).toBeInTheDocument()
   })
+})
+
+it('offers Agent-entitled cloud models, excludes chat-only models, and disables exhausted models', async () => {
+  const originalModels = mocks.models
+  const originalProviders = mocks.providers
+  const cloudModels: Model[] = ['agent-only', 'chat-only', 'exhausted'].map((name) => ({
+    id: `cherryai-subscription::${name}`,
+    providerId: 'cherryai-subscription',
+    name,
+    capabilities: [],
+    supportsStreaming: true,
+    isHidden: false,
+    isEnabled: true
+  }))
+  mocks.models = cloudModels
+  mocks.providers = [{ id: 'cherryai-subscription', name: 'Cloud', isEnabled: true }]
+  mocks.syncCloudModels.mockResolvedValue({
+    entitledModelIds: cloudModels.map((model) => model.id),
+    freeModelIds: [],
+    availableModelIdsByFeature: {
+      agent: [cloudModels[0].id, cloudModels[2].id],
+      chat: [cloudModels[1].id],
+      translate: []
+    },
+    quotaExhaustedModelIds: [cloudModels[2].id]
+  })
+  try {
+    const user = userEvent.setup()
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />
+      </SWRConfig>
+    )
+    expect(await screen.findByRole('option', { name: 'agent-only' })).toBeEnabled()
+    expect(screen.queryByRole('option', { name: 'chat-only' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'exhausted' })).toBeDisabled()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'model' }), cloudModels[0].id)
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' }))
+    await waitFor(() => expect(mocks.checkDoctorAgentModel).toHaveBeenCalledWith(cloudModels[0].id))
+  } finally {
+    mocks.models = originalModels
+    mocks.providers = originalProviders
+  }
 })

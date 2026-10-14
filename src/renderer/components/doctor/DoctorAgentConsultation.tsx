@@ -19,6 +19,7 @@ import { StaticMarkdown } from '@renderer/components/markdown'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useDoctorAgent } from '@renderer/hooks/doctor'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -153,9 +154,17 @@ function ModelPicker({
   const [selected, setSelected] = useState<Model | undefined>(undefined)
   const [checkState, setCheckState] = useState<ModelCheckState>({ status: 'idle' })
   const checkRequest = useRef(0)
+  const { isModelAvailableForFeature, isModelDisabledForFeature } = useCherryCloudModelAvailability()
   const filter = useCallback<ModelSelectorFilter>(
-    (candidate, provider) => provider?.isEnabled !== false && isGatewayRoutableModel(candidate),
-    []
+    (candidate, provider) =>
+      provider?.isEnabled !== false &&
+      isGatewayRoutableModel(candidate) &&
+      isModelAvailableForFeature(candidate, 'agent'),
+    [isModelAvailableForFeature]
+  )
+  const isModelDisabled = useCallback(
+    (model: Model) => isModelDisabledForFeature(model, 'agent'),
+    [isModelDisabledForFeature]
   )
   const model =
     selected ??
@@ -175,7 +184,7 @@ function ModelPicker({
   const dataLoading = providersLoading || modelsLoading
 
   const start = async () => {
-    if (disabled || dataLoading || !model || currentCheckState.status === 'checking') return
+    if (disabled || dataLoading || !model || isModelDisabled(model) || currentCheckState.status === 'checking') return
 
     const request = ++checkRequest.current
     const key = modelCheckKey
@@ -221,6 +230,7 @@ function ModelPicker({
           model={model}
           providers={providers}
           filter={filter}
+          isModelDisabled={isModelDisabled}
           onSelect={selectModel}
           placeholder={t('settings.doctor.agent.model_picker.empty')}
         />
@@ -248,7 +258,9 @@ function ModelPicker({
         </Button>
         <Button
           variant="emphasis"
-          disabled={disabled || dataLoading || !model || currentCheckState.status === 'checking'}
+          disabled={
+            disabled || dataLoading || !model || isModelDisabled(model) || currentCheckState.status === 'checking'
+          }
           loading={loading || currentCheckState.status === 'checking'}
           onClick={() => void start()}>
           {t('settings.doctor.agent.actions.start')}

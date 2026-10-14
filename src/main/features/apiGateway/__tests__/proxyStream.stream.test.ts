@@ -51,6 +51,7 @@ vi.mock('@application', () => ({
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
               isInternalAgentRequest: mockIsInternalAgentRequest,
+              isTranslationCredential: () => false,
               getAgentSessionId: vi.fn(() => undefined)
             }
           : undefined
