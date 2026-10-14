@@ -879,20 +879,18 @@ class ModelService {
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
+        const declaredReasoning = model.capabilities.includes(MODEL_CAPABILITY.REASONING)
         if (registryModel) {
           reasoning = registryModel.reasoning
-        } else if (model.reasoning?.controls?.length) {
+        } else if (model.reasoning?.controls?.length && declaredReasoning) {
+          // Reproject a persisted descriptor only while the user still declares
+          // the capability — removing reasoning in Edit Model must disarm the
+          // synthetic fallback stored at create time (#19761).
           reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
         } else {
           reasoning =
-            inferCustomModelReasoning(modelId, reasoningProfile.wire, {
-              declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
-            }) ??
-            manualDeclaredReasoning(
-              reasoningProfile.format,
-              reasoningProfile.wire,
-              model.capabilities.includes(MODEL_CAPABILITY.REASONING)
-            )
+            inferCustomModelReasoning(modelId, reasoningProfile.wire, { declaredReasoning }) ??
+            manualDeclaredReasoning(reasoningProfile.format, reasoningProfile.wire, declaredReasoning)
         }
         if (reasoning) updates.reasoning = reasoning
         else if (model.reasoning) updates.reasoning = undefined

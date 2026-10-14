@@ -914,8 +914,7 @@ describe('ModelService — manual reasoning capability projects effort controls'
           name: 'Hy4 Preview',
           capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
           supportsStreaming: true
-        },
-        registryData: null
+        }
       }
     ])
 
@@ -979,6 +978,33 @@ describe('ModelService — manual reasoning capability projects effort controls'
     expect(created.reasoning?.selectableEfforts ?? []).toEqual([])
   })
 
+  it('disarms the stored descriptor when the capability is later removed', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'acme-custom-v1',
+          name: 'Acme Custom',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    // The synthetic descriptor was persisted at create time; removing the
+    // capability in Edit Model must keep it from driving the composer.
+    await dbh.db
+      .update(userModelTable)
+      .set({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'acme-custom-v1')))
+
+    const [model] = modelService.list({ providerId: 'openai' })
+    expect(model.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
+    expect(model.reasoning?.selectableEfforts ?? []).toEqual([])
+  })
+
   it('leaves models without the reasoning capability untouched', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
 
@@ -990,8 +1016,7 @@ describe('ModelService — manual reasoning capability projects effort controls'
           name: 'GPT-4o',
           capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
           supportsStreaming: true
-        },
-        registryData: null
+        }
       }
     ])
 
