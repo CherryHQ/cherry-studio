@@ -1,13 +1,17 @@
 import { memo, useEffect, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
-import type { MessageListActions, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListActions,
+  MessageListSelectAllPagination,
+  MessageStreamingLayers
+} from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agent/useSession'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType } from '@renderer/types/topic'
@@ -16,6 +20,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
+import { AgentPendingAttachments } from '../messages/AgentPendingAttachments'
 import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
 
 const logger = loggerService.withContext('AgentSessionMessages')
@@ -33,11 +38,18 @@ type Props = {
   hasOlder?: boolean
   /** Trigger fetching the next older page. */
   loadOlder?: () => void
+  /** Load-all handle for the multi-select "select all" action. */
+  selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
+  isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openBrowserUrl?: MessageListActions['openBrowserUrl']
+  openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
 
@@ -52,14 +64,19 @@ const AgentSessionMessages = ({
   isLoading,
   hasOlder = false,
   loadOlder,
+  selectAllPagination,
   onOpenCitationsPanel,
+  isAgentToolFlowActive,
   openAgentToolFlow,
   openArtifactFile,
+  openBrowserUrl,
+  openExternalUrl,
   openDiagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval
 }: Props) => {
-  const { t } = useTranslation()
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
@@ -112,8 +129,13 @@ const AgentSessionMessages = ({
     }),
     [sessionTopicId, sessionAssistantId, sessionName, sessionLastActivityAt, sessionCreatedAt, sessionUpdatedAt]
   )
-  const diagnosticReport = useMemo(() => ({ location: t('error.diagnostic_report.locations.agent') }), [t])
+  const diagnosticReport = useMemo(() => ({ location: 'agent' }), [])
 
+  const messageIds = useStableStringArray(messages.map((message) => message.id))
+  const afterMessages = useMemo(
+    () => <AgentPendingAttachments key={sessionId} sessionId={sessionId} messageIds={messageIds} />,
+    [messageIds, sessionId]
+  )
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
     messages,
@@ -124,16 +146,23 @@ const AgentSessionMessages = ({
     isLoading,
     hasOlder,
     loadOlder,
+    selectAllPagination,
     openCitationsPanel: onOpenCitationsPanel,
+    isAgentToolFlowActive,
     openAgentToolFlow,
     openArtifactFile,
+    openBrowserUrl,
+    openExternalUrl,
     openDiagnosticReport,
     diagnosticReport,
     deleteMessage,
+    startEditing,
+    editBusy,
     respondToolApproval,
     messageNavigation,
     workspacePath: session?.workspace?.path,
-    messageTail
+    messageTail,
+    afterMessages
   })
 
   // Main owns the warm lease per (session × window) and debounces the real teardown, so the

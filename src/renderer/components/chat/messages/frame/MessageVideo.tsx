@@ -4,8 +4,10 @@ import { useTranslation } from 'react-i18next'
 import ReactPlayer from 'react-player'
 
 import { loggerService } from '@renderer/services/LoggerService'
+import { isHttpUrl } from '@shared/utils/url'
 
 const logger = loggerService.withContext('MessageVideo')
+
 interface Props {
   url?: string
   filePath?: string
@@ -58,6 +60,19 @@ const MessageVideo: FC<Props> = ({ url, filePath, videoPath, startTime }) => {
   const renderVideo = () => {
     if (filePath) {
       return renderLocalVideo()
+    }
+
+    if (url && isHttpUrl(url)) {
+      return (
+        <ReactPlayer
+          style={{
+            height: '100%',
+            width: '100%'
+          }}
+          src={url}
+          controls
+        />
+      )
     }
 
     logger.warn(`Unsupported video or missing necessary data.`)

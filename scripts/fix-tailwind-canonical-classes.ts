@@ -35,7 +35,7 @@ type RunCliOptions = {
 }
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'])
-const IGNORED_DIRS = new Set(['.git', 'node_modules', 'out', 'dist', 'build', 'v2-refactor-temp', 'resources'])
+const IGNORED_DIRS = new Set(['.git', 'node_modules', 'out', 'dist', 'build', 'resources'])
 const CLASS_ATTRIBUTES = new Set(['class', 'className'])
 const CANONICALIZE_OPTIONS = { rem: 16, collapse: false, logicalToPhysical: false }
 

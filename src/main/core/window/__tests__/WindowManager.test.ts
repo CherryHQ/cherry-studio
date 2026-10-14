@@ -479,7 +479,7 @@ describe('WindowManager', () => {
       expect(shell.openExternal).not.toHaveBeenCalled()
     })
 
-    it('still blocks cross-origin http(s) and routes it to the system browser', () => {
+    it('blocks cross-origin http(s) without owning external navigation policy', () => {
       const id = wm.open('default' as never)
       const win = wm.getWindow(id) as unknown as MockBrowserWindow
       win.webContents.getURL.mockReturnValue('https://app.local/index.html')
@@ -489,7 +489,7 @@ describe('WindowManager', () => {
       handler({ preventDefault }, 'https://evil.example.com')
 
       expect(preventDefault).toHaveBeenCalledTimes(1)
-      expect(shell.openExternal).toHaveBeenCalledWith('https://evil.example.com')
+      expect(shell.openExternal).not.toHaveBeenCalled()
     })
   })
 
@@ -842,6 +842,22 @@ describe('WindowManager', () => {
         expect(win.hide).toHaveBeenCalled()
         expect(win.destroy).not.toHaveBeenCalled()
         expect(wm.getWindow(id)).toBeDefined()
+      })
+
+      it('destroys a fullscreen window instead of hiding it (hiding orphans its Space)', () => {
+        const id = wm.open('pooled' as never)
+        const win = createdWindows[0]
+        win.isFullScreen.mockReturnValue(true)
+
+        wm.close(id)
+
+        expect(win.hide).not.toHaveBeenCalled()
+        expect(win.destroy).toHaveBeenCalledTimes(1)
+
+        // Not recycled: a later open() must create a new window rather than hand back this one.
+        simulateWindowClosed(wm, id)
+        wm.open('pooled' as never)
+        expect(createdWindows).toHaveLength(2)
       })
 
       it('clears initData when released to pool', () => {
@@ -1797,6 +1813,19 @@ describe('WindowManager', () => {
       expect(event.preventDefault).toHaveBeenCalled()
       expect(win.hide).toHaveBeenCalled()
       expect(win.destroy).not.toHaveBeenCalled()
+    })
+
+    it('lets a fullscreen pooled window close natively instead of hiding it', () => {
+      wm.open('pooled' as never)
+      const win = createdWindows[0]
+      win.isFullScreen.mockReturnValue(true)
+
+      const event = { preventDefault: vi.fn() }
+      win.emit('close', event)
+
+      // Cancelling would leave the window hidden while still fullscreen (macOS black Space).
+      expect(event.preventDefault).not.toHaveBeenCalled()
+      expect(win.hide).not.toHaveBeenCalled()
     })
 
     it('does not intercept close for default windows', () => {

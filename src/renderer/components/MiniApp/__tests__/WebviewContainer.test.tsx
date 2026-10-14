@@ -35,7 +35,7 @@ vi.mock('react-i18next', () => ({
 
 import { ipcApi } from '@renderer/ipc'
 import type { MiniAppKind } from '@shared/data/types/miniApp'
-import { MINI_APP_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
+import { WEBVIEW_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
 
 import WebviewContainer from '../WebviewContainer'
 
@@ -52,7 +52,6 @@ const renderWebview = (props: {
       kind={props.kind}
       onSetRefCallback={vi.fn()}
       onLoadedCallback={vi.fn()}
-      onNavigateCallback={vi.fn()}
       onFocusChange={props.onFocusChange}
     />
   )
@@ -93,7 +92,7 @@ const focusOn = (element: Element | null) => {
 const sendGuestKey = (webview: Element, payload: Record<string, unknown>) => {
   act(() => {
     webview.dispatchEvent(
-      Object.assign(new Event('ipc-message'), { channel: MINI_APP_KEYDOWN_CHANNEL, args: [payload] })
+      Object.assign(new Event('ipc-message'), { channel: WEBVIEW_KEYDOWN_CHANNEL, args: [payload] })
     )
   })
 }
@@ -126,7 +125,6 @@ describe('WebviewContainer', () => {
         kind="site"
         onSetRefCallback={vi.fn()}
         onLoadedCallback={onLoaded}
-        onNavigateCallback={vi.fn()}
       />
     )
     const webview = container.querySelector('webview')
@@ -152,7 +150,6 @@ describe('WebviewContainer', () => {
         kind="site"
         onSetRefCallback={vi.fn()}
         onLoadedCallback={onLoaded}
-        onNavigateCallback={vi.fn()}
       />
     )
     const webview = container.querySelector('webview')
@@ -176,7 +173,6 @@ describe('WebviewContainer', () => {
         kind="site"
         onSetRefCallback={vi.fn()}
         onLoadedCallback={onLoaded}
-        onNavigateCallback={vi.fn()}
       />
     )
     const webview = container.querySelector('webview')
@@ -200,7 +196,6 @@ describe('WebviewContainer', () => {
         kind="site"
         onSetRefCallback={vi.fn()}
         onLoadedCallback={onLoaded}
-        onNavigateCallback={vi.fn()}
       />
     )
     const webview = container.querySelector('webview')
@@ -362,6 +357,32 @@ describe('WebviewContainer partition readiness', () => {
     await act(async () => resolve())
   })
 
+  it('waits for the new app preparation when a mounted container changes identity', async () => {
+    const props = {
+      kind: 'app' as const,
+      onSetRefCallback: vi.fn(),
+      onLoadedCallback: vi.fn()
+    }
+    const view = render(
+      <WebviewContainer {...props} appid="com.example.a" url="cherry-miniapp://com.example.a/index.html" />
+    )
+    await webviewIn(view.container)
+    let resolve: () => void = () => {}
+    vi.mocked(ipcApi.request).mockImplementation((route) =>
+      route === 'mini_app.runtime.prepare'
+        ? new Promise<void>((done) => {
+            resolve = done
+          })
+        : Promise.resolve(undefined)
+    )
+    view.rerender(<WebviewContainer {...props} appid="com.example.b" url="cherry-miniapp://com.example.b/index.html" />)
+    expect(view.container.querySelector('webview')).toBeNull()
+    await act(async () => resolve())
+    const guest = await webviewIn(view.container)
+    expect(guest).toHaveAttribute('partition', 'persist:miniapp:com.example.b')
+    expect(guest).toHaveAttribute('src', 'cherry-miniapp://com.example.b/index.html')
+  })
+
   it('mounts it once prepare resolves', async () => {
     const container = renderWebview({
       appid: 'com.example.a',
@@ -379,9 +400,7 @@ describe('WebviewContainer partition readiness', () => {
     const wv = await webviewIn(
       renderWebview({ appid: 'com.example.a', url: 'cherry-miniapp://com.example.a/index.html', kind: 'app' })
     )
-    await waitFor(() =>
-      expect((wv as unknown as { src: string }).src).toBe('cherry-miniapp://com.example.a/index.html')
-    )
+    await waitFor(() => expect(wv.getAttribute('src')).toBe('cherry-miniapp://com.example.a/index.html'))
   })
 
   it('mounts a site mini app without asking the main process at all', () => {

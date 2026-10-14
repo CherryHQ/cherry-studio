@@ -131,6 +131,15 @@ describe('ConversationShell', () => {
     expect(rightSpacer).toHaveClass('w-2')
   })
 
+  it('inherits embedded height from its flex parent', () => {
+    const { container } = render(<ConversationShell center={<div />} />)
+    const shell = container.firstElementChild
+
+    // Parent-owned height prevents overflow-hidden ancestors from becoming hidden scroll containers.
+    expect(shell).toHaveClass('h-full', 'min-h-0')
+    expect(shell?.className).not.toContain('100vh')
+  })
+
   it('fits detached content below the standalone window title bar', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>

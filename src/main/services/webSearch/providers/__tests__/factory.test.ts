@@ -44,6 +44,7 @@ import { JinaProvider } from '../api/JinaProvider'
 import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
+import { SerplyProvider } from '../api/SerplyProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { createWebSearchProvider } from '../factory'
@@ -72,6 +73,7 @@ describe('createWebSearchProvider', () => {
   it('registers every supported provider id', () => {
     expect(Object.keys(WEB_SEARCH_PROVIDER_REGISTRY).sort()).toEqual([
       'bocha',
+      'crawl4ai',
       'duckduckgo',
       'exa',
       'exa-mcp',
@@ -81,6 +83,7 @@ describe('createWebSearchProvider', () => {
       'parallel',
       'querit',
       'searxng',
+      'serply',
       'tavily',
       'zhipu'
     ])
@@ -117,5 +120,6 @@ describe('createWebSearchProvider', () => {
     expect(createWebSearchProvider(createProvider({ id: 'duckduckgo' }), rotationState)).toBeInstanceOf(
       DuckduckgoProvider
     )
+    expect(createWebSearchProvider(createProvider({ id: 'serply' }), rotationState)).toBeInstanceOf(SerplyProvider)
   })
 })

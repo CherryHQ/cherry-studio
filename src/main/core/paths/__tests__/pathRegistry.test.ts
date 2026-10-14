@@ -1,15 +1,18 @@
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const packagedState = vi.hoisted(() => ({ value: false }))
 const getPathMock = vi.hoisted(() => vi.fn((key: string) => `/mock/${key}`))
 
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
     getPath: getPathMock,
-    isPackaged: false,
+    get isPackaged() {
+      return packagedState.value
+    },
     setAppLogsPath: vi.fn()
   }
 }))
@@ -29,7 +32,45 @@ beforeEach(() => {
   getPathMock.mockReset().mockImplementation((key: string) => `/mock/${key}`)
 })
 
+afterEach(() => {
+  packagedState.value = false
+  vi.unstubAllGlobals()
+})
+
 describe('buildPathRegistry', () => {
+  it('isolates voice scratch directories for profiles sharing the same basename', () => {
+    const voiceTemp = (profile: string) => {
+      getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
+      return buildPathRegistry()['feature.voice.temp']
+    }
+
+    const first = voiceTemp('/profiles/first/CherryStudio')
+    expect(voiceTemp('/profiles/second/CherryStudio')).not.toBe(first)
+    expect(voiceTemp('/profiles/first/./CherryStudio')).toBe(first)
+  })
+
+  it.each([
+    ['win32', 'x64', false, '/mock/app/packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe'],
+    ['win32', 'x64', true, '/mock/resources/system-speech/cherry-system-speech.exe'],
+    ['darwin', 'arm64', false, '/mock/app/packages/system-speech/dist/native/darwin-arm64/cherry-system-speech'],
+    ['darwin', 'x64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech'],
+    ['darwin', 'arm64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech']
+  ] as const)('resolves the %s/%s packaged=%s system speech helper', (platform, arch, packaged, expected) => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: platform },
+        arch: { value: arch },
+        resourcesPath: {
+          value: platform === 'darwin' ? '/mock/Cherry Studio.app/Contents/Resources' : '/mock/resources'
+        }
+      })
+    )
+    packagedState.value = packaged
+    expect(buildPathRegistry()['feature.voice.helper_file']).toBe(path.normalize(expected))
+    expect(shouldAutoEnsure('feature.voice.helper_file')).toBe(false)
+  })
+
   it('keeps the database and restore journal together under userData Data', () => {
     const registry = buildPathRegistry()
     const dataRoot = path.join('/mock/userData', 'Data')
@@ -71,6 +112,8 @@ describe('buildPathRegistry', () => {
 
     expect(registry['feature.agents.pi.root']).toBe(piRoot)
     expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
+    expect(registry['feature.agents.pi.vcc_file']).toBe(path.join('/mock/app', 'out', 'main', 'pi-vcc.mjs'))
+    expect(shouldAutoEnsure('feature.agents.pi.vcc_file')).toBe(false)
   })
 
   it('keeps the provider registry override under userData Runtime', () => {
@@ -147,9 +190,58 @@ describe('buildPathRegistry', () => {
     )
   })
 
+  it('keeps Dia and Comet profiles separate from Chrome without creating external directories', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.browser.dia']).toBe(path.join(os.homedir(), 'Library/Application Support/Dia/User Data'))
+    expect(registry['external.browser.comet']).toBe(
+      process.platform === 'win32'
+        ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData/Local'), 'Perplexity/Comet/User Data')
+        : path.join(os.homedir(), 'Library/Application Support/Comet')
+    )
+    for (const browser of ['dia', 'comet'] as const) {
+      expect(registry[`external.browser.${browser}`]).not.toBe(registry['external.browser.chrome'])
+      expect(shouldAutoEnsure(`external.browser.${browser}`)).toBe(false)
+    }
+  })
+
+  it('locates standard Vivaldi, Opera and Chromium data in their platform directories', () => {
+    vi.spyOn(os, 'homedir').mockReturnValue('/browser-owner')
+    vi.stubEnv('LOCALAPPDATA', '/local')
+    vi.stubEnv('APPDATA', '/roaming')
+    vi.stubEnv('XDG_CONFIG_HOME', '/config')
+    try {
+      const expected =
+        process.platform === 'darwin'
+          ? [
+              '/browser-owner/Library/Application Support/Vivaldi',
+              '/browser-owner/Library/Application Support/com.operasoftware.Opera',
+              '/browser-owner/Library/Application Support/Chromium'
+            ]
+          : process.platform === 'win32'
+            ? ['/local/Vivaldi/User Data', '/roaming/Opera Software/Opera Stable', '/local/Chromium/User Data']
+            : ['/config/vivaldi', '/config/opera', '/config/chromium']
+      const registry = buildPathRegistry()
+      expect(
+        (['vivaldi', 'opera', 'chromium'] as const).map((browser) => registry[`external.browser.${browser}`])
+      ).toEqual(expected.map((directory) => path.normalize(directory)))
+      for (const browser of ['vivaldi', 'opera', 'chromium'] as const)
+        expect(shouldAutoEnsure(`external.browser.${browser}`)).toBe(false)
+    } finally {
+      vi.restoreAllMocks()
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('uses the shared user-owned DeepSeek Harness home', () => {
     const registry = buildPathRegistry()
     expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
+  })
+
+  it('registers standalone Pi settings as external data', () => {
+    expect(buildPathRegistry()['external.pi.settings_file']).toBe(
+      path.join(os.homedir(), '.pi', 'agent', 'settings.json')
+    )
+    expect(shouldAutoEnsure('external.pi.settings_file')).toBe(false)
   })
 
   it('registers the platform-native default Hermes home as external data', () => {

@@ -3,6 +3,8 @@ import { APICallError, type ModelMessage, tool, type UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import type * as AiCore from '@cherrystudio/ai-core'
+
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import { createToolCallLimitStopCondition } from '../toolLoopTermination'
 import type { AgentLoopParams } from '../types'
@@ -16,7 +18,8 @@ const TEST_USAGE = {
   outputTokenDetails: {}
 }
 
-vi.mock('@cherrystudio/ai-core', () => ({
+vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof AiCore>()),
   createAgent: (...args: unknown[]) => mockCreateAgent(...args)
 }))
 
@@ -153,7 +156,13 @@ describe('Agent', () => {
       const steps = [{ toolResults: [] }]
       await expect(stopWhen({ steps: steps as never })).resolves.toBe(false)
       mockCreateAgent.mockResolvedValue({
-        generate: vi.fn().mockResolvedValue({ text: 'done', usage: TEST_USAGE, steps })
+        generate: vi.fn().mockResolvedValue({
+          text: 'done',
+          usage: TEST_USAGE,
+          steps,
+          finishReason: 'stop',
+          rawFinishReason: 'end_turn'
+        })
       })
 
       const calls: string[] = []
@@ -164,7 +173,12 @@ describe('Agent', () => {
       })
       const agent = await makeAgent({ options: { stopWhen }, hookParts: [{ onFinish, onError }] })
 
-      await expect(agent.generate({ prompt: 'hello' })).resolves.toEqual({ text: 'done', usage: TEST_USAGE })
+      await expect(agent.generate({ prompt: 'hello' })).resolves.toEqual({
+        text: 'done',
+        usage: TEST_USAGE,
+        finishReason: 'stop',
+        rawFinishReason: 'end_turn'
+      })
       expect(onFinish).toHaveBeenCalledOnce()
       expect(onError).not.toHaveBeenCalled()
       expect(calls).toEqual(['finish'])
@@ -929,6 +943,40 @@ describe('Agent', () => {
     }
   })
 
+  it('keeps a structured stream failure raw internally but projects it for hooks and error logs', async () => {
+    const structuredError = {
+      type: 'error',
+      error: { message: 'You have no credits remaining.' },
+      apiKey: 'object-secret',
+      prompt: 'private prompt'
+    }
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.error(structuredError)
+            }
+          })
+      })
+    })
+
+    const onError = vi.fn().mockReturnValue('abort')
+    const agent = await makeAgent({ hookParts: [{ onError }] })
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).rejects.toBe(structuredError)
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(onError).toHaveBeenCalledOnce()
+    expect(onError.mock.calls[0][0].error).toBeInstanceOf(Error)
+    expect(onError.mock.calls[0][0].error).toMatchObject({ message: 'You have no credits remaining.' })
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith('agentLoop error', {
+      errorMessage: 'You have no credits remaining.'
+    })
+    expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
+  })
+
   // ── onError returning 'retry' is not implemented: warn (not error) then abort the writer ──
   it('aborts rather than closes when the read loop throws undefined', async () => {
     mockCreateAgent.mockResolvedValue({
@@ -982,9 +1030,41 @@ describe('Agent', () => {
     expect(onError).toHaveBeenCalledTimes(1)
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
       'agentLoop onError returned retry; retry not implemented — aborting',
-      err
+      expect.objectContaining({ errorMessage: 'stream blew up' })
     )
     // The retry branch must not also log an error for the same outcome.
-    expect(mockMainLoggerService.error).not.toHaveBeenCalledWith('agentLoop error', err)
+    expect(mockMainLoggerService.error).not.toHaveBeenCalledWith('agentLoop error', expect.anything())
+  })
+
+  it('projects a structured stream failure before logging an unimplemented retry', async () => {
+    const structuredError = {
+      type: 'error',
+      error: { message: 'You have no credits remaining.' },
+      apiKey: 'object-secret',
+      prompt: 'private prompt'
+    }
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.error(structuredError)
+            }
+          })
+      })
+    })
+
+    const onError = vi.fn().mockReturnValue('retry')
+    const agent = await makeAgent({ hookParts: [{ onError }] })
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).rejects.toBe(structuredError)
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'agentLoop onError returned retry; retry not implemented — aborting',
+      { errorMessage: 'You have no credits remaining.' }
+    )
+    expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toMatch(/object-secret|private prompt/)
   })
 })

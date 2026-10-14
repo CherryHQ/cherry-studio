@@ -42,9 +42,6 @@
  * **Current status**: the IpcApi adapter in `src/main/ipc/handlers/file.ts`
  * dispatches read, metadata, open, show-in-folder, and optimistic-write
  * routes. Entry arms call FileManager; path arms call helpers under `utils/*`.
- * The legacy
- * `File_PermanentDelete` handler still uses the same dispatcher here until its
- * remaining preload consumers migrate:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.open(entryId)`)
@@ -83,15 +80,17 @@
  * - No background sync
  * - No tracking of external rename/move
  * - `permanentDelete` on an external file_entry removes only the DB row — this
- *   entry-level operation is deliberately decoupled from physical deletion.
+ *   general operation remains for internal cleanup and legacy callers.
  *   Path-level deletion remains available via `remove(path)` from
  *   `@main/utils/file/fs` (reached through a `FilePathHandle`), which is an
  *   explicit user-facing operation not tied to any entry id.
+ * - User-facing removal goes through `batchRemoveFromLibrary`, which also
+ *   verifies external origin and persistent-reference absence in the delete tx.
  *
  * **External entries cannot be trashed.** Their lifecycle is monotonic:
  * created by `ensureExternalEntry` (pure upsert keyed by path — see below),
- * updated in place via `write` / `rename`, and removed only by an explicit
- * (non-UI) `permanentDelete`. The `fe_external_no_delete` CHECK constraint
+ * updated in place via `write` / `rename`, and removed from the library by an
+ * explicit protected action. The `fe_external_no_delete` CHECK constraint
  * enforces this at the DB level; `trash` / `restore` on an external entry id
  * will throw.
  *
@@ -119,7 +118,6 @@
  * fresh-stat-flip-to-present rule, which would defeat the watcher-led
  * design. The asymmetry above is the actual contract.
  */
-
 import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import { finished } from 'node:stream/promises'
@@ -128,14 +126,14 @@ import { pathToFileURL } from 'node:url'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
-import type { ContentHash, DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
-import { CleanupPolicySchema, FileEntryIdSchema, FileHandleSchema } from '@shared/data/types/file'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { stat as fsStat } from '@main/utils/file'
+import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
+import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { type CreateInternalEntryInput, createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
@@ -147,6 +145,7 @@ import type {
   PhysicalFileMetadata
 } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { KeyedMutex } from '@shared/utils/async'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
 import { danglingCache } from './danglingCache'
@@ -158,27 +157,30 @@ import {
   writeIfUnchanged as internalWriteIfUnchanged
 } from './internal/content/write'
 import type { FileManagerDeps } from './internal/deps'
-import { dispatchHandle } from './internal/dispatch'
 import { copy as internalCopy } from './internal/entry/copy'
 import {
   createInternal as internalCreateInternal,
   ensureExternal as internalEnsureExternal
 } from './internal/entry/create'
 import {
-  batchPermanentDelete as internalBatchPermanentDelete,
+  batchPermanentDeleteFromTrash as internalBatchPermanentDeleteFromTrash,
+  batchRemoveFromLibrary as internalBatchRemoveFromLibrary,
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
-  emptyTrash as internalEmptyTrash,
+  deleteInternalTemporaryEntry as internalDeleteInternalTemporaryEntry,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
 } from './internal/entry/lifecycle'
+import { publishIntake, type PublishFileIntakeParams } from './internal/entry/publishIntake'
 import { rename as internalRename } from './internal/entry/rename'
 import type { EntryCleanupReport } from './internal/entryCleanup'
 import { runEntryCleanup as internalRunEntryCleanup, summariseEntryCleanup } from './internal/entryCleanup'
+import { IntakeStore } from './internal/IntakeStore'
 import { observeExternalAccess } from './internal/observe'
 import {
   type DbSweepReport,
+  type FileSweepOptions,
   type FileSweepReport,
   inspectFileSweep,
   type OrphanReport,
@@ -190,7 +192,6 @@ import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy
 import { safeOpen } from './system'
 import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
-import { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
 import { buildPhysicalFileMetadata } from './utils/metadata'
 import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
@@ -234,9 +235,8 @@ function summariseFsSweepIssue(report: FileSweepReport): string | undefined {
  *   rescanning everything half an hour later, and treating it as retryable
  *   would turn one unlinkable blob into a full-tree scan every idle tick,
  *   forever. The next scheduled sweep retries it.
- * - `aborted` by a safety threshold — the tree *was* enumerated; refusing is
- *   the considered verdict of a completed plan phase, and the state it reads
- *   will not have changed by the next tick.
+ * - `aborted` by a safety threshold — enumeration completed, so the weekly
+ *   interval is consumed.
  * - `aborted` for `pending-restore` — returns before enumerating anything. A
  *   stand-aside is not a sweep. This is the case that made the bug visible:
  *   the first tick of a session correctly defers to a staged restore, and the
@@ -272,8 +272,6 @@ export const EnsureExternalEntryIpcSchema = z.strictObject({
 })
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
-
-export const PermanentDeleteIpcSchema = FileHandleSchema
 
 // ─── Version types ───
 
@@ -427,6 +425,15 @@ export class ContentCommittedMetadataPendingError extends Error {
  * otherwise.
  */
 export interface IFileManager {
+  /**
+   * Exclude an automatic internal entry from background cleanup until this reference is disposed.
+   * References are independent, idempotent to dispose, and cleared on stop; explicit deletion still applies.
+   */
+  retainTemporaryEntry(id: FileEntryId): Disposable
+
+  /** Delete a retained automatic internal entry only after its physical content is gone. */
+  deleteRetainedTemporaryEntry(id: FileEntryId): Promise<void>
+
   /** Return active internal entries matching a content hash; consumers choose whether to reuse one. */
   findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]>
 
@@ -453,6 +460,8 @@ export interface IFileManager {
    * `{userData}/Data/Files/{newUuid}.{ext}`, and inserts a fresh DB row. No
    * conflict resolution — every call produces an independent entry.
    */
+  publishIntake(params: PublishFileIntakeParams): Promise<FileEntry>
+
   createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry>
 
   /**
@@ -572,8 +581,8 @@ export interface IFileManager {
    *
    * Passing an external entry id throws: external entries cannot be trashed
    * (enforced by the `fe_external_no_delete` CHECK constraint). Business layers
-   * should call `permanentDelete` on external entries if the user really wants
-   * the reference gone.
+   * should call `batchRemoveFromLibrary` for a user-requested external entry
+   * removal.
    */
   trash(id: FileEntryId): Promise<void>
 
@@ -585,7 +594,8 @@ export interface IFileManager {
   restore(id: FileEntryId): Promise<FileEntry>
 
   /**
-   * Permanently delete entry. DB row is always removed; FS behavior depends on origin:
+   * General cleanup/compensation primitive. DB row is always removed without
+   * user-action trash/reference guards; FS behavior depends on origin:
    * - internal: unlinks `{userData}/Data/Files/{id}.{ext}`
    * - external: **DB-only** — the user's physical file is left untouched.
    *   Entry-level deletion is deliberately decoupled from physical deletion;
@@ -603,8 +613,10 @@ export interface IFileManager {
   batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
   /** Batch internal-only — external ids fail like `restore`. */
   batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
-  batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult>
-  emptyTrash(): Promise<BatchMutationResult>
+  /** Permanently delete unreferenced internal entries that are currently in Trash. */
+  batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
+  /** Remove unreferenced external entries from the library without modifying user files. */
+  batchRemoveFromLibrary(ids: FileEntryId[]): Promise<BatchMutationResult>
 
   // ─── Stream ───
 
@@ -645,10 +657,10 @@ export interface IFileManager {
   // ─── Orphan sweep ───
 
   /** Inspect the FS-level orphan plan without deleting files. */
-  inspectOrphanFiles(): Promise<FileSweepReport>
+  inspectOrphanFiles(options?: FileSweepOptions): Promise<FileSweepReport>
 
   /** Run only the FS-level orphan-file cleanup pass. */
-  cleanupOrphanFiles(): Promise<FileSweepReport>
+  cleanupOrphanFiles(options?: FileSweepOptions): Promise<FileSweepReport>
 
   /**
    * Run the scan-based entry cleanup pass, then the FS-level orphan sweep
@@ -709,7 +721,9 @@ export class FileManager extends BaseService implements IFileManager {
   // a class private field, not a module singleton, for test-isolation reasons.
   private readonly _versionCache: VersionCache = createVersionCacheImpl(2000)
   private readonly _contentWriteLock = new KeyedMutex()
+  readonly intakes = new IntakeStore()
   private readonly activeWriteStreams = new Set<AtomicWriteStream>()
+  private readonly temporaryReferences = new Map<FileEntryId, Set<symbol>>()
 
   private readonly deps: FileManagerDeps = {
     fileEntryService,
@@ -745,6 +759,7 @@ export class FileManager extends BaseService implements IFileManager {
   private fileSweepInFlight = false
 
   protected override async onInit(): Promise<void> {
+    await this.intakes.load()
     const generation = ensureContentMetadataGeneration()
     if (generation.applied) {
       fileManagerLogger.info('content metadata generation applied', { invalidated: generation.invalidated })
@@ -758,9 +773,43 @@ export class FileManager extends BaseService implements IFileManager {
     this.registerInterval(() => this.entryCleanupTick(), FileManager.CLEANUP_INTERVAL_MS)
   }
 
+  retainTemporaryEntry(id: FileEntryId): Disposable {
+    const entry = this.deps.fileEntryService.getById(id)
+    if (entry.origin !== 'internal' || entry.cleanupPolicy !== 'delete_when_unreferenced') {
+      throw new Error('Only automatic internal entries support temporary retention')
+    }
+    const references = this.temporaryReferences.get(id) ?? new Set<symbol>()
+    const token = Symbol()
+    references.add(token)
+    this.temporaryReferences.set(id, references)
+    return {
+      dispose: () => {
+        references.delete(token)
+        if (references.size === 0 && this.temporaryReferences.get(id) === references) {
+          this.temporaryReferences.delete(id)
+        }
+      }
+    }
+  }
+
+  async deleteRetainedTemporaryEntry(id: FileEntryId): Promise<void> {
+    if (!this.temporaryReferences.has(id)) throw new Error('Temporary entry must be retained before verified deletion')
+    try {
+      await internalDeleteInternalTemporaryEntry(this.deps, id)
+    } catch (error) {
+      fileManagerLogger.warn('Verified temporary entry deletion failed', {
+        id,
+        operation: 'delete-retained-temporary-entry',
+        code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+      })
+      throw error
+    }
+    this.notifyReadModelChange([id])
+  }
+
   /** Run one cleanup pass now. Never throws — failures land in the report. */
   async runEntryCleanup(): Promise<EntryCleanupReport> {
-    const report = await internalRunEntryCleanup(this.deps)
+    const report = await internalRunEntryCleanup(this.deps, this.intakes, this.temporaryReferences)
     if (report.outcome === 'completed') {
       this.lastCleanupCompletedAt = Date.now()
     }
@@ -814,7 +863,10 @@ export class FileManager extends BaseService implements IFileManager {
     if (Date.now() - this.lastFileSweepAt < FileManager.FILE_SWEEP_MIN_INTERVAL_MS) return
     this.fileSweepInFlight = true
     try {
-      const report = await runFileSweep({ fileEntryService: this.deps.fileEntryService })
+      const report = await runFileSweep({
+        fileEntryService: this.deps.fileEntryService,
+        intakeProtection: this.intakes
+      })
       if (sweepConsumedItsWindow(report)) this.lastFileSweepAt = Date.now()
     } catch (err) {
       // A throw means the scan never returned a verdict, so the window stays
@@ -850,6 +902,7 @@ export class FileManager extends BaseService implements IFileManager {
       })
     )
     this.activeWriteStreams.clear()
+    this.temporaryReferences.clear()
   }
 
   /**
@@ -866,13 +919,10 @@ export class FileManager extends BaseService implements IFileManager {
     // for `ipcMain.handle` listeners).
     // Phase 2 channels.
     //
-    // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
-    // path: string }`, etc.). The TS-side param types use template literal
-    // brands (`AbsoluteFilePath`, `FileHandle`) that Zod can't reproduce without a
+    // Zod outputs structural strings while the TS-side param types use template
+    // literal brands (`AbsoluteFilePath`) that Zod cannot reproduce without a
     // `.transform()` per field. The cast at this single boundary keeps the
-    // brand-as-doc convention intact while letting runtime validation (Zod)
-    // remain the actual gate — same pattern used by every other IPC handler
-    // in this file.
+    // brand-as-doc convention intact while runtime validation remains the gate.
     this.ipcHandle(IpcChannel.File_CreateInternalEntry, async (_e, params: unknown) =>
       this.createInternalEntry(createInternalEntryInputSchema.parse(params))
     )
@@ -882,26 +932,15 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_GetPhysicalPath, async (_e, params: unknown) =>
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
     )
-    this.ipcHandle(IpcChannel.File_PermanentDelete, async (_e, params: unknown) => {
-      const handle = PermanentDeleteIpcSchema.parse(params) as FileHandle
-      return dispatchHandle(
-        handle,
-        (entryId) => this.permanentDelete(entryId),
-        async (path) => {
-          await assertOutsideManagedStorageMutation(path)
-          await fsRemove(path)
-        }
-      )
-    })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
   }
 
-  inspectOrphanFiles(): Promise<FileSweepReport> {
-    return inspectFileSweep({ fileEntryService: this.deps.fileEntryService })
+  inspectOrphanFiles(options?: FileSweepOptions): Promise<FileSweepReport> {
+    return inspectFileSweep({ fileEntryService: this.deps.fileEntryService, intakeProtection: this.intakes }, options)
   }
 
-  cleanupOrphanFiles(): Promise<FileSweepReport> {
-    return runFileSweep({ fileEntryService: this.deps.fileEntryService })
+  cleanupOrphanFiles(options?: FileSweepOptions): Promise<FileSweepReport> {
+    return runFileSweep({ fileEntryService: this.deps.fileEntryService, intakeProtection: this.intakes }, options)
   }
 
   /**
@@ -940,30 +979,31 @@ export class FileManager extends BaseService implements IFileManager {
   async runSweep(): Promise<OrphanReport> {
     const cleanupReport = await this.runEntryCleanup()
     const startedAt = Date.now()
-    const fsSweepPromise = runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch(
-      (err): FileSweepReport => {
-        fileManagerLogger.error('File sweep failed', err)
-        // Promote a thrown FS sweep into a structured `'failed'` report so
-        // the umbrella merge below can degrade `outcome` to `'partial'`
-        // (otherwise a permission error would surface as a clean
-        // `'completed'` umbrella — the regression 0xfullex flagged in
-        // PRRT_kwDOL_2xws6EeQI5).
-        return {
-          outcome: 'failed',
-          errorMessage: err instanceof Error ? err.message : String(err),
-          entriesInDb: 0,
-          direntsScanned: 0,
-          filesOnDisk: 0,
-          bytesOnDisk: 0,
-          plannedDeleteCount: 0,
-          plannedDeleteBytes: 0,
-          actualDeleteCount: 0,
-          actualDeleteBytes: 0,
-          statFailedCount: 0,
-          scanDurationMs: 0
-        }
+    const fsSweepPromise = runFileSweep({
+      fileEntryService: this.deps.fileEntryService,
+      intakeProtection: this.intakes
+    }).catch((err): FileSweepReport => {
+      fileManagerLogger.error('File sweep failed', err)
+      // Promote a thrown FS sweep into a structured `'failed'` report so
+      // the umbrella merge below can degrade `outcome` to `'partial'`
+      // (otherwise a permission error would surface as a clean
+      // `'completed'` umbrella — the regression 0xfullex flagged in
+      // PRRT_kwDOL_2xws6EeQI5).
+      return {
+        outcome: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
+        entriesInDb: 0,
+        direntsScanned: 0,
+        filesOnDisk: 0,
+        bytesOnDisk: 0,
+        plannedDeleteCount: 0,
+        plannedDeleteBytes: 0,
+        actualDeleteCount: 0,
+        actualDeleteBytes: 0,
+        statFailedCount: 0,
+        scanDurationMs: 0
       }
-    )
+    })
 
     let dbReport: DbSweepReport
     try {
@@ -1099,6 +1139,10 @@ export class FileManager extends BaseService implements IFileManager {
 
   // ─── Mutation methods ───
 
+  async publishIntake(params: PublishFileIntakeParams): Promise<FileEntry> {
+    return publishIntake(this.deps, params)
+  }
+
   async createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry> {
     return internalCreateInternal(this.deps, params)
   }
@@ -1194,31 +1238,52 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async trash(id: FileEntryId): Promise<void> {
-    return internalTrash(this.deps, id)
+    internalTrash(this.deps, id)
+    this.notifyReadModelChange([id])
   }
 
   async restore(id: FileEntryId): Promise<FileEntry> {
-    return internalRestore(this.deps, id)
+    const entry = await internalRestore(this.deps, id)
+    this.notifyReadModelChange([id])
+    return entry
   }
 
   async permanentDelete(id: FileEntryId): Promise<void> {
-    return internalPermanentDelete(this.deps, id)
+    await internalPermanentDelete(this.deps, id)
+    this.notifyReadModelChange([id])
   }
 
   async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return internalBatchTrash(this.deps, ids)
+    const result = internalBatchTrash(this.deps, ids)
+    this.notifyReadModelChange(result.succeeded)
+    return result
   }
 
   async batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return internalBatchRestore(this.deps, ids)
+    const result = internalBatchRestore(this.deps, ids)
+    this.notifyReadModelChange(result.succeeded)
+    return result
   }
 
-  async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return internalBatchPermanentDelete(this.deps, ids)
+  async batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
+    const result = await internalBatchPermanentDeleteFromTrash(this.deps, ids)
+    this.notifyReadModelChange(result.succeeded)
+    return result
   }
 
-  async emptyTrash(): Promise<BatchMutationResult> {
-    return internalEmptyTrash(this.deps)
+  async batchRemoveFromLibrary(ids: FileEntryId[]): Promise<BatchMutationResult> {
+    const result = await internalBatchRemoveFromLibrary(this.deps, ids)
+    this.notifyReadModelChange(result.succeeded)
+    return result
+  }
+
+  private notifyReadModelChange(ids: readonly FileEntryId[]): void {
+    if (ids.length === 0) return
+    const entityIds = [...new Set(ids)]
+    notifyDataApiDataChange([
+      { endpoint: '/files/entries', kind: 'membership', entityIds },
+      { endpoint: '/files/entries/:id', entityIds }
+    ])
   }
 
   async rename(id: FileEntryId, newName: string): Promise<FileEntry> {

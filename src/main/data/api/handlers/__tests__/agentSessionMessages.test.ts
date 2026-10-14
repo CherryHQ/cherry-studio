@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listSessionMessagesMock, getSessionMessageMock, updateSessionMessageMock, deleteSessionMessageMock } =
-  vi.hoisted(() => ({
-    listSessionMessagesMock: vi.fn(),
-    getSessionMessageMock: vi.fn(),
-    updateSessionMessageMock: vi.fn(),
-    deleteSessionMessageMock: vi.fn()
-  }))
+const {
+  getConversationByIdMock,
+  listSessionMessagesMock,
+  getSessionMessageMock,
+  updateSessionMessageMock,
+  deleteSessionMessageMock
+} = vi.hoisted(() => ({
+  getConversationByIdMock: vi.fn(),
+  listSessionMessagesMock: vi.fn(),
+  getSessionMessageMock: vi.fn(),
+  updateSessionMessageMock: vi.fn(),
+  deleteSessionMessageMock: vi.fn()
+}))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
@@ -17,11 +23,19 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
+    getConversationById: getConversationByIdMock
+  }
+}))
+
 import { agentSessionMessageHandlers } from '../agentSessionMessages'
 
 describe('agentSessionMessageHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // `getConversationById` is synchronous; scope violations throw inline.
+    getConversationByIdMock.mockReturnValue({ id: 'session-1' })
   })
 
   describe('/agent-sessions/:sessionId/messages', () => {
@@ -119,6 +133,20 @@ describe('agentSessionMessageHandlers', () => {
         })
       ).resolves.toBe(response)
     })
+
+    it('hides the message list of a session outside the conversation scope', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
+      })
+
+      await expect(
+        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
+          params: { sessionId: 'session-bg' }
+        })
+      ).rejects.toThrow('not found')
+
+      expect(listSessionMessagesMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('/agent-sessions/:sessionId/messages/:messageId', () => {
@@ -154,6 +182,25 @@ describe('agentSessionMessageHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(updateSessionMessageMock).not.toHaveBeenCalled()
+    })
+
+    it('refuses to read, update, or delete messages of a background session', async () => {
+      getConversationByIdMock.mockImplementation(() => {
+        throw new Error('not found')
+      })
+      const call = (method: 'GET' | 'PATCH' | 'DELETE') =>
+        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId'][method]({
+          params: { sessionId: 'session-bg', messageId: 'message-1' },
+          body: { data: { parts: [] } }
+        } as never)
+
+      await expect(call('GET')).rejects.toThrow('not found')
+      await expect(call('PATCH')).rejects.toThrow('not found')
+      await expect(call('DELETE')).rejects.toThrow('not found')
+
+      expect(getSessionMessageMock).not.toHaveBeenCalled()
+      expect(updateSessionMessageMock).not.toHaveBeenCalled()
+      expect(deleteSessionMessageMock).not.toHaveBeenCalled()
     })
   })
 })

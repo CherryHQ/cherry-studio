@@ -1,10 +1,12 @@
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import {
   ASSISTANTS_MAX_LIMIT,
   type CreateAssistantDto,
+  type DeleteAssistantResult,
   type ImportAssistantDto,
   type UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
@@ -101,19 +103,30 @@ export function useImportAssistantMutation() {
  */
 export function useAssistantMutationsById(id: string) {
   const path = `/assistants/${id}` as const
+  const invalidate = useInvalidateCache()
 
   const { trigger: updateTrigger } = useMutation('PATCH', path, {
     refresh: ['/assistants', '/assistants/*']
-  })
-  const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/assistants', '/assistants/*', '/pins']
   })
 
   const updateAssistant = useCallback(
     (dto: UpdateAssistantDto): Promise<Assistant> => updateTrigger({ body: dto }),
     [updateTrigger]
   )
-  const deleteAssistant = useCallback((): Promise<void> => deleteTrigger().then(() => undefined), [deleteTrigger])
+  const deleteAssistant = useCallback(
+    async (options: { deleteTopics?: boolean; permanent?: boolean } = {}): Promise<DeleteAssistantResult> => {
+      const deleteTopics = options.deleteTopics === true
+      const result = await ipcApi.request(
+        options.permanent ? 'trash.assistant.delete_permanently' : 'trash.assistant.archive',
+        { assistantId: id, deleteTopics }
+      )
+      await invalidate(
+        deleteTopics ? ['/assistants', '/assistants/*', '/pins', '/topics'] : ['/assistants', '/assistants/*', '/pins']
+      )
+      return result
+    },
+    [id, invalidate]
+  )
 
   return { updateAssistant, deleteAssistant }
 }

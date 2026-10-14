@@ -284,7 +284,9 @@ describe('mini app management', () => {
         })
         .run()
 
-    beforeEach(() => checkForUpdate.mockClear())
+    beforeEach(() => {
+      checkForUpdate.mockClear()
+    })
     afterEach(() => MockMainPreferenceServiceUtils.resetMocks())
 
     it('delegates a web app to the real check while the global preference is on', async () => {

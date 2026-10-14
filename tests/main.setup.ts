@@ -63,6 +63,10 @@ vi.mock('electron', () => {
   const partitionSessions = new Map<string, Record<string, unknown>>()
   const mock = {
     app: {
+      commandLine: {
+        hasSwitch: vi.fn(() => false),
+        getSwitchValue: vi.fn(() => '')
+      },
       getPath: vi.fn((key: string) => {
         switch (key) {
           case 'userData':
@@ -96,6 +100,10 @@ vi.mock('electron', () => {
       removeListener: vi.fn(),
       removeAllListeners: vi.fn()
     },
+    powerMonitor: {
+      on: vi.fn(),
+      removeListener: vi.fn()
+    },
     BrowserWindow: vi.fn(),
     dialog: {
       showErrorBox: vi.fn(),
@@ -124,6 +132,7 @@ vi.mock('electron', () => {
         const cached = partitionSessions.get(partition)
         if (cached) return cached
         const created = {
+          fetch: vi.fn(),
           clearCache: vi.fn(),
           clearStorageData: vi.fn(),
           clearCodeCaches: vi.fn(),

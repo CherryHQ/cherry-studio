@@ -19,7 +19,7 @@
     "src/renderer/ui/**",
     "packages/**/dist",
     "eslint.config.mjs",
-    "v2-refactor-temp/**"
+    "scripts/data-classify/**"
   ],
   "options": {
     "typeAware": true
@@ -46,6 +46,7 @@
         "src/renderer/**/*.{ts,tsx}",
         "packages/aiCore/**",
         "packages/extension-table-plus/**",
+        "packages/file-preview/src/**",
         "packages/ui/**"
       ]
     },

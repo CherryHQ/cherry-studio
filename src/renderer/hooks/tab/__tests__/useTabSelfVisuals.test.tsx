@@ -40,19 +40,19 @@ afterEach(() => {
 })
 
 describe('useTabSelfVisuals', () => {
-  it('stamps the tab title and icon while the tab belongs to the app route', async () => {
+  it('stamps visuals for the route identity supplied by its caller', async () => {
     mocks.tabs = [
       {
         id: 'tab-1',
         type: 'route',
-        url: '/app/chat?topicId=topic-1',
+        url: '/documents?documentId=document-1',
         title: 'Old title'
       }
     ]
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Topic title" emoji="spark" appId="assistants" />
+        <TabVisualsWriter title="Topic title" emoji="spark" routePrefix="/documents" />
       </TabIdProvider>
     )
 
@@ -76,7 +76,7 @@ describe('useTabSelfVisuals', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Topic title" emoji="spark" appId="assistants" />
+        <TabVisualsWriter title="Topic title" emoji="spark" routePrefix="/app/chat" />
       </TabIdProvider>
     )
 
@@ -98,7 +98,7 @@ describe('useTabSelfVisuals', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Chat" appId="assistants" preserveVisuals />
+        <TabVisualsWriter title="Chat" routePrefix="/app/chat" preserveVisuals />
       </TabIdProvider>
     )
 
@@ -120,7 +120,7 @@ describe('useTabSelfVisuals', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Session title" emoji="spark" appId="agents" />
+        <TabVisualsWriter title="Session title" emoji="spark" routePrefix="/app/agents" />
       </TabIdProvider>
     )
 

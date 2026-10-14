@@ -7,6 +7,7 @@ import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherr
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { CodeBlockWrapLinesContext } from '@renderer/components/CodeBlockView/wrapLinesContext'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
@@ -18,6 +19,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
+import { ResultReadAloudButton } from './ResultReadAloudButton'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -29,13 +31,14 @@ const ActionResultContent = React.lazy(importActionResultContent)
 
 interface Props {
   action: SelectionActionItem
+  sourceEntityId: string
   scrollToBottom: () => void
 }
 
 const logger = loggerService.withContext('ActionTranslate')
 const TRANSLATION_MESSAGE_ID = 'selection-translation-result'
 const TRANSLATION_TOPIC_ID = 'selection-translation'
-const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
+const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) => {
   const { t } = useTranslation()
   const selectedText = action.selectedText
 
@@ -318,7 +321,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col items-center">
+      <div className="flex w-full min-w-0 flex-1 flex-col items-center">
         <div className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-1">
           <div className="flex min-w-0 shrink items-center gap-1.5">
             {/* Detected language display (read-only) */}
@@ -404,15 +407,17 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             </div>
           </div>
         )}
-        <div className="mt-4 w-full whitespace-pre-wrap break-words">
+        <div className="mt-4 w-full min-w-0 max-w-full whitespace-pre-wrap break-words">
           {(isDetecting || isPreparing) && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {content && (
             <Suspense fallback={<Loader2 className="size-4 animate-spin text-muted-foreground" />}>
-              <ActionResultContent
-                key={latestAssistantMessage.id}
-                message={latestAssistantMessage}
-                partsByMessageId={partsMap}
-              />
+              <CodeBlockWrapLinesContext value={true}>
+                <ActionResultContent
+                  key={latestAssistantMessage.id}
+                  message={latestAssistantMessage}
+                  partsByMessageId={partsMap}
+                />
+              </CodeBlockWrapLinesContext>
             </Suspense>
           )}
         </div>
@@ -423,7 +428,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         )}
       </div>
       <div className="min-h-3" />
-      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
+      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content}>
+        {!isStreaming && !error && content.trim() && (
+          <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
+        )}
+      </WindowFooter>
     </>
   )
 }

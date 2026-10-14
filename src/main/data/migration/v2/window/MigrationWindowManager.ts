@@ -6,6 +6,7 @@ import { join } from 'path'
 
 import { app, BrowserWindow, dialog } from 'electron'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isMac } from '@main/core/platform'
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
@@ -284,8 +285,7 @@ export class MigrationWindowManager {
     } else {
       // Production mode - clean up first, then relaunch
       this.close()
-      app.relaunch()
-      app.exit(0)
+      application.relaunch()
     }
   }
 }

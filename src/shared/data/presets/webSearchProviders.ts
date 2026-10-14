@@ -195,6 +195,11 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
       }
     ]
   },
+  crawl4ai: {
+    name: 'Crawl4AI',
+    type: 'api',
+    capabilities: [{ feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }]
+  },
   parallel: {
     name: 'Parallel',
     type: 'api',
@@ -211,6 +216,18 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
     name: 'DuckDuckGo',
     type: 'api',
     capabilities: [{ feature: 'searchKeywords', requiresApiHost: false, requiresApiKey: false }]
+  },
+  serply: {
+    name: 'Serply',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.serply.io'
+      }
+    ]
   }
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderPresetConfig>
 

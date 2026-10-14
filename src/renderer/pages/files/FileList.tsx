@@ -1,14 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  FolderOpen,
-  Pencil,
-  RotateCcw,
-  SquareArrowOutUpRight,
-  Trash2
-} from 'lucide-react'
+import { ChevronDown, ChevronsUpDown, ChevronUp, FolderOpen, Pencil, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -112,30 +103,28 @@ export const FileList = memo(function FileList({
   onSelect,
   onOpen,
   onDelete,
-  onRestore,
   onRename,
   onShowInFolder,
-  isTrash,
   menuActions,
   scrollRef,
   renamingId,
   onRenameConfirm,
-  onRenameCancel
+  onRenameCancel,
+  deleteDisabled = false
 }: {
   files: FileItem[]
   selectedIds: Set<string>
   onSelect: (id: string, isChecked: boolean, shouldSelectRange: boolean) => void
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
-  onRestore: (id: string) => void
   onRename: (id: string) => void
   onShowInFolder: (id: string) => void
-  isTrash: boolean
   menuActions: FileContextMenuActions
   scrollRef: RefObject<HTMLDivElement | null>
   renamingId: string | null
   onRenameConfirm: (id: string, name: string) => void
   onRenameCancel: () => void
+  deleteDisabled?: boolean
 }) {
   const { t } = useTranslation()
   const getItemKey = useCallback((index: number) => files[index]?.id ?? index, [files])
@@ -162,19 +151,14 @@ export const FileList = memo(function FileList({
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         const canUseFileActions = !file.isMissing
-        const canRestore = isTrash && canUseFileActions
-        const canOpen = !isTrash && canUseFileActions
-        const canRename = !isTrash && canUseFileActions
-        const canShowInFolder = !isTrash && canUseFileActions
-        const deleteLabel = isTrash
-          ? t('files.permanent_delete')
-          : file.origin === 'external'
-            ? t('files.remove_from_library')
-            : t('files.delete.label')
+        const canOpen = canUseFileActions
+        const canRename = canUseFileActions
+        const canShowInFolder = canUseFileActions
+        const deleteLabel = file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
         const renderActionPlaceholder = (key: string) => <div key={key} className="size-6" aria-hidden="true" />
 
         return (
-          <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
             <div
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
@@ -256,20 +240,7 @@ export const FileList = memo(function FileList({
                 ) : (
                   renderActionPlaceholder('rename')
                 )}
-                {canRestore ? (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('files.restore')}
-                    title={t('files.restore')}
-                    className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRestore(file.id)
-                    }}>
-                    <RotateCcw size={13} />
-                  </Button>
-                ) : canShowInFolder ? (
+                {canShowInFolder ? (
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -288,6 +259,7 @@ export const FileList = memo(function FileList({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  disabled={deleteDisabled}
                   aria-label={deleteLabel}
                   title={deleteLabel}
                   className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-destructive"

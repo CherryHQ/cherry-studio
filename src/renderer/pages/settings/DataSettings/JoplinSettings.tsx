@@ -13,8 +13,8 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { formatErrorMessage } from '@renderer/utils/error'
 
 const logger = loggerService.withContext('JoplinSettings')
@@ -75,7 +75,7 @@ const JoplinSettings: FC = () => {
   }
 
   const handleJoplinHelpClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://joplinapp.org/help/apps/clipper')
+    void openExternalWebsite('https://joplinapp.org/help/apps/clipper')
   }
 
   return (

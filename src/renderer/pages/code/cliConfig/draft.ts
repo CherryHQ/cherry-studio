@@ -38,7 +38,7 @@ const logger = loggerService.withContext('writeCliConfigDraft')
  * an anthropic-messages endpoint (see CLI_TOOL_PROVIDER_MAP), so Codex/Gemini
  * CLI/Qwen Code/Kimi CLI never offer it as a provider option.
  */
-const OLLAMA_FALLBACK_TOOLS: string[] = [CodeCli.CLAUDE_CODE, CodeCli.OPEN_CODE, CodeCli.PI]
+const OLLAMA_FALLBACK_TOOLS: string[] = [CodeCli.CLAUDE_CODE, CodeCli.OPEN_CODE, CodeCli.PI, CodeCli.MINIMAX_CODE]
 
 async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConfigContext | null> {
   if (!FILE_CONFIGURED_CLI_TOOLS.has(args.cliTool)) return null
@@ -87,12 +87,17 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
   }
 
   const apiKey = firstApiKey(apiKeysRes?.keys)
-  // Ollama's local server needs no real credential, but the Claude Code and
-  // OpenCode SDKs still require a non-empty auth token — mirrors the same
-  // fallback used for the in-app agent runtime (agentSessionWarmup.ts).
+  // Keyless local servers (authOptional, e.g. Ollama, oMLX) need no real credential,
+  // but the CLI SDKs still require a non-empty auth token — same per-provider
+  // stand-in OpenClaw injects. Ollama-endpoint custom providers keep the
+  // agentSessionWarmup fallback.
   const effectiveApiKey =
     apiKey ||
-    (OLLAMA_FALLBACK_TOOLS.includes(args.cliTool) && isOllamaProvider(provider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+    (provider.authOptional === true
+      ? (provider.presetProviderId ?? provider.id)
+      : OLLAMA_FALLBACK_TOOLS.includes(args.cliTool) && isOllamaProvider(provider)
+        ? OLLAMA_PLACEHOLDER_AUTH_TOKEN
+        : '')
 
   return {
     provider,

@@ -95,9 +95,10 @@ export function serializeError(error: unknown): SerializedError {
 
     return serialized
   }
+  const safeMessage = getSafeProviderErrorMessage({ data: error })
   return {
     name: null,
-    message: String(error),
+    message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
     stack: null
   }
 }

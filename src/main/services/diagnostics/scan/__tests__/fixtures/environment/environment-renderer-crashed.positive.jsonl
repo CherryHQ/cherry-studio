@@ -1,0 +1,3 @@
+{"timestamp":"2026-09-05T00:00:00Z","level":"error","message":"Renderer process crashed with: {\"reason\":\"crashed\"}"}
+{"timestamp":"2026-09-05T00:00:00Z","level":"error","message":"Migration renderer process gone; forcing safe quit","reason":"oom"}
+{"timestamp":"2026-09-05T00:00:00Z","level":"error","message":"Relocation renderer process exited","reason":"crashed"}

@@ -75,7 +75,9 @@ export function useMutationFeedback<Args extends unknown[], Result>(
         if (showSuccessToast) toast.success(t(contextRef.current.successToastKey))
         return result
       } catch (e) {
-        contextRef.current.logger.error(contextRef.current.errorLogMessage, e as Error)
+        contextRef.current.logger.error(contextRef.current.errorLogMessage, e as Error, {
+          operation: contextRef.current.errorToastKey
+        })
         if (showErrorToast) toast.error(t(contextRef.current.errorToastKey))
         if (rethrowError) throw e
         return undefined

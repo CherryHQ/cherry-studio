@@ -1,5 +1,6 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import type { ToolSet } from 'ai'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { wrapToolsWithExecutionHooks } from '../hookRunner'
 import type { AgentLoopHooks, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../types'
@@ -15,9 +16,49 @@ function makeTools(execute: ToolSet[string]['execute']): ToolSet {
 }
 
 describe('wrapToolsWithExecutionHooks', () => {
-  it('returns the tools unchanged when no tool hooks are set', () => {
-    const tools = makeTools(vi.fn())
-    expect(wrapToolsWithExecutionHooks(tools, {})).toBe(tools)
+  beforeEach(() => {
+    mockMainLoggerService.warn.mockClear()
+  })
+
+  it('logs failed tool execution without hooks and rethrows the original error', async () => {
+    const error = new Error('tool failed')
+    const tools = makeTools(async () => {
+      throw error
+    })
+    const wrapped = wrapToolsWithExecutionHooks(tools, {})!
+
+    await expect(wrapped.myTool.execute!({ 'private diagnosis': 'private input' }, EXECUTE_OPTIONS)).rejects.toBe(error)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Tool execution failed',
+      expect.objectContaining({
+        toolName: 'myTool',
+        toolCallId: 'call-1',
+        inputShape: expect.any(Object),
+        err: expect.objectContaining({ errorMessage: 'tool failed' })
+      })
+    )
+    expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain('private')
+  })
+
+  it('preserves successful results without hooks and does not log cancellation as a failure', async () => {
+    const output = { value: 'result' }
+    const success = wrapToolsWithExecutionHooks(
+      makeTools(async () => output),
+      {}
+    )!
+    await expect(success.myTool.execute!({}, EXECUTE_OPTIONS)).resolves.toBe(output)
+
+    const error = new Error('aborted')
+    const failure = wrapToolsWithExecutionHooks(
+      makeTools(async () => {
+        throw error
+      }),
+      {}
+    )!
+    await expect(failure.myTool.execute!({}, { ...EXECUTE_OPTIONS, abortSignal: AbortSignal.abort() })).rejects.toBe(
+      error
+    )
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
   })
 
   it('returns undefined unchanged', () => {
@@ -67,19 +108,5 @@ describe('wrapToolsWithExecutionHooks', () => {
     await expect(wrapped.myTool.execute!({}, EXECUTE_OPTIONS)).rejects.toBe(boom)
     expect(onToolExecutionEnd).toHaveBeenCalledTimes(1)
     expect(onToolExecutionEnd.mock.calls[0][0].toolOutput).toEqual({ type: 'tool-error', error: boom })
-  })
-
-  it('measures durationMs around execute only', async () => {
-    const onToolExecutionEnd = vi.fn()
-    const execute = vi.fn(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 5))
-      return 'ok'
-    })
-
-    const hooks: AgentLoopHooks = { onToolExecutionEnd }
-    const wrapped = wrapToolsWithExecutionHooks(makeTools(execute), hooks)!
-
-    await wrapped.myTool.execute!({}, EXECUTE_OPTIONS)
-    expect(onToolExecutionEnd.mock.calls[0][0].durationMs).toBeGreaterThanOrEqual(0)
   })
 })

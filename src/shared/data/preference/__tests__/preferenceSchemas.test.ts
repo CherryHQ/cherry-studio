@@ -2,8 +2,37 @@ import { describe, expect, it } from 'vitest'
 
 import type { PreferenceSchemas } from '../preferenceSchemas'
 import { DefaultPreferences } from '../preferenceSchemas'
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '../preferenceTypes'
 
 describe('DefaultPreferences', () => {
+  it('seeds Voice selections without guessing resources or enabling auto-read', () => {
+    const speechSpeed: PreferenceSchemas['default']['feature.voice.speech.speed'] = 1
+    const recognitionModelId: PreferenceSchemas['default']['feature.voice.recognition.model_id'] = ''
+    const autoRead: PreferenceSchemas['default']['feature.voice.auto_read.enabled'] = false
+    const defaults = DefaultPreferences.default as Record<string, unknown>
+
+    expect({
+      recognitionModelId: defaults['feature.voice.recognition.model_id'],
+      recognitionLanguage: defaults['feature.voice.recognition.language'],
+      speechModelId: defaults['feature.voice.speech.model_id'],
+      speechVoiceId: defaults['feature.voice.speech.voice_id'],
+      speechLanguage: defaults['feature.voice.speech.language'],
+      speechSpeed: defaults['feature.voice.speech.speed'],
+      autoRead: defaults['feature.voice.auto_read.enabled'],
+      disclosureConfirmed: defaults['feature.voice.auto_read.disclosure_confirmed']
+    }).toEqual({
+      recognitionModelId: '',
+      recognitionLanguage: '',
+      speechModelId: '',
+      speechVoiceId: '',
+      speechLanguage: '',
+      speechSpeed,
+      autoRead,
+      disclosureConfirmed: false
+    })
+    expect(recognitionModelId).toBe('')
+  })
+
   it('leaves the client ID empty until runtime generates a UUID', () => {
     expect(DefaultPreferences.default['app.user.id']).toBe('')
   })
@@ -40,16 +69,31 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
   })
 
-  it('defaults sidebar favorites to Agent before Chat for new users', () => {
-    const sidebarFavoritesDefault: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
-      { id: 'agents', type: 'app' },
-      { id: 'assistants', type: 'app' },
-      { id: 'translate', type: 'app' },
-      { id: 'paintings', type: 'app' },
-      { id: 'knowledge', type: 'app' }
+  it('preserves the legacy favorites shape independently of resource shortcut defaults', () => {
+    const legacyFavorites: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
+      { type: 'app', id: 'agents' },
+      { type: 'app', id: 'assistants' },
+      { type: 'app', id: 'translate' },
+      { type: 'app', id: 'paintings' },
+      { type: 'app', id: 'knowledge' }
     ]
+    expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(legacyFavorites)
 
-    expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
+    const sidebarShortcutsDefault: PreferenceSchemas['default']['ui.sidebar_shortcut'] = [
+      'agents',
+      'assistants',
+      'translate',
+      'paintings',
+      'knowledge'
+    ].map((resourceId) => {
+      const target: SidebarShortcutTarget = {
+        kind: 'resource',
+        locator: { providerId: 'core.app', resourceId }
+      }
+      return { type: 'shortcut', id: createSidebarShortcutId(target), target }
+    })
+
+    expect(DefaultPreferences.default['ui.sidebar_shortcut']).toEqual(sidebarShortcutsDefault)
   })
 
   it('pins permission mode on the agent composer toolbar for new users', () => {

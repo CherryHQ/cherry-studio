@@ -8,13 +8,14 @@
  * same reason deterministically that the SDK's parallel severity fold produced by race before.
  * `bypassBehavior` is the single authority on what bypassPermissions lifts: it skips the
  * interactive effect of 'skipInteractiveEffect' rules and nothing else — headless denials hold in
- * every mode (skill-install's explicit opt-out excepted). A rule whose only decision is a headless
+ * every mode (approval-required's explicit opt-out excepted). A rule whose only decision is a headless
  * denial declares no `bypassBehavior`; there is no effect for bypass to skip.
  */
 
 import path from 'node:path'
 
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
+import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
@@ -131,6 +132,16 @@ const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' |
 
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
+    id: 'browser-tool-disabled',
+    bypassBehavior: 'enforce',
+    match: {
+      when: (ctx) =>
+        ctx.mountedServers.has('browser') && resolveBrowserToolPermission(ctx.toolName) === 'deny' ? {} : null
+    },
+    effect: 'deny',
+    reason: 'Agent browser control is disabled in Browser settings.'
+  },
+  {
     id: 'disabled-tool',
     bypassBehavior: 'enforce',
     match: { when: (ctx) => (ctx.toolName && ctx.isDisabled(ctx.toolName) ? {} : null) },
@@ -189,18 +200,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
       predicate: 'turn-headless',
       reason:
         'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
-    }
-  },
-  {
-    // Installing third-party skill code needs a responder — except under bypassPermissions, the
-    // user's explicit opt-in to unattended installation.
-    id: 'skill-install',
-    match: { tool: 'mcp__skills__install_skill' },
-    headless: {
-      predicate: 'turn-headless',
-      reason:
-        'This channel or scheduled turn cannot approve a skill installation. Use bypassPermissions for unattended installation, or install it from an interactive turn.',
-      skipHeadlessDenyInBypass: true
     }
   },
   {

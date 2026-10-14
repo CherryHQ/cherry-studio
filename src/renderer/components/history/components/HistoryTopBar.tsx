@@ -1,4 +1,4 @@
-import { FolderInput, Trash2, X } from 'lucide-react'
+import { Archive, FolderInput, X } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -66,7 +66,6 @@ const HistoryTopBar = ({
   onBulkMove
 }: HistoryTopBarProps) => {
   const { t } = useTranslation()
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [moveDialogOpen, setMoveDialogOpen] = useState(false)
   const [moveTargetId, setMoveTargetId] = useState('')
   const moveTargets = useMemo(() => Array.from(bulkMoveTargets), [bulkMoveTargets])
@@ -76,12 +75,6 @@ const HistoryTopBar = ({
   )
   const canBulkDelete = bulkDeleteCount > 0 && !!onBulkDelete
   const canBulkMove = mode === 'assistant' && selectedCount > 0 && moveTargets.length > 0 && !!onBulkMove
-  const deleteTitle =
-    mode === 'assistant' ? t('history.records.bulkDeleteTopics.title') : t('history.records.bulkDeleteSessions.title')
-  const deleteDescription =
-    mode === 'assistant'
-      ? t('history.records.bulkDeleteTopics.description', { count: bulkDeleteCount })
-      : t('history.records.bulkDeleteSessions.description', { count: bulkDeleteCount })
 
   useEffect(() => {
     if (!moveDialogOpen) return
@@ -123,7 +116,7 @@ const HistoryTopBar = ({
                 className={cn(
                   'h-8 w-[132px] text-xs',
                   selectedStatus !== ALL_SOURCE_ID &&
-                    '[&_svg]:transition-opacity group-focus-within/status-select:[&_svg]:opacity-0 group-hover/status-select:[&_svg]:opacity-0'
+                    '[&_svg]:transition-opacity group-focus-within/status-select:[&_svg]:opacity-0 group-hover/status-select:[&_svg]:opacity-0 no-hover:[&_svg]:opacity-0'
                 )}>
                 <SelectValue placeholder={statusPlaceholder ?? statusLabel} />
               </SelectTrigger>
@@ -151,7 +144,7 @@ const HistoryTopBar = ({
                   event.stopPropagation()
                   onStatusSelect(ALL_SOURCE_ID)
                 }}
-                className="pointer-events-none absolute top-1/2 right-2 flex size-5 min-h-0 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] group-focus-within/status-select:pointer-events-auto group-focus-within/status-select:opacity-100 group-hover/status-select:pointer-events-auto group-hover/status-select:opacity-100 hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100">
+                className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 flex size-5 min-h-0 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-transparent p-0 opacity-0 shadow-none transition-[background-color,color,opacity] group-focus-within/status-select:pointer-events-auto group-focus-within/status-select:opacity-100 group-hover/status-select:pointer-events-auto group-hover/status-select:opacity-100 hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100">
                 <X size={12} />
               </Button>
             ) : null}
@@ -182,28 +175,15 @@ const HistoryTopBar = ({
           variant="outline"
           className="h-8 gap-1.5 rounded-md px-2.5 text-xs text-destructive shadow-none hover:text-destructive"
           disabled={!canBulkDelete}
-          onClick={() => setDeleteDialogOpen(true)}>
-          <Trash2 className="size-3.5" />
+          onClick={() => void onBulkDelete?.()}>
+          <Archive className="size-3.5" />
           <span>
-            {t('history.records.bulkDelete')}
+            {t('history.records.bulkArchive')}
             {bulkDeleteCount > 0 ? ` (${bulkDeleteCount})` : ''}
           </span>
         </Button>
       </div>
 
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        title={deleteTitle}
-        description={deleteDescription}
-        confirmText={t('common.delete')}
-        cancelText={t('common.cancel')}
-        destructive
-        onConfirm={async () => {
-          await onBulkDelete?.()
-          setDeleteDialogOpen(false)
-        }}
-      />
       <ConfirmDialog
         open={moveDialogOpen}
         onOpenChange={setMoveDialogOpen}
@@ -211,7 +191,7 @@ const HistoryTopBar = ({
         description={t('history.records.bulkMoveTopics.description', { count: selectedCount })}
         content={
           <div className="space-y-2">
-            <div className="text-xs leading-4 font-medium text-muted-foreground">
+            <div className="text-muted-foreground text-xs leading-4 font-medium">
               {t('history.records.bulkMoveTopics.target')}
             </div>
             <SelectDropdown

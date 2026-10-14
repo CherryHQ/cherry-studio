@@ -23,6 +23,8 @@ import {
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
 
+import { ProviderBillingSchema } from './providerBilling'
+
 export type { ServerTool, ServerToolConfig }
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
@@ -155,6 +157,7 @@ const AnthropicCacheTtlSchema = z.enum(ANTHROPIC_CACHE_TTL_OPTIONS)
 export type AnthropicCacheTtl = z.infer<typeof AnthropicCacheTtlSchema>
 
 export const ProviderSettingsSchema = z.object({
+  billing: ProviderBillingSchema.optional(),
   streamOptions: z
     .object({
       includeUsage: z.boolean().optional()
@@ -273,6 +276,8 @@ export const ProviderSchema = z.object({
    * the registry; absent/`'api'` for normal providers.
    */
   modelListSource: z.enum(['api', 'registry']).optional(),
+  /** Registry-owned opt-in to append models missing from the API list. Absent means API-only. */
+  supplementModelsFromRegistry: z.boolean().optional(),
   /** Provider-native (server-executed) built-in tools resolved from the registry. */
   serverTools: z.array(ServerToolConfigSchema).optional(),
   /**

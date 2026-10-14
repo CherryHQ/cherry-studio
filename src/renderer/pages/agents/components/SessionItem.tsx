@@ -1,6 +1,7 @@
-import { PinIcon, Trash2, XIcon } from 'lucide-react'
+import dayjs from 'dayjs'
+import { Archive, Folder, PinIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
-import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
@@ -17,16 +18,15 @@ import {
   useResourceListActions,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
-import { useCache } from '@renderer/data/hooks/useCache'
+import { SessionHoverPreview } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
+import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-
-const DELETE_CONFIRMATION_TIMEOUT = 2000
 
 interface SessionItemProps {
   active?: boolean
@@ -38,9 +38,11 @@ interface SessionItemProps {
   onPress: (id: string) => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin?: (id: string) => void | Promise<unknown>
+  onToggleSidebar?: (session: AgentSessionEntity) => void
   panePosition?: TopicTabPosition
   pinned?: boolean
   reserveLeadingIconSlot?: boolean
+  sidebarPinned?: boolean
   session: AgentSessionEntity
   sessionMenuActions: SessionItemMenuActions
 }
@@ -75,8 +77,10 @@ const SessionItem = ({
   onSetPanePosition,
   panePosition,
   onTogglePin,
+  onToggleSidebar,
   pinned = false,
   reserveLeadingIconSlot = true,
+  sidebarPinned = false,
   session,
   sessionMenuActions
 }: SessionItemProps) => {
@@ -86,8 +90,7 @@ const SessionItem = ({
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
-  const [renamingTopics] = useCache('topic.renaming')
-  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
+  const { isRenaming, isNewlyRenamed } = useTopicRenameState(topicId)
   const {
     status,
     awaitingApprovalAnchors,
@@ -98,9 +101,26 @@ const SessionItem = ({
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
   const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
-  const isRenaming = renamingTopics?.includes(topicId) === true
-  const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
+  // The row truncates its title, so the hover card carries the full name, when the session
+  // was last active, and the workspace it runs in (absent for system workspaces).
+  const workspacePath = session.workspace?.path
+  const hoverCard = (
+    <div className="flex max-w-72 flex-col gap-0.5 text-left">
+      <span className="font-medium">{sessionName}</span>
+      <span className="text-muted-foreground">
+        {t('agent.session.hover.last_activity', {
+          time: dayjs(session.lastActivityAt).format('YYYY-MM-DD HH:mm')
+        })}
+      </span>
+      {workspacePath && (
+        <span className="text-muted-foreground flex items-center gap-1">
+          <Folder aria-hidden="true" size={12} className="shrink-0" />
+          <span className="truncate">{session.workspace.name || workspacePath}</span>
+        </span>
+      )}
+    </div>
+  )
   // A live stream can pause for tool approval without a status transition
   // (anchors set mid-stream), while the MCP needsApproval path ends the stream
   // with the terminal 'awaiting-approval' status — the badge must cover both.
@@ -127,17 +147,15 @@ const SessionItem = ({
   const hasStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
-  const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
-  const deleteConfirmationTimeoutRef = useRef<number | null>(null)
-
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
   const startMenuEdit = useCallback(() => onOpenRenameDialog(session), [onOpenRenameDialog, session])
-  const handleDelete = useCallback(() => {
-    void onDelete(session.id)
-  }, [onDelete, session.id])
+  const handleDelete = useCallback(() => onDelete(session.id), [onDelete, session.id])
   const handleTogglePin = useCallback(() => {
     void onTogglePin?.(session.id)
   }, [onTogglePin, session.id])
+  const handleToggleSidebar = useCallback(() => {
+    onToggleSidebar?.(session)
+  }, [onToggleSidebar, session])
   const handleOpenInNewTab = useCallback(() => {
     onOpenInNewTab?.(session)
   }, [onOpenInNewTab, session])
@@ -155,6 +173,7 @@ const SessionItem = ({
       onCopyMarkdown: () => sessionMenuActions.onCopyMarkdown(session),
       onCopyPlainText: () => sessionMenuActions.onCopyPlainText(session),
       onDelete: handleDelete,
+      isBusy: isStreamPending || showAwaitingApprovalBadge,
       onExportImage: () => sessionMenuActions.onExportImage(session),
       onExportJoplin: () => sessionMenuActions.onExportJoplin(session),
       onExportMarkdown: () => sessionMenuActions.onExportMarkdown(session),
@@ -170,25 +189,32 @@ const SessionItem = ({
       onSaveToNotes: () => sessionMenuActions.onSaveToNotes(session),
       onSetPanePosition,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
+      onToggleSidebar: onToggleSidebar ? handleToggleSidebar : undefined,
       panePosition,
       pinned,
+      sidebarPinned,
       sessionName,
       startEdit: startMenuEdit,
       t
     }),
     [
       handleDelete,
+      isStreamPending,
+      showAwaitingApprovalBadge,
       handleOpenInNewTab,
       handleOpenInNewWindow,
       handleTogglePin,
+      handleToggleSidebar,
       active,
       isRenaming,
       onOpenInNewTab,
       onOpenInNewWindow,
       onSetPanePosition,
       onTogglePin,
+      onToggleSidebar,
       panePosition,
       pinned,
+      sidebarPinned,
       session,
       sessionMenuActions,
       sessionName,
@@ -198,36 +224,9 @@ const SessionItem = ({
   )
 
   const { getActions: getMenuActions, handleMenuAction } = useSessionMenuActions(actionContext)
-
-  const clearDeleteConfirmationTimeout = useCallback(() => {
-    if (deleteConfirmationTimeoutRef.current === null) return
-    window.clearTimeout(deleteConfirmationTimeoutRef.current)
-    deleteConfirmationTimeoutRef.current = null
-  }, [])
-
-  useEffect(() => clearDeleteConfirmationTimeout, [clearDeleteConfirmationTimeout])
-
-  const handleDeleteClick = useCallback(
-    (event: MouseEvent) => {
-      event.stopPropagation()
-
-      if (isConfirmingDeletion || event.ctrlKey || event.metaKey) {
-        clearDeleteConfirmationTimeout()
-        setIsConfirmingDeletion(false)
-        handleDelete()
-        return
-      }
-
-      startTransition(() => {
-        clearDeleteConfirmationTimeout()
-        setIsConfirmingDeletion(true)
-        deleteConfirmationTimeoutRef.current = window.setTimeout(() => {
-          deleteConfirmationTimeoutRef.current = null
-          setIsConfirmingDeletion(false)
-        }, DELETE_CONFIRMATION_TIMEOUT)
-      })
-    },
-    [clearDeleteConfirmationTimeout, handleDelete, isConfirmingDeletion]
+  const deleteAction = useMemo(
+    () => getMenuActions().find((action) => action.id === 'session.delete'),
+    [getMenuActions]
   )
 
   const handlePress = useCallback(
@@ -273,8 +272,7 @@ const SessionItem = ({
       className="relative"
       style={{ cursor: 'pointer' }}
       onClick={handlePress}
-      onAuxClick={handleAuxClick}
-      title={sessionName}>
+      onAuxClick={handleAuxClick}>
       {showLeadingSlot && (
         <ResourceList.ItemLeadingSlot className={cn('relative', !rowState.renaming && channelIcon && 'rounded-sm')}>
           {!rowState.renaming && channelIcon ? (
@@ -295,24 +293,25 @@ const SessionItem = ({
       />
 
       {!rowState.renaming && (
-        <ResourceList.ItemTitle
-          fade
-          title={sessionName}
-          className={cn(
-            nameAnimationClassName,
-            // The stream indicator is an absolute overlay (keeps no flex space),
-            // so the title needs a standing yield for its dot zone; on hover the
-            // overlay fades out, the standing yield closes, and the in-flow action rail expands. The
-            // awaiting-approval pill (mutually exclusive with the overlay) is an
-            // in-flow sibling the title simply fades against — no standing margin.
-            hasStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
-          )}
-          onDoubleClick={(event) => {
-            event.stopPropagation()
-            startInlineEdit()
-          }}>
-          {sessionName}
-        </ResourceList.ItemTitle>
+        <SessionHoverPreview id={session.id} content={hoverCard}>
+          <ResourceList.ItemTitle
+            fade
+            className={cn(
+              nameAnimationClassName,
+              // The stream indicator is an absolute overlay (keeps no flex space),
+              // so the title needs a standing yield for its dot zone; on hover the
+              // overlay fades out, the standing yield closes, and the in-flow action rail expands. The
+              // awaiting-approval pill (mutually exclusive with the overlay) is an
+              // in-flow sibling the title simply fades against — no standing margin.
+              hasStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
+            )}
+            onDoubleClick={(event) => {
+              event.stopPropagation()
+              startInlineEdit()
+            }}>
+            {sessionName}
+          </ResourceList.ItemTitle>
+        </SessionHoverPreview>
       )}
 
       {!rowState.renaming && (
@@ -326,11 +325,12 @@ const SessionItem = ({
         />
       )}
 
-      <ResourceList.ItemActions active={isConfirmingDeletion}>
+      <ResourceList.ItemActions pinned={pinned && showPinAction}>
         {showPinAction && (
           <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>
             <ResourceList.ItemAction
               aria-label={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')}
+              aria-pressed={pinned}
               className={cn(pinned && 'text-foreground')}
               onClick={handleTogglePinClick}>
               <PinIcon size={14} className={cn('size-3.5!', pinned && 'fill-current')} />
@@ -338,16 +338,15 @@ const SessionItem = ({
           </Tooltip>
         )}
         {!pinned && (
-          <Tooltip title={t('common.delete')} delay={500}>
+          <Tooltip title={t('common.archive')} delay={500}>
             <ResourceList.ItemAction
-              aria-label={t('common.delete')}
-              data-deleting={isConfirmingDeletion}
-              onClick={handleDeleteClick}>
-              {isConfirmingDeletion ? (
-                <Trash2 size={14} className="size-3.5! text-destructive" />
-              ) : (
-                <XIcon size={14} className="size-3.5!" />
-              )}
+              aria-label={t('common.archive')}
+              disabled={!deleteAction?.availability.enabled}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (deleteAction) void handleMenuAction(deleteAction)
+              }}>
+              <Archive size={14} className="size-3.5!" />
             </ResourceList.ItemAction>
           </Tooltip>
         )}

@@ -57,6 +57,9 @@ describe('webSearchProviderMeta', () => {
     expect(getWebSearchProviderIconRef('parallel')).toMatchObject({ kind: 'provider', key: 'parallel' })
     expect(getWebSearchProviderOfficialWebsite('parallel')).toBe('https://parallel.ai')
     expect(getWebSearchProviderApiKeyWebsite('parallel')).toBe('https://platform.parallel.ai')
+    expect(getWebSearchProviderIconRef('serply')).toMatchObject({ kind: 'provider', key: 'serply' })
+    expect(getWebSearchProviderOfficialWebsite('serply')).toBe('https://serply.io')
+    expect(getWebSearchProviderApiKeyWebsite('serply')).toBe('https://serply.io')
     expect(getWebSearchProviderApiKeyWebsite('fetch')).toBeUndefined()
   })
 

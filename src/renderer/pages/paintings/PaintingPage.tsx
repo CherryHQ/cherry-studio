@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,6 +31,9 @@ const PaintingPage: FC = () => {
   const draftDefaults = usePaintingDraftDefaults(providerOptions)
 
   const [currentPainting, setCurrentPainting] = useState<PaintingData>(() => createDefaultPainting(draftDefaults))
+  // After generate, collapse the prompt dock so the artboard keeps the space
+  // long prompts used to steal (#20739). Blank drafts stay expanded for typing.
+  const [promptDockCollapsed, setPromptDockCollapsed] = useState(false)
 
   const patchPainting = useCallback((updates: Partial<PaintingData>) => {
     setCurrentPainting((current) => ({ ...current, ...updates }))
@@ -70,6 +74,7 @@ const PaintingPage: FC = () => {
   const {
     generating: liveGenerating,
     submitting,
+    preparing,
     submit,
     cancel: cancelGeneration
   } = usePaintingGenerationSubmit({
@@ -105,9 +110,15 @@ const PaintingPage: FC = () => {
     cancelGeneration
   })
 
+  // Preparation may still replace/write the record. Once generation is running,
+  // it only persists output files and New can save editable fields independently.
+  const busy = list.saving || preparing
+
   const onCancel = useCallback(() => cancelGeneration(currentPainting.id), [cancelGeneration, currentPainting.id])
   const saveCurrentRef = useRef(list.saveCurrent)
   saveCurrentRef.current = list.saveCurrent
+  const hasGeneratedImages = composerPainting.files.length > 0
+  const canCollapsePromptDock = hasGeneratedImages && !showTemplateShowcase
 
   useEffect(() => {
     return () => {
@@ -115,9 +126,20 @@ const PaintingPage: FC = () => {
     }
   }, [])
 
+  // Collapse when a painting gains output files (fresh generate or select with
+  // images). Expand again while generating so Cancel stays reachable, and for
+  // blank drafts that still need the full composer.
+  useEffect(() => {
+    if (generating || showTemplateShowcase || !hasGeneratedImages) {
+      setPromptDockCollapsed(false)
+      return
+    }
+    setPromptDockCollapsed(true)
+  }, [composerPainting.id, generating, hasGeneratedImages, showTemplateShowcase])
+
   return (
     <div data-ui="paintings.view" className={paintingClasses.page}>
-      <div className={paintingClasses.content}>
+      <div className={paintingClasses.content} inert={busy} aria-busy={busy}>
         <div className="flex h-full flex-1 flex-col">
           <div className={paintingClasses.frame}>
             <div className={paintingClasses.surface}>
@@ -130,9 +152,10 @@ const PaintingPage: FC = () => {
                 onDeletePainting={list.remove}
                 onSelectPainting={list.select}
                 onAddPainting={list.add}
+                adding={busy}
               />
 
-              <div className={paintingClasses.centerPane}>
+              <div className={paintingClasses.centerPane} data-composer-stage="">
                 <div className={paintingClasses.centerStage}>
                   {!showTemplateShowcase && <Artboard painting={composerPainting} isLoading={generating} />}
                 </div>
@@ -164,30 +187,60 @@ const PaintingPage: FC = () => {
                     </div>
                   </section>
                 )}
-                <div className={paintingClasses.promptDock}>
-                  <div className="mx-auto w-full max-w-5xl">
-                    <QuickPanelProvider>
-                      <PaintingComposer
-                        painting={composerPainting}
-                        generating={generating}
-                        submitting={submitting}
-                        onPromptChange={(prompt) => patchPainting({ prompt })}
-                        onGenerate={submit}
-                        onCancel={onCancel}
-                        onModelSelect={switchModel}
-                        onConfigChange={patchPainting}
-                        onGenerateRandomSeed={(key) =>
-                          patchPainting({
-                            params: {
-                              ...currentPainting.params,
-                              [key]: String(Math.floor(Math.random() * 1_000_000))
-                            }
-                          })
-                        }
-                      />
-                    </QuickPanelProvider>
+                {canCollapsePromptDock && promptDockCollapsed ? (
+                  <div className={paintingClasses.promptDockCollapsed} data-testid="painting-prompt-dock-collapsed">
+                    <button
+                      type="button"
+                      className={paintingClasses.promptDockToggle}
+                      aria-expanded={false}
+                      aria-label={t('paintings.prompt_dock.expand')}
+                      onClick={() => setPromptDockCollapsed(false)}>
+                      <ChevronUp className="size-3.5" aria-hidden />
+                      {t('paintings.prompt_dock.expand')}
+                    </button>
                   </div>
-                </div>
+                ) : (
+                  <div
+                    className={paintingClasses.promptDock}
+                    data-composer-dock-surface=""
+                    data-testid="painting-prompt-dock">
+                    {canCollapsePromptDock && (
+                      <div className="mx-auto mb-1 flex w-full max-w-5xl justify-center">
+                        <button
+                          type="button"
+                          className={paintingClasses.promptDockToggle}
+                          aria-expanded={true}
+                          aria-label={t('paintings.prompt_dock.minimize')}
+                          onClick={() => setPromptDockCollapsed(true)}>
+                          <ChevronDown className="size-3.5" aria-hidden />
+                          {t('paintings.prompt_dock.minimize')}
+                        </button>
+                      </div>
+                    )}
+                    <div className="mx-auto w-full max-w-5xl">
+                      <QuickPanelProvider>
+                        <PaintingComposer
+                          painting={composerPainting}
+                          generating={generating}
+                          submitting={submitting}
+                          onPromptChange={(prompt) => patchPainting({ prompt })}
+                          onGenerate={submit}
+                          onCancel={onCancel}
+                          onModelSelect={switchModel}
+                          onConfigChange={patchPainting}
+                          onGenerateRandomSeed={(key) =>
+                            patchPainting({
+                              params: {
+                                ...currentPainting.params,
+                                [key]: String(Math.floor(Math.random() * 1_000_000))
+                              }
+                            })
+                          }
+                        />
+                      </QuickPanelProvider>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

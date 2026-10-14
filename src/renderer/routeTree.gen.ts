@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AppAgentsRouteImport } from './routes/app/agents'
+import { Route as AppBrowserRouteImport } from './routes/app/browser'
 import { Route as AppChatRouteImport } from './routes/app/chat'
 import { Route as AppCodeRouteImport } from './routes/app/code'
 import { Route as AppFilePreviewRouteImport } from './routes/app/file-preview'
@@ -25,10 +26,14 @@ import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
+import { Route as SettingsArchiveRouteImport } from './routes/settings/archive'
+import { Route as SettingsBrowserRouteImport } from './routes/settings/browser'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
 import { Route as SettingsCodeExecutionRouteImport } from './routes/settings/code-execution'
+import { Route as SettingsComputerUseRouteImport } from './routes/settings/computer-use'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsDependenciesRouteImport } from './routes/settings/dependencies'
+import { Route as SettingsDeviceConnectionsRouteImport } from './routes/settings/device-connections'
 import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsLocalModelsRouteImport } from './routes/settings/local-models'
@@ -47,6 +52,7 @@ import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsUsageRouteImport } from './routes/settings/usage'
+import { Route as SettingsVoiceRouteImport } from './routes/settings/voice'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
 import { Route as AppMiniAppIndexRouteImport } from './routes/app/mini-app.index'
 import { Route as AppMiniAppAppIdRouteImport } from './routes/app/mini-app/$appId'
@@ -61,6 +67,8 @@ import { Route as SettingsMcpNpxSearchRouteImport } from './routes/settings/mcp/
 import { Route as SettingsMcpServersRouteImport } from './routes/settings/mcp/servers'
 import { Route as SettingsScheduledTasksIndexRouteImport } from './routes/settings/scheduled-tasks.index'
 import { Route as SettingsScheduledTasksTaskIdRouteImport } from './routes/settings/scheduled-tasks.$taskId'
+import { Route as SettingsSkillsIndexRouteImport } from './routes/settings/skills.index'
+import { Route as SettingsSkillsSkillIdRouteImport } from './routes/settings/skills.$skillId'
 import { Route as SettingsMcpSettingsServerIdRouteImport } from './routes/settings/mcp/settings.$serverId'
 
 const AppRoute = AppRouteImport.update({
@@ -76,6 +84,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const AppAgentsRoute = AppAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBrowserRoute = AppBrowserRouteImport.update({
+  id: '/browser',
+  path: '/browser',
   getParentRoute: () => AppRoute,
 } as any)
 const AppChatRoute = AppChatRouteImport.update({
@@ -143,6 +156,16 @@ const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   path: '/appearance',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsArchiveRoute = SettingsArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsBrowserRoute = SettingsBrowserRouteImport.update({
+  id: '/browser',
+  path: '/browser',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   id: '/channels',
   path: '/channels',
@@ -151,6 +174,11 @@ const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
 const SettingsCodeExecutionRoute = SettingsCodeExecutionRouteImport.update({
   id: '/code-execution',
   path: '/code-execution',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsComputerUseRoute = SettingsComputerUseRouteImport.update({
+  id: '/computer-use',
+  path: '/computer-use',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsDataRoute = SettingsDataRouteImport.update({
@@ -163,6 +191,12 @@ const SettingsDependenciesRoute = SettingsDependenciesRouteImport.update({
   path: '/dependencies',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsDeviceConnectionsRoute =
+  SettingsDeviceConnectionsRouteImport.update({
+    id: '/device-connections',
+    path: '/device-connections',
+    getParentRoute: () => SettingsRoute,
+  } as any)
 const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
   id: '/file-processing',
   path: '/file-processing',
@@ -254,6 +288,11 @@ const SettingsUsageRoute = SettingsUsageRouteImport.update({
   path: '/usage',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsVoiceRoute = SettingsVoiceRouteImport.update({
+  id: '/voice',
+  path: '/voice',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsWebsearchRoute = SettingsWebsearchRouteImport.update({
   id: '/websearch',
   path: '/websearch',
@@ -326,6 +365,16 @@ const SettingsScheduledTasksTaskIdRoute =
     path: '/$taskId',
     getParentRoute: () => SettingsScheduledTasksRoute,
   } as any)
+const SettingsSkillsIndexRoute = SettingsSkillsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsSkillsRoute,
+} as any)
+const SettingsSkillsSkillIdRoute = SettingsSkillsSkillIdRouteImport.update({
+  id: '/$skillId',
+  path: '/$skillId',
+  getParentRoute: () => SettingsSkillsRoute,
+} as any)
 const SettingsMcpSettingsServerIdRoute =
   SettingsMcpSettingsServerIdRouteImport.update({
     id: '/settings/$serverId',
@@ -337,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/file-preview': typeof AppFilePreviewRoute
@@ -349,10 +399,14 @@ export interface FileRoutesByFullPath {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/archive': typeof SettingsArchiveRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
+  '/settings/computer-use': typeof SettingsComputerUseRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
+  '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
@@ -368,9 +422,10 @@ export interface FileRoutesByFullPath {
   '/settings/search': typeof SettingsSearchRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
-  '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/skills': typeof SettingsSkillsRouteWithChildren
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
+  '/settings/voice': typeof SettingsVoiceRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -382,15 +437,18 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/scheduled-tasks/$taskId': typeof SettingsScheduledTasksTaskIdRoute
+  '/settings/skills/$skillId': typeof SettingsSkillsSkillIdRoute
   '/app/mini-app/': typeof AppMiniAppIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/scheduled-tasks/': typeof SettingsScheduledTasksIndexRoute
+  '/settings/skills/': typeof SettingsSkillsIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
 }
 export interface FileRoutesByTo {
   '/app': typeof AppRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/file-preview': typeof AppFilePreviewRoute
@@ -403,10 +461,14 @@ export interface FileRoutesByTo {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/archive': typeof SettingsArchiveRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
+  '/settings/computer-use': typeof SettingsComputerUseRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
+  '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
@@ -420,9 +482,9 @@ export interface FileRoutesByTo {
   '/settings/search': typeof SettingsSearchRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
-  '/settings/skills': typeof SettingsSkillsRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
+  '/settings/voice': typeof SettingsVoiceRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -434,10 +496,12 @@ export interface FileRoutesByTo {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/scheduled-tasks/$taskId': typeof SettingsScheduledTasksTaskIdRoute
+  '/settings/skills/$skillId': typeof SettingsSkillsSkillIdRoute
   '/app/mini-app': typeof AppMiniAppIndexRoute
   '/app/paintings': typeof AppPaintingsIndexRoute
   '/settings/mcp': typeof SettingsMcpIndexRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksIndexRoute
+  '/settings/skills': typeof SettingsSkillsIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
 }
 export interface FileRoutesById {
@@ -445,6 +509,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/file-preview': typeof AppFilePreviewRoute
@@ -457,10 +522,14 @@ export interface FileRoutesById {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/archive': typeof SettingsArchiveRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
+  '/settings/computer-use': typeof SettingsComputerUseRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
+  '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
@@ -476,9 +545,10 @@ export interface FileRoutesById {
   '/settings/search': typeof SettingsSearchRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
-  '/settings/skills': typeof SettingsSkillsRoute
+  '/settings/skills': typeof SettingsSkillsRouteWithChildren
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
+  '/settings/voice': typeof SettingsVoiceRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -490,10 +560,12 @@ export interface FileRoutesById {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/scheduled-tasks/$taskId': typeof SettingsScheduledTasksTaskIdRoute
+  '/settings/skills/$skillId': typeof SettingsSkillsSkillIdRoute
   '/app/mini-app/': typeof AppMiniAppIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/scheduled-tasks/': typeof SettingsScheduledTasksIndexRoute
+  '/settings/skills/': typeof SettingsSkillsIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
 }
 export interface FileRouteTypes {
@@ -502,6 +574,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/settings'
     | '/app/agents'
+    | '/app/browser'
     | '/app/chat'
     | '/app/code'
     | '/app/file-preview'
@@ -514,10 +587,14 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/archive'
+    | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
+    | '/settings/computer-use'
     | '/settings/data'
     | '/settings/dependencies'
+    | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/local-models'
@@ -536,6 +613,7 @@ export interface FileRouteTypes {
     | '/settings/skills'
     | '/settings/system'
     | '/settings/usage'
+    | '/settings/voice'
     | '/settings/websearch'
     | '/settings/'
     | '/app/mini-app/$appId'
@@ -547,15 +625,18 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/scheduled-tasks/$taskId'
+    | '/settings/skills/$skillId'
     | '/app/mini-app/'
     | '/app/paintings/'
     | '/settings/mcp/'
     | '/settings/scheduled-tasks/'
+    | '/settings/skills/'
     | '/settings/mcp/settings/$serverId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/app'
     | '/app/agents'
+    | '/app/browser'
     | '/app/chat'
     | '/app/code'
     | '/app/file-preview'
@@ -568,10 +649,14 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/archive'
+    | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
+    | '/settings/computer-use'
     | '/settings/data'
     | '/settings/dependencies'
+    | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/local-models'
@@ -585,9 +670,9 @@ export interface FileRouteTypes {
     | '/settings/search'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
-    | '/settings/skills'
     | '/settings/system'
     | '/settings/usage'
+    | '/settings/voice'
     | '/settings/websearch'
     | '/settings'
     | '/app/mini-app/$appId'
@@ -599,16 +684,19 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/scheduled-tasks/$taskId'
+    | '/settings/skills/$skillId'
     | '/app/mini-app'
     | '/app/paintings'
     | '/settings/mcp'
     | '/settings/scheduled-tasks'
+    | '/settings/skills'
     | '/settings/mcp/settings/$serverId'
   id:
     | '__root__'
     | '/app'
     | '/settings'
     | '/app/agents'
+    | '/app/browser'
     | '/app/chat'
     | '/app/code'
     | '/app/file-preview'
@@ -621,10 +709,14 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/archive'
+    | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
+    | '/settings/computer-use'
     | '/settings/data'
     | '/settings/dependencies'
+    | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/local-models'
@@ -643,6 +735,7 @@ export interface FileRouteTypes {
     | '/settings/skills'
     | '/settings/system'
     | '/settings/usage'
+    | '/settings/voice'
     | '/settings/websearch'
     | '/settings/'
     | '/app/mini-app/$appId'
@@ -654,10 +747,12 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/scheduled-tasks/$taskId'
+    | '/settings/skills/$skillId'
     | '/app/mini-app/'
     | '/app/paintings/'
     | '/settings/mcp/'
     | '/settings/scheduled-tasks/'
+    | '/settings/skills/'
     | '/settings/mcp/settings/$serverId'
   fileRoutesById: FileRoutesById
 }
@@ -687,6 +782,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/app/agents'
       preLoaderRoute: typeof AppAgentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/browser': {
+      id: '/app/browser'
+      path: '/browser'
+      fullPath: '/app/browser'
+      preLoaderRoute: typeof AppBrowserRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/chat': {
@@ -780,6 +882,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAppearanceRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/archive': {
+      id: '/settings/archive'
+      path: '/archive'
+      fullPath: '/settings/archive'
+      preLoaderRoute: typeof SettingsArchiveRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/browser': {
+      id: '/settings/browser'
+      path: '/browser'
+      fullPath: '/settings/browser'
+      preLoaderRoute: typeof SettingsBrowserRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/channels': {
       id: '/settings/channels'
       path: '/channels'
@@ -794,6 +910,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsCodeExecutionRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/computer-use': {
+      id: '/settings/computer-use'
+      path: '/computer-use'
+      fullPath: '/settings/computer-use'
+      preLoaderRoute: typeof SettingsComputerUseRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/data': {
       id: '/settings/data'
       path: '/data'
@@ -806,6 +929,13 @@ declare module '@tanstack/react-router' {
       path: '/dependencies'
       fullPath: '/settings/dependencies'
       preLoaderRoute: typeof SettingsDependenciesRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/device-connections': {
+      id: '/settings/device-connections'
+      path: '/device-connections'
+      fullPath: '/settings/device-connections'
+      preLoaderRoute: typeof SettingsDeviceConnectionsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/file-processing': {
@@ -934,6 +1064,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsUsageRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/voice': {
+      id: '/settings/voice'
+      path: '/voice'
+      fullPath: '/settings/voice'
+      preLoaderRoute: typeof SettingsVoiceRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/websearch': {
       id: '/settings/websearch'
       path: '/websearch'
@@ -1032,6 +1169,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsScheduledTasksTaskIdRouteImport
       parentRoute: typeof SettingsScheduledTasksRoute
     }
+    '/settings/skills/': {
+      id: '/settings/skills/'
+      path: '/'
+      fullPath: '/settings/skills/'
+      preLoaderRoute: typeof SettingsSkillsIndexRouteImport
+      parentRoute: typeof SettingsSkillsRoute
+    }
+    '/settings/skills/$skillId': {
+      id: '/settings/skills/$skillId'
+      path: '/$skillId'
+      fullPath: '/settings/skills/$skillId'
+      preLoaderRoute: typeof SettingsSkillsSkillIdRouteImport
+      parentRoute: typeof SettingsSkillsRoute
+    }
     '/settings/mcp/settings/$serverId': {
       id: '/settings/mcp/settings/$serverId'
       path: '/settings/$serverId'
@@ -1044,6 +1195,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
+  AppBrowserRoute: typeof AppBrowserRoute
   AppChatRoute: typeof AppChatRoute
   AppCodeRoute: typeof AppCodeRoute
   AppFilePreviewRoute: typeof AppFilePreviewRoute
@@ -1061,6 +1213,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRoute,
+  AppBrowserRoute: AppBrowserRoute,
   AppChatRoute: AppChatRoute,
   AppCodeRoute: AppCodeRoute,
   AppFilePreviewRoute: AppFilePreviewRoute,
@@ -1120,14 +1273,32 @@ const SettingsScheduledTasksRouteWithChildren =
     SettingsScheduledTasksRouteChildren,
   )
 
+interface SettingsSkillsRouteChildren {
+  SettingsSkillsSkillIdRoute: typeof SettingsSkillsSkillIdRoute
+  SettingsSkillsIndexRoute: typeof SettingsSkillsIndexRoute
+}
+
+const SettingsSkillsRouteChildren: SettingsSkillsRouteChildren = {
+  SettingsSkillsSkillIdRoute: SettingsSkillsSkillIdRoute,
+  SettingsSkillsIndexRoute: SettingsSkillsIndexRoute,
+}
+
+const SettingsSkillsRouteWithChildren = SettingsSkillsRoute._addFileChildren(
+  SettingsSkillsRouteChildren,
+)
+
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsApiGatewayRoute: typeof SettingsApiGatewayRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsArchiveRoute: typeof SettingsArchiveRoute
+  SettingsBrowserRoute: typeof SettingsBrowserRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsCodeExecutionRoute: typeof SettingsCodeExecutionRoute
+  SettingsComputerUseRoute: typeof SettingsComputerUseRoute
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDependenciesRoute: typeof SettingsDependenciesRoute
+  SettingsDeviceConnectionsRoute: typeof SettingsDeviceConnectionsRoute
   SettingsFileProcessingRoute: typeof SettingsFileProcessingRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsLocalModelsRoute: typeof SettingsLocalModelsRoute
@@ -1143,9 +1314,10 @@ interface SettingsRouteChildren {
   SettingsSearchRoute: typeof SettingsSearchRoute
   SettingsSelectionAssistantRoute: typeof SettingsSelectionAssistantRoute
   SettingsShortcutRoute: typeof SettingsShortcutRoute
-  SettingsSkillsRoute: typeof SettingsSkillsRoute
+  SettingsSkillsRoute: typeof SettingsSkillsRouteWithChildren
   SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsUsageRoute: typeof SettingsUsageRoute
+  SettingsVoiceRoute: typeof SettingsVoiceRoute
   SettingsWebsearchRoute: typeof SettingsWebsearchRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -1154,10 +1326,14 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsApiGatewayRoute: SettingsApiGatewayRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsArchiveRoute: SettingsArchiveRoute,
+  SettingsBrowserRoute: SettingsBrowserRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsCodeExecutionRoute: SettingsCodeExecutionRoute,
+  SettingsComputerUseRoute: SettingsComputerUseRoute,
   SettingsDataRoute: SettingsDataRoute,
   SettingsDependenciesRoute: SettingsDependenciesRoute,
+  SettingsDeviceConnectionsRoute: SettingsDeviceConnectionsRoute,
   SettingsFileProcessingRoute: SettingsFileProcessingRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsLocalModelsRoute: SettingsLocalModelsRoute,
@@ -1173,9 +1349,10 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsSearchRoute: SettingsSearchRoute,
   SettingsSelectionAssistantRoute: SettingsSelectionAssistantRoute,
   SettingsShortcutRoute: SettingsShortcutRoute,
-  SettingsSkillsRoute: SettingsSkillsRoute,
+  SettingsSkillsRoute: SettingsSkillsRouteWithChildren,
   SettingsSystemRoute: SettingsSystemRoute,
   SettingsUsageRoute: SettingsUsageRoute,
+  SettingsVoiceRoute: SettingsVoiceRoute,
   SettingsWebsearchRoute: SettingsWebsearchRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }

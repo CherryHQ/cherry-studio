@@ -10,8 +10,12 @@ import {
 } from '@main/utils/downloadAsBase64'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type ChannelStreamErrorOptions,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { isSlashCommand, SLASH_COMMANDS } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { splitMessage } from '../../utils'
@@ -250,10 +254,10 @@ class DiscordAdapter extends ChannelAdapter {
     return !!this.botToken
   }
 
-  protected override async performConnect(_signal: AbortSignal): Promise<void> {
+  protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.botToken) throw new Error('Discord bot token is required')
     this.shouldStop = false
-    await this.startGateway()
+    await this.startGateway(signal)
     this.log.info('Discord bot started')
   }
 
@@ -269,12 +273,13 @@ class DiscordAdapter extends ChannelAdapter {
 
   // ─── Gateway Connection ───────────────────────────────────────
 
-  private async getGatewayUrl(): Promise<string> {
+  private async getGatewayUrl(signal?: AbortSignal): Promise<string> {
     const response = await net.fetch(`${DISCORD_API_BASE}/gateway/bot`, {
       headers: {
         Authorization: `Bot ${this.botToken}`,
         'User-Agent': USER_AGENT
-      }
+      },
+      signal
     })
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
@@ -284,14 +289,15 @@ class DiscordAdapter extends ChannelAdapter {
     return data.url
   }
 
-  private async startGateway(): Promise<void> {
+  private async startGateway(signal?: AbortSignal): Promise<void> {
     if (this.isConnecting || this.shouldStop) return
     this.isConnecting = true
 
     try {
       this.cleanup()
 
-      const gatewayUrl = this.resumeGatewayUrl ?? (await this.getGatewayUrl())
+      const gatewayUrl = this.resumeGatewayUrl ?? (await this.getGatewayUrl(signal))
+      if (signal?.aborted || this.shouldStop) return
       const wsUrl = `${gatewayUrl}?v=10&encoding=json`
       this.log.info('Connecting to Discord gateway', { url: wsUrl })
 
@@ -325,6 +331,7 @@ class DiscordAdapter extends ChannelAdapter {
         })
       })
     } catch (error) {
+      if (signal?.aborted) return
       this.log.error('Failed to start Discord gateway', {
         error: error instanceof Error ? error.message : String(error)
       })
@@ -731,11 +738,18 @@ class DiscordAdapter extends ChannelAdapter {
     }
   }
 
-  override async onStreamError(chatId: string, error: string): Promise<void> {
+  override async onStreamError(
+    chatId: string,
+    error: string,
+    _opts?: SendMessageOptions,
+    options?: ChannelStreamErrorOptions
+  ): Promise<boolean> {
     const controller = this.streamingControllers.get(chatId)
-    if (!controller) return
+    if (!controller) return false
     try {
-      await controller.error(error)
+      if (options?.suppressDelivery) controller.dispose()
+      else await controller.error(error)
+      return true
     } finally {
       this.streamingControllers.delete(chatId)
     }
@@ -815,12 +829,8 @@ class DiscordAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('discord', (channel, agentId) => {
+export function createDiscordAdapter(config: ChannelAdapterConfig<'discord'>) {
   return new DiscordAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

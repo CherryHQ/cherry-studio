@@ -1,4 +1,4 @@
-import { DatabaseZap, FolderX, Globe2, LoaderCircle, Trash2 } from 'lucide-react'
+import { DatabaseZap, FolderX, Globe2, LoaderCircle, ScrollText, Trash2 } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -51,6 +51,12 @@ const CLEANUP_OPTIONS = [
     icon: FolderX,
     titleKey: 'settings.data.clear_cache.options.orphaned_data.title',
     descriptionKey: 'settings.data.clear_cache.options.orphaned_data.description'
+  },
+  {
+    group: 'logs',
+    icon: ScrollText,
+    titleKey: 'settings.data.clear_cache.options.logs.title',
+    descriptionKey: 'settings.data.clear_cache.options.logs.description'
   },
   {
     group: 'legacy_v1',

@@ -482,7 +482,8 @@
 .markdown th,
 .markdown td {
   padding: 0.65em 0.75em;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
   border-right: 0.5px solid var(--markdown-border-color);
   border-bottom: 0.5px solid var(--markdown-border-color);
   text-align: start;
@@ -555,6 +556,46 @@
 [data-image-capturing] .katex-display,
 [data-image-capturing] mjx-container {
   overflow: visible !important;
+}
+
+/* foreignObject rasters (html-to-image) measure text a hair wider than the
+ * live layout, so `truncate` ellipses fire on header labels and tool-block
+ * titles that fit on screen. Render clones un-truncated — the labels simply
+ * extend into the header row's empty right side — and keep timestamps on one
+ * line instead of wrapping. */
+[data-image-capturing] .truncate,
+[data-image-capturing] [class*='truncate'] {
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+/* In the header row the labels also stop shrinking, so the wider foreignObject
+ * measure cannot bleed a name over the gap before the next label. */
+[data-image-capturing] .message-header .truncate,
+[data-image-capturing] .message-header [class*='truncate'] {
+  width: max-content !important;
+  flex-shrink: 0 !important;
+}
+
+[data-image-capturing] .message-header-info-wrap span {
+  white-space: nowrap !important;
+}
+
+/* Flex gap is not reliably carried into foreignObject rasters; force a
+ * an explicit separation so the timestamp never touches the model label. */
+[data-image-capturing] .message-header-info-wrap {
+  margin-left: 8px !important;
+}
+
+/* Horizontally scrolling code blocks (`white-space: pre`) extend past the
+ * message column and every foreignObject raster clips them at the column
+ * edge. Wrap code lines for the capture instead — the full command stays
+ * visible where the live page would require horizontal scrolling. */
+[data-image-capturing] pre,
+[data-image-capturing] pre code {
+  white-space: pre-wrap !important;
+  overflow-x: visible !important;
+  overflow-wrap: anywhere !important;
 }
 
 .markdown img:not([data-file-token-icon-thumbnail]) {

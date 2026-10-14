@@ -17,6 +17,7 @@ import { applyMigrations } from '@data/db/applyMigrations'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 
+import { MigrationDatabaseError } from './migrationErrors'
 import type { MigrationPaths } from './MigrationPaths'
 
 const logger = loggerService.withContext('MigrationDbService')
@@ -37,7 +38,12 @@ export class MigrationDbService {
   static create(paths: MigrationPaths): MigrationDbService {
     ensureDatabaseIntegrity(paths.databaseFile)
 
-    const sqlite = new Database(paths.databaseFile)
+    let sqlite: Database.Database
+    try {
+      sqlite = new Database(paths.databaseFile)
+    } catch (error) {
+      throw new MigrationDatabaseError('open', error)
+    }
     const db = drizzle({ client: sqlite, casing: 'snake_case' })
 
     try {
@@ -46,12 +52,13 @@ export class MigrationDbService {
       sqlite.pragma('synchronous = NORMAL')
       logger.info('WAL mode configured')
     } catch (error) {
-      logger.warn('Failed to configure WAL mode', error as Error)
+      closeSilently(sqlite)
+      throw new MigrationDatabaseError('wal', error)
     }
 
     // Validate migrations folder exists before attempting schema migration
     if (!fs.existsSync(paths.migrationsFolder)) {
-      sqlite.close()
+      closeSilently(sqlite)
       throw new Error(
         `Migrations folder not found: ${paths.migrationsFolder}. ` +
           'This usually means the application was not packaged correctly.'
@@ -66,13 +73,8 @@ export class MigrationDbService {
       applyMigrations(db, paths.migrationsFolder)
     } catch (error) {
       // Close the SQLite connection to avoid dangling handles, then re-throw with context.
-      try {
-        sqlite.close()
-      } catch {
-        // Best-effort — the original error is more important.
-      }
-      const msg = error instanceof Error ? error.message : String(error)
-      throw new Error(`Database schema migration failed: ${msg}`, { cause: error })
+      closeSilently(sqlite)
+      throw new MigrationDatabaseError('schema', error)
     }
 
     // Keep foreign keys OFF for the ENTIRE migration. better-sqlite3's single persistent
@@ -101,6 +103,14 @@ export class MigrationDbService {
     } catch (error) {
       logger.warn('Failed to close migration database connection', error as Error)
     }
+  }
+}
+
+function closeSilently(sqlite: Database.Database): void {
+  try {
+    sqlite.close()
+  } catch {
+    // Preserve the database setup failure that triggered cleanup.
   }
 }
 
