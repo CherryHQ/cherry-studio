@@ -15,6 +15,7 @@ import { createAssistantServer } from '@main/ai/mcp/servers/assistant'
 import { createAssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import { createCherryToolsServer } from '@main/ai/mcp/servers/cherryBuiltinTools'
 import { createComputerUseMcpServer } from '@main/ai/mcp/servers/computerUse'
+import { createDoctorServer } from '@main/ai/mcp/servers/doctor'
 import { createMcpManagerServer } from '@main/ai/mcp/servers/mcpManager'
 import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -168,6 +169,12 @@ export function buildAgentMcpServers(
       connect: serveAgentMcpServer(() =>
         createAssistantFileToolsServer({ sessionId: session.id, workspacePath: session.workspace.path })
       )
+    }
+  }
+  if (mountedServers.has(CHERRY_MCP_SERVER.DOCTOR)) {
+    servers.doctor = {
+      name: CHERRY_MCP_SERVER.DOCTOR,
+      connect: serveAgentMcpServer(() => createDoctorServer(session.id))
     }
   }
 

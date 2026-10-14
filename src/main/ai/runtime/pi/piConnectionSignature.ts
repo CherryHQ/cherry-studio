@@ -101,7 +101,7 @@ export async function capturePiConnectionSnapshot(
   const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
-  const gatewayCredentials = usesPiGateway(provider) ? gatewayCredentialsFingerprint() : null
+  const gatewayCredentials = usesPiGateway(provider, model) ? gatewayCredentialsFingerprint() : null
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const signature = createHash('sha256')
     .update(

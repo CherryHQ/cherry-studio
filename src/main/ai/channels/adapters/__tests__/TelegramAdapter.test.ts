@@ -11,13 +11,16 @@ const mockBot = {
   command: vi.fn(),
   on: vi.fn(),
   api: {
+    config: {
+      use: vi.fn()
+    },
     setMyCommands: vi.fn().mockResolvedValue(undefined),
     sendMessage: vi.fn().mockResolvedValue(undefined),
     sendChatAction: vi.fn().mockResolvedValue(undefined),
     sendDocument: vi.fn().mockResolvedValue(undefined)
   },
   catch: vi.fn(),
-  start: vi.fn().mockResolvedValue(undefined),
+  start: vi.fn(),
   stop: vi.fn().mockResolvedValue(undefined)
 }
 
@@ -36,7 +39,7 @@ vi.mock('grammy', () => {
   }
 })
 
-import { InputFile } from 'grammy'
+import { Bot, InputFile } from 'grammy'
 
 import { createTelegramAdapter } from '../telegram/TelegramAdapter'
 
@@ -47,12 +50,16 @@ describe('TelegramAdapter', () => {
     mockBot.command.mockClear()
     mockBot.on.mockClear()
     mockBot.api.setMyCommands.mockClear().mockResolvedValue(undefined)
+    mockBot.api.config.use.mockClear()
     mockBot.api.sendMessage.mockClear().mockResolvedValue(undefined)
     mockBot.api.sendChatAction.mockClear().mockResolvedValue(undefined)
     mockBot.api.sendDocument.mockClear().mockResolvedValue(undefined)
     mockBot.catch.mockClear()
-    mockBot.start.mockClear().mockResolvedValue(undefined)
-    mockBot.stop.mockClear().mockResolvedValue(undefined)
+    mockBot.start.mockReset().mockImplementation(async (options) => {
+      await options?.onStart?.({})
+    })
+    mockBot.stop.mockReset().mockResolvedValue(undefined)
+    vi.mocked(Bot).mockClear()
   })
 
   afterEach(() => {
@@ -71,29 +78,250 @@ describe('TelegramAdapter', () => {
     })
   }
 
-  it('connect() registers middleware, commands, message handler, and starts polling', async () => {
+  it('reports connected only after grammY confirms polling startup', async () => {
+    let onStart: (() => void) | undefined
+    mockBot.start.mockImplementationOnce((options) => {
+      onStart = options?.onStart
+      return new Promise(() => {})
+    })
     const adapter = createAdapter()
-    await adapter.connect()
 
-    expect(mockBot.use).toHaveBeenCalledTimes(1) // auth middleware
-    expect(mockBot.command).toHaveBeenCalledTimes(4) // new, compact, help, whoami
-    expect(mockBot.on).toHaveBeenCalledWith('message:text', expect.any(Function))
-    expect(mockBot.api.setMyCommands).toHaveBeenCalledWith([
-      { command: 'new', description: 'Start a new conversation' },
-      { command: 'compact', description: 'Compact conversation history' },
-      { command: 'help', description: 'Show help information' },
-      { command: 'whoami', description: 'Show the current chat ID' }
-    ])
-    expect(mockBot.catch).toHaveBeenCalledTimes(1)
-    expect(mockBot.start).toHaveBeenCalledTimes(1)
+    await adapter.connect()
+    expect(adapter.connected).toBe(false)
+
+    onStart?.()
+    expect(adapter.connected).toBe(true)
   })
 
-  it('disconnect() stops the bot', async () => {
+  it('aborts only a suspended getUpdates request after 45 seconds', async () => {
+    vi.useFakeTimers()
     const adapter = createAdapter()
     await adapter.connect()
-    await adapter.disconnect()
+    const transformer = mockBot.api.config.use.mock.calls[0][0]
+    let requestSignal: AbortSignal | undefined
+    const request = vi.fn((_method, _payload, signal?: AbortSignal) => {
+      requestSignal = signal
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
 
-    expect(mockBot.stop).toHaveBeenCalledTimes(1)
+    const upstream = new AbortController()
+    const removeListener = vi.spyOn(upstream.signal, 'removeEventListener')
+    const polling = transformer(request, 'getUpdates', { timeout: 30 }, upstream.signal)
+    const rejected = expect(polling).rejects.toBeDefined()
+    await vi.advanceTimersByTimeAsync(44_999)
+    expect(requestSignal?.aborted).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    await rejected
+    expect(requestSignal?.aborted).toBe(true)
+    expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+  })
+
+  it('forwards an already-aborted signal to getUpdates', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    const transformer = mockBot.api.config.use.mock.calls[0][0]
+    const upstream = new AbortController()
+    upstream.abort(new Error('poll cancelled'))
+    const request = vi.fn((_method, _payload, signal?: AbortSignal) => {
+      expect(signal?.aborted).toBe(true)
+      expect(signal?.reason).toBe(upstream.signal.reason)
+      return Promise.reject(signal?.reason)
+    })
+
+    await expect(transformer(request, 'getUpdates', { timeout: 30 }, upstream.signal)).rejects.toThrow('poll cancelled')
+  })
+
+  it('does not apply the polling timeout to sends or uploads', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    const transformer = mockBot.api.config.use.mock.calls[0][0]
+    const signal = new AbortController().signal
+    const request = vi.fn().mockResolvedValue({ ok: true, result: true })
+
+    await transformer(request, 'sendMessage', { chat_id: '123', text: 'hello' }, signal)
+    await transformer(request, 'sendDocument', { chat_id: '123', document: 'file-id' }, signal)
+
+    expect(request).toHaveBeenNthCalledWith(1, 'sendMessage', { chat_id: '123', text: 'hello' }, signal)
+    expect(request).toHaveBeenNthCalledWith(2, 'sendDocument', { chat_id: '123', document: 'file-id' }, signal)
+  })
+
+  it('coalesces resume events and restarts polling on the same bot', async () => {
+    let finishStop: (() => void) | undefined
+    let finishPolling: (() => void) | undefined
+    mockBot.start.mockImplementationOnce((options) => {
+      options?.onStart?.({})
+      return new Promise<void>((resolve) => {
+        finishPolling = resolve
+      })
+    })
+    mockBot.stop.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishStop = resolve
+        })
+    )
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    adapter.handleSystemResume()
+    adapter.handleSystemResume()
+
+    expect(mockBot.stop).toHaveBeenCalledOnce()
+    finishStop?.()
+    finishPolling?.()
+    await vi.waitFor(() => expect(mockBot.start).toHaveBeenCalledTimes(2))
+    expect(Bot).toHaveBeenCalledOnce()
+  })
+
+  it.each(['resume', 'stop failure', 'disconnect'] as const)(
+    'waits for real grammY middleware to finish during %s recovery',
+    async (scenario) => {
+      const { Bot: RealBot } = await vi.importActual<{ Bot: typeof Bot }>('grammy')
+      const bot = new RealBot('test-token', {
+        botInfo: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Test',
+          username: 'test_bot',
+          can_join_groups: true,
+          can_read_all_group_messages: false,
+          supports_inline_queries: false,
+          can_connect_to_business: false,
+          has_main_web_app: false,
+          has_topics_enabled: false,
+          allows_users_to_create_topics: false
+        }
+      })
+      vi.mocked(Bot).mockImplementationOnce(function () {
+        return bot
+      })
+      vi.spyOn(bot.api, 'setMyCommands').mockResolvedValue(true)
+      vi.spyOn(bot.api, 'deleteWebhook').mockResolvedValue(true)
+      const middleware = Promise.withResolvers<void>()
+      const entered = Promise.withResolvers<void>()
+      const stopped = Promise.withResolvers<void>()
+      bot.use(async (_ctx, next) => {
+        entered.resolve()
+        await middleware.promise
+        await next()
+      })
+      let activePolls = 0
+      let maxActivePolls = 0
+      let failStop = scenario === 'stop failure'
+      vi.spyOn(bot.api, 'getUpdates')
+        .mockResolvedValueOnce([
+          {
+            update_id: 1,
+            message: {
+              message_id: 1,
+              date: 0,
+              chat: { id: 123, type: 'private', first_name: 'User' },
+              from: { id: 123, is_bot: false, first_name: 'User' },
+              text: 'hello'
+            }
+          }
+        ])
+        .mockImplementation(async (payload, signal) => {
+          if (!payload?.timeout) {
+            stopped.resolve()
+            if (failStop) {
+              failStop = false
+              throw new Error('acknowledgement failed')
+            }
+            return []
+          }
+          activePolls++
+          maxActivePolls = Math.max(maxActivePolls, activePolls)
+          try {
+            return await new Promise<never>((_resolve, reject) => {
+              if (signal?.aborted) reject(new Error('poll aborted'))
+              else signal?.addEventListener('abort', () => reject(new Error('poll aborted')), { once: true })
+            })
+          } finally {
+            activePolls--
+          }
+        })
+      const adapter = createAdapter()
+      const messages: string[] = []
+      adapter.on('message', (event: { text: string }) => messages.push(event.text))
+
+      try {
+        await adapter.connect()
+        await entered.promise
+        adapter.handleSystemResume()
+        adapter.handleSystemResume()
+        await stopped.promise
+        await new Promise<void>((resolve) => setImmediate(resolve))
+
+        expect(adapter.connected).toBe(false)
+        expect(activePolls).toBe(0)
+        if (scenario === 'disconnect') await adapter.disconnect()
+        middleware.resolve()
+        await vi.waitFor(() => expect(messages).toEqual(['hello']))
+        await new Promise<void>((resolve) => setImmediate(resolve))
+
+        expect(adapter.connected).toBe(scenario !== 'disconnect')
+        expect(activePolls).toBe(scenario === 'disconnect' ? 0 : 1)
+        expect(maxActivePolls).toBe(scenario === 'disconnect' ? 0 : 1)
+      } finally {
+        middleware.resolve()
+        await adapter.disconnect()
+      }
+    }
+  )
+
+  it('ignores resume until initial polling setup has completed', async () => {
+    let finishSetup: (() => void) | undefined
+    mockBot.api.setMyCommands.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSetup = resolve
+        })
+    )
+    const adapter = createAdapter()
+
+    const connecting = adapter.connect()
+    await Promise.resolve()
+    adapter.handleSystemResume()
+    expect(mockBot.stop).not.toHaveBeenCalled()
+
+    finishSetup?.()
+    await connecting
+    expect(mockBot.start).toHaveBeenCalledOnce()
+  })
+
+  it('restarts polling after resume even when stopping the stale poll fails', async () => {
+    mockBot.stop.mockRejectedValueOnce(new Error('stale poll stop failed'))
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    adapter.handleSystemResume()
+
+    await vi.waitFor(() => expect(mockBot.start).toHaveBeenCalledTimes(2))
+    expect(Bot).toHaveBeenCalledOnce()
+  })
+
+  it('does not revive polling when disconnected during resume recovery', async () => {
+    let finishResumeStop: (() => void) | undefined
+    mockBot.stop.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishResumeStop = resolve
+        })
+    )
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    adapter.handleSystemResume()
+    const disconnecting = adapter.disconnect()
+    finishResumeStop?.()
+    await disconnecting
+    await Promise.resolve()
+
+    expect(mockBot.start).toHaveBeenCalledOnce()
   })
 
   // channel-adapters-2: grammY rethrows a fatal 409/Conflict out of bot.start(); the adapter
@@ -103,7 +331,9 @@ describe('TelegramAdapter', () => {
     const adapter = createAdapter()
     mockBot.start.mockReset()
     // First polling attempt fails (recoverable 409); the reconnect attempt succeeds.
-    mockBot.start.mockRejectedValueOnce(new Error('409: Conflict')).mockResolvedValue(undefined)
+    mockBot.start
+      .mockRejectedValueOnce(new Error('409: Conflict'))
+      .mockImplementationOnce(async (options) => options?.onStart?.({}))
 
     await adapter.connect()
     await vi.advanceTimersByTimeAsync(0) // let the rejection handler schedule the reconnect
@@ -118,7 +348,9 @@ describe('TelegramAdapter', () => {
     const adapter = createAdapter()
     mockBot.start.mockReset()
     // One transient failure bumps the attempt counter, then the reconnect stays up.
-    mockBot.start.mockRejectedValueOnce(new Error('409: Conflict')).mockResolvedValue(undefined)
+    mockBot.start
+      .mockRejectedValueOnce(new Error('409: Conflict'))
+      .mockImplementationOnce(async (options) => options?.onStart?.({}))
 
     await adapter.connect()
     await vi.advanceTimersByTimeAsync(1000) // reconnect fires and succeeds

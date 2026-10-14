@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { MODALITY } from '@cherrystudio/provider-registry'
-import { getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -38,24 +36,14 @@ function makeModel(overrides: Partial<Model>): Model {
 }
 
 describe('AGENT_RUNTIME_CAPABILITIES', () => {
-  it('projects the stable shell toggle to pwsh only on Windows', () => {
-    expect(getDshRuntimeBuiltinTools('darwin').map((tool) => tool.name)).toContain('bash')
-    expect(getDshRuntimeBuiltinTools('win32').map((tool) => tool.name)).toContain('pwsh')
-    expect(getDshRuntimeBuiltinTools('win32').map((tool) => tool.name)).not.toContain('bash')
-  })
-
   it('keeps permission choices aligned with each runtime approval implementation', () => {
     expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('plan')
     expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('auto')
     expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).not.toContain('plan')
     // pi implements `auto` itself in the approval extension, so it offers it.
     expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).toContain('auto')
-    // dsh plan mode is enforced by the bridge policy (its own plan mode is guidance-only).
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).toContain('plan')
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.permissionModes).not.toContain('auto')
     expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode).toBe('auto')
     expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.createDefaults.permissionMode).toBe('acceptEdits')
   })
 
   describe('isModelCompatible — managed CherryAI default model', () => {
@@ -82,12 +70,6 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
       expect(claudeIsCompatible(cherryProvider, managedDefaultModel)).toBe(false)
       expect(claudeIsCompatible(makeProvider({}), makeModel({}))).toBe(true)
     })
-
-    it('dsh rejects the managed CherryAI default model and accepts a normal compatible model', () => {
-      const dshIsCompatible = AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible
-      expect(dshIsCompatible(cherryProvider, managedDefaultModel)).toBe(false)
-      expect(dshIsCompatible(makeProvider({}), makeModel({}))).toBe(true)
-    })
   })
 
   it('offers synchronized Cherry Cloud models to every Work runtime', () => {
@@ -103,7 +85,6 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
 
     expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].isModelCompatible(provider, cloudModel)).toBe(true)
     expect(AGENT_RUNTIME_CAPABILITIES.pi.isModelCompatible(provider, cloudModel)).toBe(true)
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible(provider, cloudModel)).toBe(true)
   })
 
   it('does not grant Cloud compatibility from the display group alone', () => {
@@ -115,19 +96,5 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     })
 
     expect(AGENT_RUNTIME_CAPABILITIES.pi.isModelCompatible(provider, model)).toBe(false)
-    expect(AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible(provider, model)).toBe(false)
-  })
-
-  describe('dsh model compatibility', () => {
-    const isCompatible = AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible
-    const provider = makeProvider({})
-
-    it('does not filter models by their declared input modalities', () => {
-      expect(isCompatible(provider, makeModel({}))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [] }))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.IMAGE] }))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.AUDIO] }))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.VIDEO] }))).toBe(true)
-    })
   })
 })

@@ -1,0 +1,233 @@
+import { FileQuestion, FileWarning, LoaderCircle } from 'lucide-react'
+import {
+  type CSSProperties,
+  lazy,
+  type ReactNode,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+import { ErrorBoundary } from 'react-error-boundary'
+import { I18nextProvider, useTranslation } from 'react-i18next'
+
+import { DialogPortalContainerProvider, EmptyState, PortalContainerProvider } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+
+import { FilePreviewLayout } from './FilePreviewLayout'
+import { resolvePreviewPlugin } from './filePreviewRegistry'
+import { createPreviewI18n } from './i18n'
+import { PreviewHostContext, usePreviewHost } from './previewContext'
+import type { PreviewSelection } from './selection'
+import { assertPreviewRange, type PreviewDocument, PreviewError, type PreviewSource } from './source'
+import type { PreviewDiagnostic, PreviewOptions, PreviewResources } from './types'
+
+export interface PreviewProps {
+  source: PreviewSource
+  locale?: string
+  /** Classes for the preview root, such as `dark`; token overrides set on the root apply to the whole preview. */
+  className?: string
+  style?: CSSProperties
+  header?: ReactNode
+  refreshKey?: number
+  resources?: PreviewResources
+  options?: PreviewOptions
+  onSelection?: (selection: PreviewSelection | null) => void
+  onDiagnostic?: (diagnostic: PreviewDiagnostic) => void
+  onError?: (error: PreviewError) => void
+  onRequestOpen?: (reason: 'unsupported' | 'too_large') => void
+}
+
+function PreviewState({ kind }: { kind: 'loading' | 'error' | 'unsupported' }) {
+  const { t } = useTranslation()
+  const { onRequestOpen } = usePreviewHost()
+  const canOpen = kind === 'unsupported' && onRequestOpen !== undefined
+  return (
+    <FilePreviewLayout.Frame>
+      <FilePreviewLayout.Content>
+        {kind === 'loading' ? (
+          <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+            <LoaderCircle className="size-4 animate-spin" aria-hidden />
+            <span>{t('file_preview.loading')}</span>
+          </div>
+        ) : (
+          <EmptyState
+            icon={kind === 'unsupported' ? FileQuestion : FileWarning}
+            title={t(kind === 'unsupported' ? 'file_preview.unsupported.title' : 'file_preview.load_error.title')}
+            description={t(
+              kind === 'unsupported' ? 'file_preview.unsupported.description' : 'file_preview.load_error.description'
+            )}
+            actionLabel={canOpen ? t('file_preview.unsupported.action') : undefined}
+            onAction={canOpen ? () => onRequestOpen('unsupported') : undefined}
+            className="h-full"
+          />
+        )}
+      </FilePreviewLayout.Content>
+    </FilePreviewLayout.Frame>
+  )
+}
+
+export function Preview({ locale = 'en-us', ...props }: PreviewProps) {
+  const i18n = useMemo(() => createPreviewI18n(locale), [locale])
+  return (
+    <I18nextProvider i18n={i18n}>
+      <PreviewSession {...props} />
+    </I18nextProvider>
+  )
+}
+
+function PreviewSession({
+  source,
+  header,
+  className,
+  style,
+  refreshKey = 0,
+  resources,
+  options,
+  onSelection,
+  onDiagnostic,
+  onError,
+  onRequestOpen
+}: Omit<PreviewProps, 'locale'>) {
+  const [root, setRoot] = useState<HTMLDivElement | null>(null)
+  const [session, setSession] = useState<{
+    source: PreviewSource
+    refreshKey: number
+    document: PreviewDocument
+  } | null>(null)
+  const [failure, setFailure] = useState<{ source: PreviewSource; refreshKey: number } | null>(null)
+  const closeRef = useRef<(() => void) | undefined>(undefined)
+  const hasFailedRef = useRef(false)
+  const callbacks = useRef({ onSelection, onDiagnostic, onError, onRequestOpen })
+  callbacks.current = { onSelection, onDiagnostic, onError, onRequestOpen }
+  const failDocument = useCallback((error: unknown) => {
+    if (hasFailedRef.current) return
+    hasFailedRef.current = true
+    closeRef.current?.()
+    const normalized =
+      error instanceof PreviewError ? error : new PreviewError('load_error', 'Failed to load preview', { cause: error })
+    callbacks.current.onDiagnostic?.({
+      level: normalized.code === 'too_large' ? 'warn' : 'error',
+      code: normalized.code,
+      context: 'Preview',
+      message: normalized.message,
+      detail: normalized
+    })
+    callbacks.current.onError?.(normalized)
+  }, [])
+  const reportSelection = useCallback(
+    (selection: PreviewSelection | null) => callbacks.current.onSelection?.(selection),
+    []
+  )
+  const reportDiagnostic = useCallback(
+    (diagnostic: PreviewDiagnostic) => callbacks.current.onDiagnostic?.(diagnostic),
+    []
+  )
+  const requestOpen = useCallback(
+    (reason: 'unsupported' | 'too_large') => callbacks.current.onRequestOpen?.(reason),
+    []
+  )
+  const hasOpenAction = onRequestOpen !== undefined
+  const host = useMemo(
+    () => ({
+      root,
+      resources,
+      options,
+      onDiagnostic: reportDiagnostic,
+      onRequestOpen: hasOpenAction ? requestOpen : undefined,
+      failDocument
+    }),
+    [root, resources, options, reportDiagnostic, requestOpen, hasOpenAction, failDocument]
+  )
+  const plugin = useMemo(() => resolvePreviewPlugin(source.name, source.mediaType), [source.name, source.mediaType])
+  const Plugin = useMemo(() => (plugin ? lazy(plugin.load) : null), [plugin])
+
+  useEffect(() => {
+    setSession(null)
+    setFailure(null)
+    hasFailedRef.current = false
+    if (!plugin) return
+    const controller = new AbortController()
+    let opened: PreviewDocument | null = null
+    let closed = false
+    const close = () => {
+      if (!opened || closed) return
+      closed = true
+      void opened.close().catch((error: unknown) =>
+        callbacks.current.onDiagnostic?.({
+          level: 'warn',
+          context: 'Preview',
+          message: 'Failed to close preview source',
+          detail: error
+        })
+      )
+    }
+    closeRef.current = close
+    void (async () => {
+      try {
+        opened = await source.open(controller.signal)
+        if (controller.signal.aborted) {
+          close()
+          return
+        }
+        assertPreviewRange(opened.size, 0, opened.size)
+        setSession({ source, refreshKey, document: opened })
+      } catch (error) {
+        close()
+        if (controller.signal.aborted) return
+        setFailure({ source, refreshKey })
+        failDocument(error)
+      }
+    })()
+    return () => {
+      controller.abort()
+      close()
+      if (closeRef.current === close) closeRef.current = undefined
+    }
+  }, [source, refreshKey, plugin, failDocument])
+
+  const ready = session?.source === source && session.refreshKey === refreshKey ? session : null
+  const failed = failure?.source === source && failure.refreshKey === refreshKey
+  const content = !Plugin ? (
+    <PreviewState kind="unsupported" />
+  ) : failed ? (
+    <PreviewState kind="error" />
+  ) : !ready ? (
+    <PreviewState kind="loading" />
+  ) : (
+    <ErrorBoundary
+      key={`${source.id}:${refreshKey}:${ready.document.revision}`}
+      resetKeys={[ready.document]}
+      fallback={<PreviewState kind="error" />}
+      onError={failDocument}>
+      <Suspense fallback={<PreviewState kind="loading" />}>
+        <Plugin
+          key={`${source.id}:${refreshKey}:${ready.document.revision}`}
+          sourceId={source.id}
+          fileName={source.name}
+          mediaType={source.mediaType}
+          document={ready.document}
+          onSelection={onSelection ? reportSelection : undefined}
+        />
+      </Suspense>
+    </ErrorBoundary>
+  )
+
+  return (
+    <div
+      ref={setRoot}
+      data-file-preview-root=""
+      className={cn('file-preview-root relative h-full min-h-0 w-full', className)}
+      style={style}>
+      <PortalContainerProvider container={root}>
+        <DialogPortalContainerProvider container={root}>
+          <PreviewHostContext value={host}>
+            <FilePreviewLayout.Shell header={header}>{content}</FilePreviewLayout.Shell>
+          </PreviewHostContext>
+        </DialogPortalContainerProvider>
+      </PortalContainerProvider>
+    </div>
+  )
+}

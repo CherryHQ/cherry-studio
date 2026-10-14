@@ -1054,7 +1054,7 @@ vi.mock('@cherrystudio/ui', async () => {
       sideOffset: _sideOffset,
       collisionPadding: _collisionPadding,
       ...props
-    }) => React.createElement('div', props, children),
+    }) => React.createElement('div', { ...props, 'data-slot': 'hover-card-content' }, children),
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
     // Icon registry stubs
     PROVIDER_ICON_CATALOG: {},

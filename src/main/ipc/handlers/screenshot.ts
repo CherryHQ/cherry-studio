@@ -23,12 +23,17 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * race (Esc pressed while another overlay is still reporting), not an error.
  */
 export const screenshotHandlers: IpcHandlersFor<typeof screenshotRequestSchemas> = {
+  'screenshot.submit_result': async (result, ctx) => {
+    const service = application.get('ScreenshotOverlayService')
+    if (!ctx.senderId || !service.isActiveOverlay(ctx.senderId)) return
+    await service.submitResult(result)
+  },
   // Deliberately only sender-scoped: this is how an in-app control starts a capture, and
   // no session exists yet, so any session predicate would make the feature unreachable.
   // `startCapture` refuses when the feature is off or a session is already up.
-  'screenshot.capture': async () => {
+  'screenshot.capture': async (_input, ctx) => {
     // Awaited so a failure reaches the caller instead of becoming an unhandled rejection.
-    await application.get('ScreenshotOverlayService').startCapture()
+    await application.get('ScreenshotOverlayService').startCapture(ctx.senderId ?? undefined)
   },
   'screenshot.commit': async (result, ctx) => {
     const service = application.get('ScreenshotOverlayService')
