@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 
+import { useMessageParts } from '../blocks/MessagePartsContext'
 import { useMessageListActions, useMessageListMeta } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
-import { getMessageModelTokensPerSecond, getMessageTokenUsage } from './messagePerformance'
+import { getMessageModelTokensPerSecond, getMessageTokenUsage, hasVideoOutput } from './messagePerformance'
 import MessageTokenDetailsCard from './MessageTokenDetailsCard'
 
 interface MessageTokensProps {
@@ -137,6 +138,7 @@ function AssistantMessageTokens({
 const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
   const { t, i18n } = useTranslation()
   const actions = useMessageListActions()
+  const parts = useMessageParts(message.id)
   const stats = message.stats
   const compactFormatter = useMemo(
     () =>
@@ -167,7 +169,7 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
   }
 
   if (message.role === 'assistant') {
-    const tokensPerSecond = getMessageModelTokensPerSecond(stats)
+    const tokensPerSecond = hasVideoOutput(parts) ? undefined : getMessageModelTokensPerSecond(stats)
     const throughputLabel =
       tokensPerSecond === undefined
         ? undefined

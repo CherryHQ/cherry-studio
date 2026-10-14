@@ -9,11 +9,13 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { createDurationFormatter } from '@renderer/utils/time'
 import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
 
+import { useMessageParts } from '../blocks/MessagePartsContext'
 import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 import {
   buildMessagePerformanceViewModel,
   getMessageTokenUsage,
+  hasVideoOutput,
   type MessagePerformanceLaneId,
   type MessagePerformanceViewModel
 } from './messagePerformance'
@@ -185,6 +187,7 @@ const MessageTokenDetailsCard = ({
 }) => {
   const { t, i18n } = useTranslation()
   const moreDetailsId = useId()
+  const isVideoOutput = hasVideoOutput(useMessageParts(message.id))
   const stats = message.stats
   const model = getMessageListItemModel(message)
   const providerName = useProviderDisplayName(model?.provider)
@@ -286,7 +289,7 @@ const MessageTokenDetailsCard = ({
           value: formatMilliseconds(performance.timeFirstTokenMs)
         }
       : undefined,
-    performance.endToEndTokensPerSecond !== undefined
+    !isVideoOutput && performance.endToEndTokensPerSecond !== undefined
       ? {
           id: 'end-to-end-throughput',
           label: t('chat.message.token_details.end_to_end_throughput'),
@@ -346,7 +349,9 @@ const MessageTokenDetailsCard = ({
       </header>
 
       <div className="space-y-3 border-border-subtle border-t p-3">
-        <dl className="grid grid-cols-3 gap-2" data-testid="message-primary-metrics">
+        <dl
+          className={`grid gap-2 ${isVideoOutput ? 'grid-cols-2' : 'grid-cols-3'}`}
+          data-testid="message-primary-metrics">
           <PrimaryMetric
             testId="message-metric-input"
             label={t('chat.message.token_details.input')}
@@ -357,11 +362,13 @@ const MessageTokenDetailsCard = ({
             label={t('chat.message.token_details.output')}
             value={formatOptionalTokens(outputTokens)}
           />
-          <PrimaryMetric
-            testId="message-metric-speed"
-            label={t('chat.message.token_details.model_throughput')}
-            value={speedLabel}
-          />
+          {!isVideoOutput && (
+            <PrimaryMetric
+              testId="message-metric-speed"
+              label={t('chat.message.token_details.model_throughput')}
+              value={speedLabel}
+            />
+          )}
         </dl>
 
         {costLabel ? (
