@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
@@ -7,6 +9,11 @@ import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const logger = loggerService.withContext('AgentPrompt')
+// Exact UTF-8 of 3b7a1c5ca6^ cherry-assistant/agent.json instructions. One-byte edits must not match.
+const LEGACY_RESTRICTIVE_ASSISTANT_SHA256 = new Set([
+  'f23ecf9c6b7524a6b181ac7f5a1dd8611e0740fd3810ce890478a8d5e5ddc127',
+  '96529463aa7f4a9a8043103fbd082d30c6e431208bfe21a1edd989a294f84e69'
+])
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'Within Cherry Studio, serve as Cherry Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
 
@@ -59,8 +66,13 @@ export async function buildAgentRuntimePrompt({
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
   let instructions = agent.instructions
+  const legacyRestrictiveAssistant =
+    isAssistant &&
+    typeof instructions === 'string' &&
+    instructions.length > 0 &&
+    LEGACY_RESTRICTIVE_ASSISTANT_SHA256.has(createHash('sha256').update(instructions, 'utf8').digest('hex'))
 
-  if (builtinRole && !instructions?.trim()) {
+  if (builtinRole && (!instructions?.trim() || legacyRestrictiveAssistant)) {
     instructions = loadBuiltinAgentDefinition(builtinRole)?.instructions
     if (!instructions && isAssistant) {
       logger.error('Builtin Cherry Assistant definition missing; using minimal fallback instructions')
