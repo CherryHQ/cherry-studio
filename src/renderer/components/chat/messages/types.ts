@@ -467,10 +467,8 @@ export interface MessageListProviderValue {
   actions: MessageListActions
   meta: MessageListMeta
   /**
-   * Per-message selection subscription store (#19209). Mirrors
-   * `state.selection.selectedMessageIds`; lists that select messages provide
-   * it so frames can subscribe per id instead of per selection change.
-   * Absent in embeds without selection.
+   * Per-message subscriptions to the authoritative selected ids.
+   * Optional for embeds that only expose context-based selection.
    */
   selectionStore?: MessageSelectionStore | null
 }

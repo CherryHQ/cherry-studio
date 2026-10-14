@@ -34,6 +34,7 @@ import {
   useMessageListActions,
   useMessageListData,
   useMessageListMeta,
+  useMessageListSelection,
   useMessageSelectionMode,
   useSelectedMessageIds,
   useMessageListUi,
@@ -188,6 +189,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   const meta = useMessageListMeta()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const selectionMode = useMessageSelectionMode()
+  const selection = useMessageListSelection()
   const selectedIdsFromStore = useSelectedMessageIds()
   const messageUi = useMessageListUi()
   const partsByMessageId = usePartsMap()
