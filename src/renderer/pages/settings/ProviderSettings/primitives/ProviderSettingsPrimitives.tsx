@@ -48,7 +48,7 @@ export function ProviderSettingsSubtitle({ children, className }: { children: Re
 }
 
 export function ProviderHelpText({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('text-foreground opacity-40', providerSettingsTypography.label, className)}>{children}</div>
+  return <div className={cn('text-muted-foreground', providerSettingsTypography.label, className)}>{children}</div>
 }
 
 export function ProviderHelpTextRow({ children, className }: { children: ReactNode; className?: string }) {

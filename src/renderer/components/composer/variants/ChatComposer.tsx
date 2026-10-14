@@ -1,4 +1,4 @@
-import { Eraser } from 'lucide-react'
+import { Eraser, ScanLine } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -112,6 +112,7 @@ import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBase
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
+import { useScreenshotChat } from './shared/useScreenshotChat'
 
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
@@ -503,6 +504,7 @@ const ChatComposerInner = ({
   forceNarrowLayout = false,
   deferQuickPanel = false
 }: ChatComposerInnerProps) => {
+  const { t } = useTranslation()
   const streamScopeKey = topicId ?? scopeKey
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
   const scope = TopicType.Chat
@@ -546,7 +548,6 @@ const ChatComposerInner = ({
   const layerActive = useComposerLayerActive()
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
-  const { t } = useTranslation()
   const chatWrite = useChatWrite()
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
@@ -659,6 +660,14 @@ const ChatComposerInner = ({
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
   const restoredEditingSessionIdRef = useRef<number | null>(null)
   const isSavingEdit = savingEditingSessionId === editingMessageForCurrentTopic?.editingSessionId
+  const { screenshotEnabled, startScreenshot } = useScreenshotChat({
+    scopeKey: streamScopeKey,
+    editingId: editingMessageForCurrentTopic?.editingSessionId,
+    active: layerActive,
+    actionsRef,
+    setFiles,
+    isBlocked: () => isSavingEdit || directSendInFlightRef.current
+  })
   const selectAssistantMessage = t('button.select_assistant')
   const displayAssistant = assistant
   const hasMissingPersistedAssistant = !!assistantId && !isAssistantLoading && !assistant
@@ -1294,6 +1303,20 @@ const ChatComposerInner = ({
 
   const rootPanelLeadingItems = useMemo<QuickPanelListItem[]>(() => {
     const items: QuickPanelListItem[] = []
+    if (screenshotEnabled) {
+      const label = t('settings.shortcuts.screenshot_capture')
+      items.push({
+        id: 'composer:screenshot',
+        label,
+        icon: <ScanLine size={16} />,
+        filterText: label,
+        searchAliases: getQuickPanelSearchAliases(t, 'settings.shortcuts.screenshot_capture', [
+          'screenshot',
+          'capture'
+        ]),
+        action: startScreenshot
+      })
+    }
 
     if (hasNewTopicAction) {
       const label = t('chat.conversation.new')
@@ -1311,10 +1334,22 @@ const ChatComposerInner = ({
     }
 
     return items
-  }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
+  }, [addNewTopic, hasNewTopicAction, newTopicDisabled, screenshotEnabled, startScreenshot, t])
   const mcpToolbarActive = isMcpToolbarActive({ scope: TopicType.Chat, assistant })
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(
     () => [
+      ...(screenshotEnabled
+        ? [
+            {
+              id: 'composer:screenshot',
+              label: t('settings.shortcuts.screenshot_capture'),
+              icon: <ScanLine size={18} />,
+              requiresPanel: false,
+              availableWithoutModel: true,
+              onSelect: startScreenshot
+            }
+          ]
+        : []),
       ...(hasNewTopicAction
         ? [
             {
@@ -1358,6 +1393,8 @@ const ChatComposerInner = ({
       hasNewTopicAction,
       mcpToolbarActive,
       newTopicDisabled,
+      screenshotEnabled,
+      startScreenshot,
       t
     ]
   )

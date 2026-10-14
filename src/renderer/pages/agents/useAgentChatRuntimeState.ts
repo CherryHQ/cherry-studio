@@ -19,6 +19,7 @@ import type { ComposerContextValue } from '@renderer/components/composer/Compose
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
 import { cacheService } from '@renderer/data/CacheService'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -36,7 +37,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
-import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_CLOSING_CACHE_KEY, agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -388,7 +389,8 @@ export function useAgentChatRuntimeState({
     onRespond: respondToolApproval
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
-  const editBusy = isPending || editPending || toolApprovalComposerOverrides.length > 0
+  const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
+  const editBusy = isPending || sessionClosing || editPending || toolApprovalComposerOverrides.length > 0
   const cancelEditing = useCallback(() => {
     if (!editRequestRef.current) setEditDraft(undefined)
   }, [])

@@ -27,6 +27,18 @@ import {
 } from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
 
+export function appendComposerText(editor: Editor, text: string): boolean {
+  if (editor.isDestroyed) return false
+  if (!text) return true
+  const current = serializeComposerDocument(editor).text
+  const appended = current ? `\n${text}` : text
+  return editor
+    .chain()
+    .setMeta(PROMPT_VARIABLE_TOKENIZATION_META, false)
+    .insertContentAt(editor.state.doc.content.size - 1, createComposerPlainTextContent(appended))
+    .run()
+}
+
 export function updateComposerToken(editor: Editor, token: ComposerDraftToken) {
   const transaction = editor.state.tr
   editor.state.doc.descendants((node, position) => {
