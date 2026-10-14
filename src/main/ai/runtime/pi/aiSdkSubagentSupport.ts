@@ -22,7 +22,20 @@ export interface RoutedCall {
   userText: string
   /** Text of the last prompt message when it is a user message (a prompt or a notification). */
   lastText: string
+  /**
+   * Text of the person's message that starts this request, also when a notification rides after it;
+   * '' for a request after tool results or one a notification starts.
+   */
+  humanText: string
   options: LanguageModelV3CallOptions
+}
+
+const NOTIFICATION_HEAD = 'Background subagent update'
+
+function humanTextOf(prompt: LanguageModelV3Message[]): string {
+  const trailing: string[] = []
+  for (let i = prompt.length - 1; i >= 0 && prompt[i].role === 'user'; i--) trailing.unshift(userTextOf(prompt[i]))
+  return trailing.find((text) => !text.startsWith(NOTIFICATION_HEAD)) ?? ''
 }
 
 const userTextOf = (message: LanguageModelV3Message) =>
@@ -44,6 +57,7 @@ export function routedModel(
         lastRole: last?.role ?? '',
         userText: options.prompt.map(userTextOf).join('\n'),
         lastText: last ? userTextOf(last) : '',
+        humanText: humanTextOf(options.prompt),
         options
       }
       calls.push(call)
@@ -114,6 +128,33 @@ export function recordingSubagentPort(
     }
   }
   return { port, subagents, events, sessions }
+}
+
+/**
+ * A host port that also stores every subagent's transcript, as the host persists it (JSON copies,
+ * appended per `sessionId` across runs), and loads it back to continue the subagent.
+ */
+export function storingSubagentPort(
+  extra: (subagent: Subagent) => SubagentSessionOptions | Promise<SubagentSessionOptions> = () => ({})
+) {
+  const recording = recordingSubagentPort(extra)
+  const transcripts = new Map<string, TranscriptEntry[]>()
+  const port: SubagentPort = {
+    async configure(subagent) {
+      const options = await recording.port.configure(subagent)
+      const stored = transcripts.get(subagent.sessionId) ?? []
+      transcripts.set(subagent.sessionId, stored)
+      return {
+        ...options,
+        onEvent: (event) => {
+          if (event.type === 'transcript-append') stored.push(...JSON.parse(JSON.stringify(event.entries)))
+          options.onEvent?.(event)
+        }
+      }
+    },
+    load: async (sessionId) => transcripts.get(sessionId)
+  }
+  return { ...recording, port, transcripts }
 }
 
 /** Tool results in a call's prompt, in order. */

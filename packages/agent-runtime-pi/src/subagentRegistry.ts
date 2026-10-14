@@ -105,6 +105,8 @@ export class SubagentRegistry {
   private readonly live = new Map<string, LiveRun>()
   /** Background launches past the cap check that have not started yet. */
   private launching = 0
+  /** Continuations being set up, by subagent. */
+  private readonly starting = new Map<string, Promise<unknown>>()
   private closing = false
 
   constructor(private readonly host: RegistryHost) {}
@@ -126,6 +128,23 @@ export class SubagentRegistry {
     record.stoppedBy = by
     run.controller.abort()
     return run.done
+  }
+
+  /** Resolves once the latest run of the subagent is over and recorded. */
+  async recorded(sessionId: string): Promise<void> {
+    await this.live.get(sessionId)?.done
+  }
+
+  /** The continuation of the subagent being set up, if any. */
+  startingRun(sessionId: string): Promise<unknown> | undefined {
+    return this.starting.get(sessionId)
+  }
+
+  /** Sets up the subagent's next run; until it is set up, other messages to it wait. */
+  startRun<T>(sessionId: string, start: () => Promise<T>): Promise<T> {
+    const started = start().finally(() => this.starting.delete(sessionId))
+    this.starting.set(sessionId, started)
+    return started
   }
 
   /** Queues `text` for a running subagent; false when its run has just ended. */
