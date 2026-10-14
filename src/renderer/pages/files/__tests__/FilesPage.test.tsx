@@ -569,14 +569,13 @@ describe('FilesPage incremental hydration', () => {
     let activePages: Array<{ items: FileEntry[]; total: number; nextCursor?: string }> = [
       { items: [entry], total: 2, nextCursor: 'next-page' }
     ]
-    const emptyPages: typeof activePages = []
     const loadNext = vi.fn()
     const mutate = vi.fn().mockResolvedValue(undefined)
     const reset = vi.fn()
     const refresh = vi.fn().mockResolvedValue(undefined)
     mockFileStats(statsForEntries([entry, imageEntry]))
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? emptyPages : activePages,
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages: activePages,
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -635,7 +634,6 @@ describe('FilesPage incremental hydration', () => {
     let activePages: Array<{ items: FileEntry[]; total: number; nextCursor?: string }> = [
       { items: [imageEntry], total: 2, nextCursor: 'next-page' }
     ]
-    const emptyPages: typeof activePages = []
     const loadNext = vi.fn()
     const mutate = vi.fn().mockResolvedValue(undefined)
     const refresh = vi.fn().mockResolvedValue(undefined)
@@ -646,8 +644,8 @@ describe('FilesPage incremental hydration', () => {
       route: string
     }> = []
     mockFileStats(statsForEntries([imageEntry, secondImageEntry]))
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? emptyPages : activePages,
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages: activePages,
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -716,14 +714,13 @@ describe('FilesPage incremental hydration', () => {
     const staleMetadata = deferred<Record<string, unknown>>()
     let metadataRequestCount = 0
     const activePages = [{ items: [externalEntry] }]
-    const emptyPages: typeof activePages = []
     const loadNext = vi.fn()
     const mutate = vi.fn().mockResolvedValue(undefined)
     const reset = vi.fn()
     const refresh = vi.fn().mockResolvedValue(undefined)
     mockFiles([externalEntry])
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? emptyPages : activePages,
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages: activePages,
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -786,10 +783,9 @@ describe('FilesPage incremental hydration', () => {
     const staleMetadata = deferred<Record<string, unknown>>()
     let metadataRequestCount = 0
     const activePages = [{ items: [externalEntry] }]
-    const emptyPages: typeof activePages = []
     mockFiles([externalEntry])
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? emptyPages : activePages,
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages: activePages,
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -846,8 +842,8 @@ describe('FilesPage incremental hydration', () => {
   it('does not rehydrate visible IDs when only the sort changes', async () => {
     mockFiles([externalEntry])
     mockFileStats(statsForEntries([externalEntry]))
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [] : [{ items: [externalEntry] }],
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages: [{ items: [externalEntry] }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -868,9 +864,7 @@ describe('FilesPage incremental hydration', () => {
     fireEvent.click(typeHeader as HTMLButtonElement)
 
     await waitFor(() => {
-      const activeCall = mockUseInfiniteQuery.mock.calls
-        .filter((call) => !(call[1]?.query as { inTrash?: boolean } | undefined)?.inTrash)
-        .at(-1)
+      const activeCall = mockUseInfiniteQuery.mock.calls.at(-1)
       expect(activeCall?.[1]?.query).toMatchObject({ sortBy: 'ext' })
     })
     expect(ipcMocks.request).not.toHaveBeenCalled()
@@ -918,14 +912,13 @@ describe('FilesPage incremental hydration', () => {
   it('applies a pending hydration response after StrictMode replays effects', async () => {
     const metadata = deferred<Record<string, unknown>>()
     const activePages = [{ items: [externalEntry] }]
-    const emptyPages: typeof activePages = []
     const loadNext = vi.fn()
     const mutate = vi.fn().mockResolvedValue(undefined)
     const reset = vi.fn()
     const refresh = vi.fn().mockResolvedValue(undefined)
     mockFiles([externalEntry])
-    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
-      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? emptyPages : activePages,
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages: activePages,
       isLoading: false,
       isRefreshing: false,
       error: undefined,
