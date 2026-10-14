@@ -45,10 +45,12 @@ const buildV1Routes = (mcpSessions: McpSessionStore) =>
     .guard({
       as: 'scoped',
       beforeHandle: ({ bearer, headers, set, request, body }) => {
-        const model = body && typeof body === 'object' && 'model' in body ? body.model : undefined
-        if (application.get('ApiGatewayService').isTranslationRequest(request, model)) return undefined
         const failure = authorizeApiRequest(headers['x-api-key'], bearer)
         if (!failure) return undefined
+        const model = body && typeof body === 'object' && 'model' in body ? body.model : undefined
+        if (failure.status === 403 && application.get('ApiGatewayService').isTranslationRequest(request, model)) {
+          return undefined
+        }
         set.status = failure.status
         return { error: failure.error }
       }
