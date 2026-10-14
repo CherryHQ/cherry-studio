@@ -2111,6 +2111,41 @@ describe('a heading whose source the parser cannot close', () => {
     expect(window.chunks).toHaveLength(1)
     expect(elapsed).toBeLessThan(1_000)
   })
+
+  it('scans a nested label only as far as the budget allows', () => {
+    // The budget was charged only when a label was read, so a heading whose nested labels are all
+    // rejected still rescanned every one of them: each rejection advanced the outer walk by a single
+    // character while rescanning the whole remaining suffix, and the cost grew with the square of
+    // the run. The line is deliberately sized so the total stays inside the 64K budget — a larger
+    // input trips the budget on the first label and never reaches this path at all.
+    const run = 32_000
+    const content = `# ${'['.repeat(run)}x](y)${']'.repeat(run - 1)}\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks).toHaveLength(1)
+    expect(window.longLines).toBe(true)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('reads a label whose destination never closes without rescanning what follows it', () => {
+    // Every `](` here opens a destination the rest of the segment never closes, so each candidate
+    // rescanned everything left in the segment and 16K of them took seconds. The count is chosen
+    // so the label stays inside the 64K budget: past it the run is given up on at the first label,
+    // and a shape that overshoots never reaches the scan being bounded here at all.
+    const pairs = 16_000
+    const content = `# ${'['.repeat(pairs)}${']('.repeat(pairs)}${']'.repeat(pairs)}\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks).toHaveLength(1)
+    expect(window.longLines).toBe(true)
+    expect(elapsed).toBeLessThan(1_000)
+  })
 })
 
 /** The destination a source's first definition with `label` gives it — CommonMark's own order. */
@@ -2203,6 +2238,16 @@ describe('a heading whose label nests another link', () => {
     expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
     expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
     expect(headingIds(content)).toEqual(['doc--alpha-beta', 'doc--alpha-beta-1'])
+  })
+
+  it('resolves a link to a heading whose text a link label and a suffix both render', () => {
+    // The consumer is the rendered id, not the slug map: both headings normalize to `alpha-beta`,
+    // so the second has to render `alpha-beta-1` for `[jump](#alpha-beta-1)` to have a target.
+    const filler = 'filler\n\n'.repeat(3200)
+    const content = `# [Alpha](url) Beta\n${filler}# Alpha Beta\n\nsee [jump](#doc--alpha-beta-1)\n`
+
+    expect(headingIds(content)).toEqual(['doc--alpha-beta', 'doc--alpha-beta-1'])
+    expect(chunkedHeadingIds(content)).toContain('doc--alpha-beta-1')
   })
 
   it('stops reading labels once their nesting passes the budget', () => {

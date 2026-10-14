@@ -790,23 +790,47 @@ function decodeEntity(value: string): string | null {
  * Whether a segment holds a link — a bracketed label a destination or reference follows. A link
  * inside a link's label is one the parser refuses, so the label's own brackets stay literal text:
  * finding one decides that the enclosing bracket run is not a link either. An image is allowed
- * inside a label, so only a label not written as one counts. Each candidate is found from its
- * closing bracket backwards, so a run of thousands of unclosed brackets costs one walk rather than
- * one per bracket.
+ * inside a label, so only a label not written as one counts.
+ *
+ * Every run is matched in one forward walk and recorded by the index that opens it, so a candidate
+ * is answered in constant time. Searching each candidate on its own made the cost quadratic in the
+ * segment: a `](` whose destination never closes rescanned everything left of it, and a segment
+ * built of thousands of those never finished.
  */
 function holdsLink(source: string): boolean {
-  for (let end = 0; end < source.length - 1; end += 1) {
-    if (source[end] !== ']' || (source[end + 1] !== '(' && source[end + 1] !== '[')) continue
-    let depth = 0
-    let open = end
-    for (; open >= 0; open -= 1) {
-      if (source[open] === ']') depth += 1
-      else if (source[open] === '[' && (depth -= 1) === 0) break
-    }
-    if (open < 0 || (open > 0 && source[open - 1] === '!')) continue
-    if (source[end + 1] === '(') {
-      if (pastParenRun(source, end + 1) > end + 1) return true
-    } else if (pastBracketRun(source, end + 1).closed) {
+  const length = source.length
+  // The index just past the delimiter closing the run each `[` or `(` opens, or −1 where it never
+  // closes — the answers `pastBracketRun` and `pastParenRun` give, both of which read a backslash
+  // as escaping the character after it.
+  const bracketEnd = new Array<number>(length).fill(-1)
+  const parenEnd = new Array<number>(length).fill(-1)
+  const brackets: number[] = []
+  const parens: number[] = []
+  for (let index = 0; index < length; index += 1) {
+    const character = source[index]
+    if (character === '\\') index += 1
+    else if (character === '[') brackets.push(index)
+    else if (character === '(') parens.push(index)
+    else if (character === ']' && brackets.length > 0) bracketEnd[brackets.pop() as number] = index + 1
+    else if (character === ')' && parens.length > 0) parenEnd[parens.pop() as number] = index + 1
+  }
+  // The bracket opening the run each `]` closes, matched without the escape rule — how the label's
+  // own brackets are paired when the run is found by walking back from its closing bracket.
+  const labelOpen = new Array<number>(length).fill(-1)
+  const labels: number[] = []
+  for (let index = 0; index < length; index += 1) {
+    if (source[index] === '[') labels.push(index)
+    else if (source[index] === ']' && labels.length > 0) labelOpen[index] = labels.pop() as number
+  }
+  for (let close = 0; close < length - 1; close += 1) {
+    if (source[close] !== ']' || (source[close + 1] !== '(' && source[close + 1] !== '[')) continue
+    const start = labelOpen[close]
+    // An image's label may hold a link, so a run written as one is not a candidate.
+    if (start < 0 || (start > 0 && source[start - 1] === '!')) continue
+    const after = close + 1
+    if (source[after] === '(') {
+      if (parenEnd[after] > after) return true
+    } else if (bracketEnd[after] > 0) {
       return true
     }
   }
@@ -903,10 +927,11 @@ function headingRenderedText(source: string): string {
           : -1
         // A link the label holds forbids the one around it, which leaves the outer brackets as text
         // — so the scan moves one character and reads the inner link where it stands. An image is
-        // allowed inside a label, so only a link decides this. Past the label budget the run is
-        // read as the text it was written as, because nesting labels costs a scan of the label each
-        // one sits in, and a heading that deep is already past what the preview renders as text.
-        if (labelChars + (label.end - open) > MAX_HEADING_LABEL_CHARS) {
+        // allowed inside a label, so only a link decides this. Every run is charged what it cost to
+        // read, accepted or not: a rejected one is rescanned from the bracket after it, so leaving
+        // it free let a run of nested labels cost its length squared.
+        labelChars += label.end - open
+        if (labelChars > MAX_HEADING_LABEL_CHARS) {
           text += segment.slice(index, label.end)
           index = label.end
           continue
@@ -917,7 +942,6 @@ function headingRenderedText(source: string): string {
           // without is the literal text the parser leaves standing. A label cannot hold a link, so
           // reading it is one level deep and never recurses again.
           if (character !== '!' || follow === label.end) {
-            labelChars += label.end - open
             // The label is read where the link stands and the rest of the segment after it, so the
             // text keeps its document order: the remainder is queued first, then the label, and
             // this segment stops here rather than reading on past the link it just found.
