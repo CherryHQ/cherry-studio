@@ -2014,6 +2014,53 @@ describe('AiStreamManager', () => {
       expect(continuationListener.pausedResults).toHaveLength(0)
     })
 
+    it('runs a queued remote cancellation through its own guard instead of joining a stale drain', async () => {
+      vi.useRealTimers()
+      const topicId = 'agent-session:session-1'
+      const abortController = new AbortController()
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [],
+        abortController
+      })
+
+      // Occupy the dispatch lock so the stale cancellation registers as the drain while it queues.
+      let releaseLock!: () => void
+      let lockAcquired!: () => void
+      const entered = new Promise<void>((resolve) => {
+        lockAcquired = resolve
+      })
+      const holder = mgr.withDispatchLock(topicId, async () => {
+        await new Promise<void>((resolve) => {
+          releaseLock = resolve
+          lockAcquired()
+        })
+      })
+      await entered
+
+      // A cancellation carrying a stale `expectedExecutionId` queues first and its guard must reject.
+      const stale = mgr.abortAndDrain(topicId, 'remote-cancel', () => {
+        throw new Error('Execution is not active')
+      })
+      // The valid cancellation for the live execution follows under the same reason: it must run
+      // its own guard and cancel the execution, not inherit the stale command's rejection.
+      let validGuardRan = false
+      const valid = mgr.abortAndDrain(topicId, 'remote-cancel', () => {
+        validGuardRan = true
+      })
+
+      const staleRejected = expect(stale).rejects.toThrow('Execution is not active')
+      releaseLock()
+      await holder
+      await staleRejected
+      await expect(valid).resolves.toBeUndefined()
+
+      expect(validGuardRan).toBe(true)
+      expect(abortController.signal.aborted).toBe(true)
+    })
+
     it('routes a user Stop through the runtime graceful path and every other drain through closeSession', async () => {
       vi.useRealTimers()
       startSingle(mgr, {
