@@ -162,19 +162,18 @@ const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost:
 }
 
 /**
- * requests/urllib3 (which fetches the sidecar's tiktoken and asset files) ignores SSL_CERT_FILE and
- * trusts only REQUESTS_CA_BUNDLE / CURL_CA_BUNDLE, else certifi's bundle — so point both at the bundle
- * the user exported from the platform trust store. An explicit value of their own still wins.
+ * Requests ignores SSL_CERT_FILE, so derive its bundle variables only when neither is set.
+ * Requests prefers REQUESTS_CA_BUNDLE over CURL_CA_BUNDLE, so a derived value could override an explicit one.
  */
 const buildSidecarCaBundleEnv = (allowedEnv: Record<string, string>): Record<string, string> => {
   const getNonEmptyEnv = (name: string): string | undefined =>
     Object.entries(allowedEnv).find(([key, value]) => key.toUpperCase() === name && value.trim())?.[1]
   const sslCertFile = getNonEmptyEnv('SSL_CERT_FILE')
-  if (!sslCertFile) return {}
+  if (!sslCertFile || getNonEmptyEnv('REQUESTS_CA_BUNDLE') || getNonEmptyEnv('CURL_CA_BUNDLE')) return {}
 
   return {
-    ...(getNonEmptyEnv('REQUESTS_CA_BUNDLE') ? {} : { REQUESTS_CA_BUNDLE: sslCertFile }),
-    ...(getNonEmptyEnv('CURL_CA_BUNDLE') ? {} : { CURL_CA_BUNDLE: sslCertFile })
+    REQUESTS_CA_BUNDLE: sslCertFile,
+    CURL_CA_BUNDLE: sslCertFile
   }
 }
 

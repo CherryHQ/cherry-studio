@@ -942,13 +942,22 @@ describe('PdfTranslationService', () => {
       expect(env.CURL_CA_BUNDLE).toBe('/etc/ssl/corp/ca-bundle.pem')
     })
 
-    it('preserves an explicit Requests bundle while deriving the curl bundle', async () => {
+    it('does not shadow an explicit curl bundle with the SSL_CERT_FILE bundle', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ SSL_CERT_FILE: '/a.pem', CURL_CA_BUNDLE: '/b.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.CURL_CA_BUNDLE).toBe('/b.pem')
+      expect(env).not.toHaveProperty('REQUESTS_CA_BUNDLE')
+    })
+
+    it('preserves an explicit Requests bundle without deriving a curl bundle', async () => {
       vi.mocked(getShellEnv).mockResolvedValueOnce({ SSL_CERT_FILE: '/a.pem', REQUESTS_CA_BUNDLE: '/b.pem' })
 
       const env = await spawnedEnv()
 
       expect(env.REQUESTS_CA_BUNDLE).toBe('/b.pem')
-      expect(env.CURL_CA_BUNDLE).toBe('/a.pem')
+      expect(env).not.toHaveProperty('CURL_CA_BUNDLE')
     })
 
     it('forwards an explicit Requests bundle without SSL_CERT_FILE', async () => {
