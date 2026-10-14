@@ -14,7 +14,7 @@ import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
-import { atomicWriteFile } from '@main/utils/file'
+import { atomicWriteFile, remove } from '@main/utils/file'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import {
@@ -498,14 +498,38 @@ export class CodeCliService extends BaseService {
     if (cliTool === CodeCli.HERMES) {
       return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
     }
-    await writeCliConfigFiles(cliTool, files)
     if (cliTool === CodeCli.COMMAND_CODE) {
-      // The config and the managed credential must move together: providers.json
-      // only carries the `$CHERRY_COMMAND_CODE_API_KEY` reference, so a config
-      // write that re-points the CLI at another provider (or clears it) without
-      // re-deriving the credential file would leave the previous provider's key
-      // in place — a later headless run would send it to the new endpoint.
-      await this.syncCommandCodeCredentialFile()
+      // The config and the managed credential move as one pair: a config write
+      // whose credential sync fails is rolled back to the pre-write content, so
+      // a committed configuration can never pair with the previous provider's
+      // credential (the bundled headless skill reads that file — it would send
+      // the old key to the new endpoint). Best effort; the original error still
+      // surfaces to the renderer.
+      const snapshots = await readCliConfigFiles(files.map((file) => file.target))
+      try {
+        await writeCliConfigFiles(cliTool, files)
+        await this.syncCommandCodeCredentialFile()
+      } catch (error) {
+        await this.restoreCommandCodeConfigFiles(snapshots)
+        throw error
+      }
+      return
+    }
+    await writeCliConfigFiles(cliTool, files)
+  }
+
+  /** Best-effort restore of the pre-write config files after a failed credential sync. */
+  private async restoreCommandCodeConfigFiles(snapshots: CliConfigReadFile[]): Promise<void> {
+    for (const snapshot of snapshots) {
+      try {
+        if (snapshot.content === null) {
+          await remove(snapshot.path)
+        } else {
+          await atomicWriteFile(snapshot.path, snapshot.content, { mode: 0o600 })
+        }
+      } catch (error) {
+        logger.error(`Failed to roll back ${snapshot.path} after a failed credential sync`, error as Error)
+      }
     }
   }
 
@@ -520,9 +544,9 @@ export class CodeCliService extends BaseService {
    * against a different endpoint; the headless Code Mate skill treats a
    * missing file as "ask the user to reconfigure".
    *
-   * Config-write failures are surfaced to the renderer: the write itself
-   * succeeded, but reporting success while the credential stayed stale would
-   * recreate exactly the desync this guards against.
+   * Failures are surfaced to the renderer: `writeConfigFiles` rolls the config
+   * back to its pre-write content around this call, so the error the user
+   * sees pairs with a consistent on-disk state.
    */
   private async syncCommandCodeCredentialFile(): Promise<void> {
     try {
@@ -538,7 +562,7 @@ export class CodeCliService extends BaseService {
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       logger.error('Failed to sync the Command Code credential file with the new configuration', error as Error)
-      throw new Error(`Command Code configuration saved, but the credential file could not be synced: ${reason}`)
+      throw new Error(`Command Code credential sync failed: ${reason}`)
     }
   }
 
@@ -566,11 +590,32 @@ export class CodeCliService extends BaseService {
       logger.warn(`Command Code provider key "${providerKey}" matches ${matches.length} known providers`)
       return null
     }
-    return providerService.getApiKeys(matches[0].id, { enabled: true })[0]?.key ?? null
+    const stored = providerService.getApiKeys(matches[0].id, { enabled: true })[0]?.key
+    if (stored) return stored
+    // Keyless local servers (authOptional, e.g. Ollama) still need a non-empty
+    // token on the wire — the same stand-in the renderer injects when drafting
+    // the config (draft.ts), now resolved main-side for the headless path.
+    return matches[0].authOptional === true ? (matches[0].presetProviderId ?? matches[0].id) : null
   }
 
   private get commandCodeCredentialFile(): string {
     return application.getPath('cherry.code_cli.command_code.credentials_file')
+  }
+
+  /**
+   * The non-empty token an authOptional (keyless) provider expects on the wire —
+   * the same stand-in the renderer injects (provider.presetProviderId ?? id).
+   * Null when the provider is unknown or not keyless: a stored-key-less PAID
+   * provider must not authenticate with a made-up token.
+   */
+  private commandCodeKeylessStandIn(providerId: string): string | null {
+    try {
+      const provider = providerService.getByProviderId(providerId)
+      if (provider.authOptional === true) return provider.presetProviderId ?? provider.id
+    } catch {
+      // Unknown provider: no stand-in.
+    }
+    return null
   }
 
   /**
@@ -599,22 +644,26 @@ export class CodeCliService extends BaseService {
    * the real key has to reach the launched CLI out of band. Resolved main-side
    * from the gateway preference for gateway-backed runs (the config's baseURL
    * points at the gateway regardless of which provider was selected), otherwise
-   * from the selected Cherry provider. A keyless provider (local Ollama) still
-   * exports the variable — empty — so the config reference resolves, and any
-   * credential file left by an earlier launch is removed: the headless Code
-   * Mate skill must not replay a previous provider's key against this one.
+   * from the selected Cherry provider. A keyless provider (local Ollama)
+   * resolves to the same non-empty stand-in token the renderer injects when
+   * drafting the config — the CLI SDKs reject an empty token — and the
+   * credential file carries it so the headless Code Mate skill works too. A
+   * stored-key-less provider that is NOT keyless exports an empty variable and
+   * removes any credential file left by an earlier launch: the headless skill
+   * must not replay a previous provider's key against this one.
    *
    * The resolved key is persisted via an atomic 0600 write (see
    * `writeCommandCodeCredentialFile`) and, on POSIX, the launch exports it via
    * `$(cat <file>)` at shell runtime: macOS Tabby pastes the whole command
    * through the system clipboard, where an inlined secret would be captured by
-   * clipboard history. Windows keeps the inline export inside its 0600 temp
-   * .bat, which is never clipboard-bound. The file also gives the headless
+   * clipboard history. Windows builds its launch environment from `env` (a .bat
+   * cannot read the file), so the inline export is always required there — the
+   * 0600 temp .bat is never clipboard-bound. The file also gives the headless
    * Code Mate skill path a credential source. Returns the file path.
    *
    * Throws when persistence fails on POSIX: the file is the only
    * clipboard-safe delivery there, so the launch fails rather than fall back
-   * to inlining the key into the command text (Windows does fall back — its
+   * to inlining the key into the command text (Windows falls back — its
    * inline export stays inside the .bat).
    */
   private async applyCommandCodeCredential(
@@ -627,6 +676,22 @@ export class CodeCliService extends BaseService {
         ? application.get('PreferenceService').get('feature.api_gateway.api_key')
         : providerService.getApiKeys(providerId, { enabled: true })[0]?.key
     if (!apiKey) {
+      const standIn = this.commandCodeKeylessStandIn(providerId)
+      if (standIn) {
+        logger.info(`No stored key for ${providerId}; exporting the keyless stand-in token`)
+        env.CHERRY_COMMAND_CODE_API_KEY = standIn
+        try {
+          await this.writeCommandCodeCredentialFile(standIn)
+        } catch (error) {
+          // A stand-in is not a secret — a failed write must not block a
+          // keyless launch; the headless skill falls back to its reconfigure
+          // hint when the file is missing.
+          logger.warn('Failed to persist the keyless stand-in credential file', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+        return this.commandCodeCredentialFile
+      }
       logger.warn(`No enabled API key for ${providerId}; exporting an empty CHERRY_COMMAND_CODE_API_KEY`)
       env.CHERRY_COMMAND_CODE_API_KEY = ''
       await this.removeCommandCodeCredentialFile()
@@ -639,8 +704,11 @@ export class CodeCliService extends BaseService {
       logger.warn('Failed to persist the Command Code credential file; falling back to the inline .bat export', {
         error: error instanceof Error ? error.message : String(error)
       })
-      env.CHERRY_COMMAND_CODE_API_KEY = apiKey
     }
+    // Windows builds its launch command from `env` — the credential file is a
+    // POSIX-only delivery — so the inline export is required there whether the
+    // file write succeeded or not.
+    if (isWin) env.CHERRY_COMMAND_CODE_API_KEY = apiKey
     return this.commandCodeCredentialFile
   }
 

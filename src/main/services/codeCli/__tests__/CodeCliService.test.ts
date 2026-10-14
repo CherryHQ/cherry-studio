@@ -17,9 +17,9 @@ const configWriterMock = vi.hoisted(() => ({
   writeCliConfigFiles: vi.fn(),
   readCliConfigFiles: vi.fn()
 }))
-const fileUtilsMock = vi.hoisted(() => ({ atomicWriteFile: vi.fn() }))
+const fileUtilsMock = vi.hoisted(() => ({ atomicWriteFile: vi.fn(), remove: vi.fn() }))
 const preferenceServiceMock = vi.hoisted(() => ({ get: vi.fn() }))
-const providerServiceMock = vi.hoisted(() => ({ getApiKeys: vi.fn(), list: vi.fn() }))
+const providerServiceMock = vi.hoisted(() => ({ getApiKeys: vi.fn(), list: vi.fn(), getByProviderId: vi.fn() }))
 const antigravityLaunchMock = vi.hoisted(() => vi.fn())
 const skillServiceMock = vi.hoisted(() => ({
   syncBuiltinSkill: vi.fn(() => Promise.resolve(false)),
@@ -202,6 +202,7 @@ describe('CodeCliService', () => {
     hermesDashboardMock.writeConfigFiles.mockResolvedValue(undefined)
     configWriterMock.writeCliConfigFiles.mockResolvedValue(undefined)
     fileUtilsMock.atomicWriteFile.mockResolvedValue(undefined)
+    fileUtilsMock.remove.mockResolvedValue(undefined)
     providerServiceMock.list.mockReturnValue([])
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
@@ -743,6 +744,28 @@ describe('CodeCliService', () => {
       expect(fs.unlinkSync).toHaveBeenCalledWith('/mock/binary-data')
     })
 
+    it('exports the non-empty keyless stand-in token for an authOptional provider', async () => {
+      providerServiceMock.getApiKeys.mockReturnValue([])
+      // authOptional providers (local Ollama) reject an empty token on the wire —
+      // the renderer drafts the config with this same stand-in (presetProviderId ?? id).
+      providerServiceMock.getByProviderId.mockReturnValue({
+        id: 'ollama-local',
+        presetProviderId: null,
+        authOptional: true
+      })
+
+      const { env } = await launch({
+        mode: 'normal',
+        cliTool: CodeCli.COMMAND_CODE,
+        providerId: 'ollama-local',
+        model: 'qwen3:8b',
+        directory: '/tmp/project'
+      })
+
+      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('ollama-local')
+      expect(fileUtilsMock.atomicWriteFile).toHaveBeenCalledWith('/mock/binary-data', 'ollama-local', { mode: 0o600 })
+    })
+
     it('refuses the launch on POSIX when the credential file cannot be persisted', async () => {
       fileUtilsMock.atomicWriteFile.mockRejectedValue(new Error('EACCES: permission denied'))
       preferenceServiceMock.get.mockReturnValue('gateway-secret')
@@ -786,6 +809,34 @@ describe('CodeCliService', () => {
         // The temp .bat is 0600 and never clipboard-bound, so the inline
         // export stays a Windows-only fallback.
         expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('gateway-secret')
+      } finally {
+        platformMock.isWin = false
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+      }
+    })
+
+    it('inlines the key into the Windows launch env even when the credential file write succeeds', async () => {
+      const originalPlatform = process.platform
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+      platformMock.isWin = true
+      preferenceServiceMock.get.mockReturnValue('gateway-secret')
+      try {
+        const { env } = await launch({
+          mode: 'normal',
+          cliTool: CodeCli.COMMAND_CODE,
+          providerId: 'minimax',
+          model: 'MiniMax-M2',
+          gateway: true,
+          directory: 'C:\\tmp\\project'
+        })
+
+        // Windows builds its launch command from `env` — the credential file
+        // is a POSIX-only delivery (a .bat cannot read it) — so the inline
+        // export is required on every Windows launch.
+        expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('gateway-secret')
+        expect(fileUtilsMock.atomicWriteFile).toHaveBeenCalledWith('/mock/binary-data', 'gateway-secret', {
+          mode: 0o600
+        })
       } finally {
         platformMock.isWin = false
         Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
@@ -867,6 +918,22 @@ describe('CodeCliService', () => {
       expect(fileUtilsMock.atomicWriteFile).not.toHaveBeenCalled()
     })
 
+    it('writes the keyless stand-in token for an authOptional provider', async () => {
+      configWriterMock.readCliConfigFiles.mockResolvedValue([
+        { target: 'commandcode-providers', path: '/mock/providers.json', content: providersContent('cherry-ollama') }
+      ])
+      providerServiceMock.list.mockReturnValue([
+        { id: 'ollama-local', name: 'ollama', presetProviderId: 'ollama', authOptional: true }
+      ])
+      providerServiceMock.getApiKeys.mockReturnValue([])
+
+      await writeProviders(providersContent('cherry-ollama'))
+
+      // The headless skill needs a non-empty token even without a stored key —
+      // the same stand-in the renderer injects (presetProviderId ?? id).
+      expect(fileUtilsMock.atomicWriteFile).toHaveBeenCalledWith('/mock/binary-data', 'ollama', { mode: 0o600 })
+    })
+
     it('removes the credential file when the config key matches no known provider', async () => {
       configWriterMock.readCliConfigFiles.mockResolvedValue([
         { target: 'commandcode-providers', path: '/mock/providers.json', content: providersContent('cherry-gone') }
@@ -891,10 +958,17 @@ describe('CodeCliService', () => {
       expect(fileUtilsMock.atomicWriteFile).not.toHaveBeenCalled()
     })
 
-    it('surfaces a failed credential sync even though the config write landed', async () => {
-      configWriterMock.readCliConfigFiles.mockResolvedValue([
-        { target: 'commandcode-providers', path: '/mock/providers.json', content: providersContent('cherry-gateway') }
-      ])
+    it('rolls the config back to its pre-write content when the credential sync fails', async () => {
+      const preWrite = [{ target: 'commandcode-providers', path: '/mock/providers.json', content: '{"provider":{}}' }]
+      configWriterMock.readCliConfigFiles
+        .mockResolvedValueOnce(preWrite) // pre-write snapshot
+        .mockResolvedValueOnce([
+          {
+            target: 'commandcode-providers',
+            path: '/mock/providers.json',
+            content: providersContent('cherry-gateway')
+          }
+        ])
       preferenceServiceMock.get.mockReturnValue('gateway-secret')
       fileUtilsMock.atomicWriteFile.mockRejectedValue(new Error('EACCES: permission denied'))
 
@@ -903,7 +977,41 @@ describe('CodeCliService', () => {
         codeCliService.writeConfigFiles(CodeCli.COMMAND_CODE, [
           { target: 'commandcode-providers', content: providersContent('cherry-gateway') }
         ])
-      ).rejects.toThrow('credential file could not be synced')
+      ).rejects.toThrow('credential sync failed')
+
+      // A committed configuration must never pair with the previous provider's
+      // credential: the failed sync restores the pre-write files (best effort —
+      // the restore write failing here is logged, the original error still wins).
+      expect(fileUtilsMock.atomicWriteFile).toHaveBeenLastCalledWith(
+        '/mock/providers.json',
+        '{"provider":{}}',
+        { mode: 0o600 }
+      )
+    })
+
+    it('restores a previously absent config file by removing it after a failed sync', async () => {
+      configWriterMock.readCliConfigFiles
+        .mockResolvedValueOnce([{ target: 'commandcode-providers', path: '/mock/providers.json', content: null }])
+        .mockResolvedValueOnce([
+          {
+            target: 'commandcode-providers',
+            path: '/mock/providers.json',
+            content: providersContent('cherry-gateway')
+          }
+        ])
+      preferenceServiceMock.get.mockReturnValue('gateway-secret')
+      fileUtilsMock.atomicWriteFile.mockRejectedValue(new Error('EACCES: permission denied'))
+
+      const { codeCliService } = await loadModules()
+      await expect(
+        codeCliService.writeConfigFiles(CodeCli.COMMAND_CODE, [
+          { target: 'commandcode-providers', content: providersContent('cherry-gateway') }
+        ])
+      ).rejects.toThrow('credential sync failed')
+
+      // The file did not exist before the write — restore means hard unlink,
+      // never the trash (config files may hold secrets).
+      expect(fileUtilsMock.remove).toHaveBeenCalledWith('/mock/providers.json')
     })
 
     it('does not touch the credential file for other CLI tools', async () => {
