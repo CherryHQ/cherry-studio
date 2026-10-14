@@ -12,7 +12,8 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { getSessionEffectivePermissionMode } from '@main/ai/agentSession/sessionPermissionOverrides'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
@@ -432,7 +433,7 @@ async function deriveConnectionConfigFromSnapshot(
     rebuildFactFingerprints,
     live: {
       toolPolicy: {
-        permissionMode: agent.configuration?.permission_mode ?? null,
+        permissionMode: getSessionEffectivePermissionMode(session.id) ?? agent.configuration?.permission_mode ?? null,
         disabledTools: [...(agent.disabledTools ?? [])].sort(),
         mcps: [...(agent.mcps ?? [])].sort()
       }

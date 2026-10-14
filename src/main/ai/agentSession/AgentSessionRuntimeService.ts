@@ -117,6 +117,7 @@ import {
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
+import { clearSessionEffectivePermissionMode, setSessionEffectivePermissionMode } from './sessionPermissionOverrides'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
@@ -810,6 +811,13 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
     const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
+    // An explicit permission-mode edit is the user's own choice again — retire any approved-plan
+    // session override so every session of the agent follows the row from here on.
+    if (updates.configuration && Object.prototype.hasOwnProperty.call(updates.configuration, 'permission_mode')) {
+      for (const entry of this.entries.values()) {
+        if (entry.agentId === agentId) clearSessionEffectivePermissionMode(entry.sessionId)
+      }
+    }
     const reconciles: Promise<void>[] = []
     for (const entry of this.entries.values()) {
       if (entry.agentId !== agentId) continue
@@ -1089,6 +1097,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
+      clearSessionEffectivePermissionMode(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
     return barrier
@@ -1573,10 +1582,13 @@ export class AgentSessionRuntimeService extends BaseService {
     if (runningModelId === executionModelId) return 'already-current'
 
     // The teardown removes the connection that carried the SDK's post-approval mode shift, so the
-    // follow-up's fresh connection re-reads this row — leaving `plan` here would spawn it into "no
-    // execution of tools" and the approved plan could not run (Options.permissionMode contract).
+    // follow-up's fresh connection would re-read this row — leaving `plan` there would spawn it
+    // into "no execution of tools" and the approved plan could not run (Options.permissionMode
+    // contract). The approved execution is a property of THIS session (the CLI's own shift was),
+    // so it is recorded as a session-scoped effective permission for the replacement connections
+    // instead of reconciling every session of the agent out of its Plan Only restriction.
     if (agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan') {
-      agentService.updateAgent(entry.agentId, { configuration: { permission_mode: 'acceptEdits' } })
+      setSessionEffectivePermissionMode(entry.sessionId, 'acceptEdits')
     }
 
     logger.info('Stopping approved plan turn for execution-model handoff', {
