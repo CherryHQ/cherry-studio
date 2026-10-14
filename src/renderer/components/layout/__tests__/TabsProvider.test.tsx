@@ -460,6 +460,7 @@ describe('TabsProvider', () => {
     let persisted = pinnedTabsValue
     setPinnedTabsMock.mockImplementation((write) => {
       persisted = typeof write === 'function' ? write(persisted) : write
+      pinnedTabsValue = persisted
     })
     function Controls() {
       const { pinTab, unpinTab, closeTab } = useTabsActions()
