@@ -1,7 +1,6 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3Prompt, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
-import type { SessionEntry } from '@earendil-works/pi-coding-agent'
-import { type AgentSession, defineTool, type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
+import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { type LanguageModel, simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { expect, onTestFinished } from 'vitest'
@@ -12,26 +11,25 @@ import {
   GOAL_NOTICE_TYPE,
   GOAL_ROUND_TYPE,
   GOAL_STATE_TYPE,
-  type GoalApprovalEvent,
   type GoalCleared,
   type GoalNotice,
   type GoalPort,
   type GoalSnapshot,
-  type RoundDetails
-} from '@cherrystudio/agent-runtime-pi'
-
-import { createTestBinding } from './gatewaySupport'
+  type RoundDetails,
+  type ToolApprovalEvent,
+  type TranscriptEntry
+} from '../src'
 import {
   createTestSession,
   finish,
   hostStore,
   MODEL,
   plain,
-  gatewayModel,
+  streamTextPort,
   tempDir,
   type TestSessionOptions,
   textParts
-} from './gatewaySupport'
+} from './support'
 
 export function goalPort(
   overrides: Partial<Omit<GoalPort, 'defaults'>> & { defaults?: Partial<GoalPort['defaults']> } = {}
@@ -58,8 +56,7 @@ export function readGoal(prompt: LanguageModelV3Prompt): { goal: GoalSnapshot | 
       if (part.type !== 'tool-result' || !['get_goal', 'create_goal', 'update_goal'].includes(part.toolName)) continue
       const output = part.output as { type: string; value: unknown }
       // The view is the first line; an accepted completion adds its closing instruction after it.
-      if (output.type === 'text' && typeof output.value === 'string' && output.value.startsWith('{'))
-        return JSON.parse(output.value.split('\n', 1)[0])
+      if (output.type === 'text') return JSON.parse((output.value as string).split('\n', 1)[0])
     }
   }
   return { goal: null }
@@ -134,10 +131,10 @@ export function heldModel(scripts: Parameters<typeof goalModel>[0] = [() => say(
   }
 }
 
-type GoalSessionOptions = Omit<TestSessionOptions, 'port' | 'onEvent'> & {
+type GoalSessionOptions = Omit<TestSessionOptions<undefined>, 'port' | 'onEvent'> & {
   /** Loaded after the goal extension, so their settle handlers run after its decision. */
   laterExtensions?: ExtensionFactory[]
-  /** The host can stop the native session independently of a tool or user prompt. */
+  /** The host's own signal, joined to every request's as a host's port may (bridge.test.ts). */
   hostSignal?: AbortSignal
 }
 
@@ -150,22 +147,18 @@ async function goalViewOf(session: AgentSession): Promise<unknown> {
 }
 
 /**
- * Spec §6.1: goal state and usage are a function of the branch. Rebuilds a session from `entries`
+ * Spec §6.1: goal state and usage are a function of the branch. Rebuilds a session from `transcript`
  * and expects it to report what the live session reported then; a rebuilt goal is always disarmed.
  */
-async function expectRebuildAgrees(entries: SessionEntry[], live: unknown, port: GoalPort) {
-  const cwd = tempDir('cwd')
-  const binding = await createTestBinding({
-    model: MODEL,
-
-    port: gatewayModel(goalModel([() => say('unused')]).model).upstream
-  })
+async function expectRebuildAgrees(transcript: TranscriptEntry[], live: unknown, port: GoalPort) {
   const rebuilt = await createAgentRuntimeSession({
-    ...binding,
-    cwd,
+    cwd: tempDir('cwd'),
     agentDir: tempDir('agent'),
+    model: MODEL,
     systemPrompt: 'You are Cherry.',
-    sessionManager: SessionManager.inMemory(cwd, undefined, entries),
+    requestOptions: undefined,
+    port: streamTextPort(goalModel([() => say('unused')]).model).port,
+    transcript,
     extensionFactories: [createGoalExtension({ ...port, onApproval: undefined })]
   })
   try {
@@ -178,7 +171,7 @@ async function expectRebuildAgrees(entries: SessionEntry[], live: unknown, port:
 
 /**
  * A session on `model` with the goal extension loaded between `extra.extensionFactories` and
- * `extra.laterExtensions`, and a host store. After the test, a session rebuilt from the entries of
+ * `extra.laterExtensions`, and a host store. After the test, a session rebuilt from the transcript of
  * each settled run, and of the end, must report the goal the live session reported then.
  */
 export async function openGoalSession(
@@ -187,17 +180,25 @@ export async function openGoalSession(
   { laterExtensions = [], hostSignal, ...extra }: GoalSessionOptions = {}
 ) {
   const host = hostStore()
-  const modelPort = gatewayModel(model).upstream
-  modelPort.signal = hostSignal
-  const checkpoints: { entries: SessionEntry[]; view: Promise<unknown> }[] = []
+  const modelPort = streamTextPort(model).port
+  const prefix = extra.transcript ?? []
+  const checkpoints: { transcript: TranscriptEntry[]; view: Promise<unknown> }[] = []
   const live: { session?: AgentSession } = {}
   const checkpoint = () => {
     if (live.session)
-      checkpoints.push({ entries: plain(live.session.sessionManager.getBranch()), view: goalViewOf(live.session) })
+      checkpoints.push({ transcript: plain([...prefix, ...host.entries]), view: goalViewOf(live.session) })
   }
   const runtime = await createTestSession({
     ...extra,
-    port: modelPort,
+    port: hostSignal
+      ? {
+          streamText: (request) =>
+            modelPort.streamText({
+              ...request,
+              abortSignal: AbortSignal.any(request.abortSignal ? [request.abortSignal, hostSignal] : [hostSignal])
+            })
+        }
+      : modelPort,
     extensionFactories: [...(extra.extensionFactories ?? []), createGoalExtension(port), ...laterExtensions],
     onEvent: (event) => {
       host.onEvent(event)
@@ -207,9 +208,9 @@ export async function openGoalSession(
   live.session = runtime.session
   onTestFinished(async () => {
     checkpoint()
-    for (const { entries, view } of checkpoints) {
+    for (const { transcript, view } of checkpoints) {
       const reported = await view
-      if (reported !== undefined) await expectRebuildAgrees(entries, reported, port)
+      if (reported !== undefined) await expectRebuildAgrees(transcript, reported, port)
     }
   })
   return { ...runtime, host }
@@ -249,10 +250,10 @@ export function askAtTurnEnd(session: AgentSession, turn: number) {
 }
 
 /**
- * The entries of a session cut off while round 1 of `/goal <objective>` waits for the model, as an
+ * The transcript of a session cut off while round 1 of `/goal <objective>` waits for the model, as an
  * app crash leaves it: the goal is active and that round admitted.
  */
-export async function crashedEntries(objective: string, port: GoalPort, cwd: string) {
+export async function crashedTranscript(objective: string, port: GoalPort, cwd: string) {
   const { session, host, held } = await heldGoalSession(port, { cwd })
   await session.prompt(`/goal ${objective}`)
   await held.started(1)
@@ -263,8 +264,8 @@ export async function crashedEntries(objective: string, port: GoalPort, cwd: str
  * A port with a single approval listener, and a tool that reports `kind` for its own call, as the
  * host's approval layer would. `listening()` tells whether a listener is subscribed.
  */
-export function approvals(kind: GoalApprovalEvent['kind'], overrides: Parameters<typeof goalPort>[0] = {}) {
-  let listener: ((event: GoalApprovalEvent) => void) | undefined
+export function approvals(kind: ToolApprovalEvent['kind'], overrides: Parameters<typeof goalPort>[0] = {}) {
+  let listener: ((event: ToolApprovalEvent) => void) | undefined
   const port = goalPort({
     ...overrides,
     onApproval: (next) => {
@@ -286,40 +287,40 @@ export function approvals(kind: GoalApprovalEvent['kind'], overrides: Parameters
 }
 
 /** Every `cherry.goal` entry in order: snapshots and clear tombstones. */
-export const goalStates = (entries: readonly SessionEntry[]) =>
+export const goalStates = (entries: readonly TranscriptEntry[]) =>
   entries.flatMap((entry) =>
-    entry.type === 'custom' && entry.customType === GOAL_STATE_TYPE
-      ? [entry.data as GoalSnapshot | GoalCleared]
+    entry.kind === 'state' && entry.type === GOAL_STATE_TYPE
+      ? [entry.data as unknown as GoalSnapshot | GoalCleared]
       : []
   )
 
-export const snapshots = (entries: readonly SessionEntry[]): GoalSnapshot[] =>
+export const snapshots = (entries: readonly TranscriptEntry[]): GoalSnapshot[] =>
   goalStates(entries).filter((data): data is GoalSnapshot => !('cleared' in data))
 
-export const lastSnapshot = (entries: readonly SessionEntry[]) => snapshots(entries).at(-1)
+export const lastSnapshot = (entries: readonly TranscriptEntry[]) => snapshots(entries).at(-1)
 
-export const rounds = (entries: readonly SessionEntry[]) =>
+export const rounds = (entries: readonly TranscriptEntry[]) =>
   entries.flatMap((entry) =>
-    entry.type === 'custom_message' && entry.customType === GOAL_ROUND_TYPE
-      ? [entry.details as RoundDetails]
+    entry.kind === 'message' && entry.custom?.type === GOAL_ROUND_TYPE
+      ? [entry.custom.details as unknown as RoundDetails]
       : []
   )
 
 /** The prompt of every goal-round message, oldest first. */
-export const roundTexts = (entries: readonly SessionEntry[]) =>
+export const roundTexts = (entries: readonly TranscriptEntry[]) =>
   entries.flatMap((entry) =>
-    entry.type === 'custom_message' && entry.customType === GOAL_ROUND_TYPE
+    entry.kind === 'message' && entry.custom?.type === GOAL_ROUND_TYPE
       ? [
-          typeof entry.content === 'string'
-            ? entry.content
-            : entry.content.map((part) => (part.type === 'text' ? part.text : '')).join('')
+          typeof entry.message.content === 'string'
+            ? entry.message.content
+            : entry.message.content.map((part) => (part.type === 'text' ? part.text : '')).join('')
         ]
       : []
   )
 
-export const goalNotices = (entries: readonly SessionEntry[]): GoalNotice[] =>
+export const goalNotices = (entries: readonly TranscriptEntry[]): GoalNotice[] =>
   entries.flatMap((entry) =>
-    entry.type === 'custom' && entry.customType === GOAL_NOTICE_TYPE ? [entry.data as GoalNotice] : []
+    entry.kind === 'state' && entry.type === GOAL_NOTICE_TYPE ? [entry.data as unknown as GoalNotice] : []
   )
 
-export const notices = (entries: readonly SessionEntry[]) => goalNotices(entries).map((notice) => notice.text)
+export const notices = (entries: readonly TranscriptEntry[]) => goalNotices(entries).map((notice) => notice.text)
