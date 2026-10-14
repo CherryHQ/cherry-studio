@@ -86,6 +86,7 @@ export async function saveAttachmentToWorkspace(
     const publish = async (tempPath: string) => {
       signal.throwIfAborted()
       await publishFileNoClobber(AbsoluteFilePathSchema.parse(tempPath), outputPath, {
+        preserveSource: attachment.file.kind === 'path',
         signal,
         validateTarget: () =>
           assertWorkspacePathUnchanged(

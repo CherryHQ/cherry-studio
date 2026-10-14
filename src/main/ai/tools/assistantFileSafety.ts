@@ -30,7 +30,8 @@ const invalidLeaf =
 if (invalidLeaf) process.exit(64)
 
 try {
-  const parent = fs.lstatSync('.', { bigint: true })
+  // Windows can retain a junction in cwd; compare the directory it resolves to.
+  const parent = fs.statSync('.', { bigint: true })
   if (
     !parent.isDirectory() ||
     parent.dev.toString() !== expectedParentDev ||
@@ -155,6 +156,7 @@ export async function readBoundedRegularFile(
 }
 
 interface PublishFileNoClobberOptions {
+  preserveSource?: boolean
   signal?: AbortSignal
   validateTarget?: () => Promise<void>
 }
@@ -389,6 +391,8 @@ export async function publishFileNoClobber(
     }
   }
 
-  await bestEffortUnlinkOwnedPath(staged, stagedPathStat, 'publishFileNoClobber')
+  if (!options.preserveSource) {
+    await bestEffortUnlinkOwnedPath(staged, stagedPathStat, 'publishFileNoClobber')
+  }
   await fsyncDirectoryOf(target)
 }

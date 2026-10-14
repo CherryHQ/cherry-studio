@@ -407,7 +407,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     expect(messages.map((m) => m.id)).toEqual(['u2'])
     expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
-      { fileEntryId: 'fe-1', handle: 'doc.txt', displayName: 'doc.txt' }
+      { file: { kind: 'entry', entryId: 'fe-1' }, handle: 'doc.txt', displayName: 'doc.txt' }
     ])
   })
 
@@ -458,7 +458,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2'])
     expect(JSON.stringify(messages)).not.toContain('PRIOR_SUMMARY')
     expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
-      { fileEntryId: 'fe-folded', handle: 'folded.txt', displayName: 'folded.txt' }
+      { file: { kind: 'entry', entryId: 'fe-folded' }, handle: 'folded.txt', displayName: 'folded.txt' }
     ])
   })
 
@@ -609,7 +609,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(messages.map((m) => m.id)).not.toContain('u1')
     // … but the request carries the raw-path retained context …
     expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
-      { fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }
+      { file: { kind: 'entry', entryId: 'fe-1' }, handle: 'log.txt', displayName: 'log.txt' }
     ])
     expect(prepared.models[0].request.retainedContext?.persistedOutputPaths.size).toBe(0)
     // … and the served summary row tells the model the file is still readable.

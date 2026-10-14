@@ -96,6 +96,7 @@ describe('saveAttachmentToWorkspace', () => {
       )
     ).toEqual({ path: 'copy.csv' })
     expect(await readFile(path.join(workspacePath, 'copy.csv'))).toEqual(sourceBytes)
+    expect(await readFile(sourcePath)).toEqual(sourceBytes)
     expect(withTempCopy).not.toHaveBeenCalled()
   })
 
@@ -209,7 +210,7 @@ describe('saveAttachmentToWorkspace', () => {
     await mkdir(outputDirectory)
     withTempCopy.mockImplementationOnce(async (_id: string, fn: (tempPath: string) => Promise<unknown>) => {
       await rm(outputDirectory, { recursive: true, force: true })
-      await symlink(outsideDirectory, outputDirectory)
+      await symlink(outsideDirectory, outputDirectory, process.platform === 'win32' ? 'junction' : 'dir')
       return fn(sourcePath)
     })
 

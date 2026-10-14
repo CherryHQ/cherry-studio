@@ -168,8 +168,8 @@ describe('assistant-files MCP server', () => {
       expect.anything(),
       {
         attachments: [
-          expect.objectContaining({ fileEntryId: 'entry-live', displayName: 'live.txt' }),
-          expect.objectContaining({ fileEntryId: 'entry-legacy', displayName: 'legacy.txt' })
+          expect.objectContaining({ file: { kind: 'entry', entryId: 'entry-live' }, displayName: 'live.txt' }),
+          expect.objectContaining({ file: { kind: 'entry', entryId: 'entry-legacy' }, displayName: 'legacy.txt' })
         ]
       },
       expect.any(AbortSignal)
@@ -191,7 +191,7 @@ describe('assistant-files MCP server', () => {
     expect(mocks.saveAttachmentToWorkspace).toHaveBeenCalledWith(
       '/workspace',
       { filename: handle, output_path: 'inputs/report.txt' },
-      [{ fileEntryId: entryId, handle, displayName: 'report.txt' }],
+      [{ file: { kind: 'entry', entryId }, handle, displayName: 'report.txt' }],
       expect.any(AbortSignal)
     )
     expect(result.isError).not.toBe(true)
