@@ -12,7 +12,7 @@ import type {
 import type { ToolOutputOffload } from './offload'
 import type { AgentRuntimeSession } from './session'
 import { shortenResult, SubagentDelivery } from './subagentDelivery'
-import { DEFAULT_MAX_BACKGROUND, SUBAGENT_STATE_TYPE, SubagentRegistry } from './subagentRegistry'
+import { DEFAULT_MAX_BACKGROUND, SUBAGENT_STATE_TYPE, type SubagentRecord, SubagentRegistry } from './subagentRegistry'
 import {
   type CreateSubagentSession,
   forkTranscript,
@@ -20,16 +20,17 @@ import {
   openChild,
   type RunEnd,
   type RunResult,
-  runSubagent,
-  SUBAGENT_ORIGIN_STATE
+  SUBAGENT_ORIGIN_STATE,
+  SubagentInbox
 } from './subagentRun'
 import type { TranscriptEntry } from './transcript'
 import type { AgentRuntimeEvent } from './transcriptTap'
 
-export { SUBAGENT_ORIGIN_STATE } from './subagentRun'
+export { SUBAGENT_MESSAGE_TYPE, SUBAGENT_ORIGIN_STATE } from './subagentRun'
 
 /** DSH's name: Cherry's renderer shows a cherry-runtime `subagent` call as a Task card. */
 export const SUBAGENT_TOOL_NAME = 'subagent'
+export const MESSAGE_SUBAGENT_TOOL_NAME = 'message_subagent'
 
 /** True inside a subagent's session. */
 export function isSubagentSession(entries: readonly SessionEntry[]): boolean {
@@ -139,6 +140,28 @@ function runText(result: RunResult): string {
   return lines.join('\n')
 }
 
+const IN_SUBAGENT = 'Subagents cannot start or manage subagents.'
+
+/** A subagent's state in the words lists of subagents use. */
+function statusText(record: SubagentRecord): string {
+  if (record.status === 'running') return 'running'
+  if (record.status === 'awaiting_approval') return 'waiting for a tool approval'
+  return record.outcome!
+}
+
+function unknownId(id: string, registry: SubagentRegistry): string {
+  const listed = registry
+    .recent()
+    .map((record) => `${record.sessionId} — ${record.description} — ${statusText(record)}`)
+  const head = `No subagent with id ${id} in this conversation.`
+  return listed.length === 0 ? head : [`${head} Subagents you can address:`, ...listed].join('\n')
+}
+
+const messageParameters = Type.Object({
+  id: Type.String({ description: 'The id a subagent result or notification gave.' }),
+  message: Type.String({ description: 'What to tell the subagent.' })
+})
+
 const startedText = (sessionId: string) =>
   `Subagent started in the background (id: ${sessionId}). You will be notified when it finishes. Do not wait, poll or guess its result, and do not redo its work or edit the files it is working on. Continue with independent work, or end your turn.`
 
@@ -230,7 +253,7 @@ export function createSubagentExtension({
       parameters,
       exposure: 'model-only',
       async execute(toolCallId, params, signal, _onUpdate, ctx) {
-        if (isSubagentSession(ctx.sessionManager.getBranch())) throw new Error('Subagents cannot start subagents.')
+        if (isSubagentSession(ctx.sessionManager.getBranch())) throw new Error(IN_SUBAGENT)
         const description = params.description.trim()
         const prompt = params.prompt.trim()
         if (!description || !prompt) throw new Error('A subagent needs a non-empty description and prompt.')
@@ -244,6 +267,7 @@ export function createSubagentExtension({
           background
         }
         const release = background ? registry.reserveBackground() : () => {}
+        const inbox = new SubagentInbox()
         let child: AgentRuntimeSession
         try {
           // Built before `configure`, so a failure building the fork transcript never reaches the host.
@@ -251,36 +275,28 @@ export function createSubagentExtension({
           const options = await port.configure(subagent)
           // A background subagent does not belong to the turn, so the turn's abort does not cancel it.
           if (!background && signal?.aborted) return notStarted(subagent.sessionId, fork)
-          child = await openChild({ subagent, options, prefix, parentModelKey, createSession })
+          child = await openChild({ subagent, options, prefix, parentModelKey, inbox, createSession })
         } finally {
           release()
         }
+        const record: SubagentRecord = {
+          sessionId: subagent.sessionId,
+          parentToolCallId: toolCallId,
+          description,
+          fork,
+          background,
+          modelKey: parentModelKey,
+          run: 1,
+          status: 'running'
+        }
+        const start = { prompt: taskText(prompt) }
         if (background) {
-          registry.startBackground(
-            {
-              sessionId: subagent.sessionId,
-              parentToolCallId: toolCallId,
-              description,
-              fork,
-              background,
-              modelKey: parentModelKey,
-              run: 1,
-              status: 'running'
-            },
-            child,
-            taskText(prompt)
-          )
+          registry.startBackground(record, child, start, inbox)
           const details: SubagentDetails = { sessionId: subagent.sessionId, fork, background: true }
           return { content: [text(startedText(subagent.sessionId))], details }
         }
         try {
-          const run = new AbortController()
-          const onAbort = () => run.abort()
-          if (signal?.aborted) run.abort()
-          else signal?.addEventListener('abort', onAbort, { once: true })
-          const result = await runSubagent(child, taskText(prompt), run.signal).finally(() =>
-            signal?.removeEventListener('abort', onAbort)
-          )
+          const result = await registry.runForeground(record, child, start, inbox, signal)
           const details: SubagentDetails = {
             sessionId: subagent.sessionId,
             fork,
@@ -295,6 +311,31 @@ export function createSubagentExtension({
           }
         } finally {
           await child.dispose()
+        }
+      }
+    })
+
+    pi.registerTool({
+      name: MESSAGE_SUBAGENT_TOOL_NAME,
+      label: 'Message subagent',
+      description:
+        'Send a message to a subagent you started, by the id its result or notification gave. A running subagent reads it after its current step.',
+      parameters: messageParameters,
+      exposure: 'model-only',
+      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+        if (isSubagentSession(ctx.sessionManager.getBranch())) throw new Error(IN_SUBAGENT)
+        const id = params.id.trim()
+        const message = params.message.trim()
+        if (!message) throw new Error('message_subagent needs a non-empty message.')
+        const record = registry.get(id)
+        if (!record) throw new Error(unknownId(id, registry))
+        if (record.status === 'finished' || !registry.message(id, message))
+          throw new Error(
+            `Subagent ${id} has finished and this app cannot continue finished subagents. Start a new subagent instead.`
+          )
+        return {
+          content: [text(`Message queued for subagent ${id}; it reads it after its current step.`)],
+          details: undefined
         }
       }
     })
