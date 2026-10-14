@@ -14,10 +14,13 @@ import type { AgentRuntimeSession } from './session'
 import { shortenResult, SubagentDelivery } from './subagentDelivery'
 import { DEFAULT_MAX_BACKGROUND, SUBAGENT_STATE_TYPE, type SubagentRecord, SubagentRegistry } from './subagentRegistry'
 import {
+  answerInterrupted,
   type CreateSubagentSession,
   forkTranscript,
   MAX_SUBAGENT_REQUESTS,
   openChild,
+  originEntry,
+  readOrigin,
   type RunEnd,
   type RunResult,
   SUBAGENT_ORIGIN_STATE,
@@ -41,24 +44,34 @@ export function isSubagentSession(entries: readonly SessionEntry[]): boolean {
 /** Host side of `subagent`: gives each subagent its extensions and listeners. */
 export interface SubagentPort {
   /**
-   * Called once per subagent, before its session is built. A throw fails the call. For a fork,
+   * Called before a subagent's session is built: once when it starts and again for each
+   * continuation, which must get the same extensions. A throw fails the call. For a fork,
    * `extensionFactories` must yield the parent's tools: the same tools, in the same order.
    */
   configure(subagent: Subagent): SubagentSessionOptions | Promise<SubagentSessionOptions>
+  /**
+   * The stored transcript of a finished subagent (everything its `onEvent` received), to continue
+   * it. Without it, finished subagents cannot be continued.
+   */
+  load?(sessionId: string): Promise<readonly TranscriptEntry[] | undefined>
   /** Background subagents one parent session may run at once; default 20 (Claude Code's default). */
   maxBackground?: number
 }
 
-/** The subagent about to be created. */
+/** The subagent about to be created or continued. */
 export interface Subagent {
-  /** The `subagent` call that creates it. */
+  /** The `subagent` call that created it. */
   parentToolCallId: string
+  /** When it is continued: the `message_subagent` call that starts this run. */
+  continuedBy?: string
   /** Its Pi session id, its requests' `sessionId` and the id the model sees: a random UUID. */
   sessionId: string
   description: string
   fork: boolean
-  /** Whether this run is in the background. */
+  /** Whether this run is in the background; a continuation always is. */
   background: boolean
+  /** When it is continued: the model its first run used, from its origin entry. */
+  modelKey?: string
 }
 
 /** The session options the host gives each subagent; everything else comes from the parent. */
@@ -144,6 +157,8 @@ function runText(result: RunResult): string {
 }
 
 const IN_SUBAGENT = 'Subagents cannot start or manage subagents.'
+const RECOVERY_HINT =
+  'Your previous run was interrupted. Check the current state of the workspace first and do not redo work that is already done.'
 
 const STOPPED_BY: Record<SubagentStopper, string> = {
   model: 'stopped by you',
@@ -291,7 +306,9 @@ export function createSubagentExtension({
           const options = await port.configure(subagent)
           // A background subagent does not belong to the turn, so the turn's abort does not cancel it.
           if (!background && signal?.aborted) return notStarted(subagent.sessionId, fork)
-          child = await openChild({ subagent, options, prefix, parentModelKey, inbox, createSession })
+          const origin = originEntry({ parentToolCallId: toolCallId, fork, description, modelKey: parentModelKey })
+          const start = [...prefix, origin]
+          child = await openChild({ subagent, options, transcript: start, handOff: start, inbox, createSession })
         } finally {
           release()
         }
@@ -331,6 +348,54 @@ export function createSubagentExtension({
       }
     })
 
+    /** A finished subagent's next run, in the background, from the transcript the host stored. */
+    const continueSubagent = async (record: SubagentRecord, message: string, toolCallId: string) => {
+      const id = record.sessionId
+      const release = registry.reserveBackground()
+      const inbox = new SubagentInbox()
+      let child: AgentRuntimeSession
+      try {
+        const stored = await port.load!(id)
+        const origin = stored && readOrigin(stored)
+        if (!stored || !origin) throw new Error(`Subagent ${id} cannot be continued: its transcript is not available.`)
+        const subagent: Subagent = {
+          parentToolCallId: origin.parentToolCallId,
+          continuedBy: toolCallId,
+          sessionId: id,
+          description: origin.description,
+          fork: origin.fork,
+          background: true,
+          modelKey: origin.modelKey
+        }
+        const options = await port.configure(subagent)
+        const answers = answerInterrupted(stored)
+        child = await openChild({
+          subagent,
+          options,
+          transcript: [...stored, ...answers],
+          handOff: answers,
+          inbox,
+          createSession
+        })
+      } finally {
+        release()
+      }
+      const interrupted = record.outcome === 'interrupted' || record.outcome === 'aborted'
+      record.run++
+      registry.startBackground(
+        record,
+        child,
+        { message: interrupted ? `${RECOVERY_HINT}\n\n${message}` : message },
+        inbox
+      )
+      return {
+        content: [
+          text(`Subagent ${id} resumed in the background with your message; you will be notified when it finishes.`)
+        ],
+        details: undefined
+      }
+    }
+
     pi.registerTool({
       name: MESSAGE_SUBAGENT_TOOL_NAME,
       label: 'Message subagent',
@@ -338,21 +403,34 @@ export function createSubagentExtension({
         'Send a message to a subagent you started, by the id its result or notification gave. A running subagent reads it after its current step.',
       parameters: messageParameters,
       exposure: 'model-only',
-      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      async execute(toolCallId, params, _signal, _onUpdate, ctx) {
         if (isSubagentSession(ctx.sessionManager.getBranch())) throw new Error(IN_SUBAGENT)
         const id = params.id.trim()
         const message = params.message.trim()
         if (!message) throw new Error('message_subagent needs a non-empty message.')
         const record = registry.get(id)
         if (!record) throw new Error(unknownId(id, registry))
-        if (record.status === 'finished' || !registry.message(id, message))
-          throw new Error(
-            `Subagent ${id} has finished and this app cannot continue finished subagents. Start a new subagent instead.`
-          )
-        return {
-          content: [text(`Message queued for subagent ${id}; it reads it after its current step.`)],
-          details: undefined
-        }
+        // Another message may be continuing it right now; this one then goes to that run.
+        for (let starting = registry.startingRun(id); starting; starting = registry.startingRun(id))
+          await starting.catch(() => undefined)
+        if (record.status !== 'finished' && registry.message(id, message))
+          return {
+            content: [text(`Message queued for subagent ${id}; it reads it after its current step.`)],
+            details: undefined
+          }
+        return registry.startRun(id, async () => {
+          // A run that has just ended is recorded before the next one starts.
+          await registry.recorded(id)
+          if (record.stoppedBy === 'user')
+            throw new Error(
+              `Subagent ${id} was stopped by the user and cannot be continued. Start a new subagent if the work is still needed.`
+            )
+          if (!port.load)
+            throw new Error(
+              `Subagent ${id} has finished and this app cannot continue finished subagents. Start a new subagent instead.`
+            )
+          return continueSubagent(record, message, toolCallId)
+        })
       }
     })
 
