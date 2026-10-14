@@ -42,7 +42,7 @@ describe('subagent', () => {
     const { model, calls } = delegateOnce()
     const host = recordingSubagentPort()
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       tools: [noteTool],
       subagents: host.port
     })
@@ -54,11 +54,14 @@ describe('subagent', () => {
     expect(first.options.prompt.map((message) => message.role)).toEqual(['system', 'user'])
     expect(first.userText).not.toContain(DELEGATE_A)
     expect(first.options.tools?.map((tool) => tool.name)).not.toContain('subagent')
-    expect(toolResults(calls.at(-1)!).map((part) => outputText(part.output))).toEqual(['REPORT-A'])
+    const { sessionId } = host.subagents[0]
+    expect(toolResults(calls.at(-1)!).map((part) => outputText(part.output))).toEqual([
+      `REPORT-A\n\n(id: ${sessionId} — continue this subagent with message_subagent.)`
+    ])
 
     const result = toolResultOf(session, 'call_a')
     expect(result.isError).toBe(false)
-    expect(result.details).toEqual({ sessionId: host.subagents[0].sessionId, fork: false, outcome: 'completed' })
+    expect(result.details).toEqual({ sessionId, fork: false, background: false, outcome: 'completed' })
     // Two replies: 100 + 20 + 2 cached and 200 + 40 + 2 cached tokens.
     expect(result.usage?.totalTokens).toBe(364)
     expect(result.usage?.cost.total).toBeCloseTo(0.0004204, 10)
@@ -101,19 +104,21 @@ describe('subagent', () => {
 
   it('offers subagent only when the host passes a subagent port', async () => {
     const { model, calls } = scriptedModel([[...textParts('a', 'Hi'), finish('stop')]])
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream })
+    const { session } = await createTestSession({ port: streamTextPort(model).port })
 
     await session.prompt('Hello')
 
     expect(calls[0].tools?.map((tool) => tool.name) ?? []).not.toContain('subagent')
   })
 
-  it('sends subagent entries only to its own listener; the parent transcript gains only the call and its result', async () => {
+  // Breaks when the origin entry is not handed to the host (a stored subagent transcript could not
+  // rebuild a subagent's session) or when any entry reaches the host twice.
+  it('sends subagent entries only to its own listener, starting with the origin entry', async () => {
     const { model } = delegateOnce()
     const host = recordingSubagentPort()
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       tools: [noteTool],
       subagents: host.port,
       onEvent: parent.onEvent
@@ -122,14 +127,18 @@ describe('subagent', () => {
     await session.prompt(DELEGATE_A)
 
     const roles = (entries: typeof parent.entries) =>
-      entries.flatMap((entry) =>
-        entry.type === 'message' && entry.message.role !== 'system' ? [entry.message.role] : []
-      )
-    expect(roles(parent.entries)).toEqual(['user', 'assistant', 'toolResult', 'assistant'])
+      entries.map((entry) => (entry.kind === 'message' ? entry.message.role : entry.kind))
+    expect(roles(parent.entries)).toEqual(['user', 'assistant', 'tool', 'assistant'])
     expect(JSON.stringify(parent.entries)).not.toContain('noted')
     const childEvents = host.events.get(host.subagents[0].sessionId)!
-    const childEntries = childEvents.flatMap((event) => (event.type === 'session-append' ? event.entries : []))
-    expect(roles(childEntries)).toEqual(['user', 'assistant', 'toolResult', 'assistant'])
+    const childEntries = childEvents.flatMap((event) => (event.type === 'transcript-append' ? event.entries : []))
+    expect(roles(childEntries)).toEqual(['state', 'user', 'assistant', 'tool', 'assistant'])
+    expect(childEntries[0]).toMatchObject({
+      kind: 'state',
+      type: 'cherry.subagent-origin',
+      data: { parentToolCallId: 'call_a', fork: false, description: 'Check module A', modelKey: MODEL.key }
+    })
+    expect(new Set(childEntries.map((entry) => entry.id)).size).toBe(childEntries.length)
     expect(childEvents.at(-1)).toMatchObject({ type: 'turn-complete', aborted: false })
   })
 
@@ -144,7 +153,7 @@ describe('subagent', () => {
         })
     }))
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       tools: [noteTool],
       subagents: host.port
     })
@@ -166,7 +175,7 @@ describe('subagent', () => {
       ]
     }))
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       tools: [noteTool],
       subagents: host.port
     })
@@ -206,7 +215,7 @@ describe('subagent', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       tools: [waitTool],
       subagents: recordingSubagentPort().port
     })
@@ -224,7 +233,7 @@ describe('subagent', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       subagents: recordingSubagentPort().port
     })
 
@@ -245,7 +254,7 @@ describe('subagent', () => {
     }
     const { model, calls } = delegateOnce(['R'.repeat(20_000)])
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       tools: [noteTool],
       subagents: recordingSubagentPort().port,
       offload: { store, thresholdChars: 5_000 }
@@ -264,18 +273,19 @@ describe('subagent', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     )
     const host = recordingSubagentPort()
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
 
     await session.prompt(DELEGATE_A)
 
     expect(host.subagents).toEqual([])
     const [result] = toolResults(calls.at(-1)!)
-    expect(result.output.type).toBe('text')
+    expect(result.output.type).toBe('error-text')
     expect(outputText(result.output)).toMatch(/non-empty description and prompt/)
   })
 
-  // Breaks when two subagents of one parent can share a session id, or the host and the result disagree on it.
-  it('gives every subagent its own session id, even when provider call ids collide', async () => {
+  // Breaks when two subagents of one parent can share a session id, the host and the result disagree
+  // on it, or it is derived from the parent's id (Cherry's Pi session ids change between rebuilds).
+  it('gives every subagent its own random UUID, even when provider call ids collide', async () => {
     const check = (id: string) => subagentCall(id, { description: 'Check', prompt: `TASK ${id}` })
     const { model } = routedModel(({ userText, lastRole, options }) => {
       if (!options.tools?.some((tool) => tool.name === 'subagent')) return [...textParts('r', 'REPORT'), finish('stop')]
@@ -285,7 +295,7 @@ describe('subagent', () => {
         : ['functions.subagent:0', 'functions.subagent-0', 'call_a']
       return [...ids.map(check), finish('tool-calls')]
     })
-    const { upstream: port, requests } = gatewayModel(model)
+    const { port, requests } = streamTextPort(model)
     const host = recordingSubagentPort()
     const { session } = await createTestSession({ port, subagents: host.port })
 
@@ -295,7 +305,7 @@ describe('subagent', () => {
     const ids = host.subagents.map((subagent) => subagent.sessionId)
     expect(ids).toHaveLength(5)
     expect(new Set(ids).size).toBe(5)
-    for (const id of ids) expect(id.startsWith(`${session.sessionId}.`)).toBe(true)
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
     expect(new Set(requests.map((request) => request.sessionId).filter((id) => id !== session.sessionId))).toEqual(
       new Set(ids)
     )
@@ -307,7 +317,7 @@ describe('subagent', () => {
     )
     const configured = host.subagents.map((subagent) => ({
       toolCallId: subagent.parentToolCallId,
-      details: { sessionId: subagent.sessionId, fork: false, outcome: 'completed' }
+      details: { sessionId: subagent.sessionId, fork: false, background: false, outcome: 'completed' }
     }))
     expect(results).toHaveLength(5)
     expect(results).toEqual(expect.arrayContaining(configured))
@@ -330,7 +340,7 @@ describe('subagent', () => {
     const host = recordingSubagentPort()
     const summarizedSessions: string[] = []
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       tools: [noteTool],
       subagents: host.port,
       // Threshold 32_000 - 16_384 tokens: the second reply crosses it and the compaction folds the first.
@@ -360,7 +370,7 @@ describe('subagent', () => {
       { type: 'compaction-end', reason: 'threshold', entryId: expect.any(String) }
     ])
     const result = toolResultOf(session, 'call_a')
-    expect(result.content).toEqual([{ type: 'text', text: 'REPORT-A' }])
+    expect(result.content).toEqual([{ type: 'text', text: expect.stringMatching(/^REPORT-A\n\n\(id: /) }])
     expect(result.usage?.totalTokens).toBe(112 + 20_022 + 112 + 17)
     expect(summarizedSessions).toEqual([host.subagents[0].sessionId])
     expect(summarizedSessions[0]).not.toBe(session.sessionId)
@@ -398,7 +408,7 @@ describe('subagent', () => {
     })
     const host = recordingSubagentPort(() => ({ extensionFactories: [createAskUserExtension(askPort)] }))
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       subagents: host.port,
       extensionFactories: [createAskUserExtension(askPort)]
     })
@@ -407,7 +417,7 @@ describe('subagent', () => {
 
     expect(asked).toEqual([])
     const [answer] = toolResults(calls.filter((call) => call.userText.includes('TASK-A'))[1])
-    expect(answer.output.type).toBe('text')
+    expect(answer.output.type).toBe('error-text')
     expect(outputText(answer.output)).toMatch(/No one can answer/)
   })
 })
