@@ -118,9 +118,20 @@ describe('withEmptySuccessFallback', () => {
   })
 
   it('does not synthesize an error for a steer handoff row with only read_file', () => {
-    const readFile = { type: 'tool-read_file', toolCallId: 'call-1' } as CherryMessagePart
+    const readFile = { type: 'tool-read_file', toolCallId: 'call-1' } as unknown as CherryMessagePart
     const messages = [makeMessage('m1', 'success', [stepStart, readFile])]
     const partsByMessageId = { m1: [stepStart, readFile] }
+
+    const next = withEmptySuccessFallback(messages, partsByMessageId, 'No response')
+
+    expect(next).toBe(partsByMessageId)
+  })
+
+  it('does not synthesize an error for a steer handoff row with process ellipsis and read_file', () => {
+    const ellipsis = { type: 'text', text: '...' } as CherryMessagePart
+    const readFile = { type: 'tool-read_file', toolCallId: 'call-1' } as unknown as CherryMessagePart
+    const messages = [makeMessage('m1', 'success', [ellipsis, readFile])]
+    const partsByMessageId = { m1: [ellipsis, readFile] }
 
     const next = withEmptySuccessFallback(messages, partsByMessageId, 'No response')
 

@@ -241,12 +241,18 @@ describe('hasRenderableContent', () => {
     expect(
       isSteerHandoffEmptySuccess([part({ type: 'step-start' }), part({ type: 'tool-read_file', toolCallId: 'call-1' })])
     ).toBe(true)
+    const ellipsisHandoff = [
+      part({ type: 'text', text: '...' }),
+      part({ type: 'tool-read_file', toolCallId: 'call-1' })
+    ]
+    expect(hasRenderableContent(ellipsisHandoff)).toBe(false)
+    expect(isSteerHandoffEmptySuccess(ellipsisHandoff)).toBe(true)
     expect(
       isSteerHandoffEmptySuccess([
-        part({ type: 'text', text: '...' }),
+        part({ type: 'text', text: '…' }),
         part({ type: 'tool-read_file', toolCallId: 'call-1' })
       ])
-    ).toBe(false)
+    ).toBe(true)
     expect(isSteerHandoffEmptySuccess([part({ type: 'step-start' })])).toBe(false)
   })
 

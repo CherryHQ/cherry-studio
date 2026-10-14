@@ -389,15 +389,16 @@ export function hasRenderableContent(parts: CherryMessagePart[]): boolean {
  * no-response error for it when showing historical rows.
  */
 export function isSteerHandoffEmptySuccess(parts: CherryMessagePart[]): boolean {
-  if (hasRenderableContent(parts)) return false
+  if (hasRenderableContent(parts)) {
+    return false
+  }
 
   let sawNonRenderableTool = false
   for (let index = 0; index < parts.length; index++) {
     const part = parts[index]
     if (isHiddenMarkerPart(part)) continue
     if (isIgnorableEmptyTextPart(part)) continue
-    // Any textual payload (including process ellipsis) means this is not a bare
-    // steer handoff boundary.
+    if (isEllipsisOnlyTextPart(part)) continue
     if (part.type === 'text' || part.type === 'reasoning') return false
     if (part.type === 'dynamic-tool' || part.type.startsWith('tool-')) {
       if (isRenderablePart(part)) return false
