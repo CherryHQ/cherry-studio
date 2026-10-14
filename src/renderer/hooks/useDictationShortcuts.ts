@@ -104,6 +104,7 @@ export function useDictationShortcuts(): void {
       }
       if (dictationShortcutMatches(hold, pressed) && canStart()) {
         event.preventDefault()
+        event.stopPropagation()
         timer = setTimeout(() => start('hold'), HOLD_DELAY_MS)
       }
     }

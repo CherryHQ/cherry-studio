@@ -1,17 +1,19 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import type { KeyboardEventHandler } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 
 import { useDictationShortcuts } from '@renderer/hooks/useDictationShortcuts'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 
-function Host() {
+function Host({ onKeyDown }: { onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement> }) {
   useDictationShortcuts()
   return (
     <div data-voice-target-id="input">
       <textarea
         data-voice-target-id="input"
         aria-label="Dictation input"
+        onKeyDown={onKeyDown}
         onFocus={() => voiceTargetManager.markCurrent('input')}
       />
       <input aria-label="Search or YAML property" />
@@ -56,6 +58,33 @@ describe('application-local dictation shortcuts', () => {
     render(<Host />)
     screen.getByRole('textbox', { name: 'Dictation input' }).focus()
   }
+
+  it('consumes the initial hold event before an eligible input action can run', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'ControlLeft+Enter')
+    const translate = vi.fn()
+    render(
+      <Host
+        onKeyDown={(event) => {
+          if (event.ctrlKey && event.key === 'Enter') translate()
+        }}
+      />
+    )
+    const input = screen.getByRole('textbox', { name: 'Dictation input' })
+    input.focus()
+    fireEvent.keyDown(input, { code: 'ControlLeft', key: 'Control', ctrlKey: true })
+    expect(fireEvent.keyDown(input, { code: 'Enter', key: 'Enter', ctrlKey: true })).toBe(false)
+    expect(translate).not.toHaveBeenCalled()
+    void act(() => vi.advanceTimersByTime(350))
+    expect(start).toHaveBeenCalledOnce()
+    fireEvent.keyUp(input, { code: 'Enter', key: 'Enter', ctrlKey: true })
+    fireEvent.keyUp(input, { code: 'ControlLeft', key: 'Control' })
+    expect(stop).toHaveBeenCalledOnce()
+    fireEvent.keyDown(input, { code: 'ControlRight', key: 'Control', ctrlKey: true })
+    fireEvent.keyDown(input, { code: 'Enter', key: 'Enter', ctrlKey: true })
+    expect(translate).toHaveBeenCalledOnce()
+    fireEvent.keyUp(input, { code: 'Enter', key: 'Enter', ctrlKey: true })
+    fireEvent.keyUp(input, { code: 'ControlRight', key: 'Control' })
+  })
 
   it('starts after holding left Alt and stops on release, ignoring a tap and right Alt', () => {
     mount()
