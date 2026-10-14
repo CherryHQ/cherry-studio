@@ -200,8 +200,11 @@ export async function stopAllAgentBackgroundTasks(agentId: string): Promise<void
   }
   // An unresolved record — its leader gone while its pgid still holds live members this app
   // cannot own after a restart — must survive the purge: the members may be the task's own
-  // survivors, and deleting the record would strip the last control path they answer to.
-  for (const record of records) {
+  // survivors, and deleting the record would strip the last control path they answer to. The
+  // pre-stop snapshot cannot tell this: a force-stop itself can move a task there, when its
+  // SIGKILL removes the supervisor the restart had verified while a privileged worker survives
+  // the group signal, so the records are re-read as the stops left them.
+  for (const record of await listDetachedBackgroundTasks(storageDir)) {
     if (record.status === 'unknown' && hasUnownedLiveGroup(record)) {
       throw new Error(`Cannot permanently delete Agent ${agentId} while background task ${record.id} is unresolved`)
     }

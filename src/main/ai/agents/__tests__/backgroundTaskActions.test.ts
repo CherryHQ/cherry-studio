@@ -322,6 +322,87 @@ describe('stopAllAgentBackgroundTasks', () => {
       }
     }
   )
+
+  it.skipIf(process.platform === 'win32')(
+    'refuses the purge when a post-restart force-stop leaves the task unresolved',
+    async () => {
+      // A restart owns nothing in memory, so a force-stop whose SIGKILL removes the supervisor it
+      // had verified — while a privileged worker survives the group signal — can only report
+      // `unknown`: reconciliation can no longer attribute the group. The sweep must re-read the
+      // records the stops left behind, or the purge deletes the record and index of work that is
+      // still running.
+      const pidFile = path.join(storageDir, 'post-stop-worker.pid')
+      // The leader stays alive while its worker runs, so the record reconciles as running until
+      // the stop kills the leader alone — the shape a restart-verified supervisor leaves behind.
+      const leader = spawn(
+        '/bin/sh',
+        [
+          '-c',
+          `${nodeBin} -e "require('fs').writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 60_000)" "${pidFile}" & wait`
+        ],
+        { detached: true, stdio: 'ignore' }
+      )
+      leader.unref()
+      try {
+        await vi.waitFor(
+          async () => {
+            expect((await readFile(pidFile, 'utf8')).trim()).toMatch(/^\d+$/)
+          },
+          { timeout: 10_000 }
+        )
+        const workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+        expect(isPidAlive(leader.pid!)).toBe(true)
+        expect(isPidAlive(workerPid)).toBe(true)
+
+        // No start stamp on the record: with the leader live the sweep lists it as running, and
+        // the stop below stands in for the platform kill a privileged worker cannot be subjected
+        // to here.
+        await writeFile(
+          path.join(storageDir, 'bt-restart-kill.json'),
+          JSON.stringify({
+            id: 'bt-restart-kill',
+            name: 'restart-kill',
+            command: 'true',
+            pid: leader.pid,
+            cwd: storageDir,
+            startedAt: new Date().toISOString(),
+            logFile: path.join(storageDir, 'bt-restart-kill.log'),
+            status: 'running',
+            exitCode: null,
+            signal: null
+          })
+        )
+
+        const stopSpy = vi.spyOn(tasks, 'stopDetachedBackgroundTask')
+        stopSpy.mockImplementation(async (dir, id) => {
+          const current = await getDetachedBackgroundTask(dir, id)
+          // The group kill removes the supervisor; the privileged worker survives it. Reconciliation,
+          // holding no ownership after the restart, reads a group it can no longer attribute.
+          try {
+            process.kill(leader.pid!, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          await vi.waitFor(() => expect(isPidAlive(leader.pid!)).toBe(false), { timeout: 10_000 })
+          return { ...current!, id, status: 'unknown' as const }
+        })
+        try {
+          await expect(stopAllAgentBackgroundTasks('agent-1')).rejects.toThrow(
+            'Cannot permanently delete Agent agent-1 while background task bt-restart-kill is unresolved'
+          )
+          expect(isPidAlive(workerPid)).toBe(true)
+        } finally {
+          stopSpy.mockRestore()
+        }
+      } finally {
+        try {
+          process.kill(-leader.pid!, 'SIGKILL')
+        } catch {
+          // the group is already gone
+        }
+      }
+    }
+  )
 })
 
 describe('startAgentBackgroundTask / purgeAgentBackgroundTasks', () => {
