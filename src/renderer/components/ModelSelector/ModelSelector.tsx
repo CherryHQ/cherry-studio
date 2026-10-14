@@ -471,10 +471,9 @@ export function ModelSelector(props: ModelSelectorProps) {
   useEffect(() => {
     if (!open) setRecoveryProviderId(undefined)
   }, [open])
-  const scopedFilter = useCallback<ModelSelectorFilter>(
-    (model, provider) =>
-      (!recoveryProviderId || model.providerId === recoveryProviderId) && (filter?.(model, provider) ?? true),
-    [filter, recoveryProviderId]
+  const recoveryFilter = useCallback<ModelSelectorFilter>(
+    (model) => !recoveryProviderId || model.providerId === recoveryProviderId,
+    [recoveryProviderId]
   )
 
   const setMultiSelectMode = useCallback(
@@ -520,7 +519,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,
-    filter: scopedFilter,
+    filter,
+    visibilityFilter: recoveryFilter,
     prioritizedProviderIds,
     showPinnedModels,
     showTagFilter
