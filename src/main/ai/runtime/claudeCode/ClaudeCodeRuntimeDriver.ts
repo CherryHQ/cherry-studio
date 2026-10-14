@@ -475,6 +475,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
 
     const sendId = ++this.sendSequence
+    const baselineGeneration = this.adapter?.turnGeneration
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
@@ -483,7 +484,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // never reached the CLI — admitting it now would execute it inside the settlement window.
     if (sendId !== this.sendSequence) return
     // Claim the session-scoped adapter only once the prompt is actually on its way to the CLI, so
-    // a stop arriving before then sees an idle turn instead of one that never started.
+    // a stop arriving before then sees an idle turn instead of one that never started. A generation
+    // the adapter opened on its own during materialization must not be reset: wait it out, then claim.
+    while (
+      this.adapter?.isTurnActive === true &&
+      this.adapter.turnGeneration !== baselineGeneration &&
+      sendId === this.sendSequence &&
+      !this.abortController.signal.aborted
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, GRACEFUL_TURN_SETTLE_POLL_MS))
+    }
+    if (sendId !== this.sendSequence) return
     this.adapter?.beginTurn()
     this.sdkInputQueue.push(sdkMessage)
   }
