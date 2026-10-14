@@ -9,6 +9,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/components/command'
+import type * as LazyCodeEditorModule from '@renderer/components/LazyCodeEditor'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -302,7 +303,7 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 }))
 
 vi.mock('@renderer/components/LazyCodeEditor', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/components/LazyCodeEditor')>()
+  const actual = await importOriginal<typeof LazyCodeEditorModule>()
 
   return {
     LazyCodeEditor: (props: React.ComponentProps<typeof actual.LazyCodeEditor>) => {
