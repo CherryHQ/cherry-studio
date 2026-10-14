@@ -17,6 +17,11 @@ import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
 import type * as ForkResourcesModule from '../fork/resources'
+import {
+  clearSessionEffectivePermissionMode,
+  getSessionEffectivePermissionMode,
+  setSessionEffectivePermissionMode
+} from '../sessionPermissionOverrides'
 
 vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
 
@@ -345,6 +350,7 @@ describe('AgentSessionForkOperations recovery', () => {
     workspaceList?.mockRestore()
     workspaceList = undefined
     resetRecoveryMocks()
+    clearSessionEffectivePermissionMode('session-1')
     journals.clear()
     const ownedDirectory = temporaryDirectory
     temporaryDirectory = undefined
@@ -649,6 +655,11 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('respondToolApproval execution-model handoff (plan approval)', () => {
+    // The session permission registry is module state shared across this file's tests.
+    beforeEach(() => {
+      clearSessionEffectivePermissionMode('session-1')
+    })
+
     it('approves the plan, then stops the turn for a different execution model', async () => {
       const resolve = vi.fn()
       toolApprovalRegistry.register({
@@ -678,10 +689,12 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
-    it('moves a plan-mode agent out of plan mode before the handoff tears the connection down', async () => {
+    it('records the approved execution as a session-scoped permission, leaving the shared agent row alone', async () => {
       // The teardown discards the connection that carried the SDK's post-approval mode shift, and
-      // the follow-up's fresh connection re-reads this row: spawning it back into `plan` ("no
-      // execution of tools") would leave the approved plan unrunnable on the chosen model.
+      // the follow-up's fresh connection would re-read the row: spawning it back into `plan` ("no
+      // execution of tools") would leave the approved plan unrunnable on the chosen model. The
+      // shift belongs to THIS session — writing it to the shared row would reconcile every other
+      // session of the agent out of its Plan Only restriction.
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         type: 'test-runtime',
@@ -706,12 +719,11 @@ describe('AgentSessionRuntimeService', () => {
         executionModelId: switchedModelId
       })
       expect(result).toEqual({ dispatched: true, handoff: 'started' })
-      expect(mocks.updateAgent).toHaveBeenCalledWith('agent-1', {
-        configuration: { permission_mode: 'acceptEdits' }
-      })
+      expect(mocks.updateAgent).not.toHaveBeenCalled()
+      expect(getSessionEffectivePermissionMode('session-1')).toBe('acceptEdits')
     })
 
-    it('leaves the permission mode alone when the agent is not in plan mode', async () => {
+    it('records no session permission when the agent is not in plan mode', async () => {
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         type: 'test-runtime',
@@ -737,6 +749,29 @@ describe('AgentSessionRuntimeService', () => {
       })
       expect(result).toEqual({ dispatched: true, handoff: 'started' })
       expect(mocks.updateAgent).not.toHaveBeenCalled()
+      expect(getSessionEffectivePermissionMode('session-1')).toBeUndefined()
+    })
+
+    it('retires the session-scoped permission when the user edits the agent permission mode', async () => {
+      setSessionEffectivePermissionMode('session-1', 'acceptEdits')
+      const agent = {
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      }
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-permission-retire' })
+      const handleAgentUpdated = (
+        service as unknown as { handleAgentUpdated(...args: unknown[]): Promise<void> }
+      ).handleAgentUpdated.bind(service)
+
+      // An unrelated edit must not touch the approved session's override.
+      await handleAgentUpdated('agent-1', { configuration: { avatar: 'x' } }, agent as never)
+      expect(getSessionEffectivePermissionMode('session-1')).toBe('acceptEdits')
+
+      await handleAgentUpdated('agent-1', { configuration: { permission_mode: 'default' } }, agent as never)
+      expect(getSessionEffectivePermissionMode('session-1')).toBeUndefined()
     })
 
     it('tears the approved turn down only after the plan tool result settles', async () => {
