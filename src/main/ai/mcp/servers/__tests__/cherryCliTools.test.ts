@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Client } from '@modelcontextprotocol/client'
+import { McpServer } from '@modelcontextprotocol/server'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManager = {
   getToolInventory: vi.fn(),
@@ -18,21 +21,35 @@ vi.mock('@application', () => ({
   }
 }))
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })
-  }
-}))
+const { registerCliTools, CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } =
+  await import('../cherryCliTools')
 
-const { CherryCliTools, CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } = await import(
-  '../cherryCliTools'
-)
+type Result = { isError?: boolean; content: Array<{ type: string; text?: string }> }
+const clients: Client[] = []
 
-function json(result: { content: Array<{ type: string; text?: string }> }) {
-  return JSON.parse(result.content[0].type === 'text' ? (result.content[0].text ?? '{}') : '{}')
+async function connectCli(): Promise<Client> {
+  const client = await connectMcpTestClient(() => {
+    const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
+    registerCliTools(server)
+    return server
+  })
+  clients.push(client)
+  return client
 }
 
-describe('CherryCliTools', () => {
+async function call(name: string, args: Record<string, unknown>): Promise<Result> {
+  return (await connectCli()).callTool({ name, arguments: args })
+}
+
+function textOf(result: Result): string {
+  return result.content[0].type === 'text' ? (result.content[0].text ?? '') : ''
+}
+
+function json(result: Result) {
+  return JSON.parse(textOf(result) || '{}')
+}
+
+describe('cherry-tools CLI tools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     binaryManager.getToolInventory.mockResolvedValue([])
@@ -42,8 +59,12 @@ describe('CherryCliTools', () => {
     codeCliService.installCli.mockResolvedValue(undefined)
   })
 
-  it('advertises the thin list/search/install surface', () => {
-    const tools = new CherryCliTools().tools()
+  afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
+  })
+
+  it('advertises the thin list/search/install surface', async () => {
+    const { tools } = await (await connectCli()).listTools()
     expect(tools.map((tool) => tool.name)).toEqual([CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, CLI_INSTALL_TOOL_NAME])
     expect(tools.find((tool) => tool.name === CLI_LIST_TOOL_NAME)?.description).toContain('command -v <name>')
     expect(tools.find((tool) => tool.name === CLI_SEARCH_TOOL_NAME)?.inputSchema.required).toEqual(['query'])
@@ -52,21 +73,40 @@ describe('CherryCliTools', () => {
 
   it('returns the live BinaryManager inventory on every call', async () => {
     binaryManager.getToolInventory.mockResolvedValue([{ name: 'bun', status: 'ready', version: '1.3.14' }])
-    const cli = new CherryCliTools()
+    const cli = await connectCli()
 
-    expect(json(await cli.call(CLI_LIST_TOOL_NAME, {}))).toEqual({
+    expect(json((await cli.callTool({ name: CLI_LIST_TOOL_NAME, arguments: {} })) as Result)).toEqual({
       tools: [{ name: 'bun', status: 'ready', version: '1.3.14' }]
     })
-    await cli.call(CLI_LIST_TOOL_NAME, {})
-    expect(binaryManager.getToolInventory).toHaveBeenCalledTimes(2)
+    binaryManager.getToolInventory.mockResolvedValue([{ name: 'bun', status: 'ready', version: '1.4.0' }])
+    expect(json((await cli.callTool({ name: CLI_LIST_TOOL_NAME, arguments: {} })) as Result)).toEqual({
+      tools: [{ name: 'bun', status: 'ready', version: '1.4.0' }]
+    })
+  })
+
+  it('cancels the live inventory read when the caller aborts the call', async () => {
+    let received: AbortSignal | undefined
+    binaryManager.getToolInventory.mockImplementation((signal: AbortSignal) => {
+      received = signal
+      return new Promise(() => {})
+    })
+    const controller = new AbortController()
+    const pending = (await connectCli()).callTool(
+      { name: CLI_LIST_TOOL_NAME, arguments: {} },
+      { signal: controller.signal }
+    )
+    await vi.waitFor(() => expect(received).toBeDefined())
+
+    controller.abort()
+
+    await expect(pending).rejects.toThrow()
+    await vi.waitFor(() => expect(received?.aborted).toBe(true))
   })
 
   it('forwards a registry query without translating installation commands', async () => {
     binaryManager.searchRegistry.mockResolvedValue([{ name: 'fd', tool: 'aqua:sharkdp/fd' }])
 
-    expect(json(await new CherryCliTools().call(CLI_SEARCH_TOOL_NAME, { query: 'fd' }))).toEqual([
-      { name: 'fd', tool: 'aqua:sharkdp/fd' }
-    ])
+    expect(json(await call(CLI_SEARCH_TOOL_NAME, { query: 'fd' }))).toEqual([{ name: 'fd', tool: 'aqua:sharkdp/fd' }])
     expect(binaryManager.searchRegistry).toHaveBeenCalledWith('fd')
   })
 
@@ -75,7 +115,7 @@ describe('CherryCliTools', () => {
       .mockResolvedValueOnce([{ name: 'fd', recipe: 'aqua:sharkdp/fd', status: 'not_installed' }])
       .mockResolvedValueOnce([{ name: 'fd', recipe: 'aqua:sharkdp/fd', status: 'ready', version: '10.2.0' }])
 
-    const result = await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+    const result = await call(CLI_INSTALL_TOOL_NAME, {
       name: 'fd',
       tool: 'aqua:sharkdp/fd',
       requestedVersion: '10.2.0'
@@ -94,7 +134,7 @@ describe('CherryCliTools', () => {
       .mockResolvedValueOnce([{ name: 'codex', recipe: 'codex', status: 'not_installed' }])
       .mockResolvedValueOnce([{ name: 'codex', recipe: 'codex', status: 'ready', version: '1.2.3' }])
 
-    const result = await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+    const result = await call(CLI_INSTALL_TOOL_NAME, {
       name: 'codex',
       tool: 'codex',
       requestedVersion: '1.2.3'
@@ -110,7 +150,7 @@ describe('CherryCliTools', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ name: 'acme', recipe: 'ubi:acme/cli', status: 'ready' }])
 
-    await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+    await call(CLI_INSTALL_TOOL_NAME, {
       name: 'acme',
       tool: 'ubi:acme/cli'
     })
@@ -126,7 +166,7 @@ describe('CherryCliTools', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ name: 'acme', recipe: 'ubi:acme/cli', status: 'failed' }])
 
-    const result = await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+    const result = await call(CLI_INSTALL_TOOL_NAME, {
       name: 'acme',
       tool: 'ubi:acme/cli'
     })
@@ -140,26 +180,26 @@ describe('CherryCliTools', () => {
   it('lets BinaryManager validation errors reach the model', async () => {
     binaryManager.addCustomTool.mockRejectedValue(new Error('Invalid tool specification: curl installer'))
 
-    const result = await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+    const result = await call(CLI_INSTALL_TOOL_NAME, {
       name: 'acme',
       tool: 'curl installer'
     })
 
     expect(result.isError).toBe(true)
-    expect(json(result)).toEqual({ error: 'Invalid tool specification: curl installer' })
+    expect(textOf(result)).toContain('Invalid tool specification: curl installer')
   })
 
   it('does not let a divergent recipe bypass a canonical existing definition', async () => {
     binaryManager.getToolInventory.mockResolvedValue([{ name: 'fd', recipe: 'aqua:sharkdp/fd', status: 'ready' }])
     binaryManager.addCustomTool.mockRejectedValue(new Error('Tool fd is a built-in tool and cannot be added'))
 
-    const result = await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+    const result = await call(CLI_INSTALL_TOOL_NAME, {
       name: 'fd',
       tool: 'npm:fd'
     })
 
     expect(result.isError).toBe(true)
     expect(binaryManager.installByName).not.toHaveBeenCalled()
-    expect(json(result).error).toContain('built-in tool')
+    expect(textOf(result)).toContain('built-in tool')
   })
 })

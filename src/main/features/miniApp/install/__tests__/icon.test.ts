@@ -2,6 +2,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
@@ -9,9 +13,6 @@ import { miniAppService } from '@data/services/MiniAppService'
 import { insertSingleFileRefTx } from '@data/services/utils/singleFileRef'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { MiniAppManifest } from '@shared/types/miniAppManifest'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Real path down to the row: only the WebP transcode and the file store are stubbed, so
 // the `kind='app'` guard in MiniAppService is exercised instead of mocked away.

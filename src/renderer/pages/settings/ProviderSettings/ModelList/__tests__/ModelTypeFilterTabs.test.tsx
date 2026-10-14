@@ -1,6 +1,7 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import { ModelTypeFilterTabs } from '../ModelTypeFilterTabs'
 
@@ -54,7 +55,7 @@ function triggerResizeObserver() {
 describe('ModelTypeFilterTabs', () => {
   beforeEach(() => {
     resizeObserverInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = { callback, targets: [] }
       resizeObserverInstances.push(instance)
 
@@ -62,7 +63,7 @@ describe('ModelTypeFilterTabs', () => {
         observe: vi.fn((target: Element) => instance.targets.push(target)),
         disconnect: vi.fn()
       } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+    })
   })
 
   afterEach(() => {

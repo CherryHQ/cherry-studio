@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MessagePartsScopeProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+
 import AgentSessionBackgroundTasks from '../AgentSessionBackgroundTasks'
 
 const mocks = vi.hoisted(() => ({
@@ -66,6 +68,24 @@ describe('AgentSessionBackgroundTasks', () => {
       title: 'Current task B'
     })
     expect(screen.getByText('sleep 300').closest('button')).toBeNull()
+  })
+
+  it('does not duplicate subagents already shown in the message footer, retaining unanchored work', () => {
+    mocks.backgroundTasks = [
+      { id: 'child', type: 'subagent', description: 'Review database', toolCallId: 'spawn' },
+      { id: 'other', type: 'subagent', description: 'Other reply task', toolCallId: 'other-spawn' },
+      { id: 'shell', type: 'local_bash', description: 'Background shell' }
+    ]
+    render(
+      <MessagePartsScopeProvider
+        messageId="reply"
+        parts={[{ type: 'tool-Agent', toolCallId: 'spawn', state: 'input-available', input: {} }]}>
+        <AgentSessionBackgroundTasks sessionId="session-1" />
+      </MessagePartsScopeProvider>
+    )
+    expect(screen.queryByText('Review database')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Other reply task' })).toBeVisible()
+    expect(screen.getByText('Background shell')).toBeVisible()
   })
 
   it('does not reserve message space after background work ends', () => {

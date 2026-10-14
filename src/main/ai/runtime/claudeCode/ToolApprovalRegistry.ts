@@ -1,5 +1,7 @@
 import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk'
+
 import type { DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 
 /**
  * Map a neutral `DispatchDecision` to the Claude Agent SDK `PermissionResult`
@@ -12,5 +14,11 @@ export function decisionToPermissionResult(
 ): PermissionResult {
   return decision.approved
     ? { behavior: 'allow', updatedInput: decision.updatedInput ?? originalInput }
-    : { behavior: 'deny', message: decision.reason ?? 'User denied permission for this tool' }
+    : {
+        behavior: 'deny',
+        message:
+          decision.reasonSource === 'user'
+            ? withUserDenialFeedback(decision.reason)
+            : (decision.reason ?? 'User denied permission for this tool')
+      }
 }

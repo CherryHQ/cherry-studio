@@ -29,7 +29,7 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Check out workflow scripts
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ github.workflow_sha }}
@@ -65,6 +65,11 @@ jobs:
 
   backport:
     name: Prepare hotfix backport pull request
+    permissions:
+      # Draft releases are only visible to tokens with push access.
+      contents: write
+      issues: write
+      pull-requests: write
     if: |
       github.repository == 'CherryHQ/cherry-studio' &&
       github.event.pull_request.base.ref == 'main' &&
@@ -77,7 +82,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Check out trusted workflow scripts
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ github.workflow_sha }}
@@ -245,7 +250,7 @@ jobs:
 
       - name: Check out exact release head
         if: steps.release-ref.outputs.eligible == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false

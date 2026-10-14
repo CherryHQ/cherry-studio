@@ -1,9 +1,10 @@
-import type { ColumnDef } from '@cherrystudio/ui'
-import { Badge, Button, DataTable, Input } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Pencil, Trash2 } from 'lucide-react'
 import type { Key } from 'react'
 import { useMemo, useState } from 'react'
+
+import type { ColumnDef } from '@cherrystudio/ui'
+import { Badge, Button, DataTable, Input } from '@cherrystudio/ui'
 
 type Task = {
   id: string
@@ -114,7 +115,7 @@ export const WithToolbar: Story = {
         data={filtered}
         columns={columns}
         rowKey="id"
-        headerLeft={<span className="text-muted-foreground text-sm">{filtered.length} tasks</span>}
+        headerLeft={<span className="text-sm text-muted-foreground">{filtered.length} tasks</span>}
         headerRight={
           <Input className="w-48" placeholder="Search tasks" value={query} onChange={(e) => setQuery(e.target.value)} />
         }
@@ -139,7 +140,7 @@ export const MultipleSelection: Story = {
           onChange: setSelectedRowKeys,
           getCheckboxProps: (task) => ({ disabled: task.locked })
         }}
-        headerLeft={<span className="text-muted-foreground text-sm">{selectedRowKeys.length} selected</span>}
+        headerLeft={<span className="text-sm text-muted-foreground">{selectedRowKeys.length} selected</span>}
       />
     )
   }

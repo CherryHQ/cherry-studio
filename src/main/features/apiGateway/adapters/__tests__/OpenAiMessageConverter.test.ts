@@ -5,8 +5,11 @@ import { type ExtendedChatCompletionCreateParams, OpenAiMessageConverter } from 
 const converter = new OpenAiMessageConverter()
 
 /** Build a minimal valid params object; spread overrides the fields under test. */
-const params = (overrides: Partial<ExtendedChatCompletionCreateParams>): ExtendedChatCompletionCreateParams =>
-  ({ model: 'provider:model', messages: [], ...overrides }) as ExtendedChatCompletionCreateParams
+const params = (overrides: Partial<ExtendedChatCompletionCreateParams>): ExtendedChatCompletionCreateParams => ({
+  model: 'provider:model',
+  messages: [],
+  ...overrides
+})
 
 describe('OpenAiMessageConverter', () => {
   it('maps a developer message to a system UIMessage instead of dropping it', () => {

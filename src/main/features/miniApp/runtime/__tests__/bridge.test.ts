@@ -1,5 +1,6 @@
-import type { BridgeResult } from '@shared/ipc/schemas/miniAppBridge'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { BridgeResult } from '@shared/ipc/schemas/miniAppBridge'
 
 import { mockMiniAppApplication } from '../../__tests__/applicationMock'
 

@@ -15,6 +15,26 @@ import { serializeToolSchema } from './schemaStub'
 
 export const TOOL_SEARCH_TOOL_NAME = 'tool_search'
 
+const ToolSearchOutputSchema = z.object({
+  matchedNamespaces: z.array(
+    z.object({
+      namespace: z.string(),
+      tools: z.array(
+        z.object({
+          name: z.string(),
+          description: z.string(),
+          inputSchema: z.unknown().optional()
+        })
+      )
+    })
+  )
+})
+type ToolSearchOutput = z.infer<typeof ToolSearchOutputSchema>
+
+const NO_MATCHING_TOOLS_MESSAGE = 'No tools matched. Broaden `query`, or omit it to browse all namespaces.'
+const INVALID_SEARCH_OUTPUT_MESSAGE =
+  'The stored tool search result could not be read. Ignore it and run `tool_search` again.'
+
 export function createToolSearchTool(
   registry: ToolRegistry,
   deferredNames: ReadonlySet<string>,
@@ -40,10 +60,7 @@ export function createToolSearchTool(
     inputExamples: [{ input: { query: 'gmail', verbose: false } }, { input: { namespace: 'web', verbose: true } }],
     execute: async ({ query, namespace, verbose }) => {
       const grouped = registry.getByNamespace({ query, namespace })
-      const matchedNamespaces: Array<{
-        namespace: string
-        tools: Array<{ name: string; description: string; inputSchema?: unknown }>
-      }> = []
+      const matchedNamespaces: ToolSearchOutput['matchedNamespaces'] = []
 
       for (const [ns, entries] of grouped) {
         const filtered = entries.filter((e) => deferredNames.has(e.name))
@@ -76,17 +93,13 @@ export function createToolSearchTool(
   })
 }
 
-function formatSearchForModel(output: {
-  matchedNamespaces: Array<{
-    namespace: string
-    tools: Array<{ name: string; description: string; inputSchema?: unknown }>
-  }>
-}): string {
-  if (output.matchedNamespaces.length === 0) {
-    return 'No tools matched. Broaden `query`, or omit it to browse all namespaces.'
-  }
+function formatSearchForModel(output: unknown): string {
+  const parsed = ToolSearchOutputSchema.safeParse(output)
+  if (!parsed.success) return INVALID_SEARCH_OUTPUT_MESSAGE
+  if (parsed.data.matchedNamespaces.length === 0) return NO_MATCHING_TOOLS_MESSAGE
+
   const lines: string[] = []
-  for (const group of output.matchedNamespaces) {
+  for (const group of parsed.data.matchedNamespaces) {
     lines.push(group.namespace)
     for (const t of group.tools) {
       lines.push(`  - ${t.name} — ${t.description}`)

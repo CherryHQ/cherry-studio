@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { MINI_APP_METHODS } from '@shared/types/miniAppManifest'
 import { describe, expect, it } from 'vitest'
+
+import { MINI_APP_METHODS } from '@shared/types/miniAppManifest'
 
 const DTS = fs.readFileSync(path.join(process.cwd(), 'docs/references/mini-app/cherry.d.ts'), 'utf8')
 const PRELOAD = fs.readFileSync(path.join(process.cwd(), 'src/preload/miniAppBridge.ts'), 'utf8')

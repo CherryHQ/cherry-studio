@@ -1,10 +1,27 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AnchorHTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
+import {
+  LOCAL_MODEL_STATUS_CACHE_KEY,
+  type LocalModelBundleId,
+  type LocalModelStatusSnapshot
+} from '@shared/data/presets/localModel'
+
 import ScreenshotSettings from '../ScreenshotSettings'
+
+vi.unmock('@data/hooks/useCache')
+
+const OCR = 'pp-ocrv6-medium'
+
+function publishLocalModelStatus(id: LocalModelBundleId, snapshot: LocalModelStatusSnapshot): void {
+  const snapshots = cacheService.getSharedSnapshot(LOCAL_MODEL_STATUS_CACHE_KEY) ?? {}
+  cacheService.setShared(LOCAL_MODEL_STATUS_CACHE_KEY, { ...snapshots, [id]: snapshot })
+}
 
 type ScreenCaptureStatus = 'authorized' | 'not-determined' | 'denied'
 
@@ -13,19 +30,20 @@ let conflictListener: ConflictListener | null = null
 
 const { mockRequest, platform } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
-  platform: { isMac: true }
+  platform: { isMac: true, isWin: false }
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (...args: unknown[]) => mockRequest(...args) },
-  useIpcOn: () => {}
+  ipcApi: { request: (...args: unknown[]) => mockRequest(...args) }
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return platform.isMac
   },
-  isWin: false,
+  get isWin() {
+    return platform.isWin
+  },
   isLinux: false
 }))
 
@@ -51,18 +69,15 @@ interface IpcStub {
   permission?: ScreenCaptureStatus
   /** Status the OS reports back after prompting. */
   afterRequest?: ScreenCaptureStatus
-  ocrStatus?: string
 }
 
-function stubIpc({ permission = 'authorized', afterRequest = 'authorized', ocrStatus = 'not_downloaded' }: IpcStub) {
+function stubIpc({ permission = 'authorized', afterRequest = 'authorized' }: IpcStub = {}) {
   mockRequest.mockImplementation((route: string) => {
     switch (route) {
       case 'system.mac.screen_capture_status':
         return Promise.resolve(permission)
       case 'system.mac.request_screen_capture':
         return Promise.resolve(afterRequest)
-      case 'local_model.get_status':
-        return Promise.resolve({ status: ocrStatus })
       default:
         return Promise.resolve()
     }
@@ -78,6 +93,8 @@ const autoOcrSwitch = () => screen.getByRole('switch', { name: autoOcrSwitchName
 describe('ScreenshotSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
+    publishLocalModelStatus(OCR, { status: 'not_downloaded', percent: 0 })
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('feature.screenshot.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('feature.screenshot.auto_ocr', true)
@@ -86,6 +103,7 @@ describe('ScreenshotSettings', () => {
       enabled: true
     })
     platform.isMac = true
+    platform.isWin = false
 
     // The row subscribes on mount; tests that need a conflict call the captured listener.
     conflictListener = null
@@ -101,8 +119,9 @@ describe('ScreenshotSettings', () => {
     } as unknown as typeof window.api
   })
 
-  it('keeps the auto-OCR switch inoperable until the OCR model is ready', async () => {
-    stubIpc({ ocrStatus: 'not_downloaded' })
+  it('requires the local OCR model on Linux before enabling auto OCR', async () => {
+    platform.isMac = false
+    stubIpc()
     const { unmount } = render(<ScreenshotSettings />)
 
     // Turning auto-OCR on without the model would promise recognition that silently never runs.
@@ -110,11 +129,24 @@ describe('ScreenshotSettings', () => {
     expect(screen.getByText('settings.screenshot.ocr.model.unavailable')).toBeInTheDocument()
     unmount()
 
-    stubIpc({ ocrStatus: 'ready' })
+    publishLocalModelStatus(OCR, { status: 'ready', percent: 100 })
+    stubIpc()
     render(<ScreenshotSettings />)
 
     await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
     expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
+  })
+
+  it.each(['macOS', 'Windows'])('enables auto OCR on %s without downloading Paddle', async (os) => {
+    platform.isMac = os === 'macOS'
+    platform.isWin = os === 'Windows'
+    stubIpc()
+    render(<ScreenshotSettings />)
+
+    await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
+    expect(screen.getByText('provider.system')).toBeInTheDocument()
+    expect(screen.queryByText('settings.screenshot.ocr.model.unavailable')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.screenshot.ocr.model.link')).not.toBeInTheDocument()
   })
 
   it('offers System Settings rather than an authorize button once the permission is denied', async () => {
@@ -204,12 +236,13 @@ describe('ScreenshotSettings', () => {
   })
 
   it('renders no permission section on macOS once the permission is already granted', async () => {
-    stubIpc({ permission: 'authorized', ocrStatus: 'ready' })
-    render(<ScreenshotSettings />)
+    publishLocalModelStatus(OCR, { status: 'ready', percent: 100 })
+    stubIpc({ permission: 'authorized' })
+    await act(async () => {
+      render(<ScreenshotSettings />)
+    })
 
-    // The OCR badge settles strictly after the permission status does, so an absent
-    // section here is a verdict on 'authorized' rather than on a status not yet read.
-    expect(await screen.findByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
+    expect(await screen.findByText('provider.system')).toBeInTheDocument()
     expect(screen.queryByText('settings.screenshot.permission.title')).not.toBeInTheDocument()
   })
 

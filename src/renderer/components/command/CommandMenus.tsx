@@ -1,3 +1,5 @@
+import React, { useCallback, useMemo, useRef, useState } from 'react'
+
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -41,7 +43,6 @@ import type {
   SupportedPlatform
 } from '@shared/types/command'
 import { type CommandId, findKeybindingRule, resolveMenuPresentationMode } from '@shared/utils/command'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
 
 type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
 
@@ -560,7 +561,15 @@ export function CommandContextMenu({
         <ContextMenuContent
           className={contentClassName}
           onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}>
+          onMouseDown={(e) => e.stopPropagation()}
+          onCloseAutoFocus={(e) => {
+            // 菜单卸载时 Radix 会把焦点还原到打开前的元素（右键聚焦的行），
+            // 打掉刚挂载的 rename 输入框。仅当关闭瞬间焦点已被菜单外元素持有时拦截。
+            const active = document.activeElement
+            if (active && active !== document.body && !(e.target as HTMLElement).contains(active)) {
+              e.preventDefault()
+            }
+          }}>
           {combinedItems.map((item, index) =>
             isExtraMenuItem(item) ? (
               <CommandContextMenuExtraItemView
@@ -782,7 +791,7 @@ export function CommandPopupMenu({
       const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
       onOpenChange?.(true)
       try {
-        const result = await window.api.command.showNativePopupMenu(model as never, anchor)
+        const result = await window.api.command.showNativePopupMenu(model, anchor)
         if (result?.type === 'command') {
           runtime.execute(result.command)
         } else if (result?.type === 'custom') {

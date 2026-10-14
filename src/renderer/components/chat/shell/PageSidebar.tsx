@@ -1,9 +1,10 @@
-import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { cn } from '@renderer/utils/style'
 
 import {
   CHAT_SHELL_PANE_WIDTH,

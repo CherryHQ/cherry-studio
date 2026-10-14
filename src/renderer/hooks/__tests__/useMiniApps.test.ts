@@ -1,18 +1,19 @@
-import { dataApiService } from '@data/DataApiService'
-import i18n from '@renderer/i18n/resolver'
-import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApi, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
+import i18n from '@renderer/i18n/resolver'
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 const mockTabs = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; url: string }>,
   hasContext: true,
-  closeTab: vi.fn(),
+  closeTabs: vi.fn(),
   updateTab: vi.fn()
 }))
 
@@ -24,15 +25,10 @@ vi.mock('@renderer/hooks/tab', () => ({
     mockTabs.hasContext
       ? {
           tabs: mockTabs.tabs,
-          closeTab: mockTabs.closeTab,
+          closeTabs: mockTabs.closeTabs,
           updateTab: mockTabs.updateTab
         }
       : null
-}))
-
-vi.mock('@renderer/utils/webviewStateManager', () => ({
-  clearWebviewState: vi.fn(),
-  setWebviewLoaded: vi.fn()
 }))
 
 import { __resetRegionDetectionForTesting, useMiniApps } from '../useMiniApps'
@@ -40,8 +36,11 @@ import { appFixtures, createCnOnlyApp, createGlobalApp, createMiniApp } from './
 
 /** Helper: return the array directly since list() now returns a bare MiniApp[] */
 const paginated = (items: MiniApp[]) => items
-const mockClearWebviewState = vi.mocked(clearWebviewState)
-const mockSetWebviewLoaded = vi.mocked(setWebviewLoaded)
+
+const sidebarShortcut = (providerId: string, resourceId: string) => {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+  return { type: 'shortcut' as const, id: createSidebarShortcutId(target), target }
+}
 
 /** Control the `system.get_ip_country` route on the ipcApi facade for region-detection tests. */
 const mockIpCountry = (result: string | Error) => {
@@ -62,15 +61,14 @@ describe('useMiniApps', () => {
 
     mocks.request.mockReset()
     mockIpCountry('CN')
+    vi.stubGlobal('__APP_EDITION__', 'global')
 
-    // Reset module-level regionDetectionPromise to ensure fresh detection in each test
+    // Each test starts with a fresh region detection result.
     __resetRegionDetectionForTesting()
     mockTabs.tabs = []
     mockTabs.hasContext = true
-    mockTabs.closeTab.mockClear()
+    mockTabs.closeTabs.mockClear()
     mockTabs.updateTab.mockClear()
-    mockClearWebviewState.mockClear()
-    mockSetWebviewLoaded.mockClear()
   })
 
   describe('display name', () => {
@@ -156,6 +154,40 @@ describe('useMiniApps', () => {
   // === Region Filtering ===
 
   describe('region filtering', () => {
+    it('forces the CN-only catalog in the CN edition without overwriting the shared preference', () => {
+      vi.stubGlobal('__APP_EDITION__', 'cn')
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
+      const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.miniApps.map((app) => app.appId)).toEqual(['c'])
+      expect(result.current.allApps.map((app) => app.appId)).toEqual(['g', 'c'])
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region')).toBe('Global')
+    })
+
+    it('hides Global-only pinned apps from CN edition launcher surfaces', () => {
+      vi.stubGlobal('__APP_EDITION__', 'cn')
+      const apps = [createGlobalApp('g', { status: 'pinned' }), createCnOnlyApp('c', { status: 'pinned' })]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.pinned.map((app) => app.appId)).toEqual(['c'])
+      expect(result.current.allApps.map((app) => app.appId)).toEqual(['g', 'c'])
+    })
+
+    it('does not detect the IP region in the CN edition', () => {
+      vi.stubGlobal('__APP_EDITION__', 'cn')
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+
+      renderHook(() => useMiniApps())
+
+      expect(mocks.request).not.toHaveBeenCalledWith('system.get_ip_country')
+    })
+
     it('should show all apps when region is CN (default)', () => {
       const { mixedRegion } = appFixtures
       const apps = Object.values(mixedRegion).map((a) => ({ ...a, status: 'enabled' as const }))
@@ -252,47 +284,16 @@ describe('useMiniApps', () => {
     })
   })
 
-  // === UI State Cache ===
-
-  describe('UI state cache', () => {
-    it('should expose miniapp UI state from cache', () => {
-      const keepAliveApps = [createMiniApp('app1'), createMiniApp('app2')]
-      const oneOffApp = createMiniApp('one-off')
-      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', keepAliveApps)
-      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'my-app')
-      MockUseCacheUtils.setCacheValue('mini_app.show', true)
-      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', oneOffApp)
-
-      const { result } = renderHook(() => useMiniApps())
-
-      expect(result.current.openedKeepAliveMiniApps).toEqual(keepAliveApps)
-      expect(result.current.currentMiniAppId).toBe('my-app')
-      expect(result.current.miniAppShow).toBe(true)
-      expect(result.current.openedOneOffMiniApp).toEqual(oneOffApp)
-    })
-
-    it('should update openedKeepAliveMiniApps when setter is called', async () => {
-      const { result } = renderHook(() => useMiniApps())
-      const newApps = [createMiniApp('new-app')]
-      await act(async () => {
-        result.current.setOpenedKeepAliveMiniApps(newApps)
-      })
-      // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual(newApps)
-    })
-  })
-
   // === Mutations ===
 
   describe('mutations', () => {
-    it('should sync opened cache, tab metadata, and webview state after updating a custom miniapp', async () => {
+    it('updates matching tab metadata after editing a custom miniapp', async () => {
       const existing = createMiniApp('custom-app', {
         name: 'Old App',
         url: 'https://old.example.com',
         logo: 'old-logo',
         presetMiniAppId: null
       })
-      const other = createMiniApp('other-app')
       const updated = {
         ...existing,
         name: 'New App',
@@ -301,8 +302,6 @@ describe('useMiniApps', () => {
       }
       const trigger = vi.fn().mockResolvedValue(updated)
       MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
-      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [other, existing])
-      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
       mockTabs.tabs = [
         { id: 'tab-1', url: '/app/mini-app/custom-app' },
         { id: 'tab-2', url: '/app/mini-app/custom-app-extra' }
@@ -326,9 +325,6 @@ describe('useMiniApps', () => {
           url: 'https://new.example.com'
         }
       })
-      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other, updated])
-      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toEqual(updated)
-      expect(mockSetWebviewLoaded).toHaveBeenCalledWith('custom-app', false)
       expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', { title: 'New App', icon: 'new-logo' })
       expect(mockTabs.updateTab).not.toHaveBeenCalledWith('tab-2', expect.anything())
     })
@@ -360,15 +356,37 @@ describe('useMiniApps', () => {
       })
     })
 
-    it('should clean opened cache, tabs, and webview state after removing a custom miniapp', async () => {
-      const existing = createMiniApp('custom-app', { presetMiniAppId: null })
-      const other = createMiniApp('other-app')
+    it('updates tabs opened while the edit is pending', async () => {
+      const existing = createMiniApp('custom-app', { url: 'https://old.example.com', presetMiniAppId: null })
+      const updated = { ...existing, name: 'Updated App', url: 'https://new.example.com', logo: 'new-logo' }
+      let resolveUpdate: (value: MiniApp) => void = () => undefined
+      const trigger = vi.fn(
+        () =>
+          new Promise<MiniApp>((resolve) => {
+            resolveUpdate = resolve
+          })
+      )
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      const { result, rerender } = renderHook(() => useMiniApps())
+
+      let pendingUpdate: Promise<MiniApp>
+      act(() => {
+        pendingUpdate = result.current.updateCustomMiniApp('custom-app', { name: 'Updated App' })
+      })
+      mockTabs.tabs = [{ id: 'late-tab', url: '/app/mini-app/custom-app' }]
+      rerender()
+
+      await act(async () => {
+        resolveUpdate(updated)
+        await pendingUpdate
+      })
+
+      expect(mockTabs.updateTab).toHaveBeenCalledWith('late-tab', { title: 'Updated App', icon: 'new-logo' })
+    })
+
+    it('closes only matching tabs after removing a custom miniapp', async () => {
       const trigger = vi.fn().mockResolvedValue(undefined)
       MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
-      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [existing, other])
-      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
-      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'custom-app')
-      MockUseCacheUtils.setCacheValue('mini_app.show', true)
       mockTabs.tabs = [
         { id: 'tab-1', url: '/app/mini-app/custom-app' },
         { id: 'tab-2', url: '/app/mini-app/custom-app-extra' }
@@ -381,58 +399,17 @@ describe('useMiniApps', () => {
       })
 
       expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
-      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other])
-      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
-      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('')
-      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(false)
-      expect(mockClearWebviewState).toHaveBeenCalledWith('custom-app')
-      expect(mockTabs.closeTab).toHaveBeenCalledWith('tab-1')
-      expect(mockTabs.closeTab).not.toHaveBeenCalledWith('tab-2')
-    })
-
-    it('should collapse the split pane when the deleted custom miniapp is the one in it', async () => {
-      const existing = createMiniApp('custom-app', { presetMiniAppId: null })
-      const trigger = vi.fn().mockResolvedValue(undefined)
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
-      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [existing])
-      MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-      MockUseCacheUtils.setCacheValue('mini_app.split_id', 'custom-app')
-
-      const { result } = renderHook(() => useMiniApps())
-
-      await act(async () => {
-        await result.current.removeCustomMiniApp('custom-app')
-      })
-
-      // The deleted app can never fill the pane again, so a still-open split
-      // just replaces it with a picker the user never asked for.
-      expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
-      expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
-    })
-
-    it('should keep the split pane when the deleted custom miniapp is not the one in it', async () => {
-      const trigger = vi.fn().mockResolvedValue(undefined)
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
-      MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-      MockUseCacheUtils.setCacheValue('mini_app.split_id', 'other-app')
-
-      const { result } = renderHook(() => useMiniApps())
-
-      await act(async () => {
-        await result.current.removeCustomMiniApp('custom-app')
-      })
-
-      expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('other-app')
-      expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
+      expect(mockTabs.closeTabs).toHaveBeenCalledWith(['tab-1'])
+      expect(mockTabs.closeTabs).not.toHaveBeenCalledWith(expect.arrayContaining(['tab-2']))
     })
 
     it('should remove deleted custom miniapps from sidebar favorites', async () => {
       const trigger = vi.fn().mockResolvedValue(undefined)
       MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
-      MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [
-        { type: 'app', id: 'assistants' },
-        { type: 'mini_app', id: 'custom-app' },
-        { type: 'mini_app', id: 'other-app' }
+      MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut', [
+        sidebarShortcut('core.app', 'assistants'),
+        sidebarShortcut('core.mini-app', 'custom-app'),
+        sidebarShortcut('core.mini-app', 'other-app')
       ])
 
       const { result } = renderHook(() => useMiniApps())
@@ -442,9 +419,9 @@ describe('useMiniApps', () => {
       })
 
       expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([
-        { type: 'app', id: 'assistants' },
-        { type: 'mini_app', id: 'other-app' }
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut')).toEqual([
+        sidebarShortcut('core.app', 'assistants'),
+        sidebarShortcut('core.mini-app', 'other-app')
       ])
     })
   })
@@ -600,12 +577,6 @@ describe('useMiniApps', () => {
   // === Region Auto-Detection ===
 
   describe('region auto-detection', () => {
-    beforeEach(() => {
-      // Reset the module-level promise between tests
-      // We need to re-import the module or access the internal state
-      // Since regionDetectionPromise is module-scoped, we test via the hook's useEffect
-    })
-
     it('should call setDetectedRegion with CN when IP resolves to CN', async () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
@@ -639,20 +610,57 @@ describe('useMiniApps', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global')
     })
 
-    it('should fallback to CN when IP detection rejects', async () => {
+    it('caches the CN fallback after IP detection rejects', async () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
       mockIpCountry(new Error('Network error'))
 
+      const first = renderHook(() => useMiniApps())
+
+      await waitFor(() => expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN'))
+      first.unmount()
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      mockIpCountry('US')
+
       renderHook(() => useMiniApps())
 
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50))
-      })
+      await waitFor(() => expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN'))
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'system.get_ip_country')).toHaveLength(1)
+    })
 
-      expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN')
+    it('shares detection across mounts and starts a new lookup after the test reset', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      const detection = Promise.withResolvers<string>()
+      mocks.request.mockImplementation((route: string) =>
+        route === 'system.get_ip_country' ? detection.promise : Promise.resolve(undefined)
+      )
+      const first = renderHook(() => useMiniApps())
+      const concurrent = renderHook(() => useMiniApps())
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'system.get_ip_country')).toHaveLength(1)
+
+      await act(async () => {
+        detection.resolve('US')
+        await detection.promise
+      })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global')
+      first.unmount()
+      concurrent.unmount()
+
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      mockIpCountry('CN')
+      const repeated = renderHook(() => useMiniApps())
+      await waitFor(() => expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global'))
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'system.get_ip_country')).toHaveLength(1)
+      repeated.unmount()
+
+      __resetRegionDetectionForTesting()
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      renderHook(() => useMiniApps())
+      await waitFor(() => expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN'))
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'system.get_ip_country')).toHaveLength(2)
     })
 
     it('should not call detectUserRegion when region is explicitly set', async () => {

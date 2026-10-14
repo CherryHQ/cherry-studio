@@ -13,14 +13,16 @@ import type { MistralProviderSettings } from '@ai-sdk/mistral'
 import type { PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
 import type { TogetherAIProviderSettings } from '@ai-sdk/togetherai'
-import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import type { GitHubCopilotProviderSettings } from '@opeoginni/github-copilot-openai-compatible'
-import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import type { VoyageProviderSettings } from 'voyage-ai-provider'
 
+import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
+
 import type { AihubmixProviderSettings } from './custom/aihubmix/aihubmixProvider'
+import type { ComfyuiProvider, ComfyuiProviderSettings } from './custom/comfyui/comfyuiProvider'
 import type { DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
 import type { DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import type { LocalEmbeddingProviderSettings } from './custom/localEmbedding/localEmbeddingProvider'
@@ -37,6 +39,7 @@ import type { NewApiProviderSettings } from './custom/newapiProvider'
 import type { OvmsProviderSettings } from './custom/ovms/ovmsProvider'
 import type { PpioProviderSettings } from './custom/ppio/ppioProvider'
 import type { SiliconProviderSettings } from './custom/silicon/siliconProvider'
+import type { TokenhubProviderSettings } from './custom/tokenhub/tokenhubProvider'
 import type { ZhipuProviderSettings } from './custom/zhipuProvider'
 
 let moonshotWebSearchToolFactory: typeof createKimiWebSearchToolFor | undefined
@@ -202,6 +205,20 @@ export const OllamaExtension = ProviderExtension.create({
     (await import('./custom/ollama/ollamaProvider')).createOllamaWithImageModel(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
 
+/**
+ * ComfyUI — a local node-graph image server. Its "models" are the user's saved
+ * workflows (listed by `listWorkflows` in the discovery client), and generation is a
+ * submit → poll `/history` → `/view` download loop, so the whole surface is served by
+ * the bespoke provider rather than any OpenAI adapter. Image-only: `languageModel`
+ * and `embeddingModel` throw by design.
+ */
+export const ComfyuiExtension = ProviderExtension.create({
+  name: 'comfyui',
+  supportsImageGeneration: true,
+  create: async (settings?: ComfyuiProviderSettings) =>
+    (await import('./custom/comfyui/comfyuiProvider')).createComfyuiProvider(settings)
+} as const satisfies ProviderExtensionConfig<ComfyuiProviderSettings, ComfyuiProvider, 'comfyui'>)
+
 export const MinimaxExtension = ProviderExtension.create({
   name: 'minimax',
   aliases: ['minimax-global'] as const,
@@ -216,6 +233,7 @@ export const MinimaxExtension = ProviderExtension.create({
  */
 export const MoonshotExtension = ProviderExtension.create({
   name: 'moonshot',
+  aliases: ['moonshot-global'] as const,
   supportsImageGeneration: false,
   create: async (settings) => {
     const module = await import('./custom/moonshotProvider')
@@ -357,6 +375,16 @@ export const DashScopeExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
 
 /**
+ * TokenHub (Tencent) Extension - OpenAI-compatible chat + embedding, image via the
+ * `/v1/wand/*` endpoints (hunyuan / seedream sync, vidu submit+poll).
+ */
+export const TokenhubExtension = ProviderExtension.create({
+  name: 'tokenhub',
+  supportsImageGeneration: true,
+  create: async (settings) => (await import('./custom/tokenhub/tokenhubProvider')).createTokenhubProvider(settings)
+} as const satisfies ProviderExtensionConfig<TokenhubProviderSettings, ProviderV3, 'tokenhub'>)
+
+/**
  * Voyage AI Extension - embeddings and reranking
  */
 export const VoyageExtension = ProviderExtension.create({
@@ -394,6 +422,7 @@ export const extensions = [
   GatewayExtension,
   CerebrasExtension,
   OllamaExtension,
+  ComfyuiExtension,
   MinimaxExtension,
   MoonshotExtension,
   AiHubMixExtension,
@@ -406,6 +435,7 @@ export const extensions = [
   OvmsExtension,
   ModelscopeExtension,
   DashScopeExtension,
+  TokenhubExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension,

@@ -1,6 +1,7 @@
-import type { ContextValue } from '@shared/types/command'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ContextValue } from '@shared/types/command'
 
 const { preferenceValues } = vi.hoisted(() => ({
   preferenceValues: {} as Record<string, unknown>

@@ -1,3 +1,9 @@
+import { Clipboard, FileJson, Import, Link } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { sanitizeUrl } from 'strict-url-sanitise'
+
 import {
   Alert,
   Button,
@@ -14,11 +20,6 @@ import {
 import { useImportAssistantMutation } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
-import { Clipboard, FileJson, Import, Link } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { sanitizeUrl } from 'strict-url-sanitise'
 
 const ALLOWED_FETCH_PROTOCOLS = new Set(['http:', 'https:'])
 const ALLOWED_FETCH_HOSTS = new Set(['gist.githubusercontent.com', 'raw.githubusercontent.com'])
@@ -316,10 +317,10 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
         {/* Header */}
         <div>
           <div>
-            <h3 className="font-semibold text-foreground text-lg leading-none">
+            <h3 className="text-lg leading-none font-semibold text-foreground">
               {t('assistants.presets.import.title')}
             </h3>
-            <p className="mt-2 text-muted-foreground text-sm">{t('library.import_dialog.subtitle')}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{t('library.import_dialog.subtitle')}</p>
           </div>
         </div>
 
@@ -332,7 +333,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                 <TabsTrigger
                   key={tabDef.id}
                   value={tabDef.id}
-                  className="flex h-8 flex-none items-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-muted-foreground text-xs shadow-none hover:bg-accent hover:text-foreground data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground data-[state=active]:shadow-none">
+                  className="flex h-8 flex-none items-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground data-[state=active]:shadow-none">
                   <Icon size={12} />
                   <span>{tabDef.label}</span>
                 </TabsTrigger>
@@ -358,11 +359,11 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   onError={() =>
                     setStatus({ kind: 'error', message: t('assistants.presets.import.error.invalid_format') })
                   }
-                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-subtle border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
                   <DropzoneEmptyState>
                     <Import size={24} strokeWidth={1.2} className="mb-3 text-foreground-tertiary" />
-                    <p className="mb-1 text-muted-foreground text-xs">{t('library.import_dialog.file.drop_hint')}</p>
-                    <p className="text-muted-foreground text-xs">{t('library.import_dialog.file.formats')}</p>
+                    <p className="mb-1 text-xs text-muted-foreground">{t('library.import_dialog.file.drop_hint')}</p>
+                    <p className="text-xs text-muted-foreground">{t('library.import_dialog.file.formats')}</p>
                   </DropzoneEmptyState>
                 </Dropzone>
               </motion.div>
@@ -378,7 +379,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   onValueChange={setClipboardText}
                   disabled={loading}
                   placeholder={t('library.import_dialog.clipboard.placeholder')}
-                  className="h-32 min-h-0 w-full resize-none rounded-md border border-input bg-background p-3 font-mono text-foreground text-xs shadow-none placeholder:text-muted-foreground disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1"
+                  className="h-32 min-h-0 w-full resize-none rounded-md border border-input bg-background p-3 font-mono text-xs text-foreground shadow-none placeholder:text-muted-foreground disabled:cursor-not-allowed [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]"
                 />
                 <Button
                   variant="emphasis"
@@ -397,7 +398,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}>
-                <p className="mb-3 text-muted-foreground text-xs">{t('library.import_dialog.url.hint')}</p>
+                <p className="mb-3 text-xs text-muted-foreground">{t('library.import_dialog.url.hint')}</p>
                 <Input
                   value={urlText}
                   onChange={(e) => setUrlText(e.target.value)}
@@ -414,7 +415,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                     <Link size={12} className="lucide-custom" />
                     <span>{t('library.import_dialog.url.button')}</span>
                   </Button>
-                  <p className="text-muted-foreground text-xs">{t('library.import_dialog.url.supports')}</p>
+                  <p className="text-xs text-muted-foreground">{t('library.import_dialog.url.supports')}</p>
                 </div>
               </motion.div>
             )}

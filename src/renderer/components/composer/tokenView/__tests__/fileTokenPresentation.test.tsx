@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { describe, expect, it } from 'vitest'
 
 import { getFileTokenPresentation } from '../fileTokenPresentation'
 
@@ -31,5 +32,12 @@ describe('getFileTokenPresentation image previewUrl', () => {
   it('passes a non-file previewUrl through unchanged', () => {
     const result = getFileTokenPresentation(imageAttachment(), 'image', 'https://example.com/a.png')
     expect(result.previewUrl).toBe('https://example.com/a.png')
+  })
+
+  // The message-editing round-trip rebuilds attachments from a stored `file://` URL and has no path.
+  it('previews a path-less attachment from its own previewUrl', () => {
+    const editRoundTrip = imageAttachment({ path: undefined, previewUrl: 'file:///tmp/image.png' })
+
+    expect(getFileTokenPresentation(editRoundTrip, 'image').previewUrl).toBeDefined()
   })
 })

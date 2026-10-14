@@ -1,5 +1,6 @@
-import { ScreenCaptureError, ScreenCapturePermissionError } from '@main/services/screenshot/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ScreenCaptureError, ScreenCapturePermissionError } from '@main/services/screenshot/types'
 
 const { monitorAll, getMediaAccessStatus } = vi.hoisted(() => ({
   monitorAll: vi.fn(),

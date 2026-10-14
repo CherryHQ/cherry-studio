@@ -1,3 +1,8 @@
+import { AlertCircle } from 'lucide-react'
+import type React from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -11,10 +16,6 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { AlertCircle } from 'lucide-react'
-import type React from 'react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export interface ConfirmActionParams {
   title?: React.ReactNode
@@ -103,7 +104,7 @@ const PopupContainer: React.FC<Props> = ({
                 <DialogDescription asChild>
                   <div
                     className={cn(
-                      'wrap-anywhere mt-2 min-w-0 max-w-full text-muted-foreground text-sm leading-5',
+                      'mt-2 max-w-full min-w-0 text-sm leading-5 wrap-anywhere text-muted-foreground',
                       title ? '' : 'mt-0'
                     )}>
                     {content}

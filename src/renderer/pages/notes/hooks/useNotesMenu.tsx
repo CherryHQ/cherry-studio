@@ -1,3 +1,7 @@
+import { Edit3, FilePlus, FileSearch, Folder, FolderOpen, Sparkles, Star, StarOff, UploadIcon } from 'lucide-react'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
@@ -6,9 +10,6 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
-import { Edit3, FilePlus, FileSearch, Folder, FolderOpen, Sparkles, Star, StarOff, UploadIcon } from 'lucide-react'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('UseNotesMenu')
 
@@ -168,7 +169,9 @@ export const useNotesMenu = ({
           id: 'notes.rename',
           label: t('notes.rename'),
           icon: <Edit3 size={14} />,
-          onSelect: () => handleStartEdit(node)
+          onSelect: () => {
+            window.requestAnimationFrame(() => handleStartEdit(node))
+          }
         },
         {
           type: 'item',

@@ -1,8 +1,9 @@
-import i18n from '@renderer/i18n/resolver'
-import { toast } from '@renderer/services/toast'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 
 import InstallMiniAppPanel, { InstallMiniAppPicker } from '../InstallMiniAppPanel'
 
@@ -56,7 +57,7 @@ describe('InstallMiniAppPanel', () => {
     request.mockResolvedValueOnce(null)
     render(<InstallMiniAppPicker onClose={vi.fn()} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+    await userEvent.click(screen.getByLabelText(/choose|选择/i))
 
     await waitFor(() => expect(request).toHaveBeenCalled())
     expect(screen.queryByRole('alert')).toBeNull()
@@ -69,7 +70,7 @@ describe('InstallMiniAppPanel', () => {
     request.mockResolvedValueOnce(preview)
     render(<InstallMiniAppPicker onClose={vi.fn()} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+    await userEvent.click(screen.getByLabelText(/choose|选择/i))
 
     const required = await screen.findByRole('checkbox', { name: 'AI capabilities · Chat' })
     expect(required).toBeChecked()
@@ -90,7 +91,7 @@ describe('InstallMiniAppPanel', () => {
     request.mockResolvedValueOnce(preview)
     render(<InstallMiniAppPicker onClose={vi.fn()} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+    await userEvent.click(screen.getByLabelText(/choose|选择/i))
 
     await screen.findByTestId('install-preview')
     expect(screen.queryByRole('checkbox', { name: 'Network · Fetch' })).toBeNull()
@@ -107,7 +108,7 @@ describe('InstallMiniAppPanel', () => {
     })
     render(<InstallMiniAppPicker onClose={vi.fn()} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+    await userEvent.click(screen.getByLabelText(/choose|选择/i))
 
     expect(await screen.findByRole('checkbox', { name: 'Network · Fetch' })).toBeDisabled()
     expect(screen.getByText(/allowed hosts|允许的域名/i)).toBeInTheDocument()
@@ -118,7 +119,7 @@ describe('InstallMiniAppPanel', () => {
     request.mockResolvedValueOnce(preview)
     render(<InstallMiniAppPicker onClose={vi.fn()} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+    await userEvent.click(screen.getByLabelText(/choose|选择/i))
     await screen.findByTestId('install-preview')
 
     expect(request).toHaveBeenCalledTimes(1)
@@ -129,7 +130,7 @@ describe('InstallMiniAppPanel', () => {
     request.mockResolvedValueOnce(preview).mockResolvedValueOnce({ ok: true })
     render(<InstallMiniAppPicker onClose={vi.fn()} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+    await userEvent.click(screen.getByLabelText(/choose|选择/i))
     await screen.findByTestId('install-preview')
     await userEvent.click(screen.getByRole('button', { name: /install|安装/i }))
 
@@ -149,7 +150,7 @@ describe('InstallMiniAppPanel', () => {
     request.mockResolvedValueOnce(preview).mockRejectedValueOnce(new Error('package hash mismatch'))
     render(<InstallMiniAppPicker onClose={onClose} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+    await userEvent.click(screen.getByLabelText(/choose|选择/i))
     await screen.findByTestId('install-preview')
     await userEvent.click(screen.getByRole('button', { name: /install|安装/i }))
 
@@ -164,7 +165,7 @@ describe('InstallMiniAppPanel', () => {
     // saying what the app is. The reason must precede the request.
     request.mockResolvedValue(preview)
     render(<InstallMiniAppPicker onClose={vi.fn()} />)
-    await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+    await userEvent.click(screen.getByLabelText(/choose|选择/i))
 
     const card = await screen.findByTestId('install-preview')
     expect(card).toHaveTextContent(preview.manifest.description)
@@ -180,7 +181,7 @@ describe('InstallMiniAppPanel', () => {
     const onClose = vi.fn()
     request.mockResolvedValue(preview)
     render(<InstallMiniAppPicker onClose={onClose} />)
-    await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+    await userEvent.click(screen.getByLabelText(/choose|选择/i))
     // Wait for the card: cancelling a preview still in flight takes the late-settle
     // path instead, and this case is about the button.
     const card = await screen.findByTestId('install-preview')
@@ -189,7 +190,7 @@ describe('InstallMiniAppPanel', () => {
 
     expect(request).toHaveBeenCalledWith('mini_app.install.cancel_preview', { installToken: preview.installToken })
     expect(screen.queryByTestId('install-preview')).toBeNull()
-    expect(screen.getByRole('button', { name: /choose|选择/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/choose|选择/i)).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -346,7 +347,7 @@ describe('InstallMiniAppPanel', () => {
       // a confirm without it is what main refuses as a stale client.
       request.mockResolvedValueOnce(installedSame).mockResolvedValueOnce({ ok: true })
       render(<InstallMiniAppPicker onClose={vi.fn()} />)
-      await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+      await userEvent.click(screen.getByLabelText(/choose|选择/i))
 
       const notice = await screen.findByTestId('installed-notice')
       expect(notice).toHaveTextContent(/already installed|已安装/i)
@@ -367,7 +368,7 @@ describe('InstallMiniAppPanel', () => {
     it('starts a downgrade with the data wipe on, and warns the moment it is turned off', async () => {
       request.mockResolvedValueOnce(installedOlder).mockResolvedValueOnce({ ok: true })
       render(<InstallMiniAppPicker onClose={vi.fn()} />)
-      await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+      await userEvent.click(screen.getByLabelText(/choose|选择/i))
 
       await screen.findByTestId('installed-notice')
       expect(clearDataBox()).toBeChecked()
@@ -389,7 +390,7 @@ describe('InstallMiniAppPanel', () => {
       const onClose = vi.fn()
       request.mockResolvedValueOnce(upgrade).mockResolvedValueOnce(undefined)
       render(<InstallMiniAppPicker onClose={onClose} />)
-      await userEvent.click(screen.getByRole('button', { name: /choose|选择/i }))
+      await userEvent.click(screen.getByLabelText(/choose|选择/i))
 
       const notice = await screen.findByTestId('installed-notice')
       expect(notice).toHaveTextContent('1.0.0')

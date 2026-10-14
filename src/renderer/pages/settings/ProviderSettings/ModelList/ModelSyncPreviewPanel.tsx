@@ -1,3 +1,7 @@
+import { ChevronRight, CircleHelp, Minus, Plus } from 'lucide-react'
+import { memo, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Avatar, AvatarFallback, Badge, Button, Checkbox, EmptyState, Spinner, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -6,11 +10,8 @@ import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { ChevronRight, CircleHelp, Minus, Plus } from 'lucide-react'
-import { memo, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import ModelTagsWithLabel, { type ModelTagsWithLabelModel } from '../components/ModelTagsWithLabel'
+import ModelTagsWithLabel from '../components/ModelTagsWithLabel'
 import { modelListClasses, modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
 import { getModelGroupLabel } from './grouping'
 import type { ModelGroups } from './modelListDerivedState'
@@ -120,12 +121,7 @@ const ModelRowIdentity = memo(function ModelRowIdentity({
         </div>
       </div>
       <div className={modelSyncClasses.fetchCapabilityStrip}>
-        <ModelTagsWithLabel
-          model={model as ModelTagsWithLabelModel}
-          provider={provider}
-          size={12}
-          style={{ flexWrap: 'nowrap' }}
-        />
+        <ModelTagsWithLabel model={model} provider={provider} size={12} style={{ flexWrap: 'nowrap' }} />
       </div>
     </>
   )

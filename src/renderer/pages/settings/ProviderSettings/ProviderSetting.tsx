@@ -1,17 +1,20 @@
+import { lazy, Suspense, useCallback, useState } from 'react'
+
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'
 import { isLoginBasedProvider } from '@shared/utils/provider'
-import { useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
-import ProviderApiSetupDialog, { type ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
+import type { ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
 import { ApiKeyProvider } from './hooks/providerSetting/useAuthenticationApiKey'
 import { useProviderApiKey } from './hooks/providerSetting/useProviderApiKey'
 import { ModelList, ModelListHealthProvider } from './ModelList'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
+
+const ProviderApiSetupDialog = lazy(() => import('./ConnectionSettings/ProviderApiSetupDialog'))
 
 interface ProviderSettingProps {
   providerId: string
@@ -30,6 +33,7 @@ function ProviderSettingSections({
   initialApiSetupStep?: ProviderApiSetupInitialStep
   onApiSetupClosed?: () => void
 }) {
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
   const [apiSetupStep, setApiSetupStep] = useState<ProviderApiSetupInitialStep | null>(initialApiSetupStep ?? null)
   const requestModelPullGuide = useCallback(() => {
@@ -43,7 +47,7 @@ function ProviderSettingSections({
 
   return (
     <>
-      <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
+      <Scrollbar ref={setScrollElement} className={providerDetailColumnClasses.scrollStrip}>
         <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
           <AuthenticationSection
             providerId={providerId}
@@ -51,8 +55,9 @@ function ProviderSettingSections({
             onOpenApiSetup={() => openApiSetup('api-key')}
             onContinueApiSetup={() => openApiSetup('models')}
           />
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex shrink-0 flex-col">
             <ModelList
+              scrollElement={scrollElement}
               providerId={providerId}
               modelPullGuideVersion={modelPullGuideVersion}
               onContinueApiSetup={() => openApiSetup('models')}
@@ -61,7 +66,9 @@ function ProviderSettingSections({
         </div>
       </Scrollbar>
       {apiSetupStep ? (
-        <ProviderApiSetupDialog providerId={providerId} initialStep={apiSetupStep} onClose={closeApiSetup} />
+        <Suspense fallback={null}>
+          <ProviderApiSetupDialog providerId={providerId} initialStep={apiSetupStep} onClose={closeApiSetup} />
+        </Suspense>
       ) : null}
     </>
   )

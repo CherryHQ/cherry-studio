@@ -1,3 +1,7 @@
+import { Check, Download, ExternalLink, Loader2, Star } from 'lucide-react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Center,
@@ -19,9 +23,6 @@ import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
 import { buildGithubSkillResult } from '@shared/utils/skillMarketplace'
-import { Check, Download, ExternalLink, Loader2, Star } from 'lucide-react'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ResourceCatalogSearchInput } from '../../ResourceCatalogSearchInput'
 

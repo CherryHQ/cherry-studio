@@ -8,6 +8,8 @@
 !cherry-electron-dev/**
 !cherry-pr-test/
 !cherry-pr-test/**
+!cherry-regression-test/
+!cherry-regression-test/**
 !create-skill/
 !create-skill/**
 !gh-create-issue/

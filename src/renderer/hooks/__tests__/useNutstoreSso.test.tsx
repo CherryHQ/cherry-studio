@@ -50,29 +50,38 @@ describe('useNutstoreSso', () => {
     vi.useRealTimers()
   })
 
-  it('accepts only a token-bearing Cherry Studio callback and cleans up after success', async () => {
-    const { result } = renderHook(() => useNutstoreSso())
-    const pending = result.current()
+  it.each(['cherrystudio://?s=encrypted-token', 'cherrystudio://nutstore-sync/sso?s=encrypted-token'])(
+    'accepts the Nutstore callback %s and cleans up after success',
+    async (callbackUrl) => {
+      const { result } = renderHook(() => useNutstoreSso())
+      const pending = result.current()
 
-    act(() => {
-      emitProtocolData('not a url')
-      emitProtocolData('https://example.com/callback?s=wrong-scheme')
-      emitProtocolData('cherrystudio://navigate/settings')
-      emitProtocolData('cherrystudio://unknown/callback?s=forged-token')
-    })
+      act(() => {
+        emitProtocolData('not a url')
+        emitProtocolData('https://example.com/callback?s=wrong-scheme')
+        emitProtocolData('cherrystudio://navigate/settings')
+        emitProtocolData('cherrystudio://unknown/callback?s=forged-token')
+        emitProtocolData('cherrystudio://unknown/sso?s=forged-token')
+        emitProtocolData('cherrystudio://nutstore-sync/other?s=forged-token')
+        emitProtocolData('https://nutstore-sync/sso?s=wrong-scheme')
+        emitProtocolData('cherrystudio://nutstore-sync/sso')
+        emitProtocolData('cherrystudio://nutstore-sync/sso?s=')
+      })
 
-    expect(mocks.activeListeners.size).toBe(1)
+      expect(mocks.activeListeners.size).toBe(1)
 
-    act(() => {
-      emitProtocolData('cherrystudio://?s=encrypted-token')
-    })
+      act(() => {
+        emitProtocolData(callbackUrl)
+      })
 
-    await expect(pending).resolves.toBe('encrypted-token')
-    expect(mocks.activeListeners.size).toBe(0)
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      await expect(pending).resolves.toBe('encrypted-token')
+      expect(mocks.activeListeners.size).toBe(0)
 
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
-    expect(mocks.logger.warn).not.toHaveBeenCalledWith('Nutstore SSO timed out')
-  })
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(mocks.logger.warn).not.toHaveBeenCalledWith('Nutstore SSO timed out')
+    }
+  )
 
   it('replaces the previous attempt instead of accumulating listeners', async () => {
     const { result } = renderHook(() => useNutstoreSso())

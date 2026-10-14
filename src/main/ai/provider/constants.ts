@@ -2,6 +2,7 @@ export const COPILOT_EDITOR_VERSION = 'vscode/1.104.1'
 export const COPILOT_PLUGIN_VERSION = 'copilot-chat/0.26.7'
 export const COPILOT_INTEGRATION_ID = 'vscode-chat'
 export const COPILOT_USER_AGENT = 'GitHubCopilotChat/0.26.7'
+export const TOKEN_DANCE_APP_URL = 'app://cherryai.com.cn'
 
 export const COPILOT_DEFAULT_HEADERS = {
   'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,

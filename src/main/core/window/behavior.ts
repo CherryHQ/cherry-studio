@@ -1,3 +1,5 @@
+import type { BrowserWindow } from 'electron'
+
 import type {
   AlwaysOnTopLevel,
   ManagedWindow,
@@ -5,7 +7,6 @@ import type {
   WindowOptions,
   WindowType
 } from '@main/core/window/types'
-import type { BrowserWindow } from 'electron'
 
 /**
  * Apply the declarative {@link WindowBehavior} layer to a freshly-created window.
