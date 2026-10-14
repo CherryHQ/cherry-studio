@@ -278,7 +278,7 @@ const pdfSkillToken = {
   payload: pdfSkill
 } as const
 
-vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true }))
+vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true, useCurrentTabId: () => 'agent-tab' }))
 vi.mock('@renderer/ipc', () => ({
   useIpcOn: (event: string, callback: (payload: any) => void) => {
     useEffect(() => {
@@ -289,7 +289,8 @@ vi.mock('@renderer/ipc', () => ({
     }, [event, callback])
   },
   ipcApi: {
-    request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input)
+    request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input),
+    on: vi.fn(() => () => {})
   }
 }))
 
@@ -536,10 +537,6 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelDisabled: () => undefined
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
-  useAgentSessionCompaction: () => ({ status: 'idle' })
-}))
-
 vi.mock('@renderer/hooks/agent/useSession', () => ({
   useUpdateSession: () => ({ updateSession: mocks.updateSession })
 }))
@@ -566,6 +563,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [] }),
   useProviderDisplayName: (providerId?: string) => (providerId ? mocks.providerNames[providerId] : '')
 }))
 
@@ -672,6 +670,8 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHos
 vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
   AgentLabel: ({ agent }: any) => <span>{agent.name}</span>
 }))
+
+vi.mock('@renderer/hooks/useApiGatewayProvider', () => ({ useApiGatewayProvider: () => null }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
@@ -1380,6 +1380,41 @@ describe('AgentComposer', () => {
       expect.objectContaining({ text: 'hello' }),
       expect.anything()
     )
+  })
+
+  it('keeps the configuration visible without reloading capabilities when streaming changes', async () => {
+    const info = {
+      models: [],
+      images: false,
+      resume: true,
+      configOptions: [],
+      mode: {
+        id: 'mode',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Always Ask' },
+          { value: 'plan', name: 'Plan' }
+        ]
+      }
+    }
+    mocks.ipcApiRequest.mockImplementation(async (route) => (route === 'ai.local_agents.session_info' ? info : {}))
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      resolvedAgent: { ...createControlledAgent(), type: 'local' as const },
+      resolvedModel: undefined,
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const view = render(<AgentComposer {...props} />)
+    const controls = within(screen.getByTestId('composer-send-accessory'))
+    await waitFor(() => expect(controls.getAllByLabelText('local_agents.configuration')).toHaveLength(1))
+    for (const isStreaming of [true, false, true, false]) {
+      view.rerender(<AgentComposer {...props} isStreaming={isStreaming} />)
+      expect(controls.getAllByLabelText('local_agents.configuration')).toHaveLength(1)
+    }
+    expect(mocks.ipcApiRequest.mock.calls.filter(([route]) => route === 'ai.local_agents.session_info')).toHaveLength(1)
   })
 
   it('uses the controlled session, agent, and model context', () => {
@@ -2545,6 +2580,37 @@ describe('AgentComposer', () => {
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByLabelText(/context_usage/)
     ).not.toBeInTheDocument()
+  })
+
+  it('shows and clears compaction status even without context usage metrics', () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.compaction.session-1', {
+      status: 'compacting',
+      startedAt: '2026-09-30T00:00:00Z'
+    })
+    const composer = (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const view = render(composer)
+    const accessory = screen.getByTestId('composer-send-accessory')
+    expect(within(accessory).getByRole('status')).toHaveTextContent('chat.compaction.compacting')
+    expect(within(accessory).queryByRole('meter')).not.toBeInTheDocument()
+    MockUseCacheUtils.setSharedCacheValue('agent.session.compaction.session-1', { status: 'idle' })
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    expect(within(accessory).queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('ignores a workspace path that is not an absolute filesystem path', async () => {

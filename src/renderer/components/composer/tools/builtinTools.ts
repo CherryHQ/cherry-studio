@@ -43,6 +43,8 @@ export const getToolsForScope = (
   const fullContext: ToolContext = { ...context, scope }
 
   return BUILTIN_COMPOSER_TOOLS.filter((tool) => {
+    if (context.session?.agentType === 'local' && ![attachmentTool, quickPhrasesTool, slashCommandsTool].includes(tool))
+      return false
     // Check scope visibility
     if (tool.visibleInScopes && !tool.visibleInScopes.includes(scope)) {
       return false

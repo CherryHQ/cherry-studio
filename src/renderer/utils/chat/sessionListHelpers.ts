@@ -24,6 +24,7 @@ import type { AgentSessionDisplayMode as PreferenceAgentSessionDisplayMode } fro
 export type AgentSessionDisplayMode = PreferenceAgentSessionDisplayMode
 
 export type SessionDisplayAgent = {
+  type?: string
   id: string
   name: string
 }
@@ -33,6 +34,7 @@ export type SessionDisplayGroupLabels = {
   time: Record<ResourceListTimeBucket, string>
   agent: {
     unknown: string
+    local?: string
   }
   workdir: {
     none: string
@@ -303,7 +305,10 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
 
       const agent = agentById?.get(agentId)
       return agent
-        ? { id: getSessionAgentGroupId(agent.id), label: agent.name }
+        ? {
+            id: getSessionAgentGroupId(agent.id),
+            label: agent.type === 'local' && labels.agent.local ? `${agent.name} · ${labels.agent.local}` : agent.name
+          }
         : { id: SESSION_UNKNOWN_AGENT_GROUP_ID, label: labels.agent.unknown }
     }
   }

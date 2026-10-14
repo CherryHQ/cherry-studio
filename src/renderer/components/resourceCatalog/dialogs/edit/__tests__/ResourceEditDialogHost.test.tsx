@@ -1,7 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import { Activity, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import { OPEN_MAIN_ROUTE_EVENT } from '@renderer/services/mainWindowNavigation'
+import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 
 import { ResourceEditDialogHost } from '../ResourceEditDialogHost'
 
@@ -78,6 +81,42 @@ vi.mock('../AgentEditDialog', () => ({
 }))
 
 describe('ResourceEditDialogHost', () => {
+  it('consumes a local agent edit request before hiding the workspace so Back stays in the workspace', () => {
+    vi.useFakeTimers()
+    mocks.useAgent.mockReturnValue({ agent: { id: 'local-1', type: 'local' } })
+
+    function Workspace() {
+      const [settings, setSettings] = useState(false)
+      const [target, setTarget] = useState<ResourceEditDialogTarget | null>(null)
+      useEffect(() => {
+        const navigate = (event: Event) => {
+          event.preventDefault()
+          setSettings(true)
+        }
+        window.addEventListener(OPEN_MAIN_ROUTE_EVENT, navigate)
+        return () => window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, navigate)
+      }, [])
+      return (
+        <>
+          {settings && <button onClick={() => setSettings(false)}>Back to workspace</button>}
+          <Activity mode={settings ? 'hidden' : 'visible'}>
+            <button onClick={() => setTarget({ kind: 'agent', id: 'local-1' })}>Edit local agent</button>
+            <span>{target ? 'Pending edit' : 'No pending edit'}</span>
+            <ResourceEditDialogHost target={target} onOpenChange={(open) => !open && setTarget(null)} />
+          </Activity>
+        </>
+      )
+    }
+
+    render(<Workspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit local agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to workspace' }))
+
+    expect(screen.queryByRole('button', { name: 'Back to workspace' })).not.toBeInTheDocument()
+    expect(screen.getByText('No pending edit')).toBeVisible()
+    expect(screen.queryByTestId('agent-edit-dialog')).not.toBeInTheDocument()
+  })
+
   afterEach(() => {
     vi.useRealTimers()
   })

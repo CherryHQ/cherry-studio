@@ -1,5 +1,6 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { LocalAgentModelCatalog } from '@shared/ai/localAgent'
 import type { DoctorState } from '@shared/types/doctor'
 import type { DoctorAgentState } from '@shared/types/doctorAgent'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
@@ -242,5 +243,10 @@ export type CacheMiniAppAttention = {
 
 /** System Doctor run state; see `@shared/types/doctor`. */
 export type CacheDoctorState = DoctorState
+
+export interface LocalAgentModelCacheEntry {
+  catalog: LocalAgentModelCatalog
+  updatedAt: number
+}
 /** Doctor Agent analysis state; see `@shared/types/doctorAgent`. */
 export type CacheDoctorAgentState = DoctorAgentState

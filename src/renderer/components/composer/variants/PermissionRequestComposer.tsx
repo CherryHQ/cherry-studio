@@ -16,6 +16,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
+import { LocalPermissionOptionsSchema } from '@shared/ai/localAgent'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
@@ -166,6 +167,8 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   // A typed reason means the user is denying — Enter must not approve behind their back.
   const hasRejectionReason = rejectionReason.trim().length > 0
+  const parsedOptions = LocalPermissionOptionsSchema.safeParse(request.toolResponse.arguments)
+  const localOptions = parsedOptions.success ? parsedOptions.data.localPermissionOptions : undefined
   const subtitle = getPermissionRequestSubtitle(request)
   const ToolIcon = getToolGroupIcon(request.toolResponse.tool, request.toolResponse.arguments)
   const toolTitle = getToolGroupSemanticTitle(request.toolResponse, 'waiting', t)
@@ -214,9 +217,11 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
 
   useHotkeys(
     'enter',
-    () => void (hasRejectionReason ? deny() : approve()),
+    () => {
+      if (!localOptions) void (hasRejectionReason ? deny() : approve())
+    },
     { preventDefault: true, ignoreEventWhen: isHandledElsewhere },
-    [approve, deny, hasRejectionReason]
+    [approve, deny, hasRejectionReason, localOptions]
   )
   useHotkeys('esc', () => void deny(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [deny])
 
@@ -252,40 +257,83 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
 
-        <label className="mt-2.5 block px-1 text-muted-foreground text-xs">
-          <span>{t('agent.toolPermission.reasonLabel')}</span>
-          <Textarea.Input
-            value={rejectionReason}
-            disabled={isSubmitting}
-            maxLength={500}
-            rows={2}
-            aria-label={t('agent.toolPermission.reasonLabel')}
-            placeholder={t('agent.toolPermission.reasonPlaceholder')}
-            className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
-            onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value })}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
-              event.preventDefault()
-              void (hasRejectionReason ? deny() : approve())
-            }}
-          />
-        </label>
+        {!localOptions && (
+          <label className="mt-2.5 block px-1 text-muted-foreground text-xs">
+            <span>{t('agent.toolPermission.reasonLabel')}</span>
+            <Textarea.Input
+              value={rejectionReason}
+              disabled={isSubmitting}
+              maxLength={500}
+              rows={2}
+              aria-label={t('agent.toolPermission.reasonLabel')}
+              placeholder={t('agent.toolPermission.reasonPlaceholder')}
+              className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
+              onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value })}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+                event.preventDefault()
+                void (hasRejectionReason ? deny() : approve())
+              }}
+            />
+          </label>
+        )}
 
-        <div className="mt-2.5 flex justify-end gap-2 px-1 pb-0.5">
-          <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
-            {t('agent.toolPermission.button.deny')}
-            <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
-              {hasRejectionReason ? 'Enter' : 'Esc'}
-            </Kbd>
-          </Button>
-          <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
-            {t('agent.toolPermission.button.allow')}
-            {!hasRejectionReason && (
-              <Kbd aria-hidden="true" className="bg-current/10 text-current">
-                Enter
-              </Kbd>
-            )}
-          </Button>
+        <div className="mt-2.5 flex flex-wrap justify-end gap-2 px-1 pb-0.5">
+          {localOptions ? (
+            localOptions.map((option) => (
+              <Button
+                key={option.optionId}
+                type="button"
+                variant={option.kind.startsWith('allow_') ? 'emphasis' : 'outline'}
+                disabled={isSubmitting}
+                onClick={() =>
+                  void respond(
+                    {
+                      match: request.match,
+                      approved: option.kind.startsWith('allow_'),
+                      updatedInput: { localPermissionOption: option.optionId }
+                    },
+                    option.kind.startsWith('allow_') ? 'approve' : 'deny'
+                  )
+                }>
+                {option.label
+                  ? t(
+                      (
+                        {
+                          allow: 'agent.toolPermission.button.allow',
+                          allow_session: 'local_agents.allow_session',
+                          deny: 'agent.toolPermission.button.deny',
+                          cancel: 'common.cancel'
+                        } as const
+                      )[option.label]
+                    )
+                  : option.name === 'Allow' && option.kind === 'allow_once'
+                    ? t('agent.toolPermission.button.allow')
+                    : option.name === 'Reject' && option.kind === 'reject_once'
+                      ? t('agent.toolPermission.button.deny')
+                      : option.name === 'Always Allow' && option.kind === 'allow_always'
+                        ? t('local_agents.allow_always')
+                        : option.name}
+              </Button>
+            ))
+          ) : (
+            <>
+              <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
+                {t('agent.toolPermission.button.deny')}
+                <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
+                  {hasRejectionReason ? 'Enter' : 'Esc'}
+                </Kbd>
+              </Button>
+              <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
+                {t('agent.toolPermission.button.allow')}
+                {!hasRejectionReason && (
+                  <Kbd aria-hidden="true" className="bg-current/10 text-current">
+                    Enter
+                  </Kbd>
+                )}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -363,6 +363,20 @@ describe('findOpenTextTailIndex', () => {
 })
 
 describe('projectCompletedMessageParts', () => {
+  it('keeps ACP media in the answer while folding media from thoughts into process history', () => {
+    const parts = entries([
+      { type: 'data-acp-content', data: { content: { type: 'image' }, reasoning: true } },
+      { type: 'text', text: 'Report' },
+      { type: 'data-acp-content', data: { content: { type: 'resource' }, reasoning: false } }
+    ])
+    const completed = projectCompletedMessageParts(parts)
+    expect(indexes(completed.historyEntries)).toEqual([0])
+    expect(indexes(completed.resultEntries)).toEqual([1, 2])
+    const live = projectLiveMessageParts(parts)
+    expect(live[0]).toMatchObject({ kind: 'process', entries: [{ index: 0 }] })
+    expect(live.slice(1).map((item) => item.kind)).toEqual(['part', 'part'])
+  })
+
   it.each([
     [
       [

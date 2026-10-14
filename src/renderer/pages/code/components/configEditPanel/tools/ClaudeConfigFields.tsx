@@ -12,7 +12,7 @@ import {
   gatewayModelIdFromAddress,
   safeCreateUniqueModelId,
   stripClaudeOneMMarker
-} from '@renderer/pages/code/cliConfig'
+} from '@renderer/services/codeCliConfig'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { ModelSelectorTrigger } from '../ModelSelectorTrigger'

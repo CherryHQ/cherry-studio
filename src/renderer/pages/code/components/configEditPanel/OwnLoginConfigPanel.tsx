@@ -11,7 +11,7 @@ import {
   readOwnLoginCliConfigDraft,
   sanitizeCliConfigBlob,
   validateCliConfigDraftForWrite
-} from '@renderer/pages/code/cliConfig'
+} from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'

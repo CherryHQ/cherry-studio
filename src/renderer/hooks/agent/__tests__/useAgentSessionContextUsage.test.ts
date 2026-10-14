@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -41,6 +41,30 @@ afterEach(() => {
 })
 
 describe('useAgentSessionContextUsage', () => {
+  it('updates native-model context usage and hides it when switching to a session without a reading', () => {
+    const { result, rerender } = renderHook(({ sessionId }) => useAgentSessionContextUsage(sessionId), {
+      initialProps: { sessionId: SESSION_ID }
+    })
+    expect(result.current.percentage).toBe(80)
+    expect(result.current.maxTokens).toBe(250_000)
+    act(() =>
+      cacheService.setShared(KEY, {
+        categories: [],
+        totalTokens: 25_000,
+        maxTokens: 250_000,
+        percentage: 10,
+        model: 'small-model'
+      })
+    )
+    expect(result.current.percentage).toBe(10)
+    expect(result.current.usage?.totalTokens).toBe(25_000)
+    rerender({ sessionId: `${SESSION_ID}-other` })
+    expect(result.current.usage).toBeNull()
+    expect(result.current.percentage).toBeNull()
+    rerender({ sessionId: SESSION_ID })
+    expect(result.current.percentage).toBe(10)
+  })
+
   it('drops a reading published by a different model', () => {
     const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::big-model', 1_000_000)))
 

@@ -38,6 +38,17 @@ async function testIdOf(node: React.ReactNode): Promise<string | null> {
 }
 
 describe('chooseTool', () => {
+  it('routes ACP tool details to the agent card', async () => {
+    const response = buildToolResponseFromPart({
+      type: 'dynamic-tool',
+      toolCallId: 'acp-edit',
+      toolName: 'ACP: Edit example',
+      state: 'input-available',
+      input: { localAcpTool: { title: 'Edit example' } }
+    })
+    expect(await testIdOf(chooseTool(response as NormalToolResponse))).toBe('agent-card')
+  })
+
   it('renders all knowledge-base wire names', async () => {
     expect(await testIdOf(chooseTool(resp('kb_search')))).toBe('kb-card')
     expect(await testIdOf(chooseTool(resp('kb_list')))).toBe('agent-card')

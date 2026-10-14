@@ -47,7 +47,7 @@ const CHERRY_RUNTIME_BUILTIN_TOOL_NAMES = new Set(
 )
 
 const isAgentTool = (toolName: string) => {
-  if (agentTools.has(toolName) || toolName.startsWith(agentMcpToolsPrefix)) {
+  if (agentTools.has(toolName) || toolName.startsWith(agentMcpToolsPrefix) || toolName.startsWith('ACP: ')) {
     return true
   }
   return false

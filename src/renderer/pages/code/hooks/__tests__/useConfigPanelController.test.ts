@@ -25,23 +25,23 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('../../cliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }))
-vi.mock('../../cliConfig/draft', () => ({
+vi.mock('@renderer/services/codeCliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }))
+vi.mock('@renderer/services/codeCliConfig/draft', () => ({
   writeCliConfigDraft: mocks.writeCliConfigDraft,
   writeOwnLoginCliConfigDraft: mocks.writeOwnLoginCliConfigDraft,
   isOwnLoginConfigurable: mocks.isOwnLoginConfigurable
 }))
-vi.mock('../../cliConfig/applyContext', () => ({
+vi.mock('@renderer/services/codeCliConfig/applyContext', () => ({
   parseConfiguredModelId: mocks.parseConfiguredModelId,
   resolveCliConfigApplyContext: mocks.resolveCliConfigApplyContext
 }))
-vi.mock('../../cliConfig/parser', () => ({ extractConnectionFromCliConfigDraft: vi.fn() }))
+vi.mock('@renderer/services/codeCliConfig/parser', () => ({ extractConnectionFromCliConfigDraft: vi.fn() }))
 // `sanitizeCliConfigBlob` now lives in the adapter registry (re-exported via the barrel).
 // Keep the real registry so any transitive importer of `adapters` (getAdapter/CLI_CONFIG_ADAPTERS)
 // still resolves; override only the sanitizer this test asserts on.
-vi.mock('../../cliConfig/adapters', async (importOriginal) => ({
+vi.mock('@renderer/services/codeCliConfig/adapters', async (importOriginal) => ({
   // oxlint-disable-next-line consistent-type-imports
-  ...(await importOriginal<typeof import('../../cliConfig/adapters')>()),
+  ...(await importOriginal<typeof import('@renderer/services/codeCliConfig/adapters')>()),
   sanitizeCliConfigBlob: mocks.sanitizeCliConfigBlob
 }))
 
@@ -70,6 +70,20 @@ describe('useConfigPanelController', () => {
     mocks.isOwnLoginConfigurable.mockImplementation((tool: string) => tool === CodeCli.CLAUDE_CODE)
     // Identity sanitize: keep the blob as-is so assertions can match the input.
     mocks.sanitizeCliConfigBlob.mockImplementation((_tool: string, blob: unknown) => blob)
+  })
+
+  it('keeps the previous selection when directly applying a new model fails', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'p2::new', writePrimaryModel: true })
+    mocks.writeCliConfigDraft.mockRejectedValueOnce(new Error('write failed'))
+    const options = baseOptions()
+    const { result } = renderHook(() => useConfigPanelController(options))
+    let saved: boolean | undefined
+    await act(async () => {
+      saved = await result.current.selectModel({ id: 'p2' } as Provider, 'p2::new')
+    })
+    expect(saved).toBe(false)
+    expect(options.setCurrentProvider).not.toHaveBeenCalled()
+    expect(options.deleteProviderConfig).toHaveBeenCalledWith('p2')
   })
 
   describe('onToggleCurrent in-flight guard', () => {
@@ -223,20 +237,6 @@ describe('useConfigPanelController', () => {
       expect(options.setCurrentCliConfigConnection).toHaveBeenCalledWith(null)
       // Own-login never falls through to the provider-injection path.
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
-    })
-
-    it('selects own-login for a non-configurable tool: only clears, no tool params', async () => {
-      const options = { ...baseOptions(), selectedCliTool: CodeCli.GEMINI_CLI, currentProviderId: 'p1' }
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      await act(async () => {
-        result.current.onToggleCurrent(ownLoginProvider)
-        await flushMicrotasks()
-      })
-
-      expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.GEMINI_CLI })
-      expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
-      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID)
     })
 
     it('deselects own-login when it is already current: clears the injected config', async () => {

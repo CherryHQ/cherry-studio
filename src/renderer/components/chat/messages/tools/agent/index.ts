@@ -12,3 +12,5 @@ export { getTaskActiveText, getTaskId, getTaskTitle, isTaskRecord, normalizeTask
 export { isValidAgentToolsType, renderTool, toolRenderers } from './toolRendererRegistry'
 export { UnknownToolRenderer } from './UnknownToolRenderer'
 export { getSubagentTaskStatus } from './subagentStatus'
+
+export { TaskListView } from './TaskTool'

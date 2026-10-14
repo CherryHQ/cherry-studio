@@ -68,6 +68,22 @@ const PI_BUILTIN_COMMANDS = [
 ] as const satisfies readonly SlashCommand[]
 
 export const AGENT_RUNTIME_CAPABILITIES = {
+  local: {
+    labelKey: 'local_agents.title',
+    labelFallback: 'Local agents',
+    permissionModes: ['default'],
+    modelTiers: false,
+    heartbeat: false,
+    knowledgeBases: false,
+    mcp: false,
+    skills: false,
+    claudeRegistryTools: false,
+    slashCommands: [],
+    createDefaults: { permissionMode: 'default' },
+    isModelCompatible: null,
+    transport: 'local-agent',
+    builtinTools: () => []
+  },
   'claude-code': {
     labelKey: 'library.config.agent.field.runtime.option.claude_code',
     labelFallback: 'Claude Agent',

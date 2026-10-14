@@ -76,6 +76,17 @@ describe('AgentSessionService', () => {
     })
   }
 
+  it('updates generated titles while preserving manual names and ignoring empty titles', async () => {
+    const session = await createSession('initial')
+    expect(agentSessionService.updateGeneratedName(session.id, 'Native title')).toBe(true)
+    expect(agentSessionService.getById(session.id)).toMatchObject({ name: 'Native title', isNameManuallyEdited: false })
+    expect(agentSessionService.updateGeneratedName(session.id, '  ')).toBe(false)
+    expect(agentSessionService.updateGeneratedName(session.id, 'Native title')).toBe(false)
+    agentSessionService.update(session.id, { name: 'My title' })
+    expect(agentSessionService.updateGeneratedName(session.id, 'Agent replacement')).toBe(false)
+    expect(agentSessionService.getById(session.id)).toMatchObject({ name: 'My title', isNameManuallyEdited: true })
+  })
+
   async function insertSessionMessage(sessionId: string, id: string) {
     await dbh.db.insert(agentSessionMessageTable).values({
       id,

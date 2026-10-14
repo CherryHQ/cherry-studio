@@ -459,7 +459,8 @@ export const MessageSnapshotSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
   emoji: z.string().optional(),
-  model: ModelSnapshotSchema
+  model: ModelSnapshotSchema.optional(),
+  nativeModel: z.object({ runtime: z.string(), id: z.string().optional(), name: z.string().optional() }).optional()
 })
 export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
 

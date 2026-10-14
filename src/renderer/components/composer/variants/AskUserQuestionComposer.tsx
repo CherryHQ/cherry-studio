@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import { elicitationChoices, elicitationContent, elicitationValidator } from '@shared/ai/elicitation'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
@@ -43,9 +44,28 @@ export function createAskUserQuestionComposerOverride({
 export default function AskUserQuestionComposer({ request, onRespond, className }: AskUserQuestionComposerProps) {
   const { t } = useTranslation()
   const questions = request.input.questions
+  const form = request.input.elicitation?.schema
+  const validator = useMemo(() => (form ? elicitationValidator(form) : undefined), [form])
+  const [invalidFields, setInvalidFields] = useState<string[]>([])
   // Answers are restored from the cache so a remount (switching conversations and
   // coming back) does not discard what the user already answered but not submitted.
-  const [restoredDraft] = useState(() => readAskUserQuestionDraftCache(request.approvalId))
+  const [restoredDraft] = useState(() => {
+    const draft = readAskUserQuestionDraftCache(request.approvalId)
+    if (!form) return draft
+    const selectedAnswers: AnswersByIndex = {}
+    const customAnswers: Record<number, string> = {}
+    Object.values(form.properties).forEach((field, index) => {
+      if (field.default == null) return
+      if (elicitationChoices(field).length)
+        selectedAnswers[index] = Array.isArray(field.default) ? field.default : [String(field.default)]
+      else customAnswers[index] = String(field.default)
+    })
+    return {
+      ...draft,
+      selectedAnswers: { ...selectedAnswers, ...draft.selectedAnswers },
+      customAnswers: { ...customAnswers, ...draft.customAnswers }
+    }
+  })
   const [currentIndex, setCurrentIndex] = useState(() =>
     Math.min(Math.max(restoredDraft.currentIndex, 0), Math.max(questions.length - 1, 0))
   )
@@ -58,6 +78,8 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   }, [currentIndex, customAnswers, request.approvalId, selectedAnswers])
 
   const currentQuestion = questions[currentIndex]
+  const field = form ? Object.values(form.properties)[currentIndex] : undefined
+  const choicesOnly = form ? !field || elicitationChoices(field).length > 0 : request.input.choiceOnly
   const totalQuestions = questions.length
   const isFirstQuestion = currentIndex === 0
   const isLastQuestion = currentIndex === totalQuestions - 1
@@ -78,7 +100,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
   const selectedForCurrent = selectedAnswers[currentIndex] ?? []
   const hasAnyAnswerValue = useMemo(() => hasAnyAnswer(), [hasAnyAnswer])
-  const customActionSubmitsAll = isLastQuestion && hasAnyAnswerValue
+  const customActionSubmitsAll = isLastQuestion && (form != null || hasAnyAnswerValue)
 
   const buildAnswers = useCallback(
     (answersByIndex: AnswersByIndex = selectedAnswers) => {
@@ -89,11 +111,13 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         const notes = customAnswers[index]?.trim()
 
         if (values.length > 0) {
-          answers[question.question] = values.join(', ')
+          answers[question.id ?? question.question] = values
+            .map((value) => question.options.find((option) => (option.id ?? option.label) === value)?.label ?? value)
+            .join(', ')
         } else if (notes) {
           // Typed text without a selection is the answer itself; next to a selection
           // it travels as an `annotations` note instead (see buildAnnotations).
-          answers[question.question] = notes
+          answers[question.id ?? question.question] = notes
         }
       })
 
@@ -140,7 +164,21 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
   const submitAnswers = useCallback(
     async (answersByIndex: AnswersByIndex = selectedAnswers) => {
-      if (!hasAnyAnswer(answersByIndex) || isSubmitting) return
+      if ((!form && !hasAnyAnswer(answersByIndex)) || isSubmitting) return
+      const content = form ? elicitationContent(form, answersByIndex, customAnswers) : undefined
+      const validated = validator?.safeParse(content)
+      if (validated && !validated.success) {
+        setInvalidFields([
+          ...new Set(
+            validated.error.issues.map((issue) => {
+              const key = String(issue.path[0] ?? '')
+              return form?.properties[key]?.title ?? key
+            })
+          )
+        ])
+        return
+      }
+      setInvalidFields([])
 
       const annotations = buildAnnotations(answersByIndex)
       await respond({
@@ -149,11 +187,30 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         updatedInput: {
           ...request.input,
           answers: buildAnswers(answersByIndex),
+          ...(form && { elicitationContent: content }),
+          ...(request.input.choiceOnly && {
+            answerSelections: Object.fromEntries(
+              questions.map((question, index) => [question.id ?? question.question, answersByIndex[index] ?? []])
+            )
+          }),
           ...(annotations && { annotations })
         }
       })
     },
-    [buildAnnotations, buildAnswers, hasAnyAnswer, isSubmitting, request.input, request.match, respond, selectedAnswers]
+    [
+      form,
+      customAnswers,
+      validator,
+      buildAnnotations,
+      buildAnswers,
+      hasAnyAnswer,
+      isSubmitting,
+      request.input,
+      request.match,
+      respond,
+      selectedAnswers,
+      questions
+    ]
   )
 
   const handleDismiss = useCallback(async () => {
@@ -161,9 +218,10 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
     await respond({
       match: request.match,
-      approved: false
+      approved: false,
+      ...(form && { updatedInput: { elicitationAction: 'cancel' } })
     })
-  }, [isSubmitting, request.match, respond])
+  }, [form, isSubmitting, request.match, respond])
 
   const completeCurrentQuestion = useCallback(
     (answersByIndex: AnswersByIndex) => {
@@ -192,10 +250,11 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           : [label]
       const nextSelectedAnswers = { ...selectedAnswers, [currentIndex]: nextForCurrent }
 
+      setInvalidFields([])
       setSelectedAnswers(nextSelectedAnswers)
-      if (!isMultiSelect && nextForCurrent.length > 0) completeCurrentQuestion(nextSelectedAnswers)
+      if (!form && !isMultiSelect && nextForCurrent.length > 0) completeCurrentQuestion(nextSelectedAnswers)
     },
-    [completeCurrentQuestion, currentIndex, currentQuestion, isSubmitting, selectedAnswers]
+    [form, completeCurrentQuestion, currentIndex, currentQuestion, isSubmitting, selectedAnswers]
   )
 
   const handleCustomAction = useCallback(async () => {
@@ -220,9 +279,16 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       <div
         className="rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
+        {request.input.elicitation && (
+          <div className="px-1 pb-2 text-sm">
+            <div className="text-xs text-muted-foreground">{request.input.elicitation.agentName}</div>
+            <div className="whitespace-pre-wrap break-words">{request.input.elicitation.message}</div>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-3 px-1">
           <h2 className="max-h-36 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words font-semibold text-foreground text-sm leading-5">
             {currentQuestion.question}
+            {form?.required?.includes(currentQuestion.id ?? '') ? ' *' : ''}
           </h2>
 
           <div className="flex shrink-0 items-center gap-0.5 text-muted-foreground">
@@ -245,7 +311,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
               size="icon-sm"
               className="size-7 shadow-none"
               aria-label={isLastQuestion ? t('agent.askUserQuestion.submit') : t('agent.askUserQuestion.next')}
-              disabled={(isLastQuestion && !hasAnyAnswerValue) || isSubmitting}
+              disabled={(isLastQuestion && !form && !hasAnyAnswerValue) || isSubmitting}
               onClick={
                 isLastQuestion
                   ? () => void submitAnswers()
@@ -266,9 +332,15 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           </div>
         </div>
 
+        {field?.description && <p className="px-1 pt-1 text-xs text-muted-foreground">{field.description}</p>}
+        {invalidFields.length > 0 && (
+          <p role="alert" className="px-1 pt-2 text-xs text-error">
+            {t('local_agents.elicitation_invalid', { fields: invalidFields.join(', ') })}
+          </p>
+        )}
         <div className="mt-2 flex flex-col gap-1.5">
           {currentQuestion.options.map((option, optionIndex) => {
-            const isSelected = selectedForCurrent.includes(option.label)
+            const isSelected = selectedForCurrent.includes(option.id ?? option.label)
 
             return (
               <Button
@@ -282,7 +354,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 )}
                 disabled={isSubmitting}
                 aria-pressed={isSelected}
-                onClick={() => handleSelectOption(option.label)}>
+                onClick={() => handleSelectOption(option.id ?? option.label)}>
                 <span
                   className={cn(
                     'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
@@ -294,7 +366,11 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 </span>
 
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold text-foreground text-sm leading-5">{option.label}</span>
+                  <span className="block truncate font-semibold text-foreground text-sm leading-5">
+                    {field?.type === 'boolean'
+                      ? t(option.id === 'true' ? 'local_agents.elicitation_yes' : 'local_agents.elicitation_no')
+                      : option.label}
+                  </span>
                   {option.description && (
                     <span className="block truncate font-medium text-muted-foreground text-xs leading-4">
                       {option.description}
@@ -324,36 +400,47 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         </div>
 
         <div className="mt-2 flex items-end gap-2 border-border-subtle border-t pt-2">
-          <div className="flex min-w-0 flex-1 items-start gap-2 rounded-[12px] bg-muted/70 px-3 py-2">
-            <Pencil className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-            <Textarea.Input
-              value={currentCustomAnswer}
+          {!choicesOnly && (
+            <div className="flex min-w-0 flex-1 items-start gap-2 rounded-[12px] bg-muted/70 px-3 py-2">
+              <Pencil className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+              <Textarea.Input
+                value={currentCustomAnswer}
+                disabled={isSubmitting}
+                rows={1}
+                placeholder={t('agent.askUserQuestion.customPlaceholder')}
+                aria-label={t('agent.askUserQuestion.customPlaceholder')}
+                className="max-h-32 min-h-5 resize-none border-transparent bg-transparent p-0 text-sm leading-5 shadow-none focus-visible:border-transparent"
+                onValueChange={(value) => {
+                  setInvalidFields([])
+                  setCustomAnswers((prev) => ({ ...prev, [currentIndex]: value }))
+                }}
+                onKeyDown={(event) => {
+                  if (form || event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+                  event.preventDefault()
+                  void handleCustomAction()
+                }}
+              />
+            </div>
+          )}
+          {form && (
+            <Button
+              type="button"
+              variant="ghost"
               disabled={isSubmitting}
-              rows={1}
-              placeholder={t('agent.askUserQuestion.customPlaceholder')}
-              aria-label={t('agent.askUserQuestion.customPlaceholder')}
-              className="max-h-32 min-h-5 resize-none border-transparent bg-transparent p-0 text-sm leading-5 shadow-none focus-visible:border-transparent"
-              onValueChange={(value) =>
-                setCustomAnswers((prev) => ({
-                  ...prev,
-                  [currentIndex]: value
-                }))
-              }
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
-                event.preventDefault()
-                void handleCustomAction()
-              }}
-            />
-          </div>
+              onClick={() =>
+                void respond({ match: request.match, approved: false, updatedInput: { elicitationAction: 'decline' } })
+              }>
+              {t('agent.toolPermission.button.deny')}
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
-            className="h-9 px-2.5 font-semibold text-muted-foreground text-sm shadow-none hover:bg-transparent hover:text-foreground"
+            className="ml-auto h-9 px-2.5 font-semibold text-muted-foreground text-sm shadow-none hover:bg-transparent hover:text-foreground"
             loading={customActionSubmitsAll && isSubmitting}
             disabled={isSubmitting}
             onClick={handleCustomAction}>
-            {customActionSubmitsAll || currentCustomAnswerText
+            {form || customActionSubmitsAll || currentCustomAnswerText
               ? isLastQuestion
                 ? t('agent.askUserQuestion.submit')
                 : t('agent.askUserQuestion.next')

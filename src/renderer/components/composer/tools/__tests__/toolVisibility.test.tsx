@@ -43,6 +43,16 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
 }))
 
 describe('composer tool visibility', () => {
+  it('offers local attachments and native commands without exposing Cherry resource injection', () => {
+    const tools = getToolsForScope(TopicType.Session, { session: { agentId: 'local', agentType: 'local' } }).map(
+      (tool) => tool.key
+    )
+    expect(tools).toContain('attachment')
+    expect(tools).not.toContain('knowledge_base')
+    expect(tools).not.toContain('mcp_status')
+    expect(tools).not.toContain('permission_mode')
+  })
+
   it('keeps assistant core capabilities discoverable when the current model cannot enable them', () => {
     mockIsGenerateImageModel.mockReturnValue(false)
     mockIsReasoningModel.mockReturnValue(false)

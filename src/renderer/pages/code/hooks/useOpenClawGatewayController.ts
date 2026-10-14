@@ -4,13 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { usePreference } from '@data/hooks/usePreference'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
+import { resolveLaunchModelId } from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { cliTabIcon } from '@renderer/utils/tabIcons'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 
-import { resolveLaunchModelId } from '../cliConfig'
 import { useManagedToolStatus } from './useManagedToolStatus'
 
 const logger = loggerService.withContext('useOpenClawGatewayController')
@@ -63,7 +64,7 @@ export function useOpenClawGatewayController({
       appId: 'openclaw-dashboard',
       name: 'OpenClaw',
       url: url.toString(),
-      logo: 'openclaw'
+      logo: cliTabIcon(CodeCli.OPENCLAW)
     })
   }, [openSmartMiniApp])
 

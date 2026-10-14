@@ -120,11 +120,11 @@ const MessageHeader: FC<Props> = memo(
     const displayModelName = displayModel?.name || displayModel?.id
     const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
-    // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
-    // Once a snapshot exists the header is frozen: consult the live profile only when it's entirely absent,
-    // so editing/deleting the live entity never changes a past message's name or avatar.
+    // Preserve the snapshotted author; a product icon applies only to the same identity.
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
+    const authorIcon =
+      !authorSnapshot || authorSnapshot.id === assistantProfile?.id ? assistantProfile?.avatarIcon : undefined
     const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
     const getUserName = useCallback(() => {
       if (message.role === 'assistant') {
@@ -157,7 +157,9 @@ const MessageHeader: FC<Props> = memo(
       <div
         className={`message-header group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
         {isAssistantMessage ? (
-          authorAvatar ? (
+          authorIcon ? (
+            <MessageAvatarFrame>{authorIcon}</MessageAvatarFrame>
+          ) : authorAvatar ? (
             <MessageAvatar avatar={authorAvatar} fallback={avatarName} />
           ) : ModelIcon ? (
             <MessageAvatarFrame className="bg-background">

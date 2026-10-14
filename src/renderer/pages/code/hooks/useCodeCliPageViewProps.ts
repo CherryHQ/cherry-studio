@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useHermesDashboardController } from '@renderer/hooks/agent/useHermesDashboardController'
+import { useLocalAgentVersion } from '@renderer/hooks/agent/useLocalAgentVersion'
+import { useApiGatewayProvider } from '@renderer/hooks/useApiGatewayProvider'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { clearCliConfig, resolveCliConfigApplyContext } from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
+import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import {
   CLI_OWN_LOGIN_PROVIDER_ID,
   CodeCli,
@@ -16,19 +21,16 @@ import {
   LOGIN_CAPABLE_CLI_TOOLS
 } from '@shared/types/codeCli'
 
-import { clearCliConfig, resolveCliConfigApplyContext } from '../cliConfig'
 import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
 import type { CodeToolMeta, VersionStatus } from '../types'
-import { useApiGatewayProvider } from './useApiGatewayProvider'
 import { useBinaryActions } from './useBinaryActions'
 import { useCliVersionStatuses } from './useCliVersionStatuses'
 import { useConfigMetadata } from './useConfigMetadata'
 import { useConfigPanelController } from './useConfigPanelController'
 import { useCurrentCliConfigConnection } from './useCurrentCliConfigConnection'
 import { useDeepSeekHarnessController } from './useDeepSeekHarnessController'
-import { useHermesDashboardController } from './useHermesDashboardController'
 import { useLaunchDialogController } from './useLaunchDialogController'
 import { useOpenClawGatewayController } from './useOpenClawGatewayController'
 import { useRemoveCliToolDialog } from './useRemoveCliToolDialog'
@@ -41,11 +43,6 @@ type CliToolOption = (typeof CLI_TOOLS)[number]
 const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
 const codeCliSidebarTarget = (tool: CodeCli) =>
   createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.CODE_CLI, tool)
-
-// A broken managed install reports installed:false (inactive entries, no shim), and hiding it
-// would strip the only surface offering the Retry/Remove that repair or undo it.
-const isGeminiVisible = (status?: VersionStatus): boolean =>
-  status?.installed === true || status?.applicationStatus === 'broken'
 
 export function useCodeCliPageViewProps(
   initialTool?: CodeCli,
@@ -78,10 +75,12 @@ export function useCodeCliPageViewProps(
     selectedTerminal
   } = useCodeCli(initialTool, onToolChange)
 
+  const [modelSaving, setModelSaving] = useState(false)
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
   const { providers, isLoading: isProvidersLoading } = useProviders()
   const apiGatewayBundle = useApiGatewayProvider()
   const {
+    refreshModels,
     filterProviders,
     filterProvidersForTool,
     makeModelFilter,
@@ -137,7 +136,7 @@ export function useCodeCliPageViewProps(
       ),
     [showGatewayCard, apiGatewayBundle, showOwnLoginCard]
   )
-  const { supportedProviders, onReorder: handleReorder } = useSortedSupportedProviders({
+  const { supportedProviders } = useSortedSupportedProviders({
     providers,
     currentToolState,
     selectedCliTool,
@@ -166,18 +165,15 @@ export function useCodeCliPageViewProps(
   )
   const enabledProvider = selectedProvider ?? defaultGatewayProvider
   const enabledProviderConfig = selectedProvider ? currentProviderConfig : defaultGatewayConfig
-  const {
-    connection: currentCliConfigConnection,
-    setConnection: setCurrentCliConfigConnection,
-    reload: reloadCliConfigConnection
-  } = useCurrentCliConfigConnection({
-    enabledProvider,
-    selectedCliTool,
-    currentProviderConfig: enabledProviderConfig,
-    apiGatewayProvider: apiGatewayBundle
-  })
+  const { setConnection: setCurrentCliConfigConnection, reload: reloadCliConfigConnection } =
+    useCurrentCliConfigConnection({
+      enabledProvider,
+      selectedCliTool,
+      currentProviderConfig: enabledProviderConfig,
+      apiGatewayProvider: apiGatewayBundle
+    })
 
-  const { statuses, resolved: statusesResolved } = useCliVersionStatuses(CLI_TOOL_IDS)
+  const { statuses } = useCliVersionStatuses(CLI_TOOL_IDS)
   const { isPinned: isSidebarShortcutPinned, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const isCliSidebarPinned = useCallback(
     (tool: CodeCli) => isSidebarShortcutPinned(codeCliSidebarTarget(tool)),
@@ -188,28 +184,11 @@ export function useCodeCliPageViewProps(
       setSidebarShortcutPinned(codeCliSidebarTarget(tool.value), !isCliSidebarPinned(tool.value), toMeta(tool).label),
     [toMeta, setSidebarShortcutPinned, isCliSidebarPinned]
   )
-  const visibleTools = useMemo(
-    () =>
-      CLI_TOOLS.filter(
-        (tool) =>
-          tool.value !== CodeCli.GEMINI_CLI ||
-          isGeminiVisible(statuses[CodeCli.GEMINI_CLI]) ||
-          isCliSidebarPinned(tool.value)
-      ),
-    [isCliSidebarPinned, statuses]
-  )
+  const visibleTools = CLI_TOOLS
   const activeTool = useMemo<CliToolOption | undefined>(
     () => visibleTools.find((tool) => tool.value === selectedCliTool),
     [selectedCliTool, visibleTools]
   )
-  useEffect(() => {
-    // Gate on `resolved`, not on the status being absent: a failed read leaves the map
-    // empty forever, which would hide Gemini while never redirecting off it.
-    if (selectedCliTool !== CodeCli.GEMINI_CLI || !statusesResolved) return
-    if (isGeminiVisible(statuses[CodeCli.GEMINI_CLI]) || isCliSidebarPinned(CodeCli.GEMINI_CLI)) return
-    const fallback = visibleTools[0]
-    if (fallback) selectTool(fallback.value)
-  }, [isCliSidebarPinned, selectedCliTool, selectTool, statuses, statusesResolved, visibleTools])
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
   const isOwnLoginSelected = selectedProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
   const isDeepSeekHarnessTool = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
@@ -227,11 +206,16 @@ export function useCodeCliPageViewProps(
     }
     return merged
   }, [installingTools, statuses])
-  const versionStatus: VersionStatus = statuses[selectedCliTool] ?? {
+  const snapshotStatus: VersionStatus = statuses[selectedCliTool] ?? {
     installed: false,
     source: 'none',
     canUpgrade: false
   }
+  const systemVersion = useLocalAgentVersion(
+    isDeepSeekHarnessTool || isOpenClawTool ? `cli:${CODE_CLI_TOOL_PRESET_MAP[selectedCliTool].executable}` : undefined,
+    snapshotStatus.resolvedPath
+  )
+  const versionStatus: VersionStatus = { ...snapshotStatus, ...systemVersion }
   const canLaunch = isHermesDashboardTool
     ? versionStatus.installed
     : (isProviderlessTool || isOwnLoginSelected || !!enabledProvider) &&
@@ -244,17 +228,6 @@ export function useCodeCliPageViewProps(
     versionStatus.operation?.status === 'failed' && versionStatus.operation.action === 'install'
       ? versionStatus.operation.error
       : undefined
-  // The synthetic own-login entry is always available, so nudge to "select a provider" only when a
-  // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
-  const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)
-  const showProviderSelectionHint =
-    versionStatus.installed &&
-    !isProviderlessTool &&
-    hasRealSupportedProvider &&
-    !selectedProvider &&
-    !currentProviderIsPending &&
-    !defaultGatewayProvider
-
   const configPanel = useConfigPanelController({
     selectedCliTool,
     toolName,
@@ -307,7 +280,11 @@ export function useCodeCliPageViewProps(
     isDeepSeekHarnessTool && (deepSeekHarness.running || deepSeekHarness.starting || deepSeekHarness.stopping)
   const hermesDashboardActionsDisabled =
     isHermesDashboardTool && (hermesDashboard.running || hermesDashboard.starting || hermesDashboard.stopping)
-  const providerActionsDisabled = deepSeekHarnessActionsDisabled || hermesDashboardActionsDisabled
+  const providerActionsDisabled =
+    modelSaving ||
+    deepSeekHarnessActionsDisabled ||
+    hermesDashboardActionsDisabled ||
+    (isOpenClawTool && (openClawGateway.running || openClawGateway.starting || openClawGateway.stopping))
   const handleRemove = useCallback(
     async (toolId: CodeCli) => {
       if (toolId === CodeCli.DEEPSEEK_HARNESS && !(await deepSeekHarness.onStop())) return
@@ -330,6 +307,16 @@ export function useCodeCliPageViewProps(
   )
   const removeDialog = useRemoveCliToolDialog({ toolName, remove: handleRemove })
 
+  const modelOptions = supportedProviders.flatMap((provider) =>
+    [...modelById.values()].filter(makeModelFilter(provider.id)).map((model) => ({
+      id: JSON.stringify([provider.id, model.id]),
+      name: model.name || model.id,
+      group: resolveProviderMeta(provider).providerName,
+      provider,
+      model
+    }))
+  )
+
   return {
     sidebarProps: {
       tools: visibleTools,
@@ -347,6 +334,32 @@ export function useCodeCliPageViewProps(
       ? {
           selectedCliTool,
           activeMeta,
+          modelList: {
+            models: modelOptions,
+            value: modelOptions.find(
+              (option) =>
+                option.provider.id === enabledProvider?.id && option.model.id === enabledProviderConfig?.modelId
+            )?.id,
+            loaded: !isGatewayModelsLoading,
+            loading: isGatewayModelsLoading,
+            disabled: providerActionsDisabled,
+            loadDisabled: false,
+            showFollowCli: false,
+            onLoad: async () => {
+              await refreshModels()
+            },
+            onSelect: async (id) => {
+              const option = modelOptions.find((entry) => entry.id === id)
+              if (!option || providerActionsDisabled) return false
+              setModelSaving(true)
+              try {
+                return await configPanel.selectModel(option.provider, option.model.id)
+              } finally {
+                setModelSaving(false)
+              }
+            }
+          },
+          onConfigureCurrent: enabledProvider ? () => configPanel.openConfigurePanel(enabledProvider) : undefined,
           versionStatus,
           versionCard: {
             visible: true,
@@ -366,16 +379,6 @@ export function useCodeCliPageViewProps(
           installingTools: mergedInstallingTools,
           upgradingTools,
           installError,
-          providerState: {
-            providerless: isProviderlessTool,
-            showSelectionHint: showProviderSelectionHint
-          },
-          supportedProviders,
-          providerConfigs,
-          currentProviderId,
-          currentProviderModelName: currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined,
-          providerActionsDisabled,
-          resolveProviderMeta,
           // A failed update carries its target so Retry repeats the same targeted
           // install; a name-only retry would hit the applied no-op and clear the
           // failure without ever re-attempting the update.
@@ -412,10 +415,7 @@ export function useCodeCliPageViewProps(
               ? void deepSeekHarness.onOpenWebUi()
               : isHermesDashboardTool
                 ? void hermesDashboard.onOpenDashboard()
-                : void openClawGateway.onOpenDashboard(),
-          onConfigure: configPanel.openConfigurePanel,
-          onToggleCurrent: configPanel.onToggleCurrent,
-          onReorder: handleReorder
+                : void openClawGateway.onOpenDashboard()
         }
       : undefined,
     emptyMessage: t('code.select_tool_to_start'),

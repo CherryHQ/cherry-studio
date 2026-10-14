@@ -9,6 +9,7 @@ import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSes
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isUniqueModelId } from '@shared/data/types/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { listEntries, reclaimStale } from '../orphanSessionReclaim'
@@ -84,6 +85,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
     const migration = getRetiredAgentSessionMigration(application.get('DbService').getDb(), input.sessionId)
     await ensureRetiredSessionHistory(input.sessionId)
     const migratedInput = migration

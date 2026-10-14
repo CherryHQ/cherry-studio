@@ -23,7 +23,8 @@ const buildStatus = (snapshot: BinaryToolSnapshot | undefined, latest?: string):
     ...(view.installedVersion !== undefined ? { current: view.installedVersion } : {}),
     ...(view.source === 'mise' ? { latest } : {}),
     ...(view.systemPath !== undefined ? { systemPath: view.systemPath } : {}),
-    canUpgrade: view.hasUpdate,
+    resolvedPath: view.resolvedPath,
+    canUpgrade: view.source === 'mise' && view.hasUpdate,
     ...(operation ? { operation } : {})
   }
 }

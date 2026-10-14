@@ -164,6 +164,8 @@ export interface MessageErrorDiagnosisInput {
 }
 
 export interface MessageUserProfile {
+  id?: string
+  avatarIcon?: ReactNode
   name?: string
   avatar?: string
 }

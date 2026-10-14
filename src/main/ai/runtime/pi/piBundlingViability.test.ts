@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -39,6 +39,30 @@ describe('pi SDK bundling viability (Phase 0 spike)', () => {
     else process.env.PI_CODING_AGENT_DIR = savedHome
     if (savedSessions === undefined) delete process.env.PI_CODING_AGENT_SESSION_DIR
     else process.env.PI_CODING_AGENT_SESSION_DIR = savedSessions
+  })
+
+  it('isolates runtime credentials between sessions without writing Pi auth or model files', async () => {
+    const { ModelRuntime } = await import('@earendil-works/pi-coding-agent')
+    const { InMemoryCredentialStore } = await import('@earendil-works/pi-ai')
+    const runtime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      refreshOnCreate: false
+    })
+    const otherRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      refreshOnCreate: false
+    })
+    const provider = { baseUrl: 'https://example.invalid/v1', api: 'openai-completions' as const }
+    runtime.registerProvider('cherry-test', provider)
+    otherRuntime.registerProvider('cherry-test', provider)
+    await runtime.setRuntimeApiKey('cherry-test', 'synthetic-test-key')
+
+    expect(await runtime.getAuth('cherry-test')).toMatchObject({ auth: { apiKey: 'synthetic-test-key' } })
+    expect(await otherRuntime.getAuth('cherry-test')).not.toMatchObject({ auth: { apiKey: 'synthetic-test-key' } })
+    expect(existsSync(join(piHome, 'auth.json'))).toBe(false)
+    expect(existsSync(join(piHome, 'models.json'))).toBe(false)
   })
 
   it('honors the isolated Cherry-owned agent dir', async () => {

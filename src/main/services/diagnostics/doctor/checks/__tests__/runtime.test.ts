@@ -25,7 +25,7 @@ vi.mock('@application', async () => {
       },
       checkClaudeLogin: services.checkClaudeLogin
     }
-  } as never)
+  })
 })
 vi.mock('@main/data/services/AgentService', () => ({
   agentService: { listAgents: services.listAgents }

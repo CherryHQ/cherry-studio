@@ -10,16 +10,19 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 type UpdateAgentModelInput = {
@@ -67,7 +70,7 @@ export const useAgent = (id: string | null) => {
  * @param options.enabled - Skip the list query when the caller has nothing to render
  *   for it (mutations stay usable). Defaults to `true`.
  */
-export const useAgents = (options: { enabled?: boolean } = {}) => {
+export const useAgents = (options: { enabled?: boolean; includeDisabledLocal?: boolean } = {}) => {
   const { t } = useTranslation()
   const enabled = options.enabled ?? true
   const { data, isLoading, error, refetch } = useQuery('/agents', {
@@ -75,7 +78,18 @@ export const useAgents = (options: { enabled?: boolean } = {}) => {
     query: { limit: AGENTS_MAX_LIMIT }
   })
   useDataChange(enabled ? '/agents' : [], () => void refetch())
-  const agents = useMemo<AgentEntity[]>(() => data?.items ?? [], [data])
+  const agents = useMemo<AgentEntity[]>(
+    () =>
+      (data?.items ?? []).filter((a) => {
+        if (options.includeDisabledLocal || a.type !== 'local') return true
+        const runtime = a.configuration?.localRuntime
+        return (
+          runtime?.enabled &&
+          (!runtime.presetId || LOCAL_AGENT_PRESETS.some((preset) => preset.id === runtime.presetId))
+        )
+      }),
+    [data, options.includeDisabledLocal]
+  )
   const invalidate = useInvalidateCache()
 
   const addAgent = useCallback(
@@ -114,6 +128,7 @@ export const useAgents = (options: { enabled?: boolean } = {}) => {
  */
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
+  const invalidate = useInvalidateCache()
   const { trigger: updateTrigger } = useMutation('PATCH', '/agents/:agentId', {
     refresh: ({ args }) => ['/agents', `/agents/${args?.params?.agentId}`]
   })
@@ -153,5 +168,29 @@ export const useUpdateAgent = () => {
     [updateAgent]
   )
 
-  return { updateAgent, updateModel }
+  const updateNativeModel = async (
+    agentId: string,
+    nativeModel?: string,
+    selection?: {
+      sourceModelId?: UniqueModelId
+      sourceModelViaGateway?: boolean
+      expectedFiles?: {
+        target: CliConfigTarget
+        path: string
+        content: string | null
+      }[]
+      files?: CliConfigWriteFile[]
+    }
+  ) => {
+    try {
+      const updated = await ipcApi.request('ai.local_agents.select_model', { agentId, nativeModel, ...selection })
+      await invalidate(['/agents', `/agents/${agentId}`])
+      return updated
+    } catch (error) {
+      toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
+      return undefined
+    }
+  }
+
+  return { updateAgent, updateModel, updateNativeModel }
 }

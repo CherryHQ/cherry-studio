@@ -39,3 +39,17 @@ it('shows the website favicon and falls back to a globe when it is missing or fa
   expect(screen.getByRole('presentation')).toHaveAttribute('src', 'https://another.test/working.png')
   expect(globe()).not.toBeInTheDocument()
 })
+
+it('renders CLI Web UI tabs with a local circular icon at the tab size, without a network image', () => {
+  const tab: Tab = {
+    id: 'kilo',
+    type: 'route',
+    url: '/app/mini-app/local-agent-web-kilo',
+    title: 'Kilo',
+    icon: 'cli:kilo'
+  }
+  const { container } = render(<TabIcon tab={tab} size={16} />)
+  expect(container.querySelector('img')).not.toBeInTheDocument()
+  expect(container.querySelector('svg')).toBeInTheDocument()
+  expect(container.querySelector('[data-slot="avatar"]')).toHaveStyle({ width: '16px', height: '16px' })
+})

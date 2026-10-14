@@ -7,7 +7,7 @@ import { Button, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cher
 import { usePreference } from '@data/hooks/usePreference'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
-import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
+import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/services/codeCliConfig'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 

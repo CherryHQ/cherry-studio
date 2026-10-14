@@ -153,7 +153,12 @@ export function isProcessToolPart(part: CherryMessagePart): boolean {
 }
 
 function isVisibleProcessPart(part: CherryMessagePart): boolean {
-  return isVisibleReasoningPart(part) || isProcessToolPart(part)
+  return (
+    isVisibleReasoningPart(part) ||
+    isProcessToolPart(part) ||
+    (part.type === 'data-acp-content' && part.data.reasoning) ||
+    (part.type === 'data-agent-plan' && part.data.entries.length > 0)
+  )
 }
 
 /**
@@ -264,6 +269,7 @@ export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
 }
 
 function isAssociatedResultPart(part: CherryMessagePart): boolean {
+  if (part.type === 'data-acp-content') return !part.data.reasoning
   return ASSOCIATED_RESULT_PART_TYPES.has(part.type)
 }
 

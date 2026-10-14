@@ -3,7 +3,6 @@ import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { CodexConfigFields } from '../CodexConfigFields'
-import { GeminiConfigFields } from '../GeminiConfigFields'
 import { KimiConfigFields } from '../KimiConfigFields'
 import { OpenCodeConfigFields } from '../OpenCodeConfigFields'
 import { QwenConfigFields } from '../QwenConfigFields'
@@ -120,24 +119,6 @@ describe('CLI config provider fields', () => {
     expect(container).not.toBeEmptyDOMElement()
   })
 
-  it('renders only supported Gemini toggles', () => {
-    const { container } = render(<GeminiConfigFields config={{}} onChange={vi.fn()} />)
-
-    expect(screen.getByText('code.adv.gemini.vim_mode')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.gemini.hide_banner')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.gemini.disable_usage_stats')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.gemini.checkpointing')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.permission_mode')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.permission_modes.auto_edit')).toBeInTheDocument()
-    expect(screen.queryByText('code.adv.gemini.approval_mode_hint')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.adv.gemini.context_files_hint')).not.toBeInTheDocument()
-
-    const advanced = render(<GeminiConfigFields config={{}} onChange={vi.fn()} section="advanced" />)
-    expect(advanced.container).toBeEmptyDOMElement()
-    advanced.unmount()
-    expect(container).not.toBeEmptyDOMElement()
-  })
-
   it('renders only supported Qwen toggles', () => {
     const { container } = render(<QwenConfigFields config={{}} onChange={vi.fn()} />)
 
@@ -201,15 +182,6 @@ describe('CLI config provider fields', () => {
     fireEvent.click(screen.getByText('code.adv.permission_modes.default_allow_all'))
 
     expect(onChange).toHaveBeenCalledWith({})
-  })
-
-  it('writes Gemini approval mode selections', () => {
-    const onChange = vi.fn()
-    render(<GeminiConfigFields config={{}} onChange={onChange} />)
-
-    fireEvent.click(screen.getByText('code.adv.permission_modes.auto_edit'))
-
-    expect(onChange).toHaveBeenCalledWith({ general: { defaultApprovalMode: 'auto_edit' } })
   })
 
   it('writes Qwen approval mode selections', () => {

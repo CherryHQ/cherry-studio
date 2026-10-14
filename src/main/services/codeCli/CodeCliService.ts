@@ -11,8 +11,7 @@ import { skillService } from '@main/ai/skills/SkillService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBundledGitDir } from '@main/utils/bundledGit'
+import { appendBundledGitPathTail, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import {
@@ -36,7 +35,6 @@ import {
   type TerminalConfigWithCommand
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
-import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { REDACTED } from '@shared/utils/redaction'
 
@@ -54,21 +52,6 @@ const execAsync = promisify(require('child_process').exec)
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('CodeCliService')
 
-/**
- * Append the bundled MinGit dir (Windows-only; null elsewhere) to the tail of
- * every PATH-cased key so a launched CLI resolves a bare `git` as a last resort
- * while any git already on PATH keeps winning (#16402).
- */
-function appendBundledGitPathTail(env: Record<string, string>): void {
-  const gitDir = getBundledGitDir()
-  if (!gitDir) return
-  const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
-  const canonicalKey = pathKeys[0] ?? 'Path'
-  const segments = pathKeys.flatMap((key) => (env[key] ?? '').split(';'))
-  const updated = dedupePathSegments([...segments, gitDir]).join(';')
-  for (const key of pathKeys) env[key] = updated
-  if (pathKeys.length === 0) env[canonicalKey] = updated
-}
 const MACOS_APPLICATION_LOOKUP_SCRIPT = [
   'ObjC.import("AppKit")',
   'function run(argv) {',
@@ -79,7 +62,7 @@ const MACOS_APPLICATION_LOOKUP_SCRIPT = [
 
 @Injectable('CodeCliService')
 @ServicePhase(Phase.Background)
-@DependsOn(['BinaryManager'])
+@DependsOn(['BinaryManager', 'LocalAgentInstallService'])
 export class CodeCliService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
   private static pendingBatCleanups = new Set<string>()
@@ -106,7 +89,8 @@ export class CodeCliService extends BaseService {
 
   async installCli(request: BinaryInstallByNameRequest): Promise<void> {
     const preset = this.requirePreset(request.name)
-    await application.get('BinaryManager').installByName(request)
+    const result = await application.get('LocalAgentInstallService').installCli(request)
+    if (!result.ok) throw new Error(result.detail ?? `${result.reason}${result.manager ? `: ${result.manager}` : ''}`)
     const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
     if (!snapshot || snapshot.availability.source === 'none') {
       throw new Error(`${preset.executable} is unavailable after installation`)
@@ -116,15 +100,26 @@ export class CodeCliService extends BaseService {
 
   async removeCli(request: BinaryRemoveRequest): Promise<BinaryRemoveResult> {
     const preset = this.requirePreset(request.name)
-    const result = await application.get('BinaryManager').removeTool(request)
-    if (result.status === 'cleanup_blocked') return result
+    const manager = application.get('BinaryManager')
+    const available = (await manager.getToolSnapshots([preset.executable]))[preset.executable]?.availability
+    if (available?.source === 'system' || available?.source === 'mise') {
+      const removed = await application.get('LocalAgentInstallService').uninstallCli(preset.executable, available.path)
+      if (!removed.ok)
+        return { status: 'cleanup_blocked', reason: 'cleanup_failed', message: removed.detail ?? removed.reason }
+    } else {
+      const result = await manager.removeTool(request)
+      if (result.status === 'cleanup_blocked') return result
+    }
 
     const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
     if (snapshot) await this.reconcileCliSkill(preset, snapshot)
-    return result
+    return { status: 'removed' }
   }
 
   async reconcileCliSkills(): Promise<void> {
+    await skillService.uninstallBuiltinSkill('code-mate-gemini', 'code-cli:gemini-cli').catch((error) => {
+      logger.warn('Failed to remove retired Gemini CLI skill', error as Error)
+    })
     const snapshots = await application
       .get('BinaryManager')
       .getToolSnapshots(CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable))
@@ -244,6 +239,7 @@ export class CodeCliService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.loginQuery?.controller.abort()
+    await this.configWriteQueue.catch(() => {})
     this.terminalsCache = null
   }
 
@@ -467,12 +463,37 @@ export class CodeCliService extends BaseService {
     return []
   }
 
+  private configWriteQueue: Promise<unknown> = Promise.resolve()
+
+  public async updateConfigFiles<T>(
+    cliTool: FileConfiguredCli,
+    targets: readonly CliConfigTarget[],
+    update: (files: CliConfigReadFile[]) => CliConfigWriteFile[],
+    commit: () => T
+  ): Promise<T> {
+    const operation = this.configWriteQueue
+      .catch(() => {})
+      .then(async () => {
+        const apply = async () =>
+          (await writeCliConfigFiles(cliTool, update(await readCliConfigFiles(targets)), commit)) as T
+        return cliTool === CodeCli.HERMES ? application.get('HermesDashboardService').writeConfigFiles(apply) : apply()
+      })
+    this.configWriteQueue = operation
+    return operation
+  }
+
   /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
-  public async writeConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
-    if (cliTool === CodeCli.HERMES) {
-      return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
-    }
-    return writeCliConfigFiles(cliTool, files)
+  public async writeConfigFiles(
+    cliTool: FileConfiguredCli,
+    files: CliConfigWriteFile[],
+    commit?: () => void
+  ): Promise<void> {
+    await this.updateConfigFiles(
+      cliTool,
+      [],
+      () => files,
+      () => commit?.()
+    )
   }
 
   /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */
@@ -531,23 +552,16 @@ export class CodeCliService extends BaseService {
 
     const preset = CODE_CLI_TOOL_PRESET_MAP[cliTool]
     const executableName = preset.executable
-    const spec = { name: executableName, tool: preset.miseTool }
-
     logger.debug(`Executable name: ${executableName}`)
-    logger.debug(`Tool install spec: ${spec.tool}`)
 
-    // Prefer mise/bundled binaries, then the user's login-shell PATH. Only
-    // install when no currently available source can execute the CLI.
+    // Reuse existing installations; missing CLIs install into the user's system environment.
     const binaryManager = application.get('BinaryManager')
     let snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
     let { availability } = snapshot
 
     if (availability.source === 'none') {
-      logger.info(`${cliTool} not installed, installing via BinaryManager...`)
+      logger.info(`${cliTool} not installed, installing globally...`)
       try {
-        // Name-only lazy install: BinaryManager resolves the Code CLI's fixed
-        // recipe itself and writes no Preference — the CLI is a code-owned tool,
-        // not a user-added custom one.
         await this.installCli({ name: executableName })
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
@@ -595,6 +609,104 @@ export class CodeCliService extends BaseService {
     if (usesCherryExecutionEnv && isWin) appendBundledGitPathTail(env)
     logger.debug(`Environment variables:`, Object.keys(env))
 
+    const platform = process.platform
+    const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
+    // The win32 command is only ever embedded in the generated .bat below, where
+    // cmd.exe expands %…% even inside double quotes — double it like the
+    // directory paths, or a path such as "100% tools" corrupts the launch.
+    let baseCommand =
+      platform === 'win32'
+        ? `${needsBatchCall ? 'call ' : ''}"${executablePath.replace(/%/g, '%%')}"`
+        : posixQuote(executablePath)
+
+    // OpenCode reads its provider AND default model from the opencode.json written by the
+    // config flow (top-level `model: "<providerKey>/<modelId>"`), so the launch command
+    // carries no model argument; we only disable its own auto-update.
+    if (cliTool === CodeCli.OPEN_CODE) {
+      env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
+    }
+
+    if (cliTool === CodeCli.ANTIGRAVITY_CLI && normal) {
+      let launchConfig
+      try {
+        launchConfig = await prepareAntigravityLaunch(normal)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.error('Failed to prepare Antigravity CLI launch', error as Error)
+        return { success: false, message }
+      }
+
+      // `prepareAntigravityLaunch` already rejects unsafe ids (before it writes settings),
+      // but this is the boundary where the model is concatenated into a shell string and a
+      // .bat, so it re-checks rather than trust its caller.
+      if (!isShellSafeModelId(launchConfig.model)) {
+        const message = `Unsupported model id for ${cliTool}: ${launchConfig.model}`
+        logger.error(message)
+        return { success: false, message }
+      }
+
+      Object.assign(env, launchConfig.env)
+      const geminiDirArg =
+        platform === 'win32'
+          ? `"--gemini_dir=${launchConfig.geminiDir.replace(/%/g, '%%')}"`
+          : posixQuote(`--gemini_dir=${launchConfig.geminiDir}`)
+      const modelArg = platform === 'win32' ? `"${launchConfig.model}"` : posixQuote(launchConfig.model)
+      baseCommand = `${baseCommand} ${geminiDirArg} --model ${modelArg}`
+    }
+
+    // The Claude Code settings panel lands its terminal on the login flow rather
+    // than a bare REPL. Modeled as a fixed boolean, NOT a free-form arg string:
+    // this command is assembled into a shell string (and a Windows .bat), and
+    // a renderer-supplied string would
+    // be a shell-injection surface. A plain launch from the CLI page is unaffected.
+    if (isLoginFlow) {
+      baseCommand = `${baseCommand} /login`
+    }
+
+    return this.launchTerminal({
+      cliTool,
+      directory,
+      terminal: input.terminal,
+      baseCommand,
+      env,
+      usesCherryExecutionEnv,
+      rawShellEnv
+    })
+  }
+
+  async openTerminal(input: {
+    executable: string
+    args: readonly string[]
+    env: Record<string, string>
+    usesCherryExecutionEnv: boolean
+  }): Promise<OperationResult> {
+    const platform = process.platform
+    const needsBatchCall =
+      platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(input.executable).toLowerCase())
+    if (input.args.some((arg) => !/^[A-Za-z0-9_./=-]+$/.test(arg))) throw new Error('Unsupported terminal argument')
+    const executable =
+      platform === 'win32'
+        ? `${needsBatchCall ? 'call ' : ''}"${input.executable.replace(/%/g, '%%')}"`
+        : posixQuote(input.executable)
+    return this.launchTerminal({
+      cliTool: 'local-agent',
+      directory: application.getPath('sys.home'),
+      baseCommand: [executable, ...input.args.map((arg) => (platform === 'win32' ? arg : posixQuote(arg)))].join(' '),
+      env: input.env,
+      usesCherryExecutionEnv: input.usesCherryExecutionEnv
+    })
+  }
+
+  private async launchTerminal(input: {
+    cliTool: string
+    directory: string
+    terminal?: string
+    baseCommand: string
+    env: Record<string, string>
+    usesCherryExecutionEnv: boolean
+    rawShellEnv?: Record<string, string>
+  }): Promise<OperationResult> {
+    const { cliTool, directory, baseCommand, env, usesCherryExecutionEnv, rawShellEnv } = input
     // Select different terminal based on operating system
     const platform = process.platform
     let terminalCommand: string
@@ -641,96 +753,17 @@ export class CodeCliService extends BaseService {
       }
     }
 
-    const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
-    // The win32 command is only ever embedded in the generated .bat below, where
-    // cmd.exe expands %…% even inside double quotes — double it like the
-    // directory paths, or a path such as "100% tools" corrupts the launch.
-    let baseCommand =
-      platform === 'win32'
-        ? `${needsBatchCall ? 'call ' : ''}"${executablePath.replace(/%/g, '%%')}"`
-        : posixQuote(executablePath)
-
-    // OpenCode reads its provider AND default model from the opencode.json written by the
-    // config flow (top-level `model: "<providerKey>/<modelId>"`), so the launch command
-    // carries no model argument; we only disable its own auto-update.
-    if (cliTool === CodeCli.OPEN_CODE) {
-      env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
-    }
-
-    // gemini-cli only loads ~/.gemini/.env (where GEMINI_API_KEY lives) when it
-    // considers the launch directory "trusted"; a fresh directory otherwise falls
-    // through to an interactive "Enter Gemini API Key" prompt even though
-    // selectedType is already configured. This env var is gemini-cli's own
-    // documented bypass, scoped to this one launched session only.
-    if (cliTool === CodeCli.GEMINI_CLI) {
-      env.GEMINI_CLI_TRUST_WORKSPACE = 'true'
-
-      // gemini-cli resolves its model with precedence `--model` → GEMINI_MODEL →
-      // settings.model.name, and its `resolveModel` rewrites any name ending in "flash" to a
-      // default Gemini model. Pass the model on the command line (highest precedence, honored
-      // verbatim) so the launched session hits the intended model. In gateway mode it needs the
-      // `providerId:modelId` address the gateway parses from the URL path, carrying the sentinel
-      // suffix so that rewrite can't corrupt a name ending in "flash" (see
-      // GEMINI_GATEWAY_MODEL_SUFFIX); direct mode passes the bare model id.
-      if (normal) {
-        // The gateway serves only `/v1beta`; force the SDK's API version at launch so a stale
-        // `GOOGLE_GENAI_API_VERSION=v1` exported in the user's shell can't redirect it to `/v1`.
-        if (normal.gateway) env.GOOGLE_GENAI_API_VERSION = 'v1beta'
-        const modelArg = normal.gateway ? formatGeminiGatewayModelId(normal.providerId, normal.model) : normal.model
-        // Bare-concatenated into the launch command like OpenCode's model above, so reject a
-        // model id carrying shell metacharacters rather than launch.
-        if (!isShellSafeModelId(modelArg)) {
-          const message = `Unsupported model id for ${cliTool}: ${modelArg}`
-          logger.error(message)
-          return { success: false, message }
-        }
-        baseCommand = `${baseCommand} --model ${modelArg}`
-      }
-    }
-
-    if (cliTool === CodeCli.ANTIGRAVITY_CLI && normal) {
-      let launchConfig
-      try {
-        launchConfig = await prepareAntigravityLaunch(normal)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        logger.error('Failed to prepare Antigravity CLI launch', error as Error)
-        return { success: false, message }
-      }
-
-      // `prepareAntigravityLaunch` already rejects unsafe ids (before it writes settings),
-      // but this is the boundary where the model is concatenated into a shell string and a
-      // .bat, so it re-checks rather than trust its caller.
-      if (!isShellSafeModelId(launchConfig.model)) {
-        const message = `Unsupported model id for ${cliTool}: ${launchConfig.model}`
-        logger.error(message)
-        return { success: false, message }
-      }
-
-      Object.assign(env, launchConfig.env)
-      const geminiDirArg =
-        platform === 'win32'
-          ? `"--gemini_dir=${launchConfig.geminiDir.replace(/%/g, '%%')}"`
-          : posixQuote(`--gemini_dir=${launchConfig.geminiDir}`)
-      const modelArg = platform === 'win32' ? `"${launchConfig.model}"` : posixQuote(launchConfig.model)
-      baseCommand = `${baseCommand} ${geminiDirArg} --model ${modelArg}`
-    }
-
-    // The Claude Code settings panel lands its terminal on the login flow rather
-    // than a bare REPL. Modeled as a fixed boolean, NOT a free-form arg string:
-    // this command is assembled into a shell string (and a Windows .bat), and
-    // a renderer-supplied string would
-    // be a shell-injection surface. A plain launch from the CLI page is unaffected.
-    if (isLoginFlow) {
-      baseCommand = `${baseCommand} /login`
-    }
+    const command = [
+      buildEnvPrefix(platform === 'win32'),
+      platform === 'win32' ? 'set "NO_COLOR="' : 'unset NO_COLOR',
+      baseCommand
+    ]
+      .filter(Boolean)
+      .join(' && ')
 
     switch (platform) {
       case 'darwin': {
         // macOS - Support multiple terminals
-        const envPrefix = buildEnvPrefix(false)
-
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Combine directory change with the main command to ensure they execute in the same shell session.
         // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
@@ -747,8 +780,6 @@ export class CodeCliService extends BaseService {
       }
       case 'win32': {
         // Windows - Use temp bat file for debugging
-        const envPrefix = buildEnvPrefix(true)
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Create temp bat file for debugging and avoid complex command line escaping issues
         const tempDir = application.getPath('feature.cli.temp')
@@ -772,8 +803,7 @@ export class CodeCliService extends BaseService {
           `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${CodeCliService.escapeBatchTextForEcho(cliTool)}`,
-          `echo Directory: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
+          `echo Tool: ${cliTool}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
@@ -795,7 +825,6 @@ export class CodeCliService extends BaseService {
           ':: Error handlers (using labels to ensure entire branch is conditional)',
           ':dir_missing',
           'echo ERROR: Directory does not exist',
-          `echo Target: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
           'pause',
           'exit /b 1',
           '',
@@ -873,8 +902,6 @@ export class CodeCliService extends BaseService {
       }
       case 'linux': {
         // Linux - Prefer the XDG-configured default terminal, then try common emulators.
-        const envPrefix = buildEnvPrefix(false)
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         const linuxTerminals = [
           'xdg-terminal-exec',
@@ -933,7 +960,7 @@ export class CodeCliService extends BaseService {
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
-    const baseProcessEnv = usesCherryExecutionEnv ? rawShellEnv! : await getRawShellEnv()
+    const baseProcessEnv = rawShellEnv ?? (await getRawShellEnv())
     const processEnv = Object.fromEntries(
       Object.entries(baseProcessEnv).filter(
         ([key]) =>
@@ -984,21 +1011,6 @@ export class CodeCliService extends BaseService {
         message: failureMessage
       }
     }
-  }
-
-  /**
-   * Escape text for safe use in batch echo statements
-   * Only handles critical issues: newlines and % characters
-   * Preserves command syntax (e.g., &&) - use for constructed command strings
-   * @param text - Raw text from command output or user input
-   * @returns Escaped text safe for batch echo statements
-   */
-  private static escapeBatchTextForEcho(text: string): string {
-    if (!text) return ''
-    return text
-      .replace(/%/g, '%%') // Escape % to avoid variable expansion
-      .replace(/\r\n/g, ' ') // Windows newline to space
-      .replace(/\n/g, ' ') // Unix newline to space
   }
 }
 
