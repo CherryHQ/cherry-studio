@@ -8,6 +8,7 @@ import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionD
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
+import { AsrInferenceService } from '@main/ai/localModel'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
 import { OcrInferenceService } from '@main/ai/localModel'
@@ -16,11 +17,13 @@ import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
 import {
+  ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
+import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -45,10 +48,9 @@ import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
-import { DoctorService } from '@main/services/diagnostics'
-import { DirectoryTreeManager, FileManager } from '@main/services/file'
+import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
+import { DirectoryTreeManager, FileManager, FileIntakeService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
-import { LanTransferService } from '@main/services/lanTransfer'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -64,8 +66,9 @@ import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryU
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
-import { RemoteAccessService } from '@main/services/remoteAccess'
+import { AttachmentPresenceService, RemoteAccessService } from '@main/services/remoteAccess'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
+import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
@@ -123,8 +126,9 @@ export const services = {
   CherryCloudService,
   DeepSeekHarnessService,
   HermesDashboardService,
-  LanTransferService,
   FileManager,
+  AttachmentPresenceService,
+  FileIntakeService,
   DirectoryTreeManager,
   FileProcessingService,
   MediaFfmpegService,
@@ -139,10 +143,12 @@ export const services = {
   ProtocolService,
   MediaProtocolService,
   ScreenshotOverlayService,
+  ScreenshotChatService,
   ProxyService,
   NetworkService,
   StorageMonitorService,
   DoctorService,
+  DoctorAgentService,
   LogRetentionService,
   PythonService,
   TrayService,
@@ -159,6 +165,7 @@ export const services = {
   BinaryManager,
   OpenClawService,
   PdfTranslationService,
+  ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,
@@ -166,9 +173,11 @@ export const services = {
   AgentLifecycleService,
   ChannelManager,
   AiService,
+  VoiceSessionService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeSessionStateService,
   AiStreamManager,
+  AsrInferenceService,
   EmbeddingInferenceService,
   OcrInferenceService,
   LocalModelService,

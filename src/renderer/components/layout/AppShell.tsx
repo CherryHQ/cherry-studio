@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
+import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
-import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -19,6 +18,7 @@ import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
+import { ApiGatewayRequiredDialog } from './feedback/ApiGatewayRequiredDialog'
 import { TabRouter } from './TabRouter'
 
 // Routes whose pages stay usable below the global minimum window width.
@@ -27,6 +27,7 @@ const isCompactMinWidthRoute = (url?: string): boolean =>
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
+  const tabsApi = useTabs()
   const {
     tabs,
     activeTabId,
@@ -39,7 +40,7 @@ export const AppShell = () => {
     unpinTab,
     detachTab,
     openTab
-  } = useTabs()
+  } = tabsApi
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
   const canCycleTabs = tabs.length > 1 && !!activeTab
   const canCloseTab = !!activeTab
@@ -58,24 +59,7 @@ export const AppShell = () => {
     [activeTab, isSettingsTabActive, tabs]
   )
   const isFullscreen = useNativeFullscreen()
-  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
-  const [, setSplitMiniAppId] = useCache('mini_app.split_id')
-
-  // Split state is window-wide and does not follow the last mini-app tab out, so
-  // the next mini app would open into a stale split with its app still pooled.
-  const clearSplitWithLastMiniAppTab = useCallback(
-    (id: string, url: string | undefined) => {
-      if (!splitOpen || !miniAppIdFromTabUrl(url)) return
-      const hasOtherMiniAppTab = tabs.some(
-        (candidate) => candidate.id !== id && miniAppIdFromTabUrl(candidate.url) !== null
-      )
-      if (hasOtherMiniAppTab) return
-      setSplitOpen(false)
-      setSplitMiniAppId('')
-    },
-    [setSplitMiniAppId, setSplitOpen, splitOpen, tabs]
-  )
-
+  const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
   const handleCloseTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
@@ -83,22 +67,17 @@ export const AppShell = () => {
         closeTabs([id], previousWorkspaceTabIdRef.current)
         return
       }
-      clearSplitWithLastMiniAppTab(id, tab?.url)
       closeTab(id)
     },
-    [clearSplitWithLastMiniAppTab, closeTab, closeTabs, tabs]
+    [closeTab, closeTabs, tabs]
   )
 
   const handleDetachTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
-      clearSplitWithLastMiniAppTab(id, tab?.url)
-      detachTab(id)
-      if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
-        setActiveTab(previousWorkspaceTabIdRef.current)
-      }
+      detachTab(id, isSettingsPath(tab?.url) ? previousWorkspaceTabIdRef.current : undefined)
     },
-    [clearSplitWithLastMiniAppTab, detachTab, setActiveTab, tabs]
+    [detachTab, tabs]
   )
 
   const handleOpenGlobalSearch = useCallback(() => {
@@ -212,38 +191,42 @@ export const AppShell = () => {
   )
 
   const contentArea = (
-    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
-      <main
-        data-ui="app.content"
-        className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
-        {/* Route Tabs: Only render non-dormant tabs */}
-        <ResourceViewSourceProvider>
-          {tabs
-            .filter((t) => t.type === 'route' && !t.isDormant)
-            .map((tab) => (
-              <TabRouter
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onUrlChange={(url) => handleUrlChange(tab.id, url)}
-              />
-            ))}
-        </ResourceViewSourceProvider>
+    <>
+      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
+        <main
+          data-ui="app.content"
+          className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+          {/* Route Tabs: Only render non-dormant tabs */}
+          <ResourceViewSourceProvider>
+            {tabs
+              .filter((t) => t.type === 'route' && !t.isDormant)
+              .map((tab) => (
+                <TabRouter
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
+                />
+              ))}
+          </ResourceViewSourceProvider>
 
-        {/* MiniApp keep-alive WebView pool — global, shared across modes */}
-        <MiniAppTabsPool />
-      </main>
-    </div>
+          {/* MiniApp keep-alive WebView pool — global, shared across modes */}
+          <MiniAppTabsPool />
+        </main>
+      </div>
+    </>
   )
 
   const contentColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {tabBar}
       {contentArea}
+      <ApiGatewayRequiredDialog />
     </div>
   )
 
-  if (!isMac) {
+  // Leading Linux WCO controls take the top-left corner like macOS traffic lights do.
+  if (!isMac && !hasLeadingWindowControls) {
     return (
       <div
         className={cn(

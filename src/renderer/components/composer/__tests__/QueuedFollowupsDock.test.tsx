@@ -1,17 +1,10 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import type * as LucideReact from 'lucide-react'
-import type * as ReactI18next from 'react-i18next'
-import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('react-i18next', async (importOriginal) => ({
-  ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: (key: string) => key })
-}))
+import i18n from '@renderer/i18n/resolver'
 
-vi.mock('lucide-react', async (importOriginal) => ({
-  ...(await importOriginal<typeof LucideReact>()),
-  ArrowUp: () => <span data-testid="arrow-up-icon" />
-}))
+vi.unmock('@cherrystudio/ui')
 
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 
@@ -58,7 +51,82 @@ const knowledgeItem = {
 } as any
 
 describe('QueuedFollowupsDock', () => {
-  it('renders queued items with token chips and fires the per-item + pause callbacks', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en-US')
+  })
+
+  it('keeps folded actions out of keyboard navigation and toggles from the focused header', async () => {
+    const user = userEvent.setup()
+    const onTogglePause = vi.fn()
+    render(
+      <QueuedFollowupsDock
+        items={items}
+        paused={false}
+        onTogglePause={onTogglePause}
+        onSteer={vi.fn()}
+        onEdit={vi.fn()}
+        onRemove={vi.fn()}
+        onReorder={vi.fn()}
+      />
+    )
+    const toggle = screen.getByRole('button', { name: 'Queued (2)' })
+    expect(screen.queryByRole('button', { name: 'steer' })).not.toBeInTheDocument()
+    await user.tab()
+    expect(toggle).toHaveFocus()
+    await user.keyboard('[Enter]')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() => expect(screen.getByText('second')).toBeVisible())
+    expect(screen.getAllByRole('button', { name: 'steer' })).toHaveLength(2)
+    await user.keyboard('[Space]')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: 'steer' })).not.toBeInTheDocument()
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Pause auto-send' })).toHaveFocus()
+    expect(onTogglePause).not.toHaveBeenCalled()
+  })
+  it('starts collapsed, updates the count while folded, and preserves items when toggled', async () => {
+    const user = userEvent.setup()
+    const props = {
+      items,
+      paused: false,
+      onTogglePause: vi.fn(),
+      onSteer: vi.fn(),
+      onEdit: vi.fn(),
+      onRemove: vi.fn(),
+      onReorder: vi.fn()
+    }
+    const { rerender } = render(<QueuedFollowupsDock {...props} />)
+    const toggle = screen.getByRole('button', { name: 'Queued (2)' })
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('first')).not.toBeVisible()
+    expect(screen.getByText('second')).not.toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Pause auto-send' }))
+    expect(props.onTogglePause).toHaveBeenCalledOnce()
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+    rerender(<QueuedFollowupsDock {...props} items={[items[1]]} paused />)
+    expect(toggle).toHaveAccessibleName('Queued (1)')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() => expect(screen.getByText('second')).toBeVisible())
+    expect(screen.queryByText('first')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Resume auto-send' }))
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await user.click(toggle)
+    await waitFor(() => expect(screen.getByText('second')).not.toBeVisible())
+    await user.click(toggle)
+    await waitFor(() => expect(screen.getByText('second')).toBeVisible())
+    expect(props.onSteer).not.toHaveBeenCalled()
+    expect(props.onEdit).not.toHaveBeenCalled()
+    expect(props.onRemove).not.toHaveBeenCalled()
+    expect(props.onReorder).not.toHaveBeenCalled()
+  })
+
+  it('renders queued items with token chips and fires the per-item + pause callbacks', async () => {
+    const user = userEvent.setup()
     const onSteer = vi.fn()
     const onEdit = vi.fn()
     const onRemove = vi.fn()
@@ -77,30 +145,29 @@ describe('QueuedFollowupsDock', () => {
       />
     )
 
+    await user.click(screen.getByRole('button', { name: 'Queued (2)' }))
     expect(screen.getByText('first')).toBeInTheDocument()
     expect(screen.getByText('second')).toBeInTheDocument()
     expect(screen.queryByText('first https://example.com/docs')).not.toBeInTheDocument()
     // Composer token chip is rendered read-only from the stored draft tokens.
     expect(container.querySelector('[data-composer-token-kind="skill"]')).toHaveTextContent('mySkill')
     expect(container.querySelector('[data-composer-token-kind="link"]')).toHaveTextContent('example.com/docs')
-    for (const steerButton of screen.getAllByLabelText('chat.input.followup_queue.steer')) {
-      expect(within(steerButton).getByTestId('arrow-up-icon')).toBeInTheDocument()
-    }
 
-    fireEvent.click(screen.getAllByLabelText('chat.input.followup_queue.steer')[0])
+    await user.click(screen.getAllByLabelText('steer')[0])
     expect(onSteer).toHaveBeenCalledWith('1')
 
-    fireEvent.click(screen.getAllByLabelText('chat.input.followup_queue.edit')[1])
+    await user.click(screen.getAllByLabelText('Edit')[1])
     expect(onEdit).toHaveBeenCalledWith('2')
 
-    fireEvent.click(screen.getAllByLabelText('chat.input.followup_queue.remove')[0])
+    await user.click(screen.getAllByLabelText('Remove')[0])
     expect(onRemove).toHaveBeenCalledWith('1')
 
-    fireEvent.click(screen.getByLabelText('chat.input.followup_queue.pause'))
+    await user.click(screen.getByLabelText('Pause auto-send'))
     expect(onTogglePause).toHaveBeenCalled()
   })
 
-  it('disables manual steer for a reserved branch while its caller reports the stream as live', () => {
+  it('disables manual steer for a reserved branch while its caller reports the stream as live', async () => {
+    const user = userEvent.setup()
     const onSteer = vi.fn()
     const reservedItem = {
       ...items[0],
@@ -124,13 +191,15 @@ describe('QueuedFollowupsDock', () => {
       />
     )
 
-    const steerButton = screen.getByLabelText('chat.input.followup_queue.steer')
+    await user.click(screen.getByRole('button', { name: 'Queued (1)' }))
+    const steerButton = screen.getByLabelText('steer')
     expect(steerButton).toBeDisabled()
-    fireEvent.click(steerButton)
+    await user.click(steerButton)
     expect(onSteer).not.toHaveBeenCalled()
   })
 
-  it('renders a token-only draft without repeating its prompt text or reserving text spacing', () => {
+  it('renders a token-only draft without repeating its prompt text or reserving text spacing', async () => {
+    const user = userEvent.setup()
     const url = 'https://example.com/docs'
     const { container } = render(
       <QueuedFollowupsDock
@@ -162,13 +231,15 @@ describe('QueuedFollowupsDock', () => {
       />
     )
 
+    await user.click(screen.getByRole('button', { name: 'Queued (1)' }))
     const linkToken = screen.getByRole('link', { name: url })
     expect(screen.queryByText(url)).not.toBeInTheDocument()
     expect(linkToken).toHaveTextContent('example.com/docs')
     expect(container.querySelector('[data-composer-token-kind="link"]')).toBe(linkToken)
   })
 
-  it('keeps draft prose when a token prompt no longer matches its recorded offset', () => {
+  it('keeps draft prose when a token prompt no longer matches its recorded offset', async () => {
+    const user = userEvent.setup()
     const text = 'user edited this queued message'
     render(
       <QueuedFollowupsDock
@@ -200,6 +271,7 @@ describe('QueuedFollowupsDock', () => {
       />
     )
 
+    await user.click(screen.getByRole('button', { name: 'Queued (1)' }))
     expect(screen.getByText(text)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'https://example.com/docs' })).toBeInTheDocument()
   })
@@ -219,7 +291,8 @@ describe('QueuedFollowupsDock', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('hides a knowledge token prompt while keeping the user text and chip', () => {
+  it('hides a knowledge token prompt while keeping the user text and chip', async () => {
+    const user = userEvent.setup()
     const { container } = render(
       <QueuedFollowupsDock
         items={[knowledgeItem]}
@@ -232,6 +305,7 @@ describe('QueuedFollowupsDock', () => {
       />
     )
 
+    await user.click(screen.getByRole('button', { name: 'Queued (1)' }))
     expect(container).toHaveTextContent('what is in it?')
     expect(container.querySelector('[data-composer-token-kind="knowledge"]')).toHaveTextContent('Notes')
     expect(container).not.toHaveTextContent(knowledgePrompt)
