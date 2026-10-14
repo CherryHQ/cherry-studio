@@ -261,7 +261,16 @@ describe('voice admission coordination through the renderer coordinators', () =>
     vi.restoreAllMocks()
   })
 
-  function createPlayback(voiceOwner = owner()) {
+  function createPlayback(
+    voiceOwner = owner(),
+    options?: {
+      audios?: FakeAudio[]
+      planText?: (
+        text: string,
+        plan: { trigger: 'manual' | 'auto_read'; mode?: 'document' | 'selection'; confirmed?: boolean }
+      ) => { status: 'ready'; normalizedLength: number; chunks: string[] }
+    }
+  ) {
     const listeners = new Set<(event: VoiceSessionEvent) => void>()
     clientListeners.push(listeners)
     const ipc = {
@@ -297,9 +306,11 @@ describe('voice admission coordination through the renderer coordinators', () =>
     const playback = new SpeechPlaybackService({
       voice,
       ownerWindow: new EventTarget() as Window,
+      ...(options?.planText && { planText: options.planText }),
       createAudio: (url) => {
         const audio = new FakeAudio()
         audio.src = url
+        options?.audios?.push(audio)
         return audio as unknown as HTMLAudioElement
       }
     })
@@ -573,6 +584,91 @@ describe('voice admission coordination through the renderer coordinators', () =>
     releaseInspection(readySpeech())
     await inspection
     await expect(rootService.installAsset(voiceOwner, install)).resolves.toBeUndefined()
+  })
+
+  it('fails a busy next chunk after released audio and lets the same owner start again', async () => {
+    const audios: FakeAudio[] = []
+    const { playback, voice, voiceOwner } = createPlayback(owner(), {
+      audios,
+      planText: () => ({ status: 'ready', normalizedLength: 2, chunks: ['first sentence.', 'second sentence.'] })
+    })
+    const speech = vi.spyOn(rootService, 'speech')
+    const started = playback.start({
+      text: 'first sentence. second sentence.',
+      trigger: 'manual',
+      sourceLabel: 'message',
+      sourceEntityId: 'message-chunks'
+    })
+    await vi.waitFor(() => expect(native.speech).toHaveBeenCalledTimes(1))
+    native.releases[0]?.()
+    await expect(started).resolves.toEqual({ status: 'started' })
+    expect(playback.getSnapshot()).toMatchObject({ phase: 'playing', progress: { completed: 0, total: 2 } })
+
+    let releaseInspection!: (value: ReturnType<typeof readySpeech>) => void
+    native.resolveSpeech.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseInspection = resolve
+        })
+    )
+    const inspection = rootService.resolveSpeech(voiceOwner, { speed: 1 })
+    const inspectionResult = inspection.then(
+      () => 'resolved' as const,
+      () => 'rejected' as const
+    )
+    try {
+      await vi.waitFor(() => expect(releaseInspection).toBeTypeOf('function'))
+      audios[0]?.dispatchEvent(new Event('ended'))
+      await vi.waitFor(() => {
+        const nextIndex = speech.mock.calls.findIndex((call) => call[1].chunkIndex === 1)
+        expect(nextIndex).toBeGreaterThanOrEqual(0)
+        return expect(speech.mock.results[nextIndex]?.value).rejects.toMatchObject({ reason: 'busy' })
+      })
+      const failedPlayback = {
+        phase: 'failed' as const,
+        error: 'busy' as const,
+        progress: { completed: 1, total: 2 }
+      }
+      const failedSession = {
+        phase: 'failed' as const,
+        playback: { failure: { stage: 'playback', reason: 'busy' }, availableCommands: ['stop'] }
+      }
+      await vi.waitFor(() => {
+        expect(audios[0]?.src ?? '').toBe('')
+        expect(playback.getSnapshot()).toMatchObject(failedPlayback)
+        expect(voice.getSnapshot()).toMatchObject(failedSession)
+        expect(rootService.getState(voiceOwner)).toMatchObject(failedSession)
+        expect(native.speech).toHaveBeenCalledTimes(1)
+      })
+
+      releaseInspection(readySpeech())
+      await expect(inspectionResult).resolves.toBe('resolved')
+      expect(playback.getSnapshot()).toMatchObject(failedPlayback)
+      expect(voice.getSnapshot()).toMatchObject(failedSession)
+      expect(rootService.getState(voiceOwner)).toMatchObject(failedSession)
+      expect(native.speech).toHaveBeenCalledTimes(1)
+
+      await playback.stop()
+      expect(playback.getSnapshot().phase).toBe('idle')
+      expect(voice.getSnapshot().phase).toBe('idle')
+      expect(rootService.getState(voiceOwner).phase).toBe('idle')
+
+      const restarted = playback.start({
+        text: 'first sentence. second sentence.',
+        trigger: 'manual',
+        sourceLabel: 'message',
+        sourceEntityId: 'message-chunks-again'
+      })
+      await vi.waitFor(() => expect(native.speech).toHaveBeenCalledTimes(2))
+      native.releases.at(-1)?.()
+      await expect(restarted).resolves.toEqual({ status: 'started' })
+      expect(playback.getSnapshot()).toMatchObject({ phase: 'playing', progress: { completed: 0, total: 2 } })
+      expect(voice.getSnapshot().phase).toBe('playing')
+      expect(rootService.getState(voiceOwner).phase).toBe('playing')
+    } finally {
+      releaseInspection?.(readySpeech())
+      await inspectionResult
+    }
   })
 
   it('stops the displaced playback when replacement configuration has no usable voice', async () => {

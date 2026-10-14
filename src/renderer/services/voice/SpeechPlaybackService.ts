@@ -606,6 +606,19 @@ export class SpeechPlaybackService {
     }
     const state = this.voice.getSnapshot()
     if (state.phase !== 'idle' && state.sessionId === run.sessionId) {
+      const playback = state.playback
+      // Output is already released. Report failed only for this attempt when Main has
+      // not already recorded a failure or started a newer synthesis.
+      if (
+        run.target &&
+        !run.audio &&
+        playback &&
+        playback.attemptId === run.target.attemptId &&
+        !playback.failure &&
+        playback.synthesis !== 'generating'
+      ) {
+        await this.failAudio(run, reason)
+      }
       this.publish(run)
       return
     }
