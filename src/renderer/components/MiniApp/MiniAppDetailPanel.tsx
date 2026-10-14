@@ -39,7 +39,7 @@ import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/ty
 import type { MiniAppDetail } from '@shared/ipc/schemas/miniApp'
 import type { MiniAppActivityEntry, MiniAppActivityGrant, MiniAppActivityListing } from '@shared/types/miniAppActivity'
 import type { QuotaUsageWithLimits } from '@shared/types/miniAppQuota'
-import { isNonChatModel } from '@shared/utils/model'
+import { isTextChatModel } from '@shared/utils/model'
 
 type DestructiveAction = 'clear_data' | 'uninstall'
 
@@ -153,7 +153,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
   const { providers } = useProviders()
   const { model: defaultModel } = useModelById(asUniqueModelId(detail?.aiModelId))
   const { model: quickModel } = useModelById(asUniqueModelId(detail?.aiQuickModelId))
-  const chatModelFilter = useCallback((model: Model) => !isNonChatModel(model), [])
+  const textModelFilter = useCallback((model: Model) => isTextChatModel(model), [])
   // A plain column write: DataApi, not a command. The panel's own state still comes from `mini_app.detail`.
   const { trigger: patchMiniApp } = useMutation('PATCH', '/mini-apps/:appId')
   const patchModels = (body: { aiModelId?: UniqueModelId | null; aiQuickModelId?: UniqueModelId | null }) =>
@@ -528,9 +528,9 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
                       <div key={slot.key} data-testid={`model-slot-${slot.key}`} className="flex items-center gap-2">
                         <span className="w-20 shrink-0 text-muted-foreground text-sm">{slot.label}</span>
                         <DefaultModelSelector
-                          model={slot.model}
+                          model={slot.model && isTextChatModel(slot.model) ? slot.model : undefined}
                           providers={providers}
-                          filter={chatModelFilter}
+                          filter={textModelFilter}
                           placeholder={slot.placeholder}
                           onSelect={(model) => run(() => slot.write(model?.id ?? null))}
                         />

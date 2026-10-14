@@ -3,10 +3,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useMutation } from '@data/hooks/useDataApi'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
 // `vi.hoisted`: `vi.mock` is hoisted above every `const`, so a factory closing over a
 // plain `const request` hits the TDZ on first import of the mocked module.
@@ -59,6 +59,7 @@ afterAll(async () => {
 // are "was NOT called with X" — exactly what a leftover call turns red.
 beforeEach(() => {
   request.mockReset()
+  vi.mocked(useQuery).mockReset()
 })
 
 import type { MiniAppDetail } from '@shared/ipc/schemas/miniApp'
@@ -104,6 +105,14 @@ const answerWith = (value: MiniAppDetail) =>
   request.mockImplementation((route: string) =>
     Promise.resolve(route === 'mini_app.activity.list' ? { ...activity } : value)
   )
+
+const mockSelectedModel = (model: Model) => {
+  const query = vi.mocked(useQuery).getMockImplementation()!
+  vi.mocked(useQuery).mockImplementation((route, options) => {
+    const result = query(route, options)
+    return route === `/models/${model.id}` ? { ...result, data: model } : result
+  })
+}
 
 const open = () => {
   answerWith(detail)
@@ -261,6 +270,29 @@ describe('MiniAppDetailPanel', () => {
 
     const selector = within(screen.getByTestId('model-slot-default'))
     expect(selector.getByRole('button', { name: 'Regular chat model' })).toBeInTheDocument()
+  })
+
+  it('excludes video-only models from both text-only slots', async () => {
+    const videoModel: Model = {
+      ...selectableModels[0],
+      id: 'gemini::gemini-omni-flash-preview',
+      providerId: 'gemini',
+      name: 'Gemini Omni',
+      capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS],
+      outputModalities: ['video']
+    }
+    selectableModels.push(videoModel)
+    try {
+      await open()
+      for (const slot of ['default', 'quick']) {
+        const selector = within(screen.getByTestId(`model-slot-${slot}`))
+        expect(selector.queryByRole('button', { name: 'Gemini Omni' })).not.toBeInTheDocument()
+        expect(selector.getByRole('button', { name: 'Regular chat model' })).toBeInTheDocument()
+      }
+    } finally {
+      selectableModels.pop()
+    }
   })
 
   it('offers a web app both an update check and a package replacement', async () => {
@@ -515,6 +547,10 @@ describe('MiniAppDetailPanel', () => {
   it('clears the per-app model through DataApi, not a command', async () => {
     // A plain column write belongs to `PATCH /mini-apps/:appId`; an IpcApi command here
     // would be a second write path for the same row.
+    mockSelectedModel({
+      ...selectableModels[0],
+      id: 'openai::gpt-4o-mini'
+    })
     answerWith({ ...detail, aiModelId: 'openai::gpt-4o-mini' })
     render(<MiniAppDetailPanel appId={detail.appId} />)
     await waitFor(() => screen.getByRole('heading', { name: 'My Game' }))
@@ -528,6 +564,10 @@ describe('MiniAppDetailPanel', () => {
   })
 
   it('clears the quick slot from its own row and only that slot', async () => {
+    mockSelectedModel({
+      ...selectableModels[0],
+      id: 'openai::gpt-4.1-nano'
+    })
     answerWith({ ...detail, aiQuickModelId: 'openai::gpt-4.1-nano' })
     render(<MiniAppDetailPanel appId={detail.appId} />)
     await waitFor(() => screen.getByRole('heading', { name: 'My Game' }))

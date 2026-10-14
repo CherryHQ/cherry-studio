@@ -16,10 +16,10 @@ import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import { MINI_APP_MAX_INPUT_BYTES, MINI_APP_MAX_MESSAGES } from '@shared/types/miniAppManifest'
-import { isReasoningModel } from '@shared/utils/model'
+import { isReasoningModel, isTextChatModel } from '@shared/utils/model'
 
 import { InvalidArgumentError, MiniAppUnavailableError } from '../errors'
 import { aiHiddenBudget, RateLimitedError } from './quota'
@@ -142,7 +142,7 @@ function toCherryUIMessage(m: { role: 'user' | 'assistant' | 'system'; content: 
  * frozen at 'Internal error': "no model configured" is the ordinary state of a fresh
  * install and the app is the only surface that can point the user at their settings.
  */
-function resolveModelFor(appId: string, slot: ModelSlot): UniqueModelId {
+function resolveModelFor(appId: string, slot: ModelSlot): { uniqueModelId: UniqueModelId; model: Model } {
   const [row] = application
     .get('DbService')
     .getDb()
@@ -162,7 +162,13 @@ function resolveModelFor(appId: string, slot: ModelSlot): UniqueModelId {
   }
   // Parsed, not cast: `UniqueModelId` is a template-literal type, and a stored value
   // that lost its separator must fail here, not halfway through a provider call.
-  return UniqueModelIdSchema.parse(id)
+  const uniqueModelId = UniqueModelIdSchema.parse(id)
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  const model = modelService.getByKey(providerId, modelId)
+  if (!isTextChatModel(model)) {
+    throw new MiniAppUnavailableError('The configured model does not support text chat')
+  }
+  return { uniqueModelId, model }
 }
 
 /**
@@ -211,7 +217,7 @@ export const aiCapability = {
 
     // EVERYTHING failable runs BEFORE the slot is taken: only `settle()` decrements
     // `inflight`, so a throw in between leaks a slot for the life of the process.
-    const uniqueModelId = resolveModelFor(appId, parsed.model ?? 'default')
+    const { uniqueModelId } = resolveModelFor(appId, parsed.model ?? 'default')
     const messages = parsed.messages.map(toCherryUIMessage)
 
     // BEFORE `admit`, which is where the slot becomes the caller's to release: a throw
@@ -319,8 +325,7 @@ export const aiCapability = {
     try {
       // Derived with the repo's own predicates, and deliberately carries no model id or
       // provider name — the app degrades without learning what the user picked.
-      const { providerId, modelId } = parseUniqueModelId(resolveModelFor(appId, slot))
-      const model = modelService.getByKey(providerId, modelId)
+      const { model } = resolveModelFor(appId, slot)
       return { available: true, reasoning: isReasoningModel(model), contextWindow: model.contextWindow ?? null }
     } catch (error) {
       // Reported as a VALUE, and for every failure alike. This method exists so an app can
