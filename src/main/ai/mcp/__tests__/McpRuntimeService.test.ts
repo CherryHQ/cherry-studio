@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 
-import { SseError, UnauthorizedError } from '@modelcontextprotocol/client'
+import { SdkError, SdkErrorCode, SseError, UnauthorizedError } from '@modelcontextprotocol/client'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -287,7 +287,7 @@ describe('McpRuntimeService connection ownership', () => {
     expect(service.getConnectedServerInstructions(server.id)).toBeUndefined()
   })
 
-  it('shares a failed health probe and creates one replacement for concurrent callers', async () => {
+  it('shares a failed health probe and backs off before creating one replacement for concurrent callers', async () => {
     const service = new McpRuntimeService()
     const health = createDeferred<void>()
     const stale = { health: vi.fn(() => health.promise), close: vi.fn().mockResolvedValue(undefined) }
@@ -298,12 +298,24 @@ describe('McpRuntimeService connection ownership', () => {
 
     const first = service.listTools(server.id)
     const second = service.listTools(server.id)
-    health.reject(new Error('connection is stale'))
-
-    await expect(Promise.all([first, second])).resolves.toEqual([tools, tools])
+    const failure = new SdkError(SdkErrorCode.RequestTimeout, 'connection is stale')
+    const failed = expect(Promise.all([first, second])).rejects.toBe(failure)
+    health.reject(failure)
+    await failed
     expect(stale.health).toHaveBeenCalledTimes(1)
     expect(stale.close).toHaveBeenCalledTimes(1)
-    expect(create).toHaveBeenCalledTimes(1)
+    expect(create).not.toHaveBeenCalled()
+    const retryAt = (service as any).connectFailures.get(service.getServerKey(server)).retryAt
+    const now = vi.spyOn(Date, 'now').mockReturnValue(retryAt)
+    try {
+      await expect(Promise.all([service.listTools(server.id), service.listTools(server.id)])).resolves.toEqual([
+        tools,
+        tools
+      ])
+      expect(create).toHaveBeenCalledTimes(1)
+    } finally {
+      now.mockRestore()
+    }
     expect((service as any).connections.get(service.getServerKey(server))).toBe(connection)
   })
 
@@ -328,6 +340,25 @@ describe('McpRuntimeService connection ownership', () => {
     activation.resolve({ era: 'modern', getPrompt: vi.fn().mockResolvedValue(result) })
     await expect(second).resolves.toEqual(result)
     expect((service as any).pendingConnections.size).toBe(0)
+  })
+
+  it('cancels a health waiter without interrupting another caller or replacing the connection', async () => {
+    const service = new McpRuntimeService()
+    const health = createDeferred<void>()
+    const tools = [{ name: 'ready', inputSchema: { type: 'object' } }]
+    const connection = { health: () => health.promise, listTools: async () => tools }
+    ;(service as any).connections.set(service.getServerKey(server), connection)
+    const create = vi.spyOn(service as any, 'createConnection')
+    const controller = new AbortController()
+    const cancelled = expect(
+      service.getPrompt({ serverId: server.id, name: 'ready', signal: controller.signal })
+    ).rejects.toThrow('cancel waiter')
+    const active = service.listTools(server.id)
+    controller.abort(new Error('cancel waiter'))
+    await cancelled
+    health.resolve()
+    await expect(active).resolves.toEqual(tools)
+    expect(create).not.toHaveBeenCalled()
   })
 
   it.each(['stop', 'remove', 'shutdown'])('cancels initialization and awaits cleanup on %s', async (operation) => {
@@ -482,6 +513,95 @@ describe('McpRuntimeService connect retry gate', () => {
     expect(create).toHaveBeenCalledTimes(5)
     vi.mocked(Date.now).mockRestore()
   })
+
+  it('bounds successful handshakes followed by failed health checks and allows manual recovery', async () => {
+    const service = new McpRuntimeService()
+    const failure = new SdkError(SdkErrorCode.RequestTimeout, 'health timeout')
+    const connection = {
+      era: 'legacy',
+      health: vi.fn().mockRejectedValue(failure),
+      listTools: async () => [],
+      close: vi.fn()
+    }
+    const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue(connection)
+    let now = 1_000_000
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    try {
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        await expect(service.listTools(server.id)).resolves.toEqual([])
+        await expect(service.listTools(server.id)).rejects.toBe(failure)
+        await expect(service.listTools(server.id)).rejects.toBe(failure)
+        expect(create).toHaveBeenCalledTimes(attempt)
+        now += 10_000 * 2 ** (attempt - 1)
+      }
+      now += 24 * 60 * 60 * 1000
+      await expect(service.listTools(server.id)).rejects.toBe(failure)
+      expect(create).toHaveBeenCalledTimes(5)
+      expect(connection.close).toHaveBeenCalledTimes(5)
+      expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)).toMatchObject({ state: 'error' })
+      connection.health.mockResolvedValue(undefined)
+      await service.restartServer(server.id)
+      await expect(service.listTools(server.id)).resolves.toEqual([])
+      expect(create).toHaveBeenCalledTimes(6)
+      expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)).toMatchObject({
+        state: 'connected'
+      })
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('resets the retry budget after confirmed health, not merely a successful handshake', async () => {
+    const service = new McpRuntimeService()
+    const failure = new SdkError(SdkErrorCode.RequestTimeout, 'health timeout')
+    const connection = {
+      era: 'legacy',
+      health: vi.fn().mockRejectedValue(failure),
+      listTools: async () => [],
+      close: vi.fn()
+    }
+    const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue(connection)
+    let now = 1_000_000
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    try {
+      await service.listTools(server.id)
+      await expect(service.listTools(server.id)).rejects.toBe(failure)
+      now += 10_000
+      await service.listTools(server.id)
+      connection.health.mockResolvedValueOnce(undefined)
+      await service.listTools(server.id)
+      await expect(service.listTools(server.id)).rejects.toBe(failure)
+      now += 10_000
+      await expect(service.listTools(server.id)).resolves.toEqual([])
+      expect(create).toHaveBeenCalledTimes(3)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it.each(['stop', 'restart'].flatMap((operation) => [false, true].map((failed) => ({ operation, failed }))))(
+    'ignores a late health result after $operation (failed: $failed)',
+    async ({ operation, failed }) => {
+      const service = new McpRuntimeService()
+      const health = createDeferred<void>()
+      const existing = { health: () => health.promise, close: vi.fn() }
+      ;(service as any).connections.set(service.getServerKey(server), existing)
+      const replacement = { era: 'legacy', health: async () => {}, listTools: async () => [], close: vi.fn() }
+      const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue(replacement)
+      const waiting = service.listTools(server.id)
+      const cancelled = expect(waiting).rejects.toMatchObject({ name: 'AbortError' })
+      if (operation === 'restart') await service.restartServer(server.id)
+      else await service.stopServer(server.id)
+      if (failed) health.reject(new SdkError(SdkErrorCode.RequestTimeout, 'late timeout'))
+      else health.resolve()
+      await cancelled
+      expect(create).toHaveBeenCalledTimes(operation === 'restart' ? 1 : 0)
+      expect((service as any).connectFailures.size).toBe(0)
+      expect((service as any).connections.get(service.getServerKey(server))).toBe(
+        operation === 'restart' ? replacement : undefined
+      )
+    }
+  )
 })
 
 describe('McpRuntimeService.closeConnectionsForServer', () => {

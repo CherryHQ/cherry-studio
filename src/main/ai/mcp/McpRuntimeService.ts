@@ -473,7 +473,6 @@ export class McpRuntimeService extends BaseService {
           throw new Error('MCP runtime is stopping')
         }
         this.connections.set(serverKey, connection)
-        this.connectFailures.delete(serverKey)
         this.setServerStatus(server.id, 'connected')
         this.emitServerLog(server, {
           timestamp: Date.now(),
@@ -485,9 +484,7 @@ export class McpRuntimeService extends BaseService {
       } catch (error) {
         const cancelled = controller.signal.aborted && !UnauthorizedError.isInstance(controller.signal.reason)
         if (!cancelled && !this.stopping && !this.removedServerIds.has(server.id)) {
-          const attempts = (this.connectFailures.get(serverKey)?.attempts ?? 0) + 1
-          const retryAt = Date.now() + connectRetryDelayMs(error, attempts)
-          this.connectFailures.set(serverKey, { error, attempts, retryAt, interactive })
+          this.recordConnectionFailure(server, error, interactive)
         }
         this.setServerStatus(server.id, 'error', error)
         this.emitServerLog(server, {
@@ -510,6 +507,19 @@ export class McpRuntimeService extends BaseService {
     return waitForConnection(initialize, signal)
   }
 
+  private recordConnectionFailure(server: McpServer, error: unknown, interactive: boolean): void {
+    const serverKey = this.getServerKey(server)
+    const attempts = (this.connectFailures.get(serverKey)?.attempts ?? 0) + 1
+    const retryAt = Date.now() + connectRetryDelayMs(error, attempts)
+    this.connectFailures.set(serverKey, { error, attempts, retryAt, interactive })
+    getServerLogger(server).warn('MCP connection retry gate updated', {
+      error,
+      attempts,
+      retryAt: Number.isFinite(retryAt) ? retryAt : undefined,
+      retryStopped: !Number.isFinite(retryAt)
+    })
+  }
+
   private probeConnection(
     server: McpServer,
     serverKey: string,
@@ -517,17 +527,26 @@ export class McpRuntimeService extends BaseService {
   ): Promise<McpConnection | undefined> {
     const pending = this.pendingProbes.get(serverKey)
     if (pending) return pending
+    const assertCurrent = () => {
+      if (this.stopping || this.isStopped || this.isDestroyed) throw new Error('MCP runtime is stopping')
+      if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
+      if (this.connections.get(serverKey) !== existing) throw new DOMException('MCP connection replaced', 'AbortError')
+    }
     const probe = (async () => {
       try {
         await existing.health()
       } catch (error) {
+        assertCurrent()
         getServerLogger(server).warn('Existing MCP connection failed health check', { error })
-        await this.closeConnection(serverKey, existing).catch(() => undefined)
+        this.recordConnectionFailure(server, error, false)
+        this.setServerStatus(server.id, 'error', error)
+        await this.closeConnection(serverKey, existing).catch((closeError) => {
+          getServerLogger(server).warn('Failed to close unhealthy MCP connection', { error: closeError })
+        })
         return undefined
       }
-      if (this.stopping || this.isStopped || this.isDestroyed) throw new Error('MCP runtime is stopping')
-      if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
-      if (this.connections.get(serverKey) !== existing) return undefined
+      assertCurrent()
+      this.connectFailures.delete(serverKey)
       this.setServerStatus(server.id, 'connected')
       return existing
     })().finally(() => {
@@ -1127,6 +1146,9 @@ export class McpRuntimeService extends BaseService {
 
   private async closeConnectionsForServer(serverId: string): Promise<void> {
     this.abortActiveToolCalls(serverId)
+    for (const key of this.pendingProbes.keys()) {
+      if (this.isServerKeyForId(key, serverId)) this.pendingProbes.delete(key)
+    }
     for (const key of this.connectFailures.keys()) {
       if (this.isServerKeyForId(key, serverId)) this.connectFailures.delete(key)
     }
