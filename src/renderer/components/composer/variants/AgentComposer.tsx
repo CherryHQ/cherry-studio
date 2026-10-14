@@ -91,7 +91,7 @@ import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 import { useComposerLayerActive } from '../ComposerContext'
-import { excludeComposerDraftTokens } from '../composerDraft'
+import { areComposerSerializedTokensEqual, excludeComposerDraftTokens } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -997,8 +997,18 @@ const AgentComposerInner = ({
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       setText(nextText)
+      // Chips the surface syncs on its own (knowledge bases, files, skills) change the text without a
+      // token report, so take the tokens that belong to this text from the surface: a remounted surface
+      // rebuilds its document from text and draftTokens, and text without its chips would restore their
+      // prompt sentences as visible prose next to the re-synced chips.
+      const draft = actionsRef.current.getDraft()
+      if (draft.text !== nextText) return
+      const nextDraftTokens = getAgentDraftTokens(draft.tokens)
+      if (areComposerSerializedTokensEqual(draftTokensRef.current, nextDraftTokens)) return
+      draftTokensRef.current = nextDraftTokens
+      setDraftTokens(nextDraftTokens)
     },
-    [resetHistoryIndex, setText]
+    [actionsRef, resetHistoryIndex, setText]
   )
   const handleInputHistoryNavigate = useCallback(
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),

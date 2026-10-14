@@ -72,7 +72,11 @@ import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
+import {
+  areComposerSerializedTokensEqual,
+  createComposerUserMessageParts,
+  trimComposerDraftBoundaryBlankLines
+} from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -652,6 +656,19 @@ const ChatComposerInner = ({
       inputHistoryToolsRef.current = null
       skipDraftCacheWriteForHistoryPreviewRef.current = false
       setText(nextText)
+      // Chips the surface syncs on its own (knowledge bases) change the text without a token report, so
+      // take the tokens that belong to this text from the surface. A remounted surface rebuilds its
+      // document from text and draftTokens, and text without its chips would restore their prompt
+      // sentences as visible prose next to the re-synced chips.
+      const draft = surfaceGetDraftRef.current()
+      if (draft.text !== nextText) return
+      setDraftTokens((previous) =>
+        areComposerSerializedTokensEqual(previous ?? [], draft.tokens)
+          ? previous
+          : draft.tokens.length
+            ? [...draft.tokens]
+            : undefined
+      )
     },
     [resetHistoryIndex]
   )

@@ -1358,6 +1358,37 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeFalsy()
   })
 
+  it('keeps draftTokens paired with the text when the surface syncs a knowledge chip itself', async () => {
+    // Managed chips reach the text without a token report; a remounted surface rebuilds from
+    // text + draftTokens, so a stale token list would restore their prompt sentences as prose.
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const sentence = 'The user attached knowledge base "Base 1" (id: base-1).'
+    const chip = {
+      id: 'knowledge:base-1',
+      kind: 'knowledge',
+      label: 'Base 1',
+      promptText: sentence,
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    mocks.getDraft.mockImplementation(() => ({ text: `${sentence} `, tokens: [chip] }))
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange(`${sentence} `)
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(`${sentence} `))
+    expect(mocks.surfaceProps?.draftTokens).toEqual([chip])
+  })
+
   it('keeps the draft and leaves the queue empty when a steer send fails while streaming', async () => {
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
     render(

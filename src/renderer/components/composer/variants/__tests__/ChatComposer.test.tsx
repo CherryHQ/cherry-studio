@@ -3159,6 +3159,46 @@ describe('ChatComposer', () => {
     )
   })
 
+  it('keeps draftTokens paired with the text when the surface syncs a knowledge chip itself', () => {
+    // The surface inserts managed knowledge chips without a token report; their prompt sentence still
+    // reaches the text. A remounted surface rebuilds from text + draftTokens, so a stale token list
+    // would restore the sentence as visible prose next to the re-synced chip.
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    expect(mocks.surfaceProps?.draftTokens).toBeUndefined()
+
+    const sentence = 'The user attached knowledge base "Base 1" (id: base-1).'
+    const chip = {
+      id: 'knowledge:base-1',
+      kind: 'knowledge',
+      label: 'Base 1',
+      promptText: sentence,
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    mocks.getDraft.mockReturnValue({ text: `${sentence} `, tokens: [chip] })
+    act(() => mocks.surfaceProps?.onTextChange(`${sentence} `))
+
+    expect(mocks.surfaceProps?.text).toBe(`${sentence} `)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([chip])
+
+    mocks.getDraft.mockReturnValue({ text: 'typed', tokens: [] })
+    act(() => mocks.surfaceProps?.onTextChange('typed'))
+    expect(mocks.surfaceProps?.draftTokens).toBeUndefined()
+  })
+
+  it('leaves draftTokens alone when the reported text is not the surface draft', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    mocks.getDraft.mockReturnValue({
+      text: 'other text',
+      tokens: [{ id: 'knowledge:base-1', kind: 'knowledge', label: 'Base 1', index: 0, textOffset: 0 }]
+    })
+
+    act(() => mocks.surfaceProps?.onTextChange('typed in the fallback'))
+
+    expect(mocks.surfaceProps?.text).toBe('typed in the fallback')
+    expect(mocks.surfaceProps?.draftTokens).toBeUndefined()
+  })
+
   it('waits for knowledge bases before reconciling a cached knowledge token', async () => {
     const base = { id: 'base-1', name: 'Base 1' } as KnowledgeBase
     mocks.knowledgeBasesLoading = true
