@@ -15,6 +15,7 @@ import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -164,7 +165,13 @@ function resolveModelFor(appId: string, slot: ModelSlot): { uniqueModelId: Uniqu
   // that lost its separator must fail here, not halfway through a provider call.
   const uniqueModelId = UniqueModelIdSchema.parse(id)
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const model = modelService.getByKey(providerId, modelId)
+  let model: Model
+  try {
+    model = modelService.getByKey(providerId, modelId)
+  } catch (error) {
+    if (!(error instanceof DataApiError) || error.code !== ErrorCode.NOT_FOUND) throw error
+    throw new MiniAppUnavailableError('The configured model is unavailable', { cause: error.name })
+  }
   if (!isTextChatModel(model)) {
     throw new MiniAppUnavailableError('The configured model does not support text chat')
   }
