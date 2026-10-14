@@ -152,6 +152,19 @@ export interface SubagentToolOptions {
   offload: ToolOutputOffload | undefined
 }
 
+/** Pi event-bus channel on which this extension hands the goal extension its link (spec §11.4). */
+export const SUBAGENT_GOAL_LINK = 'cherry.subagent-goal-link'
+
+/** What the goal extension of the same session asks of its subagents; internal to the package. */
+export interface SubagentGoalLink {
+  /** Background subagents running or waiting for an approval. */
+  running(): number
+  /** Stops those of `sessionIds` still running, as the goal's budget is used up. */
+  stopForBudget(sessionIds: Iterable<string>): void
+  /** While `refusal()` returns a message, background launches and continuations fail with it. */
+  guardBackground(refusal: () => string | undefined): void
+}
+
 /** What the parent's `AgentRuntimeSession` reaches through to its subagents. */
 export interface SubagentControls {
   /** Held by a host prompt or compaction until it returns; no notification starts a run meanwhile. */
@@ -312,6 +325,11 @@ export function createSubagentExtension({
     let ctx: ExtensionContext | undefined
     let inSubagent = false
     let unsubscribeApproval: (() => void) | undefined
+    let backgroundRefusal: () => string | undefined = () => undefined
+    const refuseBackground = () => {
+      const refusal = backgroundRefusal()
+      if (refusal) throw new Error(refusal)
+    }
     const registry = new SubagentRegistry({
       appendState: (state) => pi.appendEntry(SUBAGENT_STATE_TYPE, state),
       emit,
@@ -350,6 +368,14 @@ export function createSubagentExtension({
       registry.restore(records)
       delivery.restore(undelivered)
       unsubscribeApproval = port.onApproval?.((event) => registry.approval(event))
+      const link: SubagentGoalLink = {
+        running: () => registry.runningBackground(),
+        stopForBudget: (sessionIds) => {
+          for (const sessionId of sessionIds) void registry.stop(sessionId, 'budget')
+        },
+        guardBackground: (refusal) => (backgroundRefusal = refusal)
+      }
+      pi.events.emit(SUBAGENT_GOAL_LINK, link)
     })
     // After a compaction the model no longer sees its subagent calls; this keeps it from starting them again.
     pi.on('session_compact', () => {
@@ -393,6 +419,7 @@ export function createSubagentExtension({
           background,
           ...(named ? { modelKey: await resolveModel(port, named) } : {})
         }
+        if (background) refuseBackground()
         const release = background ? registry.reserveBackground() : () => {}
         const inbox = new SubagentInbox()
         let child: AgentRuntimeSession
@@ -444,6 +471,7 @@ export function createSubagentExtension({
     /** A finished subagent's next run, in the background, from the transcript the host stored. */
     const continueSubagent = async (record: SubagentRecord, message: string, toolCallId: string) => {
       const id = record.sessionId
+      refuseBackground()
       const release = registry.reserveBackground()
       const inbox = new SubagentInbox()
       let child: AgentRuntimeSession

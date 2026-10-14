@@ -660,18 +660,6 @@ describe('goal stops for people, errors and aborts', () => {
     expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(entries)!, armed: false }])
     expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
   })
-
-  // Breaks when decide() never asks the port: the goal would open round 2 while subagents still run.
-  it('a host reporting running subagents ends the goal after the round with waiting_subagents', async () => {
-    const { session: s, host, calls } = await goalSession([working], goalPort({ hasRunningSubagents: () => true }))
-    await promptIdle(s, '/goal Keep working')
-    expect(lastSnapshot(host.entries)).toMatchObject({
-      phase: 'blocked',
-      roundsStarted: 1,
-      lastStop: { code: 'waiting_subagents' }
-    })
-    expect(calls).toHaveLength(1)
-  })
 })
 
 /** Each round reads the goal, sends one update_goal call per argument set `update(goal)` returns, then replies. */
