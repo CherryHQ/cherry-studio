@@ -22,6 +22,7 @@ let appPath: string | undefined
 let runtimeProfile: LocalInferenceRuntimeProfile = CPU_LOCAL_INFERENCE_PROFILE
 let transformers: any = null
 let ppu: any = null
+let sherpa: any = null
 
 /** Cached heavyweight resources, keyed by whatever identifies the model. */
 const cachedResources = new Map<string, Promise<DisposableResource>>()
@@ -57,6 +58,8 @@ export function applyInitData(initData: InferenceInitData): void {
   // both of which transitively require onnxruntime-node — see patches/onnxruntime-node@1.25.1.patch.
   const bindingPath = initData.artifactPaths['onnxruntime-node']
   if (bindingPath) process.env.CHERRY_ONNXRUNTIME_BINDING_PATH = bindingPath
+  const sherpaBindingPath = initData.artifactPaths['sherpa-onnx']
+  if (sherpaBindingPath) process.env.CHERRY_SHERPA_ONNX_BINDING_PATH = sherpaBindingPath
 }
 
 /** Resolves off the app root, matching how the packaged app finds these packages. */
@@ -76,6 +79,19 @@ export async function getPpu(): Promise<any> {
     ppu = await import(pathToFileURL(projectRequire().resolve('ppu-paddle-ocr')).href)
   }
   return ppu
+}
+
+export function getSherpa(): any {
+  if (!sherpa) {
+    try {
+      sherpa = projectRequire()('sherpa-onnx-node')
+    } catch (error) {
+      throw Object.assign(new Error('ASR model initialization failed', { cause: error }), {
+        code: 'ASR_MODEL_LOAD_FAILED'
+      })
+    }
+  }
+  return sherpa
 }
 
 /** Memoizes a loaded model, dropping the entry on failure so a later request can retry. */
