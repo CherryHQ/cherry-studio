@@ -251,8 +251,10 @@ beforeEach(() => {
   })
   createWorkspaceMock.mockResolvedValue(CREATED_WORKSPACE)
   deleteWorkspaceMock.mockResolvedValue({ deletedIds: ['session-alpha-recent', 'session-alpha-older'] })
-  ipcRequestMock.mockImplementation((_route, input) =>
-    deleteWorkspaceMock({ params: { workspaceId: input.workspaceId } })
+  ipcRequestMock.mockImplementation((route, input) =>
+    route === 'ai.agent.workspace.register'
+      ? createWorkspaceMock(input)
+      : deleteWorkspaceMock({ params: { workspaceId: input.workspaceId } })
   )
   invalidateCacheMock.mockResolvedValue(undefined)
   refetchReferencesMock.mockResolvedValue(undefined)
@@ -387,12 +389,25 @@ describe('WorkspaceSelector', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add new work directory' }))
 
     await waitFor(() =>
-      expect(createWorkspaceMock).toHaveBeenCalledWith({
-        body: { path: '/Users/jd/new-project' }
-      })
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.workspace.register', { path: '/Users/jd/new-project' })
     )
     expect(refetchWorkspacesMock).not.toHaveBeenCalled()
+    expect(invalidateCacheMock).toHaveBeenCalledWith('/agent-workspaces')
     expect(onChange).toHaveBeenCalledWith('workspace-created')
+  })
+
+  it('preserves the selection and allows retry after registration is rejected', async () => {
+    selectFolderMock.mockResolvedValue('/Users/jd/new-project')
+    ipcRequestMock.mockRejectedValueOnce(new Error('Workspace storage is in use'))
+    const { onChange } = renderSelector()
+    openPopover()
+    fireEvent.click(screen.getByRole('button', { name: 'Add new work directory' }))
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('Failed to add work directory'))
+    expect(onChange).not.toHaveBeenCalled()
+    expect(invalidateCacheMock).not.toHaveBeenCalled()
+    openPopover()
+    fireEvent.click(screen.getByRole('button', { name: 'Add new work directory' }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith('workspace-created'))
   })
 
   it('previews capped affected resource summaries before deleting a workspace', async () => {
