@@ -1059,6 +1059,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  closeAllSessions(): Promise<void> {
+    const sessionIds = new Set([...this.entries.keys(), ...this.closingSessions.keys()])
+    const closings = [...sessionIds].map((sessionId) => this.closeSession(sessionId))
+    return Promise.allSettled(closings).then(() => undefined)
+  }
+
   closeSession(sessionId: string): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
@@ -1536,14 +1542,14 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during stop', { error })
     }
-    await this.closeAll()
+    await this.closeAllSessions()
   }
 
   protected async onDestroy(): Promise<void> {
     await this.forks.cancel()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
-    await this.closeAll()
+    await this.closeAllSessions()
     try {
       toolApprovalRegistry.clear('agent-session-runtime-destroy')
     } catch (error) {
@@ -3334,12 +3340,6 @@ export class AgentSessionRuntimeService extends BaseService {
       clearTimeout(entry.idleTimer)
       entry.idleTimer = undefined
     }
-  }
-
-  private closeAll(): Promise<void> {
-    const sessionIds = new Set([...this.entries.keys(), ...this.closingSessions.keys()])
-    const closings = [...sessionIds].map((sessionId) => this.closeSession(sessionId))
-    return Promise.allSettled(closings).then(() => undefined)
   }
 
   private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
