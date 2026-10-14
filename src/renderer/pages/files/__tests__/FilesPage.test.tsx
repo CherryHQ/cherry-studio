@@ -712,8 +712,9 @@ describe('FilesPage incremental hydration', () => {
     ])
     await resolveRequestsFor(secondImageEntry.id)
     fireEvent.click(screen.getByText('files.image'))
-    await waitFor(() => expect(requests).toHaveLength(12))
+    await waitFor(() => expect(requests.slice(6).some(({ ids }) => ids.includes(imageEntry.id))).toBe(true))
     await resolveRequestsFor(imageEntry.id)
+    await waitFor(() => expect(requests.slice(6).some(({ ids }) => ids.includes(secondImageEntry.id))).toBe(true))
     await resolveRequestsFor(secondImageEntry.id)
 
     expect(await screen.findByAltText('photo.png')).toBeInTheDocument()

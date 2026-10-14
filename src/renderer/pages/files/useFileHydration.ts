@@ -34,6 +34,7 @@ function useFileBatch<Route extends FileBatchRoute>(route: Route, batches: FileE
   const { data, error, isValidating, size, setSize, mutate } = useSWRInfinite(getKey, fetchFileBatch, {
     revalidateFirstPage: false,
     revalidateIfStale: false,
+    revalidateOnMount: true,
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     keepPreviousData: true,

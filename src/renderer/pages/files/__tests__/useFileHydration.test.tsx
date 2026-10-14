@@ -35,6 +35,60 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('Files hydration cache', () => {
+  it('refreshes filesystem records on reopening and still hydrates only appended IDs', async () => {
+    const cache = new Map()
+    let restored = false
+    request.mockImplementation((route, input) => {
+      const ids: string[] = input.ids ?? input.items.map(({ key }: { key: string }) => key)
+      const value =
+        route === 'file.batch_get_metadata'
+          ? { size: restored ? 2048 : 1024, modifiedAt: restored ? 2 : 1 }
+          : route === 'file.batch_get_physical_paths'
+            ? restored
+              ? '/tmp/restored.png'
+              : null
+            : restored
+              ? 'present'
+              : 'missing'
+      return Promise.resolve(Object.fromEntries(ids.map((id) => [id, value])))
+    })
+    const first = setup({ pages: [{ items: [text, image] }] }, cache)
+    await waitFor(() => {
+      expect(first.result.current.metadataById.text?.size).toBe(1024)
+      expect(first.result.current.danglingStateById.text).toBe('missing')
+      expect(first.result.current.physicalPathById.image).toBeNull()
+    })
+    first.unmount()
+    restored = true
+    vi.useFakeTimers()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31 * 60_000)
+    })
+    vi.useRealTimers()
+
+    const reopened = setup({ pages: [{ items: [text, image] }] }, cache)
+    await waitFor(() => {
+      expect(reopened.result.current.metadataById.text?.size).toBe(2048)
+      expect(reopened.result.current.metadataById.text?.modifiedAt).toBe(2)
+      expect(reopened.result.current.danglingStateById.text).toBe('present')
+      expect(reopened.result.current.physicalPathById.image).toBe('/tmp/restored.png')
+    })
+    request.mockClear()
+    const appended = { ...text, id: 'appended' }
+    reopened.rerender({ pages: [{ items: [text, image] }, { items: [appended] }] })
+    await waitFor(() => {
+      expect(reopened.result.current.metadataById.appended?.size).toBe(2048)
+      expect(reopened.result.current.danglingStateById.appended).toBe('present')
+    })
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(request.mock.calls).toEqual(
+      expect.arrayContaining([
+        ['file.batch_get_metadata', { items: [{ key: 'appended', handle: { kind: 'entry', entryId: 'appended' } }] }],
+        ['file.batch_get_dangling_states', { ids: ['appended'] }]
+      ])
+    )
+  })
+
   it('keeps refreshed records when a late pre-refresh response is followed by pagination', async () => {
     let resolve!: (records: Record<string, unknown>) => void
     const pending = new Promise<Record<string, unknown>>((done) => {
