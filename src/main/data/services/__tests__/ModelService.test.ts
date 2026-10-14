@@ -955,6 +955,30 @@ describe('ModelService — manual reasoning capability projects effort controls'
     expect(efforts).not.toEqual([...MANUAL_REASONING_EFFORTS])
   })
 
+  it('exposes no manual controls when the resolved wire profile disables reasoning', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('nvidia', 'NVIDIA'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'nvidia',
+          modelId: 'cosmos-reason2-8b',
+          name: 'Cosmos Reason 2 8B',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        },
+        registryData: {
+          presetModel: { id: 'cosmos-reason2-8b', capabilities: [MODEL_CAPABILITY.REASONING] },
+          registryOverride: null,
+          // NVIDIA's default wire explicitly disables reasoning parameters.
+          reasoningProfile: { format: 'openai-chat', wire: { disabled: true } }
+        }
+      }
+    ])
+
+    expect(created.reasoning?.selectableEfforts ?? []).toEqual([])
+  })
+
   it('leaves models without the reasoning capability untouched', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
 

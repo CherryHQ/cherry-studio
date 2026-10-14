@@ -13,8 +13,8 @@ import { isEqual } from 'es-toolkit/compat'
 import { application } from '@application'
 import type {
   ModelLookupResult,
-  ProviderReasoningFormat,
   ReasoningEffort,
+  ReasoningFormatType,
   ReasoningWireProfile
 } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy, REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
@@ -486,7 +486,7 @@ const MANUAL_REASONING_EFFORTS: readonly ReasoningEffort[] = [
  * its wire switches reasoning with a boolean, not an effort level.
  */
 function manualDeclaredReasoning(
-  format: ProviderReasoningFormat | undefined,
+  format: ReasoningFormatType | undefined,
   wire: ReasoningWireProfile | undefined,
   declaredReasoning: boolean
 ): RuntimeReasoning | undefined {
@@ -507,35 +507,41 @@ function manualDeclaredReasoning(
  * registry projects `reasoning.selectableEfforts` only for ids it knows, so
  * toggling the `reasoning` capability on an unknown id (brand-new or niche
  * models) left the composer without an effort selector — the capability toggle
- * did nothing visible. Fill only the void: a registry-projected reasoning
- * profile always wins. (CherryHQ/cherry-studio#19761)
+ * did nothing visible. Projected through the resolved wire profile when one is
+ * available, so a profile that disables reasoning exposes no knobs; a
+ * registry-projected profile always wins. (CherryHQ/cherry-studio#19761)
  */
-function withManualReasoningControls(model: Model): Model {
+function withManualReasoningControls(model: Model, reasoningProfile?: ResolvedReasoningProfile): Model {
   if (!model.capabilities?.includes('reasoning') || model.reasoning != null) return model
-  return { ...model, reasoning: { selectableEfforts: [...MANUAL_REASONING_EFFORTS] } }
+  const reasoning = manualDeclaredReasoning(reasoningProfile?.format, reasoningProfile?.wire, true)
+  if (!reasoning?.selectableEfforts?.length) return model
+  return { ...model, reasoning }
 }
 
-function applyStoredModelState(model: Model, row: UserModelRow): Model {
-  return withManualReasoningControls({
-    ...model,
-    id: createUniqueModelId(row.providerId, row.modelId),
-    providerId: row.providerId,
-    apiModelId: row.modelId,
-    presetModelId: row.presetModelId,
-    isEnabled: row.isEnabled,
-    isHidden: row.isHidden,
-    isDeprecated: row.isDeprecated,
-    notes: row.notes ?? undefined
-  })
+function applyStoredModelState(model: Model, row: UserModelRow, reasoningProfile?: ResolvedReasoningProfile): Model {
+  return withManualReasoningControls(
+    {
+      ...model,
+      id: createUniqueModelId(row.providerId, row.modelId),
+      providerId: row.providerId,
+      apiModelId: row.modelId,
+      presetModelId: row.presetModelId,
+      isEnabled: row.isEnabled,
+      isHidden: row.isHidden,
+      isDeprecated: row.isDeprecated,
+      notes: row.notes ?? undefined
+    },
+    reasoningProfile
+  )
 }
 
 function createPresetFallback(
   row: UserModelRow,
-  profile?: ResolvedReasoningProfile['wire'],
+  reasoningProfile?: ResolvedReasoningProfile,
   serviceTierControl?: ResolvedServiceTierControl
 ): Model {
-  const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
-  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
+  const baseline = createCustomModel(row.providerId, row.modelId, reasoningProfile?.wire, serviceTierControl)
+  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row, reasoningProfile)
 }
 
 class ModelService {
@@ -778,10 +784,13 @@ class ModelService {
           const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
             providerRegistryService.resolveModel(providerContext, row.modelId)
           if (providerModel) {
-            return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+            return {
+              ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row, reasoningProfile),
+              presetModelId: null
+            }
           }
           if (!presetModel) {
-            return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
+            return createPresetFallback(row, reasoningProfile, serviceTierControl)
           }
 
           const baseline = mergePresetModel(
@@ -794,7 +803,11 @@ class ModelService {
           )
           const resolved = applyStoredPresetDeltas(baseline, row)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
-          return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
+          return applyStoredModelState(
+            imageGeneration ? { ...resolved, imageGeneration } : resolved,
+            row,
+            reasoningProfile
+          )
         } catch (error) {
           logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
             providerId: row.providerId,
@@ -812,7 +825,10 @@ class ModelService {
         const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
           providerRegistryService.resolveModel(providerContext, modelId)
         if (providerModel) {
-          return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+          return {
+            ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row, reasoningProfile),
+            presetModelId: null
+          }
         }
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
