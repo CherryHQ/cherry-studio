@@ -73,7 +73,12 @@ import type {
   StreamListener,
   TransportTimings
 } from './types'
-import { withGeneratedFiles, type StoreGeneratedFile } from './withGeneratedFiles'
+import {
+  storeGeneratedFile,
+  withGeneratedFiles,
+  type GeneratedFileChunk,
+  type StoreGeneratedFile
+} from './withGeneratedFiles'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
@@ -2019,7 +2024,11 @@ export class AiStreamManager extends BaseService {
     const { stream: idleStream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
     // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
     // thinkingMs measurement (see withReasoningTimingMetadata).
-    const stream = withGeneratedFiles(withReasoningTimingMetadata(idleStream), exec.storeGeneratedFile)
+    let pendingFileWrite: Promise<GeneratedFileChunk> | undefined
+    const stream = withGeneratedFiles(withReasoningTimingMetadata(idleStream), (chunk) => {
+      pendingFileWrite = (exec.storeGeneratedFile ?? storeGeneratedFile)(chunk)
+      return pendingFileWrite
+    })
 
     // `continue-conversation` chunks reference toolCallIds on the anchor
     // assistant message; without seeding, `readUIMessageStream`'s
@@ -2042,6 +2051,10 @@ export class AiStreamManager extends BaseService {
       onAccumulatedSnapshot: (msg) => {
         exec.finalMessage = withCompactionAnchors(msg, exec)
       }
+    }).finally(async () => {
+      // Cancelling the stream can settle its pipe before the active transform's write.
+      // Transforms are serial; the latest admitted write must finish before execution settles.
+      await pendingFileWrite?.catch(() => {})
     })
 
     exec.timings.completedAt = result.broadcastCompletedAt

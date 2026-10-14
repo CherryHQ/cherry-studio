@@ -1758,6 +1758,45 @@ describe('AiStreamManager', () => {
   // ── abort ───────────────────────────────────────────────────────
 
   describe('abort', () => {
+    it.each(['stop', 'timeout', 'storage-error'] as const)('drains an admitted file write after %s', async (cause) => {
+      const source = controlledStream()
+      mockStreamText.mockResolvedValueOnce(source.stream)
+      const started = Promise.withResolvers<void>()
+      const write = Promise.withResolvers<void>()
+      const listener = new FakeListener('persistence:generated-file', 'persistence')
+      mgr.send({
+        topicId: 'file-write',
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req('file-write'), requestOptions: { timeout: 50 } },
+            storeGeneratedFile: async (file) => {
+              started.resolve()
+              await write.promise
+              if (cause === 'storage-error') throw new Error('disk failed')
+              return { ...file, url: 'file:///generated.mp4' }
+            }
+          }
+        ],
+        listeners: [listener]
+      })
+      source.enqueue({ type: 'start', messageId: 'generated' })
+      source.enqueue({ type: 'file', mediaType: 'video/mp4', url: 'data:video/mp4;base64,dmlkZW8=' })
+      await started.promise
+      const hold = mgr.pause('test: restore')
+      if (cause === 'timeout') await vi.advanceTimersByTimeAsync(51)
+      else mgr.abort('file-write', 'user-stop')
+      const drain = mgr.drainInFlight({ timeoutMs: 10 })
+      await vi.advanceTimersByTimeAsync(11)
+      expect(await drain).toEqual({ stragglerIds: ['file-write'] })
+      expect(listener.pausedResults).toHaveLength(0)
+      write.resolve()
+      await flushMicrotasksUntil(() => listener.pausedResults.length === 1)
+      await expect(mgr.drainInFlight({ timeoutMs: 100 })).resolves.toEqual({ stragglerIds: [] })
+      expect(listener.chunks.some((part) => part.type === 'file')).toBe(false)
+      hold.dispose()
+    })
+
     it('sets status and triggers AbortController signal', () => {
       startSingle(mgr, {
         topicId: 'a',
