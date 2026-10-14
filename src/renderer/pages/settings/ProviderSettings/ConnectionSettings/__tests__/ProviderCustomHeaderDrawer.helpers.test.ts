@@ -93,6 +93,25 @@ describe('sanitizeEndpointDraftsForSave', () => {
 
     expect(drafts[PRIMARY]).toEqual({ baseUrl: 'https://new' })
   })
+
+  it('keeps a touched self-hosted draft when save uses snapshots taken before refs are cleared', () => {
+    const liveTouched = new Set<typeof PRIMARY>()
+    const liveOpenSnapshot: Partial<Record<typeof PRIMARY, { type: string }>> = {}
+    const touchedSnapshot = new Set<typeof PRIMARY>([PRIMARY])
+    const openSnapshot = { [PRIMARY]: undefined as { type: string } | undefined }
+
+    liveTouched.clear()
+
+    const drafts = sanitizeEndpointDraftsForSave(
+      { [PRIMARY]: { baseUrl: 'https://new', reasoningFormat: { type: 'self-hosted' } } },
+      touchedSnapshot,
+      openSnapshot,
+      { [PRIMARY]: { baseUrl: 'https://old' } as any }
+    )
+
+    expect(drafts[PRIMARY]).toMatchObject({ reasoningFormat: { type: 'self-hosted' } })
+    expect(liveTouched.size).toBe(0)
+  })
 })
 
 describe('resolveEndpointTypes', () => {
