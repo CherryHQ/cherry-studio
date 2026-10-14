@@ -8,6 +8,7 @@ import type { TopicActionContext } from '@renderer/components/chat/actions/topic
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { dataApiService } from '@renderer/data/DataApiService'
+import { useCacheSelector } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
@@ -36,6 +37,7 @@ import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
 import { getErrorMessage } from '@renderer/utils/error'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
@@ -43,7 +45,12 @@ import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/e
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
 import { HistoryActionContextMenu } from './components/HistoryTableParts'
-import type { HistoryBulkDeleteResult, HistoryRecordDescriptor, HistoryRowActions } from './historyRecordsDescriptor'
+import type {
+  HistoryBulkDeleteResult,
+  HistoryRecordDescriptor,
+  HistoryRowActions,
+  HistoryRowState
+} from './historyRecordsDescriptor'
 import {
   ALL_SOURCE_ID,
   buildAssistantSources,
@@ -56,6 +63,17 @@ import { useHistoryRecordsController } from './useHistoryRecordsController'
 const logger = loggerService.withContext('AssistantHistoryRecords')
 
 type HistoryTopicItem = ApiTopic & { assistantId: string | undefined; pinned: boolean }
+
+function AssistantHistoryRowState({
+  topicId,
+  children
+}: {
+  topicId: string
+  children: (state: HistoryRowState) => ReactElement
+}) {
+  const isRenaming = useCacheSelector(['topic.renaming'] as const, ([topicIds]) => topicIds?.includes(topicId) ?? false)
+  return children({ isRenaming })
+}
 
 interface AssistantHistoryRecordsProps {
   activeRecordId?: string | null
@@ -409,7 +427,7 @@ const AssistantHistoryRecords = ({
   const getSourceId = useCallback((topic: HistoryTopicItem) => getTopicSourceId(topic, assistantById), [assistantById])
   const matchesSearch = useCallback(
     (topic: HistoryTopicItem, keywords: string) =>
-      (topic.name || t('chat.default.topic.name')).toLowerCase().includes(keywords),
+      matchesSearchText(topic.name || t('chat.default.topic.name'), keywords),
     [t]
   )
   const onActiveRecordChange = useCallback(
@@ -439,7 +457,9 @@ const AssistantHistoryRecords = ({
       rowHeight: 32,
       getSelectLabel: (topic: HistoryTopicItem) =>
         `${t('common.select')} ${topic.name || t('chat.default.topic.name')}`,
-      getRenameTopicId: (topic: HistoryTopicItem) => topic.id,
+      renderRowState: (topic: HistoryTopicItem, render: (state: HistoryRowState) => ReactElement) => (
+        <AssistantHistoryRowState topicId={topic.id}>{render}</AssistantHistoryRowState>
+      ),
       getRowActions: (
         topic: HistoryTopicItem,
         openRename: (id: string, name: string) => void,

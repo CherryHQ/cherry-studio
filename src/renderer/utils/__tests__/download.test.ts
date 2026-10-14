@@ -190,6 +190,38 @@ describe('download', () => {
         expect(mockClick).toHaveBeenCalled()
       })
 
+      it('parses a quoted Content-Disposition filename without a trailing quote', async () => {
+        const now = Date.now()
+        vi.spyOn(Date, 'now').mockReturnValue(now)
+
+        const headers = new Headers()
+        headers.set('Content-Disposition', 'attachment; filename="server-file.pdf"')
+        mockFetch.mockResolvedValue(createMockResponse({ headers }))
+
+        // URL has no extension, so the Content-Disposition filename is used.
+        void download('https://example.com/files/download')
+        await waitForAsync()
+
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toBe(`${now}_server-file.pdf`)
+      })
+
+      it('parses a quoted filename containing escaped quotes', async () => {
+        const now = Date.now()
+        vi.spyOn(Date, 'now').mockReturnValue(now)
+
+        const headers = new Headers()
+        // A quoted-string filename may contain escaped quotes (\").
+        headers.set('Content-Disposition', 'attachment; filename="Q1.2026 \\"final\\".pdf"')
+        mockFetch.mockResolvedValue(createMockResponse({ headers }))
+
+        void download('https://example.com/files/download')
+        await waitForAsync()
+
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toBe(`${now}_Q1.2026 "final".pdf`)
+      })
+
       it('should add timestamp to network downloaded files', async () => {
         const now = Date.now()
         vi.spyOn(Date, 'now').mockReturnValue(now)

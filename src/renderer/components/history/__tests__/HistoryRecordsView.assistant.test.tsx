@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -35,7 +36,6 @@ const hookMocks = vi.hoisted(() => ({
   useTopics: vi.fn(),
   useAssistants: vi.fn(),
   useCache: vi.fn(),
-  useCacheSelector: vi.fn(() => false),
   useMultiplePreferences: vi.fn(),
   usePins: vi.fn(),
   useSessions: vi.fn(),
@@ -133,9 +133,9 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
+vi.mock('@renderer/data/hooks/useCache', async () => ({
   useCache: hookMocks.useCache,
-  useCacheSelector: hookMocks.useCacheSelector
+  useCacheSelector: (await import('@test-mocks/renderer/useCache')).mockUseCacheSelector
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -468,6 +468,7 @@ let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
   beforeEach(async () => {
+    MockUseCacheUtils.resetMocks()
     hookMocks.isMac = false
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     MockUseDataApiUtils.resetMocks()
@@ -1447,6 +1448,23 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(toast.success).not.toHaveBeenCalled()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
     expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
+  })
+
+  it('disables automatic rename only for the topic already being renamed', () => {
+    MockUseCacheUtils.setCacheValue('topic.renaming', ['topic-alpha'])
+    setupAssistantHistory({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })]
+    })
+
+    const getRenameAction = (name: string) => {
+      const menu = screen.getByText(name).closest('[data-testid="context-menu"]')
+      const content = menu?.querySelector<HTMLElement>('[data-testid="context-menu-content"]')
+      if (!content) throw new Error(`Missing context menu for ${name}`)
+      return within(content).getByRole('button', { name: 'Generate conversation name' })
+    }
+
+    expect(getRenameAction('Alpha topic')).toBeDisabled()
+    expect(getRenameAction('Beta topic')).toBeEnabled()
   })
 
   it('clears automatic topic renaming without a success reveal after a failed history update', async () => {

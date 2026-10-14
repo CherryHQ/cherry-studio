@@ -5,7 +5,13 @@ import type { AssistantSettings } from '@shared/data/types/assistant'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { makeAssistant as makeAssistantBase, makeModel } from '../../__tests__/fixtures'
-import { adjustMaxOutputTokensForReasoning, filterStandardParams, getTemperature, getTopP } from '../modelParameters'
+import {
+  adjustMaxOutputTokensForReasoning,
+  filterStandardParams,
+  getTemperature,
+  getTopP,
+  stripUnsupportedModelParams
+} from '../modelParameters'
 
 const OMIT_REASONING = { kind: 'omit' } as const
 const OFF_REASONING = { kind: 'off' } as const
@@ -18,6 +24,104 @@ const NO_BUDGET = { budgetTokens: undefined }
 function makeSampling(settings: Partial<AssistantSettings> = {}): SamplingSettings {
   return makeAssistantBase({ settings: { enableTemperature: true, ...settings } }).settings
 }
+
+describe('stripUnsupportedModelParams', () => {
+  it.each(['gemini-4-argon', 'google/gemini-4-argon', 'models/gemini-4-argon'])(
+    'removes Argon sampling and explicit cache references after overrides for %s',
+    (apiModelId) => {
+      const parameters = Object.freeze({
+        temperature: 0.5,
+        topP: 0.8,
+        top_p: 0.8,
+        topK: 40,
+        top_k: 40,
+        cachedContent: 'cachedContents/old',
+        cached_content: 'cachedContents/old',
+        maxOutputTokens: 131072,
+        continuationToken: 'resume',
+        thinkingConfig: { thinkingLevel: 'medium' },
+        metadata: { top_k: 'application data' }
+      })
+      const model = makeModel({ id: `custom::${apiModelId}`, apiModelId })
+      const cleaned = stripUnsupportedModelParams(
+        {
+          standardParams: parameters,
+          providerOptions: { google: parameters, vertex: parameters },
+          bodyParams: parameters
+        },
+        model
+      )
+      const expected = {
+        maxOutputTokens: 131072,
+        continuationToken: 'resume',
+        thinkingConfig: { thinkingLevel: 'medium' },
+        metadata: { top_k: 'application data' }
+      }
+      expect(cleaned).toEqual({
+        standardParams: expected,
+        providerOptions: { google: expected, vertex: expected },
+        bodyParams: expected
+      })
+      expect(getTemperature(makeSampling(), model, OMIT_REASONING)).toBeUndefined()
+      expect(getTopP(makeSampling({ enableTopP: true }), model, OMIT_REASONING)).toBeUndefined()
+      expect(parameters.cachedContent).toBe('cachedContents/old')
+    }
+  )
+
+  it.each([
+    { temperature: false, topP: false, standard: {}, wire: {} },
+    { temperature: false, topP: true, standard: { topP: 0.8 }, wire: { topP: 0.8, top_p: 0.8 } },
+    { temperature: true, topP: false, standard: { temperature: 0.3 }, wire: { temperature: 0.3 } },
+    {
+      temperature: true,
+      topP: true,
+      standard: { temperature: 0.3, topP: 0.8 },
+      wire: { temperature: 0.3, topP: 0.8, top_p: 0.8 }
+    },
+    {
+      temperature: undefined,
+      topP: undefined,
+      standard: { temperature: 0.3, topP: 0.8 },
+      wire: { temperature: 0.3, topP: 0.8, top_p: 0.8 }
+    }
+  ])(
+    'enforces temperature=$temperature and topP=$topP independently without mutating inputs',
+    ({ temperature, topP, standard, wire }) => {
+      const model = makeModel({
+        parameterSupport: {
+          temperature: temperature === undefined ? undefined : { supported: temperature, min: 0, max: 1 },
+          topP: topP === undefined ? undefined : { supported: topP, min: 0, max: 1 },
+          maxTokens: true,
+          stopSequences: true,
+          systemMessage: true
+        }
+      })
+      const standardParams = Object.freeze({ temperature: 0.3, topP: 0.8, maxOutputTokens: 100 })
+      const wireParams = Object.freeze({
+        temperature: 0.3,
+        topP: 0.8,
+        top_p: 0.8,
+        user: 'kept',
+        metadata: Object.freeze({ temperature: 'business data', top_p: 42 })
+      })
+      const params = Object.freeze({
+        standardParams,
+        providerOptions: Object.freeze({ openai: wireParams, other: wireParams }),
+        bodyParams: wireParams
+      })
+      const result = stripUnsupportedModelParams(params, model)
+      expect(result.standardParams).toEqual({ ...standard, maxOutputTokens: 100 })
+      const expectedWire = {
+        ...wire,
+        user: 'kept',
+        metadata: { temperature: 'business data', top_p: 42 }
+      }
+      expect(result.providerOptions).toEqual({ openai: expectedWire, other: expectedWire })
+      expect(result.bodyParams).toEqual(expectedWire)
+      expect(stripUnsupportedModelParams(result, model)).toEqual(result)
+    }
+  )
+})
 
 describe('getTemperature', () => {
   it('returns undefined when enableTemperature is false', () => {

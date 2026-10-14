@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import { useCacheSelector } from '@renderer/data/hooks/useCache'
 
 import type { HistoryRecordDescriptor, HistoryRowState } from '../historyRecordsDescriptor'
 import type { SelectAllState } from '../useHistoryRecordsController'
@@ -33,26 +32,10 @@ interface HistoryRecordListRowProps<T> {
 }
 
 function HistoryRecordListRow<T>({ descriptor, item, ...props }: HistoryRecordListRowProps<T>) {
-  const renameTopicId = descriptor.getRenameTopicId?.(item)
-
-  if (renameTopicId) {
-    return <HistoryRecordListRenameRow descriptor={descriptor} item={item} renameTopicId={renameTopicId} {...props} />
-  }
-
-  return <HistoryRecordListRowContent descriptor={descriptor} item={item} rowState={{ isRenaming: false }} {...props} />
-}
-
-interface HistoryRecordListRenameRowProps<T> extends HistoryRecordListRowProps<T> {
-  renameTopicId: string
-}
-
-function HistoryRecordListRenameRow<T>({ renameTopicId, ...props }: HistoryRecordListRenameRowProps<T>) {
-  const isRenaming = useCacheSelector(
-    ['topic.renaming'] as const,
-    ([topicIds]) => topicIds?.includes(renameTopicId) ?? false
+  const renderContent = (rowState: HistoryRowState) => (
+    <HistoryRecordListRowContent descriptor={descriptor} item={item} rowState={rowState} {...props} />
   )
-
-  return <HistoryRecordListRowContent {...props} rowState={{ isRenaming }} />
+  return descriptor.renderRowState?.(item, renderContent) ?? renderContent({ isRenaming: false })
 }
 
 interface HistoryRecordListRowContentProps<T> extends HistoryRecordListRowProps<T> {
@@ -116,7 +99,7 @@ export function HistoryRecordList<T>({
   const {
     getId,
     getName,
-    getRenameTopicId,
+    renderRowState,
     getRowActions,
     getSelectLabel,
     getSourceLabel,
@@ -137,7 +120,7 @@ export function HistoryRecordList<T>({
       deleteLabel,
       getId,
       getName,
-      getRenameTopicId,
+      renderRowState,
       getRowActions,
       getSelectLabel,
       getSourceLabel,

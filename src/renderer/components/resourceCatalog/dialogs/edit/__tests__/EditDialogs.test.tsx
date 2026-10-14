@@ -349,6 +349,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',
           'library.config.agent.field.description.placeholder': 'Describe this agent',
+          'agent.tasks.timeout.label': 'Maximum Execution Time',
+          'agent.tasks.intervalUnit': 'minutes',
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
           'library.config.agent.field.model.hint': 'Primary agent model.',
@@ -380,6 +382,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
           'agent.tools.builtin.bash.description': 'Run shell commands',
           'agent.tools.builtin.bash.label': 'Run shell commands',
+          'agent.tools.builtin.codemode.label': 'Code Mode',
           'agent.tools.builtin.read.description': 'Read files',
           'agent.tools.builtin.read.label': 'Read files',
           'library.config.agent.model_config': 'Model',
@@ -1124,6 +1127,23 @@ describe('edit dialogs', () => {
     expect(screen.queryByRole('button', { name: 'Small model Help' })).not.toBeInTheDocument()
   })
 
+  it('persists a heartbeat timeout edit independently of the interval', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+    const field = screen.getByLabelText('Maximum Execution Time (minutes)')
+    expect(field).toHaveValue('2')
+
+    await user.clear(field)
+    await user.type(field, '10')
+    await user.tab()
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: { configuration: { heartbeat_timeout_minutes: 10 } }
+      })
+    )
+  })
+
   // The heartbeat is turned off by its switch, so an emptied interval is a retype,
   // not a value — a persisted 0 would be a heartbeat interval of zero minutes.
   it('does not persist a zero heartbeat interval when the field is cleared', async () => {
@@ -1706,6 +1726,38 @@ describe('edit dialogs', () => {
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['bash'] }) })
+    )
+  })
+
+  it('keeps old MCP restrictions until the user explicitly removes them, preserving file restrictions', async () => {
+    const user = userEvent.setup()
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...PI_AGENT, disabledTools: ['read', 'legacy-dsh:mcp__unknown__tool'] }}
+        onOpenChange={vi.fn()}
+      />
+    )
+    await user.click(screen.getByRole('tab', { name: 'MCP' }))
+    expect(screen.getByText('mcp__unknown__tool')).toBeVisible()
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'library.config.tools.legacy_restrictions.remove' }))
+    await waitFor(() => expect(screen.queryByText('mcp__unknown__tool')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['read'] }) })
+    )
+  })
+
+  it('lets users enable Code Mode when its legacy tool was disabled', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={{ ...PI_AGENT, disabledTools: ['tool_exec'] }} onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('tab', { name: 'Built-in tools' }))
+    const toggle = screen.getByRole('switch', { name: 'Code Mode' })
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: [] }) })
     )
   })
 

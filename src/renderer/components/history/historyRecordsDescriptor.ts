@@ -67,8 +67,8 @@ export interface HistoryRecordDescriptor<T> {
   onActiveRecordChange: (item: T | null) => void
 
   // --- rendering (consumed by HistoryRecordList / HistoryRecordRow) ---
-  /** Optional topic id used to derive the row's automatic-rename state. */
-  getRenameTopicId?: (item: T) => string
+  /** Inject mode-owned transient state without subscribing the whole list. */
+  renderRowState?: (item: T, render: (state: HistoryRowState) => ReactElement) => ReactElement
   getName: (item: T) => string
   getUpdatedAt: (item: T) => string
   getSourceLabel: (item: T) => string

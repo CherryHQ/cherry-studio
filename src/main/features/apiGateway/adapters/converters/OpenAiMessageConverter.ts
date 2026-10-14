@@ -64,16 +64,10 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
    * call/result pair coherently.
    */
   toUIMessages(params: ExtendedChatCompletionCreateParams): CherryUIMessage[] {
-    // tool_call_id → name (from assistant tool_calls) and → result output.
-    const toolCallIdToName = new Map<string, string>()
+    // tool_call_id → result output.
     const toolResultOutputs = new Map<string, string>()
     for (const msg of params.messages) {
-      if (msg.role === 'assistant') {
-        const assistantMsg = msg
-        for (const toolCall of assistantMsg.tool_calls ?? []) {
-          if (toolCall.type === 'function') toolCallIdToName.set(toolCall.id, toolCall.function.name)
-        }
-      } else if (msg.role === 'tool') {
+      if (msg.role === 'tool') {
         const toolMsg = msg
         toolResultOutputs.set(
           toolMsg.tool_call_id,
