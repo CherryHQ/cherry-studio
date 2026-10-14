@@ -734,6 +734,107 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     ).toBe(true)
   })
 
+  it('keeps a scene cut relative to a nonzero format start when video starts later', async () => {
+    const picture = "color=c=black:s=64x64:r=25:d=5,geq=r='255':g='gte(T,2)*lt(T,3)*255':b='gte(T,2)*lt(T,3)*255'"
+    const shiftedPath = join(root, 'format-start-scene.mp4')
+    const zeroPath = join(root, 'zero-start-scene.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=8',
+        '-itsoffset',
+        '1.5',
+        '-f',
+        'lavfi',
+        '-i',
+        picture,
+        '-output_ts_offset',
+        '2.0',
+        '-c:v',
+        'mpeg4',
+        '-q:v',
+        '5',
+        '-c:a',
+        'aac',
+        shiftedPath
+      ])
+    ).toBe(0)
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=5',
+        '-f',
+        'lavfi',
+        '-i',
+        picture,
+        '-c:v',
+        'mpeg4',
+        '-q:v',
+        '5',
+        '-c:a',
+        'aac',
+        '-shortest',
+        zeroPath
+      ])
+    ).toBe(0)
+
+    const shiftedTimes = readStarts(shiftedPath)
+    expect(shiftedTimes.formatStart).toBeGreaterThan(1)
+    expect(shiftedTimes.videoStart).toBeGreaterThan(shiftedTimes.audioStart)
+    const shifted = await sceneFrames(shiftedPath, 'format-start-frames')
+    const relativeCutMs = Math.round((shiftedTimes.videoStart - shiftedTimes.formatStart + 2) * 1000)
+    const whiteCut = shifted.detected.find(
+      (change) => change.timestampMs >= relativeCutMs && change.timestampMs <= relativeCutMs + 200
+    )
+    const whiteFrame = shifted.extracted.find((frame) => frame.timestampMs === whiteCut?.timestampMs)
+    const absoluteCutMs = Math.round((shiftedTimes.videoStart + 2) * 1000)
+    const evidence = JSON.stringify({
+      shiftedTimes,
+      relativeCutMs,
+      absoluteCutMs,
+      detected: shifted.detected,
+      planned: shifted.planned,
+      extracted: shifted.extracted.map((frame) => ({
+        timestampMs: frame.timestampMs,
+        color: averageColor(frame.path)
+      }))
+    })
+    expect(whiteCut, evidence).toBeDefined()
+    expect(shifted.planned, evidence).toContain(whiteCut?.timestampMs)
+    expect(whiteFrame, evidence).toBeDefined()
+    expect(whiteFrame ? averageColor(whiteFrame.path) : 'missing', evidence).toBe('white')
+    expect(
+      shifted.detected.some((change) => change.timestampMs >= absoluteCutMs - 100),
+      evidence
+    ).toBe(false)
+    expect(averageColor(shifted.extracted[0].path), evidence).toBe('red')
+
+    const zeroTimes = readStarts(zeroPath)
+    expect(zeroTimes.formatStart).toBeLessThan(0.05)
+    expect(zeroTimes.videoStart).toBeLessThan(0.05)
+    const zero = await sceneFrames(zeroPath, 'zero-start-frames')
+    const zeroCut = zero.detected.find((change) => change.timestampMs >= 1_900 && change.timestampMs <= 2_200)
+    const zeroFrame = zero.extracted.find((frame) => frame.timestampMs === zeroCut?.timestampMs)
+    const zeroEvidence = JSON.stringify({
+      zeroTimes,
+      detected: zero.detected,
+      planned: zero.planned,
+      extracted: zero.extracted.map((frame) => ({
+        timestampMs: frame.timestampMs,
+        color: averageColor(frame.path)
+      }))
+    })
+    expect(zero.planned[0], zeroEvidence).toBe(0)
+    expect(zeroCut, zeroEvidence).toBeDefined()
+    expect(zero.planned, zeroEvidence).toContain(zeroCut?.timestampMs)
+    expect(zeroFrame ? averageColor(zeroFrame.path) : 'missing', zeroEvidence).toBe('white')
+    expect(averageColor(zero.extracted[0].path), zeroEvidence).toBe('red')
+  })
+
   it('detects cuts on the first video stream when a larger static stream is default', async () => {
     const cutPath = join(root, 'multi-stream-cuts.mp4')
     expect(
@@ -1099,6 +1200,50 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
 
   function runFfmpeg(args: string[]): number | null {
     return spawnSync(ffmpegPath, ['-hide_banner', '-nostdin', '-y', ...args], { encoding: 'utf8' }).status
+  }
+
+  function readStarts(filePath: string): { formatStart: number; audioStart: number; videoStart: number } {
+    const probed = JSON.parse(
+      spawnSync(
+        ffprobePath,
+        ['-v', 'error', '-show_entries', 'format=start_time:stream=codec_type,start_time', '-of', 'json', filePath],
+        { encoding: 'utf8' }
+      ).stdout
+    ) as { format?: { start_time?: string }; streams?: Array<{ codec_type?: string; start_time?: string }> }
+    const start = (kind: string) => Number(probed.streams?.find((stream) => stream.codec_type === kind)?.start_time)
+    return { formatStart: Number(probed.format?.start_time), audioStart: start('audio'), videoStart: start('video') }
+  }
+
+  async function sceneFrames(filePath: string, framesDir: string) {
+    const probe = await mediaFfmpegHandlers.probe({ filePath, fallbackExt: 'mp4' }, context())
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(
+      {
+        filePath,
+        durationMs: probe.durationMs,
+        sampleFps: SCENE_SAMPLE_FPS,
+        scoreThreshold: SCENE_SCORE_THRESHOLD,
+        scanEdgePx: SCENE_SCAN_EDGE_PX,
+        maxCandidates: 32
+      },
+      context()
+    )
+    const planned = planAnalysisFrameTimestamps({
+      durationMs: probe.durationMs,
+      maxFrames: 24,
+      targetIntervalMs: 4_000,
+      sceneChanges: detected.changes
+    })
+    const extracted = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath,
+        outputDir: join(root, framesDir),
+        timestampsMs: planned,
+        maxEdgePx: 64,
+        jpegQuality: 70
+      },
+      context()
+    )
+    return { detected: detected.changes, planned, extracted: extracted.frames }
   }
 
   function dominantChannel(imagePath: string): 'red' | 'green' {
