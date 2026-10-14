@@ -32,7 +32,7 @@
 | [AI Usage Records](./references/ai/ai-usage-records.md) | Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection |
 | [Browser Use — Gap Analysis & Design](./references/ai/browser-use-design.md) | Browser automation design, ownership boundaries, capability gaps, and delivery roadmap |
 | [Browser Use — Implementation Plan](./references/ai/browser-use-implementation.md) | Browser session engine implementation, MCP contracts, and stacked delivery plan |
-| [Chat Attachments](./references/ai/chat-attachments.md) | Per-attachment routing to native file parts or capped extracted analysis, with read_file paging for truncated overflow |
+| [Chat Attachments](./references/ai/chat-attachments.md) | Per-attachment routing to native file parts or capped extracted text and analysis, with read_file paging for truncated overflow and full attachment detail |
 | [Core Architecture](./references/ai/core-architecture.md) | End-to-end chat turn flow from renderer IPC transport through AiStreamManager and Agent loop to persistence |
 | [Execution Overlay](./references/ai/execution-overlay.md) | Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots |
 | [Image-Generation Parameterized Architecture](./references/ai/image-generation-parameters.md) | Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile |

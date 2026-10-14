@@ -1,5 +1,5 @@
 ---
-description: Per-attachment routing to native file parts or capped extracted analysis, with read_file paging for truncated overflow
+description: Per-attachment routing to native file parts or capped extracted text and analysis, with read_file paging for truncated overflow and full attachment detail
 sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/fileProcessor.ts
@@ -102,7 +102,7 @@ Extracted text and compact media analysis are bounded so multi-turn context stay
 
 Default cap ≈ 8k chars/file (tunable).
 
-## `read_file` — text-only overflow tool
+## `read_file` — paged full attachment detail
 
 `src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts`, using the
 per-request attachment allow-list from the tool-call context.
@@ -111,8 +111,9 @@ per-request attachment allow-list from the tool-call context.
   **handle** (unique, normalized — see `collectFileAttachments`), resolved to an
   entry id against a per-request allow-list. The model never sees or guesses
   entry ids, and can only read files attached to the current conversation.
-- Returns **text only** (extracted / OCR), paginated. Errors are sanitized to
-  filename-level messages; details are logged, not returned.
+- Returns paginated text: extracted document text, image OCR, or full
+  timestamped audio/video analysis. Errors are sanitized to filename-level
+  messages; details are logged, not returned. Cancellation propagates.
 - Exposed to tool-capable models whenever the request carries first-party file
   attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
   everything inlines within the cap the model simply never needs to call it.
@@ -122,9 +123,9 @@ per-request attachment allow-list from the tool-call context.
   session transcript when each tool call runs, so deleting a message revokes
   access immediately. Ordinary Claude Code Agents receive neither this server
   nor its attachment manifest.
-- Because native media is kept inline (never routed through the tool),
-  `read_file` carries no media result — no `toModelOutput` base64 re-read, no
-  resend re-materialization.
+- Both the AI SDK Agent tool and Claude Code's `assistant-files` MCP server call
+  the same `ReadFileTool.readFile` implementation. Media reads therefore share
+  identical offset/limit paging and model-visible continuation instructions.
 
 Cherry Assistant also gets approval-gated `save_attachment` from the same
 session-scoped server. It writes only new paths inside the session workspace and
@@ -137,7 +138,8 @@ to the shared chat runtime or to ordinary Agents.
 |---|---|
 | office/pdf/text → text | `extractDocumentText` (`src/main/ai/messages/attachmentTextExtraction.ts`) |
 | image → text (non-vision) | `FileProcessingService.ocrImage` (`src/main/features/fileProcessing/`) |
-| audio/video → compact analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
+| audio/video chat turn → compact analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
+| audio/video read_file → timestamped analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
 
 `ai/` reaches OCR through the `FileProcessingService` rather than deep-importing
 the feature, keeping processor/handler internals in that domain. Both
@@ -152,6 +154,10 @@ re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
 `MediaAnalysisService` caches compact chat analysis by file identity/version and
 the ASR, Vision, OCR, and execution-budget configuration. A repeated turn does
 not duplicate preprocessing, and configuration changes invalidate the cache.
+`read_file` reaches audio and video through `MediaAnalysisService`, which caches
+that analysis by file identity/version and the ASR, Vision, OCR, and
+execution-budget configuration. Repeated reads do not duplicate preprocessing,
+and configuration changes invalidate the cache.
 
 ## Capability resolution
 
