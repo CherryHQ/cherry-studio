@@ -31,6 +31,7 @@ let actualReadFileSync: typeof NodeFs.readFileSync
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
 const MANAGED_BASH_TOOL = { name: 'bash' }
+const MANAGED_READ_TOOL = { name: 'read', description: 'Read the contents of a file.', execute: vi.fn() }
 const AUTONOMY_TOOL_NAMES = [
   'mcp__cherry_tools__cron',
   'mcp__cherry_tools__notify',
@@ -92,6 +93,7 @@ const mocks = vi.hoisted(() => ({
   createAgentSession: vi.fn(),
   getToolDefinition: vi.fn(),
   createBashToolDefinition: vi.fn(),
+  createReadToolDefinition: vi.fn(),
   prompt: vi.fn(),
   compact: vi.fn(),
   steer: vi.fn(),
@@ -271,7 +273,8 @@ const fakePi = {
     }
   },
   createAgentSession: mocks.createAgentSession,
-  createBashToolDefinition: mocks.createBashToolDefinition
+  createBashToolDefinition: mocks.createBashToolDefinition,
+  createReadToolDefinition: mocks.createReadToolDefinition
 }
 
 const input: AgentRuntimeConnectInput = {
@@ -482,6 +485,7 @@ beforeEach(() => {
     mocks.bashToolOptions = options
     return MANAGED_BASH_TOOL
   })
+  mocks.createReadToolDefinition.mockImplementation(() => MANAGED_READ_TOOL)
 })
 
 afterEach(() => {
@@ -1692,8 +1696,37 @@ describe('PiRuntimeConnection', () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
     await new PiRuntimeConnection(input).start()
 
-    expect(mocks.createOpts?.customTools).toEqual([MANAGED_BASH_TOOL])
+    expect(mocks.createOpts?.customTools).toEqual([MANAGED_BASH_TOOL, expect.objectContaining({ name: 'read' })])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
+  })
+
+  it('keeps video analysis on the built-in read name so a disabled read is excluded and blocked', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['read'] })
+    await new PiRuntimeConnection(input).start()
+
+    const tools = mocks.createOpts?.customTools as Array<{ name: string }>
+    expect(tools.map((tool) => tool.name)).toEqual(['bash', 'read'])
+    expect(mocks.createOpts?.excludeTools).toEqual(['read'])
+    expect(mocks.createReadToolDefinition).toHaveBeenCalledWith(WORKSPACE)
+
+    const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
+    let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>
+    factories[1]({
+      on: (evt: string, h: unknown) => {
+        if (evt === 'tool_call') handler = h as typeof handler
+      }
+    })
+    await expect(
+      handler(
+        {
+          type: 'tool_call',
+          toolName: 'read',
+          toolCallId: 'tc-read',
+          input: { path: '/library/S1E01_Four_Seasons_LAURA_CLEAN.mp4' }
+        },
+        { signal: undefined }
+      )
+    ).resolves.toMatchObject({ block: true, reason: 'Tool "read" is disabled for this agent.' })
   })
 
   it('normalizes Claude-capitalized disabledTools to pi lowercase (bake-out + live gate)', async () => {

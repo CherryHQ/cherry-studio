@@ -81,6 +81,7 @@ import {
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
+import { wrapPiReadToolForMedia } from './piMediaRead'
 import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
@@ -410,6 +411,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           env: mergePiBashExecutionEnv(context.env)
         })
       }) as ToolDefinition
+      // Same `read` name so approval, disabledTools, and later path lookups stay on Pi's tool.
+      const managedReadTool = wrapPiReadToolForMedia(
+        pi.createReadToolDefinition(workspacePath) as ToolDefinition,
+        workspacePath
+      )
       const finalSnapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,
@@ -429,7 +435,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         sessionManager,
         resourceLoader,
         model,
-        customTools: [managedBashTool],
+        customTools: [managedBashTool, managedReadTool],
         // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
         // them live so a mid-session disable is enforced.
         ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
