@@ -156,6 +156,7 @@ export interface StreamExecution {
 // ── ActiveStream ────────────────────────────────────────────────────
 
 export interface ConversationCompletedEvent {
+  responseText?: string
   topicId: string
   turnId: string
   completedAt: number

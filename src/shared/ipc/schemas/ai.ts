@@ -2,6 +2,8 @@ import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import {
   LocalAgentConfigurationSchema,
   LocalAgentInstallResultSchema,
@@ -204,6 +206,13 @@ const mentionedModelIdsSchema = z
   .optional()
 
 export const aiRequestSchemas = {
+  'ai.claude_code.binary.status': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.claude_code.binary.ensure': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.claude_code.binary.retry': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.agent.attachment_selections.list': defineRoute({
+    input: z.object({ sessionId: z.string() }),
+    output: z.custom<AgentAttachmentSelection[]>()
+  }),
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
     input: z.strictObject({
@@ -577,6 +586,8 @@ export const aiRequestSchemas = {
 export type AiEventSchemas = {
   'ai.local_agents.notice': { sessionId: string; notice: LocalAgentNotice }
   'ai.local_agents.session_updated': { sessionId: string; info: LocalAgentSessionInfo }
+  'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
+  'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload
