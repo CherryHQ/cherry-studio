@@ -1,13 +1,13 @@
 import { act, renderHook } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 
 // @vitest-environment jsdom
 import { ipcApi } from '@renderer/ipc'
 
 import { useAgentBrowserGuest } from '../useAgentBrowserGuest'
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+afterEach(() => vi.restoreAllMocks())
 
 it('keeps the new binding alive when a previous attachment completes after effect cleanup', async () => {
   let binding: string | undefined
@@ -16,7 +16,7 @@ it('keeps the new binding alive when a previous attachment completes after effec
     resolveFirst = resolve
   })
   let nextId = 0
-  vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
+  vi.spyOn(ipcApi, 'request').mockImplementation(async (route, input) => {
     if (route === 'browser.pane.attach') {
       const tabId = binding ?? `target-${++nextId}`
       binding = tabId
