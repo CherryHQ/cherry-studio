@@ -1,5 +1,6 @@
-import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import DOMPurify from 'dompurify'
+
+import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 
 /**
  * Renders an SVG string inside a host element's Shadow DOM to ensure style encapsulation.
@@ -29,7 +30,7 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   style.textContent = `
     :host {
       --shadow-host-background-color: white;
-      --shadow-host-border: 0.5px solid var(--color-code-background);
+      --shadow-host-border: 0.5px solid var(--border);
       --shadow-host-border-radius: 8px;
 
       background-color: var(--shadow-host-background-color);

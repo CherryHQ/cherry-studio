@@ -1,8 +1,9 @@
-import { Button, Dialog, DialogContent, FieldError, Input, Label } from '@cherrystudio/ui'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, FieldError, Input, Label } from '@cherrystudio/ui'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 import {
   KnowledgeDialogBody,
@@ -75,7 +76,7 @@ const KnowledgeEntityNameDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="sm">
+      <DialogContent closeOnOverlayClick={false} size="sm">
         <KnowledgeDialogHeader>{title}</KnowledgeDialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

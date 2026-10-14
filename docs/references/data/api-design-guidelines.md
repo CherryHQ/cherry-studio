@@ -1,3 +1,11 @@
+---
+description: RESTful path, status code, Zod DTO, and scope/side-effect boundary rules for designing DataApi endpoints
+sources:
+  - src/shared/data/api/schemas
+  - src/main/data/api/handlers
+  - src/main/data/db/sqliteErrors.ts
+---
+
 # API Design Guidelines
 
 Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
@@ -22,7 +30,7 @@ When a route is backed by a SQLite table, the route, table, and type names MUST 
 | DB table | singular snake_case | `agent_session` |
 | REST route (collection) | plural kebab-case | `/agent-sessions` |
 | Schema / entity type | singular PascalCase | `AgentSessionEntity` |
-| Inferred row type | `XxxRow` ([§5.3](../naming-conventions.md#53-drizzle-schema-inferred-row-types)) | `AgentSessionRow` |
+| Inferred row type | `XxxRow` ([§5.3](../architecture/naming-conventions.md#53-drizzle-schema-inferred-row-types)) | `AgentSessionRow` |
 
 A route noun that diverges from its backing table's concept is drift — fix the route, not the table.
 
@@ -188,6 +196,8 @@ Use verb-based paths for operations that don't fit CRUD semantics:
 
 > For sortable resources (drag-and-drop ordering), do not invent ad-hoc endpoints — follow the canonical `PATCH /{resource}/:id/order` pattern documented in the [Ordering Guide](./data-ordering-guide.md).
 
+Provider enablement does not mutate ordering: `PATCH /providers/:providerId` preserves the current order when enabling or disabling an existing provider. Only `POST /providers` inserts at the first position. Resource updates still must not mutate ordering; explicit reorder requests use the canonical order routes.
+
 
 ```typescript
 // Search
@@ -214,10 +224,13 @@ Use verb-based paths for operations that don't fit CRUD semantics:
 
 | Purpose | Pattern | Example |
 |---------|---------|---------|
-| Pagination | `page` + `limit` | `?page=1&limit=20` |
-| Sorting | `orderBy` + `order` | `?orderBy=createdAt&order=desc` |
+| Pagination (offset) | `page` + `limit` | `?page=1&limit=20` |
+| Pagination (cursor) | `cursor` + `limit` | `?cursor=1700000000000:abc&limit=20` |
+| Sorting | `sortBy` + `sortOrder` (see `SortParams` in [api-types.md](api-types.md)) | `?sortBy=createdAt&sortOrder=desc` |
 | Filtering | direct field names | `?status=active&type=chat` |
 | Search | `q` or `search` | `?q=keyword` |
+
+For offset-vs-cursor selection and the `<key>:<id>` cursor wire format, see the [Pagination Guide](./data-pagination-guide.md).
 
 ## Response Status Codes
 
@@ -247,7 +260,7 @@ Use standard HTTP status codes consistently:
 Use the `SuccessStatus` constants to avoid magic numbers:
 
 ```typescript
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/types'
 
 SuccessStatus.OK          // 200 - Request succeeded
 SuccessStatus.CREATED     // 201 - Resource created
@@ -271,18 +284,18 @@ The API server automatically infers status codes based on HTTP method:
 ```typescript
 // Status codes are inferred automatically - no extra code needed
 '/topics': {
-  POST: async ({ body }) => {
-    return await topicService.create(body)  // Returns 201
+  POST: ({ body }) => {
+    return topicService.create(body)  // Returns 201
   }
 },
 
 '/topics/:id': {
-  GET: async ({ params }) => {
-    return await topicService.getById(params.id)  // Returns 200
+  GET: ({ params }) => {
+    return topicService.getById(params.id)  // Returns 200
   },
 
-  DELETE: async ({ params }) => {
-    await topicService.delete(params.id)
+  DELETE: ({ params }) => {
+    topicService.delete(params.id)
     return undefined  // Returns 204
   }
 }
@@ -293,7 +306,7 @@ The API server automatically infers status codes based on HTTP method:
 Override the default by returning `{ data, status }`:
 
 ```typescript
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/types'
 
 '/async-tasks': {
   POST: async ({ body }) => {
@@ -303,8 +316,8 @@ import { SuccessStatus } from '@shared/data/api/apiTypes'
 },
 
 '/topics/:id': {
-  DELETE: async ({ params }) => {
-    const deleted = await topicService.delete(params.id)
+  DELETE: ({ params }) => {
+    const deleted = topicService.delete(params.id)
     return { data: deleted, status: SuccessStatus.OK }  // Returns 200 with data
   }
 }
@@ -388,7 +401,7 @@ interface SerializedDataApiError {
 Use `DataApiErrorFactory` utilities to create consistent errors:
 
 ```typescript
-import { DataApiErrorFactory, DataApiError } from '@shared/data/api'
+import { DataApiErrorFactory, DataApiError } from '@shared/data/api/errors'
 
 // Using factory methods (recommended)
 throw DataApiErrorFactory.notFound('Topic', id)
@@ -414,8 +427,8 @@ error buried in the `.cause` chain. Translate them to `DataApiError` with
 ```typescript
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 
-const [row] = await withSqliteErrors(
-  () => this.db.insert(tagTable).values(dto).returning(),
+const [row] = withSqliteErrors(
+  () => this.db.insert(tagTable).values(dto).returning().all(),
   defaultHandlersFor('Tag', dto.name)
 )
 ```
@@ -431,7 +444,7 @@ full API contract and the "do not replace pre-validation" discipline note.
 |---------|------|---------|
 | Paths | kebab-case, plural | `/user-settings`, `/topics` |
 | Path params | camelCase | `:topicId`, `:messageId` |
-| Query params | camelCase | `orderBy`, `pageSize` |
+| Query params | camelCase | `sortBy`, `pageSize` |
 | Body fields | camelCase | `createdAt`, `userName` |
 | Error codes | SCREAMING_SNAKE | `NOT_FOUND`, `VALIDATION_ERROR` |
 
@@ -459,6 +472,19 @@ DataApiService is the **data** business-logic layer (persisting and querying rec
 
 **Mixed operations** ("write a row *and* write a file") are split: a business/lifecycle service in main owns the orchestration and the side effect, calls the Entity Service for the DB part, and is triggered from the renderer via a dedicated IPC channel. The side effect never rides through DataApi.
 
+### Fenced Exception: Data Change Notification
+
+One strictly fenced exception to the side-effect rule: after a business write **successfully commits**, the owning data service may publish a read-model observation signal for cross-window data convergence — `notifyDataApiDataChange(effects)` (`src/main/data/dataApiDataChange.ts`), broadcasting `DataApiDataChangeEffect[]` to all windows. Renderers subscribe via `dataApiService.onDataChanged(...)` / `useDataChange(...)`.
+
+Fences (all hard):
+
+- Publish only after commit, never inside a transaction; on rollback the call must be unreachable.
+- The notification never participates in write success — a failure must not roll back or otherwise affect committed data.
+- Effects describe endpoint/read-model changes only — no entity rows, field diffs, SQL predicates, or business commands.
+- Not a channel for file, network, process, window-control, or external-service work.
+- Renderer consumers may use it only for fact refetching and local reconciliation.
+- This is NOT a license for DataApi services to carry side effects in general.
+
 ### Anti-patterns: What Does NOT Belong in DataApi
 
 | Anti-pattern | Why It's Wrong | Correct Approach |
@@ -470,7 +496,10 @@ DataApiService is the **data** business-logic layer (persisting and querying rec
 | `POST /backup/start` | Complex workflow orchestration, not CRUD | IPC: `IpcChannel.Backup_Backup` |
 | `POST /auth/login` | OAuth flow, external service integration | IPC: dedicated auth handler |
 | `GET /mcp/tools` | Runtime service query, not persisted data | IPC: `IpcChannel.Mcp_ListTools` |
-| `POST /jobs` (enqueue) / `DELETE /jobs/:id` (cancel) | Workflow command on `JobManager` infrastructure, not CRUD | Business service in main calls `application.get('JobManager').enqueue(...)` / `.cancel(...)`. For renderer-initiated triggering, use a dedicated IPC channel (e.g. `IpcChannel.Knowledge_IndexFile`). Job DataApi is GET-only. |
+| `POST /jobs` (enqueue) / `DELETE /jobs/:id` (cancel) | Workflow command on `JobManager` infrastructure, not CRUD | Business service in main calls `application.get('JobManager').enqueue(...)` / `.cancel(...)`. For renderer-initiated triggering, use a dedicated IpcApi route (e.g. `knowledge.add_items`). Job DataApi is GET-only. |
+| `POST/PATCH/DELETE /agents/:agentId/tasks…` (schedule mutation) | Mixed-effect command (schedule row + business rows + timer), not CRUD | IpcApi `ai.agent.task.*` → `AgentJobsService`. Task DataApi is GET-only. |
+| `POST /agents/:agentId/restore` | Agent state plus schedule timers and Channel connections | IpcApi `ai.agent.restore` → `AgentLifecycleService`; DB-only primitives stay in data services. |
+  | Workspace registration | Physical path identity and active storage-operation admission plus a workspace row | IpcApi `ai.agent.workspace.register` → `AgentWorkspaceStorageService`; workspace DataApi is query/update/order only. |
 
 ### Why Misuse is Harmful
 
@@ -634,4 +663,4 @@ Why the two differ:
 **Implication for reviewers**:
 
 - Don't copy a `${}` template from a cache key into `refresh` options. `refresh: ['/providers/${providerId}/*']` is a bug — the `${}` is left as a literal string, not interpolated. Use template literal backticks (`` `/providers/${providerId}/*` ``) or compute the key in the function-form refresh.
-- Cache same-value writes short-circuit via `lodash.isEqual` (no broadcast, no subscriber fire). DataApi `refresh` has no such short-circuit — each call triggers a refetch.
+- Cache same-value writes short-circuit via `isEqual` from es-toolkit/compat (no broadcast, no subscriber fire). DataApi `refresh` has no such short-circuit — each call triggers a refetch.

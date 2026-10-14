@@ -5,25 +5,33 @@ import { UserAvatar } from './primitives'
 import { SidebarTooltip } from './Tooltip'
 import type { SidebarUser, SidebarVisibleLayout } from './types'
 
+export type SidebarFooterActions =
+  | React.ReactNode
+  | ((layout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => React.ReactNode)
+
 export interface SidebarFooterProps {
   layout: SidebarVisibleLayout
   user?: SidebarUser
-  actions?: React.ReactNode
+  actions?: SidebarFooterActions
   extensionsLabel?: string
   onExtensionsClick?: () => void
+  onOverlayOpenChange?: (open: boolean) => void
 }
 
-export function SidebarFooter({ layout, ...props }: SidebarFooterProps) {
-  if (layout === 'icon') return <IconFooter {...props} />
-  if (layout === 'vertical-card') return <VerticalCardFooter {...props} />
-  return <FullFooter {...props} />
+export function SidebarFooter({ layout, actions, onOverlayOpenChange, ...props }: SidebarFooterProps) {
+  const resolvedActions = typeof actions === 'function' ? actions(layout, onOverlayOpenChange) : actions
+
+  if (layout === 'icon') return <IconFooter actions={resolvedActions} {...props} />
+  return <FullFooter actions={resolvedActions} {...props} />
 }
 
-type FooterProps = Omit<SidebarFooterProps, 'layout'>
+type FooterProps = Omit<SidebarFooterProps, 'layout' | 'actions' | 'onOverlayOpenChange'> & {
+  actions?: React.ReactNode
+}
 
 function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-5 [-webkit-app-region:no-drag]">
+    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-3 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <SidebarTooltip content={extensionsLabel}>
           <button
@@ -33,28 +41,6 @@ function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
             <Columns2 size={18} strokeWidth={1.6} />
           </button>
         </SidebarTooltip>
-      )}
-      {actions}
-      {user && (
-        <div className="cursor-pointer" onClick={user.onClick}>
-          <UserAvatar user={user} className="h-7 w-7" />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function VerticalCardFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
-  return (
-    <div className="flex flex-col items-center gap-0 px-1 pt-1 pb-5 [-webkit-app-region:no-drag]">
-      {extensionsLabel && (
-        <button
-          type="button"
-          onClick={onExtensionsClick}
-          className="flex w-full flex-col items-center gap-0.5 rounded-lg py-2 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground">
-          <Columns2 size={18} strokeWidth={1.6} />
-          <span className="text-[9px] leading-tight">{extensionsLabel}</span>
-        </button>
       )}
       {actions}
       {user && (

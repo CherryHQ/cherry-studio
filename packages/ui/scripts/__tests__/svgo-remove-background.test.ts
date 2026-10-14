@@ -177,7 +177,7 @@ describe('Rule 2: rounded-rect path background', () => {
 // ─── Rule 3: Large dark traced background ────────────────────────────
 
 describe('Rule 3: large dark traced background', () => {
-  it('removes large dark path covering >= 90% viewBox when white fg exists (Cephalon/Moonshot pattern)', () => {
+  it('removes large dark path covering >= 90% viewBox when white fg exists', () => {
     // Large black traced path (covering full viewBox)
     const bgPath = el('path', {
       d: 'M0 0H24V24H0V0Z',

@@ -1,196 +1,214 @@
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactNode, Ref } from 'react'
+import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+
+import type { SelectorShellBottomAction, SelectorShellProps } from '../../SelectorShell'
 import { ModelSelector } from '../ModelSelector'
 import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
 
-const { mockUseModelSelectorData, mockNavigate, mockScrollToIndex, mockLoggerError, mockVirtualListSizes } = vi.hoisted(
-  () => ({
-    mockUseModelSelectorData: vi.fn(),
-    mockNavigate: vi.fn(),
-    mockScrollToIndex: vi.fn(),
-    mockLoggerError: vi.fn(),
-    mockVirtualListSizes: [] as number[]
-  })
-)
+const mocks = vi.hoisted(() => ({
+  bottomActions: [] as SelectorShellBottomAction[],
+  loggerError: vi.fn(),
+  openSettingsTab: vi.fn(),
+  shellEvents: [] as string[],
+  scrollToIndex: vi.fn(),
+  useModelSelectorData: vi.fn()
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      error: mockLoggerError,
+      error: mocks.loggerError,
       warn: vi.fn()
     })
   }
 }))
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => mockNavigate
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
 }))
 
-vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: (id: string) => id
+vi.mock('@renderer/utils/platform', () => ({
+  platform: undefined,
+  isMac: false,
+  isWin: false,
+  isLinux: false,
+  isDev: false,
+  isProd: false
 }))
 
 vi.mock('@cherrystudio/ui/icons', () => ({
-  resolveIcon: () => null
+  useIcon: () => undefined
 }))
 
-vi.mock('@cherrystudio/ui/lib/utils', () => ({
-  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
+vi.mock('@renderer/utils/model', () => ({
+  getModelLogoRef: () => undefined
 }))
 
-vi.mock('@cherrystudio/ui', () => {
-  return {
-    Avatar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    AvatarFallback: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-    Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => {
-      const { variant, size, type = 'button', ...buttonProps } = props
-      void variant
-      void size
+vi.mock('@renderer/components/tags/Model', () => ({
+  getModelDisplayTags: () => [],
+  ModelTag: () => null
+}))
 
-      return (
-        <button type={type} {...buttonProps}>
-          {children}
-        </button>
-      )
-    },
-    Checkbox: ({ checked, ...props }: InputHTMLAttributes<HTMLInputElement>) => (
-      <input type="checkbox" checked={Boolean(checked)} readOnly {...props} />
-    ),
-    Input: ({
-      ref,
-      ...props
-    }: InputHTMLAttributes<HTMLInputElement> & { ref?: RefObject<HTMLInputElement | null> }) => (
-      <input ref={ref} {...props} />
-    ),
-    Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    PopoverContent: ({
-      children,
-      ...props
-    }: HTMLAttributes<HTMLDivElement> & { side?: string; align?: string; sideOffset?: number }) => {
-      const { side, align, sideOffset, ...contentProps } = props
-      void side
-      void align
-      void sideOffset
-
-      return <div {...contentProps}>{children}</div>
-    },
-    PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
-    Switch: ({
-      checked,
-      onCheckedChange,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & {
-      checked?: boolean
-      onCheckedChange?: (checked: boolean) => void
-    }) => (
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onCheckedChange?.(!checked)}
-        {...props}
-      />
-    ),
-    Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
-  }
-})
+vi.mock('../ModelSelectorDetailCard', () => ({
+  ModelSelectorDetailCard: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
 
 vi.mock('@renderer/components/VirtualList', async () => {
   const React = await import('react')
 
   return {
-    DynamicVirtualList: ({ ref, list, children, size }) => {
-      mockVirtualListSizes.push(size)
+    DynamicVirtualList: ({
+      ref,
+      list,
+      children
+    }: {
+      ref?: Ref<{ scrollToIndex: typeof mocks.scrollToIndex }>
+      list: FlatListItem[]
+      children: (item: FlatListItem, index: number) => ReactNode
+    }) => {
       React.useImperativeHandle(ref, () => ({
-        measure: vi.fn(),
-        scrollElement: vi.fn(() => null),
-        scrollToOffset: vi.fn(),
-        scrollToIndex: mockScrollToIndex,
-        resizeItem: vi.fn(),
-        getTotalSize: vi.fn(() => list.length * 36),
-        getVirtualItems: vi.fn(() => []),
-        getVirtualIndexes: vi.fn(() => [])
+        scrollToIndex: mocks.scrollToIndex
       }))
 
       return (
-        <div>
+        <>
           {list.map((item, index) => (
             <React.Fragment key={item.key}>{children(item, index)}</React.Fragment>
           ))}
-        </div>
+        </>
       )
     }
   }
 })
 
-vi.mock('../useModelSelectorData', () => ({
-  useModelSelectorData: (...args: unknown[]) => mockUseModelSelectorData(...args)
+vi.mock('@renderer/components/SelectorShell', () => ({
+  SelectorShell: ({
+    trigger,
+    open,
+    onOpenChange,
+    search,
+    filterContent,
+    multiSelect,
+    bottomAction,
+    children,
+    'data-testid': dataTestId
+  }: SelectorShellProps) => {
+    useEffect(() => {
+      mocks.shellEvents.push('mount')
+      return () => {
+        mocks.shellEvents.push('unmount')
+      }
+    }, [])
+
+    const actions = Array.isArray(bottomAction) ? bottomAction : bottomAction ? [bottomAction] : []
+    mocks.bottomActions = actions
+    const content = typeof children === 'function' ? children({ availableListHeight: undefined }) : children
+
+    return (
+      <>
+        {trigger}
+        {open ? (
+          <div data-testid={dataTestId}>
+            {search ? (
+              <input
+                aria-label={search.placeholder}
+                value={search.value}
+                onChange={(event) => search.onChange(event.target.value)}
+              />
+            ) : null}
+            {filterContent}
+            {multiSelect ? (
+              <button
+                type="button"
+                role="switch"
+                aria-label={multiSelect.ariaLabel ?? String(multiSelect.label)}
+                aria-checked={multiSelect.checked}
+                onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}
+              />
+            ) : null}
+            {content}
+            {actions.map((action) => (
+              <button type="button" key={String(action.label)} disabled={action.disabled} onClick={action.onClick}>
+                {action.label}
+              </button>
+            ))}
+            <button type="button" aria-label="close selector" onClick={() => onOpenChange(false)} />
+          </div>
+        ) : null}
+      </>
+    )
+  }
 }))
 
-const PROVIDER: Provider = {
+vi.mock('../useModelSelectorData', () => ({
+  useModelSelectorData: (...args: unknown[]) => mocks.useModelSelectorData(...args)
+}))
+
+const provider: Provider = {
   id: 'openai',
   name: 'OpenAI',
   apiKeys: [],
   authType: 'api-key',
-  apiFeatures: {} as Provider['apiFeatures'],
-  settings: {} as Provider['settings'],
+  reportsActualCost: false,
+  settings: {},
   isEnabled: true
-} as Provider
+}
 
-function makeModel(modelId: UniqueModelId, name: string): Model {
+function makeModel(modelId: UniqueModelId): Model {
   return {
     id: modelId,
-    providerId: PROVIDER.id,
-    name,
+    providerId: provider.id,
+    name: modelId.split('::')[1],
     capabilities: [],
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
-function makeModelItem(
-  modelId: UniqueModelId,
-  overrides: Partial<ModelSelectorModelItem> = {}
-): ModelSelectorModelItem {
-  const model = makeModel(modelId, modelId.split('::')[1])
+function makeModelItem(modelId: UniqueModelId, overrides: Partial<ModelSelectorModelItem> = {}) {
+  const model = makeModel(modelId)
 
   return {
     key: modelId,
-    type: 'model',
+    type: 'model' as const,
+    groupKind: 'provider' as const,
     model,
-    provider: PROVIDER,
+    provider,
     modelId,
     modelIdentifier: model.name,
     isPinned: false,
-    isSelected: false,
     showIdentifier: false,
     ...overrides
   }
 }
 
 function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModelSelectorDataResult {
-  const itemA = makeModelItem('openai::gpt-4' as UniqueModelId)
-  const itemB = makeModelItem('openai::gpt-3.5' as UniqueModelId)
+  const firstItem = makeModelItem('openai::gpt-4')
+  const secondItem = makeModelItem('openai::gpt-3.5')
   const listItems: FlatListItem[] = [
     {
       key: 'provider-openai',
       type: 'group',
       title: 'OpenAI',
       groupKind: 'provider',
-      provider: PROVIDER,
+      provider,
       canNavigateToSettings: true
     },
-    itemA,
-    itemB
+    firstItem,
+    secondItem
   ]
 
   return {
@@ -198,143 +216,474 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     isLoading: false,
     isPinActionDisabled: false,
     listItems,
-    modelItems: [itemA, itemB],
+    modelItems: [firstItem, secondItem],
     pinnedIds: [],
+    refetchModels: vi.fn(),
     refetchPinnedModels: vi.fn(),
+    refetchProviders: vi.fn(),
     resetTags: vi.fn(),
     resolvedSelectedModelIds: [],
     selectableModelsById: new Map([
-      [itemA.modelId, itemA.model],
-      [itemB.modelId, itemB.model]
+      [firstItem.modelId, firstItem.model],
+      [secondItem.modelId, secondItem.model]
     ]),
     selectedTags: [],
-    sortedProviders: [PROVIDER],
+    sortedProviders: [provider],
     tagSelection: {} as UseModelSelectorDataResult['tagSelection'],
     togglePin: vi.fn(async () => undefined),
     toggleTag: vi.fn(),
+    visibleSelectedModelIdSet: new Set(),
     ...overrides
   }
 }
 
 describe('ModelSelector', () => {
   beforeEach(() => {
-    mockUseModelSelectorData.mockReset()
-    mockNavigate.mockReset()
-    mockScrollToIndex.mockReset()
-    mockLoggerError.mockReset()
-    mockVirtualListSizes.length = 0
-    mockNavigate.mockResolvedValue(undefined)
+    vi.clearAllMocks()
+    mocks.bottomActions = []
+    mocks.shellEvents = []
+    mocks.useModelSelectorData.mockReturnValue(makeData())
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
       return 1
     })
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
-    Object.assign(window, { toast: { error: vi.fn() } })
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('shows a toast when pin/unpin fails', async () => {
-    const togglePin = vi.fn(async () => {
-      throw new Error('backend down')
+  it('shows only the model identifier under a persistent provider group', () => {
+    const item = makeModelItem('openai::gpt-4-variant-a', {
+      model: { ...makeModel('openai::gpt-4-variant-a'), name: 'GPT-4' },
+      modelIdentifier: 'gpt-4-variant-a',
+      showIdentifier: true
     })
-    mockUseModelSelectorData.mockReturnValue(makeData({ togglePin }))
+    const listItems: FlatListItem[] = [
+      {
+        key: 'provider-openai',
+        type: 'group',
+        title: 'OpenAI',
+        groupKind: 'provider',
+        provider,
+        canNavigateToSettings: true
+      },
+      item
+    ]
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems, modelItems: [item] }))
 
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    fireEvent.click(screen.getAllByLabelText('models.action.pin')[0])
-
-    await waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('common.error'))
-    expect(mockLoggerError).toHaveBeenCalledWith('Failed to toggle model pin', expect.any(Error), {
-      modelId: 'openai::gpt-4'
-    })
-    expect(togglePin).toHaveBeenCalledWith('openai::gpt-4')
-  })
-
-  it('keeps keyboard focus stable when multi-select value changes while open', async () => {
-    const selectedSecond = makeModelItem('openai::gpt-3.5' as UniqueModelId, { isSelected: true })
-    const selectedFirst = makeModelItem('openai::gpt-4' as UniqueModelId, { isSelected: true })
-    const unselectedFirst = makeModelItem('openai::gpt-4' as UniqueModelId)
-    const firstData = makeData({
-      listItems: [unselectedFirst, selectedSecond],
-      modelItems: [unselectedFirst, selectedSecond],
-      resolvedSelectedModelIds: ['openai::gpt-3.5' as UniqueModelId]
-    })
-    const secondData = makeData({
-      listItems: [selectedFirst, selectedSecond],
-      modelItems: [selectedFirst, selectedSecond],
-      resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId, 'openai::gpt-3.5' as UniqueModelId]
-    })
-    let currentData = firstData
-    mockUseModelSelectorData.mockImplementation(() => currentData)
-
-    const onSelect = vi.fn()
-    const { rerender } = render(
+    render(
       <ModelSelector
+        multiple={false}
         open
-        multiple
-        selectionType="id"
-        multiSelectMode
-        value={['openai::gpt-3.5' as UniqueModelId]}
-        trigger={<button type="button">open</button>}
-        onSelect={onSelect}
+        trigger={<button type="button">Open</button>}
+        value={item.model}
+        onSelect={vi.fn()}
       />
     )
 
-    await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(1, { align: 'auto' }))
-    mockScrollToIndex.mockClear()
+    expect(screen.getByText('| gpt-4-variant-a')).toBeInTheDocument()
+    expect(screen.queryByText(/OpenAI · gpt-4-variant-a/)).not.toBeInTheDocument()
+  })
 
-    currentData = secondData
-    rerender(
+  it('keeps the provider in a pinned row without a provider group', () => {
+    const item = makeModelItem('openai::gpt-4-variant-a', {
+      key: 'openai::gpt-4-variant-a_pinned',
+      groupKind: 'pinned',
+      model: { ...makeModel('openai::gpt-4-variant-a'), name: 'GPT-4' },
+      modelIdentifier: 'gpt-4-variant-a',
+      isPinned: true,
+      showIdentifier: true
+    })
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [item], modelItems: [item] }))
+
+    render(
       <ModelSelector
+        multiple={false}
         open
-        multiple
-        selectionType="id"
-        multiSelectMode
-        value={['openai::gpt-4' as UniqueModelId, 'openai::gpt-3.5' as UniqueModelId]}
-        trigger={<button type="button">open</button>}
-        onSelect={onSelect}
+        trigger={<button type="button">Open</button>}
+        value={item.model}
+        onSelect={vi.fn()}
       />
     )
 
-    expect(mockScrollToIndex).not.toHaveBeenCalled()
+    expect(screen.getByText('| OpenAI · gpt-4-variant-a')).toBeInTheDocument()
   })
 
-  it('navigates from provider settings without selecting a model', async () => {
-    mockUseModelSelectorData.mockReturnValue(makeData())
+  it('selects a model and closes the selector in single-select mode', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
     const onSelect = vi.fn()
-
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />)
-
-    fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
-
-    await waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'openai' } })
-    )
-    expect(onSelect).not.toHaveBeenCalled()
-  })
-
-  it('uses listVisibleCount to size the visible model list', () => {
-    const items = Array.from({ length: 10 }, (_, index) => makeModelItem(`openai::model-${index}` as UniqueModelId))
-    mockUseModelSelectorData.mockReturnValue(
-      makeData({
-        listItems: items,
-        modelItems: items
-      })
-    )
-
     render(
       <ModelSelector
         open
         multiple={false}
-        listVisibleCount={8}
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+      />
+    )
+
+    await user.click(screen.getAllByRole('option')[0])
+
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::gpt-4' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('honors the explicitly supplied disabled state', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        isModelDisabled={(model) => model.id === 'openai::gpt-4'}
+        trigger={<button type="button">open</button>}
+        onSelect={onSelect}
+      />
+    )
+
+    const disabledModel = screen.getAllByRole('option')[0]
+    expect(disabledModel).toHaveAttribute('aria-disabled', 'true')
+    await user.click(disabledModel)
+
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('tears down the lazy shell before resetting an active tag filter on close', async () => {
+    const user = userEvent.setup()
+    const resetTags = vi.fn(() => {
+      mocks.shellEvents.push('reset')
+    })
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        resetTags,
+        selectedTags: ['reasoning'],
+        tagSelection: { reasoning: true } as UseModelSelectorDataResult['tagSelection']
+      })
+    )
+
+    function Host() {
+      const [open, setOpen] = useState(true)
+
+      return (
+        <ModelSelector
+          open={open}
+          multiple={false}
+          mountStrategy="lazy-keep"
+          trigger={<button type="button">open</button>}
+          onOpenChange={setOpen}
+          onSelect={vi.fn()}
+        />
+      )
+    }
+
+    render(<Host />)
+    expect(mocks.shellEvents).toEqual(['mount'])
+
+    await user.click(screen.getAllByRole('option')[0])
+
+    expect(mocks.shellEvents).toEqual(['mount', 'unmount', 'mount', 'reset'])
+  })
+
+  it('tears down the lazy shell when the parent closes the controlled selector', async () => {
+    const resetTags = vi.fn(() => {
+      mocks.shellEvents.push('reset')
+    })
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        resetTags,
+        selectedTags: ['reasoning'],
+        tagSelection: { reasoning: true } as UseModelSelectorDataResult['tagSelection']
+      })
+    )
+
+    const renderSelector = (open: boolean) => (
+      <ModelSelector
+        open={open}
+        multiple={false}
+        mountStrategy="lazy-keep"
         trigger={<button type="button">open</button>}
         onSelect={vi.fn()}
       />
     )
 
-    expect(mockVirtualListSizes.at(-1)).toBe(8 * 36)
+    const { rerender } = render(renderSelector(true))
+    expect(mocks.shellEvents).toEqual(['mount'])
+
+    await act(async () => {
+      rerender(renderSelector(false))
+    })
+
+    expect(mocks.shellEvents).toEqual(['mount', 'unmount', 'mount', 'reset'])
+  })
+
+  it('clears a single selection from the bottom option and closes the selector', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        value={makeModel('openai::gpt-4')}
+        noneOptionLabel="No model"
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'No model' }))
+
+    expect(onSelect).toHaveBeenCalledWith(undefined)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('marks the empty option selected after the configure action', () => {
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        noneOptionLabel="No model"
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(mocks.bottomActions.map((action) => action.label)).toEqual(['models.action.configure_custom', 'No model'])
+    expect(mocks.bottomActions[1]).toMatchObject({ type: 'selectable', selected: true })
+  })
+
+  it('omits the empty option from required single and multi selectors', () => {
+    const { rerender } = render(
+      <ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
+    )
+
+    expect(mocks.bottomActions.map((action) => action.label)).toEqual(['models.action.configure_custom'])
+
+    rerender(<ModelSelector open multiple trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(mocks.bottomActions.map((action) => action.label)).toEqual(['models.action.configure_custom'])
+  })
+
+  it('suppresses only the immediate close caused by a multi-select item click', async () => {
+    const firstId = 'openai::gpt-4' as UniqueModelId
+    const secondId = 'openai::gpt-3.5' as UniqueModelId
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+    render(
+      <ModelSelector
+        open
+        multiple
+        selectionType="id"
+        multiSelectMode
+        value={[firstId]}
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+      />
+    )
+
+    // The close event from the popover primitive occurs in the same event turn.
+    fireEvent.click(screen.getAllByRole('option')[1])
+    fireEvent.click(screen.getByRole('button', { name: 'close selector' }))
+
+    expect(onSelect).toHaveBeenCalledWith([firstId, secondId])
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    fireEvent.click(screen.getAllByRole('option')[1])
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    fireEvent.click(screen.getByRole('button', { name: 'close selector' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('collapses multiple ids when multi-select mode is disabled', async () => {
+    const user = userEvent.setup()
+    const firstId = 'openai::gpt-4' as UniqueModelId
+    const secondId = 'openai::gpt-3.5' as UniqueModelId
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        resolvedSelectedModelIds: [firstId, secondId],
+        visibleSelectedModelIdSet: new Set([firstId, secondId])
+      })
+    )
+    const onMultiSelectModeChange = vi.fn()
+    const onSelect = vi.fn()
+    render(
+      <ModelSelector
+        open
+        multiple
+        selectionType="id"
+        multiSelectMode
+        value={[firstId, secondId]}
+        trigger={<button type="button">open</button>}
+        onMultiSelectModeChange={onMultiSelectModeChange}
+        onSelect={onSelect}
+      />
+    )
+
+    await user.click(screen.getByRole('switch', { name: 'models.multi_select.label' }))
+
+    expect(onMultiSelectModeChange).toHaveBeenCalledWith(false)
+    expect(onSelect).toHaveBeenCalledWith([firstId])
+  })
+
+  it('keeps lazy-mounted data active and refreshes it only on later openings', async () => {
+    const refetchModels = vi.fn(async () => undefined)
+    const refetchProviders = vi.fn(async () => undefined)
+    const refetchPinnedModels = vi.fn(async () => undefined)
+    mocks.useModelSelectorData.mockReturnValue(makeData({ refetchModels, refetchPinnedModels, refetchProviders }))
+    const closed = (
+      <ModelSelector
+        open={false}
+        multiple={false}
+        mountStrategy="lazy-keep"
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+    const opened = (
+      <ModelSelector
+        open
+        multiple={false}
+        mountStrategy="lazy-keep"
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+    const { rerender } = render(closed)
+    expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }))
+
+    rerender(opened)
+
+    expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }))
+    expect(refetchModels).not.toHaveBeenCalled()
+    expect(refetchProviders).not.toHaveBeenCalled()
+    expect(refetchPinnedModels).not.toHaveBeenCalled()
+
+    rerender(closed)
+
+    expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }))
+
+    rerender(opened)
+
+    await waitFor(() => expect(refetchModels).toHaveBeenCalledOnce())
+    expect(refetchProviders).toHaveBeenCalledOnce()
+    expect(refetchPinnedModels).toHaveBeenCalledOnce()
+  })
+
+  it('positions the selected model before paint each time the selector opens', () => {
+    const selectedId = 'openai::gpt-3.5' as UniqueModelId
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        resolvedSelectedModelIds: [selectedId],
+        visibleSelectedModelIdSet: new Set([selectedId])
+      })
+    )
+    const closed = (
+      <ModelSelector open={false} multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
+    )
+    const { rerender } = render(closed)
+
+    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(mocks.scrollToIndex).toHaveBeenCalledWith(2, { align: 'start' })
+
+    mocks.scrollToIndex.mockClear()
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        resolvedSelectedModelIds: ['openai::gpt-4'],
+        visibleSelectedModelIdSet: new Set(['openai::gpt-4' as UniqueModelId])
+      })
+    )
+    rerender(closed)
+    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(mocks.scrollToIndex).toHaveBeenCalledWith(1, { align: 'start' })
+  })
+
+  it('shows an error toast when pinning fails', async () => {
+    const user = userEvent.setup()
+    const togglePin = vi.fn(async () => {
+      throw new Error('backend down')
+    })
+    mocks.useModelSelectorData.mockReturnValue(makeData({ togglePin }))
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    await user.click(screen.getAllByRole('button', { name: 'models.action.pin' })[0])
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.error'))
+    expect(mocks.loggerError).toHaveBeenCalledWith('Failed to toggle model pin', expect.any(Error), {
+      modelId: 'openai::gpt-4'
+    })
+  })
+
+  it.each([
+    {
+      actionName: 'navigate.provider_settings',
+      expectedPath: '/settings/provider?id=openai',
+      name: 'provider'
+    },
+    {
+      actionName: 'models.action.configure_custom',
+      expectedPath: '/settings/provider',
+      name: 'custom model'
+    }
+  ])('lets the host close before navigating to $name settings', async ({ actionName, expectedPath }) => {
+    const user = userEvent.setup()
+
+    function HostDialog() {
+      const [dialogOpen, setDialogOpen] = useState(true)
+      const [selectorOpen, setSelectorOpen] = useState(true)
+
+      return dialogOpen ? (
+        <div role="dialog">
+          <ModelSelector
+            open={selectorOpen}
+            multiple={false}
+            trigger={<button type="button">open</button>}
+            onOpenChange={setSelectorOpen}
+            onSettingsNavigate={(navigate) => {
+              setDialogOpen(false)
+              navigate()
+            }}
+            onSelect={vi.fn()}
+          />
+        </div>
+      ) : (
+        <div>dialog closed</div>
+      )
+    }
+
+    render(<HostDialog />)
+    await user.click(screen.getByRole('button', { name: actionName }))
+
+    await waitFor(() => expect(screen.getByText('dialog closed')).toBeInTheDocument())
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith(expectedPath)
+  })
+
+  it('shows an empty result when no models match', () => {
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [], modelItems: [] }))
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByText('models.no_matches')).toBeInTheDocument()
+  })
+
+  it('keeps model filters on one horizontally scrollable row', () => {
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        availableTags: ['free'],
+        tagSelection: { free: false } as UseModelSelectorDataResult['tagSelection']
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector-filter-tags')).toHaveClass('flex-nowrap', 'overflow-x-auto')
   })
 })

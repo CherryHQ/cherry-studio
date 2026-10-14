@@ -1,3 +1,7 @@
+import { ImageUp, Link, LoaderCircle, UploadCloud } from 'lucide-react'
+import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -12,9 +16,7 @@ import {
   TabsTrigger
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ImageUp, Link, LoaderCircle, UploadCloud } from 'lucide-react'
-import React, { useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { toast } from '@renderer/services/toast'
 
 const logger = loggerService.withContext('RichEditorImageUploader')
 
@@ -67,7 +69,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
   const handleFileSelect = async (file: File) => {
     const validationError = validateFile(file)
     if (validationError) {
-      window.toast.error(validationError)
+      toast.error(validationError)
       return
     }
 
@@ -77,11 +79,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
       // Convert to base64 and call callback
       const base64Url = await convertFileToBase64(file)
       onImageSelect(base64Url)
-      window.toast.success(t('richEditor.imageUploader.uploadSuccess'))
+      toast.success(t('richEditor.imageUploader.uploadSuccess'))
       onClose()
     } catch (error) {
       logger.error('Image upload failed:', error as Error)
-      window.toast.error(t('richEditor.imageUploader.uploadError'))
+      toast.error(t('richEditor.imageUploader.uploadError'))
     } finally {
       setLoading(false)
     }
@@ -89,7 +91,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
 
   const handleUrlSubmit = () => {
     if (!urlInput.trim()) {
-      window.toast.error(t('richEditor.imageUploader.urlRequired'))
+      toast.error(t('richEditor.imageUploader.urlRequired'))
       return
     }
 
@@ -97,11 +99,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
     try {
       new URL(urlInput.trim())
       onImageSelect(urlInput.trim())
-      window.toast.success(t('richEditor.imageUploader.embedSuccess'))
+      toast.success(t('richEditor.imageUploader.embedSuccess'))
       setUrlInput('')
       onClose()
     } catch {
-      window.toast.error(t('richEditor.imageUploader.invalidUrl'))
+      toast.error(t('richEditor.imageUploader.invalidUrl'))
     }
   }
 
@@ -112,7 +114,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
 
   return (
     <Dialog open={visible} onOpenChange={(open) => !open && handleCancel()}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{t('richEditor.imageUploader.title')}</DialogTitle>
         </DialogHeader>
@@ -146,17 +148,17 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
               }}
               onError={(err) => {
                 logger.error('Dropzone validation failed:', err)
-                window.toast.error(err.message || t('richEditor.imageUploader.invalidType'))
+                toast.error(err.message || t('richEditor.imageUploader.invalidType'))
               }}
               className="min-h-44 border-dashed bg-muted/20 hover:bg-accent/40">
               <div className="flex flex-col items-center justify-center gap-2 text-center">
                 <div className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
                   {loading ? <LoaderCircle className="size-5 animate-spin" /> : <ImageUp className="size-5" />}
                 </div>
-                <div className="font-medium text-sm">
+                <div className="text-sm font-medium">
                   {loading ? t('richEditor.imageUploader.uploading') : t('richEditor.imageUploader.uploadText')}
                 </div>
-                <div className="text-muted-foreground text-xs">
+                <div className="text-xs text-muted-foreground">
                   {loading ? t('richEditor.imageUploader.processing') : t('richEditor.imageUploader.uploadHint')}
                 </div>
               </div>
@@ -166,7 +168,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
           <TabsContent value="url" className="pt-2">
             <div className="flex items-center justify-center gap-3">
               <div className="relative flex-1">
-                <Link className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
+                <Link className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder={t('richEditor.imageUploader.urlPlaceholder')}
                   value={urlInput}

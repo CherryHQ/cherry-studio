@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
@@ -7,6 +7,7 @@ const logger = loggerService.withContext('TraceFlushListener')
 
 export class TraceFlushListener implements StreamListener {
   readonly id: string
+  readonly terminalPhase = 'cleanup' as const
 
   constructor(private readonly topicId: string) {
     this.id = `persistence:trace:${topicId}`
@@ -34,7 +35,7 @@ export class TraceFlushListener implements StreamListener {
     if (isTopicDone === false) return
 
     try {
-      await application.get('SpanCacheService').saveSpans(this.topicId)
+      await application.get('TraceStorageService').saveSpans(this.topicId)
     } catch (err) {
       logger.warn('Failed to save trace spans', { topicId: this.topicId, err })
     }

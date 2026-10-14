@@ -5,8 +5,7 @@ import { createDmxapiTransport } from '../../dmxapi/dmxapiTransport'
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
 import { submitWithResponse } from './captureRequest'
 
-vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
-vi.mock('i18next', () => ({ default: { t: (k: string) => k } }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 /**
  * Inbound (response) boundary for DMXAPI. Each fixture is a representative
@@ -76,11 +75,7 @@ describe('DMXAPI response boundary', () => {
   for (const c of CASES) {
     it(`${c.name}: matches the inbound contract and parses to snapshot`, async () => {
       c.schema.parse(c.response)
-      const result = await submitWithResponse(
-        transport,
-        { ...base, modelId: c.modelId, prompt: 'a fox' } as ImageGenerationSubmitInput,
-        c.response
-      )
+      const result = await submitWithResponse(transport, { ...base, modelId: c.modelId, prompt: 'a fox' }, c.response)
       expect(result.imageUrls).toMatchSnapshot()
     })
   }

@@ -1,8 +1,9 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
-import { isWin } from '@renderer/config/constant'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
+import { isWin } from '@renderer/utils/platform'
 
 interface SelectionFilterListModalProps {
   open: boolean
@@ -34,7 +35,10 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-[520px]" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="sm:max-w-130"
+        onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{t('selection.settings.filter_modal.title')}</DialogTitle>
         </DialogHeader>
@@ -44,7 +48,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
             : t('selection.settings.filter_modal.user_tips.mac')}
         </div>
         <Textarea.Input
-          className="mt-4 w-full [field-sizing:content]"
+          className="mt-4 field-sizing-content w-full"
           rows={6}
           spellCheck={false}
           autoFocus

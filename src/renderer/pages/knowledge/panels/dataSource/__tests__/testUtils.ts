@@ -1,4 +1,5 @@
-import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
+import { getKnowledgeNoteFirstLine, getKnowledgePathBasename, type KnowledgeItemOf } from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 type KnowledgeItemLifecycle<TItem extends { error: unknown; status: string }> = TItem extends unknown
   ? Pick<TItem, 'error' | 'status'>
@@ -27,11 +28,14 @@ const createLeafLifecycle = (status: KnowledgeItemOf<'file'>['status']): LeafKno
   }
 }
 
-const createContainerLifecycle = (status: KnowledgeItemOf<'directory'>['status']): ContainerKnowledgeItemLifecycle => {
+const createContainerLifecycle = (
+  status: KnowledgeItemOf<'directory'>['status'],
+  error = 'Indexing failed'
+): ContainerKnowledgeItemLifecycle => {
   if (status === 'failed') {
     return {
       status,
-      error: 'Indexing failed'
+      error
     }
   }
 
@@ -44,7 +48,10 @@ const createContainerLifecycle = (status: KnowledgeItemOf<'directory'>['status']
 export const createNoteItem = ({
   id,
   content = '会议纪要',
-  source = id,
+  // A note's `source` is its title — the drafted one, or the imported file's name. Defaulting it to
+  // the body's opening line matches the ordinary case where the two agree; pass it explicitly to
+  // exercise a note whose title differs from its first line.
+  source = getKnowledgeNoteFirstLine(content),
   status = 'completed'
 }: {
   id: string
@@ -79,17 +86,19 @@ export const createFileItem = ({
   type: 'file',
   data: {
     source,
-    relativePath: originName
+    relativePath: getKnowledgePathBasename(source) as PosixRelativeFilePath
   }
 })
 
 export const createUrlItem = ({
   id,
   source = `https://example.com/${id}`,
+  relativePath,
   status = 'completed'
 }: {
   id: string
   source?: string
+  relativePath?: PosixRelativeFilePath
   status?: KnowledgeItemOf<'url'>['status']
 }): KnowledgeItemOf<'url'> => ({
   ...baseFields,
@@ -98,25 +107,27 @@ export const createUrlItem = ({
   type: 'url',
   data: {
     source,
-    url: source
+    url: source,
+    ...(relativePath ? { relativePath } : {})
   }
 })
 
 export const createDirectoryItem = ({
   id,
   source = `/Users/eeee/${id}`,
-  status = 'completed'
+  status = 'completed',
+  error
 }: {
   id: string
   source?: string
   status?: KnowledgeItemOf<'directory'>['status']
+  error?: string
 }): KnowledgeItemOf<'directory'> => ({
   ...baseFields,
-  ...createContainerLifecycle(status),
+  ...createContainerLifecycle(status, error),
   id,
   type: 'directory',
   data: {
-    source,
-    path: source
+    source
   }
 })

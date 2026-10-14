@@ -20,13 +20,13 @@
  * isolation.
  */
 
-import { IdleTimeoutController } from './IdleTimeoutController'
+import { IdleTimeoutController, type IdleTimeoutHandle } from './IdleTimeoutController'
 
 export function withIdleTimeout<T>(
   source: ReadableStream<T>,
   controller: AbortController,
   timeoutMs: number
-): ReadableStream<T> {
+): { stream: ReadableStream<T>; idle: IdleTimeoutHandle } {
   const idle = new IdleTimeoutController(timeoutMs)
 
   // When the idle timer fires, abort the caller's controller so the abort
@@ -46,7 +46,7 @@ export function withIdleTimeout<T>(
 
   const reader = source.getReader()
 
-  return new ReadableStream<T>({
+  const stream = new ReadableStream<T>({
     async pull(dest) {
       try {
         const { done, value } = await reader.read()
@@ -67,4 +67,11 @@ export function withIdleTimeout<T>(
       return reader.cancel(reason)
     }
   })
+
+  // `idle` is exposed so a consumer can extend the timer for a legitimate long
+  // no-chunk wait (e.g. a tool awaiting human approval): call `idle.reset(boundMs)`
+  // to rearm with a longer bound; the next pulled chunk's `idle.reset()` above
+  // restores the default. Don't `idle.cleanup()` to pause indefinitely — a renderer
+  // that never responds would leave the stream + subprocess hanging until app quit.
+  return { stream, idle }
 }

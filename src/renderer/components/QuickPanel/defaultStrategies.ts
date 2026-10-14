@@ -3,20 +3,27 @@ import * as tinyPinyin from 'tiny-pinyin'
 import type { QuickPanelFilterFn, QuickPanelListItem, QuickPanelSortFn } from './types'
 
 /**
+ * Concatenates all textual search fields into a single haystack for substring /
+ * pinyin matching. `filterText` is additive here so the shared QuickPanel
+ * strategy keeps matching the visible label and description by default.
+ */
+function buildItemHaystack(item: QuickPanelListItem): string {
+  const parts: string[] = []
+  if (item.filterText) parts.push(item.filterText)
+  if (typeof item.label === 'string') parts.push(item.label)
+  if (typeof item.description === 'string') parts.push(item.description)
+  if (item.searchAliases) parts.push(...item.searchAliases)
+  return parts.join(' ')
+}
+
+/**
  * Default filter function
  * Implements standard filtering logic with pinyin support
  */
 export const defaultFilterFn: QuickPanelFilterFn = (item, searchText, fuzzyRegex, pinyinCache) => {
   if (!searchText) return true
 
-  let filterText = item.filterText || ''
-  if (typeof item.label === 'string') {
-    filterText += item.label
-  }
-  if (typeof item.description === 'string') {
-    filterText += item.description
-  }
-
+  const filterText = buildItemHaystack(item)
   const lowerFilterText = filterText.toLowerCase()
   const lowerSearchText = searchText.toLowerCase()
 
@@ -47,14 +54,7 @@ export const defaultFilterFn: QuickPanelFilterFn = (item, searchText, fuzzyRegex
  * Higher score = better match
  */
 const calculateMatchScore = (item: QuickPanelListItem, searchText: string): number => {
-  let filterText = item.filterText || ''
-  if (typeof item.label === 'string') {
-    filterText += item.label
-  }
-  if (typeof item.description === 'string') {
-    filterText += item.description
-  }
-
+  const filterText = buildItemHaystack(item)
   const lowerFilterText = filterText.toLowerCase()
   const lowerSearchText = searchText.toLowerCase()
 

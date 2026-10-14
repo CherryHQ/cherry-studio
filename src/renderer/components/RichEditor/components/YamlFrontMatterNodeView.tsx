@@ -1,25 +1,13 @@
-import {
-  Checkbox,
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { loggerService } from '@logger'
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
 import { Calendar, Check, FileText, Hash, MoreHorizontal, Plus, Tag as TagIcon, Trash2, Type, X } from 'lucide-react'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parse, stringify } from 'yaml'
+
+import { Checkbox, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 
 const logger = loggerService.withContext('YamlFrontMatterNodeView')
 
@@ -238,43 +226,38 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
     [parsedProperties, updateYamlFromProperties]
   )
 
-  const renderContextMenu = (property: ParsedProperty) => (
-    <ContextMenuContent className="w-52">
-      <ContextMenuItem
-        onSelect={() => {
-          setEditingProperty(property.key)
-        }}>
-        <Type size={14} />
-        {t('richEditor.frontMatter.editValue')}
-      </ContextMenuItem>
-      <ContextMenuSeparator />
-      <ContextMenuSub>
-        <ContextMenuSubTrigger>{t('richEditor.frontMatter.changeType')}</ContextMenuSubTrigger>
-        <ContextMenuSubContent className="w-44">
-          {typeOptions.map((option) => (
-            <ContextMenuItem
-              key={option.type}
-              disabled={property.type === option.type}
-              onSelect={() => {
-                handleChangePropertyType(property.key, option.type)
-              }}>
-              {option.icon}
-              {option.label}
-            </ContextMenuItem>
-          ))}
-        </ContextMenuSubContent>
-      </ContextMenuSub>
-      <ContextMenuSeparator />
-      <ContextMenuItem
-        variant="destructive"
-        onSelect={() => {
-          handleDeleteProperty(property.key)
-        }}>
-        <Trash2 size={14} />
-        {t('richEditor.frontMatter.deleteProperty')}
-      </ContextMenuItem>
-    </ContextMenuContent>
-  )
+  const buildPropertyMenuItems = (property: ParsedProperty): CommandContextMenuExtraItem[] => [
+    {
+      type: 'item',
+      id: 'edit-value',
+      label: t('richEditor.frontMatter.editValue'),
+      icon: <Type size={14} />,
+      onSelect: () => setEditingProperty(property.key)
+    },
+    { type: 'separator' },
+    {
+      type: 'submenu',
+      id: 'change-type',
+      label: t('richEditor.frontMatter.changeType'),
+      children: typeOptions.map((option) => ({
+        type: 'item' as const,
+        id: `change-type-${option.type}`,
+        label: option.label,
+        icon: option.icon,
+        enabled: property.type !== option.type,
+        onSelect: () => handleChangePropertyType(property.key, option.type)
+      }))
+    },
+    { type: 'separator' },
+    {
+      type: 'item',
+      id: 'delete',
+      label: t('richEditor.frontMatter.deleteProperty'),
+      icon: <Trash2 size={14} />,
+      destructive: true,
+      onSelect: () => handleDeleteProperty(property.key)
+    }
+  ]
 
   const renderActionMenu = (property: ParsedProperty) => (
     <div className="flex flex-col gap-1">
@@ -289,7 +272,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
         {t('richEditor.frontMatter.editValue')}
       </button>
       <div className="-mx-1 my-1 h-px bg-border" />
-      <div className="px-2 py-1 text-muted-foreground text-xs">{t('richEditor.frontMatter.changeType')}</div>
+      <div className="px-2 py-1 text-xs text-muted-foreground">{t('richEditor.frontMatter.changeType')}</div>
       {typeOptions.map((option) => (
         <button
           key={option.type}
@@ -307,7 +290,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
       <div className="-mx-1 my-1 h-px bg-border" />
       <button
         type="button"
-        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-destructive text-sm hover:bg-destructive/10"
+        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive hover:text-destructive-foreground"
         onClick={() => {
           handleDeleteProperty(property.key)
           setOpenDropdown(null)
@@ -330,7 +313,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
           {property.value.map((item, index) => (
             <span
               key={index}
-              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-foreground text-xs hover:bg-accent">
+              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-foreground hover:bg-accent">
               {String(item)}
               <button
                 type="button"
@@ -363,12 +346,12 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
                 }
               }}
               autoFocus
-              className="h-6 min-w-20 max-w-30 rounded-full px-2 py-0 text-xs"
+              className="h-6 max-w-30 min-w-20 rounded-full px-2 py-0 text-xs"
             />
           ) : (
             <button
               type="button"
-              className="inline-flex size-5 items-center justify-center rounded-full border border-border border-dashed text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+              className="inline-flex size-5 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
               onClick={() => setShowArrayInput((prev) => ({ ...prev, [property.key]: true }))}>
               <Plus size={12} />
             </button>
@@ -416,7 +399,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
     return (
       <button
         type="button"
-        className="flex min-h-5 flex-1 items-center rounded px-2 py-1 text-left text-foreground text-sm"
+        className="flex min-h-5 flex-1 items-center rounded px-2 py-1 text-left text-sm text-foreground"
         onClick={() => setEditingProperty(property.key)}>
         {property.value ? (
           String(property.value)
@@ -435,7 +418,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
   return (
     <NodeViewWrapper
       className="yamlFrontMatter-wrapper"
-      onContextMenu={(e) => {
+      onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => {
         // Only prevent if the context menu is triggered on the wrapper itself
         if (e.target === e.currentTarget) {
           e.preventDefault()
@@ -448,44 +431,45 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
           e.stopPropagation()
         }}>
         {parsedProperties.map((property) => (
-          <ContextMenu key={property.key}>
-            <ContextMenuTrigger asChild>
-              <div
-                className="group flex min-h-8 items-center rounded-md px-2 py-1.5 hover:bg-accent"
-                onContextMenu={(e) => {
-                  e.stopPropagation()
-                }}>
-                <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
-                  {getPropertyIcon(property.type)}
-                </div>
-                <div className="mr-3 w-[100px] shrink-0 truncate font-medium text-foreground text-sm capitalize">
-                  {property.key}
-                </div>
-                {renderPropertyValue(property)}
-                <div className="mr-1 ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Popover
-                    open={openDropdown === `action-${property.key}`}
-                    onOpenChange={(open) => {
-                      setOpenDropdown(open ? `action-${property.key}` : null)
-                    }}>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex items-center rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                        onClick={(e) => e.stopPropagation()}
-                        title={t('richEditor.frontMatter.moreActions')}>
-                        <MoreHorizontal size={14} />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-52 p-1">
-                      {renderActionMenu(property)}
-                    </PopoverContent>
-                  </Popover>
-                </div>
+          <CommandContextMenu
+            key={property.key}
+            location="webcontents.context"
+            contentClassName="w-52"
+            extraItems={buildPropertyMenuItems(property)}>
+            <div
+              className="group flex min-h-8 items-center rounded-md px-2 py-1.5 hover:bg-accent"
+              onContextMenu={(e) => {
+                e.stopPropagation()
+              }}>
+              <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
+                {getPropertyIcon(property.type)}
               </div>
-            </ContextMenuTrigger>
-            {renderContextMenu(property)}
-          </ContextMenu>
+              <div className="mr-3 w-[100px] shrink-0 truncate text-sm font-medium text-foreground capitalize">
+                {property.key}
+              </div>
+              {renderPropertyValue(property)}
+              <div className="mr-1 ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <Popover
+                  open={openDropdown === `action-${property.key}`}
+                  onOpenChange={(open) => {
+                    setOpenDropdown(open ? `action-${property.key}` : null)
+                  }}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      onClick={(e) => e.stopPropagation()}
+                      title={t('richEditor.frontMatter.moreActions')}>
+                      <MoreHorizontal size={14} />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-52 p-1">
+                    {renderActionMenu(property)}
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </CommandContextMenu>
         ))}
 
         {showAddProperty ? (
@@ -526,7 +510,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
             <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
               <Plus size={16} />
             </div>
-            <div className="text-muted-foreground text-sm">{t('richEditor.frontMatter.addProperty')}</div>
+            <div className="text-sm text-muted-foreground">{t('richEditor.frontMatter.addProperty')}</div>
           </button>
         )}
       </div>

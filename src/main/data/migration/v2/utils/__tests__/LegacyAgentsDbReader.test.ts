@@ -1,9 +1,8 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
-import { createClient } from '@libsql/client'
+import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type AgentsSourceTableName, getAgentsSourceTableNames } from '../../migrators/mappings/AgentsDbMappings'
@@ -22,15 +21,14 @@ const TABLE_DDL: Record<AgentsSourceTableName, string> = {
 }
 
 async function buildLegacyAgentsDb(dbPath: string, tablesToCreate: readonly AgentsSourceTableName[]): Promise<void> {
-  const client = createClient({ url: pathToFileURL(dbPath).href })
+  const db = new Database(dbPath)
   try {
-    // Ensures the SQLite file is materialized even when no tables are requested.
-    await client.execute('SELECT 1')
+    // new Database() materializes the SQLite file even when no tables are requested.
     for (const tableName of tablesToCreate) {
-      await client.execute(TABLE_DDL[tableName])
+      db.exec(TABLE_DDL[tableName])
     }
   } finally {
-    client.close()
+    db.close()
   }
 }
 
@@ -66,7 +64,7 @@ describe('LegacyAgentsDbReader', () => {
 
     it('returns empty schema info when the legacy db file is missing', async () => {
       const reader = new LegacyAgentsDbReader({ legacyAgentDbFile: dbPath }, () => false)
-      const schema = await reader.inspectSchema()
+      const schema = reader.inspectSchema()
 
       for (const tableName of getAgentsSourceTableNames()) {
         expect(schema[tableName].exists).toBe(false)
@@ -81,7 +79,7 @@ describe('LegacyAgentsDbReader', () => {
       // This case is the original crash path: drizzle-orm/libsql .get() on a
       // raw SQL query that returns zero rows used to throw
       // "Cannot convert undefined or null to object" via Object.keys(undefined).
-      const schema = await reader.inspectSchema()
+      const schema = reader.inspectSchema()
 
       for (const tableName of getAgentsSourceTableNames()) {
         expect(schema[tableName].exists).toBe(false)
@@ -93,7 +91,7 @@ describe('LegacyAgentsDbReader', () => {
       await buildLegacyAgentsDb(dbPath, ['agents', 'sessions'])
       const reader = new LegacyAgentsDbReader({ legacyAgentDbFile: dbPath })
 
-      const schema = await reader.inspectSchema()
+      const schema = reader.inspectSchema()
 
       expect(schema.agents.exists).toBe(true)
       expect(schema.agents.columns).toEqual(new Set(['id', 'name']))
@@ -115,7 +113,7 @@ describe('LegacyAgentsDbReader', () => {
       await buildLegacyAgentsDb(dbPath, all)
       const reader = new LegacyAgentsDbReader({ legacyAgentDbFile: dbPath })
 
-      const schema = await reader.inspectSchema()
+      const schema = reader.inspectSchema()
 
       for (const tableName of all) {
         expect(schema[tableName].exists).toBe(true)
@@ -141,7 +139,7 @@ describe('LegacyAgentsDbReader', () => {
       await buildLegacyAgentsDb(dbPath, ['agents'])
       const reader = new LegacyAgentsDbReader({ legacyAgentDbFile: dbPath })
 
-      const counts = await reader.countRows()
+      const counts = reader.countRows()
 
       expect(counts.agents).toBe(0)
       expect(counts.session_messages).toBe(0)
@@ -149,16 +147,16 @@ describe('LegacyAgentsDbReader', () => {
 
     it('counts rows for tables that exist', async () => {
       await buildLegacyAgentsDb(dbPath, ['agents'])
-      const seedClient = createClient({ url: pathToFileURL(dbPath).href })
+      const seedDb = new Database(dbPath)
       try {
-        await seedClient.execute("INSERT INTO agents (id, name) VALUES ('a1', 'one')")
-        await seedClient.execute("INSERT INTO agents (id, name) VALUES ('a2', 'two')")
+        seedDb.exec("INSERT INTO agents (id, name) VALUES ('a1', 'one')")
+        seedDb.exec("INSERT INTO agents (id, name) VALUES ('a2', 'two')")
       } finally {
-        seedClient.close()
+        seedDb.close()
       }
 
       const reader = new LegacyAgentsDbReader({ legacyAgentDbFile: dbPath })
-      const counts = await reader.countRows()
+      const counts = reader.countRows()
 
       expect(counts.agents).toBe(2)
     })

@@ -1,11 +1,28 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { type MouseEvent as ReactMouseEvent, type ReactNode, useState } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { Group } from '@shared/data/types/group'
-import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type {
+  KnowledgeBase,
+  KnowledgeItem,
+  KnowledgeItemOf,
+  RestoreKnowledgeBaseResult
+} from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import KnowledgePage from '../KnowledgePage'
+import type { KnowledgeFilePreviewTarget } from '../types'
+
+function RoutedKnowledgePage() {
+  const [baseId, setBaseId] = useState<string>()
+  return <KnowledgePage baseId={baseId} onBaseIdChange={setBaseId} />
+}
 
 const mockUseKnowledgeBases = vi.fn()
 const mockUseKnowledgeGroups = vi.fn()
@@ -19,6 +36,18 @@ const mockUseDeleteKnowledgeBase = vi.fn()
 const mockUseDeleteKnowledgeItem = vi.fn()
 const mockUseKnowledgeItems = vi.fn()
 const mockUseReindexKnowledgeItem = vi.fn()
+const mockDetailHeaderRender = vi.fn()
+const mockDataSourcePanelRender = vi.fn()
+const mockRagConfigPanelModuleLoad = vi.fn()
+const mockRecallTestPanelModuleLoad = vi.fn()
+const mockAddSourceDialogModuleLoad = vi.fn()
+const mockCreateBaseDialogModuleLoad = vi.fn()
+const mockCreateGroupDialogModuleLoad = vi.fn()
+const mockRenameGroupDialogModuleLoad = vi.fn()
+const mockRenameBaseDialogModuleLoad = vi.fn()
+const mockRestoreDialogModuleLoad = vi.fn()
+const mockChunkDetailPanelModuleLoad = vi.fn()
+const mockNoteContentPanelModuleLoad = vi.fn()
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
@@ -30,18 +59,26 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useDeleteKnowledgeItem: (baseId: string) => mockUseDeleteKnowledgeItem(baseId),
-  useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId),
+  useKnowledgeItems: (baseId: string, groupId?: string | null) => mockUseKnowledgeItems(baseId, groupId),
   useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
 }))
 
-vi.mock('../hooks', () => ({
+vi.mock('@renderer/components/FilePreview', () => ({
+  FilePreview: ({ filePath, header }: { filePath: string; header?: ReactNode }) => (
+    <div data-testid="file-preview" data-file-path={filePath}>
+      {header}
+    </div>
+  )
+}))
+
+vi.mock('../hooks/useKnowledgeGroups', () => ({
   useKnowledgeGroups: () => mockUseKnowledgeGroups(),
   useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useUpdateKnowledgeGroup: () => mockUseUpdateKnowledgeGroup(),
   useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup()
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
@@ -111,9 +148,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('../components/navigator', () => ({
-  default: ({
+  BaseNavigator: ({
     bases,
     groups,
+    width,
     selectedBaseId,
     onSelectBase,
     onCreateGroup,
@@ -122,25 +160,32 @@ vi.mock('../components/navigator', () => ({
     onRenameBase,
     onRenameGroup,
     onDeleteGroup,
-    onDeleteBase
+    onDeleteBase,
+    onResizeStart
   }: {
     bases: Array<{ id: string; name: string }>
     groups: Array<{ id: string; name: string }>
+    width: number
     selectedBaseId: string
     onSelectBase: (baseId: string) => void
-    onCreateGroup: () => void
+    onCreateGroup: (baseId?: string) => void
     onCreateBase: (groupId?: string) => void
     onMoveBase: (baseId: string, groupId: string | null) => Promise<void> | void
     onRenameBase: (base: { id: string; name: string }) => void
     onRenameGroup: (group: { id: string; name: string }) => void
     onDeleteGroup: (groupId: string) => Promise<void> | void
     onDeleteBase: (baseId: string) => Promise<void> | void
+    onResizeStart: (event: ReactMouseEvent<HTMLButtonElement>) => void
   }) => (
-    <div>
+    <div data-testid="base-navigator">
       <div data-testid="base-count">{bases.length}</div>
       <div data-testid="group-names">{groups.map((group) => group.name).join(',')}</div>
+      <div data-testid="navigator-width">{width}</div>
+      <button data-testid="navigator-resize-start" type="button" onMouseDown={onResizeStart}>
+        Resize Navigator
+      </button>
       <div data-testid="selected-base-id">{selectedBaseId}</div>
-      <button type="button" onClick={onCreateGroup}>
+      <button type="button" onClick={() => onCreateGroup()}>
         新建分组
       </button>
       <button type="button" onClick={() => onCreateBase()}>
@@ -156,6 +201,9 @@ vi.mock('../components/navigator', () => ({
           </button>
           <button type="button" onClick={() => void onMoveBase(base.id, groups[1]?.id ?? 'group-2')}>
             Move {base.name}
+          </button>
+          <button type="button" onClick={() => onCreateGroup(base.id)}>
+            CreateGroupForBase {base.name}
           </button>
           <button type="button" onClick={() => void onDeleteBase(base.id)}>
             Delete {base.name}
@@ -182,276 +230,345 @@ vi.mock('../components/navigator', () => ({
 vi.mock('../components/DetailHeader', () => ({
   default: ({
     base,
-    itemCount,
     onOpenRagConfig,
-    onOpenRecallTest,
-    onRenameBase,
-    onDeleteBase
+    onOpenRecallTest
   }: {
     base: KnowledgeBase
-    itemCount: number
     onOpenRagConfig: () => void
     onOpenRecallTest: () => void
-    onRenameBase: (base: { id: string; name: string }) => void
-    onDeleteBase: (baseId: string) => Promise<void> | void
-  }) => (
-    <div>
-      <div data-testid="detail-header">{base.name}</div>
-      <div data-testid="detail-header-item-count">{itemCount}</div>
-      <button type="button" onClick={onOpenRagConfig}>
-        OpenRagConfig
-      </button>
-      <button type="button" onClick={onOpenRecallTest}>
-        OpenRecallTest
-      </button>
-      <button type="button" onClick={() => onRenameBase(base)}>
-        HeaderRename {base.name}
-      </button>
-      <button type="button" onClick={() => void onDeleteBase(base.id)}>
-        HeaderDelete {base.name}
-      </button>
-    </div>
-  )
+  }) => {
+    mockDetailHeaderRender()
+
+    return (
+      <div>
+        <div data-testid="detail-header">{base.name}</div>
+        <button type="button" onClick={onOpenRagConfig}>
+          OpenRagConfig
+        </button>
+        <button type="button" onClick={onOpenRecallTest}>
+          OpenRecallTest
+        </button>
+      </div>
+    )
+  }
 }))
 
 vi.mock('../panels/dataSource/DataSourcePanel', () => ({
   default: ({
+    embeddingModelId,
     items,
     isLoading,
     onAdd,
     onItemClick,
+    onViewNoteContent,
+    onPreviewFile,
+    onDrillIntoDirectory,
+    currentDirectory,
     onDelete,
-    onReindex
+    onDeleteItems,
+    onReindex,
+    onReindexItems
   }: {
-    items: Array<{ id: string }>
+    embeddingModelId?: string | null
+    items: KnowledgeItem[]
     isLoading: boolean
     onAdd: () => void
     onItemClick: (itemId: string) => void
+    onViewNoteContent: (itemId: string) => void
+    onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
+    onDrillIntoDirectory?: (item: KnowledgeItemOf<'directory'>) => void
+    currentDirectory?: KnowledgeItemOf<'directory'> | null
     onDelete: (item: { id: string }) => void | Promise<void>
+    onDeleteItems: (itemIds: string[]) => void | Promise<void>
     onReindex: (item: { id: string }) => void | Promise<void>
-  }) => (
-    <div>
-      <div data-testid="data-source-panel">{`${items.length}:${isLoading ? 'loading' : 'idle'}`}</div>
-      <button type="button" onClick={onAdd}>
-        Open Add Source
-      </button>
-      {items.map((item) => (
-        <div key={item.id}>
-          <button type="button" onClick={() => onItemClick(item.id)}>
-            OpenChunks {item.id}
-          </button>
-          <button type="button" onClick={() => void onDelete(item)}>
-            DeleteItem {item.id}
-          </button>
-          <button type="button" onClick={() => void onReindex(item)}>
-            Reindex {item.id}
+    onReindexItems: (itemIds: string[]) => void | Promise<void>
+  }) => {
+    mockDataSourcePanelRender({ embeddingModelId, onPreviewFile })
+
+    return (
+      <div>
+        <div data-testid="data-source-panel" data-current-directory={currentDirectory?.id ?? 'root'}>
+          {`${items.length}:${isLoading ? 'loading' : 'idle'}`}
+        </div>
+        <button type="button" onClick={onAdd}>
+          Open Add Source
+        </button>
+        <button type="button" onClick={() => void onDeleteItems(items.map((item) => item.id))}>
+          DeleteItems
+        </button>
+        <button type="button" onClick={() => void onReindexItems(items.map((item) => item.id))}>
+          ReindexItems
+        </button>
+        {items.map((item) => (
+          <div key={item.id}>
+            {item.type === 'directory' ? (
+              <button type="button" onClick={() => onDrillIntoDirectory?.(item)}>
+                DrillDirectory {item.id}
+              </button>
+            ) : null}
+            <button type="button" onClick={() => onItemClick(item.id)}>
+              OpenChunks {item.id}
+            </button>
+            <button type="button" onClick={() => onViewNoteContent(item.id)}>
+              ViewNoteContent {item.id}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onPreviewFile({
+                  fileName: `${item.id}.pdf`,
+                  filePath: `/knowledge/${item.id}.pdf` as KnowledgeFilePreviewTarget['filePath']
+                })
+              }>
+              PreviewFile {item.id}
+            </button>
+            <button type="button" onClick={() => void onDelete(item)}>
+              DeleteItem {item.id}
+            </button>
+            <button type="button" onClick={() => void onReindex(item)}>
+              Reindex {item.id}
+            </button>
+          </div>
+        ))}
+      </div>
+    )
+  }
+}))
+
+vi.mock('../panels/dataSource/KnowledgeItemChunkDetailPanel', () => {
+  mockChunkDetailPanelModuleLoad()
+  return {
+    default: ({ itemId, onBack }: { itemId: string; onBack: () => void }) => (
+      <div data-testid="chunk-detail-panel">
+        <div>{`chunks:${itemId}`}</div>
+        <button type="button" onClick={onBack}>
+          BackToSources
+        </button>
+      </div>
+    )
+  }
+})
+
+vi.mock('../panels/dataSource/KnowledgeItemNoteContentPanel', () => {
+  mockNoteContentPanelModuleLoad()
+  return {
+    default: ({ itemId, onBack }: { itemId: string; onBack: () => void }) => (
+      <div data-testid="note-content-panel">
+        <div>{`note:${itemId}`}</div>
+        <button type="button" onClick={onBack}>
+          BackToSources
+        </button>
+      </div>
+    )
+  }
+})
+
+vi.mock('../panels/ragConfig/RagConfigPanel', () => {
+  mockRagConfigPanelModuleLoad()
+  return {
+    default: ({ base, onRestoreBase }: { base: KnowledgeBase; onRestoreBase: (base: KnowledgeBase) => void }) => (
+      <div data-testid="rag-config-panel">
+        {base.name}
+        <button type="button" onClick={() => onRestoreBase(base)}>
+          RagRestore {base.name}
+        </button>
+      </div>
+    )
+  }
+})
+
+vi.mock('../panels/recallTest/RecallTestPanel', () => {
+  mockRecallTestPanelModuleLoad()
+  return {
+    default: () => <div data-testid="recall-test-panel">recall-test-panel</div>
+  }
+})
+
+vi.mock('../components/AddKnowledgeItemDialog', () => {
+  mockAddSourceDialogModuleLoad()
+  return {
+    default: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) =>
+      open ? (
+        <div data-testid="add-source-dialog">
+          <button type="button" onClick={() => onOpenChange(false)}>
+            Close Add Source
           </button>
         </div>
-      ))}
-    </div>
-  )
-}))
+      ) : null
+  }
+})
 
-vi.mock('../panels/dataSource/KnowledgeItemChunkDetailPanel', () => ({
-  default: ({ itemId, onBack }: { itemId: string; onBack: () => void }) => (
-    <div data-testid="chunk-detail-panel">
-      <div>{`chunks:${itemId}`}</div>
-      <button type="button" onClick={onBack}>
-        BackToSources
-      </button>
-    </div>
-  )
-}))
+vi.mock('../components/CreateKnowledgeBaseDialog', () => {
+  mockCreateBaseDialogModuleLoad()
+  return {
+    default: ({
+      open,
+      groups,
+      initialGroupId,
+      createBase,
+      onOpenChange,
+      onCreated
+    }: {
+      open: boolean
+      groups: Array<{ id: string; name: string }>
+      initialGroupId?: string
+      createBase: (input: { name: string; groupId?: string }) => Promise<KnowledgeBase>
+      onOpenChange: (open: boolean) => void
+      onCreated: (base: KnowledgeBase) => void
+    }) =>
+      open ? (
+        <div data-testid="create-dialog">
+          <div data-testid="create-dialog-groups">{groups.map((group) => group.name).join(',')}</div>
+          <div data-testid="create-dialog-initial-group-id">{initialGroupId}</div>
+          <button
+            type="button"
+            onClick={async () => {
+              const createdBase = await createBase({
+                name: 'Base 2',
+                ...(initialGroupId ? { groupId: initialGroupId } : {})
+              })
+              onCreated(createdBase)
+              onOpenChange(false)
+            }}>
+            Submit Create
+          </button>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            Cancel Create
+          </button>
+        </div>
+      ) : null
+  }
+})
 
-vi.mock('../panels/ragConfig/RagConfigPanel', () => ({
-  default: ({ base, onRestoreBase }: { base: KnowledgeBase; onRestoreBase: (base: KnowledgeBase) => void }) => (
-    <div data-testid="rag-config-panel">
-      {base.name}
-      <button type="button" onClick={() => onRestoreBase(base)}>
-        RagRestore {base.name}
-      </button>
-    </div>
-  )
-}))
+vi.mock('../components/RestoreKnowledgeBaseDialog', () => {
+  mockRestoreDialogModuleLoad()
+  return {
+    default: ({
+      open,
+      base,
+      restoreBase,
+      onOpenChange,
+      onRestored
+    }: {
+      open: boolean
+      base: KnowledgeBase
+      restoreBase: (input: {
+        sourceBaseId: string
+        name: string
+        embeddingModelId: string | null
+        dimensions: number
+      }) => Promise<RestoreKnowledgeBaseResult>
+      onOpenChange: (open: boolean) => void
+      onRestored: (base: KnowledgeBase) => void
+    }) =>
+      open ? (
+        <div data-testid="restore-dialog">
+          <div data-testid="restore-dialog-source-name">{base.name}</div>
+          <button
+            type="button"
+            onClick={async () => {
+              const result = await restoreBase({
+                sourceBaseId: base.id,
+                name: `${base.name}_副本`,
+                embeddingModelId: 'openai::text-embedding-3-small',
+                dimensions: 1024
+              })
+              onRestored(result.base)
+              onOpenChange(false)
+            }}>
+            Submit Restore
+          </button>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            Cancel Restore
+          </button>
+        </div>
+      ) : null
+  }
+})
 
-vi.mock('../panels/recallTest/RecallTestPanel', () => ({
-  default: () => <div data-testid="recall-test-panel">recall-test-panel</div>
-}))
+vi.mock('../components/CreateKnowledgeGroupDialog', () => {
+  mockCreateGroupDialogModuleLoad()
+  return {
+    default: ({
+      open,
+      onSubmit,
+      onOpenChange
+    }: {
+      open: boolean
+      onSubmit: (name: string) => Promise<void>
+      onOpenChange: (open: boolean) => void
+    }) =>
+      open ? (
+        <div data-testid="create-group-dialog">
+          <button type="button" onClick={() => void onSubmit('Group 2')}>
+            Submit Create Group
+          </button>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            Cancel Create Group
+          </button>
+        </div>
+      ) : null
+  }
+})
 
-vi.mock('../components/AddKnowledgeItemDialog', () => ({
-  default: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) =>
-    open ? (
-      <div data-testid="add-source-dialog">
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Close Add Source
-        </button>
-      </div>
-    ) : null
-}))
+vi.mock('../components/RenameKnowledgeGroupDialog', () => {
+  mockRenameGroupDialogModuleLoad()
+  return {
+    default: ({
+      open,
+      initialName,
+      onSubmit,
+      onOpenChange
+    }: {
+      open: boolean
+      initialName: string
+      onSubmit: (name: string) => Promise<void>
+      onOpenChange: (open: boolean) => void
+    }) =>
+      open ? (
+        <div data-testid="rename-group-dialog">
+          <div data-testid="group-dialog-initial-name">{initialName}</div>
+          <button type="button" onClick={() => void onSubmit('Renamed Group')}>
+            Submit Rename Group
+          </button>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            Cancel Rename Group
+          </button>
+        </div>
+      ) : null
+  }
+})
 
-vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
-  default: ({
-    open,
-    groups,
-    initialGroupId,
-    createBase,
-    onOpenChange,
-    onCreated
-  }: {
-    open: boolean
-    groups: Array<{ id: string; name: string }>
-    initialGroupId?: string
-    createBase: (input: {
-      name: string
-      groupId?: string
-      embeddingModelId: string | null
-      dimensions: number
-    }) => Promise<KnowledgeBase>
-    onOpenChange: (open: boolean) => void
-    onCreated: (base: KnowledgeBase) => void
-  }) =>
-    open ? (
-      <div data-testid="create-dialog">
-        <div data-testid="create-dialog-groups">{groups.map((group) => group.name).join(',')}</div>
-        <div data-testid="create-dialog-initial-group-id">{initialGroupId}</div>
-        <button
-          type="button"
-          onClick={async () => {
-            const createdBase = await createBase({
-              name: 'Base 2',
-              ...(initialGroupId ? { groupId: initialGroupId } : {}),
-              embeddingModelId: 'openai::text-embedding-3-small',
-              dimensions: 1536
-            })
-            onCreated(createdBase)
-            onOpenChange(false)
-          }}>
-          Submit Create
-        </button>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Cancel Create
-        </button>
-      </div>
-    ) : null
-}))
-
-vi.mock('../components/RestoreKnowledgeBaseDialog', () => ({
-  default: ({
-    open,
-    base,
-    restoreBase,
-    onOpenChange,
-    onRestored
-  }: {
-    open: boolean
-    base: KnowledgeBase
-    restoreBase: (input: {
-      sourceBaseId: string
-      name: string
-      embeddingModelId: string | null
-      dimensions: number
-    }) => Promise<KnowledgeBase>
-    onOpenChange: (open: boolean) => void
-    onRestored: (base: KnowledgeBase) => void
-  }) =>
-    open ? (
-      <div data-testid="restore-dialog">
-        <div data-testid="restore-dialog-source-name">{base.name}</div>
-        <button
-          type="button"
-          onClick={async () => {
-            const restoredBase = await restoreBase({
-              sourceBaseId: base.id,
-              name: `${base.name}_副本`,
-              embeddingModelId: 'openai::text-embedding-3-small',
-              dimensions: 1024
-            })
-            onRestored(restoredBase)
-            onOpenChange(false)
-          }}>
-          Submit Restore
-        </button>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Cancel Restore
-        </button>
-      </div>
-    ) : null
-}))
-
-vi.mock('../components/CreateKnowledgeGroupDialog', () => ({
-  default: ({
-    open,
-    onSubmit,
-    onOpenChange
-  }: {
-    open: boolean
-    onSubmit: (name: string) => Promise<void>
-    onOpenChange: (open: boolean) => void
-  }) =>
-    open ? (
-      <div data-testid="create-group-dialog">
-        <button type="button" onClick={() => void onSubmit('Group 2')}>
-          Submit Create Group
-        </button>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Cancel Create Group
-        </button>
-      </div>
-    ) : null
-}))
-
-vi.mock('../components/RenameKnowledgeGroupDialog', () => ({
-  default: ({
-    open,
-    initialName,
-    onSubmit,
-    onOpenChange
-  }: {
-    open: boolean
-    initialName: string
-    onSubmit: (name: string) => Promise<void>
-    onOpenChange: (open: boolean) => void
-  }) =>
-    open ? (
-      <div data-testid="rename-group-dialog">
-        <div data-testid="group-dialog-initial-name">{initialName}</div>
-        <button type="button" onClick={() => void onSubmit('Renamed Group')}>
-          Submit Rename Group
-        </button>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Cancel Rename Group
-        </button>
-      </div>
-    ) : null
-}))
-
-vi.mock('../components/KnowledgeBaseNameDialog', () => ({
-  default: ({
-    open,
-    initialName,
-    onSubmit,
-    onOpenChange
-  }: {
-    open: boolean
-    initialName: string
-    onSubmit: (name: string) => Promise<void>
-    onOpenChange: (open: boolean) => void
-  }) =>
-    open ? (
-      <div data-testid="rename-base-dialog">
-        <div data-testid="base-dialog-initial-name">{initialName}</div>
-        <button type="button" onClick={() => void onSubmit('Renamed Base')}>
-          Submit Rename Base
-        </button>
-        <button type="button" onClick={() => void onSubmit(initialName)}>
-          Submit Same Name Base
-        </button>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Cancel Rename Base
-        </button>
-      </div>
-    ) : null
-}))
+vi.mock('../components/KnowledgeBaseNameDialog', () => {
+  mockRenameBaseDialogModuleLoad()
+  return {
+    default: ({
+      open,
+      initialName,
+      onSubmit,
+      onOpenChange
+    }: {
+      open: boolean
+      initialName: string
+      onSubmit: (name: string) => Promise<void>
+      onOpenChange: (open: boolean) => void
+    }) =>
+      open ? (
+        <div data-testid="rename-base-dialog">
+          <div data-testid="base-dialog-initial-name">{initialName}</div>
+          <button type="button" onClick={() => void onSubmit('Renamed Base')}>
+            Submit Rename Base
+          </button>
+          <button type="button" onClick={() => void onSubmit(initialName)}>
+            Submit Same Name Base
+          </button>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            Cancel Rename Base
+          </button>
+        </div>
+      ) : null
+  }
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -459,9 +576,12 @@ vi.mock('react-i18next', () => ({
       (
         ({
           'common.loading': '加载中...',
+          'common.back': '返回',
           'knowledge.error.failed_to_delete': '知识库删除失败',
           'knowledge.error.failed_to_move': '知识库移动失败',
           'knowledge.empty': '暂无知识库',
+          'knowledge.empty_action': '创建知识库',
+          'knowledge.empty_description': '与 AI 一起积累知识',
           'knowledge.groups.error.failed_to_delete': '分组删除失败',
           'knowledge.title': '知识库'
         }) as Record<string, string>
@@ -480,12 +600,11 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
-  threshold: undefined,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   documentCount: undefined,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
-  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -516,14 +635,24 @@ const createKnowledgeItem = ({ id }: { id: string }): KnowledgeItemOf<'note'> =>
   updatedAt: '2026-04-21T10:00:00+08:00'
 })
 
+const createKnowledgeDirectoryItem = ({ id }: { id: string }): KnowledgeItemOf<'directory'> => ({
+  baseId: 'base-1',
+  groupId: null,
+  id,
+  type: 'directory',
+  data: {
+    source: `/knowledge/${id}`,
+    relativePath: id as PosixRelativeFilePath
+  },
+  status: 'completed',
+  error: null,
+  createdAt: '2026-04-21T10:00:00+08:00',
+  updatedAt: '2026-04-21T10:00:00+08:00'
+})
+
 describe('KnowledgePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.assign(window, {
-      toast: {
-        error: vi.fn()
-      }
-    })
     mockUseCreateKnowledgeGroup.mockReturnValue({
       createGroup: vi.fn(),
       isCreating: false,
@@ -573,21 +702,153 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
     mockUseDeleteKnowledgeItem.mockReturnValue({
+      deleteItems: vi.fn(),
       deleteItem: vi.fn(),
       isDeleting: false,
       error: undefined
     })
     mockUseReindexKnowledgeItem.mockReturnValue({
+      reindexItems: vi.fn(),
       reindexItem: vi.fn(),
       isReindexing: false,
       error: undefined
     })
   })
 
+  afterEach(() => {
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    vi.restoreAllMocks()
+  })
+
+  // The four lazy-contract tests below must stay first: vi.mock factories run once per
+  // module per file, so only the first test to open each dialog/panel can observe its load.
+  it('does not load the management dialogs or item detail panels while the page renders', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<RoutedKnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    })
+
+    expect(mockAddSourceDialogModuleLoad).not.toHaveBeenCalled()
+    expect(mockCreateBaseDialogModuleLoad).not.toHaveBeenCalled()
+    expect(mockCreateGroupDialogModuleLoad).not.toHaveBeenCalled()
+    expect(mockRenameGroupDialogModuleLoad).not.toHaveBeenCalled()
+    expect(mockRenameBaseDialogModuleLoad).not.toHaveBeenCalled()
+    expect(mockRestoreDialogModuleLoad).not.toHaveBeenCalled()
+    expect(mockChunkDetailPanelModuleLoad).not.toHaveBeenCalled()
+    expect(mockNoteContentPanelModuleLoad).not.toHaveBeenCalled()
+  })
+
+  it('loads the create-base dialog module only when the dialog opens', async () => {
+    const user = userEvent.setup()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<RoutedKnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('detail-header')).toBeInTheDocument()
+    })
+    expect(mockCreateBaseDialogModuleLoad).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '新建知识库' }))
+    expect(await screen.findByTestId('create-dialog')).toBeInTheDocument()
+    expect(mockCreateBaseDialogModuleLoad).toHaveBeenCalledOnce()
+    expect(mockAddSourceDialogModuleLoad).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel Create' }))
+    await waitFor(() => {
+      expect(screen.queryByTestId('create-dialog')).not.toBeInTheDocument()
+    })
+  })
+
+  it('loads the chunk detail panel module only when an item is opened', async () => {
+    const user = userEvent.setup()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<RoutedKnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'OpenChunks item-1' }))
+    expect(await screen.findByTestId('chunk-detail-panel')).toHaveTextContent('chunks:item-1')
+    expect(mockChunkDetailPanelModuleLoad).toHaveBeenCalledOnce()
+    expect(mockNoteContentPanelModuleLoad).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'BackToSources' }))
+    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+  })
+
+  it('loads the note content panel module only for the note view of a selected item', async () => {
+    const user = userEvent.setup()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<RoutedKnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    })
+    expect(mockNoteContentPanelModuleLoad).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'ViewNoteContent item-1' }))
+    expect(await screen.findByTestId('note-content-panel')).toHaveTextContent('note:item-1')
+    expect(mockNoteContentPanelModuleLoad).toHaveBeenCalledOnce()
+    expect(mockChunkDetailPanelModuleLoad).not.toHaveBeenCalled()
+  })
+
   it('auto-selects the first knowledge base after bases load', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [
-        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({
+          id: 'base-1',
+          name: 'Base 1',
+          embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID
+        }),
         createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
       ],
       isLoading: false,
@@ -605,15 +866,103 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
     })
     expect(screen.getByTestId('group-names')).toHaveTextContent('Research,Archive')
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
-    expect(screen.getByTestId('detail-header-item-count')).toHaveTextContent('2')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2:idle')
+    expect(mockDataSourcePanelRender).toHaveBeenLastCalledWith(
+      expect.objectContaining({ embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID })
+    )
+  })
+
+  it('selects the knowledge base from the route and publishes later selections', async () => {
+    const onBaseIdChange = vi.fn()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    const { rerender } = render(<KnowledgePage baseId="base-2" onBaseIdChange={onBaseIdChange} />)
+
+    await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2'))
+    expect(onBaseIdChange).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Base 1' }))
+
+    expect(onBaseIdChange).toHaveBeenCalledWith('base-1')
+    expect(onBaseIdChange.mock.calls).toEqual([['base-1']])
+    rerender(<KnowledgePage baseId="base-1" onBaseIdChange={onBaseIdChange} />)
+    await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1'))
+    expect(onBaseIdChange.mock.calls).toEqual([['base-1']])
+  })
+
+  it('retains a deep link through a failed initial fetch and recovers without another navigation', async () => {
+    const onBaseIdChange = vi.fn()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [],
+      isLoading: false,
+      error: new Error('offline'),
+      refetch: vi.fn()
+    })
+    const { rerender } = render(<KnowledgePage baseId="base-2" onBaseIdChange={onBaseIdChange} />)
+    expect(onBaseIdChange).not.toHaveBeenCalled()
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    rerender(<KnowledgePage baseId="base-2" onBaseIdChange={onBaseIdChange} />)
+    await waitFor(() => expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2'))
+    expect(onBaseIdChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps a global search knowledge selection until cold-start bases load', async () => {
+    let bases: KnowledgeBase[] = []
+
+    mockUseKnowledgeBases.mockImplementation(() => ({
+      bases,
+      isLoading: bases.length === 0,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+    mockUseKnowledgeItems.mockImplementation((baseId: string) => ({
+      items: baseId === 'base-2' ? [createKnowledgeItem({ id: 'item-2' })] : [],
+      total: baseId === 'base-2' ? 1 : 0,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    const { rerender } = render(<RoutedKnowledgePage />)
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, 'base-2')
+    })
+
+    bases = [
+      createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+      createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+    ]
+    rerender(<RoutedKnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2')
+    })
+    expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
   })
 
   it('opens the RAG config drawer and the recall test drawer from the header', async () => {
@@ -631,21 +980,26 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:loading')
     })
     expect(screen.queryByTestId('rag-config-panel')).not.toBeInTheDocument()
     expect(screen.queryByTestId('recall-test-panel')).not.toBeInTheDocument()
+    expect(mockRagConfigPanelModuleLoad).not.toHaveBeenCalled()
+    expect(mockRecallTestPanelModuleLoad).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
-    expect(screen.getByTestId('rag-config-panel')).toHaveTextContent('Base 1')
+    expect(await screen.findByTestId('rag-config-panel')).toHaveTextContent('Base 1')
+    expect(mockRagConfigPanelModuleLoad).toHaveBeenCalledOnce()
+    expect(mockRecallTestPanelModuleLoad).not.toHaveBeenCalled()
     // Data source stays visible behind the drawer
     expect(screen.getByTestId('data-source-panel')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenRecallTest' }))
-    expect(screen.getByTestId('recall-test-panel')).toBeInTheDocument()
+    expect(await screen.findByTestId('recall-test-panel')).toBeInTheDocument()
+    expect(mockRecallTestPanelModuleLoad).toHaveBeenCalledOnce()
   })
 
   it('opens and closes the add-source dialog from the data source panel when a knowledge base is selected', async () => {
@@ -663,14 +1017,14 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Add Source' }))
-    expect(screen.getByTestId('add-source-dialog')).toBeInTheDocument()
+    expect(await screen.findByTestId('add-source-dialog')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Close Add Source' }))
     expect(screen.queryByTestId('add-source-dialog')).not.toBeInTheDocument()
@@ -678,6 +1032,7 @@ describe('KnowledgePage', () => {
 
   it('wires data source delete actions to the selected base delete hook', async () => {
     const deleteItem = vi.fn()
+    const deleteItems = vi.fn()
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
       isLoading: false,
@@ -692,25 +1047,29 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
     mockUseDeleteKnowledgeItem.mockReturnValue({
+      deleteItems,
       deleteItem,
       isDeleting: false,
       error: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'DeleteItem item-1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'DeleteItems' }))
 
     expect(mockUseDeleteKnowledgeItem).toHaveBeenCalledWith('base-1')
     expect(deleteItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'item-1' }))
+    expect(deleteItems).toHaveBeenCalledWith(['item-1'])
   })
 
   it('wires data source reindex actions to the selected base reindex hook', async () => {
     const reindexItem = vi.fn()
+    const reindexItems = vi.fn()
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
       isLoading: false,
@@ -725,21 +1084,24 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
     mockUseReindexKnowledgeItem.mockReturnValue({
+      reindexItems,
       reindexItem,
       isReindexing: false,
       error: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Reindex item-1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ReindexItems' }))
 
     expect(mockUseReindexKnowledgeItem).toHaveBeenCalledWith('base-1')
     expect(reindexItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'item-1' }))
+    expect(reindexItems).toHaveBeenCalledWith(['item-1'])
   })
 
   it('opens item chunks from the data source list and returns to the list', async () => {
@@ -757,7 +1119,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
@@ -765,15 +1127,17 @@ describe('KnowledgePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenChunks item-1' }))
 
-    expect(screen.getByTestId('chunk-detail-panel')).toHaveTextContent('chunks:item-1')
+    expect(await screen.findByTestId('chunk-detail-panel')).toHaveTextContent('chunks:item-1')
     expect(screen.queryByTestId('data-source-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'BackToSources' }))
 
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
   })
 
-  it('keeps the chunk detail panel visible behind the RAG drawer when opened', async () => {
+  it('opens an embedded file preview and preserves navigator state when returning', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
       isLoading: false,
@@ -788,19 +1152,211 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    })
+
+    const resizeButton = screen.getByTestId('navigator-resize-start')
+    const content = resizeButton.parentElement?.parentElement?.parentElement
+
+    if (!content) {
+      throw new Error('Expected knowledge page content container')
+    }
+
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 500))
+    fireEvent.mouseDown(resizeButton)
+    fireEvent.mouseMove(document, { clientX: 320 })
+    fireEvent.mouseUp(document)
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
+
+    fireEvent.click(screen.getByRole('button', { name: 'PreviewFile item-1' }))
+
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/knowledge/item-1.pdf')
+    expect(screen.getByText('item-1.pdf')).toBeInTheDocument()
+    expect(screen.queryByTestId('data-source-panel')).not.toBeInTheDocument()
+    expect(screen.getByTestId('base-navigator')).not.toBeVisible()
+    expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenRagConfig' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenRecallTest' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '返回' }))
+
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    expect(screen.getByTestId('base-navigator')).toBeVisible()
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
+    expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
+  })
+
+  it('returns from an embedded preview to the current directory', async () => {
+    const directory = createKnowledgeDirectoryItem({ id: 'directory-1' })
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockImplementation((_baseId: string, groupId: string | null) => ({
+      items: groupId === directory.id ? [createKnowledgeItem({ id: 'item-1' })] : [directory],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    render(<RoutedKnowledgePage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'DrillDirectory directory-1' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveAttribute('data-current-directory', 'directory-1')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'PreviewFile item-1' }))
+    fireEvent.click(screen.getByRole('button', { name: '返回' }))
+
+    expect(screen.getByTestId('data-source-panel')).toHaveAttribute('data-current-directory', 'directory-1')
+    expect(mockUseKnowledgeItems).toHaveBeenLastCalledWith('base-1', 'directory-1')
+  })
+
+  it('clears the embedded file preview when switching knowledge bases', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockImplementation((baseId: string) => ({
+      items: [createKnowledgeItem({ id: baseId === 'base-1' ? 'item-1' : 'item-2' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    render(<RoutedKnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'PreviewFile item-1' }))
+    expect(screen.getByTestId('file-preview')).toBeInTheDocument()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, 'base-2')
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    })
+    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    expect(screen.getByRole('button', { name: 'PreviewFile item-2' })).toBeInTheDocument()
+  })
+
+  it('ignores a deferred preview result after switching knowledge bases', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockImplementation((baseId: string) => ({
+      items: [createKnowledgeItem({ id: baseId === 'base-1' ? 'item-1' : 'item-2' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    render(<RoutedKnowledgePage />)
+
+    await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1'))
+    const stalePreviewCallback = mockDataSourcePanelRender.mock.lastCall?.[0].onPreviewFile as (
+      target: KnowledgeFilePreviewTarget
+    ) => void
+    let resolvePreview!: () => void
+    const deferredPreview = new Promise<void>((resolve) => {
+      resolvePreview = resolve
+    })
+    void deferredPreview.then(() => {
+      stalePreviewCallback({
+        fileName: 'item-1.pdf',
+        filePath: '/knowledge/item-1.pdf' as KnowledgeFilePreviewTarget['filePath']
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Base 2' }))
+    await act(async () => {
+      resolvePreview()
+      await deferredPreview
+    })
+
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
+    expect(screen.getByRole('button', { name: 'PreviewFile item-2' })).toBeInTheDocument()
+  })
+
+  it('closes the preview when the current knowledge base is selected again', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<RoutedKnowledgePage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'PreviewFile item-1' }))
+    expect(screen.getByTestId('file-preview')).toBeInTheDocument()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, 'base-1')
+    })
+
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+  })
+
+  it('hides knowledge-base actions while the chunk detail panel is open', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenChunks item-1' }))
-    expect(screen.getByTestId('chunk-detail-panel')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
-    expect(screen.getByTestId('rag-config-panel')).toHaveTextContent('Base 1')
-    // Drawer overlay does not unmount the chunk detail panel underneath
-    expect(screen.getByTestId('chunk-detail-panel')).toBeInTheDocument()
+    // The chunk panel mounts through React.lazy; await its first resolution
+    expect(await screen.findByTestId('chunk-detail-panel')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenRagConfig' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenRecallTest' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('rag-config-panel')).not.toBeInTheDocument()
   })
 
   it('shows the loading state when bases are still loading', () => {
@@ -811,13 +1367,13 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     expect(screen.getByText('加载中...')).toBeInTheDocument()
     expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
   })
 
-  it('shows the empty state when no knowledge bases are available', () => {
+  it('shows the empty state when no knowledge bases are available', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [],
       isLoading: false,
@@ -825,10 +1381,18 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     expect(screen.getByText('暂无知识库')).toBeInTheDocument()
+    expect(screen.getByText('与 AI 一起积累知识')).toBeInTheDocument()
     expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
+    // A full-screen page replaces the two-pane shell, so the navigator — and with it
+    // the only other way to create a base — is gone; the CTA has to carry creation.
+    expect(screen.queryByTestId('navigator-width')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '创建知识库' }))
+
+    expect(await screen.findByTestId('create-dialog')).toBeInTheDocument()
   })
 
   it('opens the create-group dialog and wires submission to the group mutation hook', async () => {
@@ -846,17 +1410,87 @@ describe('KnowledgePage', () => {
       createError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建分组' }))
-    expect(screen.getByTestId('create-group-dialog')).toBeInTheDocument()
+    expect(await screen.findByTestId('create-group-dialog')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Create Group' }))
 
     await waitFor(() => {
       expect(createGroupMock).toHaveBeenCalledWith('Group 2')
+      expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
+  })
+
+  it('moves the base into the group it was created from via the context menu entry', async () => {
+    const createGroupMock = vi.fn().mockResolvedValue(createGroup({ id: 'group-3', name: 'Group 2', orderKey: 'a2' }))
+    const updateBase = vi.fn().mockResolvedValue(undefined)
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseCreateKnowledgeGroup.mockReturnValue({
+      createGroup: createGroupMock,
+      isCreating: false,
+      createError: undefined
+    })
+    mockUseUpdateKnowledgeBase.mockReturnValue({
+      updateBase,
+      isUpdating: false,
+      updateError: undefined
+    })
+
+    render(<RoutedKnowledgePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'CreateGroupForBase Base 1' }))
+    // The create-group dialog mounts through React.lazy; await its first resolution
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit Create Group' }))
+
+    await waitFor(() => {
+      expect(createGroupMock).toHaveBeenCalledWith('Group 2')
+      expect(updateBase).toHaveBeenCalledWith('base-1', { groupId: 'group-3' })
+    })
+  })
+
+  it('drops the pending move when the create-group dialog is cancelled', async () => {
+    const createGroupMock = vi.fn().mockResolvedValue(createGroup({ id: 'group-3', name: 'Group 2', orderKey: 'a2' }))
+    const updateBase = vi.fn().mockResolvedValue(undefined)
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseCreateKnowledgeGroup.mockReturnValue({
+      createGroup: createGroupMock,
+      isCreating: false,
+      createError: undefined
+    })
+    mockUseUpdateKnowledgeBase.mockReturnValue({
+      updateBase,
+      isUpdating: false,
+      updateError: undefined
+    })
+
+    render(<RoutedKnowledgePage />)
+
+    // Open from a base's context menu, cancel, then create a group the plain way:
+    // the cancelled pending move must not leak into the second creation.
+    fireEvent.click(screen.getByRole('button', { name: 'CreateGroupForBase Base 1' }))
+    // The create-group dialog mounts through React.lazy; await its first resolution
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel Create Group' }))
+    fireEvent.click(screen.getByRole('button', { name: '新建分组' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit Create Group' }))
+
+    await waitFor(() => {
+      expect(createGroupMock).toHaveBeenCalledTimes(1)
+    })
+    expect(updateBase).not.toHaveBeenCalled()
   })
 
   it('opens the rename dialog with the current name and updates the selected group', async () => {
@@ -874,19 +1508,19 @@ describe('KnowledgePage', () => {
       updateError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'RenameGroup Research' }))
 
-    expect(screen.getByTestId('rename-group-dialog')).toBeInTheDocument()
+    expect(await screen.findByTestId('rename-group-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('group-dialog-initial-name')).toHaveTextContent('Research')
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Rename Group' }))
 
     await waitFor(() => {
       expect(updateGroup).toHaveBeenCalledWith('group-1', { name: 'Renamed Group' })
+      expect(screen.queryByTestId('rename-group-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('rename-group-dialog')).not.toBeInTheDocument()
   })
 
   it('passes group deletion through to the delete-group hook', async () => {
@@ -904,7 +1538,7 @@ describe('KnowledgePage', () => {
       deleteError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'DeleteGroup Research' }))
 
@@ -928,12 +1562,12 @@ describe('KnowledgePage', () => {
       deleteError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'DeleteGroup Research' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('分组删除失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('分组删除失败: delete failed')
     })
   })
 
@@ -952,58 +1586,18 @@ describe('KnowledgePage', () => {
       updateError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'RenameBase Base 1' }))
 
-    expect(screen.getByTestId('rename-base-dialog')).toBeInTheDocument()
+    expect(await screen.findByTestId('rename-base-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('base-dialog-initial-name')).toHaveTextContent('Base 1')
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Rename Base' }))
 
     await waitFor(() => {
       expect(updateBase).toHaveBeenCalledWith('base-1', { name: 'Renamed Base' })
-    })
-    expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
-  })
-
-  it('reuses the same rename-base flow when the detail header triggers it', () => {
-    mockUseKnowledgeBases.mockReturnValue({
-      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
-
-    render(<KnowledgePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'HeaderRename Base 1' }))
-
-    expect(screen.getByTestId('rename-base-dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('base-dialog-initial-name')).toHaveTextContent('Base 1')
-  })
-
-  it('wires detail header delete to the knowledge base delete hook', async () => {
-    const deleteBase = vi.fn().mockResolvedValue(undefined)
-
-    mockUseKnowledgeBases.mockReturnValue({
-      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
-    mockUseDeleteKnowledgeBase.mockReturnValue({
-      deleteBase,
-      isDeleting: false,
-      deleteError: undefined
-    })
-
-    render(<KnowledgePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'HeaderDelete Base 1' }))
-
-    await waitFor(() => {
-      expect(deleteBase).toHaveBeenCalledWith('base-1')
+      expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
     })
   })
 
@@ -1022,12 +1616,12 @@ describe('KnowledgePage', () => {
       deleteError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'HeaderDelete Base 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Base 1' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('知识库删除失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('知识库删除失败: delete failed')
     })
   })
 
@@ -1046,10 +1640,11 @@ describe('KnowledgePage', () => {
       updateError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'RenameBase Base 1' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Same Name Base' }))
+    // The rename dialog mounts through React.lazy; await its first resolution
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit Same Name Base' }))
 
     await waitFor(() => {
       expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
@@ -1069,7 +1664,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Base 2' }))
     await waitFor(() => {
@@ -1077,7 +1672,7 @@ describe('KnowledgePage', () => {
     })
 
     bases = [firstBase]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
@@ -1110,10 +1705,11 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建知识库' }))
-    expect(screen.getByTestId('create-dialog')).toBeInTheDocument()
+    // The create dialog mounts through React.lazy; await its first resolution
+    expect(await screen.findByTestId('create-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('create-dialog-groups')).toHaveTextContent('Research,Archive')
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Create' }))
@@ -1122,7 +1718,7 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
 
     bases = [firstBase, secondBase]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2')
@@ -1149,15 +1745,16 @@ describe('KnowledgePage', () => {
       createError: undefined
     })
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建知识库' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Create' }))
+    // The create dialog mounts through React.lazy; await its first resolution
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit Create' }))
 
     await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2'))
 
     bases = [firstBase]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
@@ -1180,11 +1777,12 @@ describe('KnowledgePage', () => {
       createError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'CreateBaseInGroup Archive' }))
 
-    expect(screen.getByTestId('create-dialog')).toBeInTheDocument()
+    // The create dialog mounts through React.lazy; await its first resolution
+    expect(await screen.findByTestId('create-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('create-dialog-initial-group-id')).toHaveTextContent('group-2')
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Create' }))
@@ -1214,7 +1812,7 @@ describe('KnowledgePage', () => {
       embeddingModelId: 'openai::text-embedding-3-small'
     })
     let bases = [failedBase]
-    const restoreBase = vi.fn().mockResolvedValue(restoredBase)
+    const restoreBase = vi.fn().mockResolvedValue({ base: restoredBase, skippedMissingSourceCount: 0 })
 
     mockUseKnowledgeBases.mockImplementation(() => ({
       bases,
@@ -1238,7 +1836,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Legacy KB')
@@ -1246,7 +1844,7 @@ describe('KnowledgePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
     fireEvent.click(screen.getByRole('button', { name: 'RagRestore Legacy KB' }))
-    expect(screen.getByTestId('restore-dialog')).toBeInTheDocument()
+    expect(await screen.findByTestId('restore-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('restore-dialog-source-name')).toHaveTextContent('Legacy KB')
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Restore' }))
@@ -1262,7 +1860,7 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('restored-base')
 
     bases = [failedBase, restoredBase]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Legacy KB_副本')
@@ -1291,7 +1889,7 @@ describe('KnowledgePage', () => {
       embeddingModelId: 'openai::text-embedding-3-small'
     })
     let bases = [failedBase]
-    const restoreBase = vi.fn().mockResolvedValue(restoredBase)
+    const restoreBase = vi.fn().mockResolvedValue({ base: restoredBase, skippedMissingSourceCount: 0 })
 
     mockUseKnowledgeBases.mockImplementation(() => ({
       bases,
@@ -1305,7 +1903,7 @@ describe('KnowledgePage', () => {
       restoreError: undefined
     })
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
     fireEvent.click(screen.getByRole('button', { name: 'RagRestore Legacy KB' }))
@@ -1314,7 +1912,7 @@ describe('KnowledgePage', () => {
     await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('restored-base'))
 
     bases = [failedBase]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('selected-base-id')).toHaveTextContent('failed-base')
@@ -1336,7 +1934,7 @@ describe('KnowledgePage', () => {
       createError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'CreateBaseInGroup Archive' }))
     expect(screen.getByTestId('create-dialog-initial-group-id')).toHaveTextContent('group-2')
@@ -1377,7 +1975,7 @@ describe('KnowledgePage', () => {
       deleteError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Move Base 1' }))
     fireEvent.click(screen.getByRole('button', { name: 'Delete Base 2' }))
@@ -1386,6 +1984,80 @@ describe('KnowledgePage', () => {
       expect(updateBase).toHaveBeenCalledWith('base-1', { groupId: 'group-2' })
       expect(deleteBase).toHaveBeenCalledWith('base-2')
     })
+  })
+
+  it('cleans the navigator resize state on window blur', () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<RoutedKnowledgePage />)
+
+    const resizeButton = screen.getByTestId('navigator-resize-start')
+    const content = resizeButton.parentElement?.parentElement?.parentElement
+
+    if (!content) {
+      throw new Error('Expected knowledge page content container')
+    }
+
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 500))
+
+    fireEvent.mouseDown(resizeButton, { clientX: 180 })
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(document.body.style.userSelect).toBe('none')
+
+    fireEvent.mouseMove(document, { clientX: 320 })
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
+
+    fireEvent.blur(window)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+
+    fireEvent.mouseMove(document, { clientX: 360 })
+
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
+  })
+
+  it('isolates navigator resize updates from the detail section', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<RoutedKnowledgePage />)
+
+    await screen.findByTestId('detail-header')
+    mockDetailHeaderRender.mockClear()
+
+    const resizeButton = screen.getByTestId('navigator-resize-start')
+    const content = resizeButton.parentElement?.parentElement?.parentElement
+
+    if (!content) {
+      throw new Error('Expected knowledge page content container')
+    }
+
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(40, 0, 800, 500))
+
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('250')
+
+    fireEvent.mouseDown(resizeButton)
+    fireEvent.mouseMove(document, { clientX: 360 })
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
+
+    fireEvent.mouseMove(document, { clientX: 100 })
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('220')
+
+    fireEvent.mouseMove(document, { clientX: 500 })
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('360')
+    expect(mockDetailHeaderRender).not.toHaveBeenCalled()
+
+    fireEvent.mouseUp(document)
   })
 
   it('shows a toast when moving a knowledge base fails', async () => {
@@ -1403,12 +2075,12 @@ describe('KnowledgePage', () => {
       updateError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Move Base 1' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('知识库移动失败: move failed')
+      expect(toast.error).toHaveBeenCalledWith('知识库移动失败: move failed')
     })
   })
 })

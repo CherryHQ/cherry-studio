@@ -1,10 +1,23 @@
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { TopView } from '@renderer/components/TopView'
-import { useTimer } from '@renderer/hooks/useTimer'
-import type { Provider } from '@shared/data/types/provider'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type { Provider } from '@shared/data/types/provider'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -17,22 +30,29 @@ interface ShowParams {
   provider: Provider
 }
 
-interface Props extends ShowParams {
-  resolve: (data: any) => unknown
-}
+type Props = ShowParams & PopupInjectedProps<any>
+
+type OvmsDownloadTask = 'embeddings' | 'image_generation' | 'rerank' | 'text_generation'
 
 type FieldType = {
   modelName: string
   modelId: string
   modelSource: string
-  task: string
+  task: OvmsDownloadTask
 }
 
 interface PresetModel {
   modelId: string
   modelName: string
   modelSource: string
-  task: string
+  task: OvmsDownloadTask
+}
+
+const OVMS_DOWNLOAD_TASK_LABEL_KEYS: Record<OvmsDownloadTask, string> = {
+  embeddings: 'ovms.download.task.embeddings',
+  image_generation: 'ovms.download.task.image_generation',
+  rerank: 'ovms.download.task.rerank',
+  text_generation: 'ovms.download.task.text_generation'
 }
 
 const PRESET_MODELS: PresetModel[] = [
@@ -80,8 +100,7 @@ const PRESET_MODELS: PresetModel[] = [
   }
 ]
 
-const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
-  const [open, setOpen] = useState(true)
+const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [cancelled, setCancelled] = useState(false)
@@ -95,7 +114,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const { t } = useTranslation()
   const { setIntervalTimer, clearIntervalTimer, setTimeoutTimer } = useTimer()
 
-  const getPresetTooltipLabel = (model: PresetModel) => `${model.modelName} (${t(`ovms.download.task.${model.task}`)})`
+  const getPresetTooltipLabel = (model: PresetModel) =>
+    `${model.modelName} (${t(OVMS_DOWNLOAD_TASK_LABEL_KEYS[model.task])})`
 
   const updateField = <K extends keyof FieldType>(field: K, value: FieldType[K]) => {
     setFormValues((current) => ({ ...current, [field]: value }))
@@ -165,7 +185,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       try {
         setCancelled(true) // Mark as cancelled by user
         logger.info('Stopping download...')
-        await window.api.ovms.stopAddModel()
+        await ipcApi.request('ovms.cancel_add_model')
         stopFakeProgress(false)
         setLoading(false)
       } catch (error) {
@@ -173,7 +193,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       }
       return
     }
-    setOpen(false)
     resolve({})
   }
 
@@ -201,19 +220,23 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       logger.info(
         `🔄 Downloading model: ${modelName} with ID: ${modelId}, source: ${normalizedModelSource}, task: ${task}`
       )
-      const result = await window.api.ovms.addModel(modelName, modelId, normalizedModelSource, task)
+      const result = await ipcApi.request('ovms.add_model', {
+        modelName,
+        modelId,
+        modelSource: normalizedModelSource,
+        task
+      })
 
       if (result.success) {
         stopFakeProgress(true) // Complete the progress bar
-        window.toast.success(t('ovms.download.success_desc', { modelName: modelName, modelId: modelId }))
-        setOpen(false)
+        toast.success(t('ovms.download.success_desc', { modelName: modelName, modelId: modelId }))
         resolve({})
       } else {
         stopFakeProgress(false) // Reset progress on error
         logger.error(`Download failed, is it cancelled? ${cancelled}`)
         // Only show error if not cancelled by user
         if (!cancelled) {
-          setError(result.message)
+          setError(result.message ?? null)
         }
       }
     } catch (error: any) {
@@ -248,7 +271,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       footer={footer}>
       <div className={drawerClasses.fieldList}>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_id.label')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_id.label')}</Label>
           <Input
             className={drawerClasses.input}
             value={formValues.modelId}
@@ -275,7 +298,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           </div>
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_name.label')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_name.label')}</Label>
           <Input
             className={drawerClasses.input}
             value={formValues.modelName}
@@ -287,7 +310,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           />
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_source')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_source')}</Label>
           <Select
             value={formValues.modelSource}
             onValueChange={(value) => updateField('modelSource', value)}
@@ -303,8 +326,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           </Select>
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_task')}</label>
-          <Select value={formValues.task} onValueChange={(value) => updateField('task', value)} disabled={loading}>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_task')}</Label>
+          <Select
+            value={formValues.task}
+            onValueChange={(value) => updateField('task', value as OvmsDownloadTask)}
+            disabled={loading}>
             <SelectTrigger className={drawerClasses.selectTrigger}>
               <SelectValue />
             </SelectTrigger>
@@ -321,7 +347,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             <div className={drawerClasses.healthProgressTrack}>
               <div className={drawerClasses.healthProgressFill} style={{ width: `${Math.round(progress)}%` }} />
             </div>
-            <div className="text-center text-foreground-muted text-sm">
+            <div className="text-center text-sm text-foreground-tertiary">
               {Math.round(progress)}% · {t('ovms.download.tip')}
             </div>
           </div>
@@ -332,23 +358,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   )
 }
 
-export default class DownloadOvmsModelPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide('DownloadOvmsModelPopup')
-  }
-  static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'DownloadOvmsModelPopup'
-      )
-    })
-  }
-}
+const DownloadOvmsModelPopup = createPopup<ShowParams, any>(PopupContainer, { dismissResult: {} })
+
+export default DownloadOvmsModelPopup

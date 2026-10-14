@@ -1,48 +1,47 @@
 /**
  * `tool_inspect` meta-tool — emits a JSDoc stub for a single registered
- * tool, useful when the brief description from `tool_search` isn't enough
- * to call it confidently. The model can copy the stub straight into a
- * `tool_exec` body or read it as documentation before `tool_invoke`.
+ * tool: its description and parameter shapes. Optional — `tool_invoke`
+ * returns the same signature when called on an unseen tool — but inspecting
+ * first lets the model confirm parameters without a guess-and-retry round-trip.
  */
 
-import { asSchema, type Tool, tool } from 'ai'
+import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import type { ToolRegistry } from '../registry'
-import { schemaToJSDoc } from './formatJsDoc'
+import { buildToolStub } from './schemaStub'
 
 export const TOOL_INSPECT_TOOL_NAME = 'tool_inspect'
 
 /**
  * @param allowedNames per-request tool name set (see `createToolInvokeTool`). Scopes inspection to
  *   the tools this request exposed, so the model can't probe process-wide tools `applies()` excluded.
+ * @param inspectedNames shared per-request set of tools whose signature the model has been shown.
+ *   `tool_invoke` reads it as its unseen-schema guard; a successful inspect records the name.
  */
-export function createToolInspectTool(registry: ToolRegistry, allowedNames: ReadonlySet<string>): Tool {
+export function createToolInspectTool(
+  registry: ToolRegistry,
+  allowedNames: ReadonlySet<string>,
+  inspectedNames: Set<string>
+): Tool {
   return tool({
     description:
-      'Get a JSDoc stub for a registered tool — its description and parameter shapes, ready to consult before `tool_invoke` or `tool_exec`.',
+      'Get a single tool signature as a JSDoc stub — its description and parameter shapes. ' +
+      'Use it before `tool_invoke` to confirm parameter names and shapes and avoid a guess-and-retry.',
     inputSchema: z.object({
       name: z.string().describe('Tool name as returned by tool_search')
     }),
+    inputExamples: [{ input: { name: 'web_search' } }],
     execute: async ({ name }) => {
       if (!allowedNames.has(name)) throw new Error(`Tool not available in this request: ${name}`)
       const entry = registry.getByName(name)
       if (!entry) throw new Error(`Tool not found: ${name}`)
-      const inputSchema = await serializeSchema(entry.tool.inputSchema)
-      return schemaToJSDoc(name, entry.description, inputSchema)
-    }
+      const stub = await buildToolStub(entry)
+      inspectedNames.add(name)
+      return stub
+    },
+    // The stub is documentation, not data — hand it to the model as plain text instead of a
+    // JSON-quoted string so it reads as the signature it is.
+    toModelOutput: ({ output }) => ({ type: 'text', value: output })
   })
-}
-
-async function serializeSchema(schema: unknown): Promise<unknown> {
-  if (!schema) return undefined
-  // See toolSearch.ts: Zod / jsonSchema-wrapped / raw-JSONSchema all
-  // normalise through `asSchema(...).jsonSchema`. Stringifying a Zod
-  // object directly yields a non-JSONSchema blob.
-  try {
-    const normalised = asSchema(schema as Parameters<typeof asSchema>[0])
-    return await normalised.jsonSchema
-  } catch {
-    return undefined
-  }
 }

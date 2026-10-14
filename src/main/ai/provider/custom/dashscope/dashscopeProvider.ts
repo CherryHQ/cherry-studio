@@ -2,9 +2,10 @@ import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } fro
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 
-import { createImageGenerationModel } from '../imageGenerationModel'
+import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
 import { createDashScopeTransport, DEFAULT_DASHSCOPE_IMAGE_BASE_URL } from './dashscopeTransport'
 
 export const DASHSCOPE_PROVIDER_NAME = 'dashscope' as const
@@ -41,6 +42,19 @@ const getDashScopeRerankBaseURL = (baseURL: string) => {
   return normalized.endsWith(DASHSCOPE_CHAT_BASE_PATH)
     ? `${normalized.slice(0, -DASHSCOPE_CHAT_BASE_PATH.length)}${DASHSCOPE_RERANK_BASE_PATH}`
     : normalized
+}
+
+/**
+ * Build the DashScope submit/poll image transport from provider settings.
+ * Shared by the provider factory and the image-generation job's transport
+ * registry (`resolveImageTransport`) so the job handler can rebuild the same
+ * transport after a restart from the re-resolved provider settings.
+ */
+export function buildDashScopeTransport(settings: DashScopeProviderSettings): ImageGenerationTransport {
+  return createDashScopeTransport({
+    apiKey: settings.apiKey ?? '',
+    imageBaseURL: settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
+  })
 }
 
 /**
@@ -83,10 +97,7 @@ export function createDashScopeProvider(settings: DashScopeProviderSettings = {}
       includeUsage: settings.includeUsage
     })
 
-  const transport = createDashScopeTransport({
-    apiKey: settings.apiKey ?? '',
-    imageBaseURL: settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
-  })
+  const transport = buildDashScopeTransport(settings)
 
   const provider = (modelId: string) => createChatModel(modelId)
   provider.specificationVersion = 'v3' as const
@@ -108,5 +119,5 @@ export function createDashScopeProvider(settings: DashScopeProviderSettings = {}
       fetch: customFetch
     })
 
-  return provider as DashScopeProvider
+  return provider
 }

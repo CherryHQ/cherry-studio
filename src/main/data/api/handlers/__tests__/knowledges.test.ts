@@ -1,27 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  listKnowledgeBasesMock,
+  listKnowledgeBasesCursorMock,
   getKnowledgeBaseByIdMock,
   updateKnowledgeBaseMock,
-  deleteKnowledgeBaseMock,
   listKnowledgeItemsMock,
   getKnowledgeItemByIdMock
 } = vi.hoisted(() => ({
-  listKnowledgeBasesMock: vi.fn(),
+  listKnowledgeBasesCursorMock: vi.fn(),
   getKnowledgeBaseByIdMock: vi.fn(),
   updateKnowledgeBaseMock: vi.fn(),
-  deleteKnowledgeBaseMock: vi.fn(),
   listKnowledgeItemsMock: vi.fn(),
   getKnowledgeItemByIdMock: vi.fn()
 }))
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
-    list: listKnowledgeBasesMock,
+    listCursor: listKnowledgeBasesCursorMock,
     getById: getKnowledgeBaseByIdMock,
-    update: updateKnowledgeBaseMock,
-    delete: deleteKnowledgeBaseMock
+    update: updateKnowledgeBaseMock
   }
 }))
 
@@ -34,10 +31,8 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
 
 import {
   KNOWLEDGE_BASES_DEFAULT_LIMIT,
-  KNOWLEDGE_BASES_DEFAULT_PAGE,
   KNOWLEDGE_BASES_MAX_LIMIT,
   KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
-  KNOWLEDGE_ITEMS_DEFAULT_PAGE,
   KNOWLEDGE_ITEMS_MAX_LIMIT
 } from '@shared/data/api/schemas/knowledges'
 
@@ -55,38 +50,56 @@ describe('knowledgeHandlers', () => {
     it('should apply default pagination when query is missing', async () => {
       const response = {
         items: [{ id: 'kb-1', name: 'Knowledge Base' }],
-        total: 1,
-        page: KNOWLEDGE_BASES_DEFAULT_PAGE
+        total: 1
       }
-      listKnowledgeBasesMock.mockResolvedValueOnce(response)
+      listKnowledgeBasesCursorMock.mockResolvedValueOnce(response)
 
       const result = await knowledgeHandlers['/knowledge-bases'].GET({})
 
-      expect(listKnowledgeBasesMock).toHaveBeenCalledWith({
-        page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+      expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
         limit: KNOWLEDGE_BASES_DEFAULT_LIMIT
       })
       expect(result).toEqual(response)
     })
 
-    it('should delegate explicit pagination to knowledgeBaseService.list', async () => {
+    it('should delegate explicit cursor pagination to knowledgeBaseService.listCursor', async () => {
       const response = {
         items: [{ id: 'kb-2', name: 'Knowledge Base 2' }],
         total: 3,
-        page: 2
+        nextCursor: 'cursor-3'
       }
-      listKnowledgeBasesMock.mockResolvedValueOnce(response)
+      listKnowledgeBasesCursorMock.mockResolvedValueOnce(response)
 
       const result = await knowledgeHandlers['/knowledge-bases'].GET({
         query: {
-          page: 2,
+          cursor: 'cursor-2',
           limit: 10
         } as never
+      })
+
+      expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
+        cursor: 'cursor-2',
+        limit: 10
+      })
+      expect(result).toEqual(response)
+    })
+
+    it('should delegate trimmed search to knowledgeBaseService.listCursor', async () => {
+      const response = {
+        items: [{ id: 'kb-3', name: 'Research Notes' }],
+        total: 1
+      }
+      listKnowledgeBasesCursorMock.mockResolvedValueOnce(response)
+
+      const result = await knowledgeHandlers['/knowledge-bases'].GET({
+        query: {
+          search: '  research  '
+        }
       } as never)
 
-      expect(listKnowledgeBasesMock).toHaveBeenCalledWith({
-        page: 2,
-        limit: 10
+      expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
+        limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+        search: 'research'
       })
       expect(result).toEqual(response)
     })
@@ -97,10 +110,10 @@ describe('knowledgeHandlers', () => {
           query: {
             limit: KNOWLEDGE_BASES_MAX_LIMIT + 1
           } as never
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
-      expect(listKnowledgeBasesMock).not.toHaveBeenCalled()
+      expect(listKnowledgeBasesCursorMock).not.toHaveBeenCalled()
     })
   })
 
@@ -125,7 +138,6 @@ describe('knowledgeHandlers', () => {
 
       expect(getKnowledgeBaseByIdMock).toHaveBeenCalledWith('kb-1')
       expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', { name: 'Updated Base' })
-      expect(deleteKnowledgeBaseMock).not.toHaveBeenCalled()
     })
 
     it('should reject invalid PATCH bodies before calling the service', async () => {
@@ -135,7 +147,7 @@ describe('knowledgeHandlers', () => {
           body: {
             dimensions: 3072
           }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
@@ -148,7 +160,7 @@ describe('knowledgeHandlers', () => {
           body: {
             name: '   '
           }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
@@ -161,7 +173,7 @@ describe('knowledgeHandlers', () => {
           body: {
             embeddingModelId: '  new-model  '
           }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
@@ -191,7 +203,7 @@ describe('knowledgeHandlers', () => {
           body: {
             embeddingModelId: null
           }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
@@ -225,9 +237,7 @@ describe('knowledgeHandlers', () => {
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
           body: {
-            threshold: null,
-            documentCount: null,
-            hybridAlpha: null
+            documentCount: null
           }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
@@ -254,11 +264,11 @@ describe('knowledgeHandlers', () => {
   })
 
   describe('/knowledge-bases/:id/items', () => {
-    it('should apply default pagination when query is missing', async () => {
+    it('should apply the default limit when query is missing', async () => {
       listKnowledgeItemsMock.mockResolvedValueOnce({
         items: [],
         total: 0,
-        page: KNOWLEDGE_ITEMS_DEFAULT_PAGE
+        nextCursor: undefined
       })
 
       await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
@@ -266,30 +276,29 @@ describe('knowledgeHandlers', () => {
       })
 
       expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
-        page: KNOWLEDGE_ITEMS_DEFAULT_PAGE,
         limit: KNOWLEDGE_ITEMS_DEFAULT_LIMIT
       })
     })
 
-    it('should pass type/group filters to knowledge item listing', async () => {
+    it('should pass cursor and type/group filters to knowledge item listing', async () => {
       listKnowledgeItemsMock.mockResolvedValueOnce({
         items: [],
         total: 0,
-        page: 2
+        nextCursor: undefined
       })
 
       await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
         params: { id: 'kb-1' },
         query: {
-          page: 2,
+          cursor: '1700000000000:item-9',
           limit: 10,
           type: 'directory',
           groupId: ITEM_ID
         } as never
-      } as never)
+      })
 
       expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
-        page: 2,
+        cursor: '1700000000000:item-9',
         limit: 10,
         type: 'directory',
         groupId: ITEM_ID
@@ -300,7 +309,7 @@ describe('knowledgeHandlers', () => {
       listKnowledgeItemsMock.mockResolvedValueOnce({
         items: [],
         total: 0,
-        page: 1
+        nextCursor: undefined
       })
 
       await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
@@ -311,20 +320,19 @@ describe('knowledgeHandlers', () => {
       } as never)
 
       expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
-        page: KNOWLEDGE_ITEMS_DEFAULT_PAGE,
         limit: KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
         groupId: null
       })
     })
 
-    it('should reject non-positive page values', async () => {
+    it('should reject non-positive limit values', async () => {
       await expect(
         knowledgeHandlers['/knowledge-bases/:id/items'].GET({
           params: { id: 'kb-1' },
           query: {
-            page: 0
+            limit: 0
           } as never
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(listKnowledgeItemsMock).not.toHaveBeenCalled()
@@ -337,7 +345,7 @@ describe('knowledgeHandlers', () => {
           query: {
             limit: KNOWLEDGE_ITEMS_MAX_LIMIT + 1
           } as never
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(listKnowledgeItemsMock).not.toHaveBeenCalled()
@@ -350,7 +358,7 @@ describe('knowledgeHandlers', () => {
           query: {
             type: 'memory'
           } as never
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(listKnowledgeItemsMock).not.toHaveBeenCalled()

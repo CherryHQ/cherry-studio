@@ -1,19 +1,25 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { loggerService } from '@logger'
-import type { PathKey, PathMap } from '@main/core/paths'
-import { buildPathRegistry, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
-import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
-import { bootConfigService } from '@main/data/bootConfig'
-import { IpcChannel } from '@shared/IpcChannel'
-import { app, dialog, ipcMain } from 'electron'
+import { app, dialog } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
-import type { Disposable } from '../lifecycle/event'
-import { LifecycleManager } from '../lifecycle/LifecycleManager'
-import { ServiceContainer } from '../lifecycle/ServiceContainer'
-import { Phase, type ServiceConstructor, ServiceInitError } from '../lifecycle/types'
+import { loggerService } from '@logger'
+import {
+  type Disposable,
+  LifecycleManager,
+  Phase,
+  type ServiceConstructor,
+  ServiceContainer,
+  ServiceInitError,
+  SHUTDOWN_TIMEOUT_MS
+} from '@main/core/lifecycle'
+import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
+import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { handleGuarded } from '@main/core/security/guardedIpc'
+import { bootConfigService } from '@main/data/bootConfig'
+import { IpcChannel } from '@shared/IpcChannel'
+
 import type { ServiceRegistry } from './serviceRegistry'
 
 const logger = loggerService.withContext('Lifecycle')
@@ -29,8 +35,6 @@ interface QuitPreventionHold extends Disposable {
  * Manages services, windows, and Electron app events
  */
 export class Application {
-  public static readonly SHUTDOWN_TIMEOUT_MS = 5000
-
   private static instance: Application | null = null
   private container: ServiceContainer
   private lifecycleManager: LifecycleManager
@@ -125,7 +129,7 @@ export class Application {
    * that places the built registry into the Application instance.
    *
    * Single-call enforced — repeated invocation throws to surface misuse
-   * (e.g. accidentally calling it from both main/index.ts and a test).
+   * (e.g. accidentally calling it from both main/main.ts and a test).
    * Tests that need a fresh registry should use `__setPathMapForTesting()`
    * instead, which bypasses this guard for test isolation.
    *
@@ -238,6 +242,11 @@ export class Application {
    * Shutdown the application.
    * Stops and destroys all lifecycle-managed services gracefully.
    * Also handles legacy service cleanup (bootConfig, logger).
+   *
+   * Each service carries its own teardown ceiling (see `stopAll`), so a stuck
+   * `onStop()` no longer costs the services behind it their turn. Whether this
+   * shutdown was clean is stated on the `Shutdown complete` line — that is the
+   * first line to read when diagnosing one.
    */
   public async shutdown(): Promise<void> {
     if (this.isShuttingDown) {
@@ -259,12 +268,21 @@ export class Application {
     }
 
     // Stop all lifecycle-managed services (reverse init order)
-    await this.lifecycleManager.stopAll()
+    const stopSummary = await this.lifecycleManager.stopAll()
 
     // Destroy all lifecycle-managed services
-    await this.lifecycleManager.destroyAll()
+    const destroySummary = await this.lifecycleManager.destroyAll()
 
-    logger.info(`Shutdown complete (${(performance.now() - start).toFixed(3)}ms)`)
+    // Kept per pass rather than concatenated: a service that times out in stop
+    // is then skipped in destroy, so a flat list would carry its name twice with
+    // no way to tell which pass each entry came from.
+    const elapsed = `${(performance.now() - start).toFixed(3)}ms`
+    const unclean = [stopSummary, destroySummary].some((s) => s.timedOut.length > 0 || s.failed.length > 0)
+    if (unclean) {
+      logger.warn(`Shutdown complete, but not cleanly (${elapsed})`, { stop: stopSummary, destroy: destroySummary })
+    } else {
+      logger.info(`Shutdown complete (${elapsed})`)
+    }
 
     // Close logger LAST — after this point, no more logging
     loggerService.finish()
@@ -303,7 +321,11 @@ export class Application {
 
   /**
    * Handle boot config load error by showing a dialog before any services start.
-   * For parse errors: offer reset (delete corrupted file) + restart.
+   * For parse errors (unparseable JSON, nothing salvageable): offer reset
+   * (delete corrupted file) + restart.
+   * For validation errors (valid JSON, some values rejected): offer repair
+   * (persist valid keys + defaults for invalid ones) + restart — a full reset
+   * would erase the valid keys the per-key validation deliberately kept.
    * For read errors: offer restart (file may be temporarily inaccessible).
    */
   private async handleBootConfigError(): Promise<void> {
@@ -312,25 +334,52 @@ export class Application {
 
     await app.whenReady()
 
+    const isReadError = loadError.type === 'read_error'
+    const isValidationError = loadError.type === 'validation_error'
     const isParseError = loadError.type === 'parse_error'
+
+    const message = isReadError
+      ? 'The configuration file (boot-config.json) could not be read.'
+      : isValidationError
+        ? 'The configuration file (boot-config.json) contains invalid values.'
+        : 'The configuration file (boot-config.json) contains invalid data.'
+    const continueHint = isValidationError
+      ? 'The application can continue — valid settings are kept and the invalid entries fall back to defaults — or you can repair the file and restart.'
+      : isParseError
+        ? 'The application can continue with default settings, or you can reset the file and restart.'
+        : 'The application can continue with default settings, or you can restart to try again.'
+    const fileHint = isValidationError
+      ? `"Repair and Restart" rewrites the file, keeping the valid entries and resetting the invalid ones. Other options preserve it for manual inspection at:\n${loadError.filePath}`
+      : isParseError
+        ? `"Reset and Restart" will delete the corrupted file. Other options preserve it for manual inspection at:\n${loadError.filePath}`
+        : `The file will be preserved for manual inspection at:\n${loadError.filePath}`
 
     const result = await dialog.showMessageBox({
       type: 'warning',
-      title: isParseError ? 'Configuration File Corrupted' : 'Configuration File Read Error',
-      message: isParseError
-        ? 'The configuration file (boot-config.json) contains invalid data.'
-        : 'The configuration file (boot-config.json) could not be read.',
-      detail: `Error: ${loadError.message}\n\nThe application can continue with default settings, or you can ${isParseError ? 'reset the file and restart' : 'restart to try again'}.\n\n${isParseError ? `"Reset and Restart" will delete the corrupted file. Other options preserve it for manual inspection at:\n${loadError.filePath}` : `The file will be preserved for manual inspection at:\n${loadError.filePath}`}`,
-      buttons: ['Continue with Defaults', isParseError ? 'Reset and Restart' : 'Restart', 'Exit'],
+      title: isReadError
+        ? 'Configuration File Read Error'
+        : isValidationError
+          ? 'Configuration File Invalid'
+          : 'Configuration File Corrupted',
+      message,
+      detail: `Error: ${loadError.message}\n\n${continueHint}\n\n${fileHint}`,
+      buttons: [
+        isValidationError ? 'Continue' : 'Continue with Defaults',
+        isValidationError ? 'Repair and Restart' : isParseError ? 'Reset and Restart' : 'Restart',
+        'Exit'
+      ],
       defaultId: 0,
       cancelId: 2
     })
 
     if (result.response === 1) {
-      if (isParseError) {
+      if (isValidationError) {
+        bootConfigService.repair()
+      } else if (isParseError) {
         bootConfigService.reset()
       }
-      logger.info(`User chose to ${isParseError ? 'reset and restart' : 'restart'} after boot config error`)
+      const action = isValidationError ? 'repair and restart' : isParseError ? 'reset and restart' : 'restart'
+      logger.info(`User chose to ${action} after boot config error`)
       this.relaunch()
       return
     }
@@ -386,13 +435,19 @@ export class Application {
    * even before app.whenReady() resolves.
    */
   private setupSignalHandlers(): void {
+    // Last resort, not the working mechanism. Starvation is handled one level
+    // down by the per-service ceiling in `LifecycleManager.stopAll()`; this fuse
+    // only catches the case where enough services burn their whole ceiling to
+    // exhaust SHUTDOWN_TIMEOUT_MS, at which point truncating is correct. Like
+    // every timer here it is powerless against a synchronously blocking
+    // `onStop()`, which never yields the event loop for it to fire on.
     const forceExit = (): void => {
       logger.warn('Forced exit after shutdown timeout')
       process.exit(1)
     }
 
     process.on('SIGINT', async () => {
-      const timer = setTimeout(forceExit, Application.SHUTDOWN_TIMEOUT_MS)
+      const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
       } catch (error) {
@@ -404,7 +459,7 @@ export class Application {
     })
 
     process.on('SIGTERM', async () => {
-      const timer = setTimeout(forceExit, Application.SHUTDOWN_TIMEOUT_MS)
+      const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
       } catch (error) {
@@ -440,10 +495,11 @@ export class Application {
 
       event.preventDefault()
 
+      // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
       const timer = setTimeout(() => {
         logger.warn('Forced exit after shutdown timeout (will-quit)')
         process.exit(1)
-      }, Application.SHUTDOWN_TIMEOUT_MS)
+      }, SHUTDOWN_TIMEOUT_MS)
 
       this.shutdown()
         .catch((err) => logger.error('Error during shutdown:', err as Error))
@@ -474,19 +530,17 @@ export class Application {
    * All application lifecycle operations exposed to renderer live here.
    */
   private registerApplicationIpc(): void {
-    ipcMain.handle(IpcChannel.Application_Quit, () => this.quit())
-
-    ipcMain.handle(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
+    handleGuarded(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
       this.relaunch(options)
     })
 
-    ipcMain.handle(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
+    handleGuarded(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
       const hold = this.preventQuit(reason)
       this.ipcQuitHolds.set(hold.id, hold)
       return hold.id
     })
 
-    ipcMain.handle(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
+    handleGuarded(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
       const hold = this.ipcQuitHolds.get(holdId)
       if (hold) {
         hold.dispose()
@@ -512,6 +566,16 @@ export class Application {
    */
   public getOptional<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
     return this.container.getOptional(name)
+  }
+
+  /**
+   * Resolve a service only if the container already created it — never
+   * registers, instantiates, or throws. For preboot-era callers that run before
+   * `bootstrap()` and must degrade gracefully; use `get()` everywhere else.
+   * @param name - Service name from ServiceRegistry
+   */
+  public getExisting<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
+    return this.container.getInstance(name) as ServiceRegistry[K] | undefined
   }
 
   /**

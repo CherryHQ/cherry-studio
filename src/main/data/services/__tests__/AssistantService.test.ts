@@ -1,22 +1,36 @@
+// Load the sibling so TopicService can purge topic messages through the data-service registry.
+import '@data/services/MessageService'
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { asc, eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { pinTable } from '@data/db/schemas/pin'
-import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
+import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
 import { pinService } from '@data/services/PinService'
+import { promptService } from '@data/services/PromptService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
-import { type ListAssistantsQuery, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
+import { ErrorCode } from '@shared/data/api/errors'
+import {
+  type ImportAssistantDto,
+  type ListAssistantsQuery,
+  ListAssistantsQuerySchema
+} from '@shared/data/api/schemas/assistants'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 /**
  * Build a `ListAssistantsQuery` through the real zod schema so `page` / `limit`
@@ -33,6 +47,7 @@ describe('AssistantDataService', () => {
     // Reset preference state between tests so one test's
     // `chat.default_model_id` override does not leak into the next.
     MockMainPreferenceServiceUtils.resetMocks()
+    MockMainDbServiceExport.dbService.withWriteTx.mockImplementation((fn) => dbh.db.transaction(fn))
     await seedModelRefs()
   })
 
@@ -48,8 +63,10 @@ describe('AssistantDataService', () => {
         id: createUniqueModelId('openai', 'gpt-4'),
         providerId: 'openai',
         modelId: 'gpt-4',
-        presetModelId: 'gpt-4',
+        presetModelId: null,
         name: 'GPT-4',
+        capabilities: [],
+        supportsStreaming: true,
         isEnabled: true,
         isHidden: false,
         orderKey: gpt4Key
@@ -58,8 +75,10 @@ describe('AssistantDataService', () => {
         id: createUniqueModelId('anthropic', 'claude-3'),
         providerId: 'anthropic',
         modelId: 'claude-3',
-        presetModelId: 'claude-3',
+        presetModelId: null,
         name: 'Claude 3',
+        capabilities: [],
+        supportsStreaming: true,
         isEnabled: true,
         isHidden: false,
         orderKey: claude3Key
@@ -68,8 +87,10 @@ describe('AssistantDataService', () => {
         id: createUniqueModelId('openai', 'text-embedding-3-large'),
         providerId: 'openai',
         modelId: 'text-embedding-3-large',
-        presetModelId: 'text-embedding-3-large',
+        presetModelId: null,
         name: 'text-embedding-3-large',
+        capabilities: [],
+        supportsStreaming: true,
         isEnabled: true,
         isHidden: false,
         orderKey: embeddingKey
@@ -90,9 +111,12 @@ describe('AssistantDataService', () => {
       status: 'completed',
       error: null,
       chunkSize: 1024,
-      chunkOverlap: 200,
-      searchMode: 'hybrid'
+      chunkOverlap: 200
     })
+  }
+
+  async function seedAssistantGroup(id: string, name = 'Group', orderKey = 'a0') {
+    await dbh.db.insert(groupTable).values({ id, entityType: 'assistant', name, orderKey })
   }
 
   // Raw-insert helper that fills the NOT-NULL columns the DB has no DEFAULT for
@@ -103,12 +127,13 @@ describe('AssistantDataService', () => {
   type SeedAssistantValues = Partial<typeof assistantTable.$inferInsert>
   async function seedAssistantRow(values: SeedAssistantValues | SeedAssistantValues[]) {
     const rows = Array.isArray(values) ? values : [values]
+    const orderKeys = generateOrderKeySequence(rows.length)
     await dbh.db.insert(assistantTable).values(
-      rows.map((v) => ({
+      rows.map((v, index) => ({
         emoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         name: 'test',
-        orderKey: 'a0',
+        orderKey: orderKeys[index],
         ...v
       }))
     )
@@ -126,7 +151,7 @@ describe('AssistantDataService', () => {
       await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
       await dbh.db.insert(assistantKnowledgeBaseTable).values({ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' })
 
-      const result = await assistantDataService.getById('ast-1')
+      const result = assistantDataService.getById('ast-1')
 
       expect(result.id).toBe('ast-1')
       expect(result.name).toBe('test')
@@ -139,7 +164,7 @@ describe('AssistantDataService', () => {
     it('should return null modelId when not set', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
 
-      const result = await assistantDataService.getById('ast-1')
+      const result = assistantDataService.getById('ast-1')
       expect(result.modelId).toBeNull()
     })
 
@@ -148,7 +173,7 @@ describe('AssistantDataService', () => {
       // prompt and description carry DB DEFAULT '' — confirm SQLite fills them when omitted.
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
 
-      const result = await assistantDataService.getById('ast-1')
+      const result = assistantDataService.getById('ast-1')
       expect(result.prompt).toBe('')
       expect(result.description).toBe('')
       expect(result.mcpServerIds).toEqual([])
@@ -159,7 +184,7 @@ describe('AssistantDataService', () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await dbh.db.update(assistantTable).set({ deletedAt: Date.now() })
 
-      const result = await assistantDataService.getById('ast-1', { includeDeleted: true })
+      const result = assistantDataService.getById('ast-1', { includeDeleted: true })
       expect(result.id).toBe('ast-1')
     })
 
@@ -167,68 +192,76 @@ describe('AssistantDataService', () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await dbh.db.update(assistantTable).set({ deletedAt: Date.now() })
 
-      await expect(assistantDataService.getById('ast-1')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        assistantDataService.getById('ast-1')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
 
     it('should throw NOT_FOUND when assistant does not exist', async () => {
-      await expect(assistantDataService.getById('non-existent')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        assistantDataService.getById('non-existent')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
 
-    it('should embed bound tags via inline JOIN', async () => {
-      await seedAssistantRow({ id: 'ast-1', name: 'test' })
-      await dbh.db.insert(tagTable).values([
-        { id: '11111111-1111-4111-8111-111111111111', name: 'work', color: '#FF0000' },
-        { id: '22222222-2222-4222-8222-222222222222', name: 'personal', color: null }
-      ])
-      await dbh.db.insert(entityTagTable).values([
-        {
-          entityType: 'assistant',
-          entityId: 'ast-1',
-          tagId: '11111111-1111-4111-8111-111111111111'
-        },
-        {
-          entityType: 'assistant',
-          entityId: 'ast-1',
-          tagId: '22222222-2222-4222-8222-222222222222'
-        }
-      ])
+    it('should return the assistant group id', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'work')
+      await seedAssistantRow({ id: 'ast-1', name: 'test', groupId })
 
-      const result = await assistantDataService.getById('ast-1')
-
-      expect(result.tags).toHaveLength(2)
-      const workTag = result.tags.find((tag) => tag.name === 'work')
-      const personalTag = result.tags.find((tag) => tag.name === 'personal')
-      expect(workTag?.color).toBe('#FF0000')
-      expect(personalTag?.color).toBeNull()
+      const result = assistantDataService.getById('ast-1')
+      expect(result.groupId).toBe(groupId)
     })
 
-    it('should return an empty tags array when no bindings exist', async () => {
+    it('should return null when no group is assigned', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
 
-      const result = await assistantDataService.getById('ast-1')
-      expect(result.tags).toEqual([])
+      const result = assistantDataService.getById('ast-1')
+      expect(result.groupId).toBeNull()
     })
 
     it('should embed modelName resolved from user_model', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test', modelId: 'anthropic::claude-3' })
 
-      const result = await assistantDataService.getById('ast-1')
+      const result = assistantDataService.getById('ast-1')
       expect(result.modelName).toBe('Claude 3')
     })
 
     it('should return null modelName when the assistant has no bound model', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
 
-      const result = await assistantDataService.getById('ast-1')
+      const result = assistantDataService.getById('ast-1')
       expect(result.modelName).toBeNull()
     })
   })
 
   describe('list', () => {
+    it('filters requested IDs before pagination and excludes deleted assistants', async () => {
+      await seedAssistantRow(
+        generateOrderKeySequence(502).map((orderKey, index) => ({
+          id: `assistant-${index}`,
+          name: `Assistant ${index}`,
+          orderKey,
+          deletedAt: index === 501 ? Date.now() : null
+        }))
+      )
+      const result = assistantDataService.list(
+        listQuery({ ids: ['assistant-500', 'assistant-501', 'missing'], limit: 1 })
+      )
+      expect(result.items.map((assistant) => assistant.id)).toEqual(['assistant-500'])
+      expect(result.total).toBe(1)
+    })
     it('should return all assistants with relation ids', async () => {
       await seedAssistantRow([
         { id: 'ast-1', name: 'first', modelId: 'openai::gpt-4', createdAt: 100 },
@@ -237,7 +270,7 @@ describe('AssistantDataService', () => {
       await seedMcpServer()
       await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-2', mcpServerId: 'srv-1' })
 
-      const result = await assistantDataService.list(listQuery())
+      const result = assistantDataService.list(listQuery())
 
       expect(result.items).toHaveLength(2)
       expect(result.total).toBe(2)
@@ -252,9 +285,38 @@ describe('AssistantDataService', () => {
         { id: 'ast-2', name: 'deleted', deletedAt: Date.now() }
       ])
 
-      const result = await assistantDataService.list(listQuery())
+      const result = assistantDataService.list(listQuery())
       expect(result.items).toHaveLength(1)
       expect(result.items[0].id).toBe('ast-1')
+      expect(result.total).toBe(1)
+      expect(result.items[0].deletedAt).toBeUndefined()
+    })
+
+    it('should list only trashed assistants when inTrash is true', async () => {
+      const trashedAt = Date.parse('2026-06-01T00:00:00.000Z')
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'active' },
+        { id: 'ast-2', name: 'trashed', deletedAt: trashedAt }
+      ])
+
+      const result = assistantDataService.list(listQuery({ inTrash: true }))
+
+      expect(result.items.map((a) => a.id)).toEqual(['ast-2'])
+      expect(result.total).toBe(1)
+      // Trash listings expose the read-only deletedAt marker as ISO.
+      expect(result.items[0].deletedAt).toBe('2026-06-01T00:00:00.000Z')
+    })
+
+    it('should compose inTrash with search and keep totals scoped to the trash', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'Research active' },
+        { id: 'ast-2', name: 'Research trashed', deletedAt: Date.now() },
+        { id: 'ast-3', name: 'Other trashed', deletedAt: Date.now() }
+      ])
+
+      const result = assistantDataService.list(listQuery({ inTrash: true, search: 'Research' }))
+
+      expect(result.items.map((a) => a.id)).toEqual(['ast-2'])
       expect(result.total).toBe(1)
     })
 
@@ -264,7 +326,7 @@ describe('AssistantDataService', () => {
         { id: 'ast-2', name: 'second' }
       ])
 
-      const result = await assistantDataService.list(listQuery({ id: 'ast-2' }))
+      const result = assistantDataService.list(listQuery({ id: 'ast-2' }))
       expect(result.items).toHaveLength(1)
       expect(result.items[0].id).toBe('ast-2')
     })
@@ -276,7 +338,7 @@ describe('AssistantDataService', () => {
         { id: 'ast-3', name: 'Translator', description: 'translates text' }
       ])
 
-      const result = await assistantDataService.list(listQuery({ search: 'RES' }))
+      const result = assistantDataService.list(listQuery({ search: 'RES' }))
       expect(result.items).toHaveLength(1)
       expect(result.items[0].id).toBe('ast-1')
       expect(result.total).toBe(1)
@@ -288,8 +350,29 @@ describe('AssistantDataService', () => {
         { id: 'ast-2', name: 'bot-two', description: 'files tickets' }
       ])
 
-      const result = await assistantDataService.list(listQuery({ search: 'email' }))
+      const result = assistantDataService.list(listQuery({ search: 'email' }))
       expect(result.items.map((a) => a.id)).toEqual(['ast-1'])
+    })
+
+    it('filters by updatedAtFrom and can sort by updatedAt descending', async () => {
+      const cutoffIso = '2026-05-01T00:00:00.000Z'
+      const cutoff = Date.parse(cutoffIso)
+      await seedAssistantRow([
+        { id: 'ast-old', name: 'Research old', updatedAt: cutoff - 1, orderKey: 'a0' },
+        { id: 'ast-newer', name: 'Research newer', updatedAt: cutoff + 2000, orderKey: 'a1' },
+        { id: 'ast-newest', name: 'Research newest', updatedAt: cutoff + 3000, orderKey: 'a2' },
+        { id: 'ast-other', name: 'Other', updatedAt: cutoff + 4000, orderKey: 'a3' }
+      ])
+
+      const result = assistantDataService.list({
+        ...listQuery({ search: 'Research', limit: 10 }),
+        updatedAtFrom: cutoffIso,
+        sortBy: 'updatedAt',
+        sortOrder: 'desc'
+      })
+
+      expect(result.items.map((a) => a.id)).toEqual(['ast-newest', 'ast-newer'])
+      expect(result.total).toBe(2)
     })
 
     it('should treat %/_ in search as literals, not wildcards', async () => {
@@ -298,66 +381,48 @@ describe('AssistantDataService', () => {
         { id: 'ast-2', name: 'noMatch', description: '' }
       ])
 
-      const underscore = await assistantDataService.list(listQuery({ search: 'percent_' }))
+      const underscore = assistantDataService.list(listQuery({ search: 'percent_' }))
       expect(underscore.items.map((a) => a.id)).toEqual(['ast-1'])
 
       // `_` should NOT match any single char — asking for a literal `_anything`
       // must miss an entity that contains `noMatch`.
-      const literalMiss = await assistantDataService.list(listQuery({ search: '_Match' }))
+      const literalMiss = assistantDataService.list(listQuery({ search: '_Match' }))
       expect(literalMiss.items).toHaveLength(0)
     })
 
-    it('should filter by tagIds with UNION semantics (ANY match)', async () => {
+    it('should filter by one exact groupId', async () => {
+      const workGroupId = '11111111-1111-4111-8111-111111111111'
+      const personalGroupId = '22222222-2222-4222-8222-222222222222'
+      await seedAssistantGroup(workGroupId, 'work', 'a0')
+      await seedAssistantGroup(personalGroupId, 'personal', 'a1')
       await seedAssistantRow([
-        { id: 'ast-1', name: 'work-only' },
-        { id: 'ast-2', name: 'personal-only' },
-        { id: 'ast-3', name: 'both' },
-        { id: 'ast-4', name: 'untagged' }
-      ])
-      await dbh.db.insert(tagTable).values([
-        { id: '11111111-1111-4111-8111-111111111111', name: 'work' },
-        { id: '22222222-2222-4222-8222-222222222222', name: 'personal' }
-      ])
-      await dbh.db.insert(entityTagTable).values([
-        { entityType: 'assistant', entityId: 'ast-1', tagId: '11111111-1111-4111-8111-111111111111' },
-        { entityType: 'assistant', entityId: 'ast-2', tagId: '22222222-2222-4222-8222-222222222222' },
-        { entityType: 'assistant', entityId: 'ast-3', tagId: '11111111-1111-4111-8111-111111111111' },
-        { entityType: 'assistant', entityId: 'ast-3', tagId: '22222222-2222-4222-8222-222222222222' }
+        { id: 'ast-1', name: 'work-one', groupId: workGroupId },
+        { id: 'ast-2', name: 'personal', groupId: personalGroupId },
+        { id: 'ast-3', name: 'work-two', groupId: workGroupId },
+        { id: 'ast-4', name: 'ungrouped' }
       ])
 
-      const result = await assistantDataService.list(
-        listQuery({
-          tagIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222']
-        })
-      )
-      expect(result.items.map((a) => a.id).sort()).toEqual(['ast-1', 'ast-2', 'ast-3'])
-      // union: the row count (total) must equal the distinct matching entity count,
-      // not the sum of per-tag bindings (which would be 4 for ast-3 double-counted).
-      expect(result.total).toBe(3)
+      const result = assistantDataService.list(listQuery({ groupId: workGroupId }))
+      expect(result.items.map((assistant) => assistant.id)).toEqual(['ast-1', 'ast-3'])
+      expect(result.total).toBe(2)
     })
 
-    it('should AND search with tagIds (tag-scoped keyword search)', async () => {
+    it('should AND search with groupId', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'work')
       await seedAssistantRow([
-        { id: 'ast-1', name: 'Research Bot' },
+        { id: 'ast-1', name: 'Research Bot', groupId },
         { id: 'ast-2', name: 'Research Cat' },
-        { id: 'ast-3', name: 'unrelated' }
-      ])
-      await dbh.db.insert(tagTable).values({
-        id: '11111111-1111-4111-8111-111111111111',
-        name: 'work'
-      })
-      await dbh.db.insert(entityTagTable).values([
-        { entityType: 'assistant', entityId: 'ast-1', tagId: '11111111-1111-4111-8111-111111111111' },
-        { entityType: 'assistant', entityId: 'ast-3', tagId: '11111111-1111-4111-8111-111111111111' }
+        { id: 'ast-3', name: 'unrelated', groupId }
       ])
 
-      const result = await assistantDataService.list(
+      const result = assistantDataService.list(
         listQuery({
           search: 'Research',
-          tagIds: ['11111111-1111-4111-8111-111111111111']
+          groupId
         })
       )
-      // ast-2 matches search but not tag; ast-3 matches tag but not search.
+      // ast-2 matches search but not group; ast-3 matches group but not search.
       expect(result.items.map((a) => a.id)).toEqual(['ast-1'])
     })
 
@@ -370,7 +435,7 @@ describe('AssistantDataService', () => {
         }))
       )
 
-      const result = await assistantDataService.list(listQuery({ page: 2, limit: 2 }))
+      const result = assistantDataService.list(listQuery({ page: 2, limit: 2 }))
       expect(result.page).toBe(2)
       expect(result.total).toBe(5)
       expect(result.items).toHaveLength(2)
@@ -378,15 +443,28 @@ describe('AssistantDataService', () => {
       expect(result.items[1].id).toBe('ast-3')
     })
 
-    it('should order by createdAt ascending', async () => {
+    it('should order by orderKey ascending with createdAt tiebreaker', async () => {
       await seedAssistantRow([
-        { id: 'ast-new', name: 'new', createdAt: 300 },
-        { id: 'ast-old', name: 'old', createdAt: 100 },
-        { id: 'ast-mid', name: 'mid', createdAt: 200 }
+        { id: 'ast-later-created', name: 'first-by-key', orderKey: 'a0', createdAt: 300 },
+        { id: 'ast-a', name: 'tie-a', orderKey: 'a1', createdAt: 100 },
+        { id: 'ast-b', name: 'tie-b', orderKey: 'a1', createdAt: 200 },
+        { id: 'ast-earlier-created', name: 'last-by-key', orderKey: 'a2', createdAt: 50 }
       ])
 
-      const result = await assistantDataService.list(listQuery())
-      expect(result.items.map((a) => a.id)).toEqual(['ast-old', 'ast-mid', 'ast-new'])
+      const result = assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-later-created', 'ast-a', 'ast-b', 'ast-earlier-created'])
+    })
+
+    it('does not float pinned assistants when sorting by updatedAt', async () => {
+      await seedAssistantRow([
+        { id: 'ast-old-pinned', name: 'old pinned', updatedAt: 100, orderKey: 'a0' },
+        { id: 'ast-mid', name: 'mid', updatedAt: 200, orderKey: 'a1' },
+        { id: 'ast-new', name: 'new', updatedAt: 300, orderKey: 'a2' }
+      ])
+      pinService.pin({ entityType: 'assistant', entityId: 'ast-old-pinned' })
+
+      const result = assistantDataService.list(listQuery({ sortBy: 'updatedAt', sortOrder: 'desc' }))
+      expect(result.items.map((a) => a.id)).toEqual(['ast-new', 'ast-mid', 'ast-old-pinned'])
     })
 
     it('surfaces pinned assistants ahead of unpinned ones, sorted by pin.orderKey', async () => {
@@ -399,10 +477,10 @@ describe('AssistantDataService', () => {
       // Pin ast-3 then ast-1 — pin.orderKey is assigned by `insertWithOrderKey`,
       // so the second pin gets a larger key and appears AFTER ast-3 in the
       // pinned section.
-      await pinService.pin({ entityType: 'assistant', entityId: 'ast-3' })
-      await pinService.pin({ entityType: 'assistant', entityId: 'ast-1' })
+      pinService.pin({ entityType: 'assistant', entityId: 'ast-3' })
+      pinService.pin({ entityType: 'assistant', entityId: 'ast-1' })
 
-      const result = await assistantDataService.list(listQuery())
+      const result = assistantDataService.list(listQuery())
       expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-1', 'ast-2', 'ast-4'])
     })
 
@@ -411,46 +489,37 @@ describe('AssistantDataService', () => {
       // pin-free path. Pin column is NULL for every row → CASE evaluates to 1
       // uniformly → secondary sort applies as before.
       await seedAssistantRow([
-        { id: 'ast-z', name: 'z', createdAt: 300 },
-        { id: 'ast-a', name: 'a', createdAt: 100 },
-        { id: 'ast-m', name: 'm', createdAt: 200 }
+        { id: 'ast-z', name: 'z', orderKey: 'a0', createdAt: 300 },
+        { id: 'ast-a', name: 'a', orderKey: 'a0', createdAt: 100 },
+        { id: 'ast-m', name: 'm', orderKey: 'a0', createdAt: 200 }
       ])
 
-      const result = await assistantDataService.list(listQuery())
+      const result = assistantDataService.list(listQuery())
       expect(result.items.map((a) => a.id)).toEqual(['ast-a', 'ast-m', 'ast-z'])
     })
 
-    it('should embed tags per assistant via inline JOIN', async () => {
+    it('should return group ids per assistant', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'work')
       await seedAssistantRow([
-        { id: 'ast-1', name: 'with-tags', createdAt: 100 },
-        { id: 'ast-2', name: 'no-tags', createdAt: 200 }
+        { id: 'ast-1', name: 'grouped', groupId, createdAt: 100 },
+        { id: 'ast-2', name: 'ungrouped', createdAt: 200 }
       ])
-      await dbh.db.insert(tagTable).values({
-        id: '11111111-1111-4111-8111-111111111111',
-        name: 'work',
-        color: '#123456'
-      })
-      await dbh.db.insert(entityTagTable).values({
-        entityType: 'assistant',
-        entityId: 'ast-1',
-        tagId: '11111111-1111-4111-8111-111111111111'
-      })
 
-      const result = await assistantDataService.list(listQuery())
+      const result = assistantDataService.list(listQuery())
       const byId = new Map(result.items.map((item) => [item.id, item]))
 
-      expect(byId.get('ast-1')?.tags).toHaveLength(1)
-      expect(byId.get('ast-1')?.tags[0].name).toBe('work')
-      expect(byId.get('ast-2')?.tags).toEqual([])
+      expect(byId.get('ast-1')?.groupId).toBe(groupId)
+      expect(byId.get('ast-2')?.groupId).toBeNull()
     })
 
-    it('should embed modelName via user_model JOIN', async () => {
+    it('should embed modelName via ModelService resolution', async () => {
       await seedAssistantRow([
         { id: 'ast-1', name: 'bound', modelId: 'openai::gpt-4', createdAt: 100 },
         { id: 'ast-2', name: 'unset', createdAt: 200 }
       ])
 
-      const result = await assistantDataService.list(listQuery())
+      const result = assistantDataService.list(listQuery())
       const byId = new Map(result.items.map((item) => [item.id, item]))
 
       expect(byId.get('ast-1')?.modelName).toBe('GPT-4')
@@ -458,68 +527,21 @@ describe('AssistantDataService', () => {
       expect(byId.get('ast-2')?.modelName).toBeNull()
     })
 
-    it('should order tags per assistant alphabetically', async () => {
-      await seedAssistantRow({ id: 'ast-1', name: 'test' })
-      // Insert in reverse alphabetical order + reverse createdAt, so an
-      // order-by-createdAt implementation would give the opposite result.
-      await dbh.db.insert(tagTable).values([
-        { id: '33333333-3333-4333-8333-333333333333', name: 'zeta', createdAt: 100 },
-        { id: '22222222-2222-4222-8222-222222222222', name: 'beta', createdAt: 200 },
-        { id: '11111111-1111-4111-8111-111111111111', name: 'alpha', createdAt: 300 }
-      ])
-      await dbh.db.insert(entityTagTable).values([
-        {
-          entityType: 'assistant',
-          entityId: 'ast-1',
-          tagId: '33333333-3333-4333-8333-333333333333',
-          createdAt: 100
-        },
-        {
-          entityType: 'assistant',
-          entityId: 'ast-1',
-          tagId: '22222222-2222-4222-8222-222222222222',
-          createdAt: 200
-        },
-        {
-          entityType: 'assistant',
-          entityId: 'ast-1',
-          tagId: '11111111-1111-4111-8111-111111111111',
-          createdAt: 300
-        }
-      ])
-
-      const result = await assistantDataService.list(listQuery())
-      expect(result.items[0].tags.map((t) => t.name)).toEqual(['alpha', 'beta', 'zeta'])
-    })
-
-    it('should embed tags and modelName for bulk lists (60 assistants)', async () => {
+    it('should return groupId and modelName for bulk lists (60 assistants)', async () => {
       const rowCount = 60
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'bulk')
       const assistants = Array.from({ length: rowCount }, (_, i) => ({
         id: `ast-${String(i).padStart(3, '0')}`,
         name: `assistant-${i}`,
-        // Alternate bound/unbound so both JOIN branches are exercised.
+        // Alternate bound/unbound so both name-resolution branches are exercised.
         modelId: i % 2 === 0 ? 'openai::gpt-4' : null,
+        groupId: i % 3 === 0 ? groupId : null,
         createdAt: i
       }))
       await seedAssistantRow(assistants)
 
-      // One shared tag bound to a subset of assistants.
-      await dbh.db.insert(tagTable).values({
-        id: '11111111-1111-4111-8111-111111111111',
-        name: 'bulk',
-        color: null
-      })
-      await dbh.db.insert(entityTagTable).values(
-        assistants
-          .filter((_, i) => i % 3 === 0)
-          .map((a) => ({
-            entityType: 'assistant',
-            entityId: a.id,
-            tagId: '11111111-1111-4111-8111-111111111111'
-          }))
-      )
-
-      const result = await assistantDataService.list(listQuery({ limit: rowCount }))
+      const result = assistantDataService.list(listQuery({ limit: rowCount }))
 
       expect(result.items).toHaveLength(rowCount)
       expect(result.total).toBe(rowCount)
@@ -527,27 +549,39 @@ describe('AssistantDataService', () => {
       const boundModelCount = result.items.filter((it) => it.modelName === 'GPT-4').length
       expect(boundModelCount).toBe(rowCount / 2)
 
-      const taggedCount = result.items.filter((it) => it.tags.length > 0).length
-      expect(taggedCount).toBe(Math.ceil(rowCount / 3))
-      // Every tagged item has the single bound tag — no duplicates / N+1 artifacts.
-      for (const item of result.items) {
-        if (item.tags.length > 0) expect(item.tags.map((t) => t.name)).toEqual(['bulk'])
-      }
+      const groupedCount = result.items.filter((item) => item.groupId === groupId).length
+      expect(groupedCount).toBe(Math.ceil(rowCount / 3))
     })
   })
 
   describe('create', () => {
     it('should create and return assistant with generated id', async () => {
-      const result = await assistantDataService.create({ name: 'test-assistant' })
+      const result = assistantDataService.create({ name: 'test-assistant' })
 
       expect(result.id).toBeTruthy()
       expect(result.name).toBe('test-assistant')
       expect(result.modelId).toBeNull()
+      expect(result.orderKey.length).toBeGreaterThan(0)
       expect(typeof result.createdAt).toBe('string')
     })
 
+    it('should assign strictly increasing order keys on successive creates', async () => {
+      const first = assistantDataService.create({ name: 'first' })
+      const second = assistantDataService.create({ name: 'second' })
+      const third = assistantDataService.create({ name: 'third' })
+
+      const rows = await dbh.db
+        .select({ id: assistantTable.id, orderKey: assistantTable.orderKey })
+        .from(assistantTable)
+        .orderBy(asc(assistantTable.orderKey), asc(assistantTable.id))
+
+      expect(rows.map((row) => row.id)).toEqual([first.id, second.id, third.id])
+      expect(first.orderKey < second.orderKey).toBe(true)
+      expect(second.orderKey < third.orderKey).toBe(true)
+    })
+
     it('should persist assistant to database', async () => {
-      const created = await assistantDataService.create({ name: 'test-assistant' })
+      const created = assistantDataService.create({ name: 'test-assistant' })
 
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.id).toBe(created.id)
@@ -555,7 +589,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should apply default settings when settings are omitted', async () => {
-      const created = await assistantDataService.create({ name: 'test-assistant' })
+      const created = assistantDataService.create({ name: 'test-assistant' })
 
       expect(created.settings).toEqual(DEFAULT_ASSISTANT_SETTINGS)
 
@@ -564,7 +598,7 @@ describe('AssistantDataService', () => {
     })
 
     it("should apply '🌟' as the default emoji when omitted", async () => {
-      const created = await assistantDataService.create({ name: 'test-assistant' })
+      const created = assistantDataService.create({ name: 'test-assistant' })
 
       expect(created.emoji).toBe('🌟')
 
@@ -573,7 +607,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should apply DB DEFAULT empty strings to prompt and description when omitted', async () => {
-      const created = await assistantDataService.create({ name: 'test-assistant' })
+      const created = assistantDataService.create({ name: 'test-assistant' })
 
       expect(created.prompt).toBe('')
       expect(created.description).toBe('')
@@ -584,7 +618,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should preserve client-supplied emoji over the service default', async () => {
-      const created = await assistantDataService.create({ name: 'test-assistant', emoji: '🤖' })
+      const created = assistantDataService.create({ name: 'test-assistant', emoji: '🤖' })
 
       expect(created.emoji).toBe('🤖')
 
@@ -596,7 +630,7 @@ describe('AssistantDataService', () => {
       await seedMcpServer()
       await seedKnowledgeBase()
 
-      const result = await assistantDataService.create({
+      const result = assistantDataService.create({
         name: 'test-assistant',
         modelId: 'openai::gpt-4',
         mcpServerIds: ['srv-1'],
@@ -614,60 +648,98 @@ describe('AssistantDataService', () => {
     })
 
     it('should throw validation error when name is empty', async () => {
-      await expect(assistantDataService.create({ name: '' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        assistantDataService.create({ name: '' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
 
     it('should throw validation error when name is whitespace only', async () => {
-      await expect(assistantDataService.create({ name: '   ' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        assistantDataService.create({ name: '   ' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
 
-    it('should bind tagIds inside the create transaction', async () => {
-      await dbh.db.insert(tagTable).values([
-        { id: '11111111-1111-4111-8111-111111111111', name: 'work', color: '#FF0000' },
-        { id: '22222222-2222-4222-8222-222222222222', name: 'personal', color: null }
-      ])
+    it('should persist groupId when creating an assistant', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'work')
 
-      const result = await assistantDataService.create({
-        name: 'tagged',
-        tagIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222']
+      const result = assistantDataService.create({
+        name: 'grouped',
+        groupId
       })
 
-      // Response embeds the freshly-written tags so the client avoids a refetch.
-      expect(result.tags.map((t) => t.name).sort()).toEqual(['personal', 'work'])
-
-      const bindings = await dbh.db.select().from(entityTagTable)
-      expect(bindings).toHaveLength(2)
+      expect(result.groupId).toBe(groupId)
+      const [row] = await dbh.db.select().from(assistantTable)
+      expect(row.groupId).toBe(groupId)
     })
 
-    it('should roll the assistant row back when a referenced tag does not exist', async () => {
-      await expect(
-        assistantDataService.create({
-          name: 'orphan',
-          tagIds: ['99999999-9999-4999-8999-999999999999']
-        })
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    it('should reject a missing assistant group with a field-scoped validation error', async () => {
+      const groupId = '99999999-9999-4999-8999-999999999999'
+      let err: unknown
 
-      // Transaction must leave no trace — assistant row rolled back with the binding.
-      const rows = await dbh.db.select().from(assistantTable)
-      expect(rows).toHaveLength(0)
+      try {
+        assistantDataService.create({ name: 'grouped', groupId })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
+    })
+
+    it('should reject a group owned by another entity type', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await dbh.db.insert(groupTable).values({ id: groupId, entityType: 'topic', name: 'topics', orderKey: 'a0' })
+      let err: unknown
+
+      try {
+        assistantDataService.create({ name: 'grouped', groupId })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
     })
 
     it('should reject with VALIDATION_ERROR when modelId is not in user_model', async () => {
       // Covers the v2-llm-migration case: Redux may hand an unique id the user
       // never added to `user_model`. Service returns a clear field-scoped
       // validation error instead of leaking a raw `DrizzleQueryError` FK failure.
-      await expect(
+      let err: unknown
+      try {
         assistantDataService.create({
           name: 'bad-model',
           modelId: 'cherryai::qwen'
         })
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
-        details: { fieldErrors: { modelId: expect.any(Array) } }
+        details: {
+          fieldErrors: {
+            modelId: ["Model 'cherryai::qwen' is unavailable in this edition or not registered in user_model"]
+          }
+        }
       })
 
       const rows = await dbh.db.select().from(assistantTable)
@@ -677,7 +749,7 @@ describe('AssistantDataService', () => {
     it('should inject chat.default_model_id when the DTO omits modelId', async () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', createUniqueModelId('openai', 'gpt-4'))
 
-      const result = await assistantDataService.create({ name: 'with-default' })
+      const result = assistantDataService.create({ name: 'with-default' })
 
       expect(result.modelId).toBe('openai::gpt-4')
       expect(result.modelName).toBe('GPT-4')
@@ -685,15 +757,15 @@ describe('AssistantDataService', () => {
 
     it('should return modelName from the create transaction snapshot', async () => {
       const realTransaction = dbh.db.transaction.bind(dbh.db)
-      const transactionSpy = vi.spyOn(dbh.db, 'transaction').mockImplementation(async (callback, config) => {
-        const result = await realTransaction(callback, config)
-        const { row } = result as { row: { id: string } }
-        await dbh.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, row.id))
+      const transactionSpy = vi.spyOn(dbh.db, 'transaction').mockImplementation((callback, config) => {
+        const result = realTransaction(callback, config)
+        const { assistant } = result as { assistant: { id: string } }
+        dbh.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, assistant.id)).run()
         return result
       })
 
       try {
-        const result = await assistantDataService.create({ name: 'with-model', modelId: 'openai::gpt-4' })
+        const result = assistantDataService.create({ name: 'with-model', modelId: 'openai::gpt-4' })
 
         expect(result.modelName).toBe('GPT-4')
       } finally {
@@ -707,7 +779,7 @@ describe('AssistantDataService', () => {
       // modelId=null and the service emits a logger.warn for diagnostics.
       MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'ghost::missing-model')
 
-      const result = await assistantDataService.create({ name: 'stale-pref' })
+      const result = assistantDataService.create({ name: 'stale-pref' })
 
       expect(result.modelId).toBeNull()
       expect(result.modelName).toBeNull()
@@ -716,9 +788,228 @@ describe('AssistantDataService', () => {
     it('should not fall back to preference when caller passes modelId: null explicitly', async () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', createUniqueModelId('openai', 'gpt-4'))
 
-      const result = await assistantDataService.create({ name: 'explicit-null', modelId: null })
+      const result = assistantDataService.create({ name: 'explicit-null', modelId: null })
 
       expect(result.modelId).toBeNull()
+    })
+  })
+
+  describe('createFromImport', () => {
+    it('imports contextual prompts as restricted bindings in legacy array order', async () => {
+      const result = assistantDataService.createFromImport({
+        name: 'Imported assistant',
+        prompt: 'legacy prompt',
+        regularPhrases: [
+          { title: 'First', content: 'first content' },
+          { title: 'Second', content: 'second content' }
+        ]
+      })
+
+      const importedPrompts = promptService.listBoundToTarget({ type: 'assistant', id: result.id })
+      expect(importedPrompts.map((prompt) => [prompt.title, prompt.content, prompt.visibility])).toEqual([
+        ['First', 'first content', 'restricted'],
+        ['Second', 'second content', 'restricted']
+      ])
+    })
+
+    it('rolls back the Assistant, group, prompts, and bindings when phrase creation fails', async () => {
+      const invalidImport = {
+        name: 'Failed import',
+        prompt: 'legacy prompt',
+        groupName: 'new group',
+        regularPhrases: [
+          { title: 'Valid', content: 'valid content' },
+          { title: '', content: 'invalid title' }
+        ]
+      } as ImportAssistantDto
+
+      expect(() => assistantDataService.createFromImport(invalidImport)).toThrow()
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(groupTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+    })
+
+    it('creates a long-named legacy group and assigns it to the imported assistant', async () => {
+      const groupName = 'x'.repeat(65)
+
+      const result = assistantDataService.createFromImport({
+        name: 'Imported assistant',
+        prompt: 'legacy prompt',
+        groupName
+      })
+
+      const [group] = await dbh.db.select().from(groupTable).where(eq(groupTable.name, groupName))
+      expect(group).toMatchObject({ entityType: 'assistant', name: groupName })
+      expect(result.groupId).toBe(group.id)
+    })
+
+    it('reuses one exact-name group across independent import requests', async () => {
+      const existingGroupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(existingGroupId, 'work')
+
+      const first = assistantDataService.createFromImport({
+        name: 'First import',
+        prompt: 'first prompt',
+        groupName: 'work'
+      })
+      const second = assistantDataService.createFromImport({
+        name: 'Second import',
+        prompt: 'second prompt',
+        groupName: 'work'
+      })
+
+      const matchingGroups = await dbh.db.select().from(groupTable).where(eq(groupTable.name, 'work'))
+      expect(matchingGroups).toHaveLength(1)
+      expect(first.groupId).toBe(existingGroupId)
+      expect(second.groupId).toBe(existingGroupId)
+    })
+  })
+
+  describe('duplicate', () => {
+    it('atomically copies Assistant state, relations, and contextual prompt order', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'work')
+      await seedMcpServer()
+      await seedKnowledgeBase()
+      await seedAssistantRow({
+        id: 'ast-source',
+        name: 'Source',
+        prompt: 'system prompt',
+        description: 'description',
+        modelId: 'openai::gpt-4',
+        groupId
+      })
+      await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-source', mcpServerId: 'srv-1' })
+      await dbh.db.insert(assistantKnowledgeBaseTable).values({ assistantId: 'ast-source', knowledgeBaseId: 'kb-1' })
+      const first = promptService.create({
+        title: 'First',
+        content: 'first',
+        visibility: 'restricted',
+        bindingTarget: { type: 'assistant', id: 'ast-source' }
+      })
+      const second = promptService.create({
+        title: 'Second',
+        content: 'second',
+        visibility: 'restricted',
+        bindingTarget: { type: 'assistant', id: 'ast-source' }
+      })
+      promptService.reorderBinding({ type: 'assistant', id: 'ast-source' }, second.id, { position: 'first' })
+
+      const duplicate = assistantDataService.duplicate('ast-source', { name: 'Source copy' })
+
+      expect(duplicate).toMatchObject({
+        name: 'Source copy',
+        prompt: 'system prompt',
+        emoji: '🌟',
+        description: 'description',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        modelId: 'openai::gpt-4',
+        groupId,
+        mcpServerIds: ['srv-1'],
+        knowledgeBaseIds: ['kb-1']
+      })
+      expect(duplicate.id).not.toBe('ast-source')
+      expect(
+        promptService.listBoundToTarget({ type: 'assistant', id: duplicate.id }).map((prompt) => prompt.id)
+      ).toEqual([second.id, first.id])
+      expect(
+        (await dbh.db.select().from(promptBindingTable))
+          .filter((binding) => binding.targetId === duplicate.id)
+          .every((binding) => binding.orderKey.length > 0)
+      ).toBe(true)
+    })
+
+    it('rolls back the copied Assistant when binding cloning fails', async () => {
+      await seedAssistantRow({ id: 'ast-source', name: 'Source' })
+      const cloneSpy = vi.spyOn(promptService, 'cloneBindingsForTargetTx').mockImplementationOnce(() => {
+        throw new Error('binding clone failed')
+      })
+
+      try {
+        expect(() => assistantDataService.duplicate('ast-source', { name: 'Source copy' })).toThrow(
+          'binding clone failed'
+        )
+        expect((await dbh.db.select({ id: assistantTable.id }).from(assistantTable)).map((row) => row.id)).toEqual([
+          'ast-source'
+        ])
+      } finally {
+        cloneSpy.mockRestore()
+      }
+    })
+  })
+
+  describe('reorder', () => {
+    it("should move an assistant to the first position via { position: 'first' }", async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      assistantDataService.reorder('ast-3', { position: 'first' })
+
+      const result = assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-1', 'ast-2'])
+    })
+
+    it('should move an assistant before an anchor', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      assistantDataService.reorder('ast-3', { before: 'ast-2' })
+
+      const result = assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-1', 'ast-3', 'ast-2'])
+    })
+
+    it('should reject soft-deleted targets and anchors as NOT_FOUND', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1', deletedAt: Date.now() }
+      ])
+
+      let targetErr: unknown
+      try {
+        assistantDataService.reorder('ast-2', { position: 'first' })
+      } catch (e) {
+        targetErr = e
+      }
+      expect(targetErr).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Assistant', id: 'ast-2' }
+      })
+      let anchorErr: unknown
+      try {
+        assistantDataService.reorder('ast-1', { before: 'ast-2' })
+      } catch (e) {
+        anchorErr = e
+      }
+      expect(anchorErr).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Assistant', id: 'ast-2' }
+      })
+    })
+  })
+
+  describe('reorderBatch', () => {
+    it('should apply multiple assistant moves atomically', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      assistantDataService.reorderBatch([
+        { id: 'ast-3', anchor: { position: 'first' } },
+        { id: 'ast-1', anchor: { position: 'last' } }
+      ])
+
+      const result = assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-2', 'ast-1'])
     })
   })
 
@@ -726,14 +1017,14 @@ describe('AssistantDataService', () => {
     it('should update and return assistant', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'original' })
 
-      const result = await assistantDataService.update('ast-1', { name: 'updated-name' })
+      const result = assistantDataService.update('ast-1', { name: 'updated-name' })
       expect(result.name).toBe('updated-name')
     })
 
     it('should persist update to database', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'original' })
 
-      await assistantDataService.update('ast-1', { name: 'updated-name' })
+      assistantDataService.update('ast-1', { name: 'updated-name' })
 
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.name).toBe('updated-name')
@@ -743,7 +1034,7 @@ describe('AssistantDataService', () => {
       await seedAssistantRow({ id: 'ast-1', name: 'original' })
       await seedMcpServer()
 
-      const result = await assistantDataService.update('ast-1', {
+      const result = assistantDataService.update('ast-1', {
         name: 'updated',
         mcpServerIds: ['srv-1']
       })
@@ -760,7 +1051,7 @@ describe('AssistantDataService', () => {
       await seedMcpServer()
       await seedKnowledgeBase()
 
-      const result = await assistantDataService.update('ast-1', {
+      const result = assistantDataService.update('ast-1', {
         mcpServerIds: ['srv-1'],
         knowledgeBaseIds: ['kb-1']
       })
@@ -773,33 +1064,25 @@ describe('AssistantDataService', () => {
       expect(row.modelId).toBe('openai::gpt-4')
     })
 
-    it('should preserve embedded tags after a column-only update', async () => {
-      await seedAssistantRow({ id: 'ast-1', name: 'original' })
-      await dbh.db.insert(tagTable).values({
-        id: '11111111-1111-4111-8111-111111111111',
-        name: 'work',
-        color: null
-      })
-      await dbh.db.insert(entityTagTable).values({
-        entityType: 'assistant',
-        entityId: 'ast-1',
-        tagId: '11111111-1111-4111-8111-111111111111'
-      })
+    it('should preserve groupId after a column-only update', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'work')
+      await seedAssistantRow({ id: 'ast-1', name: 'original', groupId })
 
-      const result = await assistantDataService.update('ast-1', { name: 'renamed' })
+      const result = assistantDataService.update('ast-1', { name: 'renamed' })
 
       expect(result.name).toBe('renamed')
-      expect(result.tags.map((tag) => tag.name)).toEqual(['work'])
+      expect(result.groupId).toBe(groupId)
     })
 
     it('should re-resolve modelName when modelId changes', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
 
       // Sanity: starts as "GPT-4"
-      const before = await assistantDataService.getById('ast-1')
+      const before = assistantDataService.getById('ast-1')
       expect(before.modelName).toBe('GPT-4')
 
-      const result = await assistantDataService.update('ast-1', { modelId: 'anthropic::claude-3' })
+      const result = assistantDataService.update('ast-1', { modelId: 'anthropic::claude-3' })
 
       expect(result.modelId).toBe('anthropic::claude-3')
       expect(result.modelName).toBe('Claude 3')
@@ -808,15 +1091,15 @@ describe('AssistantDataService', () => {
     it('should return changed modelName from the update transaction snapshot', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
       const realTransaction = dbh.db.transaction.bind(dbh.db)
-      const transactionSpy = vi.spyOn(dbh.db, 'transaction').mockImplementation(async (callback, config) => {
-        const result = await realTransaction(callback, config)
+      const transactionSpy = vi.spyOn(dbh.db, 'transaction').mockImplementation((callback, config) => {
+        const result = realTransaction(callback, config)
         const { row } = result as { row: { id: string } }
-        await dbh.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, row.id))
+        dbh.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, row.id)).run()
         return result
       })
 
       try {
-        const result = await assistantDataService.update('ast-1', { modelId: 'anthropic::claude-3' })
+        const result = assistantDataService.update('ast-1', { modelId: 'anthropic::claude-3' })
 
         expect(result.modelName).toBe('Claude 3')
       } finally {
@@ -827,7 +1110,7 @@ describe('AssistantDataService', () => {
     it('should reuse modelName when modelId is unchanged', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'original', modelId: 'openai::gpt-4' })
 
-      const result = await assistantDataService.update('ast-1', { name: 'renamed' })
+      const result = assistantDataService.update('ast-1', { name: 'renamed' })
 
       expect(result.name).toBe('renamed')
       expect(result.modelName).toBe('GPT-4')
@@ -839,7 +1122,7 @@ describe('AssistantDataService', () => {
       await seedMcpServer('srv-2', 'MCP2')
       await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
 
-      await assistantDataService.update('ast-1', { mcpServerIds: ['srv-2'] })
+      assistantDataService.update('ast-1', { mcpServerIds: ['srv-2'] })
 
       const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(1)
@@ -854,7 +1137,7 @@ describe('AssistantDataService', () => {
         .insert(assistantMcpServerTable)
         .values({ assistantId: 'ast-1', mcpServerId: 'srv-1', createdAt: 1000 })
 
-      await assistantDataService.update('ast-1', { mcpServerIds: ['srv-1', 'srv-2'] })
+      assistantDataService.update('ast-1', { mcpServerIds: ['srv-1', 'srv-2'] })
 
       const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(2)
@@ -863,7 +1146,13 @@ describe('AssistantDataService', () => {
     })
 
     it('should throw NOT_FOUND when updating non-existent assistant', async () => {
-      await expect(assistantDataService.update('non-existent', { name: 'x' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        assistantDataService.update('non-existent', { name: 'x' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -871,94 +1160,108 @@ describe('AssistantDataService', () => {
     it('should throw validation error when name is set to empty', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'original' })
 
-      await expect(assistantDataService.update('ast-1', { name: '' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        assistantDataService.update('ast-1', { name: '' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
 
-    it('should diff-sync tagIds on update (adds new, removes missing)', async () => {
-      await seedAssistantRow({ id: 'ast-1', name: 'test' })
-      await dbh.db.insert(tagTable).values([
-        { id: '11111111-1111-4111-8111-111111111111', name: 'work' },
-        { id: '22222222-2222-4222-8222-222222222222', name: 'personal' },
-        { id: '33333333-3333-4333-8333-333333333333', name: 'priority' }
-      ])
-      await dbh.db.insert(entityTagTable).values([
-        { entityType: 'assistant', entityId: 'ast-1', tagId: '11111111-1111-4111-8111-111111111111' },
-        { entityType: 'assistant', entityId: 'ast-1', tagId: '22222222-2222-4222-8222-222222222222' }
-      ])
+    it('should replace groupId on update', async () => {
+      const originalGroupId = '11111111-1111-4111-8111-111111111111'
+      const nextGroupId = '22222222-2222-4222-8222-222222222222'
+      await seedAssistantGroup(originalGroupId, 'work', 'a0')
+      await seedAssistantGroup(nextGroupId, 'personal', 'a1')
+      await seedAssistantRow({ id: 'ast-1', name: 'test', groupId: originalGroupId })
 
-      const result = await assistantDataService.update('ast-1', {
-        tagIds: ['22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333']
-      })
+      const result = assistantDataService.update('ast-1', { groupId: nextGroupId })
 
-      expect(result.tags.map((t) => t.name).sort()).toEqual(['personal', 'priority'])
-      const rows = await dbh.db.select().from(entityTagTable).where(eq(entityTagTable.entityId, 'ast-1'))
-      expect(rows.map((r) => r.tagId).sort()).toEqual([
-        '22222222-2222-4222-8222-222222222222',
-        '33333333-3333-4333-8333-333333333333'
-      ])
+      expect(result.groupId).toBe(nextGroupId)
+      const [row] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+      expect(row.groupId).toBe(nextGroupId)
     })
 
-    it('should clear all tag bindings when tagIds is an empty array', async () => {
-      await seedAssistantRow({ id: 'ast-1', name: 'test' })
-      await dbh.db.insert(tagTable).values({ id: '11111111-1111-4111-8111-111111111111', name: 'work' })
-      await dbh.db.insert(entityTagTable).values({
-        entityType: 'assistant',
-        entityId: 'ast-1',
-        tagId: '11111111-1111-4111-8111-111111111111'
-      })
+    it('should clear the group assignment with null', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'work')
+      await seedAssistantRow({ id: 'ast-1', name: 'test', groupId })
 
-      const result = await assistantDataService.update('ast-1', { tagIds: [] })
+      const result = assistantDataService.update('ast-1', { groupId: null })
 
-      expect(result.tags).toEqual([])
-      const rows = await dbh.db.select().from(entityTagTable)
-      expect(rows).toHaveLength(0)
+      expect(result.groupId).toBeNull()
     })
 
-    it('should leave tag bindings untouched when tagIds is undefined', async () => {
-      await seedAssistantRow({ id: 'ast-1', name: 'original' })
-      await dbh.db.insert(tagTable).values({ id: '11111111-1111-4111-8111-111111111111', name: 'work' })
-      await dbh.db.insert(entityTagTable).values({
-        entityType: 'assistant',
-        entityId: 'ast-1',
-        tagId: '11111111-1111-4111-8111-111111111111'
-      })
+    it('should leave groupId untouched when it is omitted', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'work')
+      await seedAssistantRow({ id: 'ast-1', name: 'original', groupId })
 
-      await assistantDataService.update('ast-1', { name: 'renamed' })
+      const result = assistantDataService.update('ast-1', { name: 'renamed' })
 
-      const rows = await dbh.db.select().from(entityTagTable)
-      expect(rows).toHaveLength(1)
+      expect(result.groupId).toBe(groupId)
     })
 
-    it('should roll the column update back when a referenced tag does not exist', async () => {
+    it('should roll the column update back when a referenced group does not exist', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'original' })
 
-      await expect(
+      let err: unknown
+      try {
         assistantDataService.update('ast-1', {
           name: 'renamed',
-          tagIds: ['99999999-9999-4999-8999-999999999999']
+          groupId: '99999999-9999-4999-8999-999999999999'
         })
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      } catch (error) {
+        err = error
+      }
 
-      // Column write must be inside the same tx as the binding sync.
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.name).toBe('original')
     })
 
+    it('should reject an update to a group owned by another entity type', async () => {
+      const originalGroupId = '11111111-1111-4111-8111-111111111111'
+      const topicGroupId = '22222222-2222-4222-8222-222222222222'
+      await seedAssistantGroup(originalGroupId, 'assistants')
+      await dbh.db.insert(groupTable).values({ id: topicGroupId, entityType: 'topic', name: 'topics', orderKey: 'a0' })
+      await seedAssistantRow({ id: 'ast-1', name: 'original', groupId: originalGroupId })
+      let err: unknown
+
+      try {
+        assistantDataService.update('ast-1', { name: 'renamed', groupId: topicGroupId })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      const [row] = await dbh.db.select().from(assistantTable)
+      expect(row).toMatchObject({ name: 'original', groupId: originalGroupId })
+    })
+
     it('should atomically roll all junction writes back when any one fails', async () => {
-      // Covers the full fan-out: column update + mcpServer sync + tag sync in
-      // one tx. A bad tagId at the end must not leave partial mcp bindings.
+      // Covers column update + mcpServer sync in one transaction. A bad groupId
+      // must not leave partial column or relation writes.
       await seedAssistantRow({ id: 'ast-1', name: 'before' })
       await seedMcpServer('srv-1')
 
-      await expect(
+      expect(() =>
         assistantDataService.update('ast-1', {
           name: 'after',
           mcpServerIds: ['srv-1'],
-          tagIds: ['99999999-9999-4999-8999-999999999999']
+          groupId: '99999999-9999-4999-8999-999999999999'
         })
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      ).toThrow()
 
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.name).toBe('before')
@@ -973,31 +1276,28 @@ describe('AssistantDataService', () => {
       // rolling back both column + junction writes.
       await seedAssistantRow({ id: 'ast-1', name: 'before' })
       await seedMcpServer('srv-1')
-      await dbh.db.insert(tagTable).values({
-        id: '11111111-1111-4111-8111-111111111111',
-        name: 'work'
-      })
 
       const originalGetById = assistantDataService.getById.bind(assistantDataService)
-      const getByIdSpy = vi.spyOn(assistantDataService, 'getById').mockImplementation(async (id: string, options) => {
-        const result = await originalGetById(id, options)
+      const getByIdSpy = vi.spyOn(assistantDataService, 'getById').mockImplementation((id: string, options) => {
+        const result = originalGetById(id, options)
         // Between the entry-level getById and the tx, simulate a concurrent
         // DELETE /assistants/:id from another window.
-        await dbh.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
+        dbh.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id)).run()
         return result
       })
 
+      let err: unknown
       try {
-        await expect(
-          assistantDataService.update('ast-1', {
-            name: 'after',
-            mcpServerIds: ['srv-1'],
-            tagIds: ['11111111-1111-4111-8111-111111111111']
-          })
-        ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+        assistantDataService.update('ast-1', {
+          name: 'after',
+          mcpServerIds: ['srv-1']
+        })
+      } catch (e) {
+        err = e
       } finally {
         getByIdSpy.mockRestore()
       }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
 
       // Row stays soft-deleted with its original name; no junction rows landed.
       const [row] = await dbh.db.select().from(assistantTable)
@@ -1005,16 +1305,24 @@ describe('AssistantDataService', () => {
       expect(row.deletedAt).not.toBeNull()
       const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(0)
-      const tagRows = await dbh.db.select().from(entityTagTable)
-      expect(tagRows).toHaveLength(0)
     })
 
     it('should reject with VALIDATION_ERROR when update modelId is not in user_model', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'before' })
 
-      await expect(assistantDataService.update('ast-1', { modelId: 'cherryai::qwen' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        assistantDataService.update('ast-1', { modelId: 'cherryai::qwen' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
-        details: { fieldErrors: { modelId: expect.any(Array) } }
+        details: {
+          fieldErrors: {
+            modelId: ["Model 'cherryai::qwen' is unavailable in this edition or not registered in user_model"]
+          }
+        }
       })
 
       // Row name stays unchanged — modelId validation runs before the column write.
@@ -1030,19 +1338,23 @@ describe('AssistantDataService', () => {
       await seedMcpServer('srv-1')
 
       const originalGetById = assistantDataService.getById.bind(assistantDataService)
-      const getByIdSpy = vi.spyOn(assistantDataService, 'getById').mockImplementation(async (id: string, options) => {
-        const result = await originalGetById(id, options)
-        await dbh.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
+      const getByIdSpy = vi.spyOn(assistantDataService, 'getById').mockImplementation((id: string, options) => {
+        const result = originalGetById(id, options)
+        dbh.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id)).run()
         return result
       })
 
+      let err: unknown
       try {
-        await expect(assistantDataService.update('ast-1', { mcpServerIds: ['srv-1'] })).rejects.toMatchObject({
-          code: ErrorCode.NOT_FOUND
-        })
+        assistantDataService.update('ast-1', { mcpServerIds: ['srv-1'] })
+      } catch (e) {
+        err = e
       } finally {
         getByIdSpy.mockRestore()
       }
+      expect(err).toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
 
       const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(0)
@@ -1052,32 +1364,37 @@ describe('AssistantDataService', () => {
   describe('delete', () => {
     it('should soft-delete by setting deletedAt timestamp', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
+      notifyDataApiDataChangeMock.mockClear()
 
-      await assistantDataService.delete('ast-1')
+      assistantDataService.delete('ast-1')
 
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.deletedAt).toBeTruthy()
       expect(typeof row.deletedAt).toBe('number')
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/assistants', kind: 'membership', entityIds: ['ast-1'] },
+        { endpoint: '/assistants/:id', entityIds: ['ast-1'] }
+      ])
     })
 
     it('should not physically remove the row', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
 
-      await assistantDataService.delete('ast-1')
+      assistantDataService.delete('ast-1')
 
       const rows = await dbh.db.select().from(assistantTable)
       expect(rows).toHaveLength(1)
     })
 
-    it('should remove entity_tag rows for the deleted assistant', async () => {
-      await seedAssistantRow({ id: 'ast-1', name: 'test' })
-      await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work' })
-      await dbh.db.insert(entityTagTable).values({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' })
+    it('should clear groupId for the deleted assistant', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'work')
+      await seedAssistantRow({ id: 'ast-1', name: 'test', groupId })
 
-      await assistantDataService.delete('ast-1')
+      assistantDataService.delete('ast-1')
 
-      const tagRows = await dbh.db.select().from(entityTagTable)
-      expect(tagRows).toHaveLength(0)
+      const [row] = await dbh.db.select().from(assistantTable)
+      expect(row.groupId).toBeNull()
     })
 
     it('should remove pin rows for the deleted assistant', async () => {
@@ -1090,15 +1407,127 @@ describe('AssistantDataService', () => {
         createdAt: 1_000,
         updatedAt: 1_000
       })
+      notifyDataApiDataChangeMock.mockClear()
 
-      await assistantDataService.delete('ast-1')
+      assistantDataService.delete('ast-1')
 
       const pinRows = await dbh.db.select().from(pinTable)
       expect(pinRows).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
+    })
+
+    it('should remove prompt bindings for the deleted assistant', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
+      const promptId = '550e8400-e29b-41d4-a716-446655440020'
+      await dbh.db
+        .insert(promptTable)
+        .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
+      await dbh.db
+        .insert(promptBindingTable)
+        .values({ promptId, targetType: 'assistant', targetId: 'ast-1', orderKey: 'a0' })
+
+      assistantDataService.delete('ast-1')
+
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptTable)).toHaveLength(1)
+    })
+
+    it('should trash active topics and leave earlier trash untouched', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'delete with topics' },
+        { id: 'ast-2', name: 'keep topics' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', name: '', assistantId: 'ast-1', orderKey: 'a0' },
+        { id: 'topic-2', name: 'also deleted', assistantId: 'ast-1', orderKey: 'a1' },
+        { id: 'topic-old-trash', name: 'old trash', assistantId: 'ast-1', orderKey: 'a2', deletedAt: 99 },
+        { id: 'topic-other', name: 'kept', assistantId: 'ast-2', orderKey: 'a3' }
+      ])
+
+      const result = assistantDataService.delete('ast-1', { deleteTopics: true })
+
+      expect(result.deleted).toBe(true)
+      expect(result.deletedTopicIds?.sort()).toEqual(['topic-1', 'topic-2'])
+      const [assistantRow] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+      expect(assistantRow.deletedAt).toEqual(expect.any(Number))
+      const topicRows = await dbh.db
+        .select({
+          id: topicTable.id,
+          assistantId: topicTable.assistantId,
+          deletedAt: topicTable.deletedAt
+        })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(topicRows).toEqual([
+        {
+          id: 'topic-1',
+          assistantId: 'ast-1',
+          deletedAt: assistantRow.deletedAt
+        },
+        {
+          id: 'topic-2',
+          assistantId: 'ast-1',
+          deletedAt: assistantRow.deletedAt
+        },
+        { id: 'topic-old-trash', assistantId: 'ast-1', deletedAt: 99 },
+        { id: 'topic-other', assistantId: 'ast-2', deletedAt: null }
+      ])
+    })
+
+    it('should preserve topic ownership and active/trash state for standalone soft delete', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-active', name: 'active', assistantId: 'ast-1', orderKey: 'a0' },
+        { id: 'topic-trashed', name: 'trashed', assistantId: 'ast-1', orderKey: 'a1', deletedAt: 99 }
+      ])
+
+      const result = assistantDataService.delete('ast-1')
+
+      expect(result.deletedTopicIds).toBeUndefined()
+      const topicRows = await dbh.db
+        .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(topicRows).toEqual([
+        { id: 'topic-active', assistantId: 'ast-1', deletedAt: null },
+        { id: 'topic-trashed', assistantId: 'ast-1', deletedAt: 99 }
+      ])
+    })
+
+    it('should roll back both parent and child trash when the cascade fails midway', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'rollback' })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-rollback',
+        name: 'rollback child',
+        assistantId: 'ast-1',
+        orderKey: 'a0'
+      })
+      const originalDeleteTx = assistantDataService.deleteTx.bind(assistantDataService)
+      const deleteAssistantSpy = vi.spyOn(assistantDataService, 'deleteTx').mockImplementationOnce((tx, id) => {
+        originalDeleteTx(tx, id)
+        throw new Error('topic delete failed')
+      })
+
+      try {
+        expect(() => assistantDataService.delete('ast-1', { deleteTopics: true })).toThrow('topic delete failed')
+      } finally {
+        deleteAssistantSpy.mockRestore()
+      }
+
+      const [assistantRow] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+      const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-rollback'))
+      expect(assistantRow).toMatchObject({ deletedAt: null })
+      expect(topicRow).toMatchObject({ assistantId: 'ast-1', deletedAt: null })
     })
 
     it('should throw NOT_FOUND when deleting non-existent assistant', async () => {
-      await expect(assistantDataService.delete('non-existent')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        assistantDataService.delete('non-existent')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -1106,9 +1535,393 @@ describe('AssistantDataService', () => {
     it('should throw NOT_FOUND when deleting already-deleted assistant', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test', deletedAt: Date.now() })
 
-      await expect(assistantDataService.delete('ast-1')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        assistantDataService.delete('ast-1')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+
+    describe('permanent', () => {
+      it('should hard-delete the row, cascade junction rows, and SET NULL topic.assistantId', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'test' })
+        await seedMcpServer()
+        await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+        await dbh.db.insert(topicTable).values({ id: 'topic-1', name: 'kept', assistantId: 'ast-1', orderKey: 'a0' })
+
+        assistantDataService.delete('ast-1')
+        assistantDataService.delete('ast-1', { permanent: true })
+
+        const assistantRows = await dbh.db.select().from(assistantTable)
+        expect(assistantRows).toHaveLength(0)
+        const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
+        expect(mcpRows).toHaveLength(0)
+        // Topic survives the permanent delete with its FK nulled (ON DELETE SET NULL).
+        const [topicRow] = await dbh.db.select().from(topicTable)
+        expect(topicRow.id).toBe('topic-1')
+        expect(topicRow.assistantId).toBeNull()
+      })
+
+      it('should notify retained topic projections after the permanent delete commits', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'test' })
+        await dbh.db.insert(topicTable).values([
+          {
+            id: 'topic-active',
+            name: 'active',
+            assistantId: 'ast-1',
+            orderKey: 'a0'
+          },
+          {
+            id: 'topic-trashed',
+            name: 'trashed',
+            assistantId: 'ast-1',
+            orderKey: 'a1',
+            deletedAt: 99
+          }
+        ])
+        assistantDataService.delete('ast-1')
+
+        const events: string[] = []
+        const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
+        withWriteTx.mockImplementationOnce((fn) => {
+          const result = dbh.db.transaction(fn)
+          events.push('committed')
+          return result
+        })
+        notifyDataApiDataChangeMock.mockClear()
+        notifyDataApiDataChangeMock.mockImplementation((effects) => {
+          if (effects[0]?.endpoint === '/topics' && effects[0]?.kind === 'projection') {
+            events.push('topic-projection')
+          }
+        })
+
+        try {
+          const result = assistantDataService.delete('ast-1', { permanent: true })
+
+          expect(result.deletedTopicIds).toBeUndefined()
+          const topicRows = await dbh.db
+            .select({ id: topicTable.id, assistantId: topicTable.assistantId })
+            .from(topicTable)
+            .orderBy(asc(topicTable.id))
+          expect(topicRows).toEqual([
+            { id: 'topic-active', assistantId: null },
+            { id: 'topic-trashed', assistantId: null }
+          ])
+          expect(events).toEqual(['committed', 'topic-projection'])
+          expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+            { endpoint: '/topics', kind: 'projection', entityIds: ['topic-active', 'topic-trashed'] },
+            {
+              endpoint: '/topics',
+              kind: 'order',
+              dimension: 'lastActivityAt',
+              entityIds: ['topic-active', 'topic-trashed']
+            },
+            { endpoint: '/topics/:id', entityIds: ['topic-active', 'topic-trashed'] },
+            { endpoint: '/topics/latest' }
+          ])
+        } finally {
+          notifyDataApiDataChangeMock.mockReset()
+        }
+      })
+
+      it('should permanently delete an already-trashed assistant', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'trashed', deletedAt: Date.now() })
+
+        assistantDataService.delete('ast-1', { permanent: true })
+
+        const rows = await dbh.db.select().from(assistantTable)
+        expect(rows).toHaveLength(0)
+      })
+
+      it('should purge pin rows on permanent delete', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'test' })
+        assistantDataService.delete('ast-1')
+        await dbh.db.insert(pinTable).values({
+          id: '11111111-1111-4111-8111-111111111111',
+          entityType: 'assistant',
+          entityId: 'ast-1',
+          orderKey: 'a0',
+          createdAt: 1_000,
+          updatedAt: 1_000
+        })
+
+        assistantDataService.delete('ast-1', { permanent: true })
+
+        expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+      })
+
+      it('should ignore deleteTopics and preserve both active and trashed topics', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'test' })
+        await dbh.db.insert(topicTable).values([
+          { id: 'topic-active', name: 'active', assistantId: 'ast-1', orderKey: 'a0' },
+          { id: 'topic-trashed', name: 'trashed', assistantId: 'ast-1', orderKey: 'a1', deletedAt: 99 }
+        ])
+
+        assistantDataService.delete('ast-1')
+        const result = assistantDataService.delete('ast-1', { deleteTopics: true, permanent: true })
+
+        expect(result.deletedTopicIds).toBeUndefined()
+        expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
+        const topicRows = await dbh.db
+          .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
+          .from(topicTable)
+          .orderBy(asc(topicTable.id))
+        expect(topicRows).toEqual([
+          { id: 'topic-active', assistantId: null, deletedAt: null },
+          { id: 'topic-trashed', assistantId: null, deletedAt: 99 }
+        ])
+      })
+
+      it('should reject permanent deletion of an active assistant and keep it active', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'active' })
+
+        let err: unknown
+        try {
+          assistantDataService.delete('ast-1', { permanent: true })
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+        const [row] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+        expect(row).toMatchObject({ id: 'ast-1', deletedAt: null })
+      })
+
+      it('should reject a stale permanent delete after the assistant has been restored', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'restored' })
+        assistantDataService.delete('ast-1')
+        assistantDataService.restore('ast-1')
+
+        let err: unknown
+        try {
+          assistantDataService.delete('ast-1', { permanent: true })
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+        const [row] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+        expect(row).toMatchObject({ id: 'ast-1', deletedAt: null })
+      })
+
+      it('should throw NOT_FOUND when permanent-deleting a non-existent assistant', async () => {
+        let err: unknown
+        try {
+          assistantDataService.delete('non-existent', { permanent: true, deleteTopics: true })
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({
+          code: ErrorCode.NOT_FOUND
+        })
+      })
+    })
+  })
+
+  describe('restore', () => {
+    it('should round-trip Delete → hidden → Restore → visible with junction rows and settings intact', async () => {
+      const settings = { ...DEFAULT_ASSISTANT_SETTINGS, temperature: 0.3, enableTemperature: true }
+      await seedAssistantRow({ id: 'ast-1', name: 'test', settings, modelId: 'openai::gpt-4' })
+      await seedMcpServer()
+      await seedKnowledgeBase()
+      await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+      await dbh.db.insert(assistantKnowledgeBaseTable).values({ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' })
+
+      assistantDataService.delete('ast-1')
+
+      // Hidden from the active list, but the row (and its junctions) survive.
+      expect(assistantDataService.list(listQuery()).items).toHaveLength(0)
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(1)
+      expect(await dbh.db.select().from(assistantMcpServerTable)).toHaveLength(1)
+
+      notifyDataApiDataChangeMock.mockClear()
+      const restored = assistantDataService.restore('ast-1')
+
+      expect(restored.id).toBe('ast-1')
+      expect(restored.deletedAt).toBeUndefined()
+      expect(restored.settings).toEqual(settings)
+      expect(restored.mcpServerIds).toEqual(['srv-1'])
+      expect(restored.knowledgeBaseIds).toEqual(['kb-1'])
+      expect(restored.modelName).toBe('GPT-4')
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/assistants', kind: 'membership', entityIds: ['ast-1'] },
+        { endpoint: '/assistants/:id', entityIds: ['ast-1'] }
+      ])
+
+      const active = assistantDataService.list(listQuery())
+      expect(active.items.map((a) => a.id)).toEqual(['ast-1'])
+      expect(assistantDataService.list(listQuery({ inTrash: true })).items).toHaveLength(0)
+    })
+
+    it('should leave related topics independently restorable', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'restore owner' },
+        { id: 'ast-2', name: 'other owner' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-batch-1', name: 'batch 1', assistantId: 'ast-1', orderKey: 'a0' },
+        { id: 'topic-batch-2', name: 'batch 2', assistantId: 'ast-1', orderKey: 'a1' },
+        { id: 'topic-old-trash', name: 'old trash', assistantId: 'ast-1', orderKey: 'a2', deletedAt: 99 },
+        { id: 'topic-other-owner', name: 'other owner', assistantId: 'ast-2', orderKey: 'a3', deletedAt: 99 }
+      ])
+      assistantDataService.delete('ast-1', { deleteTopics: true })
+
+      notifyDataApiDataChangeMock.mockClear()
+      assistantDataService.restore('ast-1')
+
+      const topicRows = await dbh.db
+        .select({
+          id: topicTable.id,
+          assistantId: topicTable.assistantId,
+          deletedAt: topicTable.deletedAt
+        })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(topicRows).toEqual([
+        { id: 'topic-batch-1', assistantId: 'ast-1', deletedAt: expect.any(Number) },
+        { id: 'topic-batch-2', assistantId: 'ast-1', deletedAt: expect.any(Number) },
+        { id: 'topic-old-trash', assistantId: 'ast-1', deletedAt: 99 },
+        { id: 'topic-other-owner', assistantId: 'ast-2', deletedAt: 99 }
+      ])
+      const topicNotifications = notifyDataApiDataChangeMock.mock.calls.filter(
+        ([effects]) => effects[0]?.endpoint === '/topics'
+      )
+      expect(topicNotifications).toEqual([])
+    })
+
+    it('should not resurrect pins purged at Delete time', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
+      await dbh.db.insert(pinTable).values({
+        id: '11111111-1111-4111-8111-111111111111',
+        entityType: 'assistant',
+        entityId: 'ast-1',
+        orderKey: 'a0',
+        createdAt: 1_000,
+        updatedAt: 1_000
+      })
+
+      assistantDataService.delete('ast-1')
+      assistantDataService.restore('ast-1')
+
+      expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+    })
+
+    it('should throw NOT_FOUND when restoring an active assistant', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'active' })
+
+      let err: unknown
+      try {
+        assistantDataService.restore('ast-1')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('should throw NOT_FOUND when restoring a non-existent assistant', async () => {
+      let err: unknown
+      try {
+        assistantDataService.restore('non-existent')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('should re-enter the active order scope with the old orderKey and stay reorderable', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      assistantDataService.delete('ast-2')
+      assistantDataService.restore('ast-2')
+
+      // Restored row keeps its pre-Delete orderKey → original position.
+      expect(assistantDataService.list(listQuery()).items.map((a) => a.id)).toEqual(['ast-1', 'ast-2', 'ast-3'])
+
+      // And it is a full member of the active order scope again.
+      assistantDataService.reorder('ast-2', { position: 'first' })
+      expect(assistantDataService.list(listQuery()).items.map((a) => a.id)).toEqual(['ast-2', 'ast-1', 'ast-3'])
+    })
+  })
+
+  describe('purgeExpiredTx', () => {
+    it('should hard-delete only rows trashed strictly before the cutoff', async () => {
+      await seedAssistantRow([
+        { id: 'ast-expired', name: 'expired', deletedAt: 100 },
+        { id: 'ast-at-cutoff', name: 'at cutoff', deletedAt: 300 },
+        { id: 'ast-fresh', name: 'fresh trash', deletedAt: 400 },
+        { id: 'ast-active', name: 'active' }
+      ])
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, 300, 10)
+
+      expect(purgedIds).toEqual(['ast-expired'])
+      const remaining = (await dbh.db.select().from(assistantTable)).map((row) => row.id).sort()
+      expect(remaining).toEqual(['ast-active', 'ast-at-cutoff', 'ast-fresh'])
+    })
+
+    it('should respect the batch limit', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'one', deletedAt: 100 },
+        { id: 'ast-2', name: 'two', deletedAt: 110 },
+        { id: 'ast-3', name: 'three', deletedAt: 120 }
+      ])
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, 1_000, 2)
+
+      expect(purgedIds).toHaveLength(2)
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(1)
+    })
+
+    it('should purge pin rows for purged assistants only', async () => {
+      await seedAssistantRow([
+        { id: 'ast-expired', name: 'expired', deletedAt: 100 },
+        { id: 'ast-active', name: 'active' }
+      ])
+      await dbh.db.insert(pinTable).values([
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          entityType: 'assistant',
+          entityId: 'ast-expired',
+          orderKey: 'a0',
+          createdAt: 1_000,
+          updatedAt: 1_000
+        },
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          entityType: 'assistant',
+          entityId: 'ast-active',
+          orderKey: 'a1',
+          createdAt: 1_000,
+          updatedAt: 1_000
+        }
+      ])
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, Date.now(), 500)
+
+      expect(purgedIds).toEqual(['ast-expired'])
+      const pinRows = await dbh.db.select().from(pinTable)
+      expect(pinRows.map((row) => row.entityId)).toEqual(['ast-active'])
+    })
+
+    it('should be a no-op when nothing is expired', async () => {
+      await seedAssistantRow({ id: 'ast-active', name: 'active' })
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, Date.now(), 500)
+
+      expect(purgedIds).toEqual([])
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(1)
     })
   })
 
@@ -1118,7 +1931,7 @@ describe('AssistantDataService', () => {
       await seedMcpServer()
       await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
 
-      await dbh.client.execute({ sql: 'DELETE FROM assistant WHERE id = ?', args: ['ast-1'] })
+      dbh.sqlite.prepare('DELETE FROM assistant WHERE id = ?').run('ast-1')
 
       const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(0)
@@ -1129,7 +1942,7 @@ describe('AssistantDataService', () => {
       await seedMcpServer()
       await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
 
-      await dbh.client.execute({ sql: 'DELETE FROM mcp_server WHERE id = ?', args: ['srv-1'] })
+      dbh.sqlite.prepare('DELETE FROM mcp_server WHERE id = ?').run('srv-1')
 
       const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(0)
@@ -1172,7 +1985,7 @@ describe('AssistantDataService', () => {
         }
       ])
 
-      const result = await assistantDataService.search({ q: 'Needle', limit: 5 })
+      const result = assistantDataService.search({ q: 'Needle', limit: 5 })
 
       expect(result).toEqual([
         {
@@ -1218,7 +2031,7 @@ describe('AssistantDataService', () => {
         }
       ])
 
-      const result = await assistantDataService.search({ q: '   ', limit: 5 })
+      const result = assistantDataService.search({ q: '   ', limit: 5 })
 
       expect(result.map((item) => item.id)).toEqual(['ast-blank-new', 'ast-blank-old'])
     })

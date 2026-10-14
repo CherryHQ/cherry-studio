@@ -3,9 +3,10 @@
  * Each migrator handles migration of a specific business domain
  */
 
-import type { ExecuteResult, I18nMessage, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { getTableName, sql } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
+
+import type { ExecuteResult, I18nMessage, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 
 import type { MigrationContext } from '../core/MigrationContext'
 
@@ -73,13 +74,13 @@ export abstract class BaseMigrator {
    *
    * @throws if any owned table has an unsatisfied foreign key.
    */
-  protected async assertOwnedForeignKeys(db: MigrationContext['db'], tables: SQLiteTable[]): Promise<void> {
+  protected assertOwnedForeignKeys(db: MigrationContext['db'], tables: SQLiteTable[]): void {
     const violations: ForeignKeyViolation[] = []
     for (const table of tables) {
       // Table names come from drizzle schema objects (compile-time constants), not
       // user input, so the interpolation is safe. foreign_key_check takes no bound params.
       const tableName = getTableName(table)
-      const rows = await db.all<ForeignKeyViolation>(sql.raw(`PRAGMA foreign_key_check("${tableName}")`))
+      const rows = db.all<ForeignKeyViolation>(sql.raw(`PRAGMA foreign_key_check("${tableName}")`))
       violations.push(...rows)
     }
 

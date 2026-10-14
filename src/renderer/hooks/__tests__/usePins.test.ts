@@ -1,7 +1,9 @@
-import type { Pin } from '@shared/data/types/pin'
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Pin } from '@shared/data/types/pin'
 
 import { usePins } from '../usePins'
 
@@ -34,10 +36,10 @@ const MODEL_PIN_B: Pin = {
 
 function wirePins(pins: Pin[], options: { isLoading?: boolean; isRefreshing?: boolean; error?: Error } = {}) {
   const refetch = vi.fn()
-  mockUseQuery.mockImplementation((path: string) => {
+  mockUseQuery.mockImplementation((path: string, queryOptions?: { enabled?: boolean }) => {
     if (path === '/pins') {
       return {
-        data: pins,
+        data: queryOptions?.enabled === false ? undefined : pins,
         isLoading: options.isLoading ?? false,
         isRefreshing: options.isRefreshing ?? false,
         error: options.error,
@@ -60,8 +62,8 @@ function wirePins(pins: Pin[], options: { isLoading?: boolean; isRefreshing?: bo
 }
 
 function wireMutations(overrides?: {
-  postTrigger?: ReturnType<typeof vi.fn>
-  deleteTrigger?: ReturnType<typeof vi.fn>
+  postTrigger?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  deleteTrigger?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   postError?: Error
   deleteError?: Error
   isCreating?: boolean
@@ -96,6 +98,7 @@ function wireMutations(overrides?: {
 describe('usePins', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
+    MockDataApiUtils.resetMocks()
   })
 
   it('passes the configured entityType through to the /pins query', () => {
@@ -104,7 +107,47 @@ describe('usePins', () => {
 
     renderHook(() => usePins('model'))
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/pins', { query: { entityType: 'model' } })
+    expect(mockUseQuery).toHaveBeenCalledWith('/pins', { enabled: true, query: { entityType: 'model' } })
+  })
+
+  it('refetches mounted pins when another window changes pin data', () => {
+    const refetch = wirePins([MODEL_PIN_A])
+    wireMutations()
+    renderHook(() => usePins('model'))
+
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/pins', kind: 'membership' }])
+    })
+
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables the /pins query, subscription, and toggle when enabled is false', async () => {
+    const consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+    wirePins([MODEL_PIN_A])
+    const { postTrigger, deleteTrigger } = wireMutations()
+
+    const { result } = renderHook(() => usePins('model', { enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/pins', { enabled: false, query: { entityType: 'model' } })
+    expect(MockDataApiUtils.getCurrentState().dataChangeListeners.has('/pins')).toBe(false)
+    expect(result.current.pinnedIds).toEqual([])
+
+    await act(async () => {
+      await result.current.togglePin('openai::gpt-4')
+    })
+
+    expect(postTrigger).not.toHaveBeenCalled()
+    expect(deleteTrigger).not.toHaveBeenCalled()
+    expect(consoleDebugSpy).toHaveBeenCalledWith(
+      'togglePin gated',
+      expect.objectContaining({
+        enabled: false,
+        entityType: 'model',
+        entityId: 'openai::gpt-4'
+      })
+    )
+    consoleDebugSpy.mockRestore()
   })
 
   it('narrows returned pins to the requested entityType and preserves API order', () => {

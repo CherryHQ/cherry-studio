@@ -1,15 +1,38 @@
-import { Button, Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
-import { useProvider } from '@renderer/hooks/useProvider'
-import { cn } from '@renderer/utils'
-import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
-import { isAnthropicSupportedProvider, isAzureOpenAIProvider, isOpenAICompatibleProvider } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderActions from '../primitives/ProviderActions'
+import {
+  InputNumber,
+  PageSidePanelItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
+import { useProvider } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
+import {
+  ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
+  ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD,
+  ANTHROPIC_CACHE_DEFAULT_TTL
+} from '@shared/ai/anthropicCache'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import {
+  ANTHROPIC_CACHE_TTL_OPTIONS,
+  type AnthropicCacheTtl,
+  type EndpointDialect,
+  type Provider
+} from '@shared/data/types/provider'
+import { isAnthropicSupportedProvider, resolveEndpointDialect } from '@shared/utils/provider'
+
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
+import { getProviderApiOptionsVisibility } from '../utils/providerApiOptions'
 
 interface ProviderApiOptionsDrawerProps {
   providerId: string
@@ -17,23 +40,26 @@ interface ProviderApiOptionsDrawerProps {
   onClose: () => void
 }
 
-type ApiFeatureKey = keyof RuntimeApiFeatures
+type DialectKey = keyof EndpointDialect
 
 interface ApiOption {
-  key: ApiFeatureKey
+  key: DialectKey
   label: string
   help: string
 }
 
 const CACHE_TOKEN_THRESHOLD_MAX = 100000
 const CACHE_LAST_N_MAX = 10
+const CACHE_TTL_LABELS = {
+  '5m': 'settings.provider.api.options.anthropic_cache.cache_ttl_5m',
+  '1h': 'settings.provider.api.options.anthropic_cache.cache_ttl_1h'
+} as const satisfies Record<AnthropicCacheTtl, string>
 
-function clampInteger(value: string, min: number, max: number): number {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) {
+function clampInteger(value: number | null, min: number, max: number): number {
+  if (value === null) {
     return min
   }
-  return Math.min(max, Math.max(min, Math.trunc(parsed)))
+  return Math.min(max, Math.max(min, Math.trunc(value)))
 }
 
 function apiOptionId(providerId: string, key: string): string {
@@ -48,7 +74,7 @@ function OptionTitle({ id, label, help }: { id: string; label: string; help: str
       </label>
       <Tooltip content={help}>
         <span
-          className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground/55"
+          className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-tertiary"
           aria-label={help}>
           <Info className="size-3" aria-hidden />
         </span>
@@ -57,27 +83,34 @@ function OptionTitle({ id, label, help }: { id: string; label: string; help: str
   )
 }
 
-function isOpenAIOptionsProvider(provider: Provider): boolean {
-  return isOpenAICompatibleProvider(provider) || isAzureOpenAIProvider(provider)
-}
-
 export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: ProviderApiOptionsDrawerProps) {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(providerId)
 
+  const endpointType = provider?.defaultChatEndpoint ?? undefined
+  const dialect = provider
+    ? resolveEndpointDialect(provider, endpointType)
+    : { streamOptions: true, developerRole: false, reasoningSummary: false }
+
   const cacheControl = provider?.settings?.cacheControl
-  const cacheTokenThreshold = cacheControl?.tokenThreshold ?? 0
-  const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? 0
-  const [tokenThresholdDraft, setTokenThresholdDraft] = useState(String(cacheTokenThreshold))
-  const [cacheLastNDraft, setCacheLastNDraft] = useState(String(cacheLastNMessages))
+  const cacheTokenThreshold =
+    cacheControl?.enabled === false ? 0 : (cacheControl?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD)
+  const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
+  const cacheTtl = cacheControl?.ttl ?? ANTHROPIC_CACHE_DEFAULT_TTL
+  // DO NOT DROP. The server merges `providerSettings` only at its top level, so a
+  // commit to either field replaces the whole nested `cacheControl` and has to carry
+  // the sibling's value. Reading that sibling from `provider` loses a just-saved one:
+  // the query is a round trip behind. See #19247.
+  const [tokenThresholdDraft, setTokenThresholdDraft] = useState(cacheTokenThreshold)
+  const [cacheLastNDraft, setCacheLastNDraft] = useState(cacheLastNMessages)
   const effectiveCacheTokenThreshold = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
 
   useEffect(() => {
     if (!open) {
       return
     }
-    setTokenThresholdDraft(String(cacheTokenThreshold))
-    setCacheLastNDraft(String(cacheLastNMessages))
+    setTokenThresholdDraft(cacheTokenThreshold)
+    setCacheLastNDraft(cacheLastNMessages)
   }, [cacheLastNMessages, cacheTokenThreshold, open])
 
   const openAIOptions = useMemo<ApiOption[]>(
@@ -93,14 +126,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
         help: t('settings.provider.api.options.stream_options.help')
       },
       {
-        key: 'serviceTier',
-        label: t('settings.provider.api.options.service_tier.label'),
-        help: t('settings.provider.api.options.service_tier.help')
-      },
-      {
-        key: 'verbosity',
-        label: t('settings.provider.api.options.verbosity.label'),
-        help: t('settings.provider.api.options.verbosity.help')
+        key: 'reasoningSummary',
+        label: t('settings.provider.api.options.reasoning_summary.label'),
+        help: t('settings.provider.api.options.reasoning_summary.help')
       }
     ],
     [t]
@@ -111,38 +139,45 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       return []
     }
 
-    const items: ApiOption[] = [
-      {
-        key: 'arrayContent',
-        label: t('settings.provider.api.options.array_content.label'),
-        help: t('settings.provider.api.options.array_content.help')
-      }
-    ]
-
-    if (isOpenAIOptionsProvider(provider)) {
-      items.push(...openAIOptions)
+    const visibility = getProviderApiOptionsVisibility(provider)
+    if (!visibility.showDialectSettings) {
+      return []
     }
 
-    return items
-  }, [openAIOptions, provider, t])
+    if (!visibility.isOpenAIProvider || endpointType === undefined) {
+      return []
+    }
+
+    if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
+      return openAIOptions.filter(({ key }) => key !== 'reasoningSummary')
+    }
+    if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+      return openAIOptions.filter(({ key }) => key !== 'streamOptions')
+    }
+    return openAIOptions.filter(({ key }) => key === 'developerRole')
+  }, [endpointType, openAIOptions, provider])
 
   const handleSaveError = useCallback(() => {
-    window.toast.error(t('settings.provider.save_failed'))
+    toast.error(t('settings.provider.save_failed'))
   }, [t])
 
-  const updateApiFeature = useCallback(
-    (key: ApiFeatureKey, checked: boolean) => {
-      if (!provider) {
+  const updateDialect = useCallback(
+    (key: DialectKey, checked: boolean) => {
+      if (!provider || !endpointType) {
         return
       }
+      const endpointConfig = provider.endpointConfigs?.[endpointType] ?? {}
       updateProvider({
-        apiFeatures: {
-          ...provider.apiFeatures,
-          [key]: checked
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          [endpointType]: {
+            ...endpointConfig,
+            dialect: { ...endpointConfig.dialect, [key]: checked }
+          }
         }
       }).catch(handleSaveError)
     },
-    [handleSaveError, provider, updateProvider]
+    [endpointType, handleSaveError, provider, updateProvider]
   )
 
   const updateCacheSettings = useCallback(
@@ -152,9 +187,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       }
 
       const next = {
-        tokenThreshold: 0,
+        tokenThreshold: ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD,
         cacheSystemMessage: true,
-        cacheLastNMessages: 0,
+        cacheLastNMessages: ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
         ...provider.settings.cacheControl,
         ...updates
       }
@@ -172,31 +207,29 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     [handleSaveError, provider, updateProvider]
   )
 
-  const commitTokenThreshold = useCallback(() => {
-    const next = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
-    setTokenThresholdDraft(String(next))
-    updateCacheSettings({
-      enabled: next > 0,
-      tokenThreshold: next
-    })
-  }, [tokenThresholdDraft, updateCacheSettings])
+  const commitTokenThreshold = useCallback(
+    (value: number | null) => {
+      const next = clampInteger(value, 0, CACHE_TOKEN_THRESHOLD_MAX)
+      setTokenThresholdDraft(next)
+      updateCacheSettings({
+        enabled: next > 0,
+        tokenThreshold: next
+      })
+    },
+    [updateCacheSettings]
+  )
 
-  const commitCacheLastNMessages = useCallback(() => {
-    const next = clampInteger(cacheLastNDraft, 0, CACHE_LAST_N_MAX)
-    setCacheLastNDraft(String(next))
-    updateCacheSettings({
-      enabled: effectiveCacheTokenThreshold > 0,
-      tokenThreshold: effectiveCacheTokenThreshold,
-      cacheLastNMessages: next
-    })
-  }, [cacheLastNDraft, effectiveCacheTokenThreshold, updateCacheSettings])
-
-  const footer = (
-    <ProviderActions className={drawerClasses.footer}>
-      <Button type="button" variant="outline" onClick={onClose}>
-        {t('common.close')}
-      </Button>
-    </ProviderActions>
+  const commitCacheLastNMessages = useCallback(
+    (value: number | null) => {
+      const next = clampInteger(value, 0, CACHE_LAST_N_MAX)
+      setCacheLastNDraft(next)
+      updateCacheSettings({
+        enabled: effectiveCacheTokenThreshold > 0,
+        tokenThreshold: effectiveCacheTokenThreshold,
+        cacheLastNMessages: next
+      })
+    },
+    [effectiveCacheTokenThreshold, updateCacheSettings]
   )
 
   if (!provider) {
@@ -212,31 +245,34 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       open={open}
       onClose={onClose}
       title={t('settings.provider.api.options.label')}
-      footer={footer}>
-      <div className="flex min-w-0 flex-col gap-5">
-        <div className="flex flex-col gap-5">
-          {options.map((item) => {
-            const id = apiOptionId(providerId, item.key)
-            return (
-              <PageSidePanelItem
-                key={item.key}
-                title={<OptionTitle id={id} label={item.label} help={item.help} />}
-                action={
-                  <Switch
-                    id={id}
-                    checked={provider.apiFeatures[item.key]}
-                    onCheckedChange={(checked) => updateApiFeature(item.key, checked)}
-                  />
-                }
-              />
-            )
-          })}
-        </div>
+      headerClassName="px-6 pt-4 pb-2"
+      bodyClassName="space-y-0 px-6 pt-1 pb-6">
+      <div className="flex min-w-0 flex-col gap-4">
+        {options.length > 0 ? (
+          <div className="flex flex-col gap-4">
+            {options.map((item) => {
+              const id = apiOptionId(providerId, item.key)
+              return (
+                <PageSidePanelItem
+                  key={item.key}
+                  title={<OptionTitle id={id} label={item.label} help={item.help} />}
+                  action={
+                    <Switch
+                      id={id}
+                      checked={dialect[item.key]}
+                      onCheckedChange={(checked) => updateDialect(item.key, checked)}
+                    />
+                  }
+                />
+              )
+            })}
+          </div>
+        ) : null}
 
         {isSupportAnthropicPromptCache ? (
           <>
-            <div className={drawerClasses.divider} />
-            <div className="flex flex-col gap-5">
+            {options.length > 0 ? <div className={drawerClasses.divider} /> : null}
+            <div className="flex flex-col gap-4">
               <PageSidePanelItem
                 title={
                   <OptionTitle
@@ -246,26 +282,75 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                   />
                 }
                 action={
-                  <Input
+                  <InputNumber
                     id={apiOptionId(providerId, 'cache-token-threshold')}
-                    type="number"
                     min={0}
                     max={CACHE_TOKEN_THRESHOLD_MAX}
+                    step={1}
                     value={tokenThresholdDraft}
-                    onChange={(event) => setTokenThresholdDraft(event.target.value)}
                     onBlur={commitTokenThreshold}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.currentTarget.blur()
-                      }
-                    }}
-                    className={cn(drawerClasses.input, 'h-9 w-28 shrink-0 text-right')}
+                    className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
                   />
                 }
               />
 
               {showCacheDetailOptions ? (
                 <>
+                  <PageSidePanelItem
+                    title={
+                      <OptionTitle
+                        id={apiOptionId(providerId, 'cache-ttl')}
+                        label={t('settings.provider.api.options.anthropic_cache.cache_ttl')}
+                        help={t('settings.provider.api.options.anthropic_cache.cache_ttl_help')}
+                      />
+                    }
+                    action={
+                      <Select
+                        value={cacheTtl}
+                        onValueChange={(ttl) =>
+                          updateCacheSettings({
+                            enabled: effectiveCacheTokenThreshold > 0,
+                            tokenThreshold: effectiveCacheTokenThreshold,
+                            ttl: ttl as AnthropicCacheTtl
+                          })
+                        }>
+                        <SelectTrigger
+                          id={apiOptionId(providerId, 'cache-ttl')}
+                          className={cn(drawerClasses.selectTrigger, 'h-9 w-32 shrink-0 py-1')}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent align="end" className={drawerClasses.selectContent}>
+                          {ANTHROPIC_CACHE_TTL_OPTIONS.map((ttl) => (
+                            <SelectItem key={ttl} value={ttl}>
+                              {t(CACHE_TTL_LABELS[ttl])}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+
+                  <PageSidePanelItem
+                    title={
+                      <OptionTitle
+                        id={apiOptionId(providerId, 'cache-last-n')}
+                        label={t('settings.provider.api.options.anthropic_cache.cache_last_n')}
+                        help={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')}
+                      />
+                    }
+                    action={
+                      <InputNumber
+                        id={apiOptionId(providerId, 'cache-last-n')}
+                        min={0}
+                        max={CACHE_LAST_N_MAX}
+                        step={1}
+                        value={cacheLastNDraft}
+                        onBlur={commitCacheLastNMessages}
+                        className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
+                      />
+                    }
+                  />
+
                   <PageSidePanelItem
                     title={
                       <OptionTitle
@@ -285,33 +370,6 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                             cacheSystemMessage: checked
                           })
                         }
-                      />
-                    }
-                  />
-
-                  <PageSidePanelItem
-                    title={
-                      <OptionTitle
-                        id={apiOptionId(providerId, 'cache-last-n')}
-                        label={t('settings.provider.api.options.anthropic_cache.cache_last_n')}
-                        help={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')}
-                      />
-                    }
-                    action={
-                      <Input
-                        id={apiOptionId(providerId, 'cache-last-n')}
-                        type="number"
-                        min={0}
-                        max={CACHE_LAST_N_MAX}
-                        value={cacheLastNDraft}
-                        onChange={(event) => setCacheLastNDraft(event.target.value)}
-                        onBlur={commitCacheLastNMessages}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.currentTarget.blur()
-                          }
-                        }}
-                        className={cn(drawerClasses.input, 'h-9 w-20 shrink-0 text-right')}
                       />
                     }
                   />

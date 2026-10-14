@@ -1,4 +1,7 @@
-import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
+import { FolderOpen, Trash2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   InputGroup,
@@ -9,11 +12,15 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
 
 const MarkdownExportSettings: FC = () => {
   const { t } = useTranslation()
@@ -76,10 +83,10 @@ const MarkdownExportSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.markdown_export.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-markdown-export-path" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
-        <RowFlex className="w-[315px] items-center gap-1.25">
-          <InputGroup className="h-8 w-[250px]">
+        <RowFlex className="w-78.75 items-center gap-1.25">
+          <InputGroup className="h-8 w-62.5">
             <InputGroupInput
               type="text"
               value={markdownExportPath || ''}
@@ -92,13 +99,13 @@ const MarkdownExportSettings: FC = () => {
                   onClick={handleClearPath}
                   size="icon-sm"
                   className="text-destructive hover:text-destructive">
-                  <DeleteOutlined />
+                  <Trash2 size={14} />
                 </InputGroupButton>
               </InputGroupAddon>
             )}
           </InputGroup>
           <Button onClick={handleSelectFolder} variant="outline" className="h-8">
-            <FolderOpenOutlined />
+            <FolderOpen size={14} />
             {t('settings.data.markdown_export.select')}
           </Button>
         </RowFlex>
@@ -115,7 +122,7 @@ const MarkdownExportSettings: FC = () => {
         <SettingHelpText>{t('settings.data.markdown_export.force_dollar_math.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-markdown-export-topic-naming" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.message_title.use_topic_naming.title')}</SettingRowTitle>
         <Switch checked={useTopicNamingForMessageTitle} onCheckedChange={handleToggleTopicNaming} />
       </SettingRow>
@@ -123,7 +130,7 @@ const MarkdownExportSettings: FC = () => {
         <SettingHelpText>{t('settings.data.message_title.use_topic_naming.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-markdown-export-model-name" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.markdown_export.show_model_name.title')}</SettingRowTitle>
         <Switch checked={showModelNameInExport} onCheckedChange={handleToggleShowModelName} />
       </SettingRow>
@@ -131,7 +138,7 @@ const MarkdownExportSettings: FC = () => {
         <SettingHelpText>{t('settings.data.markdown_export.show_model_name.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-markdown-export-model-provider" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.markdown_export.show_model_provider.title')}</SettingRowTitle>
         <Switch checked={showModelProviderInMarkdown} onCheckedChange={handleToggleShowModelProvider} />
       </SettingRow>
@@ -147,7 +154,7 @@ const MarkdownExportSettings: FC = () => {
         <SettingHelpText>{t('settings.data.markdown_export.exclude_citations.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-markdown-export-citations" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.markdown_export.standardize_citations.title')}</SettingRowTitle>
         <Switch checked={standardizeCitationsInExport} onCheckedChange={handleToggleStandardizeCitations} />
       </SettingRow>

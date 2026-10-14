@@ -1,11 +1,13 @@
-import { loggerService } from '@logger'
-import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
-import i18n from '@renderer/i18n'
-import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
-import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { debounce } from 'lodash'
+import { debounce } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+
+import { loggerService } from '@logger'
+import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
+import { formatApiKeys, joinApiKeyString, splitApiKeyString } from '@renderer/utils/api'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 import type { ApiKeysData } from './types'
 
@@ -23,15 +25,10 @@ export interface ApiKeyState extends ApiKeyValue {
 }
 
 function getEnabledApiKeyString(apiKeysData: ApiKeysData | undefined) {
-  return (
-    apiKeysData?.keys
-      ?.filter((item) => item.isEnabled)
-      .map((item) => item.key)
-      .join(',') ?? ''
-  )
+  return joinApiKeyString(apiKeysData?.keys?.filter((item) => item.isEnabled).map((item) => item.key) ?? [])
 }
 
-function parseApiKeys(value: string) {
+export function parseProviderApiKeys(value: string) {
   const seenKeys = new Set<string>()
 
   return splitApiKeyString(formatApiKeys(value)).filter((key) => {
@@ -45,12 +42,11 @@ function parseApiKeys(value: string) {
 }
 
 function toEnabledApiKeyString(value: string) {
-  return parseApiKeys(value).join(',')
+  return joinApiKeyString(parseProviderApiKeys(value))
 }
 
-function toApiKeyEntries(value: string, apiKeysData: ApiKeysData | undefined): ApiKeyEntry[] {
-  const nextEnabledKeys = parseApiKeys(value)
-  const existingKeys = apiKeysData?.keys ?? []
+export function mergeProviderApiKeyEntries(value: string, existingKeys: readonly ApiKeyEntry[]): ApiKeyEntry[] {
+  const nextEnabledKeys = parseProviderApiKeys(value)
   const existingEnabledKeys = existingKeys.filter((item) => item.isEnabled)
   const usedEntryIds = new Set<string>()
   const nextEntries: ApiKeyEntry[] = []
@@ -134,8 +130,11 @@ export function useProviderApiKey(providerId: string) {
       if (!provider) {
         return
       }
+      if (parseProviderApiKeys(value).some((key) => [...key].some((character) => character.charCodeAt(0) > 0xff))) {
+        throw new Error('API key contains characters unsupported by HTTP headers')
+      }
 
-      await updateApiKeys(toApiKeyEntries(value, apiKeysData))
+      await updateApiKeys(mergeProviderApiKeyEntries(value, apiKeysData?.keys ?? []))
     },
     [apiKeysData, provider, updateApiKeys]
   )
@@ -153,7 +152,7 @@ export function useProviderApiKey(providerId: string) {
       debounce((nextValue: string) => {
         void saveApiKeyRef.current(nextValue).catch((error) => {
           logger.error('Failed to save API keys', error as Error)
-          window.toast.error(i18n.t('settings.provider.api_key.save_failed'))
+          toast.error(i18n.t('settings.provider.api_key.save_failed'))
           setValue((current) => ({ ...current, hasPendingSync: true }))
         })
       }, 150),
@@ -211,7 +210,14 @@ export function useProviderApiKey(providerId: string) {
       return
     }
 
-    await saveApiKeyRef.current(normalizedInputApiKey)
+    try {
+      await saveApiKeyRef.current(normalizedInputApiKey)
+    } catch (error) {
+      logger.error('Failed to save API keys', error as Error)
+      toast.error(i18n.t('settings.provider.api_key.save_failed'))
+      setValue((current) => ({ ...current, hasPendingSync: true }))
+      throw error
+    }
   }, [saveLater])
 
   return useMemo(

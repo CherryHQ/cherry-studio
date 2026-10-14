@@ -22,6 +22,8 @@ export type WebSearchResult = {
 export type WebSearchResponse = {
   query?: string
   providerId: WebSearchProviderId
+  /** All providers that contributed results when per-input fallback produced a mixed response. */
+  providerIds?: WebSearchProviderId[]
   capability: WebSearchCapability
   inputs: string[]
   results: WebSearchResult[]
@@ -35,18 +37,6 @@ export type WebSearchSearchKeywordsRequest = {
 export type WebSearchFetchUrlsRequest = {
   providerId?: WebSearchProviderId
   urls: string[]
-}
-
-export type WebSearchCheckProviderRequest = {
-  /** Full provider override (including a tentative apiKey/apiHost) — bypasses preferences. */
-  provider: WebSearchProvider
-  /** Capability to exercise. Defaults to 'searchKeywords'. */
-  capability?: WebSearchCapability
-}
-
-export type WebSearchCheckProviderResponse = {
-  valid: boolean
-  error?: string
 }
 
 export type WebSearchPhase = 'default' | 'fetch_complete' | 'partial_failure' | 'cutoff'

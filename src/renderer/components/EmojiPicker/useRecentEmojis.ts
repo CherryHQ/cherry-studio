@@ -1,5 +1,6 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import { useCallback } from 'react'
+
+import { usePersistCache } from '@data/hooks/useCache'
 
 const MAX_RECENT_EMOJIS = 32
 
@@ -8,10 +9,9 @@ export const useRecentEmojis = () => {
 
   const pushRecent = useCallback(
     (emoji: string) => {
-      const next = [emoji, ...recent.filter((item) => item !== emoji)].slice(0, MAX_RECENT_EMOJIS)
-      setRecent(next)
+      setRecent((prev) => [emoji, ...prev.filter((item) => item !== emoji)].slice(0, MAX_RECENT_EMOJIS))
     },
-    [recent, setRecent]
+    [setRecent]
   )
 
   const clearRecent = useCallback(() => {

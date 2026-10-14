@@ -17,5 +17,5 @@ export function normalizeModelGroupName(group: string | null | undefined, fallba
 }
 
 export function getModelGroupLabel(groupName: string, t: TFunction): string {
-  return groupName === UNGROUPED_MODEL_GROUP_KEY ? t('assistants.tags.untagged') : groupName
+  return groupName === UNGROUPED_MODEL_GROUP_KEY ? t('models.group.ungrouped') : groupName
 }

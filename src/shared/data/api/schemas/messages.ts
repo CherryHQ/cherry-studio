@@ -5,16 +5,16 @@
  * Includes endpoints for tree visualization and conversation view.
  */
 
-import type { CursorPaginationParams } from '@shared/data/api/apiTypes'
+import * as z from 'zod'
+
+import type { CursorPaginationParams } from '@shared/data/api/types'
 import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
 import {
+  ContentMessageRoleSchema,
   MessageDataSchema,
-  MessageRoleSchema,
-  MessageStatsSchema,
-  MessageStatusSchema,
-  ModelSnapshotSchema
+  MessageSnapshotSchema,
+  MessageStatusSchema
 } from '@shared/data/types/message'
-import * as z from 'zod'
 
 // ============================================================================
 // DTOs
@@ -32,19 +32,17 @@ export const CreateMessageSchema = z.strictObject({
   /**
    * Parent message ID for positioning this message in the conversation tree.
    *
-   * Behavior:
-   * - `undefined` (omitted): Auto-resolve parent based on topic state:
-   *   - If topic has no messages: create as root (parentId = null)
-   *   - If topic has messages and activeNodeId is set: attach to activeNodeId
-   *   - If topic has messages but no activeNodeId: throw INVALID_OPERATION error
-   * - `null` (explicit): Create as root message. Throws INVALID_OPERATION if
-   *   topic already has a root message (only one root allowed per topic).
+   * Behavior (every topic owns a content-less virtual root; see message-tree.md):
+   * - `undefined` (omitted): attach to `activeNodeId`, or to the virtual root on an
+   *   empty topic (a first-turn message).
+   * - `null` (explicit): first-turn message — resolved to the topic's virtual root, so
+   *   first turns and their resends are ordinary siblings under it.
    * - `string` (message ID): Attach to specified parent. Throws NOT_FOUND if
-   *   parent doesn't exist, or INVALID_OPERATION if parent belongs to different topic.
+   *   parent doesn't exist, or INVALID_OPERATION if parent belongs to a different topic.
    */
   parentId: z.string().nullable().optional(),
-  /** Message role */
-  role: MessageRoleSchema,
+  /** Message role — content roles only; the virtual root is created internally, not via this DTO */
+  role: ContentMessageRoleSchema,
   /** Message content */
   data: MessageDataSchema,
   /** Message status */
@@ -54,15 +52,18 @@ export const CreateMessageSchema = z.strictObject({
   /** Model identifier */
   modelId: z.string().optional(),
   /** Model snapshot captured at message creation time */
-  modelSnapshot: ModelSnapshotSchema.optional(),
-  /** Trace ID */
-  traceId: z.string().optional(),
-  /** Statistics */
-  stats: MessageStatsSchema.optional(),
+  messageSnapshot: MessageSnapshotSchema.optional(),
   /** Set this message as the active node in the topic (default: true) */
   setAsActive: z.boolean().optional()
 })
 export type CreateMessageDto = z.infer<typeof CreateMessageSchema>
+
+/** DTO for reserving a new empty branch below an assistant message. */
+export const ReserveBranchSchema = z.strictObject({
+  /** Whether the new reserved branch becomes the topic's selected node. */
+  activate: z.boolean().optional()
+})
+export type ReserveBranchDto = z.infer<typeof ReserveBranchSchema>
 
 /**
  * DTO for updating an existing message
@@ -75,11 +76,7 @@ export const UpdateMessageSchema = z.strictObject({
   /** Change siblings group */
   siblingsGroupId: z.number().optional(),
   /** Update status */
-  status: MessageStatusSchema.optional(),
-  /** Update trace ID */
-  traceId: z.string().nullable().optional(),
-  /** Update statistics */
-  stats: MessageStatsSchema.nullable().optional()
+  status: MessageStatusSchema.optional()
 })
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
 
@@ -99,6 +96,16 @@ export interface DeleteMessageResponse {
   reparentedIds?: string[]
   /** New activeNodeId for the topic (only if activeNodeId was affected by deletion) */
   newActiveNodeId?: string | null
+}
+
+/**
+ * Response for "clear all messages" — deletes every content message of a topic
+ * (the virtual root's whole subtree) in one transaction, keeping the content-less
+ * virtual root and clearing activeNodeId.
+ */
+export interface ClearTopicMessagesResponse {
+  /** IDs of the deleted (live) messages */
+  deletedIds: string[]
 }
 
 // ============================================================================
@@ -144,7 +151,9 @@ export type BranchMessagesQueryParams = z.infer<typeof BranchMessagesQuerySchema
  */
 export const DeleteMessageQuerySchema = z.strictObject({
   cascade: z.boolean().optional(),
-  activeNodeStrategy: ActiveNodeStrategySchema.optional()
+  activeNodeStrategy: ActiveNodeStrategySchema.optional(),
+  /** Reject deletion unless the target is an awaiting-input user leaf. */
+  awaitingInputOnly: z.boolean().optional()
 })
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
@@ -167,9 +176,25 @@ export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
  * Organized by domain responsibility:
  * - /topics/:id/tree - Tree visualization
  * - /topics/:id/messages - Branch messages for conversation
+ * - /messages/:id/reply-group - Assistant reply group operations
  * - /messages/:id - Individual message operations
  */
 export type MessageSchemas = {
+  /**
+   * Delete the complete assistant reply group containing one representative.
+   *
+   * The replies are spliced out atomically: each reply's direct children are
+   * reparented to the shared user-message parent before the replies are deleted.
+   *
+   * @example DELETE /messages/reply_1/reply-group
+   */
+  '/messages/:id/reply-group': {
+    DELETE: {
+      params: { id: string }
+      response: DeleteMessageResponse
+    }
+  }
+
   /**
    * Tree query endpoint for visualization
    * @example GET /topics/abc123/tree?depth=1
@@ -200,6 +225,11 @@ export type MessageSchemas = {
       params: { topicId: string }
       body: CreateMessageDto
       response: Message
+    }
+    /** Clear all of the topic's messages, keeping the (content-less) virtual root */
+    DELETE: {
+      params: { topicId: string }
+      response: ClearTopicMessagesResponse
     }
   }
 
@@ -233,7 +263,7 @@ export type MessageSchemas = {
       params: { id: string }
       response: Message
     }
-    /** Update a message (content, move to new parent, etc.) */
+    /** Update a message (content, move to new parent, etc.). */
     PATCH: {
       params: { id: string }
       body: UpdateMessageDto
@@ -242,9 +272,14 @@ export type MessageSchemas = {
     /**
      * Delete a message
      * - cascade=true: deletes message and all descendants
-     * - cascade=false: reparents children to grandparent
-     * - activeNodeStrategy='parent' (default): sets activeNodeId to parent if affected
+     * - cascade=false: an active grouped reply transfers children to the next live sibling
+     *   (previous at the end); otherwise reparents children to the parent.
+     * - activeNodeStrategy='parent' (default): if the active node is deleted, descends from that
+     *   sibling — or from the parent — to the newest surviving leaf, so remaining replies stay on
+     *   the conversation path; null when only the virtual root is left.
+     *   Surviving descendants retain their active node; grouped context deletion clears their context anchors.
      * - activeNodeStrategy='clear': sets activeNodeId to null if affected
+     * - awaitingInputOnly=true: rejects unless the target is an awaiting-input user leaf
      */
     DELETE: {
       params: { id: string }
@@ -270,6 +305,18 @@ export type MessageSchemas = {
     POST: {
       params: { id: string }
       body: MessageData
+      response: Message
+    }
+  }
+
+  /**
+   * Branch collection below an assistant message. Every POST creates a distinct,
+   * persisted empty user leaf; multiple reservations below one anchor are valid.
+   */
+  '/messages/:id/branches': {
+    POST: {
+      params: { id: string }
+      body: ReserveBranchDto
       response: Message
     }
   }

@@ -1,14 +1,15 @@
 import type * as NodeZlib from 'node:zlib'
 import { gzipSync } from 'node:zlib'
 
-import { BaseService } from '@main/core/lifecycle'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { BaseService } from '@main/core/lifecycle'
+
 const mocks = vi.hoisted(() => ({
-  spanCacheSetTopicId: vi.fn(),
-  spanCacheSaveEntity: vi.fn(),
-  spanCacheAddSpanEvent: vi.fn(),
+  traceStorageSetTopicId: vi.fn(),
+  traceStorageSaveEntity: vi.fn(),
+  traceStorageAddSpanEvent: vi.fn(),
   gunzipSync: vi.fn()
 }))
 
@@ -23,10 +24,10 @@ vi.mock('node:zlib', async (importOriginal) => {
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    SpanCacheService: {
-      setTopicId: mocks.spanCacheSetTopicId,
-      saveEntity: mocks.spanCacheSaveEntity,
-      addSpanEvent: mocks.spanCacheAddSpanEvent
+    TraceStorageService: {
+      setTopicId: mocks.traceStorageSetTopicId,
+      saveEntity: mocks.traceStorageSaveEntity,
+      addSpanEvent: mocks.traceStorageAddSpanEvent
     }
   } as any)
 })
@@ -83,7 +84,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
     expect(env?.BETA_TRACING_ENDPOINT).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/)
     expect(env?.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).toBe(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`)
     expect(env?.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT).toBe(`${env?.BETA_TRACING_ENDPOINT}/v1/logs`)
-    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(traceContext.traceId, traceContext.topicId)
+    expect(mocks.traceStorageSetTopicId).toHaveBeenCalledWith(traceContext.traceId, traceContext.topicId)
 
     await service._doStop()
   })
@@ -139,17 +140,57 @@ describe('ClaudeCodeTraceBridgeService', () => {
       })
     })
 
-    expect(mocks.spanCacheSaveEntity).toHaveBeenCalledWith(
+    expect(mocks.traceStorageSaveEntity).toHaveBeenCalledWith(
       expect.objectContaining({
         id: '2'.repeat(16),
         parentId: traceContext.rootSpanId,
         topicId: traceContext.topicId
       })
     )
-    expect(mocks.spanCacheAddSpanEvent).toHaveBeenCalledWith(
+    expect(mocks.traceStorageAddSpanEvent).toHaveBeenCalledWith(
       traceContext.traceId,
       '2'.repeat(16),
       expect.objectContaining({ name: 'claude_code.log' })
+    )
+
+    await service._doStop()
+  })
+
+  it('uses the admitted turn after a primed connection refreshes its trace context', async () => {
+    const service = new ClaudeCodeTraceBridgeService()
+    await service._doInit()
+    const env = await service.prepareTrace({ ...traceContext, turnId: '' })
+
+    service.refreshTraceContext(traceContext)
+    await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        resourceSpans: [
+          {
+            scopeSpans: [
+              {
+                spans: [
+                  {
+                    traceId: traceContext.traceId,
+                    spanId: '7'.repeat(16),
+                    name: 'claude_code.interaction',
+                    startTimeUnixNano: '1700000000000000000',
+                    endTimeUnixNano: '1700000001000000000'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    })
+
+    expect(mocks.traceStorageSaveEntity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: '7'.repeat(16),
+        attributes: expect.objectContaining({ 'cs.agent_turn_id': traceContext.turnId })
+      })
     )
 
     await service._doStop()
@@ -167,7 +208,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
     })
 
     expect(response.status).toBe(415)
-    expect(mocks.spanCacheSaveEntity).not.toHaveBeenCalled()
+    expect(mocks.traceStorageSaveEntity).not.toHaveBeenCalled()
 
     await service._doStop()
   })
@@ -207,7 +248,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(mocks.spanCacheSaveEntity).toHaveBeenCalledWith(expect.objectContaining({ id: '6'.repeat(16) }))
+    expect(mocks.traceStorageSaveEntity).toHaveBeenCalledWith(expect.objectContaining({ id: '6'.repeat(16) }))
 
     await service._doStop()
   })
@@ -229,7 +270,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
     })
 
     expect(response.status).toBe(400)
-    expect(mocks.spanCacheSaveEntity).not.toHaveBeenCalled()
+    expect(mocks.traceStorageSaveEntity).not.toHaveBeenCalled()
     // Asserts the security property (bounded inflation), not just that an oversize body 400s —
     // fails if `maxOutputLength` is dropped (the pre-fix full-decompress-then-check also 400'd).
     expect(mocks.gunzipSync).toHaveBeenCalledWith(
@@ -250,7 +291,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
         traceId: '0'.repeat(32)
       })
     ).resolves.toBeUndefined()
-    expect(mocks.spanCacheSetTopicId).not.toHaveBeenCalled()
+    expect(mocks.traceStorageSetTopicId).not.toHaveBeenCalled()
     expect((service as any).server).toBeUndefined()
   })
 

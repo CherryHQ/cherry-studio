@@ -1,25 +1,38 @@
-import type { UniqueModelId } from '@shared/data/types/model'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 
-import type {
-  StreamChunkPayload,
-  StreamDonePayload,
-  StreamDoneResult,
-  StreamErrorPayload,
-  StreamErrorResult,
-  StreamListener,
-  StreamPausedResult
-} from '../types'
+import { application } from '@application'
+import { projectStreamChunkForRenderer } from '@main/utils/messageOutputProjection'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
+import type { EventPayload } from '@shared/ipc/types'
+import { IpcChannel } from '@shared/IpcChannel'
+
+import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const COALESCE_WINDOW_MS = 16
 const MAX_COALESCE_AGE_MS = 16
 const MAX_COALESCE_CHARS = 2048
 
+/** Id prefix for renderer (WebContents) listeners — full form `wc:${wc.id}:${topicId}`. */
+const RENDERER_LISTENER_ID_PREFIX = 'wc:'
+
+/**
+ * True if `listener` streams to a renderer window (as opposed to an internal persistence / trace /
+ * channel listener). Carried-forward filtering (e.g. a steer continuation re-attaching the prior
+ * turn's windows) keys off this — using the predicate instead of an inline `'wc:'` literal keeps it
+ * in lockstep with the id format, so a future id-format change can't silently stop windows
+ * re-attaching to a continuation.
+ */
+export function isRendererListener(listener: Pick<StreamListener, 'id'>): boolean {
+  return listener.id.startsWith(RENDERER_LISTENER_ID_PREFIX)
+}
+
 interface PendingDelta {
   type: 'text-delta' | 'reasoning-delta' | 'tool-input-delta'
   identifier: string
   sourceModelId: UniqueModelId | undefined
+  anchorMessageId: string | undefined
+  attemptId: number | undefined
   text: string
 }
 
@@ -32,6 +45,10 @@ type CoalescableChunk =
 export class WebContentsListener implements StreamListener {
   readonly id: string
 
+  get windowId(): string | undefined {
+    return this.isAlive() ? application.get('WindowManager').getWindowIdByWebContents(this.wc) : undefined
+  }
+
   private pending: PendingDelta | null = null
   private pendingStartedAt = 0
   private flushTimer: NodeJS.Timeout | null = null
@@ -40,13 +57,10 @@ export class WebContentsListener implements StreamListener {
     private readonly wc: Electron.WebContents,
     private readonly topicId: string
   ) {
-    this.id = `wc:${wc.id}:${topicId}`
-    // Clear the coalesce timer if the window dies between chunks — without
-    // this hook a quiet stream end leaks the timer.
-    this.wc.once('destroyed', () => this.discardPending())
+    this.id = `${RENDERER_LISTENER_ID_PREFIX}${wc.id}:${topicId}`
   }
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void {
     if (this.wc.isDestroyed()) {
       this.discardPending()
       return
@@ -54,12 +68,14 @@ export class WebContentsListener implements StreamListener {
 
     const coalescable = toCoalescable(chunk)
     if (coalescable) {
-      const next = normalizePending(coalescable, sourceModelId)
+      const next = normalizePending(coalescable, sourceModelId, anchorMessageId, attemptId)
       if (
         this.pending &&
         this.pending.type === next.type &&
         this.pending.identifier === next.identifier &&
-        this.pending.sourceModelId === next.sourceModelId
+        this.pending.sourceModelId === next.sourceModelId &&
+        this.pending.anchorMessageId === next.anchorMessageId &&
+        this.pending.attemptId === next.attemptId
       ) {
         this.pending.text += next.text
         if (
@@ -78,7 +94,7 @@ export class WebContentsListener implements StreamListener {
     }
 
     this.flushPending()
-    this.sendChunk(chunk, sourceModelId)
+    this.sendChunk(chunk, sourceModelId, anchorMessageId, attemptId)
   }
 
   onDone(result: StreamDoneResult): void {
@@ -87,12 +103,15 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    this.wc.send(IpcChannel.Ai_StreamDone, {
+    this.emit('ai.stream.done', {
       topicId: this.topicId,
       executionId: result.modelId,
+      ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
+      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
+      anchorMessageId: result.anchorMessageId,
       status: result.status,
       isTopicDone: result.isTopicDone
-    } satisfies StreamDonePayload)
+    })
   }
 
   onPaused(result: StreamPausedResult): void {
@@ -101,12 +120,15 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    this.wc.send(IpcChannel.Ai_StreamDone, {
+    this.emit('ai.stream.done', {
       topicId: this.topicId,
       executionId: result.modelId,
+      ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
+      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
+      anchorMessageId: result.anchorMessageId,
       status: result.status,
       isTopicDone: result.isTopicDone
-    } satisfies StreamDonePayload)
+    })
   }
 
   onError(result: StreamErrorResult): void {
@@ -116,12 +138,15 @@ export class WebContentsListener implements StreamListener {
     }
     this.flushPending()
     // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
-    this.wc.send(IpcChannel.Ai_StreamError, {
+    this.emit('ai.stream.error', {
       topicId: this.topicId,
       executionId: result.modelId,
+      ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
+      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
+      anchorMessageId: result.anchorMessageId,
       isTopicDone: result.isTopicDone,
       error: result.error
-    } satisfies StreamErrorPayload)
+    })
   }
 
   isAlive(): boolean {
@@ -138,7 +163,7 @@ export class WebContentsListener implements StreamListener {
     const p = this.pending
     if (!p) return
     this.pending = null
-    this.sendChunk(rebuildChunk(p), p.sourceModelId)
+    this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId, p.attemptId)
   }
 
   private discardPending(): void {
@@ -149,13 +174,30 @@ export class WebContentsListener implements StreamListener {
     this.pending = null
   }
 
-  private sendChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
+  private sendChunk(
+    chunk: UIMessageChunk,
+    sourceModelId?: UniqueModelId,
+    anchorMessageId?: string,
+    attemptId?: number
+  ): void {
     if (this.wc.isDestroyed()) return
-    this.wc.send(IpcChannel.Ai_StreamChunk, {
+    this.emit('ai.stream.chunk', {
       topicId: this.topicId,
       executionId: sourceModelId,
-      chunk
-    } satisfies StreamChunkPayload)
+      ...(attemptId !== undefined ? { attemptId } : {}),
+      anchorMessageId,
+      chunk: projectStreamChunkForRenderer(chunk, this.topicId, anchorMessageId)
+    })
+  }
+
+  /**
+   * Directed send of a typed AI stream event on the single IpcApi event channel — the
+   * class-B topic-stream transport: this per-(topic,window) listener `send`s straight to its
+   * own `WebContents` (preserving the coalescing/liveness above) instead of `broadcast`ing.
+   * Wire-identical to `IpcApiService.send`, but keyed by the held `WebContents`, not a WindowId.
+   */
+  private emit<E extends IpcEventName>(event: E, payload: EventPayload<E>): void {
+    this.wc.send(IpcChannel.IpcApi_Event, event, payload)
   }
 }
 
@@ -165,17 +207,24 @@ function toCoalescable(chunk: UIMessageChunk): CoalescableChunk | null {
     return chunk as CoalescableChunk
   }
   if (chunk.type === 'tool-input-delta') {
-    return chunk as CoalescableChunk
+    return chunk
   }
   return null
 }
 
-function normalizePending(chunk: CoalescableChunk, sourceModelId: UniqueModelId | undefined): PendingDelta {
+function normalizePending(
+  chunk: CoalescableChunk,
+  sourceModelId: UniqueModelId | undefined,
+  anchorMessageId: string | undefined,
+  attemptId: number | undefined
+): PendingDelta {
   if (chunk.type === 'tool-input-delta') {
     return {
       type: 'tool-input-delta',
       identifier: chunk.toolCallId,
       sourceModelId,
+      anchorMessageId,
+      attemptId,
       text: chunk.inputTextDelta
     }
   }
@@ -183,13 +232,15 @@ function normalizePending(chunk: CoalescableChunk, sourceModelId: UniqueModelId 
     type: chunk.type,
     identifier: chunk.id,
     sourceModelId,
+    anchorMessageId,
+    attemptId,
     text: chunk.delta
   }
 }
 
 function rebuildChunk(p: PendingDelta): UIMessageChunk {
   if (p.type === 'tool-input-delta') {
-    return { type: 'tool-input-delta', toolCallId: p.identifier, inputTextDelta: p.text } as UIMessageChunk
+    return { type: 'tool-input-delta', toolCallId: p.identifier, inputTextDelta: p.text }
   }
-  return { type: p.type, id: p.identifier, delta: p.text } as UIMessageChunk
+  return { type: p.type, id: p.identifier, delta: p.text }
 }

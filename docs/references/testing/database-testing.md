@@ -1,3 +1,11 @@
+---
+description: How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations
+sources:
+  - tests/helpers/db
+  - tests/__mocks__
+  - src/main/data/db
+---
+
 # Database Testing Guide
 
 This guide covers how to write tests that exercise the SQLite data layer in the
@@ -24,7 +32,7 @@ describe('MessageService', () => {
 
   it('persists a message', async () => {
     const msg = await messageService.create({ topicId: 't1', role: 'user', ... })
-    const [row] = await dbh.db
+    const [row] = dbh.db
       .select()
       .from(messageTable)
       .where(eq(messageTable.id, msg.id))
@@ -38,15 +46,14 @@ describe('MessageService', () => {
 On the first test in a file the harness:
 
 1. Creates a unique temporary directory under `os.tmpdir()`.
-2. Opens a LibSQL file-backed database at `file://<tmp>/test.db` using
-   `pathToFileURL` (safe on Windows too).
+2. Opens a better-sqlite3 file-backed database at `<tmp>/test.db` and hands the
+   raw connection out as `dbh.sqlite`.
 3. Runs the production migrations (`migrations/sqlite-drizzle/`) and the
-   project's `CUSTOM_SQL_STATEMENTS` (FTS5 virtual tables, triggers). The
-   resulting schema is byte-for-byte identical to what the real app sees
-   after `DbService.onInit`.
-4. Registers durable PRAGMAs (`foreign_keys = ON`, `synchronous = NORMAL`)
-   via the patched `@libsql/client` `setPragma()` so they survive the
-   transaction-induced connection recycle. See the "Gotchas" section.
+   project's `CUSTOM_SQL_STATEMENTS` (FTS5 virtual tables, triggers) through
+   the same `applyMigrations()` function used by `DbService.onInit`.
+4. Sets durable PRAGMAs (`foreign_keys = ON`, `synchronous = NORMAL`) once on
+   the single persistent connection. better-sqlite3 keeps one connection open
+   for the database's lifetime, so PRAGMAs set here persist — no replay needed.
 5. Swaps the globally-mocked `DbService` to hand out the real database
    via `MockMainDbServiceUtils.setDb()`. Any production code that calls
    `application.get('DbService').getDb()` now transparently hits the test DB.
@@ -75,8 +82,6 @@ resets the mocks.
 - Handler tests that only verify wiring/routing — these legitimately mock
   the downstream service because the assertion is about the call shape,
   not the DB state.
-- LibSQL client-level contract tests (`pragmaReplay.test.ts`) — they need
-  direct control over the underlying client.
 - Migrator tests under `src/main/data/migration/v2/migrators/__tests__/*` —
   their mock context has been deliberately modelled to verify the
   migrator's orchestration logic (phase ordering, idempotency, source
@@ -99,7 +104,9 @@ export interface TestDatabaseOptions {
   preset-aware flows).
 
 ```typescript
-setupTestDatabase({ seeders: [presetProviderSeeder] })
+import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
+
+setupTestDatabase({ seeders: [new PresetProviderSeeder()] })
 ```
 
 ## Migration Recipes
@@ -152,7 +159,7 @@ setupTestDatabase({ seeders: [presetProviderSeeder] })
 + const created = await service.create(dto)
 +
 + expect(created.name).toBe('New Base')
-+ const [row] = await dbh.db.select().from(knowledgeBaseTable)
++ const [row] = dbh.db.select().from(knowledgeBaseTable)
 + expect(row.name).toBe('New Base')
 + expect(row.embeddingModelId).toBe('embed-model')
 ```
@@ -199,31 +206,40 @@ or declare a local `vi.mock('node:fs', ...)` with the
 
 ## Gotchas
 
-### LibSQL transaction connection recycle
+### better-sqlite3 native module ABI
 
-`@libsql/client`'s `transaction()` releases the current connection and
-lazily creates a new one on the next operation. Without the project's
-patched `setPragma()` replay mechanism, per-connection PRAGMAs (like
-`foreign_keys = ON`) would silently revert after every transaction.
+better-sqlite3 is a native module, and unlike the repo's other natives it is
+NOT N-API — so it is ABI-specific and must be compiled for whichever runtime
+loads it. A native `.node` has a single build slot / one ABI, and the app
+(Electron) and the tests (system Node) want different ABIs.
 
-The harness correctly uses `setPragma()` to register durable settings
-(replayed on every reconnect), but uses one-shot `client.execute()` for
-transient settings (like temporarily toggling FK off during truncate) —
-otherwise the replay array would grow linearly with truncate cycles.
+We keep the module at the **Node ABI** for tests — that's what `pnpm install`
+produces and what Vitest (running under system Node) needs. The `main` project
+loads the real native module, so `pnpm test:main` first runs `pnpm rebuild:node`
+(via its `pretest:main` hook) to guarantee the Node ABI, then runs the suite;
+`pnpm test` does the same via its `pretest` hook. The other Vitest projects
+never load better-sqlite3, so their ABI is irrelevant.
 
-### `file:` URL on Windows
+The Electron-app entry scripts (`dev`, `dev:watch`, `debug`, `start`) and
+packaging need the **Electron ABI** instead; each app entry script prepends
+`pnpm rebuild:electron` with `--force`. Switching between the app and DB tests
+therefore flips the ABI automatically through `pretest`/`pretest:main` and the
+app entry scripts.
 
-A naive `'file:' + path.join(tmpdir(), 'test.db')` produces an illegal URL
-on Windows (`file:C:\path\to\db`). The harness uses
-`pathToFileURL(dbPath).href` which yields `file:///C:/path/to/db`.
+If you use an interactive runner (`pnpm test:watch`, `pnpm test:coverage`, a
+bare `vitest`, or an IDE's Vitest) right after `pnpm dev`, flip back first with
+`pnpm rebuild:node` (or run `pnpm test:main` once). Those commands do not all
+have a `pre*` hook. CI installs and tests under system Node, so it uses the Node
+ABI as well.
 
 ### FTS5 and NULL content
 
 `searchable_text` is populated by the `AFTER INSERT` trigger from the
-message's `data.blocks`; messages without any `main_text` block end up
-with NULL `searchable_text`. The FTS5 `AFTER DELETE` trigger then deletes
-using the NULL value. This is safe — truncate passes — but your FTS
-assertions must account for the possibility.
+message's `data.parts` (text-bearing parts); messages with no text part end
+up with empty `searchable_text` (the trigger wraps `group_concat` in
+`COALESCE(…, '')`). The FTS5 `AFTER DELETE` trigger then deletes using that
+value. This is safe — truncate passes — but your FTS assertions must account
+for the possibility.
 
 ### Truncate vs drop
 

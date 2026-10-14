@@ -1,94 +1,82 @@
-import { usePersistCache } from '@data/hooks/useCache'
-import { usePreference } from '@data/hooks/usePreference'
-import { AppLogo } from '@renderer/config/env'
-import useAvatar from '@renderer/hooks/useAvatar'
-import { useTabs } from '@renderer/hooks/useTabs'
-import { getSidebarIconLabel } from '@renderer/i18n/label'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
-import {
-  Code,
-  FileSearch,
-  Folder,
-  Languages,
-  LayoutGrid,
-  MessageCircle,
-  MousePointerClick,
-  NotepadText,
-  Palette,
-  Sparkle
-} from 'lucide-react'
+import { arrayMove } from '@dnd-kit/sortable'
+import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
 import type { Ref } from 'react'
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { startTransition, useOptimistic } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
-import UserPopup from '../Popups/UserPopup'
-import { Sidebar as UISidebar } from '../Sidebar'
-import { getSidebarLayout } from '../Sidebar/constants'
-import type { SidebarMenuItem, SidebarUser } from '../Sidebar/types'
+import { usePersistCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
+import useAvatar from '@renderer/hooks/useAvatar'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
 
-const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
-const noop = () => {}
+import { SidebarShellActions } from '../layout/ShellTabBarActions'
+import {
+  getSidebarDisplayWidth,
+  getSidebarLayout,
+  normalizeSidebarWidth,
+  type ResolvedSidebarEntry,
+  type SidebarIconPresentation,
+  type SidebarUser,
+  type SidebarVisibleLayout,
+  Sidebar as UISidebar,
+  UserAvatar
+} from '../Sidebar'
+import UserPopup from '../UserPopup'
+import {
+  useResolvedSidebarShortcuts,
+  useSidebarShortcutActivation,
+  useSidebarNavigationSnapshot,
+  useSidebarShortcutRegistry
+} from './sidebarShortcuts'
 
-const routePrefixMap: Record<SidebarIconType, string> = {
-  assistants: '/app/chat',
-  agents: '/app/agents',
-  store: '/app/library',
-  paintings: '/app/paintings',
-  translate: '/app/translate',
-  mini_app: '/app/mini-app',
-  knowledge: '/app/knowledge',
-  files: '/app/files',
-  code_tools: '/app/code',
-  notes: '/app/notes',
-  openclaw: '/app/openclaw'
+const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
+
+function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly string[]): ResolvedSidebarEntry[] {
+  const byKey = new Map(entries.map((entry) => [entry.key, entry]))
+  const optimisticKeys = new Set(orderedKeys)
+  return [
+    ...orderedKeys.flatMap((key) => {
+      const entry = byKey.get(key)
+      return entry ? [entry] : []
+    }),
+    ...entries.filter((entry) => !optimisticKeys.has(entry.key))
+  ]
 }
 
-const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
-  assistants: MessageCircle,
-  agents: MousePointerClick,
-  store: Sparkle,
-  paintings: Palette,
-  translate: Languages,
-  mini_app: LayoutGrid,
-  knowledge: FileSearch,
-  files: Folder,
-  code_tools: Code,
-  notes: NotepadText,
-  openclaw: OpenClawSidebarIcon
-}
-
-function getMenuPath(icon: SidebarIconType): string {
-  return routePrefixMap[icon] || ''
-}
-
-function resolveActiveItem(pathname: string): SidebarIconType | '' {
-  const match = (Object.entries(routePrefixMap) as Array<[SidebarIconType, string]>).find(
-    ([, prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  )
-  return match?.[0] || ''
-}
-
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  isFullscreen = false
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  isFullscreen?: boolean
+}) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
-  const { activeTab, updateTab, openTab } = useTabs()
+  const { shortcuts, remove, reorder } = useSidebarShortcuts()
+  const registry = useSidebarShortcutRegistry()
+  const resolutions = useResolvedSidebarShortcuts(shortcuts, registry)
+  const activateShortcut = useSidebarShortcutActivation()
+  const navigation = useSidebarNavigationSnapshot()
 
-  // Sidebar width — persisted across restarts. Drive the CSS variable
-  // straight from the cached value so:
-  //   (1) cross-window updates flow without a local-state mirror
-  //   (2) the resize handler writes to the cache directly (event-handler
-  //       semantics) instead of via an effect on derived state, which
-  //       would loop on revalidation per the SWR write-back antipattern.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
+  const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
+  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
   useLayoutEffect(() => {
-    document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`)
-  }, [sidebarWidth])
+    document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
+  }, [activeSidebarWidth])
 
-  // User avatar
+  useEffect(() => {
+    if (previewSidebarWidth !== null) return
+    const normalizedWidth = normalizeSidebarWidth(sidebarWidth)
+    if (normalizedWidth !== sidebarWidth) setSidebarWidth(normalizedWidth)
+  }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
+
   const avatar = useAvatar()
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
@@ -98,82 +86,146 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     }),
     [avatar, t, userName]
   )
+  const sidebarLogo = useMemo(
+    () => <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />,
+    [sidebarUser]
+  )
 
-  // Floating sidebar (hover reveal when hidden)
   const [hoverVisible, setHoverVisible] = useState(false)
-  const layout = getSidebarLayout(sidebarWidth)
-
-  // Menu items
-  const pathname = activeTab?.url || '/'
-
-  const items = useMemo<SidebarMenuItem[]>(
+  const layout = getSidebarLayout(activeSidebarWidth)
+  const resolvedEntries = useMemo(
     () =>
-      visibleSidebarIcons.flatMap((icon) => {
-        const path = getMenuPath(icon)
-        const Icon = iconMap[icon]
-        if (!path || !Icon) {
-          return []
+      resolutions.map((resolution) => {
+        const { shortcut } = resolution
+        const provider = registry.resolve(shortcut.target)
+        const isResolved = resolution.status === 'resolved'
+        const label = isResolved
+          ? resolution.resource.label
+          : shortcut.fallbackLabel || shortcut.target.locator.resourceId
+        const renderIcon = isResolved
+          ? resolution.resource.renderIcon
+          : ({ glyphSize }: SidebarIconPresentation) => {
+              const Icon =
+                resolution.status === 'loading' ? LoaderCircle : resolution.status === 'missing' ? CircleOff : WifiOff
+              return (
+                <Icon
+                  size={glyphSize}
+                  strokeWidth={1.6}
+                  className={resolution.status === 'loading' ? 'animate-spin' : undefined}
+                />
+              )
+            }
+        const activate = (inNewTab = false) => {
+          if (!isResolved || !provider) return
+          void activateShortcut(provider, shortcut.target, resolution.resource, inNewTab).catch(() =>
+            toast.error(t('common.error'))
+          )
         }
-        return [
-          {
-            id: icon,
-            label: getSidebarIconLabel(icon),
-            icon: Icon
-          }
-        ]
+        const activateInNewTab =
+          isResolved && provider && resolution.resource.supportsNewTab ? () => activate(true) : undefined
+
+        return {
+          key: shortcut.id,
+          label,
+          renderIcon,
+          disabled: !isResolved || !provider,
+          isActive: !!provider?.isActive?.(shortcut.target, navigation),
+          statusLabel: isResolved
+            ? undefined
+            : resolution.status === 'loading'
+              ? t('common.loading')
+              : resolution.status === 'missing'
+                ? t('sidebar.resource_missing')
+                : t('sidebar.resource_unavailable'),
+          onOpen: () => activate(),
+          onOpenNewTab: activateInNewTab,
+          contextMenuItems: [
+            ...(activateInNewTab
+              ? [
+                  {
+                    type: 'item' as const,
+                    id: `sidebar.open-in-new-tab.${shortcut.id}`,
+                    label: t('common.open_in_new_tab'),
+                    onSelect: activateInNewTab
+                  }
+                ]
+              : []),
+            {
+              type: 'item' as const,
+              id: `sidebar.remove.${shortcut.id}`,
+              label: t('launchpad.unpin_from_sidebar'),
+              onSelect: () => remove(shortcut.target)
+            }
+          ]
+        }
       }),
-    [visibleSidebarIcons]
+    [activateShortcut, navigation, registry, remove, resolutions, shortcuts, t]
   )
+  const [entries, setOptimisticEntryOrder] = useOptimistic(resolvedEntries, applyEntryOrder)
 
-  const activeItem = resolveActiveItem(pathname)
-
-  const handleNavigate = useCallback(
-    async (menuItemId: string) => {
-      const menuId = menuItemId as SidebarIconType
-      const path = getMenuPath(menuId)
-      if (!path) return
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
-        return
-      }
-
-      if (activeTab && activeTab.id !== 'home') {
-        // Reusing the active tab — clear any per-entity icon (e.g. a mini-app
-        // logo carried over from /app/mini-app/<id>) so the new top-level
-        // route falls back to its default Lucide icon.
-        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path), icon: undefined })
-      } else {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
-      }
+  const handleReorder = useCallback(
+    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      if (oldIndex === newIndex) return
+      const byId = new Map(shortcuts.map((shortcut) => [shortcut.id, shortcut]))
+      const reorderedEntries = arrayMove(entries, oldIndex, newIndex)
+      const reorderedShortcuts = reorderedEntries.flatMap((entry) => {
+        const shortcut = byId.get(entry.key)
+        return shortcut ? [shortcut] : []
+      })
+      startTransition(async () => {
+        setOptimisticEntryOrder(reorderedEntries.map((entry) => entry.key))
+        await reorder(reorderedShortcuts).catch(() => undefined)
+      })
     },
-    [activeTab, updateTab, openTab]
+    [entries, reorder, setOptimisticEntryOrder, shortcuts]
   )
 
-  // Common props shared between normal and floating sidebar
+  const handleOpenSettingsTab = useCallback(() => openSettingsTab(), [])
+  const handleOpenFeedback = useCallback(() => {
+    setFeedbackDialogMounted(true)
+    setFeedbackOpen(true)
+  }, [])
+
   const sidebarProps = {
-    activeItem,
-    items,
-    title: 'Cherry Studio',
-    logo: APP_LOGO,
-    user: sidebarUser,
-    dockedTabs: [],
-    onItemClick: handleNavigate,
-    onCloseDockedTab: noop
+    isFullscreen,
+    entries,
+    title: sidebarUser.name,
+    logo: sidebarLogo,
+    onHeaderClick: sidebarUser.onClick,
+    actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
+      <SidebarShellActions
+        layout={footerLayout}
+        onFeedbackClick={handleOpenFeedback}
+        onSettingsClick={handleOpenSettingsTab}
+        onOverlayOpenChange={onOverlayOpenChange}
+      />
+    ),
+    onEntriesReorder: handleReorder
   }
 
   return (
-    <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
-      <UISidebar width={sidebarWidth} setWidth={setSidebarWidth} onHoverChange={setHoverVisible} {...sidebarProps} />
+    <div ref={ref} id="app-sidebar" data-ui="app.sidebar" className="relative h-full [-webkit-app-region:no-drag]">
+      <UISidebar
+        width={activeSidebarWidth}
+        setWidth={setSidebarWidth}
+        onHoverChange={setHoverVisible}
+        onResizePreview={setPreviewSidebarWidth}
+        {...sidebarProps}
+      />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar
-          width={sidebarWidth}
+          width={activeSidebarWidth}
           setWidth={setSidebarWidth}
           isFloating
           onDismiss={() => setHoverVisible(false)}
           {...sidebarProps}
         />
       )}
+      {feedbackDialogMounted ? (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

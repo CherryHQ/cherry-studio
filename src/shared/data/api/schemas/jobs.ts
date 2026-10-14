@@ -23,8 +23,15 @@ export type JobStatus = z.infer<typeof JobStatusAtomSchema>
 /** Terminal states: jobs in these states are finished and never resume. */
 export const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled'] as const satisfies readonly JobStatus[]
 
-export const isTerminalStatus = (status: JobStatus): boolean =>
+/** Active (non-terminal) states: jobs in these states are queued, waiting, or executing. */
+export const ACTIVE_JOB_STATUSES = ['pending', 'delayed', 'running'] as const satisfies readonly JobStatus[]
+
+export const isTerminalStatus = (status: JobStatus): status is TerminalJobStatus =>
   (TERMINAL_JOB_STATUSES as readonly JobStatus[]).includes(status)
+
+/** Terminal-only status atom — for payloads that can only carry a finished state. */
+export const TerminalJobStatusSchema = z.enum(TERMINAL_JOB_STATUSES)
+export type TerminalJobStatus = z.infer<typeof TerminalJobStatusSchema>
 
 /**
  * Stable error structure crossing the IPC boundary. `code` is an English
@@ -65,6 +72,26 @@ export const OnceTriggerSchema = z.strictObject({
 
 export const TriggerSchema = z.discriminatedUnion('kind', [CronTriggerSchema, IntervalTriggerSchema, OnceTriggerSchema])
 export type Trigger = z.infer<typeof TriggerSchema>
+
+/**
+ * Semantic trigger equality: same kind + same per-kind fields. Lives next to
+ * the schema so a new trigger field is added to both in one place. Callers use
+ * it to drop a value-identical trigger from an update patch — the JobManager
+ * re-arm decision is field-presence-based by design, and a spurious re-arm
+ * resets an interval's phase.
+ */
+export const triggersEqual = (a: Trigger, b: Trigger): boolean => {
+  if (a.kind === 'cron' && b.kind === 'cron') {
+    return a.expr === b.expr && a.timezone === b.timezone && a.limit === b.limit
+  }
+  if (a.kind === 'interval' && b.kind === 'interval') {
+    return a.ms === b.ms && a.anchor === b.anchor
+  }
+  if (a.kind === 'once' && b.kind === 'once') {
+    return a.at === b.at
+  }
+  return false
+}
 
 // ============================================================================
 // CatchUpPolicy (Phase 1: skip-missed / after-startup; after-idle descoped)
@@ -110,6 +137,7 @@ export const JobSnapshotSchema = z.strictObject({
   error: JobErrorSchema.nullable(),
   parentId: z.string().nullable(),
   cancelRequested: z.boolean(),
+  cancelRequestedAt: z.string().nullable(),
   metadata: z.record(z.string(), z.unknown()),
   timeoutMs: z.number().int().nullable(),
   createdAt: z.string(),
@@ -202,6 +230,7 @@ export const JOB_ERROR_CODES = {
   SCHEDULE_NAME_REQUIRED: 'JOB_SCHEDULE_NAME_REQUIRED',
   SCHEDULE_NAME_INVALID: 'JOB_SCHEDULE_NAME_INVALID',
   SCHEDULE_NAME_CONFLICT: 'JOB_SCHEDULE_NAME_CONFLICT',
+  SCHEDULE_TRIGGER_INVALID: 'JOB_SCHEDULE_TRIGGER_INVALID',
   SCHEDULE_SINGLETON_EXISTS: 'JOB_SCHEDULE_SINGLETON_EXISTS',
   HANDLER_TIMEOUT: 'JOB_HANDLER_TIMEOUT',
   HANDLER_THREW: 'JOB_HANDLER_THREW',
@@ -245,6 +274,7 @@ export const ListJobsQuerySchema = z.strictObject({
   queue: z.string().optional(),
   type: z.string().optional(),
   scheduleId: z.string().optional(),
+  parentId: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
   offset: z.coerce.number().int().min(0).optional()
 })
@@ -253,7 +283,7 @@ export type ListJobsQueryParams = z.input<typeof ListJobsQuerySchema>
 
 export type JobSchemas = {
   '/jobs': {
-    /** List jobs, ordered by createdAt DESC. Supports status/queue/type/scheduleId filters and pagination. */
+    /** List jobs, ordered by createdAt DESC. Supports status/queue/type/scheduleId/parentId filters and pagination. */
     GET: {
       query?: ListJobsQueryParams
       response: JobSnapshot[]

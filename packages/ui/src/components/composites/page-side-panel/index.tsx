@@ -1,17 +1,20 @@
-import { Button } from '@cherrystudio/ui/components/primitives/button'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { AnimatePresence, motion } from 'framer-motion'
 import { XIcon } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import * as React from 'react'
 import { useCallback, useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
+import { Button } from '@cherrystudio/ui/components/primitives/button'
+import { usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
+import { cn } from '@cherrystudio/ui/lib/utils'
+
 import Scrollbar from '../scrollbar'
 
 /**
- * A page-owned floating side panel. It portals to `document.body` so the fixed
- * panel and viewport backdrop are not clipped or re-based by page layout,
- * transformed ancestors, virtualized lists, or scroll containers.
+ * A page-owned floating side panel. It portals into the nearest portal container
+ * provided by `PortalContainerProvider` (e.g. a route tab root) when present,
+ * otherwise to `document.body`. Scoped to a container it positions `absolute`
+ * within it; at `document.body` it stays `fixed` to the viewport.
  *
  * For edge-attached modal sheets, use the shadcn `Drawer` primitive instead.
  */
@@ -52,14 +55,17 @@ function PageSidePanel({
   footerClassName,
   closeButtonClassName
 }: PageSidePanelProps) {
-  const standardTitle = title ? <span className="font-semibold text-base text-foreground">{title}</span> : null
+  const standardTitle = title ? <span className="text-base font-semibold text-foreground">{title}</span> : null
   const headerContent = header ?? standardTitle
   const hasHeader = !!headerContent || showCloseButton
   const headerId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const closedByPointerDownRef = useRef(false)
-  const portalContainer = typeof document === 'undefined' ? null : document.body
+  const scopedContainer = usePortalContainer()
+  const portalContainer = scopedContainer ?? (typeof document === 'undefined' ? null : document.body)
+  const isScopedPortal =
+    typeof document !== 'undefined' && portalContainer !== null && portalContainer !== document.body
 
   const handleClose = useCallback(
     (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
@@ -94,7 +100,7 @@ function PageSidePanel({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             data-slot="page-side-panel-backdrop"
-            className={cn('fixed inset-0 z-[60] bg-black/50', backdropClassName)}
+            className={cn(isScopedPortal ? 'absolute inset-0' : 'fixed inset-0', 'z-60 bg-black/50', backdropClassName)}
             onClick={handleClose}
           />
           <motion.aside
@@ -110,10 +116,11 @@ function PageSidePanel({
             initial={{ x: side === 'right' ? '100%' : '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: side === 'right' ? '100%' : '-100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 350 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             data-slot="page-side-panel"
             className={cn(
-              'fixed top-3 bottom-3 z-[70] flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
+              isScopedPortal ? 'absolute' : 'fixed',
+              'top-3 bottom-3 z-70 flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
               side === 'right' ? 'right-3' : 'left-3',
               contentClassName
             )}>
@@ -121,7 +128,7 @@ function PageSidePanel({
               <div
                 data-slot="page-side-panel-header"
                 className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
-                <div id={headerContent ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
+                <div id={headerContent ? headerId : undefined} className="flex min-w-0 flex-1 items-center">
                   {headerContent}
                 </div>
                 {showCloseButton && (
@@ -186,7 +193,7 @@ function PageSidePanelSection({ title, actions, children, className, ...props }:
   return (
     <div className={cn('flex flex-col gap-3', className)} {...props}>
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-foreground text-sm">{title}</span>
+        <span className="text-sm font-semibold text-foreground">{title}</span>
         {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
       </div>
       {children}
@@ -206,8 +213,8 @@ function PageSidePanelItem({ title, description, action, children, className, ..
     <div className={cn('flex flex-col gap-2', className)} {...props}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-foreground text-sm">{title}</span>
-          {description && <span className="text-muted-foreground text-xs">{description}</span>}
+          <span className="text-sm text-foreground">{title}</span>
+          {description && <span className="text-xs text-muted-foreground">{description}</span>}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </div>

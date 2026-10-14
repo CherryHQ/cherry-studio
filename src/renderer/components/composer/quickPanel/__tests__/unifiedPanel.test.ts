@@ -1,0 +1,849 @@
+import { createElement } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { QuickPanelContextType, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
+
+import type { ComposerToolLauncher } from '../../toolLauncher'
+import {
+  createUnifiedQuickPanelOpenOptions,
+  hasUnifiedQuickPanelRootContent,
+  prepareComposerQuickPanelSearch
+} from '../unifiedPanel'
+
+const quickPanel = {
+  open: vi.fn(),
+  close: vi.fn(),
+  updateItemSelection: vi.fn(),
+  updateList: vi.fn(),
+  updateFooterActions: vi.fn(),
+  isVisible: false,
+  symbol: '',
+  list: [],
+  defaultIndex: 0,
+  pageSize: 7,
+  multiple: false,
+  fillToAvailableHeight: false,
+  setFillToAvailableHeight: vi.fn(),
+  dispatchKeyDown: vi.fn(() => false),
+  getPanelGeneration: vi.fn(() => 0),
+  registerKeyDownHandler: vi.fn(() => () => undefined)
+} satisfies QuickPanelContextType
+
+const labels = (items: QuickPanelListItem[]) => items.map((item) => item.label)
+
+const getVisibleItems = (options: QuickPanelOpenOptions, searchText: string) => {
+  const fuzzyRegex = new RegExp(
+    searchText
+      .toLowerCase()
+      .split('')
+      .map((character) => character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('.*'),
+    'ig'
+  )
+  const pinyinCache = new WeakMap<QuickPanelListItem, string>()
+  const filteredItems = options.list.filter((item) => options.filterFn!(item, searchText, fuzzyRegex, pinyinCache))
+  return options.sortFn!(filteredItems, searchText)
+}
+
+beforeEach(() => {
+  quickPanel.open.mockReset()
+  quickPanel.close.mockReset()
+  quickPanel.updateItemSelection.mockReset()
+  quickPanel.updateList.mockReset()
+  quickPanel.updateFooterActions.mockReset()
+  quickPanel.setFillToAvailableHeight.mockReset()
+  quickPanel.dispatchKeyDown.mockReset()
+  quickPanel.dispatchKeyDown.mockReturnValue(false)
+  quickPanel.getPanelGeneration.mockReset()
+  quickPanel.getPanelGeneration.mockReturnValue(0)
+  quickPanel.registerKeyDownHandler.mockReset()
+  quickPanel.registerKeyDownHandler.mockReturnValue(() => undefined)
+})
+
+describe('createUnifiedQuickPanelOpenOptions', () => {
+  it('flattens actionable leaves through nested submenus without looping on cycles', () => {
+    const leafAction = vi.fn()
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'outer',
+          kind: 'group',
+          label: 'Outer',
+          icon: 'outer',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'inner',
+              kind: 'group',
+              label: 'Inner',
+              icon: 'inner',
+              sources: ['popover'],
+              submenu: [
+                {
+                  id: 'leaf',
+                  kind: 'command',
+                  label: 'Nested leaf',
+                  icon: 'leaf',
+                  sources: ['popover'],
+                  action: leafAction
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      { quickPanel, onToolLauncherSelect }
+    )
+
+    expect(labels(getVisibleItems(options, 'nested'))).toEqual(['Nested leaf'])
+    getVisibleItems(options, 'nested')[0].action?.({
+      action: 'enter',
+      context: quickPanel,
+      item: getVisibleItems(options, 'nested')[0],
+      parentPanel: options,
+      searchText: 'nested'
+    })
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'leaf', action: leafAction }),
+      expect.objectContaining({ source: 'popover', parentPanel: options, searchText: 'nested' })
+    )
+  })
+
+  it('prepares a slash-triggered submenu search without tracking the consumed trigger', () => {
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 7,
+      getText: () => '/skills',
+      insertText: vi.fn()
+    }
+
+    expect(
+      prepareComposerQuickPanelSearch({
+        inputAdapter,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/skills' }
+      })
+    ).toEqual({
+      queryAnchor: undefined,
+      trackInputQuery: true,
+      consumeQueryOnDismiss: true,
+      triggerInfo: { type: 'button' }
+    })
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
+    expect(inputAdapter.focus).toHaveBeenCalledOnce()
+  })
+
+  it('keeps system actions above resource results while preserving business order during search', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'attachment',
+          kind: 'command',
+          label: 'Attachment',
+          description: 'notes',
+          icon: 'paperclip',
+          sources: ['popover']
+        },
+        {
+          id: 'slash-command',
+          kind: 'command',
+          label: 'Slash command',
+          description: 'notes',
+          icon: 'slash',
+          sources: ['root-panel']
+        }
+      ],
+      {
+        quickPanel,
+        leadingItems: [{ id: 'new-topic', label: 'New topic', filterText: 'notes', icon: 'plus' }],
+        additionalItems: [{ id: 'agent-skill', label: 'Agent skill', filterText: 'notes', icon: 'skill' }],
+        resourceItems: [{ id: 'file:notes', label: 'notes.md', description: '/workspace/notes.md', icon: 'file' }]
+      }
+    )
+
+    expect(options.sortFn).toEqual(expect.any(Function))
+
+    const reversedItems = [...options.list].reverse()
+    expect(labels(options.sortFn!(reversedItems, 'notes'))).toEqual([
+      'New topic',
+      'Attachment',
+      'Slash command',
+      'Agent skill',
+      'notes.md'
+    ])
+  })
+
+  it('renders skills above trailing command items', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'agent-skills',
+          kind: 'panel',
+          label: 'Skills',
+          icon: 'skill',
+          sources: ['root-panel']
+        },
+        {
+          id: 'mcp-status',
+          kind: 'panel',
+          label: 'MCP',
+          icon: 'plug',
+          sources: ['root-panel']
+        },
+        {
+          id: 'slash-command',
+          kind: 'command',
+          label: 'Slash command',
+          icon: 'slash',
+          sources: ['root-panel'],
+          rootPanelPlacement: 'trailing'
+        }
+      ],
+      { quickPanel }
+    )
+
+    expect(labels(options.list)).toEqual(['Skills', 'MCP', 'Slash command'])
+  })
+
+  it('flattens actionable submenu and skill items into root search without exposing status rows', () => {
+    const onToolLauncherSelect = vi.fn()
+    const insertSkill = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'group',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'permission-plan',
+              kind: 'command',
+              label: 'Plan mode',
+              icon: 'plan',
+              sources: ['popover'],
+              action: vi.fn()
+            },
+            {
+              id: 'permission-disabled',
+              kind: 'command',
+              label: 'Disabled mode',
+              icon: 'disabled',
+              sources: ['popover'],
+              disabled: true,
+              action: vi.fn()
+            }
+          ]
+        },
+        {
+          id: 'agent-skills',
+          kind: 'panel',
+          label: 'Skills',
+          icon: 'skill',
+          sources: ['root-panel'],
+          rootSearchItems: [{ id: 'skill:pdf', label: 'pdf', icon: 'pdf', filterText: 'pdf', action: insertSkill }],
+          action: vi.fn()
+        },
+        {
+          id: 'mcp-status',
+          kind: 'panel',
+          label: 'MCP',
+          description: 'View status',
+          icon: 'plug',
+          sources: ['root-panel'],
+          action: vi.fn()
+        }
+      ],
+      { quickPanel, onToolLauncherSelect }
+    )
+
+    expect(labels(getVisibleItems(options, ''))).toEqual(['Permission Mode', 'Skills', 'MCP'])
+    expect(labels(getVisibleItems(options, 'plan'))).toEqual(['Plan mode'])
+    expect(labels(getVisibleItems(options, 'pdf'))).toEqual(['pdf'])
+    expect(labels(getVisibleItems(options, 'disabled'))).toEqual([])
+    expect(labels(getVisibleItems(options, 'connected-server'))).toEqual([])
+
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+    const planMode = getVisibleItems(options, 'plan')[0]
+    planMode.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: planMode,
+      parentPanel: options,
+      searchText: 'plan'
+    })
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'permission-plan' }),
+      expect.objectContaining({ source: 'popover', parentPanel: options, searchText: 'plan' })
+    )
+
+    const pdfSkill = getVisibleItems(options, 'pdf')[0]
+    pdfSkill.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: pdfSkill,
+      parentPanel: options,
+      searchText: 'pdf'
+    })
+    expect(insertSkill).toHaveBeenCalledOnce()
+  })
+
+  it('does not expose search items owned by a disabled launcher', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'disabled-owner',
+          kind: 'panel',
+          label: 'Disabled owner',
+          icon: 'disabled',
+          sources: ['root-panel'],
+          disabled: true,
+          rootSearchItems: [{ id: 'owned-resource', label: 'Owned resource', icon: 'resource', action: vi.fn() }],
+          submenu: [
+            {
+              id: 'owned-command',
+              kind: 'command',
+              label: 'Owned command',
+              icon: 'command',
+              sources: ['root-panel'],
+              action: vi.fn()
+            }
+          ]
+        }
+      ],
+      { quickPanel }
+    )
+
+    expect(labels(getVisibleItems(options, 'owned'))).toEqual([])
+  })
+
+  it('matches flattened submenu items by searchAliases when label and description are React nodes', () => {
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'group',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'permission-mode-plan',
+              kind: 'command',
+              label: createElement('span', null, 'Plan Only'),
+              description: createElement('span', null, 'Plans without editing files.'),
+              icon: 'plan',
+              sources: ['popover'],
+              searchAliases: ['Plan Only', 'Plans without editing files.'],
+              action: vi.fn()
+            },
+            {
+              id: 'permission-mode-auto',
+              kind: 'command',
+              label: createElement('span', null, 'Approve for Me'),
+              icon: 'auto',
+              sources: ['popover'],
+              action: vi.fn()
+            }
+          ]
+        }
+      ],
+      { quickPanel, onToolLauncherSelect }
+    )
+
+    // Without aliases, a React-node label leaves only whitespace filterText and never matches.
+    expect(getVisibleItems(options, 'approve for me')).toEqual([])
+
+    const matches = getVisibleItems(options, 'plan only')
+    expect(matches).toHaveLength(1)
+
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+    matches[0].action?.({
+      action: 'enter',
+      context: actionContext,
+      item: matches[0],
+      parentPanel: options,
+      searchText: 'plan only'
+    })
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'permission-mode-plan' }),
+      expect.anything()
+    )
+  })
+
+  it('excludes persistent launchers from the button root', () => {
+    const launchers = [
+      {
+        id: 'thinking',
+        kind: 'command' as const,
+        label: 'Thinking',
+        icon: 'brain',
+        sources: ['popover'] as const
+      },
+      {
+        id: 'attachment',
+        kind: 'command' as const,
+        label: 'Attachment',
+        icon: 'paperclip',
+        sources: ['popover'] as const
+      }
+    ]
+    const pinned = createUnifiedQuickPanelOpenOptions(launchers, {
+      quickPanel,
+      excludedLauncherIds: new Set(['thinking'])
+    })
+    expect(pinned.list.map((item) => item.id)).toEqual(['attachment'])
+
+    const unpinned = createUnifiedQuickPanelOpenOptions(launchers, { quickPanel })
+    expect(unpinned.list.map((item) => item.id)).toEqual(['thinking', 'attachment'])
+  })
+
+  it('excludes leading items by the same excludedLauncherIds filter as launchers', () => {
+    const leadingItems = [{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]
+
+    const pinned = createUnifiedQuickPanelOpenOptions([], {
+      quickPanel,
+      leadingItems,
+      excludedLauncherIds: new Set(['new-topic'])
+    })
+    expect(pinned.list).toEqual([])
+
+    const unpinned = createUnifiedQuickPanelOpenOptions([], { quickPanel, leadingItems })
+    expect(unpinned.list.map((item) => item.id)).toEqual(['new-topic'])
+  })
+
+  it('does not reorder items when there is no search text', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'attachment',
+          kind: 'command',
+          label: 'Attachment',
+          icon: 'paperclip',
+          sources: ['popover']
+        }
+      ],
+      {
+        quickPanel,
+        resourceItems: [{ id: 'file:notes', label: 'notes.md', description: '/workspace/notes.md', icon: 'file' }]
+      }
+    )
+
+    const reversedItems = [...options.list].reverse()
+    expect(options.sortFn!(reversedItems, '')).toEqual(reversedItems)
+  })
+
+  it('filters by explicit text, search aliases, pinyin, and pinyin initials without loose fuzzy subsequence', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'web-search',
+          kind: 'command',
+          label: '网络搜索',
+          icon: 'search',
+          sources: ['root-panel'],
+          searchAliases: ['Web Search', 'Online Search']
+        }
+      ],
+      {
+        quickPanel,
+        additionalItems: [
+          {
+            id: 'skill:pdf',
+            label: 'pdf',
+            description: 'Read and analyze PDFs',
+            filterText: 'pdf',
+            icon: 'skill'
+          }
+        ],
+        resourceItems: [{ id: 'quick-phrases', label: '提示词管理', icon: 'phrase' }]
+      }
+    )
+
+    const filterFn = options.filterFn!
+    const fuzzyRegex = /s.*l/i
+    const pinyinCache = new WeakMap<QuickPanelListItem, string>()
+    const skill = options.list.find((item) => item.label === 'pdf')!
+    const quickPhrases = options.list.find((item) => item.label === '提示词管理')!
+    const webSearch = options.list.find((item) => item.label === '网络搜索')!
+
+    // Skills keep their explicit root-panel search field and do not match descriptions.
+    expect(filterFn(skill, 'pdf', fuzzyRegex, pinyinCache)).toBe(true)
+    expect(filterFn(skill, 'analyze', fuzzyRegex, pinyinCache)).toBe(false)
+
+    // Chinese row matches by substring, pinyin substring, and pinyin initial substring...
+    expect(filterFn(quickPhrases, '提示词', fuzzyRegex, pinyinCache)).toBe(true)
+    expect(filterFn(quickPhrases, 'tishi', fuzzyRegex, pinyinCache)).toBe(true)
+    expect(filterFn(quickPhrases, 'tscgl', fuzzyRegex, pinyinCache)).toBe(true)
+
+    // Launcher rows with filterText still match hidden English aliases and visible Chinese labels by initials.
+    expect(filterFn(webSearch, 'web', fuzzyRegex, pinyinCache)).toBe(true)
+    expect(filterFn(webSearch, 'online', fuzzyRegex, pinyinCache)).toBe(true)
+    expect(filterFn(webSearch, 'wlss', fuzzyRegex, pinyinCache)).toBe(true)
+    // ...but not by a loose fuzzy subsequence of its pinyin or initials.
+    expect(filterFn(quickPhrases, 'sl', fuzzyRegex, pinyinCache)).toBe(false)
+  })
+
+  it('dispatches generated launcher actions with source and query context', () => {
+    const onToolLauncherSelect = vi.fn()
+    const inputAdapter = {
+      getText: vi.fn(() => '/ask'),
+      getCursorOffset: vi.fn(() => 4),
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'attachment',
+          kind: 'command',
+          label: 'Attachment',
+          icon: 'paperclip',
+          sources: ['popover']
+        },
+        {
+          id: 'slash-command',
+          kind: 'command',
+          label: 'Slash command',
+          icon: 'slash',
+          sources: ['root-panel']
+        }
+      ],
+      {
+        quickPanel,
+        inputAdapter,
+        onToolLauncherSelect,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
+      }
+    )
+    const attachment = options.list.find((item) => item.label === 'Attachment')
+    const slashCommand = options.list.find((item) => item.label === 'Slash command')
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    attachment?.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: attachment,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'ask'
+    })
+    slashCommand?.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: slashCommand,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'ask'
+    })
+
+    expect(onToolLauncherSelect).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ id: 'attachment' }),
+      expect.objectContaining({
+        source: 'popover',
+        inputAdapter,
+        parentPanel: options,
+        queryAnchor: undefined,
+        searchText: 'ask',
+        triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
+      })
+    )
+    expect(onToolLauncherSelect).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ id: 'slash-command' }),
+      expect.objectContaining({
+        source: 'root-panel',
+        inputAdapter,
+        parentPanel: options,
+        queryAnchor: undefined,
+        searchText: 'ask',
+        triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
+      })
+    )
+  })
+
+  it('opens submenus with parent panel context and dispatches child actions', () => {
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'thinking',
+          kind: 'group',
+          label: 'Thinking',
+          icon: 'brain',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'thinking-low',
+              kind: 'command',
+              label: 'Low',
+              icon: 'low',
+              sources: ['root-panel']
+            }
+          ]
+        }
+      ],
+      {
+        quickPanel,
+        onToolLauncherSelect,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/think' }
+      }
+    )
+    const thinking = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    thinking.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: thinking,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'think'
+    })
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Thinking',
+        symbol: 'thinking',
+        parentPanel: options,
+        queryAnchor: undefined,
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
+        consumeQueryOnDismiss: true,
+        list: [expect.objectContaining({ label: 'Low' })]
+      })
+    )
+
+    const childPanelOptions = vi.mocked(quickPanel.open).mock.calls[0][0]
+    const low = childPanelOptions.list[0]
+    low.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: low,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'think'
+    })
+
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'thinking-low' }),
+      expect.objectContaining({
+        source: 'root-panel',
+        parentPanel: options,
+        queryAnchor: undefined,
+        searchText: 'think',
+        triggerInfo: { type: 'input', position: 0, originalText: '/think' }
+      })
+    )
+  })
+
+  it('opens a single-select submenu with the keyboard on the active child', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'panel',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            { id: 'mode-default', kind: 'command', label: 'Ask Every Time', icon: 'a', sources: ['popover'] },
+            {
+              id: 'mode-smart',
+              kind: 'command',
+              label: 'Smart Approval',
+              icon: 's',
+              active: true,
+              sources: ['popover']
+            },
+            { id: 'mode-full', kind: 'command', label: 'Full Access', icon: 'f', sources: ['popover'] }
+          ]
+        }
+      ],
+      { quickPanel, triggerInfo: { type: 'button' } }
+    )
+    const submenuLauncher = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    submenuLauncher.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: submenuLauncher,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: ''
+    })
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'permission-mode',
+        defaultIndex: 1,
+        list: [
+          expect.objectContaining({ label: 'Ask Every Time' }),
+          expect.objectContaining({ label: 'Smart Approval', isSelected: true }),
+          expect.objectContaining({ label: 'Full Access' })
+        ]
+      })
+    )
+  })
+
+  it('preserves tooltip metadata for submenu rows', () => {
+    const tooltipAnchor = createElement('span', { 'aria-label': 'warning' })
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'group',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'permission-mode-auto',
+              kind: 'command',
+              label: 'Approve for Me',
+              icon: 'shield-alert',
+              tooltip: 'Needs a model that supports it.',
+              tooltipAnchor,
+              sources: ['popover']
+            }
+          ]
+        }
+      ],
+      { quickPanel }
+    )
+    const permissionMode = options.list[0]
+
+    permissionMode.action?.({
+      action: 'enter',
+      context: quickPanel,
+      item: permissionMode,
+      parentPanel: options
+    })
+
+    const submenu = vi.mocked(quickPanel.open).mock.calls[0][0]
+    expect(submenu.list[0]).toEqual(
+      expect.objectContaining({
+        tooltip: 'Needs a model that supports it.',
+        tooltipAnchor
+      })
+    )
+  })
+
+  it('ignores submenu cycles while building and opening launcher items', () => {
+    const cyclicParent: ComposerToolLauncher = {
+      id: 'cyclic-parent',
+      kind: 'group',
+      label: 'Parent',
+      icon: 'parent',
+      sources: ['popover'],
+      submenu: []
+    }
+    const cyclicChild: ComposerToolLauncher = {
+      id: 'cyclic-child',
+      kind: 'group',
+      label: 'Child',
+      icon: 'child',
+      sources: ['popover'],
+      submenu: [cyclicParent]
+    }
+    cyclicParent.submenu = [cyclicChild]
+
+    const options = createUnifiedQuickPanelOpenOptions([cyclicParent], { quickPanel })
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    expect(options.list).toHaveLength(1)
+    expect(options.list[0]).toEqual(expect.objectContaining({ label: 'Parent' }))
+    expect(options.list[0].filterText).toContain('Parent')
+    expect(options.list[0].filterText).not.toContain('Child')
+    expect(() =>
+      options.list[0].action?.({
+        action: 'enter',
+        context: actionContext,
+        item: options.list[0],
+        parentPanel: options,
+        queryAnchor: 0,
+        searchText: ''
+      })
+    ).not.toThrow()
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        list: [expect.objectContaining({ label: 'Child' })]
+      })
+    )
+  })
+
+  it('marks disabled launchers as disabled items with the disabled reason', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'disabled-tool',
+          kind: 'command',
+          label: 'Disabled tool',
+          icon: 'tool',
+          disabled: true,
+          disabledReason: 'Unavailable',
+          sources: ['root-panel']
+        }
+      ],
+      { quickPanel }
+    )
+
+    expect(options.list[0]).toEqual(
+      expect.objectContaining({
+        label: 'Disabled tool',
+        description: 'Unavailable',
+        disabled: true
+      })
+    )
+  })
+})
+
+describe('hasUnifiedQuickPanelRootContent', () => {
+  it('matches root item availability for visible launchers and static rows', () => {
+    expect(hasUnifiedQuickPanelRootContent([])).toBe(false)
+    expect(hasUnifiedQuickPanelRootContent([], { leadingItems: [{ id: 'new', label: 'New', icon: 'plus' }] })).toBe(
+      true
+    )
+    expect(
+      hasUnifiedQuickPanelRootContent([
+        {
+          id: 'hidden',
+          kind: 'command',
+          label: 'Hidden',
+          icon: 'hidden',
+          hidden: true,
+          sources: ['root-panel']
+        }
+      ])
+    ).toBe(false)
+    expect(
+      hasUnifiedQuickPanelRootContent([
+        {
+          id: 'group',
+          kind: 'group',
+          label: 'Group',
+          icon: 'group',
+          sources: [],
+          submenu: [
+            {
+              id: 'child',
+              kind: 'command',
+              label: 'Child',
+              icon: 'child',
+              sources: ['root-panel']
+            }
+          ]
+        }
+      ])
+    ).toBe(true)
+  })
+})

@@ -1,21 +1,32 @@
-import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import Selector from '@renderer/components/Selector'
-import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
-import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppSelector } from '@renderer/store'
 import dayjs from 'dayjs'
+import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import Selector from '@renderer/components/Selector'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
+import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
+import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
+import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
+import { useTheme } from '@renderer/hooks/useTheme'
+
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const WebDavSettings: FC = () => {
   const [, setWebdavAutoSync] = usePreference('data.backup.webdav.auto_sync')
+  const [webdavAllowSelfSignedTls, setWebdavAllowSelfSignedTls] = usePreference(
+    'data.backup.webdav.allow_self_signed_tls'
+  )
   const [webdavDisableStream, setWebdavDisableStream] = usePreference('data.backup.webdav.disable_stream')
   const [webdavHost, setWebdavHost] = usePreference('data.backup.webdav.host')
   const [webdavMaxBackups, setWebdavMaxBackups] = usePreference('data.backup.webdav.max_backups')
@@ -31,27 +42,19 @@ const WebDavSettings: FC = () => {
 
   const { t } = useTranslation()
 
-  const { webdavSync } = useAppSelector((state) => state.backup)
-
-  // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
+  const webdavSync = useBackupSyncState('webdav')
 
   const onSyncIntervalChange = async (value: number) => {
-    void setWebdavSyncInterval(value)
+    await setWebdavSyncInterval(value)
     if (value === 0) {
       await setWebdavAutoSync(false)
-      stopAutoSync('webdav')
     } else {
       await setWebdavAutoSync(true)
-      void startAutoSync(false, 'webdav')
     }
   }
 
   const onMaxBackupsChange = (value: number) => {
     void setWebdavMaxBackups(value)
-  }
-
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setWebdavSkipBackupFile(value)
   }
 
   const onDisableStreamChange = (value: boolean) => {
@@ -62,20 +65,20 @@ const WebDavSettings: FC = () => {
     if (!webdavHost) return null
 
     if (!webdavSync.lastSyncTime && !webdavSync.syncing && !webdavSync.lastSyncError) {
-      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
+      return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {webdavSync.syncing && <SyncOutlined spin />}
+        {webdavSync.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
-            iconProps={{ color: 'red' }}
+            iconProps={{ color: 'var(--error)' }}
           />
         )}
         {webdavSync.lastSyncTime && (
-          <span style={{ color: 'var(--color-foreground-secondary)' }}>
+          <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
@@ -98,7 +101,7 @@ const WebDavSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-host" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.host.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.host.placeholder')}
@@ -110,7 +113,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-user" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.user')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.user')}
@@ -121,7 +124,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-password" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.password')}</SettingRowTitle>
         <Input
           type="password"
@@ -133,7 +136,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-path" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.path.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.path.placeholder')}
@@ -148,11 +151,11 @@ const WebDavSettings: FC = () => {
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
           <Button onClick={showBackupModal} disabled={backuping} variant="outline">
-            <SaveOutlined />
+            <Save size={14} />
             {t('settings.data.webdav.backup.button')}
           </Button>
           <Button onClick={showBackupManager} disabled={!webdavHost} variant="outline">
-            <FolderOpenOutlined />
+            <FolderOpen size={14} />
             {t('settings.data.webdav.restore.button')}
           </Button>
         </RowFlex>
@@ -201,7 +204,7 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch checked={webdavSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
+        <Switch checked={webdavSkipBackupFile} onCheckedChange={(value) => void setWebdavSkipBackupFile(value)} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
@@ -213,6 +216,18 @@ const WebDavSettings: FC = () => {
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.webdav.disableStream.help')}</SettingHelpText>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.webdav.allowSelfSignedTls.title')}</SettingRowTitle>
+        <Switch
+          aria-label={t('settings.data.webdav.allowSelfSignedTls.title')}
+          checked={webdavAllowSelfSignedTls}
+          onCheckedChange={(value) => void setWebdavAllowSelfSignedTls(value)}
+        />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.webdav.allowSelfSignedTls.help')}</SettingHelpText>
       </SettingRow>
       {webdavSync && webdavSyncInterval > 0 && (
         <>
@@ -236,12 +251,14 @@ const WebDavSettings: FC = () => {
         <WebdavBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}
+          tlsCertificateHint
           webdavConfig={{
             webdavHost,
             webdavUser,
             webdavPass,
             webdavPath,
-            webdavDisableStream
+            webdavDisableStream,
+            allowSelfSignedTls: webdavAllowSelfSignedTls
           }}
         />
       </>

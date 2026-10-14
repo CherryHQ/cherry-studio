@@ -1,4 +1,19 @@
-export * from './constants'
-export * from './Sidebar'
-export * from './Tooltip'
-export * from './types'
+export {
+  getSidebarDisplayWidth,
+  getSidebarLayout,
+  isIntermediateSidebarWidth,
+  normalizeSidebarWidth,
+  SIDEBAR_FULL_THRESHOLD,
+  SIDEBAR_HIDDEN_THRESHOLD,
+  SIDEBAR_ICON_WIDTH,
+  SIDEBAR_MAX_WIDTH
+} from './constants'
+export { UserAvatar } from './primitives'
+export { Sidebar, type SidebarProps } from './Sidebar'
+export type {
+  ResolvedSidebarEntry,
+  SidebarIconPresentation,
+  SidebarLayout,
+  SidebarUser,
+  SidebarVisibleLayout
+} from './types'

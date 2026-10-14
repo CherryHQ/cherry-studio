@@ -11,32 +11,32 @@
  */
 
 import { pinService } from '@data/services/PinService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import { CreatePinSchema, ListPinsQuerySchema, PinIdSchema, type PinSchemas } from '@shared/data/api/schemas/pins'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const pinHandlers: HandlersFor<PinSchemas> = {
   '/pins': {
     GET: async ({ query }) => {
       const parsed = ListPinsQuerySchema.parse(query)
-      return await pinService.listByEntityType(parsed.entityType)
+      return pinService.listByEntityType(parsed.entityType)
     },
 
     POST: async ({ body }) => {
       const parsed = CreatePinSchema.parse(body)
-      return await pinService.pin(parsed)
+      return pinService.pin(parsed)
     }
   },
 
   '/pins/:id': {
     GET: async ({ params }) => {
       const id = PinIdSchema.parse(params.id)
-      return await pinService.getById(id)
+      return pinService.getById(id)
     },
 
     DELETE: async ({ params }) => {
       const id = PinIdSchema.parse(params.id)
-      await pinService.unpin(id)
+      pinService.unpin(id)
       return undefined
     }
   },
@@ -45,7 +45,7 @@ export const pinHandlers: HandlersFor<PinSchemas> = {
     PATCH: async ({ params, body }) => {
       const id = PinIdSchema.parse(params.id)
       const anchor = OrderRequestSchema.parse(body)
-      await pinService.reorder(id, anchor)
+      pinService.reorder(id, anchor)
       return undefined
     }
   },
@@ -53,7 +53,7 @@ export const pinHandlers: HandlersFor<PinSchemas> = {
   '/pins/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      await pinService.reorderBatch(parsed.moves)
+      pinService.reorderBatch(parsed.moves)
       return undefined
     }
   }

@@ -9,7 +9,7 @@ const Gemini = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const GeminiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gemini, {
   Avatar: GeminiAvatar,
-  colorPrimary: '#F6C013'
+  colorPrimary: '#000000'
 })
 
 export default GeminiIcon

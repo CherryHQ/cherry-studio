@@ -1,5 +1,6 @@
-import type { FileInfo } from '@shared/file/types'
 import * as z from 'zod'
+
+import type { FileInfo } from '@shared/types/file'
 
 export const SystemOcrOptionsSchema = z.looseObject({
   langs: z.array(z.string()).optional()

@@ -8,7 +8,7 @@
 import * as z from 'zod'
 
 import { EntityTypeSchema } from '../../types/entityType'
-import { type Group, GroupIdSchema as SharedGroupIdSchema, GroupNameSchema } from '../../types/group'
+import { type Group, GroupIdSchema as SharedGroupIdSchema, GroupNameInputSchema } from '../../types/group'
 import type { OrderEndpoints } from './_endpointHelpers'
 
 export const GroupIdSchema = SharedGroupIdSchema
@@ -23,7 +23,7 @@ export const GroupIdSchema = SharedGroupIdSchema
  */
 export const CreateGroupSchema = z.strictObject({
   entityType: EntityTypeSchema,
-  name: GroupNameSchema
+  name: GroupNameInputSchema
 })
 export type CreateGroupDto = z.infer<typeof CreateGroupSchema>
 
@@ -31,7 +31,7 @@ export type CreateGroupDto = z.infer<typeof CreateGroupSchema>
  * DTO for updating an existing group. Only `name` is mutable.
  */
 export const UpdateGroupSchema = z.strictObject({
-  name: GroupNameSchema.optional()
+  name: GroupNameInputSchema.optional()
 })
 export type UpdateGroupDto = z.infer<typeof UpdateGroupSchema>
 

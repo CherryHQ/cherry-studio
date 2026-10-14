@@ -7,6 +7,7 @@
  * and pre-composed ID passthrough.
  */
 
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
   createUniqueModelId,
   isUniqueModelId,
@@ -25,6 +26,20 @@ import {
 export interface LegacyModelRef {
   id?: string
   provider?: string
+}
+
+function parseValidUniqueModelId(value: string): UniqueModelId | null {
+  const separatorIndex = value.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+  if (separatorIndex <= 0) return null
+
+  try {
+    return createUniqueModelId(
+      value.slice(0, separatorIndex),
+      value.slice(separatorIndex + UNIQUE_MODEL_ID_SEPARATOR.length)
+    )
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -54,23 +69,50 @@ export function legacyModelToUniqueId(
     if (providerId && modelId) {
       // If the modelId is already a composite ID, return it directly to avoid double-prefixing.
       if (modelId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
-        return modelId as UniqueModelId
+        return parseValidUniqueModelId(modelId)
       }
       if (providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
         return null
       }
-      return createUniqueModelId(providerId, modelId)
+      try {
+        return createUniqueModelId(providerId, modelId)
+      } catch {
+        return null
+      }
     }
   }
 
   if (typeof fallback === 'string') {
     const trimmedFallback = fallback.trim()
     if (trimmedFallback && isUniqueModelId(trimmedFallback)) {
-      return trimmedFallback
+      return parseValidUniqueModelId(trimmedFallback)
     }
   }
 
   return null
+}
+
+/**
+ * Opt-in chat/default-model migration rule.
+ *
+ * Legacy CherryAI model references are managed by the v2 seeded default model,
+ * but this rule must not apply to every model reference type (for example,
+ * embedding/rerank preferences keep their original domain semantics).
+ */
+export function legacyChatModelToUniqueId(
+  model: LegacyModelRef | null | undefined,
+  fallback?: string | null
+): UniqueModelId | null {
+  const providerId = typeof model?.provider === 'string' ? model.provider.trim() : ''
+  if (providerId === CHERRYAI_PROVIDER_ID) {
+    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+  }
+
+  const modelId = legacyModelToUniqueId(model, fallback)
+  if (modelId?.startsWith(`${CHERRYAI_PROVIDER_ID}${UNIQUE_MODEL_ID_SEPARATOR}`)) {
+    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+  }
+  return modelId
 }
 
 export type ModelReferenceResolution =

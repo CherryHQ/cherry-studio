@@ -1,46 +1,50 @@
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 
-import DirectorySourceContent from './sources/DirectorySourceContent'
-import FileSourceContent from './sources/FileSourceContent'
 import NoteSourceContent from './sources/NoteSourceContent'
 import UrlSourceContent from './sources/UrlSourceContent'
-import type { DirectoryItem, DropzoneOnDrop } from './types'
+import type { NoteDraft, NoteItem, NoteSourceMode } from './types'
 
 interface AddKnowledgeItemDialogSourceTabsProps {
   activeSource: KnowledgeItemType
-  selectedDirectories: DirectoryItem[]
-  selectedFiles: File[]
+  noteMode: NoteSourceMode
+  selectedNotes: NoteItem[]
+  noteDraft: NoteDraft
   urlValue: string
-  onDirectoryRemove: (directoryPath: string) => void
-  onDirectorySelect: () => void | Promise<void>
-  onFileDrop: DropzoneOnDrop
-  onFileRemove: (fileIndex: number) => void
+  onNoteModeChange: (mode: NoteSourceMode) => void
+  onNoteToggle: (note: NoteItem) => void
+  onNoteSelectionChange: (notes: NoteItem[]) => void
+  onNoteDraftTitleChange: (title: string) => void
+  onNoteDraftContentChange: (content: string) => void
   onUrlValueChange: (value: string) => void
 }
 
 const AddKnowledgeItemDialogSourceTabs = ({
   activeSource,
-  selectedDirectories,
-  selectedFiles,
+  noteMode,
+  selectedNotes,
+  noteDraft,
   urlValue,
-  onDirectoryRemove,
-  onDirectorySelect,
-  onFileDrop,
-  onFileRemove,
+  onNoteModeChange,
+  onNoteToggle,
+  onNoteSelectionChange,
+  onNoteDraftTitleChange,
+  onNoteDraftContentChange,
   onUrlValueChange
 }: AddKnowledgeItemDialogSourceTabsProps) => {
+  // `file` / `directory` use the OS picker directly and never reach this panel.
   const renderSourceContent = (source: KnowledgeItemType) => {
     switch (source) {
-      case 'file':
-        return <FileSourceContent files={selectedFiles} onDrop={onFileDrop} onRemove={onFileRemove} />
       case 'note':
-        return <NoteSourceContent />
-      case 'directory':
         return (
-          <DirectorySourceContent
-            directories={selectedDirectories}
-            onRemove={onDirectoryRemove}
-            onSelectDirectory={onDirectorySelect}
+          <NoteSourceContent
+            mode={noteMode}
+            onModeChange={onNoteModeChange}
+            selectedNotes={selectedNotes}
+            onToggle={onNoteToggle}
+            onSelectionChange={onNoteSelectionChange}
+            draft={noteDraft}
+            onDraftTitleChange={onNoteDraftTitleChange}
+            onDraftContentChange={onNoteDraftContentChange}
           />
         )
       case 'url':

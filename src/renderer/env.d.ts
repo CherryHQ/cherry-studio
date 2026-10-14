@@ -1,23 +1,18 @@
 /// <reference types="vite/client" />
 
-import type { ToastUtilities } from '@cherrystudio/ui'
-import type { AppModalApi } from '@renderer/components/AppModal'
-import type { UseNavigateResult } from '@tanstack/react-router'
-
-interface ImportMetaEnv {
-  VITE_RENDERER_INTEGRATED_MODEL: string
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv
-}
+import type { AppEdition } from '@shared/types/appEdition'
 
 declare global {
-  interface Window {
-    root: HTMLElement
-    modal: AppModalApi
-    store: any
-    navigate: UseNavigateResult<string>
-    toast: ToastUtilities
+  const __APP_EDITION__: AppEdition
+  const __APP_RELEASE_NOTES__: string
+  const __APP_RELEASE_VERSION__: string
+  const __APP_RELEASE_HISTORY__: ReadonlyArray<{
+    readonly releaseNotes: string
+    readonly version: string
+  }>
+
+  interface ImportMetaEnv {
+    readonly RENDERER_VITE_AIHUBMIX_SECRET: string
+    readonly RENDERER_VITE_PPIO_APP_SECRET: string
   }
 }

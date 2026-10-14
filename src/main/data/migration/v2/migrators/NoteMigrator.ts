@@ -1,7 +1,8 @@
+import { eq, sql } from 'drizzle-orm'
+
 import { type InsertNoteRow, noteTable } from '@data/db/schemas/note'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -99,10 +100,9 @@ export class NoteMigrator extends BaseMigrator {
     }
 
     try {
-      await ctx.db.transaction(async (tx) => {
+      ctx.db.transaction((tx) => {
         for (const row of this.preparedRows) {
-          await tx
-            .insert(noteTable)
+          tx.insert(noteTable)
             .values(row)
             .onConflictDoUpdate({
               target: [noteTable.rootPath, noteTable.path],
@@ -111,6 +111,7 @@ export class NoteMigrator extends BaseMigrator {
                 isExpanded: row.isExpanded
               }
             })
+            .run()
         }
       })
 
@@ -140,7 +141,7 @@ export class NoteMigrator extends BaseMigrator {
 
     try {
       const rootPath = this.preparedRows[0].rootPath
-      const result = await ctx.db
+      const result = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(noteTable)
         .where(eq(noteTable.rootPath, rootPath))

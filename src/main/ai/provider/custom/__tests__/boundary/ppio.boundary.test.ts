@@ -55,7 +55,8 @@ function fixture(opts: {
       size: opts.size,
       seed: opts.seed,
       files: opts.files,
-      providerParams: { modelDescriptor: { id: opts.id, endpoint: opts.endpoint, isSync: false, mode }, ...opts.params }
+      modelDescriptor: { id: opts.id, endpoint: opts.endpoint, isSync: false, mode },
+      providerParams: { ...opts.params }
     } as ImageGenerationSubmitInput
   }
 }

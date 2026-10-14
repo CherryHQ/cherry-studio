@@ -9,7 +9,7 @@ const Hunyuan = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const HunyuanIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Hunyuan, {
   Avatar: HunyuanAvatar,
-  colorPrimary: '#0054E0'
+  colorPrimary: '#0055E9'
 })
 
 export default HunyuanIcon

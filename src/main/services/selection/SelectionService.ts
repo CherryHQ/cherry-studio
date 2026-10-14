@@ -1,12 +1,7 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
-import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
-import { WindowType } from '@main/core/window/types'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, clipboard, screen, systemPreferences } from 'electron'
+import { randomUUID } from 'node:crypto'
+
+import type { BrowserWindow } from 'electron'
+import { app, clipboard, screen, systemPreferences } from 'electron'
 import type {
   KeyboardEventData,
   MouseEventData,
@@ -14,6 +9,17 @@ import type {
   SelectionHookInstance,
   TextSelectionData
 } from 'selection-hook'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
+import { WindowType } from '@main/core/window/types'
+import { getApplicationId } from '@main/utils/appEdition'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
+import type { SelectionActionSession } from '@shared/types/selection'
 
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from './selectionConfig'
 
@@ -50,6 +56,36 @@ type RelativeOrientation =
 @ServicePhase(Phase.WhenReady)
 export class SelectionService extends BaseService implements Activatable {
   private selectionHook: SelectionHookInstance | null = null
+  private nativePanel?: {
+    configurePanel(handle: Buffer): void
+    moveToActiveSpace(handle: Buffer): void
+  }
+
+  private getNativePanel(): NonNullable<SelectionService['nativePanel']> {
+    return (this.nativePanel ??= require(application.getPath('feature.selection.native_panel_file')))
+  }
+
+  /** Latest desired running state — mirrors the `feature.selection.enabled` preference. */
+  private desiredEnabled = false
+  /**
+   * Converges the hook/toolbar running state to `desiredEnabled`. Sole caller of activate/deactivate
+   * (latest-wins, level-triggered against `isActivated`). The reachable race is the deferred startup
+   * warm-up (see onAllReady): a disable arriving before the `setImmediate` fires must win, instead of
+   * the warm-up activating unconditionally. The reconciler holds no OS resources and is a
+   * construct-once field NOT recreated on restart, so it is deliberately never disposed.
+   */
+  private readonly reconciler: LatestReconciler = createLatestReconciler<{ desired: boolean; actual: boolean }>({
+    name: 'selection',
+    getSnapshot: () => ({ desired: this.desiredEnabled, actual: this.isActivated }),
+    isSettled: ({ desired, actual }) => desired === actual,
+    apply: async ({ desired }) => {
+      if (desired) {
+        await this.activate()
+      } else {
+        await this.deactivate()
+      }
+    }
+  })
 
   private initStatus: boolean = false
 
@@ -157,8 +193,9 @@ export class SelectionService extends BaseService implements Activatable {
     // Load native module if not yet loaded (lazy loading preserved across activation cycles)
     if (!this.initStatus) {
       if (!this.loadModuleAndCreateInstance()) {
-        // Setting preference to false triggers the subscription which calls deactivate(),
-        // but _activating guard in BaseService ensures the deactivate() is a safe no-op.
+        // Flip the preference off so the UI reflects the failure. This fires the subscription
+        // (desiredEnabled=false + reconciler.request()); the reconciler then converges to
+        // deactivated after this onActivate throws — no direct, racing deactivate() call.
         const preferenceService = application.get('PreferenceService')
         void preferenceService.set('feature.selection.enabled', false)
         throw new Error('Failed to load selection-hook module')
@@ -211,9 +248,14 @@ export class SelectionService extends BaseService implements Activatable {
 
   protected async onInit(): Promise<void> {
     this.initZoomFactor()
-    this.registerIpcHandlers()
 
     const wm = application.get('WindowManager')
+
+    const actionWindowListeners = new Map<string, () => void>()
+    this.registerDisposable(() => {
+      for (const dispose of actionWindowListeners.values()) dispose()
+      actionWindowListeners.clear()
+    })
 
     // Inject behavior into newly-created Selection windows. onWindowCreatedByType fires
     // synchronously before content loads, so listeners here attach before the renderer
@@ -233,6 +275,21 @@ export class SelectionService extends BaseService implements Activatable {
     // or accumulate duplicates across reuses.
     this.registerDisposable(
       wm.onWindowCreatedByType(WindowType.SelectionAction, (mw) => {
+        if (isMac) this.getNativePanel().configurePanel(mw.window.getNativeWindowHandle())
+        const onHide = () => {
+          const session = wm.getInitData(mw.id) as SelectionActionSession | null
+          if (session) {
+            application.get('IpcApiService').send(mw.id, 'selection.action_dismissed', { sessionId: session.sessionId })
+          }
+        }
+        const dispose = () => {
+          mw.window.removeListener('hide', onHide)
+          mw.window.removeListener('closed', dispose)
+          actionWindowListeners.delete(mw.id)
+        }
+        actionWindowListeners.set(mw.id, dispose)
+        mw.window.on('hide', onHide)
+        mw.window.once('closed', dispose)
         mw.window.on('resized', () => {
           if (mw.window.isDestroyed()) return
           if (this.isRemeberWinSize) {
@@ -260,10 +317,24 @@ export class SelectionService extends BaseService implements Activatable {
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable({
       dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
-        if (enabled) void this.activate()
-        else void this.deactivate()
+        this.desiredEnabled = enabled
+        // The reconciler can settle without running deactivate()/onActivate() (disable while
+        // never activated; rapid false→true), so keep the pool in sync directly here.
+        // Both calls are idempotent.
+        if (!enabled) {
+          wm.suspendPool(WindowType.SelectionAction)
+        } else if (this.isActivated) {
+          wm.resumePool(WindowType.SelectionAction)
+        }
+        this.reconciler.request()
       })
     })
+
+    // The pool is warmup:'eager' — suspend before allReady so the warmup skips it while the
+    // feature is off; onActivate()'s resumePool() re-enables it.
+    if (!preferenceService.get('feature.selection.enabled')) {
+      wm.suspendPool(WindowType.SelectionAction)
+    }
   }
 
   protected onAllReady(): void {
@@ -275,14 +346,16 @@ export class SelectionService extends BaseService implements Activatable {
 
     // Warm up off the boot critical path: onActivate() synchronously loads the native
     // addon and builds the toolbar + action windows (~120ms). setImmediate defers it
-    // past the WhenReady phase so the main window paints first. A pre-fire stop is safe
-    // — _doActivate() no-ops unless the service is Ready.
+    // past the WhenReady phase so the main window paints first.
+    //
+    // Drive the warm-up through the reconciler so a disable landing in the deferred gap is not
+    // clobbered: the old setImmediate activated unconditionally even if the user had just turned the
+    // feature off. Setting `desiredEnabled` makes the deferred request level-triggered — it re-reads
+    // the latest intent and stays deactivated if disabled meanwhile. A pre-fire stop is also safe
+    // (apply's activate() no-ops unless the service is Ready).
+    this.desiredEnabled = true
     this.logInfo('Selection feature enabled, scheduling selection-hook warm-up')
-    setImmediate(() => {
-      void this.activate().catch((error) => {
-        this.logError('Failed to activate selection feature on startup:', error as Error)
-      })
-    })
+    setImmediate(() => this.reconciler.request())
   }
 
   protected async onStop(): Promise<void> {
@@ -312,6 +385,9 @@ export class SelectionService extends BaseService implements Activatable {
     hasLinuxInputDeviceAccess: boolean
     isLinuxCompositorCompatible: boolean
   } {
+    // The env is only read when the native module loads (normally on activation); load it now so
+    // the settings page sees the real env even while the feature is still disabled.
+    if (isLinux && !this.initStatus) this.loadModuleAndCreateInstance()
     return {
       isLinuxWaylandDisplay: this.isLinuxWaylandDisplay,
       isLinuxXWaylandMode: this.isLinuxXWaylandMode,
@@ -462,7 +538,7 @@ export class SelectionService extends BaseService implements Activatable {
    * Toggle the enabled state of the selection service
    * Will sync the new enabled store to all renderer windows
    */
-  public toggleEnabled(enabled: boolean | undefined = undefined): void {
+  public toggleEnabled(enabled?: boolean): void {
     const preferenceService = application.get('PreferenceService')
     const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 
@@ -494,7 +570,9 @@ export class SelectionService extends BaseService implements Activatable {
     // WM suffices and all cleanup still runs.
 
     window.on('show', () => {
-      window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
+      if (this.toolbarWindowId) {
+        application.get('IpcApiService').send(this.toolbarWindowId, 'selection.toolbar_visibility_change', true)
+      }
       // Mouse-key hook start tied to visibility rather than to specific call
       // sites: normal show path, crash-recovery re-open, and any future
       // caller all inherit this for free.
@@ -502,7 +580,9 @@ export class SelectionService extends BaseService implements Activatable {
     })
 
     window.on('hide', () => {
-      window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, false)
+      if (this.toolbarWindowId) {
+        application.get('IpcApiService').send(this.toolbarWindowId, 'selection.toolbar_visibility_change', false)
+      }
       // Symmetric to the show listener — any path to hidden (business
       // `hideToolbar()`, WM blur-driven `window.hide()`, quirk-wrapped hide)
       // triggers cleanup. `stopHideByMouseKeyListener` is idempotent.
@@ -554,8 +634,10 @@ export class SelectionService extends BaseService implements Activatable {
       y: posY
     })
 
-    // setAlwaysOnTop(true, 'screen-saver') is re-applied by the macReapplyAlwaysOnTop
-    // quirk after every show()/showInactive() call (see WindowManager.applyQuirks).
+    // setAlwaysOnTop(true, 'screen-saver') is re-applied on every platform by the
+    // reapplyAlwaysOnTop quirk after each show()/showInactive() call (see
+    // WindowManager.applyQuirks) — on Windows that re-assert is what keeps the
+    // toolbar above third-party topmost windows.
 
     if (!isMac) {
       this.toolbarWindow!.show()
@@ -579,7 +661,7 @@ export class SelectionService extends BaseService implements Activatable {
     // [macOS] a hacky way
     // when set `skipTransformProcessType: true`, if the selection is in self app, it will make the selection canceled after toolbar showing
     // so we just don't set `skipTransformProcessType: true` when in self app
-    const isSelf = ['com.github.Electron', 'com.cherryai.cherrystudio'].includes(programName)
+    const isSelf = ['com.github.Electron', getApplicationId()].includes(programName)
 
     if (!isSelf) {
       // [macOS] an ugly hacky way
@@ -956,7 +1038,9 @@ export class SelectionService extends BaseService implements Activatable {
 
     // [macOS] isFullscreen is only available on macOS
     this.showToolbarAtPosition(refPoint, refOrientation, selectionData.programName)
-    this.toolbarWindow!.webContents.send(IpcChannel.Selection_TextSelected, selectionData)
+    if (this.toolbarWindowId) {
+      application.get('IpcApiService').send(this.toolbarWindowId, 'selection.text_selected', selectionData)
+    }
   }
 
   /**
@@ -1209,7 +1293,7 @@ export class SelectionService extends BaseService implements Activatable {
     const wm = application.get('WindowManager')
 
     // open({ initData }) atomically stores the action payload and, for the
-    // pool-recycle path, emits WindowManager_Reused with the same payload so
+    // pool-recycle path, emits window.reused with the same payload so
     // the renderer can update in-place. For recycled windows the renderer has
     // been mounted and its listener registered since warmup, so the DOM is
     // ready on the next tick. For fresh windows the renderer mounts,
@@ -1217,7 +1301,7 @@ export class SelectionService extends BaseService implements Activatable {
     // paints before the user notices. This mirrors the behavior of the
     // pre-WindowManager SelectionService: push data, then show immediately.
     const windowId = wm.open(WindowType.SelectionAction, {
-      initData: actionItem,
+      initData: { ...actionItem, sessionId: randomUUID() } satisfies SelectionActionSession,
       options: {
         width: this.isRemeberWinSize ? this.lastActionWindowSize.width : this.ACTION_WINDOW_WIDTH,
         height: this.isRemeberWinSize ? this.lastActionWindowSize.height : this.ACTION_WINDOW_HEIGHT
@@ -1322,16 +1406,11 @@ export class SelectionService extends BaseService implements Activatable {
 
     // act normally when the app is not in fullscreen mode
     if (!isFullScreen) {
+      // Move before showing: a recycled panel may still belong to another Space.
+      this.getNativePanel().moveToActiveSpace(actionWindow.getNativeWindowHandle())
       actionWindow.show()
       return
     }
-
-    // [macOS] an UGLY HACKY way for fullscreen override settings
-
-    // FIXME sometimes the dock will be shown when the action window is shown
-    // FIXME if actionWindow show on the fullscreen app, switch to other space will cause the mainWindow to be shown
-    // FIXME When setVisibleOnAllWorkspaces is true, docker icon disappeared when the first action window is shown on the fullscreen app
-    //       use app.dock.show() to show the dock again will cause the action window to be closed when auto hide on blur is enabled
 
     // setFocusable(false) to prevent the action window hide when blur (if auto hide on blur is enabled)
     actionWindow.setFocusable(false)
@@ -1340,31 +1419,12 @@ export class SelectionService extends BaseService implements Activatable {
     // (the pin toggle and this show sequence use the same default path).
     actionWindow.setAlwaysOnTop(true)
 
-    // `setVisibleOnAllWorkspaces(true)` will cause the dock icon disappeared
-    // just store the dock icon status, and show it again
-    const isDockShown = app.dock?.isVisible()
-
-    // DO NOT set `skipTransformProcessType: true`,
-    // it will cause the action window to be shown on other space
-    actionWindow.setVisibleOnAllWorkspaces(true, {
-      visibleOnFullScreen: true
-    })
-
+    this.getNativePanel().moveToActiveSpace(actionWindow.getNativeWindowHandle())
     actionWindow.showInactive()
-
-    // show the dock again if last time it was shown
-    // do not put it after `actionWindow.focus()`, will cause the action window to be closed when auto hide on blur is enabled
-    if (!app.dock?.isVisible() && isDockShown) {
-      void app.dock?.show()
-    }
 
     // unset everything
     setTimeout(() => {
       if (actionWindow.isDestroyed()) return
-      actionWindow.setVisibleOnAllWorkspaces(false, {
-        visibleOnFullScreen: true,
-        skipTransformProcessType: true
-      })
       actionWindow.setAlwaysOnTop(false)
 
       actionWindow.setFocusable(true)
@@ -1372,21 +1432,6 @@ export class SelectionService extends BaseService implements Activatable {
       // regain the focus when all the works done
       actionWindow.focus()
     }, 50)
-  }
-
-  public pinActionWindow(actionWindow: BrowserWindow, isPinned: boolean): void {
-    if (actionWindow.isDestroyed()) return
-    // Route through WindowManager so any future `behavior.alwaysOnTop` on the
-    // SelectionAction registry entry (currently none) flows automatically.
-    // With no level declared, this is equivalent to `setAlwaysOnTop(isPinned)`.
-    const wm = application.get('WindowManager')
-    const id = wm.getWindowId(actionWindow)
-    if (id !== undefined) {
-      wm.behavior.setAlwaysOnTop(id, isPinned)
-    } else {
-      // Untracked window (shouldn't happen in the normal pooled flow).
-      actionWindow.setAlwaysOnTop(isPinned)
-    }
   }
 
   /**
@@ -1432,10 +1477,10 @@ export class SelectionService extends BaseService implements Activatable {
     }
   }
 
-  public writeToClipboard(text: string): boolean {
+  public async writeToClipboard(text: string): Promise<boolean> {
     if (isLinux) {
       try {
-        clipboard.writeText(text)
+        await clipboard.writeText(text)
         return true
       } catch (error) {
         logger.error('Failed to write to clipboard on Linux:', error as Error)
@@ -1444,53 +1489,6 @@ export class SelectionService extends BaseService implements Activatable {
     }
     if (!this.selectionHook || !this.isActivated) return false
     return this.selectionHook.writeToClipboard(text)
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Selection_ToolbarHide, () => {
-      this.hideToolbar()
-    })
-
-    this.ipcHandle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
-      return this.writeToClipboard(text) ?? false
-    })
-
-    this.ipcHandle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
-      this.determineToolbarSize(width, height)
-    })
-
-    // [macOS] only macOS has the available isFullscreen mode
-    this.ipcHandle(
-      IpcChannel.Selection_ProcessAction,
-      (_, actionItem: SelectionActionItem, isFullScreen: boolean = false) => {
-        this.processAction(actionItem, isFullScreen)
-      }
-    )
-
-    // Helper: resolve an action window from an IPC event via WindowManager.
-    // Falls back to BrowserWindow.fromWebContents if the window is not tracked by WM
-    // (e.g., race conditions during deactivate), matching the pre-migration behavior.
-    const resolveActionWindow = (event: Electron.IpcMainInvokeEvent): BrowserWindow | null => {
-      const wm = application.get('WindowManager')
-      const windowId = wm.getWindowIdByWebContents(event.sender)
-      if (windowId) {
-        return wm.getWindow(windowId) ?? null
-      }
-      return BrowserWindow.fromWebContents(event.sender)
-    }
-
-    this.ipcHandle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
-      const actionWindow = resolveActionWindow(event)
-      if (actionWindow && !actionWindow.isDestroyed()) {
-        this.pinActionWindow(actionWindow, isPinned)
-      }
-    })
-
-    if (isLinux) {
-      this.ipcHandle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
-        return this.getLinuxEnvInfo()
-      })
-    }
   }
 
   private logInfo(message: string, forceShow: boolean = false): void {

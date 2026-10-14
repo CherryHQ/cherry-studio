@@ -1,7 +1,8 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as SliderPrimitive from '@radix-ui/react-slider'
 import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 type SliderMark = {
   value: number
@@ -10,7 +11,7 @@ type SliderMark = {
 
 const sliderTrackVariants = cva(
   cn(
-    'bg-primary/10 relative grow overflow-hidden rounded-full',
+    'relative grow overflow-hidden rounded-full bg-primary/10',
     'data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full'
   ),
   {
@@ -29,8 +30,8 @@ const sliderTrackVariants = cva(
 
 const sliderThumbVariants = cva(
   cn(
-    'block shrink-0 rounded-full border border-primary/40 bg-background shadow-sm transition-[color,box-shadow]',
-    'ring-primary/30 hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden',
+    'block shrink-0 rounded-full border border-background bg-primary shadow-xs transition-[color,box-shadow]',
+    'ring-primary/30 hover:ring-4 focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset',
     'disabled:pointer-events-none disabled:opacity-50'
   ),
   {
@@ -47,7 +48,7 @@ const sliderThumbVariants = cva(
   }
 )
 
-const sliderMarkLabelVariants = cva('absolute top-0 whitespace-nowrap text-muted-foreground leading-none', {
+const sliderMarkLabelVariants = cva('absolute top-0 leading-none whitespace-nowrap text-muted-foreground', {
   variants: {
     size: {
       sm: 'text-[10px]',
@@ -62,16 +63,16 @@ const sliderMarkLabelVariants = cva('absolute top-0 whitespace-nowrap text-muted
 
 const sliderValueLabelVariants = cva(
   cn(
-    'absolute left-1/2 -translate-x-1/2 -translate-y-full pointer-events-none',
+    'pointer-events-none absolute left-1/2 -translate-x-1/2 -translate-y-full',
     'rounded bg-primary px-1.5 py-0.5 text-primary-foreground',
     'scale-0 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100'
   ),
   {
     variants: {
       size: {
-        sm: 'text-[10px] -top-1',
-        md: 'text-xs -top-1.5',
-        lg: 'text-sm -top-2'
+        sm: '-top-1 text-[10px]',
+        md: '-top-1.5 text-xs',
+        lg: '-top-2 text-sm'
       }
     },
     defaultVariants: {
@@ -91,6 +92,8 @@ function Slider({
   orientation = 'horizontal',
   showValueLabel,
   formatValueLabel,
+  getThumbAriaLabel,
+  getThumbAriaValueText,
   onValueChange,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> &
@@ -98,6 +101,8 @@ function Slider({
     marks?: SliderMark[]
     showValueLabel?: boolean
     formatValueLabel?: (value: number) => React.ReactNode
+    getThumbAriaLabel?: (index: number) => string
+    getThumbAriaValueText?: (value: number, index: number) => string
   }) {
   const [localValues, setLocalValues] = React.useState(() =>
     Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min]
@@ -132,13 +137,15 @@ function Slider({
       <SliderPrimitive.Track data-slot="slider-track" className={sliderTrackVariants({ size })}>
         <SliderPrimitive.Range
           data-slot="slider-range"
-          className={cn('bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full')}
+          className={cn('absolute bg-primary data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full')}
         />
       </SliderPrimitive.Track>
       {localValues.map((val, index) => (
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
+          aria-label={getThumbAriaLabel?.(index)}
+          aria-valuetext={getThumbAriaValueText?.(val, index)}
           className={cn(sliderThumbVariants({ size }), showValueLabel && 'group')}>
           {showValueLabel && (
             <span data-slot="slider-value-label" className={sliderValueLabelVariants({ size })}>

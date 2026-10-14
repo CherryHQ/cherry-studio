@@ -1,35 +1,39 @@
+import { sortBy } from 'es-toolkit/compat'
+
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import {
+  deriveModelGroupName,
   isEmbeddingModel,
-  isFreeModel,
-  isFunctionCallingModel,
-  isReasoningModel,
+  isGenerateAudioModel,
+  isGenerateImageModel,
+  isGenerateVideoModel,
+  isNonChatModel,
   isRerankModel,
-  isVisionModel,
-  isWebSearchModel
+  isSpeechToTextModel
 } from '@shared/utils/model'
-import { sortBy, toPairs } from 'lodash'
 
 import { normalizeModelGroupName } from './grouping'
 import { filterProviderSettingModelsByKeywords, getDuplicateProviderSettingModelNames } from './utils'
 
 export type ModelGroups = Record<string, Model[]>
-
-export type ModelSections = {
-  enabled: ModelGroups
-  disabled: ModelGroups
+interface GroupModelsOptions {
+  preferModelGroup?: boolean
 }
 
+// The manage/pull drawer filters by model TYPE (primary purpose), not by the
+// overlapping capability flags. Order mirrors the drawer's tab row.
 export const MODEL_LIST_CAPABILITY_FILTERS = [
   'all',
-  'reasoning',
-  'vision',
-  'websearch',
-  'free',
+  'text',
+  'image',
   'embedding',
+  'audio',
+  'video',
   'rerank',
-  'function_calling'
+  'speech',
+  'transcription'
 ] as const
 
 export type ModelListCapabilityFilter = (typeof MODEL_LIST_CAPABILITY_FILTERS)[number]
@@ -40,12 +44,9 @@ export type ModelListDerivedState = {
   capabilityOptions: readonly ModelListCapabilityFilter[]
   capabilityModelCounts: ModelListCapabilityCounts
   duplicateModelNames: Set<string>
-  enabledModelCount: number
-  disabledModelCount: number
   modelCount: number
   hasVisibleModels: boolean
   hasNoModels: boolean
-  allEnabled: boolean
   modelStatusMap: Map<string, ModelWithStatus>
 }
 
@@ -58,42 +59,88 @@ type CalculateModelListDerivedStateInput = {
   modelStatuses: ModelWithStatus[]
 }
 
-export const groupModels = (models: Model[], preserveGroupOrder = false): ModelGroups => {
-  const grouped = models.reduce<ModelGroups>((acc, model) => {
-    const groupName = normalizeModelGroupName(model.group)
-    if (!acc[groupName]) {
-      acc[groupName] = []
-    }
-    acc[groupName].push(model)
-    return acc
-  }, {})
+function getModelIdGroupName(model: Model): string | undefined {
+  const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  return deriveModelGroupName(modelId)
+}
 
-  if (preserveGroupOrder) {
-    return grouped
+/**
+ * Groups in an explicit order: first appearance in `models`, or alphabetical
+ * when `preserveGroupOrder` is false.
+ *
+ * This is the order-preserving view, and a `ModelGroups` record cannot carry
+ * that order. JavaScript enumerates integer-like keys in ascending numeric
+ * order ahead of insertion order, so a group named `10` always surfaces before
+ * `2` no matter which order the models were in. Group names come from
+ * `model.group`, which is free text, so `10` and `2` are names a user can
+ * genuinely create. Callers that render an ordered list must read this rather
+ * than `Object.keys(groupModels(...))`.
+ */
+export const groupModelEntries = (
+  models: Model[],
+  preserveGroupOrder = false,
+  options: GroupModelsOptions = {}
+): Array<[string, Model[]]> => {
+  const grouped = new Map<string, Model[]>()
+  for (const model of models) {
+    const inferredGroup = getModelIdGroupName(model)
+    const hasLegacyProviderGroup = inferredGroup !== undefined && model.group?.trim() === model.providerId
+    const shouldPreferStoredGroup = options.preferModelGroup && !hasLegacyProviderGroup
+    const preferredGroup = shouldPreferStoredGroup ? model.group : inferredGroup
+    const fallbackGroup = shouldPreferStoredGroup ? inferredGroup : model.group
+    const groupName = normalizeModelGroupName(preferredGroup, fallbackGroup ?? model.providerId)
+    const bucket = grouped.get(groupName)
+    if (bucket) {
+      bucket.push(model)
+    } else {
+      grouped.set(groupName, [model])
+    }
   }
 
-  return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
+  const entries = Array.from(grouped.entries())
+  return preserveGroupOrder ? entries : sortBy(entries, [0])
+}
+
+/**
+ * The same grouping as a plain record, for callers that only look a group up by
+ * name or count its members. Consumers that render an ordered list need
+ * {@link groupModelEntries} instead.
+ */
+export const groupModels = (
+  models: Model[],
+  preserveGroupOrder = false,
+  options: GroupModelsOptions = {}
+): ModelGroups =>
+  groupModelEntries(models, preserveGroupOrder, options).reduce((acc, [key, value]) => {
     acc[key] = value
     return acc
   }, {} as ModelGroups)
-}
+
+// Text-to-speech is the only audio-output sub-kind we can single out from
+// generic audio generation today (the `AUDIO_GENERATION` capability backs
+// both); the dedicated endpoint is the distinguishing signal.
+const isTextToSpeechModel = (model: Model): boolean =>
+  model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH) ?? false
 
 export const matchesCapabilityFilter = (model: Model, selectedCapabilityFilter: ModelListCapabilityFilter): boolean => {
   switch (selectedCapabilityFilter) {
-    case 'reasoning':
-      return isReasoningModel(model)
-    case 'vision':
-      return isVisionModel(model)
-    case 'websearch':
-      return isWebSearchModel(model)
-    case 'free':
-      return isFreeModel(model)
+    case 'text':
+      return !isNonChatModel(model)
+    case 'image':
+      return isGenerateImageModel(model)
     case 'embedding':
       return isEmbeddingModel(model)
+    case 'audio':
+      // "Generate audio", excluding text-to-speech (which has its own tab).
+      return isGenerateAudioModel(model) && !isTextToSpeechModel(model)
+    case 'video':
+      return isGenerateVideoModel(model)
     case 'rerank':
       return isRerankModel(model)
-    case 'function_calling':
-      return isFunctionCallingModel(model)
+    case 'speech':
+      return isTextToSpeechModel(model)
+    case 'transcription':
+      return isSpeechToTextModel(model)
     default:
       return true
   }
@@ -112,28 +159,9 @@ export const applyModelFilters = (
   return searchedModels.filter((model) => matchesCapabilityFilter(model, selectedCapabilityFilter))
 }
 
-export const calculateModelSections = (
-  models: Model[],
-  searchText: string,
-  selectedCapabilityFilter: ModelListCapabilityFilter
-): ModelSections => {
-  const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
-  const preserveGroupOrder = Boolean(searchText.trim())
-
-  return {
-    enabled: groupModels(
-      filteredModels.filter((model) => model.isEnabled),
-      preserveGroupOrder
-    ),
-    disabled: groupModels(
-      filteredModels.filter((model) => !model.isEnabled),
-      preserveGroupOrder
-    )
-  }
-}
-
-export const countModelsInGroups = (groups: ModelGroups): number => {
-  return Object.values(groups).reduce((acc, group) => acc + group.length, 0)
+export const countModelsInGroups = (groups: ModelGroups | ReadonlyArray<readonly [string, Model[]]>): number => {
+  const buckets = Array.isArray(groups) ? groups.map(([, models]) => models) : Object.values(groups)
+  return buckets.reduce((acc, group) => acc + group.length, 0)
 }
 
 export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCounts => {
@@ -143,26 +171,10 @@ export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCo
   counts.all = models.length
 
   for (const model of models) {
-    if (isReasoningModel(model)) {
-      counts.reasoning += 1
-    }
-    if (isVisionModel(model)) {
-      counts.vision += 1
-    }
-    if (isWebSearchModel(model)) {
-      counts.websearch += 1
-    }
-    if (isFreeModel(model)) {
-      counts.free += 1
-    }
-    if (isEmbeddingModel(model)) {
-      counts.embedding += 1
-    }
-    if (isRerankModel(model)) {
-      counts.rerank += 1
-    }
-    if (isFunctionCallingModel(model)) {
-      counts.function_calling += 1
+    for (const filter of MODEL_LIST_CAPABILITY_FILTERS) {
+      if (filter !== 'all' && matchesCapabilityFilter(model, filter)) {
+        counts[filter] += 1
+      }
     }
   }
 
@@ -176,29 +188,15 @@ export const calculateModelListDerivedState = ({
   modelStatuses
 }: CalculateModelListDerivedStateInput): ModelListDerivedState => {
   const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
-  const enabledModels: Model[] = []
-  const disabledModels: Model[] = []
-
-  for (const model of filteredModels) {
-    if (model.isEnabled) {
-      enabledModels.push(model)
-      continue
-    }
-
-    disabledModels.push(model)
-  }
 
   return {
     filteredModels,
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-    capabilityModelCounts: getCapabilityModelCounts(models),
+    capabilityModelCounts: getCapabilityModelCounts(applyModelFilters(models, searchText, 'all')),
     duplicateModelNames: getDuplicateProviderSettingModelNames(models),
-    enabledModelCount: enabledModels.length,
-    disabledModelCount: disabledModels.length,
     modelCount: filteredModels.length,
     hasVisibleModels: filteredModels.length > 0,
     hasNoModels: models.length === 0,
-    allEnabled: filteredModels.length > 0 && filteredModels.every((model) => model.isEnabled),
     modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status]))
   }
 }

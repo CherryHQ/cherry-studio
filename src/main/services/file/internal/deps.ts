@@ -3,8 +3,8 @@
  * module receives as its first argument.
  *
  * Construction wires the service singletons (`fileEntryService`,
- * `fileRefService`, `danglingCache`, `orphanCheckerRegistry`) plus a fresh
- * per-FileManager `VersionCache`; the bundle is built once inside
+ * `fileRefService`, `danglingCache`) plus a fresh per-FileManager
+ * `VersionCache`; the bundle is built once inside
  * `FileManager`'s class body and forwarded to every internal call.
  *
  * ## Design
@@ -23,7 +23,7 @@
 
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
-import type { OrphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
+import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 
 import type { DanglingCache } from '../danglingCache'
 import type { VersionCache } from '../versionCache'
@@ -33,5 +33,5 @@ export interface FileManagerDeps {
   readonly fileRefService: FileRefService
   readonly danglingCache: DanglingCache
   readonly versionCache: VersionCache
-  readonly orphanRegistry: OrphanCheckerRegistry
+  readonly contentWriteLock: KeyedMutex
 }

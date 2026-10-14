@@ -23,6 +23,12 @@ class RuntimeDriverRegistry {
     return driver
   }
 
+  /** All agent-session drivers — for broadcasts where the session's runtime type is unknown
+   *  (e.g. file cleanup for sessions whose agent row was deleted). */
+  getAgentSessionDrivers(): AgentSessionRuntimeDriver[] {
+    return [...this.drivers.values()].filter(isAgentSessionRuntimeDriver)
+  }
+
   clearForTest(): void {
     this.drivers.clear()
   }

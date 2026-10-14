@@ -15,14 +15,49 @@ Analyze the user's request to determine the issue type:
 - If the user describes a problem, error, crash, or something not working -> Bug Report
 - If the user requests a new feature, enhancement, or additional support -> Feature Request
 - If the user is asking a question or needs help with something -> Questions & Discussion
+- If the user describes engineering work with no user-facing behavior change (a follow-up deferred from a pull request, technical debt, refactoring, tooling or CI work) -> Engineering Task
 - Otherwise -> Others
 
+Engineering Task is not a GitHub issue form and is not offered to regular users. Only select it when the request clearly describes internal engineering work.
+
 **If unclear**, ask the user which template to use. Do not default to "Others" on your own.
+
+#### Eligibility Check (Engineering Task only)
+
+Engineering Task is meant for maintainers and collaborators with write access. This is a request,
+not an access control — nothing prevents anyone from calling `gh issue create` directly, and this
+skill does not try to. The check below is here so that a contributor without write access learns
+that early and gets pointed somewhere more useful.
+
+Before collecting any information, read the authenticated user's permission level:
+
+```bash
+repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+user="$(gh api user --jq .login)"
+permission="$(gh api "repos/$repo/collaborators/$user/permission" --jq .permission 2>/dev/null)"
+case "$permission" in
+  admin | write) echo "eligible" ;;
+  *) echo "not eligible" ;;
+esac
+```
+
+Only `admin` and `write` are eligible (`maintain` reports as `write`). Always compare the returned
+value: on a public repository this endpoint answers `read` for any user, including one who is not a
+collaborator at all, so a successful call proves nothing on its own. Do not use
+`repos/{owner}/{repo}/collaborators/{user}` here — it answers `204` for `read`- and `triage`-only
+collaborators, who are not the intended audience for this template.
+
+If the result is anything else, do not use this template. Explain that it is meant for maintainers
+with write access, politely ask the contributor to use one of the public templates instead, and
+offer to help them file it there — their report is welcome, just not under this template. Do not
+quietly switch templates while keeping the Engineering Task labels or issue type.
 
 ### Step 2: Read the Selected Template
 
 1. Read the corresponding template file from `.github/ISSUE_TEMPLATE/` directory.
-2. Identify required fields (`validations.required: true`), title prefix (`title`), and labels (`labels`, if present).
+2. Identify required fields (`validations.required: true`), title prefix (`title`), labels (`labels`, if present), and issue type (`type`, if present).
+
+For Engineering Task, read [references/engineering-task.md](references/engineering-task.md) instead — it lives outside `.github/ISSUE_TEMPLATE/` on purpose and carries its own title prefix, labels, issue type, and body structure.
 
 ### Step 3: Collect Information
 
@@ -37,6 +72,7 @@ Create a temp file and write the issue content:
 - Apply labels exactly as defined by the template.
 - Keep all labels when there are multiple labels.
 - If template has no labels, do not add custom labels.
+- Apply the issue type exactly as defined by the template's `type` field.
 
 Preview the temp file content. **Show the file path** (e.g., `/tmp/gh-issue-body-XXXXXX.md`) and ask for confirmation before creating. **Skip this step if the user explicitly indicates no preview/confirmation is needed** (for example, automation workflows).
 
@@ -67,7 +103,15 @@ gh issue create --title "<title_with_template_prefix>" --body-file "$issue_body_
 
 If the selected template has no labels, do not pass `--label`.
 
-You may use `--template` as a starting point (use the exact template name from the repository):
+If the selected template declares a `type`, pass it as well. `--body-file` does not carry the issue type over on its own, so omitting this leaves the issue untyped:
+
+```bash
+gh issue create --title "<title_with_template_prefix>" --body-file "$issue_body_file" --type "<type_from_template>"
+```
+
+`--template` and `--web` resolve against `.github/ISSUE_TEMPLATE/` on the default branch, so neither works for Engineering Task. Build the body locally for it.
+
+For the other templates you may use `--template` as a starting point (use the exact template name from the repository):
 
 ```bash
 gh issue create --template "<template_name>"
@@ -87,8 +131,8 @@ rm -f "$issue_body_file"
 
 ## Notes
 
-- Must read template files under `.github/ISSUE_TEMPLATE/` to ensure following the correct format.
-- Treat template files as the only source of truth. Do not hardcode title prefixes or labels in this skill.
+- Must read template files under `.github/ISSUE_TEMPLATE/` (or `references/` for Engineering Task) to ensure following the correct format.
+- Treat template files as the only source of truth. Do not hardcode title prefixes, labels, or issue types in this skill.
 - Title must be clear and concise, avoid vague terms like "a suggestion" or "stuck".
 - Provide as much detail as possible to help developers understand and resolve the issue.
 - If user doesn't specify a template type, ask them to choose one first.

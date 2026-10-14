@@ -1,20 +1,23 @@
-import { PageHeader } from '@cherrystudio/ui'
+import { Plus } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { usePersistCache } from '@data/hooks/useCache'
 import { useReorder } from '@data/hooks/useReorder'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
-  isProviderSettingsListVisibleProvider,
+  isProviderPresetInstanceSource,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import { toast } from '@renderer/services/toast'
+import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
-import { canManageProvider, isAnthropicSupportedProvider } from '@shared/utils/provider'
-import { Plus } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { canManageProvider } from '@shared/utils/provider'
 
 import { useOvmsSupport } from '../hooks/useOvmsSupport'
-import ProviderEditorDrawer from './ProviderEditorDrawer'
 import type { ProviderFilterMode } from './providerFilterMode'
 import { getGroupedPresetIds } from './providerGrouping'
 import ProviderListContent, { type ProviderListContentItemState } from './ProviderListContent'
@@ -22,31 +25,50 @@ import ProviderListHeaderFilterMenu from './ProviderListHeaderFilterMenu'
 import ProviderListItemWithContextMenu from './ProviderListItemWithContextMenu'
 import ProviderListSearchField from './ProviderListSearchField'
 import { useProviderDelete } from './useProviderDelete'
-import { type SubmitProviderEditorParams, useProviderEditor } from './useProviderEditor'
+import { type ProviderCreationContext, type SubmitProviderEditorParams, useProviderEditor } from './useProviderEditor'
+
+const ProviderEditorDrawer = lazy(() => import('./ProviderEditorDrawer'))
 
 export interface ProviderListProps {
   selectedProviderId?: string
   filterModeHint?: ProviderFilterMode
   onSelectProvider: (providerId: string) => void
+  onCustomProviderCreated?: (providerId: string, hasApiKey: boolean) => void
 }
 
-export default function ProviderList({ selectedProviderId, filterModeHint, onSelectProvider }: ProviderListProps) {
+export default function ProviderList({
+  selectedProviderId,
+  filterModeHint,
+  onSelectProvider,
+  onCustomProviderCreated
+}: ProviderListProps) {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const { models: allModels } = useModels()
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
-  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
+  const [persistedFilterMode, setPersistedFilterMode] = usePersistCache('settings.provider.filter_mode')
+  const [filterModeOverride, setFilterModeOverride] = useState<ProviderFilterMode | undefined>(filterModeHint)
+  const filterMode = filterModeOverride ?? persistedFilterMode
   const [searchText, setSearchText] = useState('')
+  const { models: allModels } = useModels(undefined, { fetchEnabled: Boolean(searchText.trim()) })
   const [dragging, setDragging] = useState(false)
   const [contextProviderId, setContextProviderId] = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
-  const autoDefaultedFilterRef = useRef(false)
 
   const handleToggleGroup = useCallback((presetProviderId: string) => {
     setExpandedGroups((prev) => ({ ...prev, [presetProviderId]: !prev[presetProviderId] }))
   }, [])
+
+  const handleProviderCreated = useCallback(
+    (providerId: string, context: ProviderCreationContext) => {
+      onSelectProvider(providerId)
+      if (context.kind === 'custom') {
+        onCustomProviderCreated?.(providerId, context.hasApiKey)
+      }
+    },
+    [onCustomProviderCreated, onSelectProvider]
+  )
 
   const {
     isOpen: editorOpen,
@@ -57,7 +79,26 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     startEdit,
     cancel: cancelEditor,
     submit: submitEditor
-  } = useProviderEditor({ onProviderCreated: onSelectProvider })
+  } = useProviderEditor({ onProviderCreated: handleProviderCreated })
+  const [editorActivated, setEditorActivated] = useState(false)
+  const openProviderEditor = useCallback(() => {
+    setEditorActivated(true)
+    startAdd()
+  }, [startAdd])
+  const openProviderEditorFrom = useCallback(
+    (provider: Provider) => {
+      setEditorActivated(true)
+      startAddFrom(provider)
+    },
+    [startAddFrom]
+  )
+  const openProviderEditorForEdit = useCallback(
+    (provider: Provider) => {
+      setEditorActivated(true)
+      startEdit(provider)
+    },
+    [startEdit]
+  )
 
   const { deleteProvider } = useProviderDelete()
 
@@ -71,17 +112,16 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       return
     }
 
-    setFilterMode(filterModeHint)
+    setFilterModeOverride(filterModeHint)
   }, [filterModeHint])
 
-  useEffect(() => {
-    if (autoDefaultedFilterRef.current) return
-    if (filterModeHint || providers.length === 0) return
-    autoDefaultedFilterRef.current = true
-    if (!providers.some((p) => p.isEnabled)) {
-      setFilterMode('all')
-    }
-  }, [filterModeHint, providers])
+  const handleFilterChange = useCallback(
+    (mode: ProviderFilterMode) => {
+      setFilterModeOverride(undefined)
+      setPersistedFilterMode(mode)
+    },
+    [setPersistedFilterMode]
+  )
 
   useEffect(() => {
     if (!selectedProviderId) return
@@ -109,6 +149,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   }, [allModels, searchText])
 
   const filteredProviders = useMemo(() => {
+    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     return providers.filter((provider) => {
       if (!isProviderSettingsListVisibleProvider(provider)) {
         return false
@@ -122,10 +163,6 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       if (filterMode === 'disabled' && provider.isEnabled) {
         return false
       }
-      if (filterMode === 'agent' && !isAnthropicSupportedProvider(provider)) {
-        return false
-      }
-      const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
       return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))
     })
   }, [filterMode, isOvmsSupported, providers, providerModelsIndex, searchText])
@@ -140,6 +177,13 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   )
 
   const groupedPresetIds = useMemo(() => getGroupedPresetIds(filteredProviders), [filteredProviders])
+  const presetSources = useMemo(
+    () =>
+      providers.filter(
+        (provider) => isProviderPresetInstanceSource(provider) && isProviderSettingsListVisibleProvider(provider)
+      ),
+    [providers]
+  )
 
   const setProviderItemRef = useCallback((providerId: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -213,33 +257,26 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   }, [])
 
   const handleReorderError = useCallback(() => {
-    window.toast.error(t('settings.provider.reorder_failed'))
+    toast.error(t('settings.provider.reorder_failed'))
   }, [t])
 
   const handleSubmitEditor = useCallback(
     async (providerInput: SubmitProviderEditorParams) => {
-      const result = await submitEditor(providerInput)
-
-      if (result.notice === 'create-logo-save-failed') {
-        window.toast.error(t('message.error.save_provider_logo'))
-      } else if (result.notice === 'update-logo-save-failed') {
-        window.toast.error(t('message.error.update_provider_logo'))
-      }
+      // Logo now saves atomically with the provider row, so any failure rejects
+      // here and is surfaced by the drawer's submit catch — no separate notice.
+      await submitEditor(providerInput)
     },
-    [submitEditor, t]
+    [submitEditor]
   )
 
   const handleDeleteProvider = useCallback(
-    (providerId: Provider['id']) => {
-      window.modal.confirm({
+    async (providerId: Provider['id']) => {
+      await ConfirmActionPopup.show({
         title: t('settings.provider.delete.title'),
         content: t('settings.provider.delete.content'),
-        okButtonProps: { danger: true },
+        danger: true,
         okText: t('common.delete'),
-        centered: true,
-        onOk: async () => {
-          await deleteProvider(providerId)
-        }
+        action: () => deleteProvider(providerId)
       })
     },
     [deleteProvider, t]
@@ -256,11 +293,11 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         contextOpen={contextProviderId === provider.id}
         onContextOpenChange={(open) => setContextProviderId(open ? provider.id : null)}
         onSelect={() => onSelectProvider(provider.id)}
-        onEdit={() => startEdit(provider)}
+        onEdit={() => openProviderEditorForEdit(provider)}
         onDelete={() => handleDeleteProvider(provider.id)}
         onDuplicate={
           provider.presetProviderId && !groupedPresetIds.has(provider.presetProviderId)
-            ? () => startAddFrom(provider)
+            ? () => openProviderEditorFrom(provider)
             : undefined
         }
         showManagementActions={showManagementActions}
@@ -270,29 +307,33 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     )
   }
 
-  const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
+  const handleAddAnother = openProviderEditorFrom
+  const addProviderButton = (
+    <button
+      type="button"
+      aria-label={t('settings.provider.add.button_title')}
+      disabled={dragging}
+      onClick={openProviderEditor}
+      className={providerListClasses.addButton}>
+      <Plus size={14} strokeWidth={2.5} />
+      <span>{t('settings.provider.add.button_title')}</span>
+    </button>
+  )
 
   return (
-    <aside className={`provider-settings-default-scope ${providerListClasses.shell}`}>
-      <PageHeader
-        title={t('settings.provider.title')}
-        action={
-          <ProviderListHeaderFilterMenu filterMode={filterMode} disabled={dragging} onFilterChange={setFilterMode} />
-        }
-      />
+    <aside className={`${providerListClasses.shell}`}>
       <ProviderListSearchField
         value={searchText}
         disabled={dragging}
         onValueChange={setSearchText}
         trailing={
-          <button
-            type="button"
-            aria-label={t('settings.provider.add.title')}
+          <ProviderListHeaderFilterMenu
+            filterMode={filterMode}
             disabled={dragging}
-            onClick={startAdd}
-            className={providerListClasses.searchInlineAddButton}>
-            <Plus size={14} />
-          </button>
+            triggerClassName={providerListClasses.searchInlineAddButton}
+            triggerIconSize={12}
+            onFilterChange={handleFilterChange}
+          />
         }
       />
       <ProviderListContent
@@ -309,13 +350,20 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         onReorderError={handleReorderError}
         renderItem={renderProviderItem}
       />
-      <ProviderEditorDrawer
-        open={editorOpen}
-        mode={editorMode}
-        initialLogo={initialLogo}
-        onClose={cancelEditor}
-        onSubmit={handleSubmitEditor}
-      />
+      <div className={providerListClasses.addFooter}>{addProviderButton}</div>
+      {editorActivated ? (
+        <Suspense fallback={null}>
+          <ProviderEditorDrawer
+            open={editorOpen}
+            mode={editorMode}
+            initialLogo={initialLogo}
+            presetSources={presetSources}
+            onClose={cancelEditor}
+            onSelectPreset={startAddFrom}
+            onSubmit={handleSubmitEditor}
+          />
+        </Suspense>
+      ) : null}
     </aside>
   )
 }

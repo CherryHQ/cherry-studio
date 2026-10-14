@@ -1,0 +1,74 @@
+/**
+ * Plugin presets for Streamdown's `plugins` prop.
+ *
+ * Defaults to `code` + `cjk` (the most commonly needed for chat / docs UIs).
+ * Math + Mermaid are opt-in via `withMath()` / `withMermaid()` so a
+ * consumer that doesn't need them can avoid bundling KaTeX / Mermaid into
+ * their tree-shaken build.
+ */
+
+import { cjk, type CjkPlugin } from '@streamdown/cjk'
+import { code } from '@streamdown/code'
+import { createMathPlugin } from '@streamdown/math'
+import { mermaid } from '@streamdown/mermaid'
+import type { PluginConfig } from 'streamdown'
+import type { Pluggable } from 'unified'
+
+import { rehypeStreamingMath } from './plugins'
+
+export interface WithMathOptions {
+  singleDollar?: boolean
+  /** Render the longest closed, valid prefix; keep final input errors visible when false. */
+  streaming?: boolean
+}
+
+export interface WithFullMarkdownOptions {
+  singleDollarMath?: boolean
+}
+
+const cjkWithLiteralTildes: CjkPlugin = (() => {
+  const remarkPluginsAfter = cjk.remarkPluginsAfter.map((plugin, index, plugins) =>
+    index === plugins.length - 1 ? ([plugin, { singleTilde: false }] as Pluggable) : plugin
+  )
+
+  return {
+    ...cjk,
+    remarkPluginsAfter,
+    remarkPlugins: [...cjk.remarkPluginsBefore, ...remarkPluginsAfter]
+  }
+})()
+
+/** Code (Shiki highlighting) + CJK line-break tweaks. */
+export const defaultMarkdownPlugins: PluginConfig = {
+  code,
+  cjk: cjkWithLiteralTildes
+}
+
+/** KaTeX math plugin. `singleDollar` enables `$x$` inline math (off by default). */
+export function withMath(opts?: WithMathOptions): PluginConfig['math'] {
+  const math = createMathPlugin({ singleDollarTextMath: opts?.singleDollar ?? false })
+  return opts?.streaming ? { ...math, rehypePlugin: [rehypeStreamingMath, math.rehypePlugin] } : math
+}
+
+/** Mermaid diagram plugin. Heavy — only import where actually rendered. */
+export function withMermaid(): PluginConfig['mermaid'] {
+  return mermaid
+}
+
+/**
+ * Composer preset bundling all four plugins (code + cjk + math + mermaid).
+ * Suitable for consumers that render the full markdown surface.
+ */
+export function withFullMarkdown(opts?: WithFullMarkdownOptions): PluginConfig {
+  return {
+    ...defaultMarkdownPlugins,
+    math: withMath({ singleDollar: opts?.singleDollarMath ?? false }),
+    mermaid: withMermaid()
+  }
+}
+
+/**
+ * @deprecated Use `withFullMarkdown`. Kept as a compatibility alias for
+ * downstream branches that still import this preset from the markdown barrel.
+ */
+export const withChatPlugins = withFullMarkdown

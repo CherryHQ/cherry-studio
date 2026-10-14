@@ -1,19 +1,22 @@
-import type { Provider, SystemProvider } from '@renderer/types'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
+import type { Provider, SystemProvider } from '@renderer/types/provider'
 
 import { includeKeywords, matchKeywordsInProvider, matchKeywordsInString } from '../match'
 
-// Mock i18n to return English provider labels
-vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: vi.fn((id: string) => {
-    const labelMap: Record<string, string> = {
-      dashscope: 'Alibaba Cloud',
-      openai: 'OpenAI',
-      anthropic: 'Anthropic'
-    }
-    return labelMap[id] || id
-  })
-}))
+// 测试环境的 mock 偏好默认语言是 zh-CN，显式切到 en-US 以匹配英文断言
+let previousLanguage: string
+
+beforeAll(async () => {
+  // Capture here, not at import time: i18n is initialized by the global setup hook.
+  previousLanguage = i18n.language
+  await i18n.changeLanguage('en-US')
+})
+
+afterAll(async () => {
+  await i18n.changeLanguage(previousLanguage)
+})
 
 describe('match', () => {
   const provider = {
@@ -52,6 +55,13 @@ describe('match', () => {
       expect(includeKeywords('Hello World', 'HELLO')).toBe(true)
       expect(includeKeywords('Hello World', 'hello   world')).toBe(true)
       expect(includeKeywords('Hello\nWorld', 'hello world')).toBe(true)
+    })
+
+    it('matches Chinese initials and Latin tokens together without dropping any keyword', () => {
+      expect(includeKeywords('API 知识库', 'ZSK api')).toBe(true)
+      expect(includeKeywords('API 知识库', ['api', 'zsk'])).toBe(true)
+      expect(includeKeywords('API 知识库', 'zsk missing')).toBe(false)
+      expect(includeKeywords('API 知识库', 'api zk')).toBe(false)
     })
 
     it('should return false if any keyword is not included', () => {

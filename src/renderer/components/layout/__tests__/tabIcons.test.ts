@@ -1,17 +1,19 @@
-import type { Tab } from '@renderer/hooks/useTabs'
 import {
   FileSearch,
   Folder,
   Globe,
   LayoutGrid,
-  Library,
   MessageCircle,
   MousePointerClick,
-  NotepadText
+  NotepadText,
+  Rocket,
+  ScanSearch,
+  Sparkles
 } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
-import { OpenClawSidebarIcon } from '../../Icons/SvgIcon'
+import type { Tab } from '@renderer/hooks/tab'
+
 import { getTabIcon } from '../tabIcons'
 
 function routeTab(url: string): Tab {
@@ -35,12 +37,14 @@ function webviewTab(url: string): Tab {
 describe('getTabIcon', () => {
   it.each([
     ['/app/agents', MousePointerClick],
+    ['/app/browser?url=https://example.com', Globe],
     ['/app/knowledge', FileSearch],
+    ['/app/file-preview?path=%2Ftmp%2Freport.pdf', ScanSearch],
     ['/app/files', Folder],
     ['/app/notes', NotepadText],
-    ['/app/openclaw', OpenClawSidebarIcon],
-    ['/app/library', Library],
-    ['/app/mini-app', LayoutGrid]
+    ['/app/mini-app', LayoutGrid],
+    ['/app/launchpad', Rocket],
+    ['/app/release-notes', Sparkles]
   ])('returns the shared app icon for %s', (url, Icon) => {
     expect(getTabIcon(routeTab(url))).toBe(Icon)
   })
@@ -51,5 +55,6 @@ describe('getTabIcon', () => {
 
   it('keeps unknown routes on the message icon fallback', () => {
     expect(getTabIcon(routeTab('/unknown'))).toBe(MessageCircle)
+    expect(getTabIcon(routeTab('/app/openclaw'))).toBe(MessageCircle)
   })
 })

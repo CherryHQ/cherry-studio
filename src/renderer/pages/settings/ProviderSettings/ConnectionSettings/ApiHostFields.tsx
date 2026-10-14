@@ -1,13 +1,25 @@
-import { Button, InputGroup, InputGroupInput, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils'
 import { Copy, RotateCcw, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
 import { fieldClasses } from '../primitives/ProviderSettingsPrimitives'
 import CherryInSettings from '../ProviderSpecific/CherryInSettings'
 import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
+
+function ApiHostEndpointButton({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation()
+  const label = t('settings.provider.more_endpoints.add')
+
+  return (
+    <button type="button" aria-label={label} className={fieldClasses.titleHelpLink} onClick={onClick}>
+      {label}
+    </button>
+  )
+}
 
 interface AzureApiVersionFieldProps {
   className?: string
@@ -29,7 +41,7 @@ export function AzureApiVersionField({
       className={className}
       title={t('settings.provider.api_version')}
       help={
-        <div className="pt-1 text-[12px] text-foreground/55 leading-[1.35]">
+        <div className="pt-1 text-[12px] leading-[1.35] text-muted-foreground">
           {t('settings.provider.azure.apiversion.tip')}
         </div>
       }>
@@ -53,6 +65,8 @@ interface ApiHostFieldProps {
   isChineseUser: boolean
   isVertexAI: boolean
   isApiHostResettable: boolean
+  onApiHostChange: (value: string) => void
+  onApiHostCommit: () => void
   onResetApiHost: () => void
   onOpenRequestConfig: () => void
 }
@@ -64,28 +78,31 @@ export function ApiHostField({
   isChineseUser,
   isVertexAI,
   isApiHostResettable,
+  onApiHostChange,
+  onApiHostCommit,
   onResetApiHost,
   onOpenRequestConfig
 }: ApiHostFieldProps) {
   const { t } = useTranslation()
   const trimmedApiHost = apiHost.trim()
+  const help = isVertexAI ? (
+    <div className="space-y-1 pt-1">
+      <div className="text-[12px] leading-[1.35] text-muted-foreground">
+        {t('settings.provider.vertex_ai.api_host_help')}
+      </div>
+    </div>
+  ) : undefined
 
   return (
     <ProviderField
-      title={t('settings.provider.api_host')}
+      title={
+        <span className={fieldClasses.titleWithHelp}>
+          <span>{t('settings.provider.api_host')}</span>
+          <ApiHostEndpointButton onClick={onOpenRequestConfig} />
+        </span>
+      }
       titleClassName="text-foreground"
-      help={
-        <div className="space-y-1 pt-1">
-          {isVertexAI && (
-            <div className="text-[12px] text-foreground/55 leading-[1.35]">
-              {t('settings.provider.vertex_ai.api_host_help')}
-            </div>
-          )}
-          {/* <div className="break-all text-[12px] text-foreground/55 leading-[1.35]">
-            {t('settings.provider.api_host_preview', { url: hostPreview })}
-          </div> */}
-        </div>
-      }>
+      help={help}>
       {isCherryIN && isChineseUser ? (
         <div className={cn(fieldClasses.inputRow, 'group')}>
           <div className="flex min-w-0 flex-1">
@@ -106,59 +123,60 @@ export function ApiHostField({
       ) : (
         <div className={cn(fieldClasses.inputRow, 'group')}>
           <InputGroup className={`${fieldClasses.inputGroup} min-w-0 flex-1`}>
-            <div
-              role="presentation"
-              className={cn(
-                fieldClasses.input,
-                'flex min-h-[1.25em] min-w-0 flex-1 items-center gap-1 bg-transparent py-0'
-              )}
-              title={trimmedApiHost}>
-              <span className="block min-w-0 flex-1 cursor-default truncate font-mono tabular-nums">
-                {trimmedApiHost ? trimmedApiHost : t('settings.provider.api_host_placeholder')}
-              </span>
-              {trimmedApiHost ? (
+            <InputGroupInput
+              className={cn(fieldClasses.input, 'font-mono tabular-nums')}
+              value={apiHost}
+              placeholder={t('settings.provider.api_host_placeholder')}
+              aria-label={t('settings.provider.api_host')}
+              title={trimmedApiHost}
+              onChange={(event) => onApiHostChange(event.target.value)}
+              onBlur={onApiHostCommit}
+              autoComplete="off"
+            />
+            {trimmedApiHost ? (
+              <InputGroupAddon align="inline-end" className="-mr-0.5 pr-0">
                 <Tooltip content={t('common.copy')}>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="size-5 shrink-0 rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                    className="size-5 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 shadow-none transition-opacity group-hover:opacity-100 hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100"
                     aria-label={t('common.copy')}
-                    onClick={() => void copyApiKeyToClipboard(trimmedApiHost, t)}>
+                    onClick={() => {
+                      void copyApiKeyToClipboard(trimmedApiHost, t)
+                    }}>
                     <Copy className="size-2.5" />
                   </Button>
                 </Tooltip>
-              ) : null}
-            </div>
-          </InputGroup>
-          <div className="inline-flex shrink-0 items-center gap-1">
-            {isApiHostResettable ? (
-              <Tooltip content={t('settings.provider.api.url.reset')}>
-                <span className="inline-flex shrink-0">
-                  <button
-                    type="button"
-                    className={fieldClasses.inputActionButton}
-                    aria-label={t('settings.provider.api.url.reset')}
-                    onClick={() => {
-                      onResetApiHost()
-                    }}>
-                    <RotateCcw size={14} />
-                  </button>
-                </span>
-              </Tooltip>
+              </InputGroupAddon>
             ) : null}
-            <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
+          </InputGroup>
+          {isApiHostResettable ? (
+            <Tooltip content={t('settings.provider.api.url.reset')}>
               <span className="inline-flex shrink-0">
                 <button
                   type="button"
                   className={fieldClasses.inputActionButton}
-                  aria-label={t('settings.provider.request_configuration_tooltip')}
-                  onClick={onOpenRequestConfig}>
-                  <Settings size={14} aria-hidden />
+                  aria-label={t('settings.provider.api.url.reset')}
+                  onClick={() => {
+                    onResetApiHost()
+                  }}>
+                  <RotateCcw size={14} />
                 </button>
               </span>
             </Tooltip>
-          </div>
+          ) : null}
+          <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
+            <span className="inline-flex shrink-0">
+              <button
+                type="button"
+                className={fieldClasses.inputActionButton}
+                aria-label={t('settings.provider.request_configuration_tooltip')}
+                onClick={onOpenRequestConfig}>
+                <Settings size={14} aria-hidden />
+              </button>
+            </span>
+          </Tooltip>
         </div>
       )}
     </ProviderField>
@@ -168,12 +186,16 @@ export function ApiHostField({
 interface AnthropicApiHostFieldProps {
   anthropicApiHost: string
   anthropicHostPreview: string
+  onAnthropicApiHostChange: (value: string) => void
+  onAnthropicApiHostCommit: () => void
   onOpenRequestConfig: () => void
 }
 
 export function AnthropicApiHostField({
   anthropicApiHost,
   anthropicHostPreview,
+  onAnthropicApiHostChange,
+  onAnthropicApiHostCommit,
   onOpenRequestConfig
 }: AnthropicApiHostFieldProps) {
   const { t } = useTranslation()
@@ -181,38 +203,46 @@ export function AnthropicApiHostField({
 
   return (
     <ProviderField
-      title={t('settings.provider.anthropic_api_host')}
+      title={
+        <span className={fieldClasses.titleWithHelp}>
+          <span>{t('settings.provider.anthropic_api_host')}</span>
+          <ApiHostEndpointButton onClick={onOpenRequestConfig} />
+        </span>
+      }
       help={
-        <div className="break-all pt-1 text-[12px] text-foreground/55 leading-[1.35]">
+        <div className="pt-1 text-[12px] leading-[1.35] break-all text-muted-foreground">
           {t('settings.provider.anthropic_api_host_preview', { url: anthropicHostPreview || '—' })}
         </div>
       }>
       <div className={cn(fieldClasses.inputRow, 'group')}>
-        <InputGroup className={`${fieldClasses.inputGroupBlock} flex-1 items-center`}>
-          <div
-            role="presentation"
-            className={cn(
-              fieldClasses.input,
-              'flex min-h-[1.25em] min-w-0 flex-1 items-center gap-1 bg-transparent py-0'
-            )}
-            title={trimmedAnthropicApiHost}>
-            <span className="block min-w-0 flex-1 cursor-default truncate font-mono tabular-nums">
-              {trimmedAnthropicApiHost ? trimmedAnthropicApiHost : t('settings.provider.api_host_placeholder')}
-            </span>
-            {trimmedAnthropicApiHost ? (
+        <InputGroup className={`${fieldClasses.inputGroup} min-w-0 flex-1`}>
+          <InputGroupInput
+            className={cn(fieldClasses.input, 'font-mono tabular-nums')}
+            value={anthropicApiHost}
+            placeholder={t('settings.provider.api_host_placeholder')}
+            aria-label={t('settings.provider.anthropic_api_host')}
+            title={trimmedAnthropicApiHost}
+            onChange={(event) => onAnthropicApiHostChange(event.target.value)}
+            onBlur={onAnthropicApiHostCommit}
+            autoComplete="off"
+          />
+          {trimmedAnthropicApiHost ? (
+            <InputGroupAddon align="inline-end" className="-mr-0.5 pr-0">
               <Tooltip content={t('common.copy')}>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="size-5 shrink-0 rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                  className="size-5 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 shadow-none transition-opacity group-hover:opacity-100 hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100"
                   aria-label={t('common.copy')}
-                  onClick={() => void copyApiKeyToClipboard(trimmedAnthropicApiHost, t)}>
+                  onClick={() => {
+                    void copyApiKeyToClipboard(trimmedAnthropicApiHost, t)
+                  }}>
                   <Copy className="size-2.5" />
                 </Button>
               </Tooltip>
-            ) : null}
-          </div>
+            </InputGroupAddon>
+          ) : null}
         </InputGroup>
         <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
           <span className="inline-flex shrink-0">
@@ -230,6 +260,6 @@ export function AnthropicApiHostField({
   )
 }
 
-export function ApiHostSection({ children }: { children: React.ReactNode }) {
-  return <ProviderSection>{children}</ProviderSection>
+export function ApiHostSection({ children, id }: { children: React.ReactNode; id?: string }) {
+  return <ProviderSection id={id}>{children}</ProviderSection>
 }

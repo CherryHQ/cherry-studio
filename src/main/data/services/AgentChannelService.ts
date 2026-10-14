@@ -1,6 +1,10 @@
+import { and, eq, inArray } from 'drizzle-orm'
+
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import {
   type AgentChannelRow as ChannelRow,
+  agentChannelSessionTable as channelSessionsTable,
   agentChannelTable as channelsTable,
   agentChannelTaskTable as channelTaskSubscriptionsTable,
   type InsertAgentChannelRow as InsertChannelRow
@@ -8,10 +12,23 @@ import {
 import type { DbOrTx } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { AgentChannelEntity, CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
-import type { ChannelConfig } from '@shared/data/types/channel'
-import { and, eq, inArray } from 'drizzle-orm'
+import { t } from '@main/i18n'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
+import {
+  ActiveAgentChannelConfigSchemasByType,
+  AgentChannelConfigSchemasByType,
+  type AgentChannelEntity,
+  type AgentChannelType,
+  type CreateAgentChannelDto
+} from '@shared/data/api/schemas/agentChannels'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type AgentSessionWorkspaceSource,
+  AgentSessionWorkspaceSourceSchema,
+  type AgentWorkspaceReferenceItem
+} from '@shared/data/api/schemas/agentWorkspaces'
+import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
 
 const logger = loggerService.withContext('ChannelService')
 
@@ -22,65 +39,136 @@ function normalizeChannelConfig(config: unknown): Record<string, unknown> {
   return rest
 }
 
+function validateChannelConfig(
+  type: AgentChannelType,
+  config: unknown,
+  isActive: boolean
+): AgentChannelEntity['config'] {
+  const parsed = AgentChannelConfigSchemasByType[type].safeParse(normalizeChannelConfig(config))
+  if (!parsed.success) throw toDataApiError(parsed.error)
+  if (isActive) {
+    const active = ActiveAgentChannelConfigSchemasByType[type].safeParse(parsed.data)
+    if (!active.success) throw toDataApiError(active.error)
+  }
+  return parsed.data
+}
+
 export class AgentChannelService {
   private rowToEntity(row: ChannelRow): AgentChannelEntity {
     const clean = nullsToUndefined(row)
     return {
       ...clean,
-      type: row.type as AgentChannelEntity['type'],
+      type: row.type,
       config: normalizeChannelConfig(row.config) as AgentChannelEntity['config'],
+      workspace: row.workspace,
       permissionMode: (row.permissionMode ?? undefined) as AgentChannelEntity['permissionMode'],
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
     } as AgentChannelEntity
   }
 
-  async createChannel(
+  createChannel(
     data:
       | CreateAgentChannelDto
       | {
           type: ChannelConfig['type']
           name: string
           agentId?: string | null
+          workspace: AgentSessionWorkspaceSource
           config: ChannelConfig | Record<string, unknown>
           isActive?: boolean
-          permissionMode?: string | null
+          // Narrow, not `string`: with the DB CHECK constraint gone this parameter type is
+          // what stops an internal caller (one that bypasses the DataApi zod boundary) from
+          // persisting a mode the SDK will reject at run time.
+          permissionMode?: AgentPermissionMode | null
         }
-  ): Promise<AgentChannelEntity> {
-    const database = application.get('DbService').getDb()
+  ): AgentChannelEntity {
+    const isActive = data.isActive ?? true
 
     const insertData: InsertChannelRow = {
       type: data.type,
       name: data.name,
       agentId: data.agentId,
-      config: normalizeChannelConfig(data.config),
-      isActive: data.isActive ?? true,
+      workspace: data.workspace,
+      config: validateChannelConfig(data.type, data.config, isActive),
+      isActive,
       permissionMode: data.permissionMode
     }
 
-    const result = await database.insert(channelsTable).values(insertData).returning()
+    const result = application.get('DbService').withWriteTx((tx) => {
+      this.validateStreamBot(tx, data.type, insertData.config, isActive)
+      return tx.insert(channelsTable).values(insertData).returning().all()
+    })
 
     if (!result[0]) {
       throw DataApiErrorFactory.invalidOperation('create channel', 'database insert returned no row')
     }
 
     logger.info('Channel created', { channelId: result[0].id, type: data.type })
-    return this.rowToEntity(result[0])
+    const channel = this.rowToEntity(result[0])
+    this.notifyReadModelChange(channel.id, 'membership')
+    return channel
   }
 
-  async getChannel(id: string): Promise<AgentChannelEntity | null> {
+  getChannel(id: string): AgentChannelEntity | null {
     const database = application.get('DbService').getDb()
-    const result = await database.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1)
+    const result = database.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1).all()
     return result[0] ? this.rowToEntity(result[0]) : null
   }
 
-  async findBySessionId(sessionId: string): Promise<AgentChannelEntity | null> {
+  findBySessionId(sessionId: string): AgentChannelEntity | null {
     const database = application.get('DbService').getDb()
-    const result = await database.select().from(channelsTable).where(eq(channelsTable.sessionId, sessionId)).limit(1)
-    return result[0] ? this.rowToEntity(result[0]) : null
+    const result = database
+      .select({ channel: channelsTable })
+      .from(channelSessionsTable)
+      .innerJoin(channelsTable, eq(channelSessionsTable.channelId, channelsTable.id))
+      .where(eq(channelSessionsTable.sessionId, sessionId))
+      .limit(1)
+      .all()
+    return result[0] ? this.rowToEntity(result[0].channel) : null
   }
 
-  async listChannels(filters?: { agentId?: string; type?: string }): Promise<AgentChannelEntity[]> {
+  getActiveSessionId(channelId: string, conversationId: string): string | null {
+    const database = application.get('DbService').getDb()
+    const [row] = database
+      .select({ sessionId: channelSessionsTable.sessionId })
+      .from(channelSessionsTable)
+      .where(
+        and(
+          eq(channelSessionsTable.channelId, channelId),
+          eq(channelSessionsTable.conversationId, conversationId),
+          eq(channelSessionsTable.isActive, true)
+        )
+      )
+      .limit(1)
+      .all()
+    return row?.sessionId ?? null
+  }
+
+  activateSessionTx(
+    tx: DbOrTx,
+    input: {
+      channelId: string
+      conversationId: string
+      sessionId: string
+    }
+  ): void {
+    tx.update(channelSessionsTable)
+      .set({ isActive: false })
+      .where(
+        and(
+          eq(channelSessionsTable.channelId, input.channelId),
+          eq(channelSessionsTable.conversationId, input.conversationId),
+          eq(channelSessionsTable.isActive, true)
+        )
+      )
+      .run()
+    tx.insert(channelSessionsTable)
+      .values({ ...input, isActive: true })
+      .run()
+  }
+
+  listChannels(filters?: { agentId?: string; type?: ChannelType }): AgentChannelEntity[] {
     const database = application.get('DbService').getDb()
 
     const agentCond = filters?.agentId ? eq(channelsTable.agentId, filters.agentId) : undefined
@@ -88,113 +176,200 @@ export class AgentChannelService {
     const where = agentCond && typeCond ? and(agentCond, typeCond) : (agentCond ?? typeCond)
 
     const rows = where
-      ? await database.select().from(channelsTable).where(where)
-      : await database.select().from(channelsTable)
+      ? database.select().from(channelsTable).where(where).all()
+      : database.select().from(channelsTable).all()
 
     return rows.map((row) => this.rowToEntity(row))
+  }
+
+  listWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    return tx
+      .select({ id: channelsTable.id, name: channelsTable.name, workspace: channelsTable.workspace })
+      .from(channelsTable)
+      .all()
+      .filter((channel) => {
+        const workspace = AgentSessionWorkspaceSourceSchema.safeParse(channel.workspace)
+        return (
+          workspace.success &&
+          workspace.data.type === AGENT_WORKSPACE_TYPE.USER &&
+          workspace.data.workspaceId === workspaceId
+        )
+      })
+      .map(({ id, name }) => ({ id, name }))
+  }
+
+  resetWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    const references = this.listWorkspaceReferencesTx(tx, workspaceId)
+    if (references.length === 0) return references
+
+    tx.update(channelsTable)
+      .set({ workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } })
+      .where(
+        inArray(
+          channelsTable.id,
+          references.map((channel) => channel.id)
+        )
+      )
+      .run()
+    return references
   }
 
   /**
    * Add a chatId to the channel's activeChatIds if not already present.
    * Used to auto-track conversations when allowed_chat_ids is empty.
    */
-  async addActiveChatId(channelId: string, chatId: string): Promise<void> {
-    const channel = await this.getChannel(channelId)
+  addActiveChatId(channelId: string, chatId: string): void {
+    const channel = this.getChannel(channelId)
     if (!channel) return
 
     const existing = channel.activeChatIds ?? []
     if (existing.includes(chatId)) return
 
-    await this.updateChannel(channelId, { activeChatIds: [...existing, chatId] })
+    this.updateChannel(channelId, { activeChatIds: [...existing, chatId] })
   }
 
-  async updateChannel(
+  updateChannel(
     id: string,
     updates: Partial<
-      Pick<ChannelRow, 'name' | 'agentId' | 'sessionId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'>
+      Pick<ChannelRow, 'name' | 'agentId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'> & {
+        workspace: AgentSessionWorkspaceSource
+        configPatch: Record<string, unknown>
+      }
     >
-  ): Promise<AgentChannelEntity | null> {
-    const database = application.get('DbService').getDb()
-    const normalizedUpdates = {
-      ...updates,
-      ...(updates.config !== undefined ? { config: normalizeChannelConfig(updates.config) } : {})
-    }
-    const result = await database
-      .update(channelsTable)
-      .set(normalizedUpdates)
-      .where(eq(channelsTable.id, id))
-      .returning()
+  ): AgentChannelEntity | null {
+    const { configPatch, ...fields } = updates
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const existing = tx.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1).all()[0]
+      if (!existing) return null
 
-    if (!result[0]) {
-      return null
-    }
+      const isActive = updates.isActive ?? existing.isActive
+      const config = validateChannelConfig(
+        existing.type,
+        configPatch !== undefined
+          ? { ...normalizeChannelConfig(existing.config), ...configPatch }
+          : updates.config !== undefined
+            ? updates.config
+            : existing.config,
+        isActive
+      )
+      this.validateStreamBot(tx, existing.type, config, isActive, id)
+      const normalizedUpdates = {
+        ...fields,
+        ...(configPatch !== undefined || updates.config !== undefined || updates.isActive !== undefined
+          ? { config }
+          : {})
+      }
+      const updated = tx
+        .update(channelsTable)
+        .set(normalizedUpdates)
+        .where(eq(channelsTable.id, id))
+        .returning()
+        .all()[0]
+      if (updates.agentId !== undefined && updates.agentId !== existing.agentId) {
+        tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.channelId, id)).run()
+      }
+      return updated ?? null
+    })
+
+    if (!result) return null
 
     logger.info('Channel updated', { channelId: id })
-    return this.rowToEntity(result[0])
+    this.notifyReadModelChange(id, 'projection')
+    return this.rowToEntity(result)
   }
 
-  async deleteChannel(id: string): Promise<boolean> {
+  deleteChannel(id: string): boolean {
     const database = application.get('DbService').getDb()
-    const result = await database.delete(channelsTable).where(eq(channelsTable.id, id)).returning()
+    const result = database.delete(channelsTable).where(eq(channelsTable.id, id)).returning().all()
     if (result.length > 0) {
       logger.info('Channel deleted', { channelId: id })
+      this.notifyReadModelChange(id, 'membership')
     }
     return result.length > 0
   }
 
+  private validateStreamBot(tx: DbOrTx, type: AgentChannelType, config: unknown, active: boolean, id?: string): void {
+    if ((type !== 'wecom' && type !== 'dingtalk') || !active) return
+    const key = type === 'wecom' ? 'bot_id' : 'client_id'
+    const botId = (config as Record<string, string>)[key]
+    const conflict = tx
+      .select()
+      .from(channelsTable)
+      .where(and(eq(channelsTable.type, type), eq(channelsTable.isActive, true)))
+      .all()
+      .some((row) => row.id !== id && (row.config as Record<string, string>)[key]?.trim() === botId)
+    if (conflict)
+      throw DataApiErrorFactory.invalidOperation(
+        'activate channel',
+        type === 'wecom' ? t('common.wecom_duplicate_bot') : t('common.dingtalk_duplicate_bot')
+      )
+  }
+
+  private notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {
+    notifyDataApiDataChange([
+      { endpoint: '/agent-workspaces', kind: 'membership' },
+      { endpoint: '/agent-channels', kind, entityIds: [id] },
+      { endpoint: '/agent-channels/:channelId', routeParams: { channelId: id }, entityIds: [id] }
+    ])
+  }
+
   // ---- Task subscription methods ----
 
-  async subscribeToTask(channelId: string, taskId: string): Promise<void> {
+  subscribeToTask(channelId: string, taskId: string): void {
     const database = application.get('DbService').getDb()
-    await database.insert(channelTaskSubscriptionsTable).values({ channelId, taskId }).onConflictDoNothing()
+    database.insert(channelTaskSubscriptionsTable).values({ channelId, taskId }).onConflictDoNothing().run()
     logger.info('Channel subscribed to task', { channelId, taskId })
   }
 
-  async unsubscribeFromTask(channelId: string, taskId: string): Promise<void> {
+  unsubscribeFromTask(channelId: string, taskId: string): void {
     const database = application.get('DbService').getDb()
-    await database
+    database
       .delete(channelTaskSubscriptionsTable)
       .where(
         and(eq(channelTaskSubscriptionsTable.channelId, channelId), eq(channelTaskSubscriptionsTable.taskId, taskId))
       )
+      .run()
     logger.info('Channel unsubscribed from task', { channelId, taskId })
   }
 
-  async replaceTaskSubscriptions(taskId: string, channelIds: readonly string[]): Promise<void> {
-    await application.get('DbService').withWriteTx((tx) => this.replaceTaskSubscriptionsTx(tx, taskId, channelIds))
-    logger.info('Channel task subscriptions replaced', { taskId, channelCount: channelIds.length })
-  }
-
-  async replaceTaskSubscriptionsTx(tx: DbOrTx, taskId: string, channelIds: readonly string[]): Promise<void> {
-    await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+  replaceTaskSubscriptionsTx(tx: DbOrTx, taskId: string, channelIds: readonly string[]): void {
+    tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId)).run()
     if (channelIds.length > 0) {
-      await tx
-        .insert(channelTaskSubscriptionsTable)
+      tx.insert(channelTaskSubscriptionsTable)
         .values(channelIds.map((channelId) => ({ channelId, taskId })))
         .onConflictDoNothing()
+        .run()
     }
   }
 
-  async getSubscribedChannels(taskId: string): Promise<AgentChannelEntity[]> {
+  clearTaskSubscriptionsForChannel(channelId: string): void {
     const database = application.get('DbService').getDb()
-    const subs = await database
+    database.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.channelId, channelId)).run()
+    logger.info('Channel task subscriptions cleared', { channelId })
+  }
+
+  getSubscribedChannels(taskId: string): AgentChannelEntity[] {
+    const database = application.get('DbService').getDb()
+    const subs = database
       .select({ channelId: channelTaskSubscriptionsTable.channelId })
       .from(channelTaskSubscriptionsTable)
       .where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+      .all()
 
     if (subs.length === 0) return []
 
     const channelIds = subs.map((s) => s.channelId)
-    const rows = await database.select().from(channelsTable).where(inArray(channelsTable.id, channelIds))
+    const rows = database.select().from(channelsTable).where(inArray(channelsTable.id, channelIds)).all()
     return rows.map((row) => this.rowToEntity(row))
   }
 
-  async getSubscribedTasks(channelId: string): Promise<string[]> {
+  getSubscribedTasks(channelId: string): string[] {
     const database = application.get('DbService').getDb()
-    const subs = await database
+    const subs = database
       .select({ taskId: channelTaskSubscriptionsTable.taskId })
       .from(channelTaskSubscriptionsTable)
       .where(eq(channelTaskSubscriptionsTable.channelId, channelId))
+      .all()
     return subs.map((s) => s.taskId)
   }
 }

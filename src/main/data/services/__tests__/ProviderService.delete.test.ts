@@ -7,6 +7,10 @@
  * deletable.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -14,11 +18,13 @@ import { pinService } from '@data/services/PinService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { ErrorCode } from '@shared/data/api/errors'
+import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Pin } from '@shared/data/types/pin'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 describe('ProviderService.delete — preset protection boundary', () => {
   const dbh = setupTestDatabase()
@@ -35,10 +41,33 @@ describe('ProviderService.delete — preset protection boundary', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await expect(providerService.delete('openai')).rejects.toThrow(/Cannot delete preset provider/)
+    expect(() => providerService.delete('openai')).toThrow(/Cannot delete preset provider/)
 
     // Verify row is still present
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
+    expect(rows).toHaveLength(1)
+  })
+
+  it('rejects deleting the managed Cherry Cloud provider', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      presetProviderId: CHERRYAI_PROVIDER_ID,
+      name: 'CherryAI',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+
+    let error: unknown
+    try {
+      providerService.delete(CHERRY_CLOUD_PROVIDER_ID)
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION, status: 400 })
+
+    const rows = await dbh.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, CHERRY_CLOUD_PROVIDER_ID))
     expect(rows).toHaveLength(1)
   })
 
@@ -50,7 +79,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await expect(providerService.delete('openai-work')).resolves.toBeUndefined()
+    expect(providerService.delete('openai-work')).toBeUndefined()
 
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai-work'))
     expect(rows).toHaveLength(0)
@@ -69,7 +98,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await expect(providerService.delete('zai')).rejects.toThrow(/Cannot delete preset provider/)
+    expect(() => providerService.delete('zai')).toThrow(/Cannot delete preset provider/)
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'zai'))
     expect(rows).toHaveLength(1)
   })
@@ -84,12 +113,14 @@ describe('ProviderService.delete — preset protection boundary', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await expect(providerService.delete('zai-personal')).resolves.toBeUndefined()
+    expect(providerService.delete('zai-personal')).toBeUndefined()
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'zai-personal'))
     expect(rows).toHaveLength(0)
   })
 
-  it('should NOT throw when deleting a fully custom provider with no presetProviderId', async () => {
+  it('should NOT throw when a future registry entry collides with a fully custom provider id', async () => {
+    vi.spyOn(providerRegistryService, 'isRegistryProvider').mockImplementation((id) => id === 'my-local-llm')
+
     await dbh.db.insert(userProviderTable).values({
       providerId: 'my-local-llm',
       presetProviderId: null,
@@ -97,7 +128,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await expect(providerService.delete('my-local-llm')).resolves.toBeUndefined()
+    expect(providerService.delete('my-local-llm')).toBeUndefined()
 
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'my-local-llm'))
     expect(rows).toHaveLength(0)
@@ -129,6 +160,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
         providerId: 'openai-work',
         modelId: 'gpt-4o',
         name: 'GPT-4o',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: gpt4oOrderKey
       },
       {
@@ -136,6 +169,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
         providerId: 'openai-work',
         modelId: 'o3',
         name: 'o3',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: o3OrderKey
       },
       {
@@ -143,22 +178,26 @@ describe('ProviderService.delete — preset protection boundary', () => {
         providerId: 'anthropic-work',
         modelId: 'claude-3',
         name: 'Claude 3',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: claudeOrderKey
       }
     ])
     const targetPins: Pin[] = []
     for (const entityId of targetModelIds) {
-      targetPins.push(await pinService.pin({ entityType: 'model', entityId }))
+      targetPins.push(pinService.pin({ entityType: 'model', entityId }))
     }
-    const siblingPin = await pinService.pin({ entityType: 'model', entityId: siblingModelId })
+    const siblingPin = pinService.pin({ entityType: 'model', entityId: siblingModelId })
+    notifyDataApiDataChangeMock.mockClear()
 
-    await providerService.delete('openai-work')
+    providerService.delete('openai-work')
 
     const pins = await dbh.db.select().from(pinTable)
     for (const pin of targetPins) {
       expect(pins.find((row) => row.id === pin.id)).toBeUndefined()
     }
     expect(pins.find((row) => row.id === siblingPin.id)).toBeDefined()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   it('purges pins for every model under the provider as part of the delete transaction', async () => {
@@ -186,9 +225,33 @@ describe('ProviderService.delete — preset protection boundary', () => {
       }
     ])
     await dbh.db.insert(userModelTable).values([
-      { id: gpt4, providerId: 'openai-work', modelId: 'gpt-4', name: 'GPT-4', orderKey: gpt4OrderKey },
-      { id: gpt35, providerId: 'openai-work', modelId: 'gpt-3.5', name: 'GPT-3.5', orderKey: gpt35OrderKey },
-      { id: claude, providerId: 'anthropic', modelId: 'claude-3', name: 'Claude 3', orderKey: claudeOrderKey }
+      {
+        id: gpt4,
+        providerId: 'openai-work',
+        modelId: 'gpt-4',
+        name: 'GPT-4',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: gpt4OrderKey
+      },
+      {
+        id: gpt35,
+        providerId: 'openai-work',
+        modelId: 'gpt-3.5',
+        name: 'GPT-3.5',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: gpt35OrderKey
+      },
+      {
+        id: claude,
+        providerId: 'anthropic',
+        modelId: 'claude-3',
+        name: 'Claude 3',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: claudeOrderKey
+      }
     ])
     await dbh.db.insert(pinTable).values([
       { entityType: 'model', entityId: gpt4, orderKey: 'a0' },
@@ -196,7 +259,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       { entityType: 'model', entityId: claude, orderKey: 'a2' }
     ])
 
-    await providerService.delete('openai-work')
+    providerService.delete('openai-work')
 
     expect(purgeForEntitiesTxSpy).toHaveBeenCalledTimes(1)
     const [, entityType, entityIds] = purgeForEntitiesTxSpy.mock.calls[0]
@@ -217,6 +280,6 @@ describe('ProviderService.delete — preset protection boundary', () => {
   })
 
   it('throws notFound when the provider row does not exist (no silent zero-row delete)', async () => {
-    await expect(providerService.delete('does-not-exist')).rejects.toThrow(/not found/i)
+    expect(() => providerService.delete('does-not-exist')).toThrow(/not found/i)
   })
 })

@@ -1,21 +1,13 @@
+import { useCallback } from 'react'
+
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { CreateTranslateHistoryDto, UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
-import {
-  parsePersistedLangCode,
-  type PersistedLangCode,
-  type TranslateLangCode
-} from '@shared/data/preference/preferenceTypes'
-import { useCallback } from 'react'
+import { toPersistedLangCodeOrNull, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
-import { type MutationFeedbackOptions, useMutationFeedback } from './_mutationFeedback'
+import { type MutationFeedbackOptions, useMutationFeedback } from './useMutationFeedback'
 
 const logger = loggerService.withContext('translate/useTranslateHistory')
-
-const toPersistedLangCodeOrNull = (langCode: TranslateLangCode | null | undefined): PersistedLangCode | null => {
-  if (langCode === null || langCode === undefined || langCode === 'unknown') return null
-  return parsePersistedLangCode(langCode)
-}
 
 export type AddTranslateHistoryInput = {
   sourceText: string

@@ -2,12 +2,10 @@ import { useCallback } from 'react'
 
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
-import { NO_AUTH_PROVIDER_IDS } from '../utils/checkProviderEnabled'
 import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 export type PaintingGenerationGuardReason =
   | 'provider_disabled'
-  | 'no_api_key'
   | 'model_missing'
   | 'model_unavailable'
   | 'catalog_error'
@@ -27,18 +25,11 @@ export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: U
   const { provider } = usePaintingProviderRuntime(providerId)
 
   const validateBeforeGenerate = useCallback(async (): Promise<PaintingGenerationGuardResult> => {
-    const requiresAuth = !NO_AUTH_PROVIDER_IDS.has(providerId)
-
-    // UX: PaintingModelSelector does not pre-block when disabled (sponsor flows). This is the enforcement point.
-    if (requiresAuth && !provider.isEnabled) {
+    // Keyless-permissive: no API-key pre-check (consistent with chat/agent) — a
+    // provider that needs a key fails naturally at request time. Enablement is
+    // still enforced; PaintingModelSelector does not pre-block when disabled.
+    if (!provider.isEnabled) {
       return { ok: false, reason: 'provider_disabled' }
-    }
-
-    if (requiresAuth) {
-      const apiKey = await provider.getApiKey()
-      if (!apiKey.trim()) {
-        return { ok: false, reason: 'no_api_key' }
-      }
     }
 
     if (!modelId) {
@@ -62,7 +53,7 @@ export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: U
     }
 
     return { ok: true }
-  }, [ensureCurrentCatalog, modelId, provider, providerId])
+  }, [ensureCurrentCatalog, modelId, provider])
 
   return { validateBeforeGenerate }
 }

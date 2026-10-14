@@ -1,8 +1,11 @@
 import { vi } from 'vitest'
 
+import { mockAttachmentPresenceService } from './AttachmentPresenceService'
 import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
+import { mockFileIntakeService } from './FileIntakeService'
+import { MockMainFileManagerExport } from './FileManager'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
 
 /**
@@ -26,6 +29,8 @@ import { MockMainPreferenceServiceExport } from './PreferenceService'
 /** Minimal MainWindowService mock for tests that access application.get('MainWindowService') */
 const mockMainWindowService = {
   getMainWindow: vi.fn(() => null),
+  openWebsite: vi.fn(async () => undefined),
+  openBrowserTab: vi.fn(),
   showMainWindow: vi.fn(),
   toggleMainWindow: vi.fn(),
   quoteToMainWindow: vi.fn()
@@ -48,6 +53,8 @@ const mockWindowManager = {
   getWindowIdByWebContents: vi.fn(() => undefined),
   open: vi.fn(() => 'mock-window-id'),
   close: vi.fn(() => true),
+  suspendPool: vi.fn(() => 0),
+  resumePool: vi.fn(),
   show: vi.fn(() => true),
   hide: vi.fn(() => true),
   focus: vi.fn(() => true),
@@ -57,14 +64,37 @@ const mockWindowManager = {
   onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
 }
 
+/**
+ * Minimal IpcApiService mock — services push main→renderer events via
+ * `application.get('IpcApiService').send(windowId, event, payload)` (directed),
+ * `.broadcast(event, payload)` (all windows), or
+ * `.broadcastToType(windowType, event, payload)` (one window type). Tests can assert on these spies.
+ */
+const mockIpcApiService = {
+  send: vi.fn(),
+  broadcast: vi.fn(),
+  broadcastToType: vi.fn()
+}
+
+/** Minimal JobManager mock for handler registration and startup enqueues. */
+export const mockJobManager = {
+  registerHandler: vi.fn(),
+  enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
   CacheService: MockMainCacheServiceExport.cacheService,
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
+  FileManager: MockMainFileManagerExport.fileManager,
+  FileIntakeService: mockFileIntakeService,
+  AttachmentPresenceService: mockAttachmentPresenceService,
   MainWindowService: mockMainWindowService,
-  WindowManager: mockWindowManager
+  WindowManager: mockWindowManager,
+  IpcApiService: mockIpcApiService,
+  JobManager: mockJobManager
 } as const
 
 /** Type for per-service overrides */
@@ -77,13 +107,46 @@ export type ServiceOverrides = Partial<Record<keyof typeof defaultServiceInstanc
 export function createMockApplication(overrides: ServiceOverrides = {}) {
   const serviceInstances = { ...defaultServiceInstances, ...overrides }
 
-  return {
-    get: vi.fn((name: string) => {
+  // Mirror production: `application.get(name)` delegates to `container.get(name)`
+  // (Application.get → this.container.get) and `getContainer()` returns the SAME
+  // instance. `get` lives on the prototype (class method), so code that
+  // temporarily overrides `container.get` and restores it by deleting the own
+  // property behaves exactly as it does against the real ServiceContainer.
+  class MockServiceContainer {
+    get(name: string) {
       if (name in serviceInstances) {
         return serviceInstances[name as keyof typeof serviceInstances]
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
-    }),
+    }
+    // Mirror real ServiceContainer semantics: every default mock service is
+    // non-conditional, so getOptional() on it THROWS (catches code that
+    // wrongly "falls back" from get() to getOptional() for regular services);
+    // unknown names return undefined, like an excluded/unregistered service.
+    getOptional(name: string) {
+      if (name in serviceInstances) {
+        throw new Error(`[ServiceContainer] Service '${name}' is not conditional — use get('${name}').`)
+      }
+      return undefined
+    }
+    // Mirror real ServiceContainer semantics: resolve without creating, and
+    // return undefined (never throw) for an unregistered service.
+    getInstance(name: string) {
+      return name in serviceInstances ? serviceInstances[name as keyof typeof serviceInstances] : undefined
+    }
+    has(name: string) {
+      return name in serviceInstances
+    }
+    register() {}
+    setInstance() {}
+  }
+  const container = new MockServiceContainer()
+
+  return {
+    get: vi.fn((name: string) => container.get(name)),
+    getOptional: vi.fn((name: string) => container.getOptional(name)),
+    getExisting: vi.fn((name: string) => container.getInstance(name)),
+    getContainer: vi.fn(() => container),
     // Deterministic stub for path lookups — returns "/mock/<key>" (or
     // "/mock/<key>/<filename>") so tests that instantiate services with
     // class field initializers like `application.getPath('feature.xxx')`
@@ -94,6 +157,11 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
     isReady: vi.fn(() => true),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+    relaunch: vi.fn(),
+    forceExit: vi.fn(),
+    // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
+    quit: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.
     isQuitting: false
   }

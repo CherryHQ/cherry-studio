@@ -1,8 +1,9 @@
-import { Separator } from '@cherrystudio/ui/components/primitives/separator'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
+
+import { Separator } from '@cherrystudio/ui/components/primitives/separator'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
   return (
@@ -15,7 +16,7 @@ function ItemSeparator({ className, ...props }: React.ComponentProps<typeof Sepa
 }
 
 const itemVariants = cva(
-  'group/item flex flex-wrap items-center rounded-md border border-transparent text-sm transition-colors duration-100 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [a]:transition-colors [a]:hover:bg-accent/50',
+  'group/item flex flex-wrap items-center rounded-md border border-transparent text-sm transition-colors duration-100 outline-none focus-visible:border-primary [a]:transition-colors [a]:hover:bg-accent/50 [a]:focus-visible:bg-accent/50',
   {
     variants: {
       variant: {
@@ -111,7 +112,7 @@ function ItemDescription({ className, ...props }: React.ComponentProps<'p'>) {
       data-slot="item-description"
       className={cn(
         'line-clamp-2 text-sm leading-normal font-normal text-balance text-muted-foreground',
-        '[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary',
+        '[&>a]:text-link [&>a]:underline [&>a]:underline-offset-4',
         className
       )}
       {...props}

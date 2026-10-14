@@ -1,0 +1,49 @@
+import type {
+  CherryMessagePart,
+  CherryUIMessage,
+  MessageSnapshot,
+  MessageStats,
+  MessageStatus
+} from '@shared/data/types/message'
+
+import type { Model } from './model'
+import type { Message } from './newMessage'
+
+export interface MessageExportView {
+  id: string
+  role: CherryUIMessage['role']
+  assistantId?: string
+  topicId: string
+  createdAt: string
+  updatedAt?: string
+  status: MessageStatus
+  modelId?: string
+  model?: Model
+  /** Frozen producing author (assistant/agent, model nested) — drives export headers after rename/delete. */
+  messageSnapshot?: MessageSnapshot
+  parentId?: string | null
+  siblingsGroupId?: number
+  stats?: MessageStats
+  parts: CherryMessagePart[]
+  /** Citable tool parts of earlier messages, so an id re-cited from a previous turn exports like it renders. */
+  priorCitationParts?: readonly CherryMessagePart[]
+}
+
+// `Message` (v1) is still produced only by the v1-block-based export/copy test
+// fixtures; all live producers now yield `MessageExportView`. Dropping the arm
+// is gated on migrating `export.test.ts` / `copy.test.ts` off the v1 block model.
+export type ExportableMessage = Message | MessageExportView
+
+export type MessageExportTarget =
+  | 'markdown'
+  | 'markdown-reason'
+  | 'word'
+  | 'notion'
+  | 'yuque'
+  | 'obsidian'
+  | 'joplin'
+  | 'siyuan'
+
+export type ExportMessages = (messages: MessageExportView[], target: MessageExportTarget) => Promise<boolean>
+
+export type ExportMessagesToObsidian = (title: string, messages: MessageExportView[]) => Promise<boolean>

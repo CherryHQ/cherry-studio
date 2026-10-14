@@ -21,7 +21,7 @@
  *    - New: Tree via `parentId` + `siblingsGroupId`
  *
  * 2. **Multi-model Responses**
- *    - Old: Multiple messages share same `askId`, `foldSelected` marks active
+ *    - Old: Multiple messages share the same `askId`; `useful` selects context
  *    - New: Same `parentId` + non-zero `siblingsGroupId` groups siblings
  *
  * 3. **Block → Parts**
@@ -42,32 +42,32 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import type { SourceUrlUIPart } from 'ai'
+import mime from 'mime'
+import { v7 as uuidv7 } from 'uuid'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type {
   CherryMessagePart,
-  CitationReference,
   CitationType,
   ContentReference,
   DataUIPart,
   DynamicToolUIPart,
   FileUIPart,
   MessageData,
+  MessageSnapshot,
   MessageStats,
-  ModelSnapshot,
   ReasoningUIPart,
   ReferenceCategory,
   SerializedErrorData,
   TextUIPart
 } from '@shared/data/types/message'
-import type { CherryDataPartTypes } from '@shared/data/types/uiParts'
-import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { Base64String, FilePath } from '@shared/file/types/common'
-import type { FileMetadata } from '@types'
-import type { SourceUrlUIPart } from 'ai'
-import mime from 'mime'
-import { v7 as uuidv7 } from 'uuid'
+import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
+import { createClearContextPart, withCherryMeta } from '@shared/data/types/uiParts'
+import { AbsoluteFilePathSchema, type Base64String } from '@shared/types/file'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
@@ -187,7 +187,6 @@ export interface OldMessage {
   // Metadata
   usage?: OldUsage
   metrics?: OldMetrics
-  traceId?: string
 
   // Dropped: mentions are redundant in tree-based architecture
   // (derivable from sibling response messages' modelId + siblingsGroupId)
@@ -199,6 +198,8 @@ export interface OldMessage {
   enabledMCPs?: unknown[]
   agentSessionId?: string
   providerMetadata?: unknown
+  // Legacy span pointer; dropped because v1 span detail files are not migrated.
+  traceId?: string
 }
 
 /**
@@ -409,8 +410,8 @@ export interface NewTopic {
   isNameManuallyEdited: boolean
   assistantId: string | null
   activeNodeId: string | null
-  groupId: string | null
   orderKey: string
+  lastActivityAt: number
   createdAt: number // timestamp
   updatedAt: number // timestamp
 }
@@ -429,8 +430,7 @@ export interface NewMessage {
   status: 'success' | 'error' | 'paused'
   siblingsGroupId: number
   modelId: string | null
-  modelSnapshot: ModelSnapshot | null
-  traceId: string | null
+  messageSnapshot: MessageSnapshot | null
   stats: MessageStats | null
   createdAt: number // timestamp
   updatedAt: number // timestamp
@@ -455,8 +455,7 @@ export interface NewMessage {
  * | isNameManuallyEdited | isNameManuallyEdited | Direct copy |
  * | assistantId | assistantId | FK to assistant table (validated) |
  * | (computed) | activeNodeId | Last message ID |
- * | (none) | groupId | null (new field) |
- * | (none) | orderKey | placeholder; stamped post-stream by the migrator |
+ * | (none) | orderKey | placeholder; stamped globally post-stream by the migrator |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
@@ -466,16 +465,17 @@ export interface NewMessage {
  * - pinned: Pin state lives on the polymorphic `pin` table now; the migrator
  *   reads `oldTopic.pinned` separately and emits a `pin` row for it.
  */
-export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null): NewTopic {
+export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null, lastActivityAt?: number): NewTopic {
+  const createdAt = parseTimestamp(oldTopic.createdAt)
   return {
     id: oldTopic.id,
     name: oldTopic.name || '',
     isNameManuallyEdited: oldTopic.isNameManuallyEdited ?? false,
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
-    groupId: null, // New field, no migration source
     orderKey: '', // Stamped by ChatMigrator.insertStagedTopics post-stream.
-    createdAt: parseTimestamp(oldTopic.createdAt),
+    lastActivityAt: Math.max(createdAt, lastActivityAt ?? createdAt),
+    createdAt,
     updatedAt: parseTimestamp(oldTopic.updatedAt)
   }
 }
@@ -513,21 +513,26 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * | status | status | Normalized to success/error/paused |
  * | (computed) | siblingsGroupId | From multi-model detection |
  * | model/modelId | modelId | Composite (provider::modelId) or raw fallback |
- * | traceId | traceId | Dropped: legacy span detail files are not migrated |
+ * | traceId | - | Dropped: legacy span detail files are not migrated |
  * | usage + metrics | stats | Merged into single stats object |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
+ * ## Message Type:
+ * Legacy `type: 'clear'` is converted to a hidden `data-clear` part. Other
+ * message type values are dropped.
+ *
+ * `useful` is consumed while building the tree but is not stored on the
+ * transformed message. `foldSelected` remains display-only and is dropped.
+ *
  * ## Dropped Fields:
- * - type ('clear' | 'text' | '@')
- * - useful (boolean)
  * - enabledMCPs (deprecated)
  * - agentSessionId (session identifier)
  * - traceId (span detail files are outside the v1 chat migration source set)
  * - providerMetadata (raw provider data)
  * - multiModelMessageStyle (UI state)
  * - askId (replaced by parentId)
- * - foldSelected (replaced by siblingsGroupId)
+ * - foldSelected (display-only state)
  */
 export async function transformMessage(
   oldMessage: OldMessage,
@@ -535,7 +540,9 @@ export async function transformMessage(
   siblingsGroupId: number,
   blocks: OldBlock[],
   correctTopicId: string,
-  deps?: ChatMappingDeps
+  deps?: ChatMappingDeps,
+  /** The topic's assistant (v1 couples topic→assistant); attached to assistant-role rows. */
+  assistantSnapshot?: { id: string; name: string; emoji: string }
 ): Promise<NewMessage> {
   // Transform blocks to AI SDK UIMessage.parts format
   const { parts, citationReferences, searchableText } = await transformBlocksToParts(blocks, deps)
@@ -559,33 +566,58 @@ export async function transformMessage(
     parentId,
     topicId: correctTopicId,
     role: oldMessage.role,
-    data: { parts },
+    data: {
+      parts: oldMessage.type === 'clear' ? [...parts, createClearContextPart()] : parts
+    },
     searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
-    // Snapshot of model at message creation time for historical display
-    modelSnapshot: buildModelSnapshot(oldMessage.model),
-    traceId: null,
-    stats: mergeStats(oldMessage.usage, oldMessage.metrics),
+    // Author snapshot (model nested) for historical display. The assistant is attached only to
+    // assistant-role rows; the header shows it first, the model second.
+    messageSnapshot: buildMessageSnapshot(
+      oldMessage.model,
+      oldMessage.role === 'assistant' ? assistantSnapshot : undefined
+    ),
+    stats: mergeStats(
+      oldMessage.usage,
+      oldMessage.metrics,
+      oldMessage.role === 'assistant' ? estimateLegacyRequestCount(blocks) : undefined
+    ),
     createdAt: parseTimestamp(oldMessage.createdAt),
     updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
   }
 }
 
 /**
- * Build a ModelSnapshot from a legacy model object.
- * Returns null if model is missing required fields (id + provider).
+ * Build the author {@link MessageSnapshot} from a legacy v1 message: the producing assistant with
+ * the model nested inside. Returns null unless both the assistant and a valid model are present
+ * (the author owns the model — no author, no snapshot).
  */
-function buildModelSnapshot(model: OldMessage['model']): ModelSnapshot | null {
+function buildMessageSnapshot(
+  model: OldMessage['model'],
+  assistant: { id: string; name: string; emoji: string } | undefined
+): MessageSnapshot | null {
+  if (!assistant) return null
   if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
   if (!model.id.trim() || !model.provider.trim()) return null
   return {
-    id: model.id,
-    name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
-    provider: model.provider,
-    group: typeof model.group === 'string' ? model.group : undefined
+    ...assistant,
+    model: {
+      id: model.id,
+      name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
+      provider: model.provider,
+      group: typeof model.group === 'string' ? model.group : undefined
+    }
   }
+}
+
+/** Build the assistant identity (v2 id + name/emoji) from a resolved v1 assistant row. */
+export function buildAssistantSnapshot(
+  id: string,
+  assistant: OldAssistant
+): { id: string; name: string; emoji: string } {
+  return { id, name: assistant.name, emoji: assistant.emoji ?? '' }
 }
 
 /**
@@ -634,27 +666,44 @@ export function normalizeStatus(oldStatus: OldMessage['status']): 'success' | 'e
  * ## Field Mapping:
  * | Source | Target |
  * |--------|--------|
- * | usage.prompt_tokens | promptTokens |
- * | usage.completion_tokens | completionTokens |
+ * | usage.prompt_tokens | inputTokens |
+ * | usage.completion_tokens | outputTokens |
  * | usage.total_tokens | totalTokens |
- * | usage.thoughts_tokens | thoughtsTokens |
- * | usage.cost | cost |
+ * | usage.thoughts_tokens | outputTokenDetails.reasoningTokens |
+ * | usage.cost | costs[USD] (provider-reported) |
  * | metrics.time_first_token_millsec | timeFirstTokenMs |
  * | metrics.time_completion_millsec | timeCompletionMs |
  * | metrics.time_thinking_millsec | timeThinkingMs |
+ *
+ * v1 carries no cache-token breakdown. Its optional thoughts count becomes
+ * `outputTokenDetails.reasoningTokens`.
  */
-export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats | null {
+export function mergeStats(usage?: OldUsage, metrics?: OldMetrics, requestCount?: number): MessageStats | null {
   if (!usage && !metrics) return null
 
   const stats: MessageStats = {}
 
-  // Token usage
+  // Token usage (AI SDK v6 names)
   if (usage) {
-    if (usage.prompt_tokens !== undefined) stats.promptTokens = usage.prompt_tokens
-    if (usage.completion_tokens !== undefined) stats.completionTokens = usage.completion_tokens
+    if (usage.prompt_tokens !== undefined) stats.inputTokens = usage.prompt_tokens
+    if (usage.completion_tokens !== undefined) stats.outputTokens = usage.completion_tokens
     if (usage.total_tokens !== undefined) stats.totalTokens = usage.total_tokens
-    if (usage.thoughts_tokens !== undefined) stats.thoughtsTokens = usage.thoughts_tokens
-    if (usage.cost !== undefined) stats.cost = usage.cost
+    if (usage.thoughts_tokens !== undefined) stats.outputTokenDetails = { reasoningTokens: usage.thoughts_tokens }
+    // v1 `Usage.cost` was only written by OpenRouter (provider-reported actual
+    // spend); treat it as authoritative provider cost in USD.
+    if (usage.cost !== undefined) {
+      stats.costs = [
+        {
+          currency: 'USD',
+          amount: usage.cost,
+          providerReportedRequestCount: requestCount ?? 1,
+          computedRequestCount: 0
+        }
+      ]
+    }
+    stats.requestCount = requestCount ?? 1
+    stats.estimatedRequestCount = requestCount ?? 1
+    stats.unpricedRequestCount = usage.cost === undefined ? (requestCount ?? 1) : 0
   }
 
   // Performance metrics
@@ -666,6 +715,45 @@ export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats
 
   // Return null if no data was actually added
   return Object.keys(stats).length > 0 ? stats : null
+}
+
+/**
+ * v1 stored one aggregate usage object per assistant message. Estimate how
+ * many provider calls contributed to it from the raw block sequence: the
+ * initial call is one, and each tool group followed by more model output
+ * implies one continuation call. Parallel tools remain one group; reference
+ * and attachment blocks do not split it.
+ */
+export function estimateLegacyRequestCount(blocks: readonly OldBlock[]): number {
+  let requestCount = 1
+  let toolGroupOpen = false
+  for (const block of blocks) {
+    if (block.type === 'tool') {
+      toolGroupOpen = true
+      continue
+    }
+    if (
+      block.type === 'citation' ||
+      block.type === 'file' ||
+      block.type === 'source' ||
+      block.type === 'image' ||
+      block.type === 'video'
+    ) {
+      continue
+    }
+    if (
+      toolGroupOpen &&
+      (block.type === 'main_text' ||
+        block.type === 'thinking' ||
+        block.type === 'code' ||
+        block.type === 'translation' ||
+        block.type === 'compact')
+    ) {
+      requestCount += 1
+      toolGroupOpen = false
+    }
+  }
+  return requestCount
 }
 
 // ============================================================================
@@ -775,15 +863,49 @@ async function transformSingleBlockToPart(
       const rawName = block.toolName || raw?.tool?.name || 'unknown'
       const serverName = raw?.tool?.serverName
       const toolName = serverName ? `${serverName}: ${rawName}` : rawName
+      const toolCallId = block.toolId || raw?.toolCallId || raw?.id || block.id
       const input = block.arguments ?? raw?.arguments ?? {}
       const output = raw?.response ?? block.content
       const isError = contentObj?.isError === true || raw?.status === 'error'
+      const rawToolType = raw?.tool?.type
+      const toolType =
+        rawToolType === 'mcp' || rawToolType === 'builtin' || rawToolType === 'provider' ? rawToolType : undefined
+      const toolMetadata: CherryToolMeta['tool'] | undefined = raw?.tool
+        ? {
+            ...(toolType ? { type: toolType } : {}),
+            ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
+            ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
+          }
+        : undefined
+      const callProviderMetadata = raw?.tool
+        ? {
+            cherry: {
+              tool: {
+                ...(toolType ? { type: toolType } : {}),
+                ...(raw.tool.name ? { name: raw.tool.name } : {}),
+                ...(raw.tool.description ? { description: raw.tool.description } : {}),
+                ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
+                ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
+              }
+            }
+          }
+        : undefined
 
-      const base = { type: 'dynamic-tool' as const, toolName, toolCallId: block.toolId, input }
+      const base = {
+        type: 'dynamic-tool' as const,
+        toolName,
+        toolCallId,
+        input,
+        ...(callProviderMetadata ? { callProviderMetadata } : {})
+      }
 
-      const part: DynamicToolUIPart = isError
+      const partWithoutMeta: DynamicToolUIPart = isError
         ? { ...base, state: 'output-error', errorText: typeof output === 'string' ? output : JSON.stringify(output) }
         : { ...base, state: 'output-available', output }
+      const part =
+        toolMetadata && Object.keys(toolMetadata).length > 0
+          ? withCherryMeta(partWithoutMeta, { tool: toolMetadata })
+          : partWithoutMeta
 
       return { part, extraParts: null, citations: null, searchableText: null }
     }
@@ -907,6 +1029,11 @@ function mediaTypeFromDataUrl(dataUrl: Base64String): string {
   return match?.[1] ?? 'image/png'
 }
 
+function base64PayloadKey(raw: string): string {
+  const match = BASE64_DATA_URL_RE.exec(raw)
+  return match?.[2] ?? raw
+}
+
 async function promoteBase64ToFileEntry(
   db: DbType,
   filesDataDir: string,
@@ -920,14 +1047,14 @@ async function promoteBase64ToFileEntry(
   const ext = mime.getExtension(mimeType)
   const id = uuidv7()
   const filename = ext ? `${id}.${ext}` : id
-  const physicalPath = path.join(filesDataDir, filename) as FilePath
+  const physicalPath = AbsoluteFilePathSchema.parse(path.join(filesDataDir, filename))
   const bytes = Buffer.from(payload, 'base64')
   let physicalWritten = false
 
   try {
     // Write physical file first. If we crash before the DB insert lands,
-    // the orphan checker won't sweep this file (no file_entry row means
-    // no DB linkage to look up). Same risk model as the rest of
+    // the file sweep can later reclaim this UUID blob because no file_entry
+    // row exists. Same risk model as the rest of
     // FileMigrator's transform path; acceptable for a migration step.
     await fs.mkdir(path.dirname(physicalPath), { recursive: true })
     await fs.writeFile(physicalPath, bytes)
@@ -990,6 +1117,7 @@ async function promoteBase64ToFileEntry(
  */
 async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDeps): Promise<FileUIPart[]> {
   const parts: FileUIPart[] = []
+  const promotedPayloads = new Set<string>()
 
   // (1) Disk-backed file (canonical for modern v1) — never has inline base64.
   if (block.file) {
@@ -1004,6 +1132,7 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
     // (2)+(3) URL-only image (no disk file).
     if (isBase64DataUrl(block.url)) {
       // `block.url` is now narrowed to `Base64String`; no `as` cast.
+      promotedPayloads.add(base64PayloadKey(block.url))
       if (deps?.db) {
         const promoted = await promoteBase64ToFileEntry(deps.db, deps.filesDataDir, block.url, block.id)
         if (promoted) parts.push(promoted)
@@ -1025,6 +1154,9 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
   if (isBase64Mode && rawImages.length > 0) {
     if (deps?.db) {
       for (const raw of rawImages) {
+        const payloadKey = base64PayloadKey(raw)
+        if (promotedPayloads.has(payloadKey)) continue
+        promotedPayloads.add(payloadKey)
         const dataUrl = toBase64DataUrl(raw, 'image/png')
         const promoted = await promoteBase64ToFileEntry(deps.db, deps.filesDataDir, dataUrl, block.id)
         if (promoted) parts.push(promoted)
@@ -1099,7 +1231,7 @@ export function extractCitationReferences(citationBlock: OldCitationBlock): Cont
         results: citationBlock.response.results,
         source: citationBlock.response.source
       }
-    } as CitationReference)
+    })
   }
 
   // Knowledge base citations
@@ -1115,7 +1247,7 @@ export function extractCitationReferences(citationBlock: OldCitationBlock): Cont
         file: k.file,
         metadata: k.metadata
       }))
-    } as CitationReference)
+    })
   }
 
   // Memory citations
@@ -1132,7 +1264,7 @@ export function extractCitationReferences(citationBlock: OldCitationBlock): Cont
         score: m.score,
         metadata: m.metadata
       }))
-    } as CitationReference)
+    })
   }
 
   return references
@@ -1160,16 +1292,16 @@ export function extractCitationReferences(citationBlock: OldCitationBlock): Cont
  *
  * ## Example:
  * ```
- * Input: [u1, a1, u2, a2, a3(askId=u2,foldSelected), a4(askId=u2), u3]
+ * Input: [u1, a1, u2, a2, a3(askId=u2,useful), a4(askId=u2), u3]
  *
  * Output:
  * u1: { parentId: null, siblingsGroupId: 0 }
  * a1: { parentId: 'u1', siblingsGroupId: 0 }
  * u2: { parentId: 'a1', siblingsGroupId: 0 }
  * a2: { parentId: 'u2', siblingsGroupId: 1 }  // Multi-model group
- * a3: { parentId: 'u2', siblingsGroupId: 1 }  // Selected one
+ * a3: { parentId: 'u2', siblingsGroupId: 1 }  // Context response
  * a4: { parentId: 'u2', siblingsGroupId: 1 }
- * u3: { parentId: 'a3', siblingsGroupId: 0 }  // Links to foldSelected
+ * u3: { parentId: 'a3', siblingsGroupId: 0 }  // Links to useful
  * ```
  */
 export function buildMessageTree(
@@ -1179,28 +1311,21 @@ export function buildMessageTree(
 
   if (messages.length === 0) return result
 
-  // Track askId → siblingsGroupId mapping
-  // Each unique askId with multiple responses gets a unique siblingsGroupId
+  // Each unique askId with multiple responses gets a unique siblingsGroupId.
   const askIdToGroupId = new Map<string, number>()
-  const askIdCounts = new Map<string, number>()
+  const responseGroups = indexLegacyResponseGroups(messages)
 
-  // First pass: count messages per askId to identify multi-model responses
-  for (const msg of messages) {
-    if (msg.askId) {
-      askIdCounts.set(msg.askId, (askIdCounts.get(msg.askId) || 0) + 1)
-    }
-  }
-
-  // Assign group IDs to askIds with multiple responses
   let nextGroupId = 1
-  for (const [askId, count] of askIdCounts) {
-    if (count > 1) {
+  for (const [askId, group] of responseGroups) {
+    if (group.count > 1) {
       askIdToGroupId.set(askId, nextGroupId++)
     }
   }
 
-  // Build set of known message IDs for validating references
-  const knownIds = new Set(messages.map((m) => m.id))
+  // Only references to messages already processed in chronological order are
+  // safe parent edges. Accepting an ID that appears later can create a cycle
+  // when that later user message links back to a selected response.
+  const seenMessageIds = new Set<string>()
 
   // Track fallback parent for orphaned askId groups (user message deleted)
   // All messages in the same orphaned group share the previousMessageId at the time
@@ -1209,9 +1334,8 @@ export function buildMessageTree(
 
   // Second pass: build parent/sibling relationships
   let previousMessageId: string | null = null
-  let lastNonGroupMessageId: string | null = null // Last message not in a group, for linking subsequent user messages
-  let lastGroupFallbackId: string | null = null // Last group member as fallback when no foldSelected
-  let groupHasFoldSelected = false // Whether current group has a foldSelected member
+  let pendingGroupAskId: string | null = null
+  let pendingGroupContextId: string | null = null
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
@@ -1221,7 +1345,12 @@ export function buildMessageTree(
     if (msg.askId && askIdToGroupId.has(msg.askId)) {
       siblingsGroupId = askIdToGroupId.get(msg.askId)!
 
-      if (knownIds.has(msg.askId)) {
+      if (pendingGroupAskId !== msg.askId) {
+        pendingGroupAskId = msg.askId
+        pendingGroupContextId = null
+      }
+
+      if (seenMessageIds.has(msg.askId)) {
         // Normal multi-model: parent is the user message
         parentId = msg.askId
       } else {
@@ -1232,38 +1361,25 @@ export function buildMessageTree(
         parentId = orphanedGroupParent.get(msg.askId) ?? null
       }
 
-      // Track selected response or last group member for linking subsequent user messages
-      if (msg.foldSelected) {
-        lastNonGroupMessageId = msg.id
-        groupHasFoldSelected = true
+      if (responseGroups.get(msg.askId)?.contextId === msg.id) {
+        pendingGroupContextId = msg.id
       }
-      if (!groupHasFoldSelected) {
-        lastGroupFallbackId = msg.id
-      }
-    } else if (msg.role === 'user' && (lastNonGroupMessageId || lastGroupFallbackId)) {
-      // User message after a multi-model group links to the selected (or last) response.
-      // lastGroupFallbackId takes priority: it means the group had no foldSelected,
-      // so the user message should follow the last group member, not the pre-group message.
-      parentId = lastGroupFallbackId ?? lastNonGroupMessageId
-      lastNonGroupMessageId = null
-      lastGroupFallbackId = null
-      groupHasFoldSelected = false
+    } else if (msg.role === 'user' && pendingGroupContextId) {
+      parentId = pendingGroupContextId
+      pendingGroupAskId = null
+      pendingGroupContextId = null
     } else {
       // Normal sequential message - parent is previous message
       parentId = previousMessageId
+      pendingGroupAskId = null
+      pendingGroupContextId = null
     }
 
     result.set(msg.id, { parentId, siblingsGroupId })
+    seenMessageIds.add(msg.id)
 
     // Update tracking for next iteration
     previousMessageId = msg.id
-
-    // Update lastNonGroupMessageId for non-group messages
-    if (siblingsGroupId === 0) {
-      lastNonGroupMessageId = msg.id
-      lastGroupFallbackId = null
-      groupHasFoldSelected = false
-    }
   }
 
   return result
@@ -1273,25 +1389,54 @@ export function buildMessageTree(
  * Find the activeNodeId for a topic
  *
  * The activeNodeId should be the last message in the main conversation thread.
- * For multi-model responses, it should be the foldSelected one.
+ * For multi-model responses, v1 uses the first useful response or the first
+ * response when none is marked useful.
  *
  * @param messages - Messages in array order
- * @returns The ID of the last message (or foldSelected if applicable)
+ * @returns The ID of the last message, adjusted to the v1 context response
  */
 export function findActiveNodeId(messages: OldMessage[]): string | null {
   if (messages.length === 0) return null
 
-  // Find the last message
-  // If it's part of a multi-model group, find the foldSelected one
   const lastMsg = messages[messages.length - 1]
 
   if (lastMsg.askId) {
-    // Check if there's a foldSelected message with the same askId
-    const selectedMsg = messages.find((m) => m.askId === lastMsg.askId && m.foldSelected)
-    if (selectedMsg) return selectedMsg.id
+    return indexLegacyResponseGroups(messages).get(lastMsg.askId)?.contextId ?? lastMsg.id
   }
 
   return lastMsg.id
+}
+
+interface LegacyResponseGroup {
+  count: number
+  contextId: string
+  hasUseful: boolean
+}
+
+function indexLegacyResponseGroups(messages: OldMessage[]): Map<string, LegacyResponseGroup> {
+  const groups = new Map<string, LegacyResponseGroup>()
+
+  for (const message of messages) {
+    if (!message.askId) continue
+
+    const group = groups.get(message.askId)
+    if (!group) {
+      groups.set(message.askId, {
+        count: 1,
+        contextId: message.id,
+        hasUseful: message.useful === true
+      })
+      continue
+    }
+
+    group.count++
+    if (message.useful === true && !group.hasUseful) {
+      group.contextId = message.id
+      group.hasUseful = true
+    }
+  }
+
+  return groups
 }
 
 // ============================================================================

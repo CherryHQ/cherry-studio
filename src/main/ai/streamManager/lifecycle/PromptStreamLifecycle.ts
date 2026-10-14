@@ -4,6 +4,8 @@ export const promptStreamLifecycle: StreamLifecycle = {
   name: 'prompt',
   onCreated() {},
   onPromotedToStreaming() {},
+  onApprovalPendingChanged() {},
+  onActiveExecutionsChanged() {},
   onTerminal() {},
   canAttach() {
     return false

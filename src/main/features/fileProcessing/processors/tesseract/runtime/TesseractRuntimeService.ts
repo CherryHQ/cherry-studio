@@ -1,15 +1,15 @@
 import fs from 'node:fs'
 
+import PQueue from 'p-queue'
+import type { LanguageCode } from 'tesseract.js'
+import type Tesseract from 'tesseract.js'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { loadOcrImage } from '@main/features/fileProcessing/utils/ocr'
-import { getIpCountry } from '@main/utils/ipService'
-import { MB } from '@shared/config/constant'
-import PQueue from 'p-queue'
-import type { LanguageCode } from 'tesseract.js'
-import type Tesseract from 'tesseract.js'
-import { createWorker } from 'tesseract.js'
+import { regionService } from '@main/services/RegionService'
+import { MB } from '@shared/utils/constants'
 
 import type { ImageToTextHandlerOutput } from '../../types'
 import type { PreparedTesseractContext } from '../types'
@@ -105,6 +105,8 @@ export class TesseractRuntimeService extends BaseService {
         langs
       })
 
+      // Delayed loading: tesseract.js only loads when an OCR task actually needs a worker.
+      const { createWorker } = await import('tesseract.js')
       const nextWorker = await createWorker(langs, undefined, {
         langPath: await this.getLangPath(),
         cachePath: await this.getCacheDir(),
@@ -233,7 +235,7 @@ export class TesseractRuntimeService extends BaseService {
   }
 
   private async getLangPath(): Promise<string> {
-    const country = await getIpCountry()
+    const country = await regionService.getCountry()
     return country.toLowerCase() === 'cn' ? TESSERACT_LANGS_DOWNLOAD_URL_CN : ''
   }
 

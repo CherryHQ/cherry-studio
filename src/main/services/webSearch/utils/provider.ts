@@ -1,10 +1,34 @@
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
+import { WebSearchConfigError } from '../WebSearchConfigError'
+
 export function resolveProviderApiHost(provider: WebSearchProvider, capability: WebSearchCapability): string {
   const host = provider.capabilities.find((item) => item.feature === capability)?.apiHost?.trim()
   if (!host) {
-    throw new Error(`API host is required for provider ${provider.id} capability ${capability}`)
+    throw new WebSearchConfigError(
+      'api_host_missing',
+      `API host is required for provider ${provider.id} capability ${capability}`
+    )
   }
+
+  let protocol: string
+  try {
+    protocol = new URL(host).protocol
+  } catch (cause) {
+    throw new WebSearchConfigError(
+      'api_host_invalid',
+      `API host must be a valid HTTP(S) URL for provider ${provider.id} capability ${capability}`,
+      { cause }
+    )
+  }
+
+  if (protocol !== 'http:' && protocol !== 'https:') {
+    throw new WebSearchConfigError(
+      'api_host_invalid',
+      `API host must be a valid HTTP(S) URL for provider ${provider.id} capability ${capability}`
+    )
+  }
+
   return host
 }
 
@@ -12,11 +36,14 @@ export class ApiKeyRotationState {
   private readonly lastUsedKeyByProvider = new Map<WebSearchProvider['id'], string>()
 
   resolve(provider: WebSearchProvider, required: boolean = true): string {
-    const keys = provider.apiKeys.map((key) => key.trim()).filter(Boolean)
+    // Rotate over distinct keys. `indexOf` always reports the first occurrence, so a repeated
+    // entry pinned the rotation to it: with `['A','A','B']` every call resolved to `'A'` and
+    // `'B'` — the whole point of configuring several keys — was never used.
+    const keys = [...new Set(provider.apiKeys.map((key) => key.trim()).filter(Boolean))]
 
     if (keys.length === 0) {
       if (required) {
-        throw new Error(`API key is required for provider ${provider.id}`)
+        throw new WebSearchConfigError('api_key_missing', `API key is required for provider ${provider.id}`)
       }
       return ''
     }

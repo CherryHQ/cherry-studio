@@ -1,24 +1,25 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
 import { cva } from 'class-variance-authority'
 import * as React from 'react'
 import { useId } from 'react'
 
+import { cn } from '@cherrystudio/ui/lib/utils'
+
 const switchRootVariants = cva(
   [
     'cs-switch cs-switch-root',
-    'group relative cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
-    'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-brand-600',
+    'group peer relative inline-flex shrink-0 cursor-pointer items-center rounded-full shadow-xs transition-all outline-none',
+    'data-[state=checked]:bg-brand-600 data-[state=unchecked]:bg-gray-500/20',
     'disabled:cursor-not-allowed disabled:opacity-40',
-    'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+    'focus-visible:[box-shadow:inset_0_0_0_1px_var(--ring)]'
   ],
   {
     variants: {
       size: {
         xs: ['h-4.5 w-8'],
-        sm: ['w-9 h-5'],
-        md: ['w-11 h-5.5'],
-        lg: ['w-11 h-6']
+        sm: ['h-5 w-9'],
+        md: ['h-5.5 w-11'],
+        lg: ['h-6 w-11']
       },
       loading: {
         false: null,
@@ -41,9 +42,9 @@ const switchThumbVariants = cva(
     variants: {
       size: {
         xs: ['ml-[1px] size-4 data-[state=checked]:translate-x-3.5'],
-        sm: ['size-4.5 ml-[1px] data-[state=checked]:translate-x-4'],
-        md: ['size-[19px] ml-0.5 data-[state=checked]:translate-x-[21px]'],
-        lg: ['size-5 ml-[3px] data-[state=checked]:translate-x-4.5']
+        sm: ['ml-[1px] size-4.5 data-[state=checked]:translate-x-4'],
+        md: ['ml-0.5 size-[19px] data-[state=checked]:translate-x-[21px]'],
+        lg: ['ml-[3px] size-5 data-[state=checked]:translate-x-4.5']
       },
       loading: {
         false: null,
@@ -59,23 +60,23 @@ const switchThumbVariants = cva(
       {
         size: 'sm',
         loading: true,
-        className: 'size-3.5 ml-0.5 data-[state=checked]:translate-x-4.5'
+        className: 'ml-0.5 size-3.5 data-[state=checked]:translate-x-4.5'
       },
       {
         size: 'md',
         loading: true,
-        className: 'size-4 ml-1 data-[state=checked]:translate-x-5'
+        className: 'ml-1 size-4 data-[state=checked]:translate-x-5'
       },
       {
         size: 'lg',
         loading: true,
-        className: 'size-4.5 ml-1 data-[state=checked]:translate-x-4.5'
+        className: 'ml-1 size-4.5 data-[state=checked]:translate-x-4.5'
       }
     ]
   }
 )
 
-const switchThumbSvgVariants = cva(['transition-all'], {
+const switchThumbSvgVariants = cva(['size-full', 'transition-all'], {
   variants: {
     loading: {
       false: null,
@@ -109,8 +110,6 @@ function Switch({ loading = false, size = 'md', className, classNames, ...props 
         data-slot="switch-thumb"
         className={cn(switchThumbVariants({ size, loading }), classNames?.thumb)}>
         <svg
-          width="inherit"
-          height="inherit"
           viewBox="0 0 19 19"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -145,8 +144,8 @@ const DescriptionSwitch = ({
   const isLeftSide = position === 'left'
   const id = useId()
   return (
-    <div className={cn('flex w-full gap-3 justify-between p-4xs', isLeftSide && 'flex-row-reverse')}>
-      <label className={cn('flex flex-col gap-5xs cursor-pointer')} htmlFor={id}>
+    <div className={cn('flex w-full justify-between gap-3 p-2', isLeftSide && 'flex-row-reverse')}>
+      <label className={cn('flex cursor-pointer flex-col gap-1')} htmlFor={id}>
         {/* TODO: use standard typography component */}
         <p
           className={cn(
@@ -163,7 +162,7 @@ const DescriptionSwitch = ({
         {/* TODO: use standard typography component */}
         {description && (
           <span
-            className={cn('text-foreground-secondary', {
+            className={cn('text-muted-foreground', {
               'text-[10px] leading-3': size === 'sm',
               'text-xs leading-3.5': size === 'md',
               'text-sm leading-4': size === 'lg'
@@ -172,7 +171,7 @@ const DescriptionSwitch = ({
           </span>
         )}
       </label>
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Switch id={id} size={size} {...props} />
       </div>
     </div>

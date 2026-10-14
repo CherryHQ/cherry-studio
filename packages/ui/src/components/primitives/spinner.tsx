@@ -1,6 +1,6 @@
 // Original: src/renderer/components/Spinner.tsx
-import { motion } from 'framer-motion'
 import { Search } from 'lucide-react'
+import { motion } from 'motion/react'
 
 interface Props {
   text: React.ReactNode

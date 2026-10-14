@@ -7,38 +7,20 @@ type Item = { id: string }
 const mk = (ids: string[]): Item[] => ids.map((id) => ({ id }))
 
 describe('reorderLocally', () => {
-  it('throws when the list is empty', () => {
-    expect(() => reorderLocally<Item>([], 'a', { position: 'first' })).toThrow(/target id "a" not found/)
-  })
-
   it('is a no-op for a single-item list moved to {position: "first"}', () => {
     const input = mk(['a'])
     const result = reorderLocally(input, 'a', { position: 'first' })
     expect(result.map((i) => i.id)).toEqual(['a'])
   })
 
-  it('moves middle to first → [B, A, C]', () => {
-    const input = mk(['a', 'b', 'c'])
-    const result = reorderLocally(input, 'b', { position: 'first' })
-    expect(result.map((i) => i.id)).toEqual(['b', 'a', 'c'])
-  })
-
-  it('moves first to last → [B, C, A]', () => {
-    const input = mk(['a', 'b', 'c'])
-    const result = reorderLocally(input, 'a', { position: 'last' })
-    expect(result.map((i) => i.id)).toEqual(['b', 'c', 'a'])
-  })
-
-  it('handles {before: id} anchor', () => {
-    const input = mk(['a', 'b', 'c', 'd'])
-    const result = reorderLocally(input, 'd', { before: 'b' })
-    expect(result.map((i) => i.id)).toEqual(['a', 'd', 'b', 'c'])
-  })
-
-  it('handles {after: id} anchor', () => {
-    const input = mk(['a', 'b', 'c', 'd'])
-    const result = reorderLocally(input, 'a', { after: 'c' })
-    expect(result.map((i) => i.id)).toEqual(['b', 'c', 'a', 'd'])
+  it.each([
+    ['moves middle to first → [B, A, C]', ['a', 'b', 'c'], 'b', { position: 'first' }, ['b', 'a', 'c']],
+    ['moves first to last → [B, C, A]', ['a', 'b', 'c'], 'a', { position: 'last' }, ['b', 'c', 'a']],
+    ['handles {before: id} anchor', ['a', 'b', 'c', 'd'], 'd', { before: 'b' }, ['a', 'd', 'b', 'c']],
+    ['handles {after: id} anchor', ['a', 'b', 'c', 'd'], 'a', { after: 'c' }, ['b', 'c', 'a', 'd']]
+  ] as const)('%s', (_name, inputIds, id, anchor, expectedIds) => {
+    const result = reorderLocally(mk([...inputIds]), id, anchor)
+    expect(result.map((i) => i.id)).toEqual(expectedIds)
   })
 
   it('returns a same-length result when moving an item into its current position', () => {
@@ -59,14 +41,12 @@ describe('reorderLocally', () => {
     expect(() => reorderLocally(input, 'a', { after: 'zzz' })).toThrow(/anchor id "zzz" not found/)
   })
 
-  it('throws when an item would anchor on itself via {before}', () => {
+  it.each([
+    ['before', { before: 'b' }, /cannot anchor item "b" before itself/],
+    ['after', { after: 'b' }, /cannot anchor item "b" after itself/]
+  ] as const)('throws when an item would anchor on itself via {%s}', (_direction, anchor, expectedError) => {
     const input = mk(['a', 'b', 'c'])
-    expect(() => reorderLocally(input, 'b', { before: 'b' })).toThrow(/cannot anchor item "b" before itself/)
-  })
-
-  it('throws when an item would anchor on itself via {after}', () => {
-    const input = mk(['a', 'b', 'c'])
-    expect(() => reorderLocally(input, 'b', { after: 'b' })).toThrow(/cannot anchor item "b" after itself/)
+    expect(() => reorderLocally(input, 'b', anchor)).toThrow(expectedError)
   })
 
   it('does not mutate the input array', () => {
@@ -89,32 +69,30 @@ describe('computeMinimalMoves', () => {
     expect(computeMinimalMoves(list, mk(['a', 'b', 'c', 'd']))).toEqual([])
   })
 
-  it('emits a single move when swapping two adjacent items', () => {
-    const current = mk(['a', 'b', 'c'])
-    const next = mk(['b', 'a', 'c'])
-    const moves = computeMinimalMoves(current, next)
-    expect(moves).toHaveLength(1)
+  it.each([
+    ['swapping two adjacent items', ['a', 'b', 'c'], ['b', 'a', 'c'], 1],
+    ['fully reversing a 3-item list', ['a', 'b', 'c'], ['c', 'b', 'a'], 2]
+  ] as const)('emits the minimal move count when %s', (_name, currentIds, nextIds, expectedCount) => {
+    const moves = computeMinimalMoves(mk([...currentIds]), mk([...nextIds]))
+    expect(moves).toHaveLength(expectedCount)
   })
 
-  it('emits 2 moves when fully reversing a 3-item list', () => {
-    const current = mk(['a', 'b', 'c'])
-    const next = mk(['c', 'b', 'a'])
-    const moves = computeMinimalMoves(current, next)
-    expect(moves).toHaveLength(2)
-  })
-
-  it('emits 1 move when rotating the first item to the last slot', () => {
-    const current = mk(['a', 'b', 'c', 'd'])
-    const next = mk(['b', 'c', 'd', 'a'])
-    const moves = computeMinimalMoves(current, next)
-    expect(moves).toEqual([{ id: 'a', anchor: { after: 'd' } }])
-  })
-
-  it('emits 1 move when moving the last item to the first slot', () => {
-    const current = mk(['a', 'b', 'c', 'd'])
-    const next = mk(['d', 'a', 'b', 'c'])
-    const moves = computeMinimalMoves(current, next)
-    expect(moves).toEqual([{ id: 'd', anchor: { position: 'first' } }])
+  it.each([
+    [
+      'rotating the first item to the last slot',
+      ['a', 'b', 'c', 'd'],
+      ['b', 'c', 'd', 'a'],
+      [{ id: 'a', anchor: { after: 'd' } }]
+    ],
+    [
+      'moving the last item to the first slot',
+      ['a', 'b', 'c', 'd'],
+      ['d', 'a', 'b', 'c'],
+      [{ id: 'd', anchor: { position: 'first' } }]
+    ]
+  ] as const)('emits the exact move when %s', (_name, currentIds, nextIds, expectedMoves) => {
+    const moves = computeMinimalMoves(mk([...currentIds]), mk([...nextIds]))
+    expect(moves).toEqual(expectedMoves)
   })
 
   it('throws when the lists have different id sets', () => {
@@ -136,21 +114,12 @@ describe('computeMinimalMoves', () => {
     expect(() => computeMinimalMoves(current, next)).toThrow(/not a permutation/)
   })
 
-  it('produces moves that reconstruct newList when applied sequentially (case 1)', () => {
-    const current = mk(['a', 'b', 'c', 'd', 'e'])
-    const next = mk(['c', 'a', 'e', 'b', 'd'])
-    const moves = computeMinimalMoves(current, next)
-
-    let state = current
-    for (const move of moves) {
-      state = reorderLocally(state, move.id, move.anchor)
-    }
-    expect(state.map((i) => i.id)).toEqual(next.map((i) => i.id))
-  })
-
-  it('produces moves that reconstruct newList when applied sequentially (case 2)', () => {
-    const current = mk(['a', 'b', 'c', 'd', 'e', 'f'])
-    const next = mk(['f', 'd', 'a', 'c', 'e', 'b'])
+  it.each([
+    ['five-item permutation', ['a', 'b', 'c', 'd', 'e'], ['c', 'a', 'e', 'b', 'd']],
+    ['six-item permutation', ['a', 'b', 'c', 'd', 'e', 'f'], ['f', 'd', 'a', 'c', 'e', 'b']]
+  ] as const)('reconstructs a %s when moves are applied sequentially', (_name, currentIds, nextIds) => {
+    const current = mk([...currentIds])
+    const next = mk([...nextIds])
     const moves = computeMinimalMoves(current, next)
 
     let state = current
@@ -189,25 +158,17 @@ describe('reorder utils with custom idKey', () => {
       expect(result.map((x) => x.appId)).toEqual(['b', 'c', 'a'])
     })
 
-    it('throws when an item lacks a string value at the idKey field', () => {
-      // Bad item placed FIRST so `findIndex` scans it before reaching the
-      // target. An idKey mismatch must surface as a clear error, not silently
-      // return wrong indices.
-      const items = [{ name: 'no-app-id' }, { appId: 'a' }, { appId: 'b' }] as Array<Record<string, unknown>>
+    it.each([
+      ['missing', { name: 'no-app-id' }],
+      ['empty', { appId: '' }]
+    ])('throws when an item has a %s idKey value', (_kind, invalidItem) => {
+      // The invalid item is first so lookup must validate it before reaching the target.
+      const items: Array<Record<string, unknown>> = [invalidItem, { appId: 'a' }, { appId: 'b' }]
       expect(() => reorderLocally(items, 'a', { position: 'last' }, 'appId')).toThrow(/idKey="appId"/)
     })
   })
 
   describe('computeMinimalMoves', () => {
-    it('diffs by the configured idKey and returns id-labelled moves', () => {
-      const curr = [{ appId: 'a' }, { appId: 'b' }, { appId: 'c' }]
-      const next = [{ appId: 'c' }, { appId: 'a' }, { appId: 'b' }]
-      const moves = computeMinimalMoves(curr, next, 'appId')
-      expect(moves).toHaveLength(1)
-      expect(moves[0].id).toBe('c')
-      expect(moves[0].anchor).toEqual({ position: 'first' })
-    })
-
     it('produces moves whose ids read from idKey and transform curr into next', () => {
       const curr = [{ appId: 'x' }, { appId: 'y' }]
       const next = [{ appId: 'y' }, { appId: 'x' }]

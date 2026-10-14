@@ -1,5 +1,6 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { ApprovalDecision } from './stream'
 
@@ -32,12 +33,13 @@ export function applyApprovalDecisions(
     if (!decision) return part
     return {
       ...part,
+      ...(decision.updatedInput !== undefined ? { input: decision.updatedInput } : {}),
       state: 'approval-responded',
       approval: {
         id: decision.approvalId,
         approved: decision.approved,
         ...(decision.reason !== undefined ? { reason: decision.reason } : {})
       }
-    } as CherryMessagePart
+    }
   })
 }

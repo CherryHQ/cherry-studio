@@ -77,17 +77,6 @@ const MAX_BACKLOG = 400
 /** rAF doesn't fire in background tabs; on return `dt` would be huge and
  *  drain the whole queue. Clamp so a hidden→visible tab resumes smoothly. */
 const MAX_FRAME_DT_MS = 100
-
-/**
- * After the upstream stream ends there are no more arrivals, so `rate_est`
- * decays to ~0. The tail then plays out at `max(POST_STREAM_STEP per frame,
- * fast enough to finish within POST_STREAM_DRAIN_SEC)`: a short tail keeps
- * the gentle typewriter; a multi-thousand-char tail finishes in a couple of
- * seconds instead of crawling at MIN_STEP.
- */
-const POST_STREAM_STEP = 5
-const POST_STREAM_DRAIN_SEC = 2.0
-
 const MIN_STEP = 1
 
 export const useSmoothStream = ({
@@ -241,6 +230,14 @@ export const useSmoothStream = ({
       return
     }
 
+    if (streamDone) {
+      displayedTextRef.current += queue.join('')
+      chunkQueueRef.current = []
+      onUpdateRef.current(displayedTextRef.current)
+      animationFrameRef.current = null
+      return
+    }
+
     const now = performance.now()
     const last = lastFrameTimeRef.current
 
@@ -273,47 +270,40 @@ export const useSmoothStream = ({
     const dt = Math.min(elapsed, MAX_FRAME_DT_MS)
 
     let count: number
-    if (streamDone) {
-      // No more arrivals: gentle typewriter for short tails, but fast enough
-      // that a huge tail still finishes within POST_STREAM_DRAIN_SEC.
-      const perFrameToFinish = Math.ceil((queue.length * dt) / (POST_STREAM_DRAIN_SEC * 1000))
-      count = Math.max(POST_STREAM_STEP, perFrameToFinish)
+    // Sustained rate: total / max(elapsed, floor). Never 0 mid-stall
+    // (total>0, elapsed monotonic), so the cushion below truly spans it.
+    const elapsedMs = now - firstChunkTRef.current
+    const ratePerSec = (totalCharsRef.current / Math.max(elapsedMs, SUSTAINED_MIN_MS)) * 1000
+
+    // Slow release: the armed cushion decays toward 0 (→ FLOOR) so a
+    // stream that stops stalling returns to low latency.
+    stallEstRef.current *= Math.exp(-(dt / 1000) / STALL_RELEASE_SEC)
+    const targetSec = Math.min(TARGET_DELAY_CAP_SEC, Math.max(TARGET_DELAY_FLOOR_SEC, stallEstRef.current))
+
+    // Play at the inbound rate, pulled toward the adaptive cushion:
+    // below target → slower (let the next burst refill), above → faster.
+    const target = ratePerSec * targetSec
+    const adjustedRate = ratePerSec + (queue.length - target) / RELAX_SEC
+
+    if (adjustedRate > 0) {
+      // Fractional credit: a sub-1-grapheme-per-frame budget accumulates,
+      // so a genuinely slow stream plays at its true rate instead of the
+      // old MIN_STEP (≈60/s at 60fps) floor that dumped slow input then
+      // stalled. MIN_STEP is no longer a speed floor.
+      creditRef.current += (adjustedRate * dt) / 1000
+      count = Math.floor(creditRef.current)
+      creditRef.current -= count
     } else {
-      // Sustained rate: total / max(elapsed, floor). Never 0 mid-stall
-      // (total>0, elapsed monotonic), so the cushion below truly spans it.
-      const elapsedMs = now - firstChunkTRef.current
-      const ratePerSec = (totalCharsRef.current / Math.max(elapsedMs, SUSTAINED_MIN_MS)) * 1000
-
-      // Slow release: the armed cushion decays toward 0 (→ FLOOR) so a
-      // stream that stops stalling returns to low latency.
-      stallEstRef.current *= Math.exp(-(dt / 1000) / STALL_RELEASE_SEC)
-      const targetSec = Math.min(TARGET_DELAY_CAP_SEC, Math.max(TARGET_DELAY_FLOOR_SEC, stallEstRef.current))
-
-      // Play at the inbound rate, pulled toward the adaptive cushion:
-      // below target → slower (let the next burst refill), above → faster.
-      const target = ratePerSec * targetSec
-      const adjustedRate = ratePerSec + (queue.length - target) / RELAX_SEC
-
-      if (adjustedRate > 0) {
-        // Fractional credit: a sub-1-grapheme-per-frame budget accumulates,
-        // so a genuinely slow stream plays at its true rate instead of the
-        // old MIN_STEP (≈60/s at 60fps) floor that dumped slow input then
-        // stalled. MIN_STEP is no longer a speed floor.
-        creditRef.current += (adjustedRate * dt) / 1000
-        count = Math.floor(creditRef.current)
-        creditRef.current -= count
-      } else {
-        // adjustedRate ≤ 0 only when the queue is deep below the cushion —
-        // a stall draining past equilibrium. Dribble MIN_STEP so the buffer
-        // keeps flowing instead of freezing with content unshown.
-        // Slow-steady streams keep adjustedRate > 0 and never reach here.
-        count = MIN_STEP
-        creditRef.current = 0
-      }
-      if (queue.length - count > MAX_BACKLOG) {
-        // Hard latency ceiling vs the live model.
-        count = queue.length - MAX_BACKLOG
-      }
+      // adjustedRate ≤ 0 only when the queue is deep below the cushion —
+      // a stall draining past equilibrium. Dribble MIN_STEP so the buffer
+      // keeps flowing instead of freezing with content unshown.
+      // Slow-steady streams keep adjustedRate > 0 and never reach here.
+      count = MIN_STEP
+      creditRef.current = 0
+    }
+    if (queue.length - count > MAX_BACKLOG) {
+      // Hard latency ceiling vs the live model.
+      count = queue.length - MAX_BACKLOG
     }
 
     count = Math.min(count, queue.length)

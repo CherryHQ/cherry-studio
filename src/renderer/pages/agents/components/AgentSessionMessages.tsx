@@ -1,164 +1,191 @@
+import { memo, useEffect, useMemo } from 'react'
+
 import { loggerService } from '@logger'
-import { LoadingIcon } from '@renderer/components/Icons'
-import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
-import { useSession } from '@renderer/hooks/agents/useSession'
-import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
-import { ChatVirtualList, type ChatVirtualListHandle } from '@renderer/pages/home/Messages/ChatVirtualList'
-import MessageAnchorLine from '@renderer/pages/home/Messages/MessageAnchorLine'
-import MessageGroup from '@renderer/pages/home/Messages/MessageGroup'
-import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
-import { MessagesContainer } from '@renderer/pages/home/Messages/shared'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getGroupedMessages } from '@renderer/services/MessagesService'
-import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
-import { TopicType } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import MessageList from '@renderer/components/chat/messages/MessageList'
+import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
+import type {
+  MessageListActions,
+  MessageListSelectAllPagination,
+  MessageStreamingLayers
+} from '@renderer/components/chat/messages/types'
+import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useSession } from '@renderer/hooks/agent/useSession'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
+import { ipcApi } from '@renderer/ipc'
+import type { GetAgentResponse } from '@renderer/types/agent'
+import { type Topic, TopicType } from '@renderer/types/topic'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { CherryMessagePart } from '@shared/data/types/message'
-import { Spin } from 'antd'
-import type { PropsWithChildren } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+
+import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
+import { AgentPendingAttachments } from '../messages/AgentPendingAttachments'
+import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
 type Props = {
-  agentId: string
+  agentId?: string
   sessionId: string
-  adaptedMessages: Message[]
-  partsMap: Record<string, CherryMessagePart[]>
+  messages: CherryUIMessage[]
+  activeAgent?: GetAgentResponse
+  partsByMessageId: Record<string, CherryMessagePart[]>
+  streamingLayers?: MessageStreamingLayers
+  optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
   hasOlder?: boolean
   /** Trigger fetching the next older page. */
   loadOlder?: () => void
+  /** Load-all handle for the multi-select "select all" action. */
+  selectAllPagination?: MessageListSelectAllPagination
+  onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
+  isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
+  openAgentToolFlow?: MessageListActions['openAgentToolFlow']
+  openArtifactFile?: MessageListActions['openArtifactFile']
+  openBrowserUrl?: MessageListActions['openBrowserUrl']
+  openExternalUrl?: MessageListActions['openExternalUrl']
+  openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
+  respondToolApproval?: MessageListActions['respondToolApproval']
 }
 
 const AgentSessionMessages = ({
   agentId,
   sessionId,
-  adaptedMessages,
-  partsMap,
+  messages,
+  activeAgent,
+  partsByMessageId,
+  streamingLayers,
+  optimisticAskUserQuestionInputsByToolCallId = {},
   isLoading,
   hasOlder = false,
-  loadOlder
+  loadOlder,
+  selectAllPagination,
+  onOpenCitationsPanel,
+  isAgentToolFlowActive,
+  openAgentToolFlow,
+  openArtifactFile,
+  openBrowserUrl,
+  openExternalUrl,
+  openDiagnosticReport,
+  deleteMessage,
+  startEditing,
+  editBusy,
+  respondToolApproval
 }: Props) => {
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const { messageNavigation } = useSettings()
-  const chatListRef = useRef<ChatVirtualListHandle | null>(null)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const { setTimeoutTimer } = useTimer()
-
-  // Group messages chronologically; ChatVirtualList renders entries in array
-  // order with scroll-to-bottom on first mount, so groups stay oldest-first.
-  const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(adaptedMessages)), [adaptedMessages])
-
-  const handleReachTop = useCallback(() => {
-    if (!hasOlder || isLoadingMore || !loadOlder) return
-    setIsLoadingMore(true)
-    loadOlder()
-    setTimeoutTimer('agent-load-older-spinner', () => setIsLoadingMore(false), 600)
-  }, [hasOlder, isLoadingMore, loadOlder, setTimeoutTimer])
-
-  // ── Derived topic for MessageGroup ──
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
 
   const sessionAssistantId = session?.agentId ?? agentId
   const sessionName = session?.name ?? sessionId
   const sessionCreatedAt = session?.createdAt ?? session?.updatedAt ?? FALLBACK_TIMESTAMP
+  const sessionLastActivityAt = session?.lastActivityAt ?? sessionCreatedAt
   const sessionUpdatedAt = session?.updatedAt ?? session?.createdAt ?? FALLBACK_TIMESTAMP
+  const assistantProfile = useMemo(
+    () =>
+      activeAgent
+        ? {
+            name: activeAgent.name,
+            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+          }
+        : undefined,
+    [activeAgent]
+  )
+  const backgroundTaskAnchorMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      if (message?.role !== 'assistant') continue
+      const parts = partsByMessageId[message.id] ?? message.parts ?? []
+      if (parts.length > 0) return message.id
+    }
+    return undefined
+  }, [messages, partsByMessageId])
+  const messageTail = useMemo(
+    () =>
+      backgroundTaskAnchorMessageId
+        ? {
+            messageId: backgroundTaskAnchorMessageId,
+            content: <AgentSessionBackgroundTasks sessionId={sessionId} />
+          }
+        : undefined,
+    [backgroundTaskAnchorMessageId, sessionId]
+  )
 
   const derivedTopic = useMemo<Topic>(
     () => ({
       id: sessionTopicId,
-      type: TopicType.Session as TopicTypeEnum,
+      type: TopicType.Session,
       assistantId: sessionAssistantId,
       name: sessionName,
+      lastActivityAt: sessionLastActivityAt,
       createdAt: sessionCreatedAt,
       updatedAt: sessionUpdatedAt,
       messages: []
     }),
-    [sessionTopicId, sessionAssistantId, sessionName, sessionCreatedAt, sessionUpdatedAt]
+    [sessionTopicId, sessionAssistantId, sessionName, sessionLastActivityAt, sessionCreatedAt, sessionUpdatedAt]
   )
+  const diagnosticReport = useMemo(() => ({ location: 'agent' }), [])
 
-  // ── Scroll to bottom on send ──
+  const messageIds = useStableStringArray(messages.map((message) => message.id))
+  const afterMessages = useMemo(
+    () => <AgentPendingAttachments key={sessionId} sessionId={sessionId} messageIds={messageIds} />,
+    [messageIds, sessionId]
+  )
+  const messageList = useAgentMessageListProviderValue({
+    topic: derivedTopic,
+    messages,
+    partsByMessageId,
+    streamingLayers,
+    assistantProfile,
+    assistantId: agentId,
+    isLoading,
+    hasOlder,
+    loadOlder,
+    selectAllPagination,
+    openCitationsPanel: onOpenCitationsPanel,
+    isAgentToolFlowActive,
+    openAgentToolFlow,
+    openArtifactFile,
+    openBrowserUrl,
+    openExternalUrl,
+    openDiagnosticReport,
+    diagnosticReport,
+    deleteMessage,
+    startEditing,
+    editBusy,
+    respondToolApproval,
+    messageNavigation,
+    workspacePath: session?.workspace?.path,
+    messageTail,
+    afterMessages
+  })
 
-  const scrollToBottom = useCallback(() => {
-    chatListRef.current?.scrollToBottom('instant')
-  }, [])
-
+  // Main owns the warm lease per (session × window) and debounces the real teardown, so the
+  // <Activity> hide/show of a tab switch costs two cheap IPC messages, not a connection cycle —
+  // and a lease held by another window keeps the shared connection alive.
   useEffect(() => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, scrollToBottom)]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [scrollToBottom])
-
-  useEffect(() => {
-    void window.api.ai.prewarmAgentSession({ sessionId }).catch((error) => {
-      logger.warn('Failed to prewarm agent session', error as Error)
+    void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
+      logger.warn('Failed to acquire agent session warm lease', error as Error)
     })
     return () => {
-      void window.api.ai.closeAgentSessionWarm({ sessionId }).catch((error) => {
-        logger.warn('Failed to close agent session warm query', error as Error)
+      void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
+        logger.warn('Failed to release agent session warm lease', error as Error)
       })
     }
   }, [sessionId])
 
-  logger.silly('Rendering agent session messages', {
-    sessionId,
-    messageCount: adaptedMessages.length,
-    hasOlder
-  })
-
-  if (isLoading && adaptedMessages.length === 0) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <Spin size="small" />
-      </div>
-    )
-  }
-
   return (
-    <PartsProvider value={partsMap}>
-      <AgentSessionChatContextBridge topic={derivedTopic}>
-        <MessagesContainer id="messages" className="messages-container">
-          <NarrowLayout style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <SelectionContextMenu>
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-                <ChatVirtualList
-                  handleRef={chatListRef}
-                  items={groupedMessages}
-                  getItemKey={([key]) => key}
-                  estimateSize={400}
-                  overscan={6}
-                  hasMoreTop={hasOlder}
-                  onReachTop={handleReachTop}
-                  renderItem={([key, groupMessages]) => (
-                    <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
-                  )}
-                  style={{ flex: 1, minHeight: 0 }}
-                />
-                {isLoadingMore && (
-                  <div
-                    className="pointer-events-none flex w-full justify-center py-2.5"
-                    style={{ background: 'var(--color-background)' }}>
-                    <LoadingIcon color="var(--color-text-2)" />
-                  </div>
-                )}
-              </div>
-            </SelectionContextMenu>
-          </NarrowLayout>
-          {messageNavigation === 'anchor' && <MessageAnchorLine messages={adaptedMessages} />}
-        </MessagesContainer>
-      </AgentSessionChatContextBridge>
-    </PartsProvider>
+    <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
+      <MessageListProvider value={messageList}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    </AskUserQuestionOptimisticInputProvider>
   )
-}
-
-const AgentSessionChatContextBridge = ({ topic, children }: PropsWithChildren<{ topic: Topic }>) => {
-  const chatContextValue = useChatContextProvider(topic)
-  return <ChatContextProvider value={chatContextValue}>{children}</ChatContextProvider>
 }
 
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'

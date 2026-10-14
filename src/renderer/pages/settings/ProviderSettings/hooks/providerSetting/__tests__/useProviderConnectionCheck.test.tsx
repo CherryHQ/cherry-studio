@@ -1,31 +1,29 @@
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { HealthStatus, type ModelCheckCredential } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import type * as HealthCheckUtils from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import { toast } from '@renderer/services/toast'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
+
+import { ModelCheckCredentialsSaveError, type ModelCheckCredentialsState } from '../useModelCheckCredentials'
 import { useProviderConnectionCheck } from '../useProviderConnectionCheck'
 
 const useProviderMock = vi.fn()
 const useModelsMock = vi.fn()
-const useTimerMock = vi.fn()
-const useAuthenticationApiKeyMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
-const checkApiMock = vi.fn()
-const showErrorDetailPopupMock = vi.fn()
-const { loggerErrorMock } = vi.hoisted(() => ({
-  loggerErrorMock: vi.fn()
+const checkModelWithMultipleKeysMock = vi.fn()
+const enableProviderMock = vi.fn()
+const prepareCredentialsMock = vi.fn()
+
+let apiKeyEntries: ApiKeyEntry[]
+let credentialChangeVersion = 0
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    i18n: { t: (key: string) => key }
+  })
 }))
-
-vi.mock('react-i18next', async (importOriginal) => {
-  const actual = await importOriginal<object>()
-
-  return {
-    ...actual,
-    useTranslation: () => ({
-      t: (key: string) => key,
-      i18n: { t: (key: string) => key }
-    })
-  }
-})
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
@@ -35,129 +33,223 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args)
 }))
 
-vi.mock('@renderer/hooks/useTimer', () => ({
-  useTimer: (...args: any[]) => useTimerMock(...args)
-}))
-
-vi.mock('../useAuthenticationApiKey', () => ({
-  useAuthenticationApiKey: (...args: any[]) => useAuthenticationApiKeyMock(...args)
-}))
-
 vi.mock('../useProviderEndpoints', () => ({
   useProviderEndpoints: (...args: any[]) => useProviderEndpointsMock(...args)
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
-  checkApi: (...args: any[]) => checkApiMock(...args)
-}))
-
-vi.mock('@renderer/components/ErrorDetailModal', () => ({
-  showErrorDetailPopup: (...args: any[]) => showErrorDetailPopupMock(...args)
-}))
+vi.mock('@renderer/pages/settings/ProviderSettings/utils/healthCheck', async () => {
+  const actual = await vi.importActual<typeof HealthCheckUtils>(
+    '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+  )
+  return {
+    ...actual,
+    checkModelWithMultipleKeys: (...args: any[]) => checkModelWithMultipleKeysMock(...args)
+  }
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      error: loggerErrorMock
+      error: vi.fn()
     })
   }
 }))
 
+const model = {
+  id: 'cherryin::claude-4-sonnet',
+  name: 'Claude 4 Sonnet',
+  providerId: 'cherryin',
+  capabilities: []
+} as never
+
+function successfulResult(credential: ModelCheckCredential, latency = 120) {
+  return {
+    kind: 'ok' as const,
+    credential,
+    status: HealthStatus.SUCCESS,
+    checking: false as const,
+    latency
+  }
+}
+
+function failedResult(credential: ModelCheckCredential, message = 'Unauthorized') {
+  return {
+    kind: 'failed' as const,
+    credential,
+    status: HealthStatus.FAILED,
+    checking: false as const,
+    error: { name: 'ProviderError', message, stack: null }
+  }
+}
+
 describe('useProviderConnectionCheck', () => {
-  const setTimeoutTimer = vi.fn()
+  const getCredentialsState = (): ModelCheckCredentialsState => ({
+    apiKeyEntries,
+    canSelectApiKey: true,
+    requiresApiKey: true,
+    credentialChangeVersion,
+    prepareCredentials: prepareCredentialsMock
+  })
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    ;(window as any).toast = {
-      error: vi.fn(),
-      success: vi.fn()
-    }
+    credentialChangeVersion = 0
+    apiKeyEntries = [
+      { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
+      { id: 'key-2', key: 'sk-backup', label: 'Backup', isEnabled: true }
+    ]
+    prepareCredentialsMock.mockImplementation(async () =>
+      apiKeyEntries.filter((entry) => entry.isEnabled).map((entry) => ({ kind: 'api-key' as const, entry }))
+    )
 
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN' }
+      provider: { id: 'cherryin', name: 'CherryIN', isEnabled: false },
+      enableProvider: enableProviderMock
     })
-    useModelsMock.mockReturnValue({
-      models: [
-        {
-          id: 'cherryin::claude-4-sonnet',
-          name: 'Claude 4 Sonnet',
-          providerId: 'cherryin',
-          capabilities: [],
-          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-        },
-        {
-          id: 'cherryin::rerank-1',
-          name: 'Rerank',
-          providerId: 'cherryin',
-          capabilities: [MODEL_CAPABILITY.RERANK],
-          endpointTypes: [ENDPOINT_TYPE.JINA_RERANK]
-        }
-      ]
-    })
-    useTimerMock.mockReturnValue({ setTimeoutTimer })
-    useAuthenticationApiKeyMock.mockReturnValue({
-      inputApiKey: 'sk-a,sk-b'
-    })
+    useModelsMock.mockReturnValue({ models: [model] })
     useProviderEndpointsMock.mockReturnValue({
-      apiHost: 'https://open.cherryin.cc',
-      anthropicApiHost: 'https://anthropic.cherryin.cc'
+      apiHost: 'https://open.cherryin.net',
+      anthropicApiHost: 'https://open.cherryin.net'
     })
   })
 
-  it('opens the connection drawer with rerank models available for checking', () => {
-    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
-
-    act(() => {
-      result.current.openConnectionCheck()
-    })
-
-    expect(result.current.connectionCheckOpen).toBe(true)
-    expect(result.current.checkableApiKeys).toEqual(['sk-a', 'sk-b'])
-    expect(result.current.checkableModels.map((model) => model.id)).toEqual([
-      'cherryin::claude-4-sonnet',
-      'cherryin::rerank-1'
-    ])
-  })
-
-  it('uses the anthropic host for anthropic endpoint models and closes the drawer after checking', async () => {
-    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
-
-    act(() => {
-      result.current.openConnectionCheck()
-    })
-
-    await act(async () => {
-      await result.current.startConnectionCheck({
-        model: result.current.checkableModels[0],
-        apiKey: 'sk-b'
-      })
-    })
-
-    expect(checkApiMock).toHaveBeenCalledWith(
-      result.current.checkableModels[0].id,
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+  it('checks all prepared credentials concurrently', async () => {
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials) =>
+      credentials.map((credential: ModelCheckCredential) => successfulResult(credential))
     )
-    expect(result.current.connectionCheckOpen).toBe(false)
-    expect(setTimeoutTimer).toHaveBeenCalled()
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    let outcome: string | undefined
+    await act(async () => {
+      outcome = await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+
+    expect(outcome).toBe('passed')
+    expect(prepareCredentialsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      checkModelWithMultipleKeysMock.mock.invocationCallOrder[0]
+    )
+    expect(checkModelWithMultipleKeysMock).toHaveBeenCalledWith(
+      model,
+      [
+        { kind: 'api-key', entry: apiKeyEntries[0] },
+        { kind: 'api-key', entry: apiKeyEntries[1] }
+      ],
+      15000,
+      expect.any(AbortSignal)
+    )
+    expect(result.current.singleModelResult?.keyResults).toHaveLength(2)
+    expect(result.current.isSingleModelChecking).toBe(false)
+    expect(enableProviderMock).toHaveBeenCalledTimes(1)
+    expect(toast.success).toHaveBeenCalled()
   })
 
-  it('logs provider/model context when the connection check fails', async () => {
-    checkApiMock.mockRejectedValueOnce(new Error('timeout'))
-    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
+  it('keeps the complete per-key report when any API key fails', async () => {
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) => [
+      successfulResult(credentials[0]),
+      failedResult(credentials[1], 'Quota exceeded')
+    ])
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    let outcome: string | undefined
+    await act(async () => {
+      outcome = await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+
+    expect(outcome).toBe('failed')
+    expect(result.current.singleModelResult?.kind).toBe('failed')
+    expect(result.current.singleModelResult?.keyResults).toEqual([
+      expect.objectContaining({ status: HealthStatus.SUCCESS }),
+      expect.objectContaining({
+        status: HealthStatus.FAILED,
+        error: expect.objectContaining({ message: 'Quota exceeded' })
+      })
+    ])
+    expect(enableProviderMock).toHaveBeenCalledTimes(1)
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('does not enable the provider when every API key fails', async () => {
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
+      credentials.map((credential) => failedResult(credential))
+    )
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
 
     await act(async () => {
-      await result.current.startConnectionCheck({
-        model: result.current.checkableModels[0],
-        apiKey: 'sk-a'
-      })
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
     })
 
-    expect(loggerErrorMock).toHaveBeenCalledWith('Provider connection check failed', {
-      providerId: 'cherryin',
-      modelId: 'cherryin::claude-4-sonnet',
-      error: expect.any(Error)
+    expect(enableProviderMock).not.toHaveBeenCalled()
+    expect(result.current.singleModelResult?.kind).toBe('failed')
+  })
+
+  it('leaves save failure feedback to the API key owner before stopping', async () => {
+    prepareCredentialsMock.mockRejectedValueOnce(new ModelCheckCredentialsSaveError(new Error('save failed')))
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    let outcome: string | undefined
+    await act(async () => {
+      outcome = await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
     })
-    expect(window.toast.error).toHaveBeenCalled()
+
+    expect(outcome).toBe('failed')
+    expect(checkModelWithMultipleKeysMock).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+  it('retains results while the shared credential version is unchanged', async () => {
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
+      credentials.map((credential) => successfulResult(credential))
+    )
+    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    await act(async () => {
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+    expect(result.current.singleModelResult).not.toBeNull()
+
+    rerender()
+    expect(result.current.singleModelResult).not.toBeNull()
+  })
+
+  it('aborts and clears an active run when the credential draft changes', async () => {
+    let signal: AbortSignal | undefined
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, _credentials, _timeout, nextSignal) => {
+      signal = nextSignal
+      await new Promise<void>(() => undefined)
+    })
+    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    act(() => {
+      void result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+    await vi.waitFor(() => expect(signal).toBeDefined())
+
+    credentialChangeVersion += 1
+    rerender()
+
+    expect(signal?.aborted).toBe(true)
+    expect(result.current.isSingleModelChecking).toBe(false)
+    expect(result.current.singleModelResult).toBeNull()
+  })
+
+  it('aborts an in-flight check when the provider endpoint changes', async () => {
+    let endpoint = 'https://open.cherryin.net'
+    let capturedSignal: AbortSignal | undefined
+    useProviderEndpointsMock.mockImplementation(() => ({ apiHost: endpoint, anthropicApiHost: endpoint }))
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, _credentials, _timeout, signal) => {
+      capturedSignal = signal
+      await new Promise<void>(() => undefined)
+    })
+    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    act(() => {
+      void result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+    await vi.waitFor(() => expect(capturedSignal).toBeDefined())
+
+    endpoint = 'https://new.cherryin.net'
+    rerender()
+
+    expect(capturedSignal?.aborted).toBe(true)
+    expect(result.current.isSingleModelChecking).toBe(false)
   })
 })

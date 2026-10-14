@@ -1,10 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MODEL_LIST_CAPABILITY_FILTERS } from '../modelListDerivedState'
 import ProviderModelList from '../ProviderModelList'
-
-const onToggleVisibleModelsMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -12,6 +9,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
+      i18n: { language: 'en-US' },
       t: (key: string) => key
     })
   }
@@ -22,106 +20,165 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     ...actual,
-    Button: ({ children, ...props }: any) => (
-      <button type="button" {...props}>
-        {children}
-      </button>
-    ),
     Tooltip: ({ children }: any) => <>{children}</>
   }
 })
+
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: ({ list, children, className, getItemKey }: any) => (
+    <div className={className}>
+      {list.map((item: unknown, index: number) => (
+        <div key={getItemKey?.(index) ?? index}>{children(item, index)}</div>
+      ))}
+    </div>
+  )
+}))
 
 vi.mock('../ModelDrawer', () => ({
   EditModelDrawer: () => null
 }))
 
+vi.mock('../modelListHealthContext', () => ({
+  useModelListHealthRun: () => ({
+    apiKeyEntries: [],
+    savingKeyId: null,
+    toggleApiKey: vi.fn()
+  })
+}))
+
+const { modelListGroupMock, modelListStateMock, providerMetaState, searchTextMock } = vi.hoisted(() => ({
+  modelListGroupMock: vi.fn(({ groupName }: { groupName: string }) => <div>{groupName}</div>),
+  modelListStateMock: { hasNoModels: false, hasVisibleModels: true },
+  providerMetaState: {
+    isApiKeyFieldVisible: true,
+    provider: { id: 'openai', authOptional: false, apiKeys: [] as Array<{ id: string; isEnabled: boolean }> }
+  },
+  searchTextMock: { value: '' }
+}))
+
+vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
+  useProviderMeta: () => providerMetaState
+}))
+
 vi.mock('../ModelListGroup', () => ({
-  default: ({ groupName }: { groupName: string }) => <div>{groupName}</div>
+  default: modelListGroupMock
 }))
 
 vi.mock('../useProviderModelList', () => ({
   useProviderModelList: () => ({
     header: {
-      enabledModelCount: 1,
       modelCount: 1,
-      hasVisibleModels: true,
-      allEnabled: false,
-      hasNoModels: false,
-      searchText: '',
-      setSearchText: vi.fn(),
-      selectedCapabilityFilter: 'all',
-      setSelectedCapabilityFilter: vi.fn(),
-      capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-      capabilityModelCounts: MODEL_LIST_CAPABILITY_FILTERS.reduce<Record<string, number>>((counts, filter) => {
-        counts[filter] = filter === 'all' ? 1 : 0
-        return counts
-      }, {}),
-      onToggleVisibleModels: onToggleVisibleModelsMock
+      hasVisibleModels: modelListStateMock.hasVisibleModels,
+      hasNoModels: modelListStateMock.hasNoModels,
+      searchText: searchTextMock.value,
+      setSearchText: vi.fn()
     },
     sections: {
       isLoading: false,
-      hasNoModels: false,
-      hasVisibleModels: true,
+      hasNoModels: modelListStateMock.hasNoModels,
+      hasVisibleModels: modelListStateMock.hasVisibleModels,
       displayEnabledModelCount: 1,
       enabledSections: [{ groupName: 'OpenAI', items: [] }],
-      disabledSections: [{ groupName: 'OpenAI', items: [] }],
-      displayDisabledModelCount: 1,
       disabled: false,
       pendingModelIds: new Set<string>(),
+      defaultModelIds: new Set<string>(),
       onEditModel: vi.fn(),
-      onToggleModel: vi.fn()
+      onDeleteModel: vi.fn(),
+      onDeleteModels: vi.fn()
     },
     editDrawer: {
       open: false,
       model: null,
       onClose: vi.fn()
-    },
-    isBulkUpdating: false
+    }
   })
 }))
 
 describe('ProviderModelList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as any).toast = {
-      error: vi.fn()
-    }
-    onToggleVisibleModelsMock.mockResolvedValue(undefined)
+    modelListStateMock.hasNoModels = false
+    modelListStateMock.hasVisibleModels = true
+    providerMetaState.provider = { id: 'openai', authOptional: false, apiKeys: [] }
+    searchTextMock.value = ''
   })
 
-  it('renders enabled-section actions and closes visible models from the section row', () => {
-    render(
-      <ProviderModelList
-        providerId="openai"
-        disabled={false}
-        enabledSectionActions={() => <button type="button">health-action</button>}
-      />
+  it('shows guidance to get models when the provider has no models', () => {
+    modelListStateMock.hasNoModels = true
+    modelListStateMock.hasVisibleModels = false
+
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    expect(screen.getByText('settings.models.empty')).toBeInTheDocument()
+    expect(screen.getByText('settings.models.empty_hint')).toBeInTheDocument()
+  })
+
+  it('offers to continue setup when a required provider already has a saved key but no models', () => {
+    modelListStateMock.hasNoModels = true
+    modelListStateMock.hasVisibleModels = false
+    providerMetaState.provider = { id: 'openai', authOptional: false, apiKeys: [{ id: 'key-1', isEnabled: true }] }
+    const onContinueApiSetup = vi.fn()
+
+    render(<ProviderModelList providerId="openai" disabled={false} onContinueApiSetup={onContinueApiSetup} />)
+
+    expect(screen.getByText('settings.provider.api_setup.models_empty_hint')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.continue_models' }))
+    expect(onContinueApiSetup).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not offer model setup when every saved key is disabled', () => {
+    modelListStateMock.hasNoModels = true
+    modelListStateMock.hasVisibleModels = false
+    providerMetaState.provider = { id: 'openai', authOptional: false, apiKeys: [{ id: 'key-1', isEnabled: false }] }
+
+    render(<ProviderModelList providerId="openai" disabled={false} onContinueApiSetup={vi.fn()} />)
+
+    expect(
+      screen.queryByRole('button', { name: 'settings.provider.api_setup.continue_models' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders model groups without section action rows', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    expect(screen.getAllByText('OpenAI')).toHaveLength(1)
+    expect(screen.queryByText('settings.models.enabled_models')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.models.more_actions' })).not.toBeInTheDocument()
+  })
+
+  it('passes collapsed state to model groups from the header toggle', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.collapse_all' }))
+
+    expect(modelListGroupMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        open: false
+      }),
+      undefined
+    )
+  })
+
+  it('expands model groups when search text is active', () => {
+    const { rerender } = render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.collapse_all' }))
+
+    expect(modelListGroupMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        open: false
+      }),
+      undefined
     )
 
-    expect(screen.getByText('health-action')).toBeInTheDocument()
+    searchTextMock.value = 'gpt'
+    rerender(<ProviderModelList providerId="openai" disabled={false} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_disable' }))
-
-    expect(onToggleVisibleModelsMock).toHaveBeenCalledWith(false)
-  })
-
-  it('shows an error toast when section bulk close fails', async () => {
-    onToggleVisibleModelsMock.mockRejectedValue(new Error('bulk close failed'))
-
-    render(<ProviderModelList providerId="openai" disabled={false} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_disable' }))
-
-    await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
-    })
-  })
-
-  it('enables visible disabled models from the disabled section row', () => {
-    render(<ProviderModelList providerId="openai" disabled={false} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_enable' }))
-
-    expect(onToggleVisibleModelsMock).toHaveBeenCalledWith(true)
+    expect(modelListGroupMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        open: true
+      }),
+      undefined
+    )
   })
 })

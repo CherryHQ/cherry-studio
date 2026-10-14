@@ -1,11 +1,13 @@
-import { InfoTooltip, Input } from '@cherrystudio/ui'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
-import { useWebSearchPersist } from '@renderer/pages/settings/WebSearchSettings/hooks/useWebSearchPersist'
-import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
 
-const INPUT_BOX_WIDTH = '200px'
+import { InfoTooltip, Input } from '@cherrystudio/ui'
+import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
+import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
+import { useWebSearchPersist } from '@renderer/pages/settings/WebSearchSettings/hooks/useWebSearchPersist'
+import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
+
+const settingRowClassName = 'mt-2 min-h-8 items-center justify-between gap-3'
+const settingLabelClassName = 'min-w-0 flex-1'
 
 const CutoffSettings = () => {
   const { t } = useTranslation()
@@ -20,23 +22,24 @@ const CutoffSettings = () => {
   }
 
   return (
-    <SettingRow className="py-2">
-      <SettingRowTitle>
+    <SettingRow className={settingRowClassName}>
+      <SettingRowTitle className={settingLabelClassName}>
         {t('settings.tool.websearch.compression.cutoff.limit.label')}
         <InfoTooltip
           placement="right"
           content={t('settings.tool.websearch.compression.cutoff.limit.tooltip')}
           iconProps={{
             size: 16,
-            color: 'var(--color-icon)',
+            color: 'var(--muted-foreground)',
             className: 'ml-1 cursor-pointer'
           }}
         />
       </SettingRowTitle>
-      <div className="flex" style={{ width: INPUT_BOX_WIDTH }}>
+      <div className="flex w-32 shrink-0">
         <Input
           placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
           value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
+          className="h-8 text-sm"
           onChange={(e) => {
             const value = e.target.value
             if (value === '') {

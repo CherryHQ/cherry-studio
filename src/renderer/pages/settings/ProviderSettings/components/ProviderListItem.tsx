@@ -1,10 +1,11 @@
-import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { cn } from '@renderer/utils'
-import type { Provider } from '@shared/data/types/provider'
-import { MoreVertical } from 'lucide-react'
+import { GripVertical, MoreVertical } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { MouseEvent } from 'react'
+
+import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import { cn } from '@renderer/utils/style'
+import type { Provider } from '@shared/data/types/provider'
 
 interface ProviderListItemProps {
   provider: Provider
@@ -27,6 +28,16 @@ export default function ProviderListItem({
     event.stopPropagation()
     onOpenMenu?.()
   }
+  const hasTrailingSlot = provider.isEnabled || onOpenMenu
+  const menuButton = onOpenMenu ? (
+    <button
+      type="button"
+      data-testid={`provider-list-menu-${provider.id}`}
+      onClick={handleOpenMenu}
+      className={providerListClasses.itemMoreActions}>
+      <MoreVertical size={14} />
+    </button>
+  ) : null
 
   return (
     <div
@@ -53,37 +64,36 @@ export default function ProviderListItem({
         selected ? providerListClasses.itemSelected : providerListClasses.itemIdle,
         dragging && 'opacity-65'
       )}>
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <ProviderAvatar provider={provider} size={22} className={providerListClasses.itemAvatar} />
+      <div className={providerListClasses.itemMain}>
         <span
-          className={cn(
-            providerListClasses.itemLabel,
-            selected ? 'font-medium text-foreground' : 'font-normal text-foreground'
-          )}>
-          {provider.name}
+          aria-hidden
+          data-testid={`provider-list-drag-handle-${provider.id}`}
+          data-dragging={dragging ? 'true' : 'false'}
+          className={providerListClasses.itemDragHandle}>
+          <GripVertical size={16} />
         </span>
+        <div className={providerListClasses.itemIdentity}>
+          <ProviderAvatar
+            provider={provider}
+            size={26}
+            className={providerListClasses.itemAvatar}
+            displayContext="provider-list"
+          />
+          <span className={providerListClasses.itemLabel}>{provider.name}</span>
+        </div>
       </div>
-      {provider.isEnabled && <span aria-hidden className={providerListClasses.itemEnabledDot} />}
-      {onOpenMenu &&
-        (renderMenuButton ? (
-          renderMenuButton(
-            <button
-              type="button"
-              data-testid={`provider-list-menu-${provider.id}`}
-              onClick={handleOpenMenu}
-              className={providerListClasses.itemMoreActions}>
-              <MoreVertical size={14} />
-            </button>
-          )
-        ) : (
-          <button
-            type="button"
-            data-testid={`provider-list-menu-${provider.id}`}
-            onClick={handleOpenMenu}
-            className={providerListClasses.itemMoreActions}>
-            <MoreVertical size={14} />
-          </button>
-        ))}
+      {hasTrailingSlot && (
+        <div
+          className={cn(
+            providerListClasses.itemTrailingSlot,
+            provider.isEnabled
+              ? providerListClasses.itemTrailingSlotIndicatorOnly
+              : providerListClasses.itemTrailingSlotAction
+          )}>
+          {provider.isEnabled && <span aria-hidden className={providerListClasses.itemEnabledDot} />}
+          {menuButton && (renderMenuButton ? renderMenuButton(menuButton) : menuButton)}
+        </div>
+      )}
     </div>
   )
 }

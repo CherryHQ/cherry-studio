@@ -1,14 +1,17 @@
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
-import { paintingTable } from '@data/db/schemas/painting'
-import { loggerService } from '@logger'
-import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { paintingSourceType } from '@shared/data/types/file/ref'
 import { inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { paintingTable } from '@data/db/schemas/painting'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { loggerService } from '@logger'
+import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
+import { markEntriesAutoCleanup } from './FileMigrator'
 import {
   LEGACY_PAINTING_NAMESPACES,
   type LegacyPaintingFileRefs,
@@ -20,6 +23,7 @@ import {
 const logger = loggerService.withContext('PaintingMigrator')
 
 const INSERT_BATCH_SIZE = 100
+const INARRAY_CHUNK = 500
 
 export class PaintingMigrator extends BaseMigrator {
   readonly id = 'painting'
@@ -33,7 +37,7 @@ export class PaintingMigrator extends BaseMigrator {
   /**
    * `painting.id` → output/input file ids extracted from the legacy record.
    * Resolved against `file_entry` at execute() time so we never insert a
-   * `file_ref` row with a dangling FK (legacy rows can reference file ids
+   * `painting_file_ref` row with a dangling FK (legacy rows can reference file ids
    * that the FileMigrator skipped as malformed).
    */
   private preparedFileRefs = new Map<string, LegacyPaintingFileRefs>()
@@ -110,6 +114,44 @@ export class PaintingMigrator extends BaseMigrator {
       for (const entries of groupedRecords.values()) {
         normalizedRows.push(...entries.map((e) => e.row))
       }
+
+      // ─── Reconcile modelId against user_model ───
+      // ProviderModelMigrator (order 1.75) has already populated user_model.
+      // If a painting's modelId has no matching user_model row, the composer
+      // would show a disabled send button with no way to fix it.
+      // Null the modelId so the painting falls back to model selection.
+      if (normalizedRows.length > 0) {
+        // `user_model.id` is `providerId::modelId`. A painting's `modelId` can
+        // carry a provider prefix that differs from the painting's own
+        // `providerId` (e.g. legacy `aihubmix` painting referencing
+        // `gemini::imagen`). The renderer resolves the model against the
+        // painting's provider, so a cross-provider reference is just as
+        // dangling as a missing one — validate both `id` and `providerId`.
+        const existingModelProviders = new Map<string, string>()
+        for (const r of ctx.db
+          .select({ id: userModelTable.id, providerId: userModelTable.providerId })
+          .from(userModelTable)
+          .all()) {
+          existingModelProviders.set(r.id, r.providerId)
+        }
+        for (const row of normalizedRows) {
+          if (row.modelId) {
+            const modelProviderId = existingModelProviders.get(row.modelId)
+            if (modelProviderId === undefined) {
+              this.warnings.push(
+                `Cleared dangling modelId '${row.modelId}' for painting '${row.id}' — no matching user_model row exists`
+              )
+              row.modelId = null
+            } else if (modelProviderId !== row.providerId) {
+              this.warnings.push(
+                `Cleared dangling modelId '${row.modelId}' for painting '${row.id}' — user_model row belongs to provider '${modelProviderId}', not painting provider '${row.providerId}'`
+              )
+              row.modelId = null
+            }
+          }
+        }
+      }
+
       this.preparedPaintings = assignOrderKeysInSequence(normalizedRows)
 
       logger.info('Prepared painting migration records', {
@@ -143,10 +185,10 @@ export class PaintingMigrator extends BaseMigrator {
 
       logger.info('[execute] insert summary', { total: paintings.length })
 
-      await ctx.db.transaction(async (tx) => {
+      ctx.db.transaction((tx) => {
         for (let index = 0; index < paintings.length; index += INSERT_BATCH_SIZE) {
           const batch = paintings.slice(index, index + INSERT_BATCH_SIZE)
-          await tx.insert(paintingTable).values(batch)
+          tx.insert(paintingTable).values(batch).run()
 
           this.reportProgress(
             Math.round((Math.min(index + INSERT_BATCH_SIZE, paintings.length) / paintings.length) * 100),
@@ -154,11 +196,11 @@ export class PaintingMigrator extends BaseMigrator {
           )
         }
 
-        // ─── file_ref rows ───
+        // ─── painting_file_ref rows ───
         // Legacy painting rows carry output/input `file_entry.id`s in JSON.
-        // The v2 schema dropped that column; emit `file_ref` rows so the
-        // painting still points at its files via the new (sourceType,
-        // sourceId, role) trio. File ids that the FileMigrator skipped
+        // The v2 schema dropped that column; emit `painting_file_ref` rows so
+        // the painting still points at its files via the new (sourceId, role)
+        // pair. File ids that the FileMigrator skipped
         // (malformed v1 rows) are filtered out here to avoid FK violations
         // — they would be silently dropped by `inArray`, but we count them
         // explicitly so the validate() step has a stat to report.
@@ -169,14 +211,19 @@ export class PaintingMigrator extends BaseMigrator {
         }
         if (allFileIds.size > 0) {
           const idList = Array.from(allFileIds)
-          const existing = await tx
-            .select({ id: fileEntryTable.id })
-            .from(fileEntryTable)
-            .where(inArray(fileEntryTable.id, idList))
-          const existingIds = new Set(existing.map((r) => r.id))
+          const existingIds = new Set<string>()
+          for (let i = 0; i < idList.length; i += INARRAY_CHUNK) {
+            const chunk = idList.slice(i, i + INARRAY_CHUNK)
+            const existing = tx
+              .select({ id: fileEntryTable.id })
+              .from(fileEntryTable)
+              .where(inArray(fileEntryTable.id, chunk))
+              .all()
+            for (const row of existing) existingIds.add(row.id)
+          }
 
           const now = Date.now()
-          const refRows: Array<typeof fileRefTable.$inferInsert> = []
+          const refRows: Array<typeof paintingFileRefTable.$inferInsert> = []
           for (const [paintingId, files] of this.preparedFileRefs) {
             for (const fileId of files.output) {
               if (!existingIds.has(fileId)) {
@@ -186,7 +233,6 @@ export class PaintingMigrator extends BaseMigrator {
               refRows.push({
                 id: uuidv4(),
                 fileEntryId: fileId,
-                sourceType: paintingSourceType,
                 sourceId: paintingId,
                 role: 'output',
                 createdAt: now,
@@ -201,7 +247,6 @@ export class PaintingMigrator extends BaseMigrator {
               refRows.push({
                 id: uuidv4(),
                 fileEntryId: fileId,
-                sourceType: paintingSourceType,
                 sourceId: paintingId,
                 role: 'input',
                 createdAt: now,
@@ -212,10 +257,17 @@ export class PaintingMigrator extends BaseMigrator {
 
           for (let i = 0; i < refRows.length; i += INSERT_BATCH_SIZE) {
             const batch = refRows.slice(i, i + INSERT_BATCH_SIZE)
-            await tx.insert(fileRefTable).values(batch).onConflictDoNothing()
+            tx.insert(paintingFileRefTable).values(batch).onConflictDoNothing().run()
           }
 
-          logger.info('[execute] painting file_ref summary', {
+          // Applies to every referenced id regardless of whether its ref row insert was
+          // skipped by onConflictDoNothing (e.g. a retry) — the file is referenced either way.
+          markEntriesAutoCleanup(
+            tx,
+            refRows.map((row) => row.fileEntryId)
+          )
+
+          logger.info('[execute] painting_file_ref summary', {
             referenced: refRows.length,
             droppedDangling: this.droppedFileRefs
           })
@@ -238,7 +290,10 @@ export class PaintingMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const countResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(paintingTable).get()
+      const countResult = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(paintingTable)
+        .get()
       const targetCount = countResult?.count ?? 0
       const errors: Array<{ key: string; message: string }> = []
 

@@ -1,3 +1,7 @@
+import { Eye, EyeOff } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -8,15 +12,12 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
-import { TopView } from '@renderer/components/TopView'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
-import type { ProviderType } from '@renderer/types'
-import { maskApiKey } from '@renderer/utils'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import type { ProviderType } from '@renderer/types/provider'
+import { maskApiKey } from '@renderer/utils/api'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { Eye, EyeOff } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
   id: string
@@ -40,15 +41,11 @@ interface PopupResult {
   displayName: string
 }
 
-interface Props extends ShowParams {
-  resolve: (result: PopupResult) => void
-}
+type Props = ShowParams & PopupInjectedProps<PopupResult>
 
-const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }: Props) => {
+const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, resolve }: Props) => {
   const { t } = useTranslation()
   const { providers: rawProviders } = useProviders()
-  const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
   const [showFullKey, setShowFullKey] = useState(false)
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
 
@@ -87,21 +84,12 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
 
   const okText = apiKeysLoading ? t('common.loading') : keyAlreadyExists ? t('common.confirm') : t('common.add')
 
-  const closeWithResult = (result: PopupResult) => {
-    if (resolvedRef.current) {
-      return
-    }
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(result)
-  }
-
   const handleOk = () => {
     const finalApiKey = keyAlreadyExists ? '' : trimmedNewKey
     const finalApiHost = baseUrlChanged ? baseUrl : baseProvider.apiHost
 
     if (finalApiKey === baseProvider.apiKey && finalApiHost === baseProvider.apiHost) {
-      closeWithResult({ updatedProvider: undefined, isNew: !foundProvider, displayName })
+      resolve({ updatedProvider: undefined, isNew: !foundProvider, displayName })
       return
     }
 
@@ -110,11 +98,11 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
       apiKey: finalApiKey,
       apiHost: finalApiHost
     }
-    closeWithResult({ updatedProvider, isNew: !foundProvider, displayName })
+    resolve({ updatedProvider, isNew: !foundProvider, displayName })
   }
 
   const handleCancel = () => {
-    closeWithResult({ updatedProvider: undefined, isNew: !foundProvider, displayName })
+    resolve({ updatedProvider: undefined, isNew: !foundProvider, displayName })
   }
 
   const rows = [
@@ -131,33 +119,27 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
           handleCancel()
         }
       }}>
-      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-popover p-5 sm:max-w-md">
+      <DialogContent className="gap-5 rounded-2xl border-border-subtle bg-popover p-5 sm:max-w-md">
         <DialogHeader className="gap-1.5 pr-6">
-          <DialogTitle className="text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
+          <DialogTitle className="text-sm leading-5 text-foreground">
             {t('settings.models.provider_key_confirm_title', { provider: displayName })}
           </DialogTitle>
-          <DialogDescription className="text-[length:var(--font-size-body-sm)] text-muted-foreground/80 leading-[var(--line-height-body-sm)]">
-            {confirmMessage}
-          </DialogDescription>
+          <DialogDescription className="text-sm leading-5 text-muted-foreground">{confirmMessage}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-xl border border-[color:var(--color-border-fg-muted)] bg-transparent">
+          <div className="overflow-hidden rounded-xl border border-border-subtle bg-transparent">
             {rows.map((row) => (
               <div
                 key={row.label}
-                className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 border-[color:var(--color-border-fg-hairline)] border-b px-3 py-2.5 last:border-b-0">
-                <div className="text-[length:var(--font-size-body-xs)] text-foreground-muted">{row.label}</div>
-                <div className="min-w-0 truncate text-[length:var(--font-size-body-sm)] text-foreground/85">
-                  {row.value}
-                </div>
+                className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 border-b border-border-subtle px-3 py-2.5 last:border-b-0">
+                <div className="text-xs text-muted-foreground">{row.label}</div>
+                <div className="min-w-0 truncate text-sm text-foreground">{row.value}</div>
               </div>
             ))}
             <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 px-3 py-2.5">
-              <div className="text-[length:var(--font-size-body-xs)] text-foreground-muted">
-                {t('settings.models.api_key')}
-              </div>
+              <div className="text-xs text-muted-foreground">{t('settings.models.api_key')}</div>
               <div className="flex min-w-0 items-center justify-between gap-2">
-                <span className="min-w-0 truncate font-mono text-[length:var(--font-size-body-sm)] text-foreground/85">
+                <span className="min-w-0 truncate font-mono text-sm text-foreground">
                   {showFullKey ? newApiKey : maskApiKey(newApiKey)}
                 </span>
                 <Button variant="ghost" size="icon-sm" onClick={() => setShowFullKey((prev) => !prev)}>
@@ -180,25 +162,8 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
   )
 }
 
-const TopViewKey = 'UrlSchemaInfoPopup'
+const UrlSchemaInfoPopup = createPopup<ShowParams, PopupResult>(PopupContainer, {
+  dismissResult: { updatedProvider: undefined, isNew: false, displayName: '' }
+})
 
-export default class UrlSchemaInfoPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
-  static show(props: ShowParams) {
-    return new Promise<PopupResult>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        TopViewKey
-      )
-    })
-  }
-}
+export default UrlSchemaInfoPopup

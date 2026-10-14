@@ -1,13 +1,23 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, LoaderCircle, X } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import type React from 'react'
-import { createContext, use, useMemo, useRef, useSyncExternalStore } from 'react'
+import { createContext, use, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import { cn } from '../../lib/utils'
+import { Button } from './button'
 
 export type ToastType = 'error' | 'success' | 'warning' | 'info' | 'loading'
 type StaticToastType = Exclude<ToastType, 'loading'>
 
+export interface ToastAction {
+  label: React.ReactNode
+  onClick: () => void | Promise<void>
+}
+
 export interface ToastConfig {
+  action?: ToastAction
+  /** Lower-emphasis control rendered before `action`, for a secondary way out (e.g. a link to where the item went). */
+  secondaryAction?: ToastAction
   title?: React.ReactNode
   description?: React.ReactNode
   icon?: React.ReactNode
@@ -37,6 +47,14 @@ export interface ToastLabels {
   success: React.ReactNode
 }
 
+/**
+ * Labels may be a plain partial object or a getter. A getter is resolved at the
+ * moment a toast fires / a viewport renders, so callers that read i18n through a
+ * getter always see the current language instead of a value snapshotted at
+ * module load (the old English-defaults bug).
+ */
+export type ToastLabelsInput = Partial<ToastLabels> | (() => Partial<ToastLabels>)
+
 export type ToastUtilities = ReturnType<typeof getToastUtilities>
 export type ToastStore = ReturnType<typeof createToastStore>
 
@@ -51,12 +69,21 @@ const DEFAULT_TOAST_LABELS: ToastLabels = {
 
 const getToastKey = (key?: string | number) => String(key ?? `toast-${Date.now()}-${Math.random()}`)
 
-const getToastLabels = (labels?: Partial<ToastLabels>): ToastLabels => ({ ...DEFAULT_TOAST_LABELS, ...labels })
+const resolveToastLabels = (labels?: ToastLabelsInput): Partial<ToastLabels> | undefined =>
+  typeof labels === 'function' ? labels() : labels
+
+const getToastLabels = (labels?: ToastLabelsInput): ToastLabels => ({
+  ...DEFAULT_TOAST_LABELS,
+  ...resolveToastLabels(labels)
+})
 
 const createToastStore = () => {
   let toastQueue: ToastRecord[] = []
   const listeners = new Set<() => void>()
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
+  const deadlines = new Map<string, number>()
+  const remaining = new Map<string, number>()
+  let paused = false
   const loadingTokens = new Map<string, symbol>()
 
   const notify = () => {
@@ -65,6 +92,12 @@ const createToastStore = () => {
 
   const subscribe = (listener: () => void) => {
     listeners.add(listener)
+    // Invariant: exactly one ToastViewport per window. A second subscriber renders
+    // every toast twice — always a bug. Log at error level, but do NOT throw:
+    // subscribe runs inside React's commit phase and the failure mode is non-fatal.
+    if (listeners.size > 1) {
+      console.error('multiple ToastViewport mounted in one window; every toast will render once per host')
+    }
     return () => {
       listeners.delete(listener)
     }
@@ -85,6 +118,8 @@ const createToastStore = () => {
     const toast = toastQueue.find((item) => item.key === key)
     clearTimer(key)
     loadingTokens.delete(key)
+    deadlines.delete(key)
+    remaining.delete(key)
     toastQueue = toastQueue.filter((item) => item.key !== key)
     toast?.onClose?.()
     notify()
@@ -92,18 +127,48 @@ const createToastStore = () => {
 
   const schedule = (toast: ToastRecord) => {
     clearTimer(toast.key)
+    deadlines.delete(toast.key)
+    remaining.delete(toast.key)
 
     if (toast.timeout === 0 || toast.type === 'loading') {
       return
     }
 
     const timeout = toast.timeout ?? DEFAULT_TIMEOUT
+    if (paused) {
+      remaining.set(toast.key, timeout)
+      return
+    }
+    deadlines.set(toast.key, Date.now() + timeout)
     timers.set(
       toast.key,
       setTimeout(() => {
         remove(toast.key)
       }, timeout)
     )
+  }
+
+  const setPaused = (value: boolean) => {
+    if (paused === value) return
+    paused = value
+    if (paused) {
+      deadlines.forEach((deadline, key) => {
+        remaining.set(key, Math.max(0, deadline - Date.now()))
+        clearTimer(key)
+      })
+      deadlines.clear()
+    } else {
+      toastQueue.forEach((toast) => {
+        const timeout = remaining.get(toast.key)
+        if (timeout === undefined) return
+        deadlines.set(toast.key, Date.now() + timeout)
+        timers.set(
+          toast.key,
+          setTimeout(() => remove(toast.key), timeout)
+        )
+      })
+      remaining.clear()
+    }
   }
 
   const upsert = (toast: ToastRecord) => {
@@ -125,6 +190,8 @@ const createToastStore = () => {
       loadingTokens.delete(toast.key)
       toast.onClose?.()
     })
+    deadlines.clear()
+    remaining.clear()
     toastQueue = []
     notify()
   }
@@ -134,6 +201,7 @@ const createToastStore = () => {
     getLoadingToken: (key: string) => loadingTokens.get(key),
     getSnapshot,
     remove,
+    setPaused,
     setLoadingToken: (key: string, token: symbol) => loadingTokens.set(key, token),
     subscribe,
     unsetLoadingToken: (key: string) => loadingTokens.delete(key),
@@ -142,8 +210,7 @@ const createToastStore = () => {
 }
 
 const defaultToastStore = createToastStore()
-const ToastStoreContext = createContext<ToastStore | null>(null)
-const ToastLabelsContext = createContext<Partial<ToastLabels> | undefined>(undefined)
+const ToastLabelsContext = createContext<ToastLabelsInput | undefined>(undefined)
 
 const upsertToast = (toast: ToastRecord, store = defaultToastStore) => {
   store.upsert(toast)
@@ -168,7 +235,7 @@ const createToast = (type: StaticToastType, store = defaultToastStore) => {
 }
 
 const createLoadingToast =
-  (labels?: Partial<ToastLabels>, store = defaultToastStore) =>
+  (labels?: ToastLabelsInput, store = defaultToastStore) =>
   <T,>(args: LoadingToastConfig<T>): string => {
     const toastLabels = getToastLabels(labels)
     const { title, description, icon, onError, promise, timeout, ...restConfig } = args
@@ -230,7 +297,7 @@ const createLoadingToast =
     return key
   }
 
-const createToastUtilities = (labels?: Partial<ToastLabels>, store = defaultToastStore) =>
+const createToastUtilities = (labels?: ToastLabelsInput, store = defaultToastStore) =>
   ({
     closeAll: store.closeAll,
     closeToast: (key: string) => store.remove(key),
@@ -259,32 +326,29 @@ export const closeAll = () => {
 
 export const getToastQueue = (): { toasts: ToastRecord[] } => ({ toasts: defaultToastStore.getSnapshot() })
 
-export const getToastUtilities = (labels?: Partial<ToastLabels>) => createToastUtilities(labels)
+export const getToastUtilities = (labels?: ToastLabelsInput) => createToastUtilities(labels)
 
-export const useToasts = (labels?: Partial<ToastLabels>) => {
-  const store = use(ToastStoreContext) ?? defaultToastStore
+export const useToasts = (labels?: ToastLabelsInput) => {
   const contextLabels = use(ToastLabelsContext)
   const toastLabels = labels ?? contextLabels
 
-  return useMemo(() => createToastUtilities(toastLabels, store), [toastLabels, store])
+  return useMemo(() => createToastUtilities(toastLabels), [toastLabels])
 }
 
-export const ToastProvider = ({ children, labels }: { children: React.ReactNode; labels?: Partial<ToastLabels> }) => {
-  const storeRef = useRef<ToastStore | null>(null)
-
-  if (!storeRef.current) {
-    storeRef.current = createToastStore()
-  }
-
-  return (
-    <ToastStoreContext value={storeRef.current}>
-      <ToastLabelsContext value={labels}>
-        {children}
-        <ToastViewport labels={labels} store={storeRef.current} />
-      </ToastLabelsContext>
-    </ToastStoreContext>
-  )
-}
+/**
+ * Convenience combo of i18n labels + a viewport, all bound to the single module
+ * `defaultToastStore`. It deliberately does NOT fork its own store: the module
+ * toast functions (`error`/`success`/… and `window.toast`) also write to
+ * `defaultToastStore`, so a per-provider fork would leave the command entry and
+ * the rendered viewport on different stores (the quickAssistant black-hole bug
+ * class). Every ToastViewport in every window reads the same store.
+ */
+export const ToastProvider = ({ children, labels }: { children: React.ReactNode; labels?: ToastLabelsInput }) => (
+  <ToastLabelsContext value={labels}>
+    {children}
+    <ToastViewport labels={labels} />
+  </ToastLabelsContext>
+)
 
 const typeIconMap: Record<ToastType, React.ReactNode> = {
   error: <AlertCircle className="size-4 text-destructive" />,
@@ -303,6 +367,8 @@ const getToastA11yProps = (type: ToastType): Pick<React.HTMLAttributes<HTMLDivEl
 }
 
 const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: ToastStore; toast: ToastRecord }) => {
+  const action = toast.action
+  const secondaryAction = toast.secondaryAction
   const icon = toast.icon ?? typeIconMap[toast.type]
   const a11yProps = getToastA11yProps(toast.type)
 
@@ -310,29 +376,74 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
     <div
       {...a11yProps}
       className={cn(
-        'pointer-events-auto flex min-w-72 max-w-[min(420px,calc(100vw-2rem))] items-start gap-3',
+        // no-drag punches the popup's area out of any titlebar drag region it overlaps,
+        // so hover/click reach the items instead of the window-drag hit test (Electron).
+        'pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
         toast.className
       )}
       style={toast.style}
       onClick={toast.onClick}>
-      <div className="mt-0.5 flex shrink-0 items-center justify-center">{icon}</div>
+      <div className="flex min-h-7 shrink-0 items-center justify-center">{icon}</div>
       <div className="min-w-0 flex-1">
-        {toast.title && <div className="break-words font-medium text-sm leading-5">{toast.title}</div>}
+        {toast.title && (
+          <div
+            title={typeof toast.title === 'string' ? toast.title : undefined}
+            className="min-h-7 truncate py-1 text-sm leading-5 font-medium">
+            {toast.title}
+          </div>
+        )}
         {toast.description && (
-          <div className="mt-0.5 break-words text-muted-foreground text-xs leading-5">{toast.description}</div>
+          <div
+            className={cn(
+              'text-xs leading-5 break-words text-muted-foreground',
+              (toast.title || !action) && 'mt-0.5',
+              action && !toast.title && 'min-h-7 py-1'
+            )}>
+            {toast.description}
+          </div>
         )}
       </div>
-      <button
-        type="button"
-        aria-label={labels.close}
-        className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        onClick={(event) => {
-          event.stopPropagation()
-          store.remove(toast.key)
-        }}>
-        <X className="size-3.5" />
-      </button>
+      {secondaryAction && (
+        <Button
+          type="button"
+          className="shrink-0"
+          size="sm"
+          variant="link"
+          onClick={(event) => {
+            event.stopPropagation()
+            store.remove(toast.key)
+            void secondaryAction.onClick()
+          }}>
+          {secondaryAction.label}
+        </Button>
+      )}
+      {action && (
+        <Button
+          type="button"
+          className="shrink-0"
+          size="sm"
+          variant="outline"
+          onClick={(event) => {
+            event.stopPropagation()
+            store.remove(toast.key)
+            void action.onClick()
+          }}>
+          {action.label}
+        </Button>
+      )}
+      <div className="flex min-h-7 shrink-0 items-center">
+        <button
+          type="button"
+          aria-label={labels.close}
+          className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          onClick={(event) => {
+            event.stopPropagation()
+            store.remove(toast.key)
+          }}>
+          <X className="size-3.5" />
+        </button>
+      </div>
     </div>
   )
 }
@@ -341,11 +452,29 @@ export const ToastViewport = ({
   labels,
   store = defaultToastStore
 }: {
-  labels?: Partial<ToastLabels>
+  labels?: ToastLabelsInput
   store?: ToastStore
 }) => {
   const toasts = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const toastLabels = getToastLabels(labels)
+  const reducedMotion = useReducedMotion()
+  const transition = { duration: reducedMotion ? 0 : 0.25, ease: 'easeOut' as const }
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const expanded = hovered || focused
+
+  useEffect(() => {
+    store.setPaused(expanded && toasts.length > 0)
+    return () => store.setPaused(false)
+  }, [expanded, store, toasts.length])
+
+  useEffect(() => {
+    setFocused(viewportRef.current?.contains(document.activeElement) ?? false)
+    if (toasts.length === 0) {
+      setHovered(false)
+    }
+  }, [toasts.length])
 
   if (toasts.length === 0) {
     return null
@@ -353,11 +482,39 @@ export const ToastViewport = ({
 
   return (
     <div
+      ref={viewportRef}
       aria-label="notifications"
-      className="-translate-x-1/2 pointer-events-none fixed top-5 left-1/2 z-[10000] flex flex-col items-center gap-2"
+      className={cn(
+        'pointer-events-auto fixed top-5 left-1/2 z-[10000] -translate-x-1/2 [-webkit-app-region:no-drag]',
+        expanded ? 'flex max-h-[calc(100vh-2.5rem)] flex-col items-center gap-2 overflow-y-auto p-2' : 'grid pb-4'
+      )}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
+      }}
       role="region">
-      {toasts.map((toast) => (
-        <ToastItem key={toast.key} labels={toastLabels} store={store} toast={toast} />
+      {[...toasts].reverse().map((toast, index) => (
+        <motion.div
+          key={toast.key}
+          layout={reducedMotion ? false : 'position'}
+          transition={transition}
+          inert={!expanded && index > 0}
+          className={cn(!expanded && 'col-start-1 row-start-1')}
+          style={{ zIndex: toasts.length - index }}>
+          <motion.div
+            initial={false}
+            animate={{
+              y: expanded ? 0 : Math.min(index, 2) * 8,
+              scale: expanded ? 1 : 1 - Math.min(index, 2) * 0.04,
+              opacity: expanded || index < 3 ? 1 : 0
+            }}
+            transition={transition}
+            className="origin-top">
+            <ToastItem labels={toastLabels} store={store} toast={toast} />
+          </motion.div>
+        </motion.div>
       ))}
     </div>
   )

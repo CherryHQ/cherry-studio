@@ -1,15 +1,33 @@
-import { loggerService } from '@logger'
-import type { Tab } from '@renderer/hooks/useTabs'
-import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { loggerService } from '@logger'
+import type { Tab } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
+import { IpcChannel } from '@shared/IpcChannel'
+
+import { applyHorizontalRubberBandTranslateX } from './tabDragRubberBand'
 
 const logger = loggerService.withContext('useTabDrag')
 
 const DRAG_THRESHOLD = 5
 const DETACH_THRESHOLD = 30
 const TAB_GAP = 6
+const TAB_DRAG_SAFE_INSET = 16
 
 type DragMode = 'pending' | 'reorder' | 'detach'
+type HorizontalRect = Pick<DOMRectReadOnly, 'left' | 'width'>
+
+const getElementLayoutRect = (element: HTMLElement): HorizontalRect => {
+  const rect = element.getBoundingClientRect()
+  const translateX = Number.parseFloat(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1] ?? '0')
+
+  return { left: rect.left - translateX, width: rect.width }
+}
+
+const getRightInsetWidth = (boundaryRect: DOMRectReadOnly | null, insetElement: HTMLElement | null): number => {
+  if (!boundaryRect || !insetElement) return 0
+  return Math.max(0, boundaryRect.right - insetElement.getBoundingClientRect().left) + TAB_GAP
+}
 
 interface DragState {
   tabId: string
@@ -17,10 +35,27 @@ interface DragState {
   insertIndex: number
 }
 
+interface DragRuntimeState {
+  pointerId: number
+  startX: number
+  startY: number
+  currentX: number
+  tabType: 'pinned' | 'normal'
+  detachedCreated: boolean
+  tabClosed: boolean
+  originalRects: Map<string, HorizontalRect>
+  boundaryRect: DOMRectReadOnly | null
+  leftInsetWidth: number
+  rightInsetWidth: number
+  grabOffsetX: number
+  grabOffsetY: number
+}
+
 interface UseTabDragOptions {
   pinnedTabs: Tab[]
   normalTabs: Tab[]
-  isDetached: boolean
+  normalReorderStartIndex?: number
+  canDetach: boolean
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
@@ -28,11 +63,13 @@ interface UseTabDragOptions {
 
 export interface UseTabDragReturn {
   tabBarRef: React.RefObject<HTMLDivElement | null>
+  tabListRef: React.RefObject<HTMLDivElement | null>
+  rightInsetRef: React.RefObject<HTMLButtonElement | null>
   tabRefs: React.MutableRefObject<Map<string, HTMLButtonElement>>
   noTransition: boolean
   getTranslateX: (tabId: string, tabType: 'pinned' | 'normal') => number
   handlePointerDown: (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal') => void
-  handleTabClick: (tabId: string) => void
+  handleTabClick: (tabId: string) => boolean
   isDragging: (tabId: string) => boolean
   isGhost: (tabId: string) => boolean
 }
@@ -40,7 +77,8 @@ export interface UseTabDragReturn {
 export function useTabDrag({
   pinnedTabs,
   normalTabs,
-  isDetached,
+  normalReorderStartIndex = 0,
+  canDetach,
   reorderTabs,
   closeTab,
   setActiveTab
@@ -52,15 +90,18 @@ export function useTabDrag({
   const [settling, setSettling] = useState(false)
 
   // High-frequency data (does not trigger re-render)
-  const dragRef = useRef({
+  const dragRef = useRef<DragRuntimeState>({
     pointerId: 0,
     startX: 0,
     startY: 0,
     currentX: 0,
-    tabType: 'normal' as 'pinned' | 'normal',
+    tabType: 'normal',
     detachedCreated: false,
     tabClosed: false,
-    originalRects: new Map<string, { left: number; width: number }>(),
+    originalRects: new Map<string, HorizontalRect>(),
+    boundaryRect: null,
+    leftInsetWidth: 0,
+    rightInsetWidth: 0,
     grabOffsetX: 0,
     grabOffsetY: 0
   })
@@ -69,6 +110,8 @@ export function useTabDrag({
   const didDragRef = useRef(false)
 
   const tabBarRef = useRef<HTMLDivElement>(null)
+  const tabListRef = useRef<HTMLDivElement>(null)
+  const rightInsetRef = useRef<HTMLButtonElement>(null)
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
   const rafId = useRef<number | null>(null)
 
@@ -85,8 +128,9 @@ export function useTabDrag({
   const calculateInsertIndex = useCallback(
     (clientX: number, dragTabId: string): number => {
       const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
+      const startIndex = dragRef.current.tabType === 'normal' ? normalReorderStartIndex : 0
       const rects = dragRef.current.originalRects
-      for (let i = 0; i < list.length; i++) {
+      for (let i = startIndex; i < list.length; i++) {
         if (list[i].id === dragTabId) continue
         const rect = rects.get(list[i].id)
         if (rect && clientX < rect.left + rect.width / 2) {
@@ -95,7 +139,7 @@ export function useTabDrag({
       }
       return list.length
     },
-    [normalTabs, pinnedTabs]
+    [normalTabs, normalReorderStartIndex, pinnedTabs]
   )
 
   // Calculate translateX for each tab
@@ -109,7 +153,20 @@ export function useTabDrag({
       const { insertIndex } = dragState
 
       if (tabId === dragState.tabId) {
-        return dragRef.current.currentX - dragRef.current.startX
+        const translateX = dragRef.current.currentX - dragRef.current.startX
+        const draggedRect = dragRef.current.originalRects.get(tabId)
+        const { boundaryRect, leftInsetWidth, rightInsetWidth } = dragRef.current
+
+        if (!draggedRect || !boundaryRect) {
+          return translateX
+        }
+
+        return applyHorizontalRubberBandTranslateX(translateX, draggedRect, boundaryRect, {
+          physicalLeftInset: leftInsetWidth,
+          physicalRightInset: rightInsetWidth,
+          leftInset: TAB_DRAG_SAFE_INSET,
+          rightInset: TAB_DRAG_SAFE_INSET
+        })
       }
 
       const draggedRect = dragRef.current.originalRects.get(dragState.tabId)
@@ -133,14 +190,18 @@ export function useTabDrag({
       if (e.button !== 0) return
       if ((e.target as HTMLElement).closest('[role="button"]')) return
 
+      const list = tabType === 'pinned' ? pinnedTabs : normalTabs
+      const index = list.findIndex((t) => t.id === tab.id)
+      const tabList = tabListRef.current
+      const leftInsetWidth = tabList ? Number.parseFloat(window.getComputedStyle(tabList).paddingLeft) || 0 : 0
+      const boundaryRect = tabList?.getBoundingClientRect() ?? null
+      const rightInsetWidth = getRightInsetWidth(boundaryRect, rightInsetRef.current)
+
       const target = e.currentTarget as HTMLElement
       target.setPointerCapture(e.pointerId)
 
-      const list = tabType === 'pinned' ? pinnedTabs : normalTabs
-      const index = list.findIndex((t) => t.id === tab.id)
-
       // Store original positions of all tabs
-      const originalRects = new Map<string, { left: number; width: number }>()
+      const originalRects = new Map<string, HorizontalRect>()
       for (const t of list) {
         const el = tabRefs.current.get(t.id)
         if (el) {
@@ -158,6 +219,9 @@ export function useTabDrag({
         detachedCreated: false,
         tabClosed: false,
         originalRects,
+        boundaryRect,
+        leftInsetWidth,
+        rightInsetWidth,
         grabOffsetX: e.screenX - window.screenX,
         grabOffsetY: e.screenY - window.screenY
       }
@@ -173,9 +237,10 @@ export function useTabDrag({
     (tabId: string) => {
       if (didDragRef.current) {
         didDragRef.current = false
-        return
+        return false
       }
       setActiveTab(tabId)
+      return true
     },
     [setActiveTab]
   )
@@ -187,32 +252,20 @@ export function useTabDrag({
       if (e.pointerId !== dragRef.current.pointerId) return
 
       dragRef.current.currentX = e.clientX
+      // Refresh live geometry so resizing and sticky-button changes do not leave stale drag bounds.
+      const liveTabList = tabListRef.current
+      if (liveTabList) {
+        dragRef.current.boundaryRect = liveTabList.getBoundingClientRect()
+        dragRef.current.leftInsetWidth = Number.parseFloat(window.getComputedStyle(liveTabList).paddingLeft) || 0
+      }
+      const draggedElement = tabRefs.current.get(dragState.tabId)
+      if (draggedElement) {
+        dragRef.current.originalRects.set(dragState.tabId, getElementLayoutRect(draggedElement))
+      }
+      dragRef.current.rightInsetWidth = getRightInsetWidth(dragRef.current.boundaryRect, rightInsetRef.current)
       const deltaX = e.clientX - dragRef.current.startX
       const deltaY = e.clientY - dragRef.current.startY
 
-      // Detached window: dragging tab = dragging the entire window
-      if (isDetached) {
-        const pastThreshold = Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD
-        if (dragState.mode === 'pending' && pastThreshold) {
-          setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
-        }
-        // Use pastThreshold as fallback to avoid losing the first frame due to mode still being pending in closure
-        if (dragState.mode === 'detach' || pastThreshold) {
-          if (rafId.current === null) {
-            rafId.current = requestAnimationFrame(() => {
-              window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
-                tabId: dragState.tabId,
-                x: e.screenX - dragRef.current.grabOffsetX,
-                y: e.screenY - dragRef.current.grabOffsetY
-              })
-              rafId.current = null
-            })
-          }
-        }
-        return
-      }
-
-      // Main window logic
       const tabBarRect = tabBarRef.current?.getBoundingClientRect()
       if (!tabBarRect) return
 
@@ -220,13 +273,13 @@ export function useTabDrag({
         e.clientY < tabBarRect.top - DETACH_THRESHOLD || e.clientY > tabBarRect.bottom + DETACH_THRESHOLD
 
       if (dragState.mode === 'pending') {
-        if (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD) {
+        if (canDetach && isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD) {
           setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
         } else if (Math.abs(deltaX) > DRAG_THRESHOLD) {
           setDragState((prev) => (prev ? { ...prev, mode: 'reorder' } : null))
         }
       } else if (dragState.mode === 'reorder') {
-        if (isOutsideTabBar) {
+        if (canDetach && isOutsideTabBar) {
           setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
         } else if (rafId.current === null) {
           rafId.current = requestAnimationFrame(() => {
@@ -238,19 +291,27 @@ export function useTabDrag({
       }
 
       // Detach mode: create/move window
-      if (dragState.mode === 'detach' || (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD)) {
+      if (canDetach && (dragState.mode === 'detach' || (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD))) {
         if (!dragRef.current.detachedCreated) {
           const allTabs = [...pinnedTabs, ...normalTabs]
           const tab = allTabs.find((t) => t.id === dragState.tabId)
           if (tab) {
-            window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
-              ...tab,
-              x: e.screenX - 400,
-              y: e.screenY - 20
-            })
+            const drag = dragRef.current
+            void ipcApi
+              .request('tab.detach', {
+                ...tab,
+                x: e.screenX - 400,
+                y: e.screenY - 20
+              })
+              .then(() => {
+                closeTab(tab.id)
+                drag.tabClosed = true
+              })
+              .catch((error) => {
+                logger.error('Tab detach failed', error)
+                if (dragRef.current === drag) setDragState(null)
+              })
             dragRef.current.detachedCreated = true
-            closeTab(dragState.tabId)
-            dragRef.current.tabClosed = true
             didDragRef.current = true
           }
         } else if (!dragRef.current.tabClosed) {
@@ -281,45 +342,34 @@ export function useTabDrag({
         }
       }
 
-      // Detached window: try to attach back to main window on pointer up
-      if (isDetached && dragState.mode === 'detach') {
-        didDragRef.current = true
-        const allTabs = [...pinnedTabs, ...normalTabs]
-        const tab = allTabs.find((t) => t.id === dragState.tabId)
-        if (tab) {
-          window.electron.ipcRenderer
-            .invoke(IpcChannel.Tab_TryAttach, { tab, screenX: e.screenX, screenY: e.screenY })
-            .catch((err: unknown) => {
-              logger.debug(
-                'Tab_TryAttach failed, window stays detached',
-                err instanceof Error ? err : new Error(String(err))
-              )
-            })
+      // `dragState.mode` lags behind (setState flushes after the pointer events), so
+      // key off the ref that the detach branch sets synchronously.
+      const detaching = dragState.mode === 'detach' || dragRef.current.detachedCreated
+      if (detaching) {
+        // Send the final position even when no further pointermove follows the detach.
+        if (dragRef.current.detachedCreated) {
+          window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
+            tabId: dragState.tabId,
+            x: e.screenX - 400,
+            y: e.screenY - 20
+          })
         }
-        setDragState(null)
-        if (rafId.current !== null) {
-          cancelAnimationFrame(rafId.current)
-          rafId.current = null
-        }
-        return
-      }
-
-      if (dragState.mode === 'reorder') {
+        void ipcApi.request('tab.drag_end')
+      } else if (dragState.mode === 'reorder') {
         didDragRef.current = true
         const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
         const oldIndex = list.findIndex((t) => t.id === dragState.tabId)
         if (oldIndex !== -1 && oldIndex !== dragState.insertIndex) {
-          const adjustedIndex = oldIndex < dragState.insertIndex ? dragState.insertIndex - 1 : dragState.insertIndex
+          const insertIndex =
+            dragRef.current.tabType === 'normal'
+              ? Math.max(normalReorderStartIndex, dragState.insertIndex)
+              : dragState.insertIndex
+          const adjustedIndex = oldIndex < insertIndex ? insertIndex - 1 : insertIndex
           if (oldIndex !== adjustedIndex) {
             setSettling(true)
             reorderTabs(dragRef.current.tabType, oldIndex, adjustedIndex)
           }
         }
-      } else if (dragState.mode === 'detach') {
-        if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
-          closeTab(dragState.tabId)
-        }
-        window.electron.ipcRenderer.send(IpcChannel.Tab_DragEnd)
       }
 
       if (rafId.current !== null) {
@@ -339,10 +389,21 @@ export function useTabDrag({
         rafId.current = null
       }
     }
-  }, [dragState, pinnedTabs, normalTabs, calculateInsertIndex, reorderTabs, closeTab, isDetached])
+  }, [
+    dragState,
+    pinnedTabs,
+    normalTabs,
+    normalReorderStartIndex,
+    canDetach,
+    calculateInsertIndex,
+    reorderTabs,
+    closeTab
+  ])
 
   return {
     tabBarRef,
+    tabListRef,
+    rightInsetRef,
     tabRefs,
     noTransition: settling,
     getTranslateX,

@@ -1,164 +1,355 @@
-import { RowFlex } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import type { ContentSearchRef } from '@renderer/components/ContentSearch'
-import { ContentSearch } from '@renderer/components/ContentSearch'
-import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { useCommandHandler } from '@renderer/features/command'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { useTopicMutations } from '@renderer/hooks/useTopic'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
-import { classNames } from '@renderer/utils'
-import { AnimatePresence, motion } from 'motion/react'
-import type { FC } from 'react'
-import React, { useRef, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import type { FC, ReactNode } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ChatNavbar from './components/ChatNavBar'
-import Tabs from './Tabs'
-import V2ChatContent from './V2ChatContent'
+import { usePreference } from '@data/hooks/usePreference'
+import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import {
+  ResourcePaneCountButton,
+  type ResourcePaneCountButtonProps,
+  useRightPanelActions
+} from '@renderer/components/chat/panes/Shell'
+import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
+import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
+import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
+import {
+  ChatConversationControls,
+  type ChatConversationControlsProps
+} from '@renderer/components/composer/variants/chat/ChatConversationControls'
+import type { ChatConversationControlsSnapshot } from '@renderer/components/composer/variants/ChatComposer'
+import PromptPopup from '@renderer/components/popups/PromptPopup'
+import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useProviders } from '@renderer/hooks/useProvider'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
+import { topicBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
+import type { Citation } from '@renderer/types/message'
+import type { Topic } from '@renderer/types/topic'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
-const logger = loggerService.withContext('Chat')
+import ChatContent from './ChatContent'
+import ChatNavbar from './components/ChatNavbar'
+import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
+import type { AddNewTopicPayload } from './types'
+
+const CitationsPanel = React.lazy(() => import('@renderer/components/chat/citations/CitationsPanel'))
+
+const EMPTY_MODELS: ChatConversationControlsSnapshot['mentionedModels'] = []
+const NOOP_MODEL_SELECT: ChatConversationControlsSnapshot['onModelSelect'] = () => undefined
+const NOOP_MODELS_SELECT: ChatConversationControlsSnapshot['onMentionedModelsSelect'] = () => undefined
+const NOOP_MULTI_SELECT_MODE_CHANGE: ChatConversationControlsSnapshot['onMentionedModelMultiSelectModeChange'] = () =>
+  undefined
+const NOOP_MODEL_SELECTOR_RESTORE: ChatConversationControlsSnapshot['onMentionedModelSelectorRestore'] = () => undefined
+
+type ChatTopBarControlsProps = Omit<ChatConversationControlsProps, 'iconOnly' | 'side'>
+
+function ChatTopBarControls(props: ChatTopBarControlsProps) {
+  const { iconOnly } = useConversationTopBarPortalLayout()
+
+  return <ChatConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+}
 
 interface Props {
-  activeTopic: Topic
-  setActiveTopic: (topic: Topic) => void
-  /**
-   * Called by V2ChatContent before the first message of a freshly-leased
-   * temporary topic is sent. HomePage owns the lease so it also owns the
-   * persist trigger. `initialName` becomes a placeholder topic title so
-   * the sidebar isn't blank in the gap before auto-naming runs.
-   */
-  onPersistTemporaryTopic?: (initialName?: string) => Promise<void>
+  activeTopic?: Topic
+  /** The entry topic is still resolving — hold the loading center instead of the empty one. */
+  topicPending?: boolean
+  centerSurface?: ConversationCenterSlot | null
+  pane?: ReactNode
+  paneOpen?: boolean
+  panePosition?: ChatPanePosition
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  showResourceListControls?: boolean
+  sidebarOpen?: boolean
+  onSidebarToggle?: () => void
+  locateMessageId?: string
+  onLocateMessageHandled?: () => void
+  onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  paneManualToggle?: PaneManualToggleSignal
+  resourcePaneCount?: ResourcePaneCountButtonProps
+}
+
+interface CitationPanelState {
+  topicId: string
+  citations: Citation[]
 }
 
 const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
+  const clearTopicMessages = useClearTopicMessages()
   const { t } = useTranslation()
-  const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
-  const [showTopics] = usePreference('topic.tab.show')
+  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
+  const [shouldMountCitationsPanel, setShouldMountCitationsPanel] = useState(false)
+  const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
+  const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
+  const rightPanelActions = useRightPanelActions()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
-  const contentSearchRef = useRef<ContentSearchRef>(null)
-  const [filterIncludeUser, setFilterIncludeUser] = useState(false)
-  const { setTimeoutTimer } = useTimer()
-
-  useHotkeys('esc', () => {
-    contentSearchRef.current?.disable()
+  const activeTopic = props.activeTopic
+  const centerSurface = props.centerSurface
+  const showConversation = Boolean(activeTopic && !centerSurface)
+  const isActiveTab = useIsActiveTab()
+  const showConversationChrome = !centerSurface
+  const activeTopicId = activeTopic?.id
+  const citationPanelCitations =
+    citationPanelState && citationPanelState.topicId === activeTopicId ? citationPanelState.citations : null
+  const assistantContext = useAssistant(activeTopic?.assistantId, {
+    loadDefaultModel: Boolean(activeTopic)
   })
+  const [conversationControlsSnapshot, setConversationControlsSnapshot] =
+    useState<ChatConversationControlsSnapshot | null>(null)
+  const activeConversationControlsSnapshot =
+    conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
+  const composerModels = activeConversationControlsSnapshot
+    ? activeConversationControlsSnapshot.lockedMentionedModels.length > 1
+      ? activeConversationControlsSnapshot.lockedMentionedModels
+      : activeConversationControlsSnapshot.mentionedModelSelectorValue
+    : EMPTY_MODELS
+  const composerModelId = composerModels.length === 1 ? composerModels[0].id : undefined
+  // Provider metadata supplies the user-facing name for both the single-model trigger and
+  // selected-model details. Model entities only carry the provider id.
+  const shouldLoadProviders = Boolean(
+    activeTopic &&
+    (assistantContext.model ||
+      (activeConversationControlsSnapshot &&
+        (activeConversationControlsSnapshot.mentionedModels.length > 0 ||
+          activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 0 ||
+          activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
+  )
+  const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
+  const locateMessageIdProp = props.locateMessageId
+  const onLocateMessageHandledProp = props.onLocateMessageHandled
 
-  useCommandHandler('chat.message.search', () => {
-    try {
-      const selectedText = window.getSelection()?.toString().trim()
-      contentSearchRef.current?.enable(selectedText)
-    } catch (error) {
-      logger.error('Error enabling content search:', error as Error)
+  useEffect(() => {
+    setCitationPanelState(null)
+  }, [activeTopicId])
+
+  useEffect(() => {
+    setBranchLocateMessageId(undefined)
+    if (!activeTopicId) return
+
+    setTopicBranchLiveState(activeTopicId, null)
+    return () => {
+      setTopicBranchLiveState(activeTopicId, null)
     }
-  })
+  }, [activeTopicId, setTopicBranchLiveState])
 
-  useCommandHandler('topic.rename', async () => {
-    const topic = props.activeTopic
-    if (!topic) return
+  useCommandHandler(
+    'topic.rename',
+    async () => {
+      if (!showConversation) return
 
-    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      const topic = activeTopic
+      if (!topic) return
 
-    const name = await PromptPopup.show({
-      title: t('chat.topics.edit.title'),
-      message: '',
-      defaultValue: topic.name || '',
-      extraNode: <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
-    })
-    if (name && topic.name !== name) {
-      await patchTopic(topic.id, { name, isNameManuallyEdited: true })
-    }
-  })
-
-  const contentSearchFilter: NodeFilter = {
-    acceptNode(node) {
-      const container = node.parentElement?.closest('.message-content-container')
-      if (!container) return NodeFilter.FILTER_REJECT
-      const message = container.closest('.message')
-      if (!message) return NodeFilter.FILTER_REJECT
-      if (filterIncludeUser) return NodeFilter.FILTER_ACCEPT
-      if (message.classList.contains('message-assistant')) return NodeFilter.FILTER_ACCEPT
-      return NodeFilter.FILTER_REJECT
-    }
-  }
-
-  const userOutlinedItemClickHandler = () => {
-    setFilterIncludeUser(!filterIncludeUser)
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setTimeoutTimer(
-          'userOutlinedItemClickHandler',
-          () => {
-            contentSearchRef.current?.search()
-            contentSearchRef.current?.focus()
-          },
-          0
-        )
+      const name = await PromptPopup.show({
+        title: t('chat.topics.edit.title'),
+        message: '',
+        defaultValue: topic.name || '',
+        extraNode: <div className="text-muted-foreground mt-2">{t('chat.topics.edit.title_tip')}</div>
       })
-    })
-  }
+      if (name && topic.name !== name) {
+        await patchTopic(topic.id, { name, isNameManuallyEdited: true })
+      }
+    },
+    { enabled: showConversation }
+  )
+  useCommandHandler(
+    'topic.clear_messages',
+    async () => {
+      if (!activeTopic) return
+      const confirmed = await popup.confirm({
+        title: t('chat.input.clear.title'),
+        content: t('chat.input.clear.content'),
+        autoFocusConfirm: true,
+        centered: true
+      })
+      if (!confirmed) return
+      try {
+        await clearTopicMessages(activeTopic.id)
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+      }
+    },
+    { enabled: showConversation && isActiveTab }
+  )
+
+  const citationsPanelOpen = citationPanelCitations !== null
+  const openCitationInBrowser = useCallback(
+    (url: string) => {
+      if (!activeTopicId) return
+      topicBrowserRuntimeService.ensure(activeTopicId, url)
+      rightPanelActions.tryOpen('browser', { userInitiated: true })
+      setCitationPanelState(null)
+    },
+    [activeTopicId, rightPanelActions]
+  )
+
+  const handleOpenCitationsPanel = useCallback(
+    ({ citations }: { citations: Citation[] }) => {
+      if (!activeTopicId) return
+      setShouldMountCitationsPanel(true)
+      setCitationPanelState({ topicId: activeTopicId, citations })
+    },
+    [activeTopicId]
+  )
+  const handleAssistantChange = useCallback(
+    async (nextAssistantId: string | null) => {
+      if (!activeTopic || !nextAssistantId || nextAssistantId === activeTopic.assistantId) return
+      await patchTopic(activeTopic.id, { assistantId: nextAssistantId })
+    },
+    [activeTopic, patchTopic]
+  )
+  const handleRestoreComposerFocus = useCallback(() => {
+    if (!activeTopicId) return
+    void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
+  }, [activeTopicId])
+
+  const handleBranchLiveStateChange = useCallback(
+    (state: Parameters<typeof setTopicBranchLiveState>[1]) => {
+      const topicId = state?.topicId ?? activeTopicId
+      if (topicId) setTopicBranchLiveState(topicId, state)
+    },
+    [activeTopicId, setTopicBranchLiveState]
+  )
+  const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
+  const handleLocateMessageHandled = useCallback(() => {
+    setBranchLocateMessageId(undefined)
+    if (locateMessageIdProp) {
+      onLocateMessageHandledProp?.()
+    }
+  }, [locateMessageIdProp, onLocateMessageHandledProp])
+  const centerContent =
+    centerSurface?.content ??
+    (activeTopic ? (
+      <ChatContent
+        key={activeTopic.id}
+        topic={activeTopic}
+        onOpenCitationsPanel={handleOpenCitationsPanel}
+        onNewTopic={props.onNewTopic}
+        onCreateEmptyTopic={props.onCreateEmptyTopic}
+        locateMessageId={locateMessageId}
+        onLocateMessageHandled={handleLocateMessageHandled}
+        onBranchLiveStateChange={handleBranchLiveStateChange}
+        assistantContext={assistantContext}
+        providers={providers}
+        onConversationControlsChange={setConversationControlsSnapshot}
+        composerModelId={composerModelId}
+      />
+    ) : (
+      // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
+      // the empty center rather than spinning forever. Same split as AgentChat.
+      <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
+    ))
+  // ChatContent is keyed by topic; keep width-derived layout state outside that remount boundary.
+  const center = <ChatLayoutModeProvider>{centerContent}</ChatLayoutModeProvider>
 
   return (
-    <div
+    <ConversationShell
       id="chat"
-      className={classNames([
-        messageStyle,
-        'flex min-h-0 flex-1 flex-col overflow-hidden',
-        '[navbar-position=top]_&:bg-(--color-background)',
-        '[navbar-position=top]_&:rounded-tl-[10px] [navbar-position=top]_&:rounded-bl-[10px]'
-      ])}>
-      <RowFlex className="min-h-0 flex-1">
-        <motion.div
-          layout
-          transition={{ duration: 0.3, ease: 'easeInOut' }}
-          style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
-          <div
-            ref={mainRef}
-            id="chat-main"
-            className="transform-[translateZ(0)] relative flex h-full min-h-0 flex-1 flex-col justify-between"
-            style={{ width: '100%' }}>
-            <QuickPanelProvider>
-              <ChatNavbar assistantId={props.activeTopic.assistantId} topicId={props.activeTopic.id} />
-              <V2ChatContent
-                key={props.activeTopic.id}
-                topic={props.activeTopic}
-                setActiveTopic={props.setActiveTopic}
-                onPersistTemporaryTopic={props.onPersistTemporaryTopic}
-              />
-              <ContentSearch
-                ref={contentSearchRef}
-                searchTarget={mainRef as React.RefObject<HTMLElement>}
-                filter={contentSearchFilter}
-                includeUser={filterIncludeUser}
-                onIncludeUserChange={userOutlinedItemClickHandler}
-              />
-            </QuickPanelProvider>
-          </div>
-        </motion.div>
-        <AnimatePresence initial={false}>
-          {topicPosition === 'right' && showTopics && (
-            <motion.div
-              key="right-tabs"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{
-                overflow: 'hidden'
-              }}>
-              <Tabs activeTopic={props.activeTopic} setActiveTopic={props.setActiveTopic} position="right" />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </RowFlex>
-    </div>
+      className={activeTopic || centerSurface ? messageStyle : undefined}
+      pane={props.pane}
+      paneOpen={props.paneOpen}
+      panePosition={props.panePosition}
+      onPaneCollapse={props.onPaneCollapse}
+      onPaneAutoCollapseChange={props.onPaneAutoCollapseChange}
+      paneManualToggle={props.paneManualToggle}
+      topBar={
+        showConversationChrome ? (
+          <ChatNavbar
+            conversationControls={
+              activeTopic ? (
+                <ChatTopBarControls
+                  assistantId={assistantContext.assistant?.id ?? null}
+                  assistantName={
+                    assistantContext.assistant?.name ??
+                    (assistantContext.isLoading ? t('common.loading') : t('button.select_assistant'))
+                  }
+                  assistantEmoji={assistantContext.assistant?.emoji}
+                  model={assistantContext.model}
+                  modelPending={
+                    assistantContext.isLoading || assistantContext.isModelPending || !activeConversationControlsSnapshot
+                  }
+                  providers={providers}
+                  mentionedModels={activeConversationControlsSnapshot?.mentionedModels ?? EMPTY_MODELS}
+                  mentionedModelSelectorValue={
+                    activeConversationControlsSnapshot?.mentionedModelSelectorValue ??
+                    (assistantContext.model ? [assistantContext.model] : EMPTY_MODELS)
+                  }
+                  lockedMentionedModels={activeConversationControlsSnapshot?.lockedMentionedModels ?? EMPTY_MODELS}
+                  mentionedModelMultiSelectMode={
+                    activeConversationControlsSnapshot?.mentionedModelMultiSelectMode ?? false
+                  }
+                  selectModelLabel={assistantContext.isModelPending ? t('common.loading') : t('button.select_model')}
+                  useMentionedModelSelector
+                  shouldAutoSelectCreatedAssistant={false}
+                  assistantTriggerAction={topicDisplayMode === 'assistant' ? 'edit' : 'select'}
+                  onDialogCloseAutoFocus={handleRestoreComposerFocus}
+                  onAssistantChange={handleAssistantChange}
+                  onModelSelect={activeConversationControlsSnapshot?.onModelSelect ?? NOOP_MODEL_SELECT}
+                  onMentionedModelsSelect={
+                    activeConversationControlsSnapshot?.onMentionedModelsSelect ?? NOOP_MODELS_SELECT
+                  }
+                  onMentionedModelMultiSelectModeChange={
+                    activeConversationControlsSnapshot?.onMentionedModelMultiSelectModeChange ??
+                    NOOP_MULTI_SELECT_MODE_CHANGE
+                  }
+                  onMentionedModelSelectorRestore={
+                    activeConversationControlsSnapshot?.onMentionedModelSelectorRestore ?? NOOP_MODEL_SELECTOR_RESTORE
+                  }
+                />
+              ) : undefined
+            }
+            showSidebarControls={props.showResourceListControls}
+            sidebarOpen={props.sidebarOpen}
+            onSidebarToggle={props.onSidebarToggle}
+          />
+        ) : undefined
+      }
+      topRightTool={
+        showConversation ? (
+          <>
+            {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
+            <TopicRightPane.Shortcuts
+              browserEnabled={
+                !!assistantContext.assistant && assistantContext.assistant.settings.enableBrowser !== false
+              }
+            />
+          </>
+        ) : undefined
+      }
+      showTopRightToolWhenPaneOpen
+      sidePanel={
+        showConversation && shouldMountCitationsPanel ? (
+          <React.Suspense fallback={null}>
+            <CitationsPanel
+              openBrowserUrl={openCitationInBrowser}
+              open={citationsPanelOpen}
+              onClose={() => setCitationPanelState(null)}
+              citations={citationPanelCitations ?? []}
+            />
+          </React.Suspense>
+        ) : undefined
+      }
+      center={center}
+      rightPane={<TopicRightPane.Viewport onLocateMessage={setBranchLocateMessageId} />}
+      centerId={centerSurface?.id ?? (showConversation ? 'chat-main' : undefined)}
+      centerRef={centerSurface?.ref ?? (showConversation ? mainRef : undefined)}
+      centerClassName={
+        centerSurface?.className ??
+        (showConversation ? 'transform-[translateZ(0)] relative justify-between' : undefined)
+      }
+    />
   )
 }
 

@@ -9,7 +9,7 @@ const Ling = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const LingIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Ling, {
   Avatar: LingAvatar,
-  colorPrimary: '#0C73FF'
+  colorPrimary: '#0D6BFF'
 })
 
 export default LingIcon

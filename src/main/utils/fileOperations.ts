@@ -3,7 +3,7 @@ import * as path from 'node:path'
 
 import { loggerService } from '@logger'
 
-import { isPathInside } from './file'
+import { isPathInside } from './legacyFile'
 
 const logger = loggerService.withContext('Utils:FileOperations')
 

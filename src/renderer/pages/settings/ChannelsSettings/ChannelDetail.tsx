@@ -1,5 +1,9 @@
+import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
-  Alert,
   Badge,
   Button,
   ConfirmDialog,
@@ -9,6 +13,7 @@ import {
   DialogTitle,
   EmptyState,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -20,28 +25,31 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
+import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
-import { useAgents } from '@renderer/hooks/agents/useAgent'
-import { useChannels } from '@renderer/hooks/agents/useChannels'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingsContentBody,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
+import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useChannels } from '@renderer/hooks/agent/useChannels'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import type { AgentConfiguration } from '@shared/data/types/agent'
-import { FileText, Pencil, Plus, Trash2 } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import type { ChannelStatus } from '@shared/data/types/channel'
 
-import { SettingDivider, SettingsContentBody, SettingTitle } from '..'
 import { getFormForType } from './ChannelForms'
-import type { AvailableChannel, ChannelData } from './channelTypes'
+import type { AvailableChannel, ChannelData, ChannelUpdates } from './channelTypes'
 
 const logger = loggerService.withContext('ChannelDetail')
 
 // --------------- Types ---------------
 
 type LogEntry = { timestamp: number; level: string; message: string; channelId: string }
-type StatusEvent = { channelId: string; connected: boolean; error?: string }
-
 // --------------- Helpers ---------------
 
 function truncateId(s: string, prefixLen = 7, suffixLen = 3): string {
@@ -81,6 +89,12 @@ function getChannelSummary(channel: ChannelData): string {
       if (slackChannelIds.length > 0) parts.push(`${slackChannelIds.length} channel IDs`)
       break
     }
+    case 'dingtalk':
+      if (cfg.client_id) parts.push(truncateId(cfg.client_id as string))
+      break
+    case 'wecom':
+      if (cfg.bot_id) parts.push(truncateId(cfg.bot_id as string))
+      break
     case 'wechat':
       break
   }
@@ -92,10 +106,10 @@ function formatTime(ts: number): string {
 }
 
 const LOG_LEVEL_COLORS: Record<string, string> = {
-  error: '#ff4d4f',
-  warn: '#faad14',
-  info: '#1677ff',
-  debug: '#8c8c8c'
+  error: 'var(--error)',
+  warn: 'var(--warning)',
+  info: 'var(--info)',
+  debug: 'var(--foreground-tertiary)'
 }
 
 const NO_AGENT_VALUE = '__none'
@@ -119,22 +133,20 @@ const ChannelLogModal: FC<{
     }
 
     // Load existing logs
-    window.api.channel
-      .getLogs(channelId)
+    ipcApi
+      .request('channel.get_logs', channelId)
       .then(setLogs)
       .catch((err) => {
         logger.warn('Failed to load channel logs', { channelId, err })
       })
-
-    // Subscribe to real-time logs
-    const unsub = window.api.channel.onLog((entry) => {
-      if (entry.channelId === channelId) {
-        setLogs((prev) => [...prev.slice(-199), entry])
-      }
-    })
-
-    return unsub
   }, [open, channelId])
+
+  // Subscribe to real-time logs
+  useIpcOn('channel.log', (entry) => {
+    if (entry.channelId === channelId) {
+      setLogs((prev) => [...prev.slice(-199), entry])
+    }
+  })
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -147,23 +159,21 @@ const ChannelLogModal: FC<{
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-[600px]">
+      <DialogContent className="max-w-150" closeLabel={t('common.close')}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span>{`${channelName} — ${t('agent.cherryClaw.channels.logs')}`}</span>
+            <span>{`${channelName} — ${t('agent.channels.logs')}`}</span>
             {logs.length > 0 && <CopyButton textToCopy={logsText} size={14} />}
           </DialogTitle>
         </DialogHeader>
         <div className="max-h-100 overflow-y-auto rounded-md bg-background-subtle p-2 font-mono text-[11px] leading-[1.6]">
           {logs.length === 0 && (
-            <div className="py-8 text-center text-muted-foreground text-xs">
-              {t('agent.cherryClaw.channels.noLogs')}
-            </div>
+            <div className="py-8 text-center text-muted-foreground text-xs">{t('agent.channels.noLogs')}</div>
           )}
           {logs.map((entry, i) => (
             <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
               <span className="shrink-0 text-muted-foreground">{formatTime(entry.timestamp)}</span>
-              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? '#8c8c8c', fontWeight: 500 }}>
+              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? 'var(--foreground-tertiary)' }}>
                 [{entry.level.toUpperCase()}]
               </span>
               <span className="break-all">{entry.message}</span>
@@ -183,26 +193,32 @@ type EditModalProps = {
   channel: ChannelData | null
   agents: Array<{ id: string; name: string }>
   onClose: () => void
-  onSave: (id: string, updates: Partial<ChannelData>) => void
+  onSave: (id: string, updates: ChannelUpdates) => void
   onDelete: (id: string) => void
 }
 
-const ChannelEditModal: FC<
-  EditModalProps & { agentEntities?: Array<{ id: string; configuration?: AgentConfiguration }> }
-> = ({ open, channel, agents, onClose, onSave, onDelete, agentEntities }) => {
+const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, onSave, onDelete }) => {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [agentId, setAgentId] = useState<string | null>(null)
+  const lastChannelRef = useRef<ChannelData | null>(channel)
+  // `null` = "No work directory" (system workspace); a string binds the channel to that user workspace.
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null)
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
+
+  if (channel) {
+    lastChannelRef.current = channel
+  }
+  const renderedChannel = channel ?? (!open ? lastChannelRef.current : null)
 
   useEffect(() => {
     if (channel) {
       setName(channel.name)
       setAgentId(channel.agentId ?? null)
+      setWorkspaceId(channel.workspace?.type === AGENT_WORKSPACE_TYPE.USER ? channel.workspace.workspaceId : null)
     }
   }, [channel])
-
-  const selectedAgent = agentEntities?.find((a) => a.id === agentId)
-  const showSoulModeWarning = agentId && selectedAgent && !isSoulModeEnabled(selectedAgent.configuration)
 
   const handleNameBlur = useCallback(() => {
     if (channel && name.trim() && name.trim() !== channel.name) {
@@ -221,27 +237,51 @@ const ChannelEditModal: FC<
     [channel, onSave]
   )
 
+  const handleWorkspaceChange = useCallback(
+    (nextWorkspaceId: string | null) => {
+      setWorkspaceId(nextWorkspaceId)
+      if (channel) {
+        onSave(channel.id, {
+          workspace:
+            nextWorkspaceId === null
+              ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+              : { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: nextWorkspaceId }
+        })
+      }
+    },
+    [channel, onSave]
+  )
+
+  const isSystemWorkspace = workspaceId === null
+  const workspaceLabel = isSystemWorkspace
+    ? t('agent.session.workspace_selector.no_project')
+    : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
+
   const handleUpdate = useCallback(
-    (updates: Partial<ChannelData>) => {
+    (updates: ChannelUpdates) => {
       if (channel) onSave(channel.id, updates)
     },
     [channel, onSave]
   )
 
-  const FormComponent = channel ? getFormForType(channel.type) : null
+  const FormComponent = renderedChannel ? getFormForType(renderedChannel.type) : null
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-[500px]">
-        {channel && (
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="flex max-h-[calc(100dvh-2rem)] max-w-125 flex-col overflow-hidden"
+        closeLabel={t('common.close')}>
+        {renderedChannel && (
           <>
-            <DialogHeader>
-              <DialogTitle>{channel.name}</DialogTitle>
+            <DialogHeader className="shrink-0">
+              <DialogTitle>{renderedChannel.name}</DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col gap-4">
+            <Scrollbar className="flex min-h-0 flex-col gap-4">
               <div>
-                <label className="mb-1 block font-medium text-xs">{t('common.name')}</label>
+                <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
+                  autoFocus
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onBlur={handleNameBlur}
@@ -249,10 +289,10 @@ const ChannelEditModal: FC<
                 />
               </div>
               <div>
-                <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.bindAgent')}</label>
+                <Label className="mb-1 block text-xs">{t('agent.channels.bindAgent')}</Label>
                 <Select value={agentId ?? NO_AGENT_VALUE} onValueChange={handleAgentChange}>
                   <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder={t('agent.cherryClaw.channels.selectAgent')} />
+                    <SelectValue placeholder={t('agent.channels.selectAgent')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_AGENT_VALUE}>{t('common.none')}</SelectItem>
@@ -263,19 +303,31 @@ const ChannelEditModal: FC<
                     ))}
                   </SelectContent>
                 </Select>
-                {showSoulModeWarning && (
-                  <Alert
-                    type="warning"
-                    showIcon
-                    message={t('agent.cherryClaw.channels.soulModeRequired')}
-                    className="mt-2 text-xs"
+                {/* Workspace is a secondary detail — channel sessions default to "No work directory". */}
+                <div className="mt-2 flex items-center gap-1.5 text-muted-foreground text-xs">
+                  <span>{t('agent.session.display.workdir')}</span>
+                  <WorkspaceSelector
+                    value={workspaceId}
+                    onChange={handleWorkspaceChange}
+                    align="start"
+                    trigger={
+                      <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-muted-foreground">
+                        {isSystemWorkspace ? <CircleSlash className="size-3.5" /> : <Folder className="size-3.5" />}
+                        <span className="max-w-40 truncate">{workspaceLabel}</span>
+                        <ChevronDown className="size-3.5" />
+                      </Button>
+                    }
                   />
-                )}
+                </div>
               </div>
               {FormComponent && (
-                <FormComponent channel={channel} onConfigChange={handleUpdate} onRemove={() => onDelete(channel.id)} />
+                <FormComponent
+                  channel={renderedChannel}
+                  onConfigChange={handleUpdate}
+                  onRemove={() => channel && onDelete(channel.id)}
+                />
               )}
-            </div>
+            </Scrollbar>
           </>
         )}
       </DialogContent>
@@ -288,7 +340,7 @@ const ChannelEditModal: FC<
 const ChannelInstanceRow: FC<{
   channel: ChannelData
   agents: Array<{ id: string; name: string }>
-  connectionStatus: StatusEvent | undefined
+  connectionStatus: ChannelStatus | undefined
   onEdit: () => void
   onDelete: () => void
   onToggle: (active: boolean) => void
@@ -302,22 +354,22 @@ const ChannelInstanceRow: FC<{
   const isConnected = connectionStatus?.connected ?? false
   const hasError = connectionStatus?.error
 
-  let statusColor = 'bg-gray-400' // inactive or unknown
+  let statusColor = 'bg-muted-foreground' // inactive or unknown
   let statusTag: React.ReactNode = null
   if (channel.isActive) {
     if (isConnected) {
-      statusColor = 'bg-green-500'
+      statusColor = 'bg-success'
       statusTag = (
-        <Badge className="border-success/30 bg-success/10 px-1.5 py-0 text-[10px] text-success leading-3.5">
-          {t('agent.cherryClaw.channels.connected')}
+        <Badge className="border-success-border bg-success-subtle px-1.5 py-0 text-[10px] text-success-subtle-foreground leading-3.5">
+          {t('agent.channels.connected')}
         </Badge>
       )
     } else if (hasError) {
-      statusColor = 'bg-red-500'
+      statusColor = 'bg-error'
       statusTag = (
         <Tooltip title={hasError}>
-          <Badge className="border-destructive/30 bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive leading-3.5">
-            {t('agent.cherryClaw.channels.error')}
+          <Badge className="border-error-border bg-error-subtle px-1.5 py-0 text-[10px] text-error-subtle-foreground leading-3.5">
+            {t('agent.channels.error')}
           </Badge>
         </Tooltip>
       )
@@ -325,25 +377,25 @@ const ChannelInstanceRow: FC<{
   }
 
   return (
-    <div className="flex items-center gap-3 border-(--color-border) border-b-[0.5px] px-1 py-2.5 last:border-b-0">
+    <div className="flex items-center gap-3 border-border border-b-[0.5px] px-1 py-2.5 last:border-b-0">
       <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 font-medium text-sm">
+        <div className="flex items-center gap-2 text-sm">
           {channel.name}
           {statusTag}
         </div>
         <div className="truncate text-foreground-400 text-xs">
-          {agentName && <span className="mr-2 text-blue-400">{agentName}</span>}
+          {agentName && <span className="mr-2 text-info">{agentName}</span>}
           {summary}
         </div>
       </div>
-      <Tooltip title={t('agent.cherryClaw.channels.logs')}>
-        <Button variant="ghost" size="icon-sm" onClick={onShowLogs}>
+      <Tooltip title={t('agent.channels.logs')}>
+        <Button variant="ghost" size="icon-sm" aria-label={t('agent.channels.logs')} onClick={onShowLogs}>
           <FileText className="size-4" />
         </Button>
       </Tooltip>
       <Tooltip title={t('common.edit')}>
-        <Button variant="ghost" size="icon-sm" onClick={onEdit}>
+        <Button variant="ghost" size="icon-sm" aria-label={t('common.edit')} onClick={onEdit}>
           <Pencil className="size-4" />
         </Button>
       </Tooltip>
@@ -351,7 +403,8 @@ const ChannelInstanceRow: FC<{
         <Button
           variant="ghost"
           size="icon-sm"
-          className="hover:!text-destructive"
+          className="hover:text-destructive!"
+          aria-label={t('common.delete')}
           onClick={() => setDeleteConfirmOpen(true)}>
           <Trash2 className="size-4" />
         </Button>
@@ -359,7 +412,7 @@ const ChannelInstanceRow: FC<{
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
-        title={t('agent.cherryClaw.channels.deleteConfirm', { name: channel.name })}
+        title={t('agent.channels.deleteConfirm', { name: channel.name })}
         confirmText={t('common.confirm')}
         cancelText={t('common.cancel')}
         destructive
@@ -382,13 +435,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   // SWR-managed remote data
   const { channels, isLoading, mutate, createChannel, updateChannel, deleteChannel } = useChannels(channelDef.type)
   const { agents: agentList } = useAgents()
-  const { agents, agentEntities } = useMemo(() => {
-    const list = agentList ?? []
-    return {
-      agents: list.map((a) => ({ id: a.id, name: a.name ?? a.id })),
-      agentEntities: list.map((a) => ({ id: a.id, configuration: a.configuration }))
-    }
-  }, [agentList])
+  const agents = useMemo(() => (agentList ?? []).map((a) => ({ id: a.id, name: a.name ?? a.id })), [agentList])
 
   const channelList: ChannelData[] = useMemo(
     () =>
@@ -397,7 +444,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         type: ch.type,
         name: ch.name,
         agentId: ch.agentId,
-        sessionId: ch.sessionId,
+        workspace: ch.workspace,
         config: ch.config,
         isActive: ch.isActive,
         permissionMode: ch.permissionMode,
@@ -408,75 +455,87 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   )
 
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const editingChannel = channelList.find((ch) => ch.id === editingChannelId) ?? null
 
-  // Connection status tracking
-  const [statuses, setStatuses] = useState<Map<string, StatusEvent>>(new Map())
+  const openEditModal = useCallback((channelId: string) => {
+    setEditingChannelId(channelId)
+    setIsEditModalOpen(true)
+  }, [])
+  const closeEditModal = useCallback(() => {
+    setIsEditModalOpen(false)
+  }, [])
+
+  const channelIds = useMemo(() => channelList.map((channel) => channel.id), [channelList])
+  const statusKeys = channelIds.map((id) => `channel.status.${id}` as const)
+  const statuses = useSharedCacheSelector(statusKeys, (values) =>
+    Object.fromEntries(
+      channelIds.flatMap((id, index): Array<[string, ChannelStatus]> => {
+        const status = values[index]
+        return status ? [[id, status]] : []
+      })
+    )
+  )
+  const previousStatuses = useRef<Record<string, ChannelStatus>>({})
 
   // Log modal
   const [logChannel, setLogChannel] = useState<{ id: string; name: string } | null>(null)
 
-  // Fetch initial statuses + subscribe to real-time changes
   useEffect(() => {
-    window.api.channel
-      .getStatuses()
-      .then((list) => {
-        setStatuses(new Map(list.map((s) => [s.channelId, s])))
-      })
-      .catch((err) => {
-        logger.warn('Failed to load initial channel statuses', { err })
-      })
+    for (const status of Object.values(statuses)) {
+      if (status.connected && !previousStatuses.current[status.channelId]?.connected) void mutate()
+    }
+    previousStatuses.current = statuses
+  }, [mutate, statuses])
 
-    const unsub = window.api.channel.onStatusChange((status) => {
-      setStatuses((prev) => {
-        // When a channel transitions to connected, revalidate SWR
-        // (e.g. after QR registration saves credentials in main process)
-        if (status.connected && !prev.get(status.channelId)?.connected) {
-          void mutate()
-        }
-        const next = new Map(prev)
-        next.set(status.channelId, status)
-        return next
-      })
-    })
-    return unsub
-  }, [mutate])
+  useIpcOn('channel.feishu.qr_login', (data) => {
+    if (channelDef.type === 'feishu' && data.status === 'confirmed') {
+      void mutate()
+    }
+  })
 
   const handleAdd = useCallback(async () => {
     const existingCount = channels?.length ?? 0
     const newChannel = await createChannel({
       type: channelDef.type,
       name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
       config: channelDef.defaultConfig,
-      isActive: true
+      // Feishu and WeChat register by QR, so binding an active channel to an agent
+      // starts the adapter flow. Credential-gated channels start inactive.
+      isActive: channelDef.type === 'feishu' || channelDef.type === 'wechat'
     } as never)
     if (newChannel) {
-      setEditingChannelId(newChannel.id)
+      openEditModal(newChannel.id)
     }
-  }, [channels?.length, createChannel, channelDef])
+  }, [channels?.length, createChannel, channelDef, openEditModal])
 
   const handleSave = useCallback(
-    async (channelId: string, updates: Partial<ChannelData>) => {
+    async (channelId: string, updates: ChannelUpdates) => {
       if (!channelList.some((ch) => ch.id === channelId)) return
 
       const apiUpdates: Record<string, unknown> = {}
       if (updates.name !== undefined) apiUpdates.name = updates.name
       if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
+      if (updates.workspace !== undefined) apiUpdates.workspace = updates.workspace
+      if (updates.configPatch !== undefined) apiUpdates.configPatch = updates.configPatch
       if (updates.config !== undefined) apiUpdates.config = updates.config
       if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
       if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
 
-      await updateChannel(channelId, apiUpdates as never)
+      await updateChannel(channelId, apiUpdates)
     },
     [channelList, updateChannel]
   )
 
   const handleDelete = useCallback(
     async (channelId: string) => {
+      if (editingChannelId === channelId) {
+        closeEditModal()
+      }
       await deleteChannel(channelId)
-      setEditingChannelId((prev) => (prev === channelId ? null : prev))
     },
-    [deleteChannel]
+    [closeEditModal, deleteChannel, editingChannelId]
   )
 
   const handleToggle = useCallback(
@@ -501,52 +560,53 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   return (
     <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
       <SettingsContentBody>
-        <div className="flex items-center justify-between gap-4 pb-1">
-          <div className="min-w-0">
-            <SettingTitle className="justify-start gap-2">
-              {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
-              <span className="truncate">{channelDef.name}</span>
-            </SettingTitle>
-            <p className="mt-1.5 mb-0 text-(--color-foreground-muted) text-xs">
-              {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
-            </p>
+        <SettingGroup>
+          <div className="flex items-center justify-between gap-4 pb-1">
+            <div className="min-w-0">
+              <SettingTitle className="justify-start gap-2">
+                {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
+                <span className="truncate">{channelDef.name}</span>
+              </SettingTitle>
+              <p className="mt-1.5 mb-0 text-muted-foreground text-xs">
+                {channelDef.available ? t(channelDef.description) : t('agent.channels.comingSoon')}
+              </p>
+            </div>
+            <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
+              <Plus className="size-4" />
+              {t('agent.channels.add')}
+            </Button>
           </div>
-          <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
-            <Plus className="size-4" />
-            {t('agent.cherryClaw.channels.add')}
-          </Button>
-        </div>
-        <SettingDivider className="m-0 mt-2" />
-        <div className="flex flex-col">
-          {channelList.length === 0 && (
-            <EmptyState
-              compact
-              preset="no-resource"
-              description={t('agent.cherryClaw.channels.noInstances', { type: channelDef.name })}
-              className="py-8"
-            />
-          )}
-          {channelList.map((ch) => (
-            <ChannelInstanceRow
-              key={ch.id}
-              channel={ch}
-              agents={agents}
-              connectionStatus={statuses.get(ch.id)}
-              onEdit={() => setEditingChannelId(ch.id)}
-              onDelete={() => handleDelete(ch.id)}
-              onToggle={(active) => handleToggle(ch.id, active)}
-              onShowLogs={() => setLogChannel({ id: ch.id, name: ch.name })}
-            />
-          ))}
-        </div>
+          <SettingDivider className="m-0 mt-2" />
+          <div className="flex flex-col">
+            {channelList.length === 0 && (
+              <EmptyState
+                compact
+                preset="no-resource"
+                description={t('agent.channels.noInstances', { type: channelDef.name })}
+                className="py-8"
+              />
+            )}
+            {channelList.map((ch) => (
+              <ChannelInstanceRow
+                key={ch.id}
+                channel={ch}
+                agents={agents}
+                connectionStatus={statuses[ch.id]}
+                onEdit={() => openEditModal(ch.id)}
+                onDelete={() => handleDelete(ch.id)}
+                onToggle={(active) => handleToggle(ch.id, active)}
+                onShowLogs={() => setLogChannel({ id: ch.id, name: ch.name })}
+              />
+            ))}
+          </div>
+        </SettingGroup>
       </SettingsContentBody>
 
       <ChannelEditModal
-        open={!!editingChannel}
+        open={isEditModalOpen}
         channel={editingChannel}
         agents={agents}
-        agentEntities={agentEntities}
-        onClose={() => setEditingChannelId(null)}
+        onClose={closeEditModal}
         onSave={handleSave}
         onDelete={handleDelete}
       />

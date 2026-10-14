@@ -1,0 +1,280 @@
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
+import { describe, expect, it, vi } from 'vitest'
+
+import { getKnowledgeBaseFilePath } from '../../pathStorage'
+import {
+  createCtx,
+  createDirectoryItem,
+  createNoteItem,
+  createPrepareRootJobHandler,
+  deleteItemsByIdsMock,
+  deleteKnowledgeItemFilesBestEffortMock,
+  deleteMaterialsMock,
+  ingestionService,
+  knowledgeItemGetByIdMock,
+  knowledgeItemGetSubtreeItemsMock,
+  knowledgeItemSetSubtreeStatusMock,
+  knowledgeItemUpdateStatusMock,
+  knowledgeLockManager,
+  prepareKnowledgeItemMock,
+  removeDirMock,
+  scheduleItemMock
+} from './jobHandlerTestUtils'
+
+/** A directory container whose `raw/<prefix>` was pinned by a prior attempt (pin-before-copy). */
+function createPinnedDirectoryItem(relativePath: string) {
+  const container = createDirectoryItem()
+  return { ...container, data: { ...container.data, relativePath } }
+}
+
+describe('prepare-root job handler', () => {
+  it('clears stale expansion and schedules recreated leaves', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(knowledgeItemGetSubtreeItemsMock).toHaveBeenCalledWith('kb-1', ['dir-1'])
+    // Nothing to purge (no prior expansion) — purgeKnowledgeSubtreeWithinLock is a no-op for an empty subtree.
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
+    expect(prepareKnowledgeItemMock).toHaveBeenCalledWith(expect.objectContaining({ baseId: 'kb-1' }))
+    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-1', 'prepare-job')
+    expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: 'dir-1' })).toBe('base.kb-1')
+  })
+
+  it('publishes directory copy progress by item id', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
+      onDirectoryCopyProgress(50)
+      return []
+    })
+    const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
+
+    await handler.execute(ctx)
+
+    expect(MockMainCacheServiceExport.cacheService.setShared).toHaveBeenCalledWith(
+      'knowledge.item.directory_copy_progress.dir-1',
+      50
+    )
+    expect(ctx.reportProgress).toHaveBeenCalledWith(25, { stage: 'copying' })
+  })
+
+  it('clears stale directory copy progress before retry cleanup starts', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    MockMainCacheServiceExport.cacheService.setShared('knowledge.item.directory_copy_progress.dir-1', 100)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(() => {
+      expect(MockMainCacheServiceExport.cacheService.getShared('knowledge.item.directory_copy_progress.dir-1')).toBe(
+        undefined
+      )
+      return []
+    })
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(MockMainCacheServiceExport.cacheService.deleteShared).toHaveBeenCalledWith(
+      'knowledge.item.directory_copy_progress.dir-1'
+    )
+    expect(MockMainCacheServiceExport.cacheService.getShared('knowledge.item.directory_copy_progress.dir-1')).toBe(
+      undefined
+    )
+  })
+
+  it('reports copy progress only when the integer percentage changes', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
+      onDirectoryCopyProgress(1)
+      onDirectoryCopyProgress(1)
+      onDirectoryCopyProgress(4)
+      return []
+    })
+    const reportProgress = vi.fn()
+    const ctx = { ...createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'), reportProgress }
+
+    await handler.execute(ctx)
+
+    expect(reportProgress).toHaveBeenCalledWith(2, { stage: 'copying' })
+    expect(reportProgress.mock.calls.filter(([, detail]) => detail?.stage === 'copying')).toHaveLength(2)
+  })
+
+  it('clears stale expansion vectors before deleting rows', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    const activeChild = createNoteItem('active-note', 'dir-1')
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['active-note'])
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
+    expect(deleteMaterialsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteItemsByIdsMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('routes stale-expansion cleanup through best-effort delete before deleting rows', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    const activeChild = createNoteItem('active-note', 'dir-1')
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith('kb-1', [activeChild], {
+      baseId: 'kb-1',
+      itemId: 'dir-1'
+    })
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
+    // Cleanup is best-effort (swallows failures — see pathStorage test); row deletion must run after it.
+    expect(deleteKnowledgeItemFilesBestEffortMock.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteItemsByIdsMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('leaves deleting descendants for delete-subtree cleanup', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    const activeChild = createNoteItem('active-note', 'dir-1')
+    const deletingChild = createNoteItem('deleting-note', 'dir-1', 'deleting')
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild, deletingChild])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['active-note'])
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
+    expect(deleteMaterialsMock).not.toHaveBeenCalledWith(expect.arrayContaining(['deleting-note']))
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalledWith('kb-1', expect.arrayContaining(['deleting-note']))
+  })
+
+  it('reclaims the container pinned prefix shell even when no descendant rows exist to purge', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    // A crash in the pin-before-copy window leaves orphan bytes under raw/docs but zero
+    // descendant rows. getSubtreeItems excludes the container, so the row-scoped purge sees
+    // nothing — only the explicit container removeDir can reclaim those orphan bytes.
+    knowledgeItemGetByIdMock.mockReturnValue(createPinnedDirectoryItem('docs'))
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
+    expect(removeDirMock).toHaveBeenCalledWith(getKnowledgeBaseFilePath('kb-1', 'docs'))
+  })
+
+  it('does not reclaim a container shell when no prefix was ever pinned', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    // Default createDirectoryItem() carries data.source only, no relativePath — the guard
+    // must skip removeDir so a never-expanded directory does not blow away an unrelated path.
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(removeDirMock).not.toHaveBeenCalled()
+  })
+
+  it('purges descendant rows before reclaiming the container shell', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    const activeChild = createNoteItem('active-note', 'dir-1')
+    knowledgeItemGetByIdMock.mockReturnValue(createPinnedDirectoryItem('docs'))
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
+    expect(removeDirMock).toHaveBeenCalledWith(getKnowledgeBaseFilePath('kb-1', 'docs'))
+    // Row-scoped purge runs first; the container removeDir then sweeps whatever the purge
+    // could not see (nested dir shells, bytes of rows that were never committed).
+    expect(deleteItemsByIdsMock.mock.invocationCallOrder[0]).toBeLessThan(removeDirMock.mock.invocationCallOrder[0])
+  })
+
+  it('skips expansion when the root becomes deleting inside the mutation lock', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    // Live on the pre-lock load, then deleting for every in-lock re-resolve (the shell-reclaim
+    // guard and the expansion guard both re-read the row); expansion must be skipped.
+    knowledgeItemGetByIdMock
+      .mockReturnValueOnce(createDirectoryItem())
+      .mockReturnValue(createDirectoryItem('dir-1', 'deleting'))
+
+    const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
+    await handler.execute(ctx)
+
+    expect(prepareKnowledgeItemMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-1', 'processing')
+    expect(scheduleItemMock).not.toHaveBeenCalled()
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting' })
+  })
+
+  it('keeps terminal failure from an empty expansion', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    prepareKnowledgeItemMock.mockResolvedValue([])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-1', 'processing')
+    expect(scheduleItemMock).not.toHaveBeenCalled()
+  })
+
+  it('marks unscheduled child leaves failed when enqueueing a child fails', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    const leaves = [
+      createNoteItem('leaf-1', 'dir-1'),
+      createNoteItem('leaf-2', 'dir-1'),
+      createNoteItem('leaf-3', 'dir-1')
+    ]
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    prepareKnowledgeItemMock.mockResolvedValue(leaves)
+    scheduleItemMock.mockResolvedValueOnce({ id: 'job-leaf-1' }).mockRejectedValueOnce(new Error('enqueue failed'))
+
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))).rejects.toThrow(
+      'enqueue failed'
+    )
+
+    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-1', 'prepare-job')
+    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-2', 'prepare-job')
+    expect(scheduleItemMock).not.toHaveBeenCalledWith('kb-1', 'leaf-3', 'prepare-job')
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalledWith('kb-1', ['leaf-1'], 'failed', expect.anything())
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['leaf-2'], 'failed', {
+      error: 'Failed to schedule knowledge child item job: enqueue failed'
+    })
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['leaf-3'], 'failed', {
+      error: 'Failed to schedule knowledge child item job: enqueue failed'
+    })
+  })
+
+  it('reports unrecovered leaves when failed status cleanup also fails', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    const leaves = [createNoteItem('leaf-1', 'dir-1')]
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    prepareKnowledgeItemMock.mockResolvedValue(leaves)
+    scheduleItemMock.mockRejectedValueOnce(new Error('enqueue failed'))
+    knowledgeItemSetSubtreeStatusMock.mockImplementationOnce(() => {
+      throw new Error('subtree busy')
+    })
+
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))).rejects.toThrow(
+      'unrecovered item ids: leaf-1'
+    )
+  })
+
+  it('onSettled skips failed status when the item is deleting', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem('dir-1', 'deleting'))
+
+    await handler.onSettled?.({
+      jobId: 'prepare-job',
+      type: 'knowledge.prepare-root',
+      scheduleId: null,
+      parentId: null,
+      status: 'cancelled',
+      input: { baseId: 'kb-1', itemId: 'dir-1' },
+      error: { code: 'CANCELLED', message: 'cancelled', retryable: false },
+      attempt: 1,
+      metadata: {}
+    })
+
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-1', 'failed', expect.anything())
+  })
+})

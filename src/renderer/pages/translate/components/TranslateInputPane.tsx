@@ -1,28 +1,38 @@
+import { Check, Copy, LoaderCircle, X } from 'lucide-react'
+import type { KeyboardEvent, Ref } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Scrollbar } from '@cherrystudio/ui'
 import uploadExcelIcon from '@renderer/assets/images/translate/upload-excel.svg'
 import uploadImageIcon from '@renderer/assets/images/translate/upload-image.svg'
 import uploadPdfIcon from '@renderer/assets/images/translate/upload-pdf.svg'
 import uploadPptIcon from '@renderer/assets/images/translate/upload-ppt.svg'
 import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
+import DictationControls from '@renderer/components/DictationControls'
 import { useDrag } from '@renderer/hooks/useDrag'
-import { Copy, X } from 'lucide-react'
-import type { KeyboardEvent, Ref, UIEvent } from 'react'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
+import { voiceTargetManager } from '@renderer/services/voice'
+import type { VoiceReplaceRange } from '@renderer/services/voice'
 
 import IconButton from './IconButton'
 
+const TARGET_ID = 'translate-page-source'
+
 type Props = {
-  ref?: Ref<HTMLTextAreaElement>
+  ref?: Ref<HTMLDivElement>
   text: string
   onTextChange: (value: string) => void
   onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
-  onScroll: (event: UIEvent<HTMLTextAreaElement>) => void
+  onScroll: () => void
   onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void
   onSelectFile: () => void
+  copied: boolean
   onCopy: () => void
+  onCancelOcr: () => void
   disabled: boolean
+  ocrProcessing: boolean
   selecting: boolean
 }
 
@@ -35,11 +45,45 @@ const TranslateInputPane = ({
   onPaste,
   onDrop,
   onSelectFile,
+  copied,
   onCopy,
+  onCancelOcr,
   disabled,
+  ocrProcessing,
   selecting
 }: Props) => {
   const { t } = useTranslation()
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (disabled) return
+    return voiceTargetManager.bind({
+      targetId: TARGET_ID,
+      owner: window,
+      sourceEntityId: 'translate-page-source',
+      captureReplaceRange: () => {
+        const textarea = textareaRef.current
+        return textarea && !textarea.disabled ? { from: textarea.selectionStart, to: textarea.selectionEnd } : null
+      },
+      replaceRange: (range: VoiceReplaceRange, insertedText: string) => {
+        const textarea = textareaRef.current
+        if (
+          !textarea ||
+          textarea.disabled ||
+          !Number.isInteger(range.from) ||
+          !Number.isInteger(range.to) ||
+          range.from < 0 ||
+          range.to < range.from ||
+          range.to > textarea.value.length
+        )
+          return false
+        textarea.setRangeText(insertedText, range.from, range.to, 'end')
+        onTextChange(textarea.value)
+        textarea.focus()
+        return true
+      }
+    })
+  }, [disabled, onTextChange])
 
   const {
     isDragging,
@@ -53,36 +97,47 @@ const TranslateInputPane = ({
     onTextChange('')
   }, [onTextChange])
 
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [text])
+
   const uploadIcons = [uploadImageIcon, uploadPdfIcon, uploadWordIcon, uploadPptIcon, uploadTextIcon, uploadExcelIcon]
 
   return (
     <div
-      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
+      data-ui="translate.input"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDropEvent}>
-      <div className="relative min-h-0 flex-1">
-        <textarea
-          ref={ref}
-          value={text}
-          onChange={(e) => onTextChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          onScroll={onScroll}
-          onPaste={onPaste}
-          disabled={disabled}
-          spellCheck={false}
-          placeholder={t('translate.input.placeholder')}
-          className="h-full w-full resize-none bg-transparent p-4 pr-12 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-foreground-muted"
-        />
-        <IconButton
-          size="sm"
-          onClick={onCopy}
-          disabled={!text}
-          aria-label={t('common.copy')}
-          className="absolute top-4 right-3">
-          <Copy size={14} />
+      <div className="flex shrink-0 items-center justify-end gap-1 px-3 pt-3">
+        <div className="min-w-0">
+          <DictationControls targetId={TARGET_ID} disabled={disabled} focusInput={() => textareaRef.current?.focus()} />
+        </div>
+        <IconButton size="sm" onClick={onCopy} disabled={!text} aria-label={t('common.copy')}>
+          {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}
         </IconButton>
+      </div>
+      <div className="relative min-h-0 flex-1">
+        <Scrollbar ref={ref} onScroll={onScroll} className="h-full overflow-x-hidden">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => onTextChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+            onFocus={() => voiceTargetManager.markCurrent(TARGET_ID)}
+            onPointerDown={() => voiceTargetManager.markCurrent(TARGET_ID)}
+            disabled={disabled}
+            spellCheck={false}
+            placeholder={t('translate.input.placeholder')}
+            className="min-h-full w-full resize-none overflow-hidden bg-transparent p-4 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-muted-foreground"
+          />
+        </Scrollbar>
       </div>
       {!text && (
         <button
@@ -90,7 +145,7 @@ const TranslateInputPane = ({
           onClick={onSelectFile}
           disabled={disabled || selecting}
           aria-label={t('translate.files.upload')}
-          className="mx-3 mb-4 flex shrink-0 flex-col items-center justify-center gap-3 rounded-md border border-border-muted border-dashed px-4 py-4 text-foreground-muted transition-colors hover:border-border-hover hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60">
+          className="mx-3 mb-4 flex shrink-0 flex-col items-center justify-center gap-3 rounded-md border border-border-subtle border-dashed px-4 py-4 text-muted-foreground transition-colors hover:border-border-strong hover:bg-muted/30 hover:text-foreground focus-visible:border-border-strong focus-visible:bg-muted/30 focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60">
           <span className="text-sm">{t('translate.files.upload')}</span>
           <span className="flex items-center gap-6">
             {uploadIcons.map((icon) => (
@@ -104,7 +159,7 @@ const TranslateInputPane = ({
           <button
             type="button"
             onClick={handleClear}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-foreground-muted text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none">
             <X size={14} className="lucide-custom" />
             <span>{t('common.clear')}</span>
           </button>
@@ -112,7 +167,7 @@ const TranslateInputPane = ({
       )}
       {isDragging && (
         <div className="fade-in-0 pointer-events-none absolute inset-0 z-10 flex animate-in items-center justify-center bg-background p-3 duration-150">
-          <div className="flex h-full w-full items-center justify-center rounded-md border border-border-muted border-dashed">
+          <div className="flex h-full w-full items-center justify-center rounded-md border border-border-subtle border-dashed">
             {/* Drawn as a single path so the translucent foreground token paints
                 evenly: lucide's Plus uses two crossing paths, which composites
                 the alpha twice and darkens the center. */}
@@ -124,11 +179,24 @@ const TranslateInputPane = ({
               stroke="currentColor"
               strokeWidth={2}
               strokeLinecap="round"
-              className="text-foreground-secondary"
+              className="text-muted-foreground"
               aria-hidden="true">
               <path d="M5 12h14M12 5v14" />
             </svg>
             <span className="sr-only">{t('translate.files.drag_text')}</span>
+          </div>
+        </div>
+      )}
+      {ocrProcessing && (
+        <div className="fade-in-0 absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/90 p-3 duration-150">
+          <div className="flex flex-col items-center gap-3">
+            <div role="status" aria-live="polite" className="flex items-center gap-2 text-foreground-tertiary text-sm">
+              <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+              <span>{t('ocr.processing')}</span>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => onCancelOcr()}>
+              {t('common.cancel')}
+            </Button>
           </div>
         </div>
       )}

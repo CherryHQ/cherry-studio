@@ -1,34 +1,73 @@
+import { and, asc, count, desc, eq, inArray, lte, notInArray, type SQL, sql } from 'drizzle-orm'
+
 import { application } from '@application'
+import { type InsertJobFileRefRow, jobFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertJobRow, type JobRow, jobTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import {
+  ACTIVE_JOB_STATUSES,
   type JobError,
   JobErrorSchema,
   type JobSnapshot,
   type JobStatus,
   TERMINAL_JOB_STATUSES
 } from '@shared/data/api/schemas/jobs'
-import { and, asc, count, desc, eq, inArray, lte, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('JobService')
-
-const ACTIVE_STATUSES = ['pending', 'delayed', 'running'] as const satisfies readonly JobStatus[]
 
 export interface JobListFilter {
   status?: JobStatus[]
   queue?: string
-  type?: string
+  /** Single type (`eq`) or a set (`inArray`). An empty array means "no filter" (matches the `status` convention). */
+  type?: string | string[]
   scheduleId?: string
+  parentId?: string
   limit?: number
   offset?: number
 }
 
+type TerminalJobStatus = (typeof TERMINAL_JOB_STATUSES)[number]
+
+export type JobScheduleRunState =
+  | { kind: 'running' }
+  | { kind: 'unfinished' }
+  /**
+   * `finishedAt` is the display/ordering timestamp: for cancelled runs with a
+   * recorded cancelRequestedAt it is the cancel-request time (the row's real
+   * finishedAt may be much later when recovery settles it), otherwise the
+   * terminal-transition time.
+   */
+  | { kind: 'terminal'; status: TerminalJobStatus; finishedAt: number }
+
+type ActiveJobScheduleRow = {
+  scheduleId: string
+  /** SQLite `EXISTS` yields 0 | 1. */
+  running: number
+}
+
+type TerminalJobScheduleRunStateRow = {
+  scheduleId: string
+  status: JobStatus
+  finishedAt: number
+}
+
+type CancellingJobScheduleRow = {
+  scheduleId: string
+  /** NULL only for rows violating the write-site invariant (e.g. downgrade skew); the consumer guard drops them. */
+  cancelRequestedAt: number | null
+}
+
+function isTerminalJobStatus(status: JobStatus): status is TerminalJobStatus {
+  return TERMINAL_JOB_STATUSES.some((terminalStatus) => terminalStatus === status)
+}
+
 /**
- * Owning entity service for `jobTable`. JobManager and DataApi handlers reach
- * the table through this service — no direct Drizzle access elsewhere.
+ * Owning entity service for `jobTable` and its `job_file_ref` association rows.
+ * JobManager, DataApi handlers, and the async-job enqueue paths reach both tables
+ * through this service — no direct Drizzle access elsewhere.
  *
  * Tx-scoped methods (suffix `Tx`) accept a `DbOrTx` so JobManager can call them
  * inside its dispatch transaction (Layer 0 + Layer 1 mutex protect the section).
@@ -41,13 +80,28 @@ export class JobService {
 
   // ---------------- Read ----------------
 
-  async list(filter: JobListFilter = {}): Promise<JobSnapshot[]> {
-    const db = this.getDb()
+  /**
+   * WHERE composition shared by `list()` and `count()` — keeps the
+   * `count(f) === list(f).length` contract structural instead of mirrored by hand.
+   * Empty arrays (`status: []`, `type: []`) mean "no filter".
+   */
+  private listConditions(filter: Omit<JobListFilter, 'limit' | 'offset'>): SQL[] {
     const conditions: SQL[] = []
     if (filter.status?.length) conditions.push(inArray(jobTable.status, filter.status))
     if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
-    if (filter.type) conditions.push(eq(jobTable.type, filter.type))
+    if (Array.isArray(filter.type)) {
+      if (filter.type.length) conditions.push(inArray(jobTable.type, filter.type))
+    } else if (filter.type) {
+      conditions.push(eq(jobTable.type, filter.type))
+    }
     if (filter.scheduleId) conditions.push(eq(jobTable.scheduleId, filter.scheduleId))
+    if (filter.parentId) conditions.push(eq(jobTable.parentId, filter.parentId))
+    return conditions
+  }
+
+  list(filter: JobListFilter = {}): JobSnapshot[] {
+    const db = this.getDb()
+    const conditions = this.listConditions(filter)
 
     const baseQuery = conditions.length
       ? db
@@ -60,9 +114,9 @@ export class JobService {
     const rows =
       filter.limit !== undefined
         ? filter.offset !== undefined
-          ? await baseQuery.limit(filter.limit).offset(filter.offset)
-          : await baseQuery.limit(filter.limit)
-        : await baseQuery
+          ? baseQuery.limit(filter.limit).offset(filter.offset).all()
+          : baseQuery.limit(filter.limit).all()
+        : baseQuery.all()
 
     return rows.map((r) => this.rowToSnapshot(r))
   }
@@ -72,13 +126,9 @@ export class JobService {
    * composition mirrors `list()` so `count(f) === list(f).length` when no
    * pagination is applied.
    */
-  async count(filter: Omit<JobListFilter, 'limit' | 'offset'> = {}): Promise<number> {
+  count(filter: Omit<JobListFilter, 'limit' | 'offset'> = {}): number {
     const db = this.getDb()
-    const conditions: SQL[] = []
-    if (filter.status?.length) conditions.push(inArray(jobTable.status, filter.status))
-    if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
-    if (filter.type) conditions.push(eq(jobTable.type, filter.type))
-    if (filter.scheduleId) conditions.push(eq(jobTable.scheduleId, filter.scheduleId))
+    const conditions = this.listConditions(filter)
 
     const query = conditions.length
       ? db
@@ -87,12 +137,12 @@ export class JobService {
           .where(and(...conditions))
       : db.select({ count: count() }).from(jobTable)
 
-    const [r] = await query
+    const [r] = query.all()
     return r?.count ?? 0
   }
 
-  async getById(id: string): Promise<JobSnapshot | null> {
-    const [row] = await this.getDb().select().from(jobTable).where(eq(jobTable.id, id)).limit(1)
+  getById(id: string): JobSnapshot | null {
+    const [row] = this.getDb().select().from(jobTable).where(eq(jobTable.id, id)).limit(1).all()
     return row ? this.rowToSnapshot(row) : null
   }
 
@@ -101,13 +151,8 @@ export class JobService {
    * calls this for cross-restart deduplication: if a result is returned, reuse
    * the existing job's handle instead of creating a new row.
    */
-  async findActiveByIdempotencyKey(key: string): Promise<JobSnapshot | null> {
-    const [row] = await this.getDb()
-      .select()
-      .from(jobTable)
-      .where(and(eq(jobTable.idempotencyKey, key), inArray(jobTable.status, ACTIVE_STATUSES)))
-      .limit(1)
-    return row ? this.rowToSnapshot(row) : null
+  findActiveByIdempotencyKey(key: string): JobSnapshot | null {
+    return this.findActiveByIdempotencyKeyTx(this.getDb(), key)
   }
 
   /**
@@ -115,38 +160,212 @@ export class JobService {
    * Used by handler.onSettled to implement circuit-breaker logic without a
    * separate tracker table — jobTable is the single source of truth.
    */
-  async listRecentTerminalByScheduleId(scheduleId: string, limit: number): Promise<JobSnapshot[]> {
-    const rows = await this.getDb()
+  listRecentTerminalByScheduleId(scheduleId: string, limit: number): JobSnapshot[] {
+    const rows = this.getDb()
       .select()
       .from(jobTable)
       .where(and(eq(jobTable.scheduleId, scheduleId), inArray(jobTable.status, TERMINAL_JOB_STATUSES)))
       .orderBy(desc(jobTable.finishedAt))
       .limit(limit)
+      .all()
     return rows.map((r) => this.rowToSnapshot(r))
+  }
+
+  /**
+   * Batch schedule-level state read for list projections.
+   *
+   * Non-terminal rows with cancelRequested=true project as terminal `cancelled`
+   * at `cancelRequestedAt`: their fate is sealed — the live cancel path and
+   * startup recovery both end them as cancelled, but recovery's direct DB write
+   * bypasses onSettled and emits no read-model notification, so counting such a
+   * row as active would leave already-fetched lists showing "running" forever.
+   * Settled cancelled rows keep projecting `cancelRequestedAt` (their real
+   * `finishedAt` is the settle time — up to a process lifetime later for
+   * recovery), so the winner and timestamp are identical before and after the
+   * sweep.
+   */
+  getRunStatesByScheduleIds(type: string, scheduleIds: readonly string[]): Map<string, JobScheduleRunState> {
+    const uniqueScheduleIds = [...new Set(scheduleIds)]
+    if (uniqueScheduleIds.length === 0) return new Map()
+
+    const db = this.getDb()
+    const requestedSchedules = () =>
+      sql`WITH requested_schedules(schedule_id) AS (VALUES ${sql.join(
+        uniqueScheduleIds.map((scheduleId) => sql`(${scheduleId})`),
+        sql`, `
+      )})`
+    const terminalStatuses = sql.join(
+      TERMINAL_JOB_STATUSES.map((status) => sql`${status}`),
+      sql`, `
+    )
+
+    // Active rows have finished_at=NULL; the composite index makes each EXISTS
+    // a single seek even with an unbounded pending backlog.
+    const activeRows = db.all<ActiveJobScheduleRow>(sql`
+      ${requestedSchedules()}
+      SELECT
+        requested.schedule_id AS "scheduleId",
+        EXISTS (
+          SELECT 1
+          FROM job INDEXED BY job_schedule_id_finished_at_idx
+          WHERE job.schedule_id = requested.schedule_id
+            AND job.finished_at IS NULL
+            AND job.type = ${type}
+            AND job.status = 'running'
+            AND job.cancel_requested = 0
+        ) AS "running"
+      FROM requested_schedules AS requested
+      WHERE EXISTS (
+        SELECT 1
+        FROM job INDEXED BY job_schedule_id_finished_at_idx
+        WHERE job.schedule_id = requested.schedule_id
+          AND job.finished_at IS NULL
+          AND job.type = ${type}
+          AND job.cancel_requested = 0
+      )
+    `)
+
+    const cancellingRows = db.all<CancellingJobScheduleRow>(sql`
+      ${requestedSchedules()}
+      SELECT
+        requested.schedule_id AS "scheduleId",
+        cancelling.cancel_requested_at AS "cancelRequestedAt"
+      FROM requested_schedules AS requested
+      JOIN job AS cancelling ON cancelling.id = (
+        SELECT candidate.id
+        FROM job AS candidate INDEXED BY job_schedule_id_finished_at_idx
+        WHERE candidate.schedule_id = requested.schedule_id
+          AND candidate.finished_at IS NULL
+          AND candidate.cancel_requested = 1
+          AND candidate.type = ${type}
+        ORDER BY candidate.cancel_requested_at DESC
+        LIMIT 1
+      )
+    `)
+
+    // effective_finished_at: cancelled rows sort/display by their cancel-request
+    // time so the projection stays put when recovery later settles finished_at.
+    const terminalRows = db.all<TerminalJobScheduleRunStateRow>(sql`
+      ${requestedSchedules()}
+      SELECT
+        requested.schedule_id AS "scheduleId",
+        terminal.status,
+        CASE
+          WHEN terminal.status = 'cancelled' AND terminal.cancel_requested_at IS NOT NULL
+          THEN terminal.cancel_requested_at
+          ELSE terminal.finished_at
+        END AS "finishedAt"
+      FROM requested_schedules AS requested
+      JOIN job AS terminal ON terminal.id = (
+        SELECT candidate.id
+        FROM job AS candidate INDEXED BY job_schedule_id_finished_at_idx
+        WHERE candidate.schedule_id = requested.schedule_id
+          AND candidate.finished_at IS NOT NULL
+          AND candidate.status IN (${terminalStatuses})
+          AND candidate.type = ${type}
+        ORDER BY CASE
+          WHEN candidate.status = 'cancelled' AND candidate.cancel_requested_at IS NOT NULL
+          THEN candidate.cancel_requested_at
+          ELSE candidate.finished_at
+        END DESC,
+          -- Tie: the row with a real outcome beats the settled optimistic
+          -- cancel, matching the strict-> merge rule below across the sweep.
+          (candidate.status = 'cancelled' AND candidate.cancel_requested_at IS NOT NULL) ASC
+        LIMIT 1
+      )
+    `)
+
+    const runningByScheduleId = new Map(activeRows.map((row) => [row.scheduleId, row.running === 1]))
+    const terminalByScheduleId = new Map(terminalRows.map((row) => [row.scheduleId, row]))
+    const cancelRequestedAtByScheduleId = new Map(cancellingRows.map((row) => [row.scheduleId, row.cancelRequestedAt]))
+
+    return new Map(
+      uniqueScheduleIds.flatMap((scheduleId): Array<[string, JobScheduleRunState]> => {
+        const running = runningByScheduleId.get(scheduleId)
+        if (running !== undefined) return [[scheduleId, { kind: running ? 'running' : 'unfinished' }]]
+
+        const terminal = terminalByScheduleId.get(scheduleId)
+        // Strict > : on a timestamp tie the persisted terminal row beats the
+        // optimistic cancelled projection.
+        const cancellingAt = cancelRequestedAtByScheduleId.get(scheduleId)
+        if (cancellingAt != null && (!terminal || cancellingAt > terminal.finishedAt)) {
+          return [[scheduleId, { kind: 'terminal', status: 'cancelled', finishedAt: cancellingAt }]]
+        }
+        if (!terminal || !isTerminalJobStatus(terminal.status)) return []
+        return [[scheduleId, { kind: 'terminal', status: terminal.status, finishedAt: terminal.finishedAt }]]
+      })
+    )
   }
 
   // ---------------- Write (non-tx thin wrappers over Tx versions) ----------------
 
   /**
    * Non-tx write methods in this section are thin wrappers over their `*Tx`
-   * counterparts, routing through `DbService.withWriteTx` to serialize against
-   * other JobManager writes (avoids libsql issue #288 SQLITE_BUSY).
+   * counterparts, passing the bare connection — a single statement is atomic
+   * on better-sqlite3's one connection and needs no explicit transaction.
    *
    * Use the `*Tx` versions directly when composing multiple writes into one
-   * transaction (recovery, batch operations).
+   * transaction (recovery, batch operations, `JobManager.enqueueTx`).
    */
 
-  async create(dto: InsertJobRow): Promise<JobSnapshot> {
-    const dbService = application.get('DbService')
-    const result = await dbService.withWriteTx((tx) =>
-      withSqliteErrors(() => tx.insert(jobTable).values(dto).returning(), defaultHandlersFor('Job', dto.id ?? '<auto>'))
+  create(dto: InsertJobRow): JobSnapshot {
+    return this.createTx(this.getDb(), dto)
+  }
+
+  // ---------------- Tx-scoped (inside JobManager.dispatch transaction) ----------------
+
+  /**
+   * Insert a job row inside the caller's transaction. `withSqliteErrors` lives
+   * here so both `create` and transactional callers surface typed errors
+   * (e.g. an idempotency-key unique violation).
+   */
+  createTx(tx: DbOrTx, dto: InsertJobRow): JobSnapshot {
+    const result = withSqliteErrors(
+      () => tx.insert(jobTable).values(dto).returning().all(),
+      defaultHandlersFor('Job', dto.id ?? '<auto>')
     )
     const row = result[0]
     if (!row) throw new Error('jobService.create returned no row')
     return this.rowToSnapshot(row)
   }
 
-  // ---------------- Tx-scoped (inside JobManager.dispatch transaction) ----------------
+  /**
+   * Register the `job_file_ref` rows for the file entries an enqueued job reads
+   * (today: the async image-generation job's input images / mask). The ids also
+   * live in the job's `input` JSON, but the cleanup anti-join cannot see JSON —
+   * these rows are what keep `delete_when_unreferenced` inputs alive for the
+   * job's lifetime, and deleting the job row cascades them away, releasing the
+   * inputs for reclaim (file-entry-cleanup.md §5.1).
+   *
+   * Tx-scoped so the caller can compose it with `JobManager.enqueueTx` in one
+   * transaction: the job row and its refs must land or roll back together, or a
+   * recoverable job could run with unprotected inputs.
+   *
+   * A plain insert, deliberately: unlike painting refs — re-registered wholesale
+   * on every update, hence their `onConflictDoNothing` — a job's refs are written
+   * once at enqueue against a freshly-created job id. A `(fileEntryId, sourceId,
+   * role)` collision would mean the caller built duplicate rows for one job, which
+   * is a caller bug worth surfacing as a rolled-back enqueue rather than silently
+   * coalescing.
+   */
+  addFileRefsTx(tx: DbOrTx, rows: InsertJobFileRefRow[]): void {
+    if (rows.length === 0) return
+    tx.insert(jobFileRefTable).values(rows).run()
+  }
+
+  /**
+   * `findActiveByIdempotencyKey` reading through the caller's transaction, so
+   * `JobManager.enqueueTx` sees a consistent view of the key within its tx.
+   */
+  findActiveByIdempotencyKeyTx(tx: DbOrTx, key: string): JobSnapshot | null {
+    const [row] = tx
+      .select()
+      .from(jobTable)
+      .where(and(eq(jobTable.idempotencyKey, key), inArray(jobTable.status, ACTIVE_JOB_STATUSES)))
+      .limit(1)
+      .all()
+    return row ? this.rowToSnapshot(row) : null
+  }
 
   /**
    * Count currently-running jobs for a queue — checks queue concurrency.
@@ -154,11 +373,12 @@ export class JobService {
    * waiting on backoff and occupy no worker slot (mirrors `countRunningGlobalTx`).
    * Counting them would deadlock the queue once its backlog reaches concurrency.
    */
-  async countRunningByQueueTx(tx: DbOrTx, queue: string): Promise<number> {
-    const [r] = await tx
+  countRunningByQueueTx(tx: DbOrTx, queue: string): number {
+    const [r] = tx
       .select({ count: count() })
       .from(jobTable)
       .where(and(eq(jobTable.queue, queue), eq(jobTable.status, 'running')))
+      .all()
     return r?.count ?? 0
   }
 
@@ -167,8 +387,8 @@ export class JobService {
    * Only `running` counts toward the global cap: pending/delayed do not occupy
    * worker slots.
    */
-  async countRunningGlobalTx(tx: DbOrTx): Promise<number> {
-    const [r] = await tx.select({ count: count() }).from(jobTable).where(eq(jobTable.status, 'running'))
+  countRunningGlobalTx(tx: DbOrTx): number {
+    const [r] = tx.select({ count: count() }).from(jobTable).where(eq(jobTable.status, 'running')).all()
     return r?.count ?? 0
   }
 
@@ -182,9 +402,9 @@ export class JobService {
    * race against dispatch — see the cancel pending→running race fix. The
    * UPDATE re-checks both conditions for belt-and-suspenders correctness.
    */
-  async claimNextPendingTx(tx: DbOrTx, queue: string): Promise<JobRow | null> {
+  claimNextPendingTx(tx: DbOrTx, queue: string): JobRow | null {
     const now = Date.now()
-    const [candidate] = await tx
+    const [candidate] = tx
       .select()
       .from(jobTable)
       .where(
@@ -197,26 +417,29 @@ export class JobService {
       )
       .orderBy(asc(jobTable.priority), asc(jobTable.scheduledAt))
       .limit(1)
+      .all()
     if (!candidate) return null
 
-    const updated = await tx
+    const updated = tx
       .update(jobTable)
       .set({ status: 'running', startedAt: now, updatedAt: now })
       .where(and(eq(jobTable.id, candidate.id), eq(jobTable.status, 'pending'), eq(jobTable.cancelRequested, false)))
       .returning()
+      .all()
     return updated[0] ?? null
   }
 
   /** Move a job to a terminal state, persisting output and/or error. */
-  async setTerminalTx(
+  /** @returns false when the row was already terminal — an earlier finalize won. */
+  setTerminalTx(
     tx: DbOrTx,
     jobId: string,
     status: 'completed' | 'failed' | 'cancelled',
     output: unknown | undefined,
     error: JobError | null
-  ): Promise<void> {
+  ): boolean {
     const now = Date.now()
-    await tx
+    const result = tx
       .update(jobTable)
       .set({
         status,
@@ -228,23 +451,21 @@ export class JobService {
         output: output !== undefined ? output : null,
         error
       })
-      .where(eq(jobTable.id, jobId))
+      // First terminal write wins: `cancel()` force-finalizes a job whose handler
+      // ignored the abort signal, and that handler's later resolve must not
+      // resurrect the row as 'completed'.
+      .where(and(eq(jobTable.id, jobId), notInArray(jobTable.status, [...TERMINAL_JOB_STATUSES])))
+      .run()
+    return result.changes > 0
   }
 
   /**
    * Re-schedule a failed job for retry. Caller computes `scheduledAt = now + backoff(attempt+1)`.
    * Resets startedAt; preserves output/scheduleId/idempotencyKey.
    */
-  async setDelayedRetryTx(
-    tx: DbOrTx,
-    jobId: string,
-    attempt: number,
-    scheduledAt: number,
-    error: JobError | null
-  ): Promise<void> {
+  setDelayedRetryTx(tx: DbOrTx, jobId: string, attempt: number, scheduledAt: number, error: JobError | null): void {
     const now = Date.now()
-    await tx
-      .update(jobTable)
+    tx.update(jobTable)
       .set({
         status: 'delayed',
         attempt,
@@ -254,11 +475,29 @@ export class JobService {
         error
       })
       .where(eq(jobTable.id, jobId))
+      .run()
   }
 
-  async setCancelRequestedTx(tx: DbOrTx, jobId: string): Promise<void> {
+  setCancelRequestedTx(tx: DbOrTx, jobId: string): void {
     const now = Date.now()
-    await tx.update(jobTable).set({ cancelRequested: true, updatedAt: now }).where(eq(jobTable.id, jobId))
+    const activeStatuses = sql.join(
+      ACTIVE_JOB_STATUSES.map((status) => sql`${status}`),
+      sql`, `
+    )
+    tx.update(jobTable)
+      .set({
+        cancelRequested: true,
+        // Write-once and only while active — cancel() runs this before checking
+        // cancellability; a late stamp would resurface the run as the newest.
+        cancelRequestedAt: sql`CASE
+          WHEN ${jobTable.status} IN (${activeStatuses})
+          THEN COALESCE(${jobTable.cancelRequestedAt}, ${now})
+          ELSE ${jobTable.cancelRequestedAt}
+        END`,
+        updatedAt: now
+      })
+      .where(eq(jobTable.id, jobId))
+      .run()
   }
 
   /**
@@ -266,16 +505,16 @@ export class JobService {
    * persist cross-restart state (e.g. remote-poll providerTaskId). Caller
    * passes the merged object — drizzle's JSON column serializes it.
    */
-  async setMetadataTx(tx: DbOrTx, jobId: string, metadata: Record<string, unknown>): Promise<void> {
+  setMetadataTx(tx: DbOrTx, jobId: string, metadata: Record<string, unknown>): void {
     const now = Date.now()
-    await tx.update(jobTable).set({ metadata, updatedAt: now }).where(eq(jobTable.id, jobId))
+    tx.update(jobTable).set({ metadata, updatedAt: now }).where(eq(jobTable.id, jobId)).run()
   }
 
   // ---------------- Startup recovery (JobManager.onReady) ----------------
 
   /** All jobs currently marked `running` — typically orphans from a crash. */
-  async getStaleRunning(): Promise<JobRow[]> {
-    return this.getDb().select().from(jobTable).where(eq(jobTable.status, 'running'))
+  getStaleRunning(): JobRow[] {
+    return this.getDb().select().from(jobTable).where(eq(jobTable.status, 'running')).all()
   }
 
   /**
@@ -285,8 +524,8 @@ export class JobService {
    * delayed orphan would silently sit forever (no handler to ever run it,
    * no timer to surface it).
    */
-  async getStaleActive(): Promise<JobRow[]> {
-    return this.getDb().select().from(jobTable).where(inArray(jobTable.status, ACTIVE_STATUSES))
+  getStaleActive(): JobRow[] {
+    return this.getDb().select().from(jobTable).where(inArray(jobTable.status, ACTIVE_JOB_STATUSES)).all()
   }
 
   /**
@@ -297,12 +536,13 @@ export class JobService {
    * uuidv7 ids are lexicographically monotonic within a millisecond so this
    * gives a deterministic "newest" pick.
    */
-  async getActiveByType(type: string): Promise<JobRow[]> {
+  getActiveByType(type: string): JobRow[] {
     return this.getDb()
       .select()
       .from(jobTable)
-      .where(and(eq(jobTable.type, type), inArray(jobTable.status, ACTIVE_STATUSES)))
+      .where(and(eq(jobTable.type, type), inArray(jobTable.status, ACTIVE_JOB_STATUSES)))
       .orderBy(desc(jobTable.createdAt), desc(jobTable.id))
+      .all()
   }
 
   /**
@@ -323,34 +563,33 @@ export class JobService {
    * FIRST inserted concurrency value (first-writer-wins). All currently
    * shipped callers use type as queue, so this is a forward-compat note.
    */
-  async getDistinctActiveQueues(): Promise<Array<{ queue: string; type: string }>> {
+  getDistinctActiveQueues(): Array<{ queue: string; type: string }> {
     return this.getDb()
       .select({ queue: jobTable.queue, type: jobTable.type })
       .from(jobTable)
-      .where(inArray(jobTable.status, ACTIVE_STATUSES))
+      .where(inArray(jobTable.status, ACTIVE_JOB_STATUSES))
       .groupBy(jobTable.queue, jobTable.type)
+      .all()
   }
 
-  async resetToPendingByIdsTx(tx: DbOrTx, jobIds: string[]): Promise<void> {
+  resetToPendingByIdsTx(tx: DbOrTx, jobIds: string[]): void {
     if (jobIds.length === 0) return
     const now = Date.now()
-    await tx
-      .update(jobTable)
+    tx.update(jobTable)
       .set({ status: 'pending', startedAt: null, updatedAt: now })
       .where(inArray(jobTable.id, jobIds))
+      .run()
   }
 
-  async resetToPendingByIds(jobIds: string[]): Promise<void> {
+  resetToPendingByIds(jobIds: string[]): void {
     if (jobIds.length === 0) return
-    const dbService = application.get('DbService')
-    await dbService.withWriteTx((tx) => this.resetToPendingByIdsTx(tx, jobIds))
+    this.resetToPendingByIdsTx(application.get('DbService').getDb(), jobIds)
   }
 
-  async cancelByIdsTx(tx: DbOrTx, jobIds: string[], error: JobError | null): Promise<void> {
+  cancelByIdsTx(tx: DbOrTx, jobIds: string[], error: JobError | null): void {
     if (jobIds.length === 0) return
     const now = Date.now()
-    await tx
-      .update(jobTable)
+    tx.update(jobTable)
       .set({
         status: 'cancelled',
         finishedAt: now,
@@ -358,12 +597,12 @@ export class JobService {
         error
       })
       .where(inArray(jobTable.id, jobIds))
+      .run()
   }
 
-  async cancelByIds(jobIds: string[], error: JobError | null): Promise<void> {
+  cancelByIds(jobIds: string[], error: JobError | null): void {
     if (jobIds.length === 0) return
-    const dbService = application.get('DbService')
-    await dbService.withWriteTx((tx) => this.cancelByIdsTx(tx, jobIds, error))
+    this.cancelByIdsTx(application.get('DbService').getDb(), jobIds, error)
   }
 
   /**
@@ -378,29 +617,37 @@ export class JobService {
    * Used by JobManager.cancelMany — covers Phase 4 Knowledge reset() and
    * FileProcessing batch cancellation semantics.
    */
-  async cancelManyTx(
+  cancelManyTx(
     tx: DbOrTx,
     filter: { queue?: string; type?: string },
     error: JobError | null
-  ): Promise<{ runningIds: string[]; transitioned: number }> {
-    const conditions: SQL[] = [inArray(jobTable.status, ACTIVE_STATUSES)]
+  ): { runningIds: string[]; transitioned: number } {
+    const conditions: SQL[] = [inArray(jobTable.status, ACTIVE_JOB_STATUSES)]
     if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
     if (filter.type) conditions.push(eq(jobTable.type, filter.type))
 
-    const matching = await tx
+    const matching = tx
       .select()
       .from(jobTable)
       .where(and(...conditions))
+      .all()
     const runningIds = matching.filter((r) => r.status === 'running').map((r) => r.id)
     const nonRunningIds = matching.filter((r) => r.status !== 'running').map((r) => r.id)
 
     const now = Date.now()
     if (runningIds.length) {
-      await tx.update(jobTable).set({ cancelRequested: true, updatedAt: now }).where(inArray(jobTable.id, runningIds))
+      tx.update(jobTable)
+        .set({
+          cancelRequested: true,
+          cancelRequestedAt: sql`COALESCE(${jobTable.cancelRequestedAt}, ${now})`,
+          updatedAt: now
+        })
+        .where(inArray(jobTable.id, runningIds))
+        .run()
     }
     let transitioned = 0
     if (nonRunningIds.length) {
-      const result = await tx
+      const result = tx
         .update(jobTable)
         .set({
           status: 'cancelled',
@@ -409,7 +656,8 @@ export class JobService {
           error
         })
         .where(inArray(jobTable.id, nonRunningIds))
-      transitioned = result.rowsAffected
+        .run()
+      transitioned = result.changes
     }
     return { runningIds, transitioned }
   }
@@ -423,61 +671,68 @@ export class JobService {
    * The `WHERE status='delayed'` guard is intrinsic — only delayed rows are
    * promotion candidates — so the operation is naturally idempotent.
    */
-  async promoteDelayedDueTx(tx: DbOrTx, now: number): Promise<number> {
-    const result = await tx
+  promoteDelayedDueTx(tx: DbOrTx, now: number): number {
+    const result = tx
       .update(jobTable)
       .set({ status: 'pending', updatedAt: now })
       .where(and(eq(jobTable.status, 'delayed'), lte(jobTable.scheduledAt, now)))
-    return result.rowsAffected
+      .run()
+    return result.changes
   }
 
-  async promoteDelayedDue(now: number): Promise<number> {
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.promoteDelayedDueTx(tx, now))
+  promoteDelayedDue(now: number): number {
+    return this.promoteDelayedDueTx(application.get('DbService').getDb(), now)
   }
 
   // ---------------- GC ----------------
 
   /** Delete terminal jobs whose finishedAt is older than the cutoff. */
-  async pruneTerminalOlderThanTx(tx: DbOrTx, cutoffMs: number): Promise<number> {
-    const result = await tx
+  pruneTerminalOlderThanTx(tx: DbOrTx, cutoffMs: number): number {
+    const result = tx
       .delete(jobTable)
       .where(and(inArray(jobTable.status, TERMINAL_JOB_STATUSES), lte(jobTable.finishedAt, cutoffMs)))
-    return result.rowsAffected
+      .run()
+    return result.changes
   }
 
-  async pruneTerminalOlderThan(cutoffMs: number): Promise<number> {
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.pruneTerminalOlderThanTx(tx, cutoffMs))
+  pruneTerminalOlderThan(cutoffMs: number): number {
+    return this.pruneTerminalOlderThanTx(application.get('DbService').getDb(), cutoffMs)
   }
 
   /**
-   * Keep only the latest `keepPerType` terminal jobs per type; delete the rest.
-   * At Phase 1 scale (thousands of terminal rows total) this in-memory pass is
-   * cheaper than a window-function SQL and portable across SQLite versions.
+   * Keep only the latest `keepPerSchedule` terminal jobs per schedule (jobs
+   * without a schedule share one budget per type); delete the rest. Grouping
+   * per schedule is load-bearing: a chatty schedule (e.g. a default-on
+   * heartbeat ticking every 30 minutes) must not evict the run history of
+   * sibling schedules — `listRecentTerminalByScheduleId` circuit breakers and
+   * the run log both read that history. At Phase 1 scale (thousands of
+   * terminal rows total) this in-memory pass is cheaper than a
+   * window-function SQL and portable across SQLite versions.
    */
-  async pruneTerminalKeepLatestPerTypeTx(tx: DbOrTx, keepPerType: number): Promise<number> {
-    const allTerminal = await tx
-      .select({ id: jobTable.id, type: jobTable.type })
+  pruneTerminalKeepLatestPerScheduleTx(tx: DbOrTx, keepPerSchedule: number): number {
+    const allTerminal = tx
+      .select({ id: jobTable.id, type: jobTable.type, scheduleId: jobTable.scheduleId })
       .from(jobTable)
       .where(inArray(jobTable.status, TERMINAL_JOB_STATUSES))
       .orderBy(desc(jobTable.finishedAt))
+      .all()
 
-    const perType = new Map<string, number>()
+    const perSchedule = new Map<string, number>()
     const toDelete: string[] = []
     for (const row of allTerminal) {
-      const c = (perType.get(row.type) ?? 0) + 1
-      perType.set(row.type, c)
-      if (c > keepPerType) toDelete.push(row.id)
+      const key = row.scheduleId ?? `type:${row.type}`
+      const c = (perSchedule.get(key) ?? 0) + 1
+      perSchedule.set(key, c)
+      if (c > keepPerSchedule) toDelete.push(row.id)
     }
     if (toDelete.length === 0) return 0
-    const result = await tx.delete(jobTable).where(inArray(jobTable.id, toDelete))
-    return result.rowsAffected
+    const result = tx.delete(jobTable).where(inArray(jobTable.id, toDelete)).run()
+    return result.changes
   }
 
-  async pruneTerminalKeepLatestPerType(keepPerType: number): Promise<number> {
+  pruneTerminalKeepLatestPerSchedule(keepPerSchedule: number): number {
     const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.pruneTerminalKeepLatestPerTypeTx(tx, keepPerType))
+    return dbService.withWriteTx((tx) => this.pruneTerminalKeepLatestPerScheduleTx(tx, keepPerSchedule))
   }
 
   // ---------------- Row → Entity ----------------
@@ -519,6 +774,7 @@ export class JobService {
       error: row.error != null ? this.validateError(row.id, row.error) : null,
       parentId: row.parentId,
       cancelRequested: row.cancelRequested,
+      cancelRequestedAt: row.cancelRequestedAt != null ? timestampToISO(row.cancelRequestedAt) : null,
       metadata: row.metadata,
       timeoutMs: row.timeoutMs,
       createdAt: timestampToISO(row.createdAt),

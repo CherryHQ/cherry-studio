@@ -5,11 +5,16 @@ export { default as CopyButton } from './primitives/copy-button'
 export { default as CustomTag, type CustomTagProps } from './primitives/custom-tag'
 export { Divider, type DividerProps } from './primitives/divider'
 export { default as DividerWithText } from './primitives/divider-with-text'
-export * from './primitives/dropdown-menu'
 export { default as EmojiIcon } from './primitives/emoji-icon'
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/error-boundary'
 export { ErrorBoundary } from './primitives/error-boundary'
 export { default as IndicatorLight } from './primitives/indicator-light'
+export {
+  DialogPortalContainerProvider,
+  type PortalContainer,
+  PortalContainerProvider,
+  usePortalContainer
+} from './primitives/portal-container'
 export { default as Spinner } from './primitives/spinner'
 export { DescriptionSwitch, Switch } from './primitives/switch'
 export {
@@ -19,6 +24,7 @@ export {
   type TooltipProps,
   TooltipProvider,
   TooltipRoot,
+  TooltipSurface,
   TooltipTrigger
 } from './primitives/tooltip'
 
@@ -39,7 +45,12 @@ export {
 } from './composites/date-time-picker'
 export { default as Ellipsis } from './composites/ellipsis'
 export { default as EmojiAvatar } from './composites/emoji-avatar'
-export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/empty-state'
+export {
+  EmptyState,
+  type EmptyStateIllustration,
+  type EmptyStatePreset,
+  type EmptyStateProps
+} from './composites/empty-state'
 export {
   type EntityItemBase,
   EntitySelector,
@@ -81,9 +92,6 @@ export {
 } from './composites/code-editor'
 // DraggableList
 export { DraggableList, useDraggableReorder } from './composites/draggable-list'
-// EditableNumber
-export type { EditableNumberProps } from './composites/editable-number'
-export { default as EditableNumber } from './composites/editable-number'
 export {
   Form,
   FormControl,
@@ -98,6 +106,8 @@ export {
 export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './composites/icon-tooltips'
 // ImageToolButton
 export { default as ImageToolButton } from './composites/image-tool-button'
+// Markdown
+export * from './composites/markdown'
 // ImagePreview
 export {
   DEFAULT_IMAGE_PREVIEW_LABELS,
@@ -116,8 +126,11 @@ export {
   type ImagePreviewTransform,
   type ImagePreviewTransformControls,
   type ImagePreviewTransformOptions,
+  type ImagePreviewTransformUpdate,
   ImagePreviewTrigger,
   type ImagePreviewTriggerProps,
+  ImagePreviewViewport,
+  type ImagePreviewViewportProps,
   useImagePreviewTransform
 } from './composites/image-preview'
 // MenuList
@@ -126,7 +139,7 @@ export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/
 // PageHeader
 export { PageHeader, type PageHeaderProps } from './composites/page-header'
 // ReorderableList
-export { ReorderableList, type ReorderableListProps } from './composites/reorderable-list'
+export { ReorderableList, type ReorderableListProps, type SortableDragHandleProps } from './composites/reorderable-list'
 // Sortable
 export {
   CompositeInput,
@@ -134,7 +147,23 @@ export {
   type SelectGroup as CompositeInputSelectGroup,
   type SelectItem as CompositeInputSelectItem
 } from './composites/composite-input'
-export { Sortable } from './composites/sortable'
+export { BlurCancelPointerSensor, Sortable } from './composites/sortable'
+// TreeView
+export {
+  type DragPosition,
+  flattenTree,
+  type FlatTreeItem,
+  type RenderRowArgs,
+  type RenderRowFn,
+  type TreeDragHandleProps,
+  type TreeListSlotArgs,
+  type TreeNodeAdapter,
+  TreeView,
+  type TreeViewProps,
+  useExpandedState,
+  useSelectionState,
+  useTreeDragAndDrop
+} from './composites/tree-view'
 
 /* Shadcn Primitive Components */
 export * from './primitives/accordion'
@@ -150,9 +179,12 @@ export * from './primitives/command'
 export * from './primitives/context-menu'
 export * from './primitives/dialog'
 export * from './primitives/drawer'
+export * from './primitives/dropdown-menu'
 export * from './primitives/field'
+export * from './primitives/hover-card'
 export * from './primitives/input'
 export * from './primitives/input-group'
+export * from './primitives/input-number'
 export * from './primitives/item'
 export * from './primitives/kbd'
 export * from './primitives/label'

@@ -1,25 +1,24 @@
-import { LoadingOutlined } from '@ant-design/icons'
-import { RefreshIcon } from '@renderer/components/Icons'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { CircleX, Copy, Pause } from 'lucide-react'
-import type { FC } from 'react'
+import { CircleX, Copy, Loader2, Pause } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+
+import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
+
 interface FooterProps {
+  children?: ReactNode
   content?: string
   loading?: boolean
   onPause?: () => void
   onRegenerate?: () => void
 }
 
-const WindowFooter: FC<FooterProps> = ({
-  content = '',
-  loading = false,
-  onPause = undefined,
-  onRegenerate = undefined
-}) => {
+const WindowFooter: FC<FooterProps> = ({ children, content = '', loading = false, onPause, onRegenerate }) => {
   const { t } = useTranslation()
 
   const [isWindowFocus, setIsWindowFocus] = useState(true)
@@ -97,7 +96,7 @@ const WindowFooter: FC<FooterProps> = ({
     if (loading && onPause) {
       onPause()
     } else {
-      void window.api.windowManager.close()
+      void ipcApi.request('window.close')
     }
   }
 
@@ -133,7 +132,7 @@ const WindowFooter: FC<FooterProps> = ({
     navigator.clipboard
       .writeText(content)
       .then(() => {
-        window.toast.success(t('message.copy.success'))
+        toast.success(t('message.copy.success'))
         setIsCopyHovered(true)
         setTimeoutTimer(
           'handleCopy',
@@ -144,7 +143,7 @@ const WindowFooter: FC<FooterProps> = ({
         )
       })
       .catch(() => {
-        window.toast.error(t('message.copy.failed'))
+        toast.error(t('message.copy.failed'))
       })
   }
 
@@ -156,127 +155,64 @@ const WindowFooter: FC<FooterProps> = ({
     setIsWindowFocus(false)
   }
 
+  const footerButtonClassName = (enabled: boolean, hovered: boolean, danger = false) =>
+    cn(
+      'flex h-[22px] min-w-0 cursor-pointer flex-row items-center gap-1.5 overflow-hidden rounded bg-muted px-2 text-xs text-ellipsis whitespace-nowrap text-muted-foreground transition-colors select-none [&_.btn-icon]:shrink-0',
+      enabled ? 'opacity-100' : 'opacity-20',
+      danger
+        ? 'hover:text-error hover:[&_.btn-icon]:text-error'
+        : 'hover:text-foreground hover:[&_.btn-icon]:text-foreground',
+      hovered && (danger ? 'text-error [&_.btn-icon]:text-error' : 'text-foreground [&_.btn-icon]:text-foreground')
+    )
+
   return (
-    <Container
+    <div
       onMouseEnter={() => setIsContainerHovered(true)}
       onMouseLeave={() => setIsContainerHovered(false)}
-      $isHovered={isContainerHovered}
-      $showInitially={isShowMe}>
-      <OpButtonWrapper>
-        <OpButton onClick={handleEsc} $isWindowFocus={isWindowFocus} data-hovered={isEscHovered}>
+      className={cn(
+        'absolute bottom-0 left-1/2 flex h-8 w-[calc(100%-16px)] max-w-[480px] -translate-x-1/2 flex-row items-center justify-center rounded-lg px-2 py-1.5 backdrop-blur-sm transition-all duration-300 focus-within:opacity-100',
+        isShowMe || isContainerHovered ? 'opacity-100' : 'opacity-0'
+      )}>
+      <div className="flex max-w-full min-w-0 flex-row items-center justify-center gap-1.5 text-xs text-muted-foreground">
+        <button
+          type="button"
+          onClick={handleEsc}
+          className={footerButtonClassName(isWindowFocus, isEscHovered, loading)}>
           {loading ? (
             <>
-              <LoadingIconWrapper>
-                <Pause size={14} className="btn-icon loading-icon" style={{ position: 'absolute', left: 1, top: 1 }} />
-                <LoadingOutlined
-                  style={{ fontSize: 16, position: 'absolute', left: 0, top: 0 }}
-                  className="btn-icon loading-icon"
-                  spin
-                />
-              </LoadingIconWrapper>
-              {t('selection.action.window.esc_stop')}
+              <span className="relative size-4 shrink-0">
+                <Pause size={14} className="btn-icon absolute top-px left-px text-error" />
+                <Loader2 className="btn-icon absolute top-0 left-0 size-4 animate-spin text-error" />
+              </span>
+              <span className="truncate">{t('selection.action.window.esc_stop')}</span>
             </>
           ) : (
             <>
               <CircleX size={14} className="btn-icon" />
-              {t('selection.action.window.esc_close')}
+              <span className="truncate">{t('selection.action.window.esc_close')}</span>
             </>
           )}
-        </OpButton>
+        </button>
         {onRegenerate && (
-          <OpButton onClick={handleRegenerate} $isWindowFocus={isWindowFocus} data-hovered={isRegenerateHovered}>
+          <button
+            type="button"
+            onClick={handleRegenerate}
+            className={footerButtonClassName(isWindowFocus, isRegenerateHovered)}>
             <RefreshIcon size={14} className="btn-icon" />
-            {t('selection.action.window.r_regenerate')}
-          </OpButton>
+            <span className="truncate">{t('selection.action.window.r_regenerate')}</span>
+          </button>
         )}
-        <OpButton onClick={handleCopy} $isWindowFocus={isWindowFocus && !!content} data-hovered={isCopyHovered}>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className={footerButtonClassName(isWindowFocus && !!content, isCopyHovered)}>
           <Copy size={14} className="btn-icon" />
-          {t('selection.action.window.c_copy')}
-        </OpButton>
-      </OpButtonWrapper>
-    </Container>
+          <span className="truncate">{t('selection.action.window.c_copy')}</span>
+        </button>
+        {children}
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div<{ $isHovered: boolean; $showInitially: boolean }>`
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 480px;
-  min-width: min-content;
-  width: calc(100% - 16px);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  padding: 5px 8px;
-  height: 32px;
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
-  opacity: ${(props) => (props.$showInitially ? 1 : 0)};
-  transition: all 0.3s ease;
-
-  &:hover {
-    opacity: 1;
-  }
-`
-
-const OpButtonWrapper = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  gap: 6px;
-`
-
-const OpButton = styled.div<{ $isWindowFocus: boolean; $isHovered?: boolean }>`
-  cursor: pointer;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 5px;
-  padding: 0 8px;
-  border-radius: 4px;
-  background-color: var(--color-background-mute);
-  color: var(--color-text-secondary);
-  height: 22px;
-  opacity: ${(props) => (props.$isWindowFocus ? 1 : 0.2)};
-  transition: opacity 0.3s ease;
-  transition: color 0.2s ease;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  user-select: none;
-
-  .btn-icon {
-    color: var(--color-text-secondary);
-  }
-
-  .loading-icon {
-    color: var(--color-error);
-  }
-
-  &:hover,
-  &[data-hovered='true'] {
-    color: var(--color-primary) !important;
-
-    .btn-icon {
-      color: var(--color-primary) !important;
-      transition: color 0.2s ease;
-    }
-  }
-`
-
-const LoadingIconWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  width: 16px;
-  height: 16px;
-`
 
 export default WindowFooter

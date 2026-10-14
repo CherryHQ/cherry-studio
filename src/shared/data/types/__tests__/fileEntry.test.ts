@@ -1,11 +1,33 @@
 import { describe, expect, it } from 'vitest'
 
-import { FileEntryIdSchema, FileEntrySchema, SafeNameSchema } from '../file'
+import { SafeExtSchema } from '@shared/types/file'
+
+import { ContentHashSchema, FileEntryIdSchema, FileEntrySchema, SafeNameSchema } from '../file'
 
 // ─── Helpers ───
 
 const VALID_UUID_V7 = '019606a0-0000-7000-8000-000000000001'
 const TS = 1700000000000
+
+describe('ContentHashSchema', () => {
+  it.each(['xxh3-64:9555e8555c62dcfd', 'sha256-truncated:deadbeef00'])(
+    'accepts a lowercase algorithm-tagged hash: %s',
+    (value) => {
+      expect(ContentHashSchema.safeParse(value).success).toBe(true)
+    }
+  )
+
+  it.each([
+    '9555e8555c62dcfd',
+    ':9555e8555c62dcfd',
+    'xxh3-64:',
+    'XXH3-64:9555e8555c62dcfd',
+    'xxh3-64:9555E8555C62DCFD',
+    'xxh3-64:9555e8555c62dcfd '
+  ])('rejects a malformed content hash: %s', (value) => {
+    expect(ContentHashSchema.safeParse(value).success).toBe(false)
+  })
+})
 
 // After the BO/DB split, each variant's schema declares only its own fields
 // (strictObject — extra keys are rejected). Internal has no `externalPath` and
@@ -17,7 +39,9 @@ function makeInternal(overrides: Record<string, unknown> = {}) {
     origin: 'internal',
     name: 'readme',
     ext: 'md',
+    cleanupPolicy: 'manual',
     size: 1024,
+    contentHash: null,
     createdAt: TS,
     updatedAt: TS,
     ...overrides
@@ -30,6 +54,7 @@ function makeExternal(overrides: Record<string, unknown> = {}) {
     origin: 'external',
     name: 'report',
     ext: 'pdf',
+    cleanupPolicy: 'manual',
     externalPath: '/Users/me/documents/report.pdf',
     createdAt: TS,
     updatedAt: TS,
@@ -129,6 +154,10 @@ describe('FileEntrySchema origin invariants', () => {
       expect(FileEntrySchema.safeParse(makeInternal({ ext: null })).success).toBe(true)
     })
 
+    it('accepts internal with a tagged content hash', () => {
+      expect(FileEntrySchema.safeParse(makeInternal({ contentHash: 'xxh3-64:9555e8555c62dcfd' })).success).toBe(true)
+    })
+
     it('rejects internal with non-null externalPath', () => {
       const result = FileEntrySchema.safeParse(makeInternal({ externalPath: '/some/path' }))
       expect(result.success).toBe(false)
@@ -144,6 +173,10 @@ describe('FileEntrySchema origin invariants', () => {
       expect(FileEntrySchema.safeParse(makeExternal({ ext: null })).success).toBe(true)
     })
 
+    it('rejects external with contentHash', () => {
+      expect(FileEntrySchema.safeParse(makeExternal({ contentHash: 'xxh3-64:9555e8555c62dcfd' })).success).toBe(false)
+    })
+
     it('rejects external with null externalPath (schema requires non-null string)', () => {
       const result = FileEntrySchema.safeParse(makeExternal({ externalPath: null }))
       expect(result.success).toBe(false)
@@ -153,7 +186,6 @@ describe('FileEntrySchema origin invariants', () => {
       // strictObject parses external without externalPath as a missing field;
       // discriminator routing still picks the external arm via `origin`.
       const base = makeExternal()
-      // biome-ignore lint/performance/noDelete: we want the absent-field semantics
       delete (base as { externalPath?: string }).externalPath
       expect(FileEntrySchema.safeParse(base).success).toBe(false)
     })
@@ -219,7 +251,6 @@ describe('FileEntrySchema size/ext boundaries', () => {
 
   it('rejects internal with absent size (internal size is mandatory)', () => {
     const base = makeInternal()
-    // biome-ignore lint/performance/noDelete: we want the absent-field semantics
     delete (base as { size?: number }).size
     expect(FileEntrySchema.safeParse(base).success).toBe(false)
   })
@@ -247,8 +278,10 @@ describe('FileEntrySchema size/ext boundaries', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ ext: '' })).success).toBe(false)
   })
 
-  it('rejects ext with leading dot (convention: bare extension)', () => {
+  it('rejects ext with any dot (convention: bare extension)', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ ext: '.pdf' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'pdf.' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'tar.gz' })).success).toBe(false)
     expect(FileEntrySchema.safeParse(makeExternal({ ext: '.md' })).success).toBe(false)
   })
 
@@ -261,11 +294,14 @@ describe('FileEntrySchema size/ext boundaries', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ ext: 'pdf\0evil' })).success).toBe(false)
   })
 
-  it('rejects whitespace-only ext (use null for extensionless files)', () => {
+  it('rejects ext with any whitespace', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ ext: '   ' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'exe ' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'ex e' })).success).toBe(false)
+    expect(SafeExtSchema.safeParse('pdf\t').success).toBe(false)
   })
 
-  it('accepts ext with internal dots (e.g. tar.gz convention lives in name, not ext)', () => {
+  it('accepts bare extensions', () => {
     // `.tar.gz` is split as name='archive.tar', ext='gz' by splitName — this
     // test just confirms the schema itself allows bare multi-letter extensions.
     expect(FileEntrySchema.safeParse(makeInternal({ ext: 'gz' })).success).toBe(true)

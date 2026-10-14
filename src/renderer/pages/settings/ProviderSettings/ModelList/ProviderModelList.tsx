@@ -1,9 +1,7 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { ToggleLeft, ToggleRight } from 'lucide-react'
 import type React from 'react'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useCallback, useEffect, useState } from 'react'
 
+import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { EditModelDrawer } from './ModelDrawer'
 import ModelListHeader from './ModelListHeader'
@@ -11,104 +9,91 @@ import ModelListSections from './ModelListSections'
 import { useProviderModelList } from './useProviderModelList'
 
 interface ProviderModelListProps {
+  scrollElement?: HTMLDivElement | null
   providerId: string
   disabled: boolean
+  onContinueApiSetup?: () => void
   actions?: (state: { disabled: boolean; hasVisibleModels: boolean }) => React.ReactNode
-  enabledSectionActions?: (state: { disabled: boolean; hasVisibleModels: boolean }) => React.ReactNode
 }
 
 const ProviderModelList: React.FC<ProviderModelListProps> = ({
+  scrollElement,
   providerId,
   disabled,
-  actions,
-  enabledSectionActions
+  onContinueApiSetup,
+  actions
 }) => {
-  const { t } = useTranslation()
+  const [groupExpansionCommand, setGroupExpansionCommand] = useState({ expanded: true, version: 0 })
   const modelList = useProviderModelList({
     providerId,
     disabled
   })
-  const toolbarDisabled = disabled || modelList.isBulkUpdating
-  const bulkCloseLabel = t('settings.models.bulk_disable')
-  const bulkEnableLabel = t('settings.models.bulk_enable')
+  const providerMeta = useProviderMeta(providerId)
+  const showContinueApiSetup =
+    providerMeta.isApiKeyFieldVisible &&
+    providerMeta.provider?.authOptional !== true &&
+    providerMeta.provider?.apiKeys.some((entry) => entry.isEnabled) === true
+  const toolbarDisabled = disabled
+  const toggleGroupsExpanded = useCallback(() => {
+    setGroupExpansionCommand((current) => ({
+      expanded: !current.expanded,
+      version: current.version + 1
+    }))
+  }, [])
 
-  const handleCloseVisibleModels = useCallback(() => {
-    void Promise.resolve(modelList.header.onToggleVisibleModels(false)).catch(() => {
-      window.toast.error(t('settings.models.manage.operation_failed'))
-    })
-  }, [modelList.header, t])
+  useEffect(() => {
+    if (!modelList.header.searchText.trim()) {
+      return
+    }
 
-  const handleEnableVisibleModels = useCallback(() => {
-    void Promise.resolve(modelList.header.onToggleVisibleModels(true)).catch(() => {
-      window.toast.error(t('settings.models.manage.operation_failed'))
+    setGroupExpansionCommand((current) => {
+      if (current.expanded) {
+        return current
+      }
+
+      return {
+        expanded: true,
+        version: current.version + 1
+      }
     })
-  }, [modelList.header, t])
+  }, [modelList.header.searchText])
 
   return (
     <>
       <div className={modelListClasses.headerBlock}>
         <ModelListHeader
-          isBusy={toolbarDisabled}
+          providerId={providerId}
           hasNoModels={modelList.header.hasNoModels}
           searchText={modelList.header.searchText}
           setSearchText={modelList.header.setSearchText}
-          selectedCapabilityFilter={modelList.header.selectedCapabilityFilter}
-          setSelectedCapabilityFilter={modelList.header.setSelectedCapabilityFilter}
-          capabilityOptions={modelList.header.capabilityOptions}
-          capabilityModelCounts={modelList.header.capabilityModelCounts}
+          selectedTypeFilter={modelList.header.selectedTypeFilter}
+          setSelectedTypeFilter={modelList.header.setSelectedTypeFilter}
+          typeCounts={modelList.header.typeCounts}
+          groupsExpanded={groupExpansionCommand.expanded}
+          onToggleGroupsExpanded={toggleGroupsExpanded}
+          docsWebsite={providerMeta.docsWebsite}
+          modelsWebsite={providerMeta.modelsWebsite}
           actions={actions?.({
             disabled: toolbarDisabled,
             hasVisibleModels: modelList.header.hasVisibleModels
           })}
         />
         <ModelListSections
+          scrollElement={scrollElement}
+          provider={providerMeta.provider}
           isLoading={modelList.sections.isLoading}
           hasNoModels={modelList.sections.hasNoModels}
           hasVisibleModels={modelList.sections.hasVisibleModels}
-          displayEnabledModelCount={modelList.sections.displayEnabledModelCount}
           enabledSections={modelList.sections.enabledSections}
-          disabledSections={modelList.sections.disabledSections}
-          displayDisabledModelCount={modelList.sections.displayDisabledModelCount}
           disabled={modelList.sections.disabled}
           pendingModelIds={modelList.sections.pendingModelIds}
+          defaultModelIds={modelList.sections.defaultModelIds}
           onEditModel={modelList.sections.onEditModel}
-          onToggleModel={modelList.sections.onToggleModel}
-          onToggleModels={modelList.sections.onToggleModels}
+          onDeleteModel={modelList.sections.onDeleteModel}
+          onDeleteModels={modelList.sections.onDeleteModels}
           bulkActionDisabled={toolbarDisabled}
-          enabledSectionActions={
-            <>
-              <Tooltip content={bulkCloseLabel}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={bulkCloseLabel}
-                  className={modelListClasses.subsectionIconButton}
-                  disabled={!modelList.header.hasVisibleModels || toolbarDisabled}
-                  onClick={handleCloseVisibleModels}>
-                  <ToggleLeft className={modelListClasses.subsectionIcon} />
-                </Button>
-              </Tooltip>
-              {enabledSectionActions?.({
-                disabled: toolbarDisabled,
-                hasVisibleModels: modelList.header.hasVisibleModels
-              })}
-            </>
-          }
-          disabledSectionActions={
-            <Tooltip content={bulkEnableLabel}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={bulkEnableLabel}
-                className={modelListClasses.subsectionIconButton}
-                disabled={!modelList.header.hasVisibleModels || modelList.header.allEnabled || toolbarDisabled}
-                onClick={handleEnableVisibleModels}>
-                <ToggleRight className={modelListClasses.subsectionIcon} />
-              </Button>
-            </Tooltip>
-          }
+          expansionCommand={groupExpansionCommand}
+          onContinueApiSetup={showContinueApiSetup ? onContinueApiSetup : undefined}
         />
       </div>
       <EditModelDrawer

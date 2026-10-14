@@ -1,3 +1,10 @@
+---
+description: Migrating direct BrowserWindow creation to WindowManager — WindowType enum, registry entry, and open/close call sites
+sources:
+  - src/main/core/window/windowRegistry.ts
+  - src/main/core/window/types.ts
+---
+
 # Window Migration Guide
 
 How to migrate an existing window from direct `BrowserWindow` creation to WindowManager.
@@ -22,7 +29,7 @@ WINDOW_TYPE_REGISTRY[WindowType.MyWindow] = {
   type: WindowType.MyWindow,
   lifecycle: 'singleton',       // or 'default' or 'pooled'
   htmlPath: 'my-window.html',
-  // preload omitted → defaults to 'index.js'. Write basename (with extension)
+  // preload omitted → defaults to 'preload.js'. Write basename (with extension)
   // to select a different file in src/preload/. Empty string → no preload.
   // preload: 'simplest.js',
   showMode: 'auto',             // 'auto' | 'immediate' | 'manual'
@@ -103,11 +110,13 @@ See [Injecting behavior: `onWindowCreated` is the canonical hook](./window-manag
 | `this.window = new BrowserWindow(...)` | `wm.open(WindowType.MyWindow)` |
 | `this.window.show()` | `wm.show(windowId)` |
 | `this.window.hide()` | `wm.hide(windowId)` |
-| `this.window.close()` | `wm.close(windowId)` |
-| `this.window.webContents.send(...)` | `wm.getWindow(windowId)?.webContents.send(...)` or `wm.broadcastToType(...)` |
+| `this.window.close()` | `wm.close(windowId)` — except when a native `close` listener owns the policy (see note) |
+| `this.window.webContents.send(...)` | For a typed product event, `IpcApiService.send(...)` / `broadcastToType(...)`; keep WindowManager's raw broadcast only for a remaining legacy channel |
 | `BrowserWindow.fromWebContents(e.sender)` | `wm.getWindowIdByWebContents(e.sender)` |
 
 Note: there is intentionally no entry for `this.window.destroy()`. `wm.close()` already handles destruction for non-pooled windows and pool-return for pooled windows. `wm.destroy()` is an internal primitive — see [Window API layers](./window-manager-usage.md#window-api-layers-consumer-vs-internal).
+
+Note: `wm.close()` destroys via `window.destroy()` and therefore skips the native `close` event. If your window's close behavior lives in a `close` listener, keep `win.close()` in the owning service and expose it as a method instead — see the [`close`-event carve-out](./window-manager-usage.md#window-api-layers-consumer-vs-internal).
 
 ## Step 5: Handle show behavior
 
@@ -123,7 +132,7 @@ If your window needs custom show timing, set `showMode: 'manual'` in the registr
 - [ ] Added `WindowType` enum value in `types.ts`
 - [ ] Registered metadata in `WINDOW_TYPE_REGISTRY` in `windowRegistry.ts`
 - [ ] Chose the correct lifecycle mode (`default` / `singleton` / `pooled`)
-- [ ] Set `preload` filename if not using the default (`'index.js'`)
+- [ ] Set `preload` filename if not using the default (`'preload.js'`)
 - [ ] Set `showMode` behavior (`'auto'` / `'immediate'` / `'manual'`)
 - [ ] Set `behavior.macShowInDock: false` ONLY for helper windows (floating panels, selection overlays); primary app windows leave it at the default `true`. Use `wm.behavior.setMacShowInDockByType(type, value)` for runtime tray-mode transitions, not a different registry default.
 - [ ] Declared `behavior.hideOnBlur` / `behavior.alwaysOnTop` / `behavior.visibleOnAllWorkspaces` as needed

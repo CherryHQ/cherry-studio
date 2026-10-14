@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 
-import { localTraceWindowSink } from '../cache/LocalTraceWindowSink'
+import { localTraceWindowSink } from '../storage/LocalTraceWindowSink'
 import type { ObservabilitySink } from './ObservabilitySink'
 
 const logger = loggerService.withContext('ObservabilitySinkRegistry')

@@ -1,8 +1,12 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { describe, expect, it } from 'vitest'
+import { ZodError } from 'zod'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import { translateHistoryFileRefTable } from '@data/db/schemas/fileRelations'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import type { CreateTranslateHistoryDto, UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
-import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it } from 'vitest'
 
 describe('TranslateHistoryService', () => {
   const dbh = setupTestDatabase()
@@ -21,18 +25,58 @@ describe('TranslateHistoryService', () => {
     return values
   }
 
+  const TRANSLATED_ENTRY_ID = '019606a0-0000-7000-8000-000000000001'
+  const SOURCE_ENTRY_ID = '019606a0-0000-7000-8000-000000000002'
+
+  async function seedFileEntries() {
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values([
+      {
+        id: TRANSLATED_ENTRY_ID,
+        origin: 'internal',
+        name: 'paper.zh-CN',
+        ext: 'pdf',
+        size: 2048,
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: SOURCE_ENTRY_ID,
+        origin: 'external',
+        name: 'paper',
+        ext: 'pdf',
+        externalPath: '/tmp/paper.pdf',
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: now,
+        updatedAt: now
+      }
+    ])
+  }
+
+  function createFileHistory(includeSource = true) {
+    return translateHistoryService.createFileTx(dbh.db, {
+      sourceText: 'paper.pdf',
+      targetText: 'paper.zh-CN.pdf',
+      sourceLanguage: null,
+      targetLanguage: null,
+      targetFileEntryId: TRANSLATED_ENTRY_ID,
+      ...(includeSource ? { sourceFileEntryId: SOURCE_ENTRY_ID } : {})
+    })
+  }
+
   describe('list', () => {
     it('should return cursor paginated results with defaults', async () => {
       await seedHistory()
 
-      const result = await translateHistoryService.list({ limit: 20 })
+      const result = translateHistoryService.list({ limit: 20 })
       expect(result.items).toHaveLength(1)
       expect(result.total).toBe(1)
       expect(result.nextCursor).toBeUndefined()
     })
 
     it('should return empty results', async () => {
-      const result = await translateHistoryService.list({ limit: 20 })
+      const result = translateHistoryService.list({ limit: 20 })
       expect(result.items).toHaveLength(0)
       expect(result.total).toBe(0)
       expect(result.nextCursor).toBeUndefined()
@@ -55,11 +99,11 @@ describe('TranslateHistoryService', () => {
         updatedAt: 1000
       })
 
-      const firstPage = await translateHistoryService.list({ limit: 2 })
+      const firstPage = translateHistoryService.list({ limit: 2 })
       expect(firstPage.items.map((item) => item.id)).toEqual([newest.id, middle.id])
       expect(firstPage.nextCursor).toBe(`${middle.createdAt}:${middle.id}`)
 
-      const secondPage = await translateHistoryService.list({ cursor: firstPage.nextCursor, limit: 2 })
+      const secondPage = translateHistoryService.list({ cursor: firstPage.nextCursor, limit: 2 })
       expect(secondPage.items.map((item) => item.id)).toEqual([oldest.id])
       expect(secondPage.nextCursor).toBeUndefined()
     })
@@ -68,20 +112,20 @@ describe('TranslateHistoryService', () => {
       await seedHistory({ sourceText: 'Hello world' })
       await seedHistory({ id: '550e8400-e29b-41d4-a716-446655440001', sourceText: 'Goodbye' })
 
-      const result = await translateHistoryService.list({ limit: 20, search: 'Hello' })
+      const result = translateHistoryService.list({ limit: 20, search: 'Hello' })
       expect(result.items.length).toBeGreaterThanOrEqual(1)
       expect(result.items.some((i) => i.sourceText.includes('Hello'))).toBe(true)
     })
 
     it('should escape LIKE wildcards in search', async () => {
-      await expect(translateHistoryService.list({ limit: 20, search: '100% off_sale\\test' })).resolves.toBeDefined()
+      expect(translateHistoryService.list({ limit: 20, search: '100% off_sale\\test' })).toBeDefined()
     })
 
     it('should filter by star', async () => {
       await seedHistory({ star: true })
       await seedHistory({ id: '550e8400-e29b-41d4-a716-446655440002', star: false })
 
-      const result = await translateHistoryService.list({ limit: 20, star: true })
+      const result = translateHistoryService.list({ limit: 20, star: true })
       expect(result.items.every((i) => i.star === true)).toBe(true)
     })
   })
@@ -90,14 +134,20 @@ describe('TranslateHistoryService', () => {
     it('should return a translate history by id', async () => {
       const seeded = await seedHistory()
 
-      const result = await translateHistoryService.getById(seeded.id!)
+      const result = translateHistoryService.getById(seeded.id!)
       expect(result.id).toBe(seeded.id)
       expect(result.sourceText).toBe('Hello')
       expect(result.targetText).toBe('Bonjour')
     })
 
     it('should throw NotFound for non-existent id', async () => {
-      await expect(translateHistoryService.getById('non-existent')).rejects.toThrow()
+      expect(() => translateHistoryService.getById('non-existent')).toThrow()
+    })
+
+    it('should reject an invalid persisted history kind at the read boundary', async () => {
+      const seeded = await seedHistory({ kind: 'corrupt' as never })
+
+      expect(() => translateHistoryService.getById(seeded.id!)).toThrow(ZodError)
     })
   })
 
@@ -110,11 +160,71 @@ describe('TranslateHistoryService', () => {
         targetText: 'Bonjour'
       } as CreateTranslateHistoryDto
 
-      const result = await translateHistoryService.create(dto)
+      const result = translateHistoryService.create(dto)
       expect(result.sourceText).toBe('Hello')
 
       const rows = await dbh.db.select().from(translateHistoryTable)
       expect(rows).toHaveLength(1)
+      expect(rows[0].kind).toBe('text')
+    })
+  })
+
+  describe('createFileTx', () => {
+    it('should write the history row and both file refs', async () => {
+      await seedFileEntries()
+
+      const created = createFileHistory()
+
+      expect(created.kind).toBe('file')
+      const refs = await dbh.db.select().from(translateHistoryFileRefTable)
+      expect(refs.map((ref) => [ref.role, ref.fileEntryId, ref.sourceId])).toEqual([
+        ['target', TRANSLATED_ENTRY_ID, created.id],
+        ['source', SOURCE_ENTRY_ID, created.id]
+      ])
+    })
+
+    it('should write the required target without an optional source', async () => {
+      await seedFileEntries()
+
+      const created = createFileHistory(false)
+
+      expect(await dbh.db.select().from(translateHistoryFileRefTable)).toEqual([
+        expect.objectContaining({ role: 'target', fileEntryId: TRANSLATED_ENTRY_ID, sourceId: created.id })
+      ])
+    })
+
+    it('should reject a second file for the same history role', async () => {
+      await seedFileEntries()
+      const created = createFileHistory()
+
+      expect(() =>
+        dbh.db
+          .insert(translateHistoryFileRefTable)
+          .values({ sourceId: created.id, fileEntryId: SOURCE_ENTRY_ID, role: 'target' })
+          .run()
+      ).toThrow(/UNIQUE constraint failed/)
+    })
+
+    it('should cascade its refs away when the history row is deleted', async () => {
+      await seedFileEntries()
+      const created = createFileHistory()
+
+      translateHistoryService.delete(created.id)
+
+      // The cascade is what releases the translated PDF to the cleanup anti-join.
+      expect(await dbh.db.select().from(translateHistoryFileRefTable)).toHaveLength(0)
+      // Deleting refs must not touch the entries themselves — reclaiming them is the
+      // cleanup pass's call, and the source entry only ever referenced the user's file.
+      expect(await dbh.db.select().from(fileEntryTable)).toHaveLength(2)
+    })
+
+    it('should cascade its refs away when history is cleared', async () => {
+      await seedFileEntries()
+      createFileHistory()
+
+      translateHistoryService.clearAll()
+
+      expect(await dbh.db.select().from(translateHistoryFileRefTable)).toHaveLength(0)
     })
   })
 
@@ -123,7 +233,7 @@ describe('TranslateHistoryService', () => {
       const seeded = await seedHistory()
 
       const dto: UpdateTranslateHistoryDto = { star: true }
-      const result = await translateHistoryService.update(seeded.id!, dto)
+      const result = translateHistoryService.update(seeded.id!, dto)
       expect(result.star).toBe(true)
 
       const [row] = await dbh.db.select().from(translateHistoryTable)
@@ -133,23 +243,49 @@ describe('TranslateHistoryService', () => {
     it('should return existing record on empty update', async () => {
       const seeded = await seedHistory()
 
-      const result = await translateHistoryService.update(seeded.id!, {})
+      const result = translateHistoryService.update(seeded.id!, {})
       expect(result.id).toBe(seeded.id)
     })
+
+    it('should allow starring a file history without changing its snapshot', async () => {
+      await seedFileEntries()
+      const created = createFileHistory()
+
+      const result = translateHistoryService.update(created.id, { star: true })
+
+      expect(result.star).toBe(true)
+      expect(result.sourceText).toBe('paper.pdf')
+      expect(result.targetText).toBe('paper.zh-CN.pdf')
+    })
+
+    it.each([
+      ['source text', { sourceText: 'renamed.pdf' }],
+      ['target text', { targetText: 'renamed.zh-CN.pdf' }],
+      ['source language', { sourceLanguage: null }],
+      ['target language', { targetLanguage: null }]
+    ] satisfies [string, UpdateTranslateHistoryDto][])(
+      'should reject %s changes for file histories',
+      async (_field, dto) => {
+        await seedFileEntries()
+        const created = createFileHistory()
+
+        expect(() => translateHistoryService.update(created.id, dto)).toThrow('only star can be changed')
+      }
+    )
   })
 
   describe('delete', () => {
     it('should delete an existing translate history', async () => {
       const seeded = await seedHistory()
 
-      await expect(translateHistoryService.delete(seeded.id!)).resolves.toBeUndefined()
+      expect(translateHistoryService.delete(seeded.id!)).toBeUndefined()
 
       const rows = await dbh.db.select().from(translateHistoryTable)
       expect(rows).toHaveLength(0)
     })
 
     it('should throw NotFound for non-existent id', async () => {
-      await expect(translateHistoryService.delete('non-existent')).rejects.toThrow()
+      expect(() => translateHistoryService.delete('non-existent')).toThrow()
     })
   })
 
@@ -158,7 +294,7 @@ describe('TranslateHistoryService', () => {
       await seedHistory()
       await seedHistory({ id: '550e8400-e29b-41d4-a716-446655440003', sourceText: 'Another' })
 
-      await expect(translateHistoryService.clearAll()).resolves.toBeUndefined()
+      expect(translateHistoryService.clearAll()).toBeUndefined()
 
       const rows = await dbh.db.select().from(translateHistoryTable)
       expect(rows).toHaveLength(0)

@@ -1,11 +1,13 @@
-import { Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
-import { Dmxapi } from '@cherrystudio/ui/icons'
-import { useProvider } from '@renderer/hooks/useProvider'
-import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
-import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
+import { Dmxapi } from '@cherrystudio/ui/icons/providers'
+import { useProvider } from '@renderer/hooks/useProvider'
+import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import { toast } from '@renderer/services/toast'
+import type { Provider } from '@shared/data/types/provider'
 
 import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
 
@@ -73,15 +75,15 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
         await updateProvider({ endpointConfigs: newEndpointConfigs })
       } catch {
         setSelectedPlatform(previous)
-        window.toast.error(t('settings.provider.save_failed'))
+        toast.error(t('settings.provider.save_failed'))
       }
     },
     [provider, t, updateProvider]
   )
 
   return (
-    <div className="mt-4 mb-[30px]">
-      <div className="mb-[30px] flex flex-col items-center justify-center">
+    <div className="mt-4 mb-7.5">
+      <div className="mb-7.5 flex flex-col items-center justify-center">
         <Dmxapi height={70} width="auto" />
       </div>
 
@@ -100,14 +102,10 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
             return (
               <div key={option.value} className="flex items-start gap-2">
                 <RadioGroupItem value={option.value} id={id} className="mt-0.5" />
-                <Label htmlFor={id} className="max-w-full cursor-pointer font-normal leading-snug">
+                <Label htmlFor={id} className="max-w-full cursor-pointer leading-snug font-normal">
                   <span>
                     {option.label}{' '}
-                    <a
-                      href={option.apiKeyWebsite}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline-offset-4 hover:underline">
+                    <a href={option.apiKeyWebsite} target="_blank" rel="noopener noreferrer" className="text-link">
                       ({t('settings.provider.get_api_key')})
                     </a>
                   </span>

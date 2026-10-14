@@ -1,19 +1,20 @@
-import { EmptyState } from '@cherrystudio/ui'
 import { Clock, LoaderCircle, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@cherrystudio/ui'
+
 import RecallResultCard from './RecallResultCard'
-import { useRecallTest } from './RecallTestProvider'
+import { useRecallResult } from './RecallTestProvider'
 import { formatRecallPercent, formatRecallScore } from './utils'
 
 const RecallResultSummary = () => {
   const { t } = useTranslation()
   const {
     state: { results, duration, topScore, scoreKind }
-  } = useRecallTest()
+  } = useRecallResult()
 
   return (
-    <div className="flex items-center justify-between gap-4 border-border-muted border-b px-4 py-3 text-foreground-muted text-xs leading-4">
+    <div className="flex items-center justify-between gap-4 border-b border-border-subtle px-4 py-3 text-xs leading-4 text-foreground-tertiary">
       <div className="flex items-center gap-2.5">
         <span className="flex items-center gap-0.5">
           <Sparkles className="size-3" />
@@ -38,10 +39,10 @@ const RecallResultSummary = () => {
 const RecallResults = () => {
   const {
     state: { results }
-  } = useRecallTest()
+  } = useRecallResult()
 
   return (
-    <div className="mx-auto h-full w-full min-w-0 max-w-3xl overflow-y-auto overflow-x-hidden rounded-lg border border-border-subtle bg-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="mx-auto h-full w-full max-w-3xl min-w-0 overflow-x-hidden overflow-y-auto rounded-lg border border-border-subtle bg-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <RecallResultSummary />
       <div className="min-w-0 space-y-2 p-3">
         {results.map((item, index) => (
@@ -56,7 +57,7 @@ const RecallEmptyState = () => {
   const { t } = useTranslation()
 
   return (
-    <div className="h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden">
+    <div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:hidden">
       <EmptyState
         preset="no-result"
         title={t('knowledge.recall.empty_title')}
@@ -71,7 +72,7 @@ const RecallSearchingState = () => {
   const { t } = useTranslation()
 
   return (
-    <div className="flex h-full min-h-full flex-col items-center justify-center py-12 text-center text-foreground-muted">
+    <div className="flex h-full min-h-full flex-col items-center justify-center py-12 text-center text-foreground-tertiary">
       <LoaderCircle className="size-5.5 animate-spin text-primary" />
       <p className="mt-2 text-sm leading-5">{t('knowledge.recall.searching')}</p>
     </div>
@@ -81,11 +82,11 @@ const RecallSearchingState = () => {
 const RecallTestBody = () => {
   const {
     state: { isSearching, hasSearched }
-  } = useRecallTest()
+  } = useRecallResult()
 
   if (isSearching) {
     return (
-      <div className="h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden">
+      <div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:hidden">
         <RecallSearchingState />
       </div>
     )

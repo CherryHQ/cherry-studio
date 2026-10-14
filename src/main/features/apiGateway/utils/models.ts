@@ -1,8 +1,13 @@
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import type { Model } from '@shared/data/types/model'
+import { getAppEdition } from '@main/utils/appEdition'
+import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { isGatewayRoutableModel } from '@shared/utils/model'
+import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ApiGatewayModels')
 
@@ -28,10 +33,18 @@ export interface ModelsFilter {
   limit?: number
 }
 
+export interface ResolvedGatewayModelAddress {
+  providerId: string
+  apiModelId: string
+  uniqueModelId: UniqueModelId
+  provider: Provider
+  model: Model
+}
+
 /** Enabled providers from the data layer (`ProviderService`, not Redux). */
-async function getAvailableProviders(): Promise<Provider[]> {
+function getAvailableProviders(): Provider[] {
   try {
-    return await providerService.list({ enabled: true })
+    return providerService.list({ enabled: true })
   } catch (error) {
     logger.error('Failed to list providers', error as Error)
     return []
@@ -42,16 +55,17 @@ async function getAvailableProviders(): Promise<Provider[]> {
 async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> {
   try {
     if (!providers) {
-      return await modelService.list({ enabled: true })
+      return modelService.list({ enabled: true })
     }
-    const results = await Promise.allSettled(
-      providers.map((p) => modelService.list({ providerId: p.id, enabled: true }))
-    )
-    return results.flatMap((result, i) => {
-      if (result.status === 'fulfilled') return result.value
-      logger.error(`Failed to list models for provider ${providers[i].id}`, result.reason as Error)
-      return []
-    })
+    const models: Model[] = []
+    for (const provider of providers) {
+      try {
+        models.push(...modelService.list({ providerId: provider.id, enabled: true }))
+      } catch (error) {
+        logger.error(`Failed to list models for provider ${provider.id}`, error as Error)
+      }
+    }
+    return models
   } catch (error) {
     logger.error('Failed to list available models', error as Error)
     return []
@@ -60,16 +74,54 @@ async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> 
 
 /**
  * Project a data-layer `Model` into the OpenAI `/v1/models` entry shape. The `id` is
- * the gateway-addressable `"providerId:modelId"`.
+ * the gateway-addressable `"providerId:apiModelId"`.
  */
 function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
-  const apiModelId = model.apiModelId ?? model.id
+  const apiModelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
   return {
-    id: `${model.providerId}:${apiModelId}`,
+    id: formatGatewayModelId(model.providerId, apiModelId),
     object: 'model',
     created: Math.floor(Date.now() / 1000),
     owned_by: model.ownedBy || provider?.name || model.providerId
   }
+}
+
+/** Resolve a `providerId:apiModelId`; Agent-only models require an authenticated internal request. */
+export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly = false): ResolvedGatewayModelAddress {
+  const sepIdx = modelAddress.indexOf(':')
+  if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
+    throw new Error(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`)
+  }
+
+  const providerId = modelAddress.slice(0, sepIdx)
+  const apiModelId = modelAddress.slice(sepIdx + 1)
+  if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
+    throw new Error('CherryAI managed default model is not available through the API gateway')
+  }
+
+  let provider: Provider
+  try {
+    provider = providerService.getByProviderId(providerId)
+  } catch {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+  if (!provider.isEnabled || isExternalCliProvider(provider)) {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+  if (!allowAgentOnly && isAgentOnlyProvider(provider, getAppEdition())) {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+
+  const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
+    if (!isGatewayRoutableModel(candidate)) return false
+    const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
+    return candidateApiModelId === apiModelId
+  })
+  if (!model) {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+
+  return { providerId, apiModelId, uniqueModelId: model.id, provider, model }
 }
 
 /**
@@ -79,13 +131,25 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
  */
 export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsResponse> {
   try {
-    const providers = await getAvailableProviders()
+    const providers = getAvailableProviders()
     const models = await listAllAvailableModels(providers)
 
-    // Deduplicate by the gateway-addressable id ("providerId:modelId").
+    // Deduplicate by the gateway-addressable id ("providerId:apiModelId").
     const uniqueModels = new Map<string, ApiModel>()
     for (const model of models) {
       const provider = providers.find((p) => p.id === model.providerId)
+      // Agent-only providers (external-CLI, edition-gated Cherry Cloud) are never advertised to
+      // external callers even though they pass the routable-model predicate (matches the renderer
+      // picker's exclusion).
+      if (provider && isAgentOnlyProvider(provider, getAppEdition())) {
+        continue
+      }
+      // Same routable-model predicate as the renderer's gateway picker — the
+      // listing must never advertise a model the proxy cannot route.
+      if (!isGatewayRoutableModel(model)) {
+        continue
+      }
+
       const apiModel = transformModelToOpenAi(model, provider)
       if (!uniqueModels.has(apiModel.id)) {
         uniqueModels.set(apiModel.id, apiModel)

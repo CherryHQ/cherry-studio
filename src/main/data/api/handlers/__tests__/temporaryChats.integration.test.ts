@@ -10,15 +10,16 @@
  * DbService.onInit: real migrations + CUSTOM_SQL_STATEMENTS (FTS5 + triggers).
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+
 import { temporaryChatHandlers } from '@data/api/handlers/temporaryChats'
 import { messageTable } from '@data/db/schemas/message'
 import { messageService } from '@data/services/MessageService'
 import type { PersistTemporaryChatResponse } from '@shared/data/api/schemas/temporaryChats'
 import type { Message, MessageData } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -100,7 +101,7 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
 
     // 6. The persistent messageService reads the topic as a linear tree with
     // activeNodeId pointing at the last message.
-    const tree = await messageService.getTree(topic.id, { depth: -1 })
+    const tree = messageService.getTree(topic.id, { depth: -1 })
     expect(tree.activeNodeId).toBe(m4.id)
     expect(tree.siblingsGroups).toEqual([])
     const ids = tree.nodes.map((n) => n.id)
@@ -112,18 +113,20 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
     expect(byId.get(m4.id)!.hasChildren).toBe(false)
 
     // 7. FTS5 trigger must have populated searchable_text for every message.
+    // The extra row is the structural virtual root (parentId === null, no content);
+    // filter to content rows before asserting count and searchable_text.
     const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topic.id))
-    expect(rows).toHaveLength(4)
-    for (const r of rows) {
+    const contentRows = rows.filter((r) => r.parentId !== null)
+    expect(contentRows).toHaveLength(4)
+    for (const r of contentRows) {
       expect(r.searchableText).toBeTruthy()
     }
 
     // And FTS full-text search actually works.
-    const ftsMatches = await dbh.client.execute({
-      sql: `SELECT m.id FROM message m JOIN message_fts fts ON m.rowid = fts.rowid WHERE message_fts MATCH ?`,
-      args: ['second']
-    })
-    const ftsIds = new Set(ftsMatches.rows.map((r) => String(r[0])))
+    const ftsMatches = dbh.sqlite
+      .prepare(`SELECT m.id FROM message m JOIN message_fts fts ON m.fts_rowid = fts.rowid WHERE message_fts MATCH ?`)
+      .all('second') as Array<{ id: string }>
+    const ftsIds = new Set(ftsMatches.map((r) => String(r.id)))
     expect(ftsIds.has(m3.id)).toBe(true)
     expect(ftsIds.has(m4.id)).toBe(true)
     expect(ftsIds.has(m1.id)).toBe(false)

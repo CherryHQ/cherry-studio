@@ -1,1 +1,1 @@
-export { default } from './BaseNavigator'
+export { default as BaseNavigator } from './BaseNavigator'

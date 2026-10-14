@@ -1,12 +1,29 @@
-import { agentTable } from '@data/db/schemas/agent'
-import { agentChannelService } from '@data/services/AgentChannelService'
 import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it } from 'vitest'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelSessionTable, agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { jobScheduleTable } from '@data/db/schemas/job'
+import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { ErrorCode } from '@shared/data/api/errors'
+import { UpdateAgentChannelSchema } from '@shared/data/api/schemas/agentChannels'
+
+const notifyDataApiDataChange = vi.hoisted(() => vi.fn())
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange }))
 
 const TELEGRAM_CONFIG = { bot_token: 'test-token-123', allowed_chat_ids: [] }
+const DISCORD_CONFIG = { bot_token: 'test-token-123', allowed_channel_ids: [] }
+const SYSTEM_WORKSPACE = { type: 'system' as const }
 
 describe('AgentChannelService', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   /** Insert a minimal agent row directly so agentId FK constraints are satisfied. */
   async function insertAgent(id: string): Promise<void> {
@@ -20,11 +37,49 @@ describe('AgentChannelService', () => {
     })
   }
 
+  async function insertSchedule(id: string): Promise<void> {
+    await dbh.db.insert(jobScheduleTable).values({
+      id,
+      type: 'agent.task',
+      name: id,
+      trigger: { kind: 'interval', ms: 60_000 },
+      jobInputTemplate: {},
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+  }
+
+  it('applies separate configuration field patches to the latest persisted channel', () => {
+    const channel = agentChannelService.createChannel({
+      type: 'wecom',
+      name: 'WeCom',
+      workspace: SYSTEM_WORKSPACE,
+      isActive: false,
+      config: { bot_id: 'old', secret: 'original', allowed_chat_ids: ['dm:alice'], allowed_user_ids: [] }
+    })
+    agentChannelService.updateChannel(channel.id, UpdateAgentChannelSchema.parse({ configPatch: { bot_id: 'new' } }))
+    agentChannelService.updateChannel(
+      channel.id,
+      UpdateAgentChannelSchema.parse({ configPatch: { secret: ' secret ' } })
+    )
+    expect(agentChannelService.getChannel(channel.id)?.config).toEqual({
+      bot_id: 'new',
+      secret: ' secret ',
+      allowed_chat_ids: ['dm:alice'],
+      allowed_user_ids: []
+    })
+    expect(() => agentChannelService.updateChannel(channel.id, { configPatch: { unknown: true } })).toThrow()
+    expect(
+      UpdateAgentChannelSchema.safeParse({ config: channel.config, configPatch: { bot_id: 'ambiguous' } }).success
+    ).toBe(false)
+    expect(agentChannelService.getChannel(channel.id)?.config).toMatchObject({ bot_id: 'new', secret: ' secret ' })
+  })
+
   describe('createChannel', () => {
     it('creates a channel and returns the entity', async () => {
-      const channel = await agentChannelService.createChannel({
+      const channel = agentChannelService.createChannel({
         type: 'telegram',
         name: 'My Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG,
         isActive: true
       })
@@ -34,12 +89,22 @@ describe('AgentChannelService', () => {
       expect(channel.name).toBe('My Bot')
       expect(channel.isActive).toBe(true)
       expect(channel.config).toMatchObject({ bot_token: 'test-token-123' })
+      expect(notifyDataApiDataChange).toHaveBeenCalledWith([
+        { endpoint: '/agent-workspaces', kind: 'membership' },
+        { endpoint: '/agent-channels', kind: 'membership', entityIds: [channel.id] },
+        {
+          endpoint: '/agent-channels/:channelId',
+          routeParams: { channelId: channel.id },
+          entityIds: [channel.id]
+        }
+      ])
     })
 
     it('creates an inactive channel', async () => {
-      const channel = await agentChannelService.createChannel({
+      const channel = agentChannelService.createChannel({
         type: 'telegram',
         name: 'Draft Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG,
         isActive: false
       })
@@ -48,9 +113,10 @@ describe('AgentChannelService', () => {
     })
 
     it('returns ISO 8601 timestamps (rowToEntity converts SQLite integer timestamps)', async () => {
-      const channel = await agentChannelService.createChannel({
+      const channel = agentChannelService.createChannel({
         type: 'telegram',
         name: 'Timestamp Test',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
 
@@ -61,56 +127,74 @@ describe('AgentChannelService', () => {
 
   describe('getChannel', () => {
     it('returns channel by id', async () => {
-      const created = await agentChannelService.createChannel({
+      const created = agentChannelService.createChannel({
         type: 'telegram',
         name: 'Get Test',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
 
-      const found = await agentChannelService.getChannel(created.id)
+      const found = agentChannelService.getChannel(created.id)
       expect(found).not.toBeNull()
       expect(found!.id).toBe(created.id)
     })
 
     it('returns null for unknown id', async () => {
-      const result = await agentChannelService.getChannel('nonexistent-id')
+      const result = agentChannelService.getChannel('nonexistent-id')
       expect(result).toBeNull()
     })
   })
 
   describe('listChannels', () => {
     it('lists all channels when no filters applied', async () => {
-      await agentChannelService.createChannel({ type: 'telegram', name: 'TG', config: TELEGRAM_CONFIG })
-      await agentChannelService.createChannel({ type: 'discord', name: 'DC', config: { bot_token: 'dc-token' } })
+      agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'TG',
+        workspace: SYSTEM_WORKSPACE,
+        config: TELEGRAM_CONFIG
+      })
+      agentChannelService.createChannel({
+        type: 'discord',
+        name: 'DC',
+        workspace: SYSTEM_WORKSPACE,
+        config: { bot_token: 'dc-token' }
+      })
 
-      const channels = await agentChannelService.listChannels()
+      const channels = agentChannelService.listChannels()
       expect(channels.length).toBeGreaterThanOrEqual(2)
     })
 
     it('filters by type', async () => {
-      await agentChannelService.createChannel({ type: 'telegram', name: 'TG Filter', config: TELEGRAM_CONFIG })
+      agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'TG Filter',
+        workspace: SYSTEM_WORKSPACE,
+        config: TELEGRAM_CONFIG
+      })
 
-      const channels = await agentChannelService.listChannels({ type: 'telegram' })
+      const channels = agentChannelService.listChannels({ type: 'telegram' })
       expect(channels.every((c) => c.type === 'telegram')).toBe(true)
     })
 
     it('filters by agentId alone', async () => {
       const agentId = `agent-filter-${Date.now()}`
       await insertAgent(agentId)
-      await agentChannelService.createChannel({
+      agentChannelService.createChannel({
         type: 'telegram',
         name: 'AgentA Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG,
         agentId
       })
-      await agentChannelService.createChannel({
+      agentChannelService.createChannel({
         type: 'telegram',
         name: 'No-Agent Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
         // agentId intentionally omitted
       })
 
-      const channels = await agentChannelService.listChannels({ agentId })
+      const channels = agentChannelService.listChannels({ agentId })
       expect(channels.length).toBeGreaterThanOrEqual(1)
       expect(channels.every((c) => c.agentId === agentId)).toBe(true)
     })
@@ -118,26 +202,29 @@ describe('AgentChannelService', () => {
     it('filters by agentId AND type combined (both eq predicates compose)', async () => {
       const agentId = `agent-combo-${Date.now()}`
       await insertAgent(agentId)
-      await agentChannelService.createChannel({
+      agentChannelService.createChannel({
         type: 'telegram',
         name: 'TG Agent Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG,
         agentId
       })
-      await agentChannelService.createChannel({
+      agentChannelService.createChannel({
         type: 'discord',
         name: 'DC Agent Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: { bot_token: 'dc-tok' },
         agentId
       })
       // telegram channel for a different agent — must NOT appear
-      await agentChannelService.createChannel({
+      agentChannelService.createChannel({
         type: 'telegram',
         name: 'TG Other Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
 
-      const channels = await agentChannelService.listChannels({ agentId, type: 'telegram' })
+      const channels = agentChannelService.listChannels({ agentId, type: 'telegram' })
       expect(channels.length).toBeGreaterThanOrEqual(1)
       expect(channels.every((c) => c.agentId === agentId && c.type === 'telegram')).toBe(true)
     })
@@ -145,39 +232,82 @@ describe('AgentChannelService', () => {
 
   describe('updateChannel', () => {
     it('updates channel name', async () => {
-      const channel = await agentChannelService.createChannel({
+      const channel = agentChannelService.createChannel({
         type: 'telegram',
         name: 'Before',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
 
-      const updated = await agentChannelService.updateChannel(channel.id, { name: 'After' })
+      const updated = agentChannelService.updateChannel(channel.id, { name: 'After' })
       expect(updated!.name).toBe('After')
     })
 
     it('returns null when channel does not exist', async () => {
-      const result = await agentChannelService.updateChannel('nonexistent', { name: 'x' })
+      const result = agentChannelService.updateChannel('nonexistent', { name: 'x' })
       expect(result).toBeNull()
     })
 
     it('toggles isActive', async () => {
-      const channel = await agentChannelService.createChannel({
+      const channel = agentChannelService.createChannel({
         type: 'telegram',
         name: 'Toggle',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG,
         isActive: true
       })
 
-      const updated = await agentChannelService.updateChannel(channel.id, { isActive: false })
+      const updated = agentChannelService.updateChannel(channel.id, { isActive: false })
       expect(updated!.isActive).toBe(false)
+    })
+
+    it('rejects activation with incomplete credentials without partially updating the row', async () => {
+      const channel = agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Draft',
+        workspace: SYSTEM_WORKSPACE,
+        config: { bot_token: '', allowed_chat_ids: [] },
+        isActive: false
+      })
+
+      expect(() => agentChannelService.updateChannel(channel.id, { name: 'Changed', isActive: true })).toThrow(
+        expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR })
+      )
+
+      const stored = agentChannelService.getChannel(channel.id)
+      expect(stored).toMatchObject({ name: 'Draft', isActive: false })
+    })
+
+    it('clears task subscriptions atomically when ownership moves to another Agent', async () => {
+      await insertAgent('agent-old')
+      await insertAgent('agent-new')
+      await insertSchedule('schedule-clear')
+      const channel = agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Rebound',
+        agentId: 'agent-old',
+        workspace: SYSTEM_WORKSPACE,
+        config: TELEGRAM_CONFIG
+      })
+      await dbh.db.insert(agentChannelTaskTable).values({ channelId: channel.id, taskId: 'schedule-clear' })
+
+      agentChannelService.updateChannel(channel.id, { agentId: 'agent-new' })
+
+      expect(
+        dbh.db.select().from(agentChannelTaskTable).where(eq(agentChannelTaskTable.channelId, channel.id)).all()
+      ).toEqual([])
+      expect(dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.id, channel.id)).get()?.agentId).toBe(
+        'agent-new'
+      )
     })
   })
 
   describe('normalizeChannelConfig (via createChannel)', () => {
     it('strips the type key from the stored config', async () => {
-      const channel = await agentChannelService.createChannel({
+      const channel = agentChannelService.createChannel({
         type: 'telegram',
         name: 'Norm Test',
+        workspace: SYSTEM_WORKSPACE,
         config: { bot_token: 'tok', type: 'telegram' } as any
       })
 
@@ -185,35 +315,145 @@ describe('AgentChannelService', () => {
       expect((channel.config as any).bot_token).toBe('tok')
     })
 
-    it('stores an empty object when config is a non-object value', async () => {
-      const channel = await agentChannelService.createChannel({
-        type: 'telegram',
-        name: 'Non-obj Config',
-        config: 'bad-value' as any
-      })
-
-      expect(channel.config).toEqual({})
+    it('rejects a non-object config before writing', () => {
+      expect(() =>
+        agentChannelService.createChannel({
+          type: 'telegram',
+          name: 'Non-obj Config',
+          workspace: SYSTEM_WORKSPACE,
+          config: 'bad-value' as any
+        })
+      ).toThrow(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR }))
     })
   })
 
   describe('deleteChannel', () => {
     it('deletes a channel and returns true', async () => {
-      const channel = await agentChannelService.createChannel({
+      const channel = agentChannelService.createChannel({
         type: 'telegram',
         name: 'To Delete',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
 
-      const deleted = await agentChannelService.deleteChannel(channel.id)
+      const deleted = agentChannelService.deleteChannel(channel.id)
       expect(deleted).toBe(true)
 
-      const found = await agentChannelService.getChannel(channel.id)
+      const found = agentChannelService.getChannel(channel.id)
       expect(found).toBeNull()
     })
 
     it('returns false when channel does not exist', async () => {
-      const result = await agentChannelService.deleteChannel('nonexistent')
+      const result = agentChannelService.deleteChannel('nonexistent')
       expect(result).toBe(false)
+    })
+  })
+
+  describe('conversation sessions', () => {
+    it('rotates one active session per conversation while retaining channel ownership for inactive sessions', async () => {
+      const agentId = 'agent-channel-session'
+      await insertAgent(agentId)
+      const channel = agentChannelService.createChannel({
+        type: 'feishu',
+        name: 'Feishu',
+        agentId,
+        workspace: SYSTEM_WORKSPACE,
+        config: {
+          app_id: 'app',
+          app_secret: 'secret',
+          encrypt_key: '',
+          verification_token: '',
+          domain: 'feishu'
+        }
+      })
+      const first = agentSessionService.create({ agentId, name: 'First', workspace: SYSTEM_WORKSPACE })
+      const second = agentSessionService.create({ agentId, name: 'Second', workspace: SYSTEM_WORKSPACE })
+
+      application.get('DbService').withWriteTx((tx) => {
+        agentChannelService.activateSessionTx(tx, {
+          channelId: channel.id,
+          conversationId: 'dm-alice',
+          sessionId: first.id
+        })
+        agentChannelService.activateSessionTx(tx, {
+          channelId: channel.id,
+          conversationId: 'dm-alice',
+          sessionId: second.id
+        })
+      })
+
+      expect(agentChannelService.getActiveSessionId(channel.id, 'dm-alice')).toBe(second.id)
+      expect(agentChannelService.findBySessionId(first.id)?.id).toBe(channel.id)
+      expect(agentChannelService.findBySessionId(second.id)?.id).toBe(channel.id)
+      const rows = dbh.db
+        .select()
+        .from(agentChannelSessionTable)
+        .where(eq(agentChannelSessionTable.channelId, channel.id))
+        .all()
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ sessionId: first.id, isActive: false }),
+          expect.objectContaining({ sessionId: second.id, isActive: true })
+        ])
+      )
+
+      const invalid = agentSessionService.create({ agentId, name: 'Invalid', workspace: SYSTEM_WORKSPACE })
+      expect(() =>
+        dbh.db
+          .insert(agentChannelSessionTable)
+          .values({ sessionId: invalid.id, channelId: channel.id, isActive: true })
+          .run()
+      ).toThrow(/CHECK constraint failed/)
+
+      const duplicate = agentSessionService.create({ agentId, name: 'Duplicate', workspace: SYSTEM_WORKSPACE })
+      expect(() =>
+        dbh.db
+          .insert(agentChannelSessionTable)
+          .values({
+            sessionId: duplicate.id,
+            channelId: channel.id,
+            conversationId: 'dm-alice',
+            isActive: true
+          })
+          .run()
+      ).toThrow(/UNIQUE constraint failed/)
+    })
+
+    it('keeps active sessions isolated by channel and conversation id', async () => {
+      const agentId = 'agent-isolated-conversations'
+      await insertAgent(agentId)
+      const channel = agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Telegram',
+        agentId,
+        workspace: SYSTEM_WORKSPACE,
+        config: TELEGRAM_CONFIG
+      })
+      const otherChannel = agentChannelService.createChannel({
+        type: 'discord',
+        name: 'Discord',
+        agentId,
+        workspace: SYSTEM_WORKSPACE,
+        config: DISCORD_CONFIG
+      })
+      const alice = agentSessionService.create({ agentId, name: 'Alice', workspace: SYSTEM_WORKSPACE })
+      const otherAlice = agentSessionService.create({ agentId, name: 'Other Alice', workspace: SYSTEM_WORKSPACE })
+
+      application.get('DbService').withWriteTx((tx) => {
+        agentChannelService.activateSessionTx(tx, {
+          channelId: channel.id,
+          conversationId: 'alice',
+          sessionId: alice.id
+        })
+        agentChannelService.activateSessionTx(tx, {
+          channelId: otherChannel.id,
+          conversationId: 'alice',
+          sessionId: otherAlice.id
+        })
+      })
+
+      expect(agentChannelService.getActiveSessionId(channel.id, 'alice')).toBe(alice.id)
+      expect(agentChannelService.getActiveSessionId(otherChannel.id, 'alice')).toBe(otherAlice.id)
     })
   })
 })

@@ -1,4 +1,12 @@
-import { FlipHorizontal, FlipVertical, RotateCcw, RotateCw, Undo2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import {
+  FlipHorizontal,
+  FlipVertical,
+  RefreshCcw,
+  RotateCcwSquare,
+  RotateCwSquare,
+  ZoomIn,
+  ZoomOut
+} from 'lucide-react'
 import * as React from 'react'
 
 import { cn } from '../../../lib/utils'
@@ -20,7 +28,6 @@ export interface ImagePreviewToolbarProps {
   item: ImagePreviewItem
   labels: ImagePreviewLabels
   onActionError?: ImagePreviewActionErrorHandler
-  onClose: () => void
   transformControls: ImagePreviewTransformControls
 }
 
@@ -29,18 +36,20 @@ interface ToolbarButtonProps {
   disabled?: boolean
   label: string
   onClick: () => void
+  pressed?: boolean
 }
 
-const ToolbarButton = ({ children, disabled, label, onClick }: ToolbarButtonProps) => (
+const ToolbarButton = ({ children, disabled, label, onClick, pressed }: ToolbarButtonProps) => (
   <Tooltip content={label} delay={300}>
     <Button
       aria-label={label}
-      className="size-9 rounded-full border-border bg-background/80 text-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-40"
+      aria-pressed={pressed}
+      className="size-9 rounded-full text-muted-foreground hover:text-foreground disabled:opacity-40"
       disabled={disabled}
       onClick={onClick}
       size="icon"
       type="button"
-      variant="outline">
+      variant="ghost">
       {children}
     </Button>
   </Tooltip>
@@ -53,28 +62,15 @@ export function ImagePreviewToolbar({
   item,
   labels,
   onActionError,
-  onClose,
   transformControls
 }: ImagePreviewToolbarProps) {
   return (
     <div
       className={cn(
-        'flex items-center gap-1 rounded-full border border-border bg-background/80 px-2 py-1 text-foreground shadow-lg backdrop-blur',
+        'flex items-center gap-1 rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-md',
         className
       )}
       onClick={(event) => event.stopPropagation()}>
-      <ToolbarButton label={labels.flipVertical} onClick={transformControls.flipVertical}>
-        <FlipVertical className="size-4" />
-      </ToolbarButton>
-      <ToolbarButton label={labels.flipHorizontal} onClick={transformControls.flipHorizontal}>
-        <FlipHorizontal className="size-4" />
-      </ToolbarButton>
-      <ToolbarButton label={labels.rotateLeft} onClick={transformControls.rotateLeft}>
-        <RotateCcw className="size-4" />
-      </ToolbarButton>
-      <ToolbarButton label={labels.rotateRight} onClick={transformControls.rotateRight}>
-        <RotateCw className="size-4" />
-      </ToolbarButton>
       <ToolbarButton
         disabled={!transformControls.canZoomOut}
         label={labels.zoomOut}
@@ -84,8 +80,26 @@ export function ImagePreviewToolbar({
       <ToolbarButton disabled={!transformControls.canZoomIn} label={labels.zoomIn} onClick={transformControls.zoomIn}>
         <ZoomIn className="size-4" />
       </ToolbarButton>
+      <ToolbarButton label={labels.rotateLeft} onClick={transformControls.rotateLeft}>
+        <RotateCcwSquare className="size-4" />
+      </ToolbarButton>
+      <ToolbarButton label={labels.rotateRight} onClick={transformControls.rotateRight}>
+        <RotateCwSquare className="size-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        label={labels.flipHorizontal}
+        onClick={transformControls.flipHorizontal}
+        pressed={transformControls.transform.flipX}>
+        <FlipHorizontal className="size-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        label={labels.flipVertical}
+        onClick={transformControls.flipVertical}
+        pressed={transformControls.transform.flipY}>
+        <FlipVertical className="size-4" />
+      </ToolbarButton>
       <ToolbarButton label={labels.reset} onClick={transformControls.reset}>
-        <Undo2 className="size-4" />
+        <RefreshCcw className="size-4" />
       </ToolbarButton>
       {actions.map((action) => (
         <ToolbarButton
@@ -100,9 +114,6 @@ export function ImagePreviewToolbar({
           {action.icon}
         </ToolbarButton>
       ))}
-      <ToolbarButton label={labels.close} onClick={onClose}>
-        <X className="size-4" />
-      </ToolbarButton>
     </div>
   )
 }

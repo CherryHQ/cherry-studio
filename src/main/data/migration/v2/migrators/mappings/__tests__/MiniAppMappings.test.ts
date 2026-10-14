@@ -1,5 +1,6 @@
-import type { MiniAppStatus } from '@data/db/schemas/miniApp'
 import { describe, expect, it } from 'vitest'
+
+import type { MiniAppStatus } from '@data/db/schemas/miniApp'
 
 import { transformMiniApp } from '../MiniAppMappings'
 
@@ -28,58 +29,52 @@ describe('MiniAppMappings', () => {
           bordered: true
         })
 
-        const result = transformMiniApp(source, 'enabled' as MiniAppStatus)
+        const result = transformMiniApp(source, 'enabled')
 
         expect(result.appId).toBe('my-custom-app')
         expect(result.name).toBe('My Custom App')
         expect(result.url).toBe('https://custom.example.com')
-        expect(result.logo).toBe('https://logo.png')
+        expect(result.logoKey).toBe('https://logo.png')
         expect(result.status).toBe('enabled')
         expect(result.bordered).toBe(true)
       })
 
       it('should handle bodered typo correctly', () => {
         const source = createCustomSource({ bodered: false })
-        const result = transformMiniApp(source, 'enabled' as MiniAppStatus)
+        const result = transformMiniApp(source, 'enabled')
         expect(result.bordered).toBe(false)
       })
 
       it('should preserve URL logos (http/https)', () => {
-        const httpLogo = transformMiniApp(
-          createCustomSource({ logo: 'https://example.com/logo.png' }),
-          'enabled' as MiniAppStatus
-        )
-        expect(httpLogo.logo).toBe('https://example.com/logo.png')
+        const httpLogo = transformMiniApp(createCustomSource({ logo: 'https://example.com/logo.png' }), 'enabled')
+        expect(httpLogo.logoKey).toBe('https://example.com/logo.png')
       })
 
-      it('should preserve data URI logos', () => {
+      it('should preserve data URI logos on logoKey (migrator promotes them to a file later)', () => {
         const dataUri = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg=='
-        const result = transformMiniApp(createCustomSource({ logo: dataUri }), 'enabled' as MiniAppStatus)
-        expect(result.logo).toBe(dataUri)
+        const result = transformMiniApp(createCustomSource({ logo: dataUri }), 'enabled')
+        expect(result.logoKey).toBe(dataUri)
       })
 
-      it('should set logo to null for non-string or empty logo', () => {
-        const objLogo = transformMiniApp(createCustomSource({ logo: { component: 'X' } }), 'enabled' as MiniAppStatus)
-        expect(objLogo.logo).toBeNull()
+      it('should set logoKey to null for non-string or empty logo', () => {
+        const objLogo = transformMiniApp(createCustomSource({ logo: { component: 'X' } }), 'enabled')
+        expect(objLogo.logoKey).toBeNull()
 
-        const emptyLogo = transformMiniApp(createCustomSource({ logo: '' }), 'enabled' as MiniAppStatus)
-        expect(emptyLogo.logo).toBeNull()
+        const emptyLogo = transformMiniApp(createCustomSource({ logo: '' }), 'enabled')
+        expect(emptyLogo.logoKey).toBeNull()
       })
 
       it('should filter supportedRegions', () => {
-        const valid = transformMiniApp(
-          createCustomSource({ supportedRegions: ['CN', 'Global', 'Invalid'] }),
-          'enabled' as MiniAppStatus
-        )
+        const valid = transformMiniApp(createCustomSource({ supportedRegions: ['CN', 'Global', 'Invalid'] }), 'enabled')
         expect(valid.supportedRegions).toEqual(['CN', 'Global'])
 
-        const empty = transformMiniApp(createCustomSource({ supportedRegions: [] }), 'enabled' as MiniAppStatus)
+        const empty = transformMiniApp(createCustomSource({ supportedRegions: [] }), 'enabled')
         expect(empty.supportedRegions).toBeNull()
       })
 
       it('should default bordered to true when neither field is present', () => {
         const source = createCustomSource()
-        const result = transformMiniApp(source, 'enabled' as MiniAppStatus)
+        const result = transformMiniApp(source, 'enabled')
         expect(result.bordered).toBe(true)
       })
     })
@@ -95,7 +90,7 @@ describe('MiniAppMappings', () => {
           nameKey: 'minapp.openai-stale'
         })
 
-        const result = transformMiniApp(source, 'pinned' as MiniAppStatus)
+        const result = transformMiniApp(source, 'pinned')
 
         expect(result.appId).toBe('openai')
         expect(result.presetMiniAppId).toBe('openai')

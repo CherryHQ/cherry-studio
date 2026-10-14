@@ -1,7 +1,24 @@
-import { codeLanguages } from '@shared/config/code-languages'
+import { codeLanguages } from '@shared/utils/codeLanguages'
 
 // Cache for extension to language mapping (built lazily)
 let extensionToLanguageCache: Map<string, string> | null = null
+
+// The linguist-generated `codeLanguages` table lists every language that
+// claims an extension. Cache-build resolves collisions by first-match-wins in
+// Object.entries order (alphabetical-ish), which picks the wrong owner for
+// common extensions — e.g. `.md` → 'GCC Machine Description', `.html` →
+// 'Ecmarkup', `.sql` → 'PLpgSQL'. Pin the conventional primary language for
+// the extensions where the alphabetical winner is clearly wrong.
+const PRIMARY_EXTENSION_OVERRIDES: Record<string, string> = {
+  md: 'Markdown',
+  yml: 'YAML',
+  yaml: 'YAML',
+  html: 'HTML',
+  sql: 'SQL',
+  rs: 'Rust',
+  txt: 'Text',
+  php: 'PHP'
+}
 
 /**
  * Build a cache mapping extensions to language names
@@ -38,6 +55,9 @@ export function getLanguageByExtension(extension: string): string {
   // Normalize extension: remove leading dot and lowercase
   const normalizedExt = extension.startsWith('.') ? extension.slice(1).toLowerCase() : extension.toLowerCase()
 
+  const override = PRIMARY_EXTENSION_OVERRIDES[normalizedExt]
+  if (override) return override
+
   const cache = buildExtensionCache()
   return cache.get(normalizedExt) || normalizedExt
 }
@@ -50,10 +70,16 @@ export function getLanguageByExtension(extension: string): string {
 export function getLanguageByFilePath(filePath: string): string {
   if (!filePath) return 'text'
 
-  const ext = filePath.split('.').pop()
-  if (!ext) return 'text'
+  // Take the basename before looking for the extension. Splitting on `.` alone reads the last
+  // dot of the whole path, so a dot inside a directory name or a dotless file name feeds a path
+  // fragment to the lookup: `/home/john.doe/notes` yielded `doe/notes` and `/srv/Makefile`
+  // yielded `/srv/makefile`, both of which became the language label shown in the file preview
+  // and in the agent's read/write tools (and match no highlighter).
+  const basename = filePath.split(/[\\/]/).pop() ?? ''
+  const dot = basename.lastIndexOf('.')
+  if (dot < 0) return 'text'
 
-  return getLanguageByExtension(ext)
+  return getLanguageByExtension(basename.slice(dot + 1))
 }
 
 /**

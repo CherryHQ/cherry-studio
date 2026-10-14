@@ -1,24 +1,74 @@
-import { codeCLI, terminalApps } from '@shared/config/constant'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CliProviderConfig, CodeCliConfigs, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
+import { CodeCli } from '@shared/types/codeCli'
+
 import { useCodeCli } from '../useCodeCli'
 
-/**
- * Helper: set up the unified mock to return a specific overrides value
- * and capture calls to the setter.
- */
-function setupOverridesMock(overrides: Record<string, any>) {
-  const mockSetOverrides = vi.fn().mockResolvedValue(undefined)
+/** Set up the preference mock for `feature.code_cli.configs` and capture setter calls. */
+function setupConfigsMock(configs: CodeCliConfigs) {
+  const mockSetConfigs = vi.fn().mockResolvedValue(undefined)
   mockUsePreference.mockImplementation((key: string) => {
-    if (key === 'feature.code_cli.overrides') {
-      return [overrides, mockSetOverrides]
+    if (key === 'feature.code_cli.configs') {
+      return [configs, mockSetConfigs]
     }
-    return [null, vi.fn().mockResolvedValue(undefined)]
+    return [{} as CodeCliConfigs, vi.fn().mockResolvedValue(undefined)]
   })
-  return mockSetOverrides
+  return mockSetConfigs
 }
+
+/** Set updater-style setter that receives a function (mirrors real usePreference updater). */
+function setupUpdaterMock(configs: CodeCliConfigs) {
+  let current = configs
+  const mockSetConfigs = vi.fn((newValue: CodeCliConfigs) => {
+    current = newValue
+    return Promise.resolve()
+  })
+  mockUsePreference.mockImplementation((key: string) => {
+    if (key === 'feature.code_cli.configs') {
+      return [current, mockSetConfigs]
+    }
+    return [{} as CodeCliConfigs, vi.fn().mockResolvedValue(undefined)]
+  })
+  return mockSetConfigs
+}
+
+function lastWrite(mockSetter: ReturnType<typeof setupUpdaterMock>, index = mockSetter.mock.calls.length - 1) {
+  const call = mockSetter.mock.calls[index]
+  if (!call) {
+    throw new Error(`Expected preference setter call at index ${index}`)
+  }
+  return call[0]
+}
+
+function lastToolState(mockSetter: ReturnType<typeof setupUpdaterMock>, index?: number): CodeCliToolState {
+  const toolState = lastWrite(mockSetter, index)[CodeCli.CLAUDE_CODE]
+  if (!toolState) {
+    throw new Error(`Expected ${CodeCli.CLAUDE_CODE} config to be written`)
+  }
+  return toolState
+}
+
+function providerConfig(toolState: CodeCliToolState, providerId: string): CliProviderConfig {
+  const provider = toolState.providers[providerId]
+  if (!provider) {
+    throw new Error(`Expected ${providerId} provider config to exist`)
+  }
+  return provider
+}
+
+const cfg = (overrides: Partial<CliProviderConfig> = {}): CliProviderConfig => ({
+  modelId: overrides.modelId ?? 'anthropic::claude-4',
+  ...(overrides.config ? { config: overrides.config } : {}),
+  ...(overrides.sortIndex !== undefined ? { sortIndex: overrides.sortIndex } : {})
+})
+
+const state = (providers: Record<string, CliProviderConfig>, current: string | null) => ({
+  providers,
+  current
+})
 
 describe('useCodeCli', () => {
   beforeEach(() => {
@@ -26,247 +76,318 @@ describe('useCodeCli', () => {
   })
 
   describe('selectedCliTool', () => {
-    it('should return default tool when no tool is enabled', () => {
-      setupOverridesMock({})
+    it('should default to claude-code', () => {
+      setupConfigsMock({})
       const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedCliTool).toBe(codeCLI.qwenCode)
+      expect(result.current.selectedCliTool).toBe(CodeCli.CLAUDE_CODE)
     })
 
-    it('should return the enabled tool', () => {
-      setupOverridesMock({ 'claude-code': { enabled: true } })
+    it('selectTool should switch the selected tool (navigation state)', () => {
+      setupConfigsMock({
+        'openai-codex': state({ anthropic: cfg() }, 'anthropic')
+      })
       const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedCliTool).toBe(codeCLI.claudeCode)
+      act(() => {
+        result.current.selectTool(CodeCli.OPENAI_CODEX)
+      })
+      expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
+    })
+
+    it('keeps route search and visible selection synchronized', () => {
+      setupConfigsMock({})
+      const onToolChange = vi.fn()
+      const { result, rerender } = renderHook(({ tool }: { tool: CodeCli }) => useCodeCli(tool, onToolChange), {
+        initialProps: { tool: CodeCli.CLAUDE_CODE }
+      })
+
+      act(() => result.current.selectTool(CodeCli.OPENAI_CODEX))
+      expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
+      expect(onToolChange).toHaveBeenCalledWith(CodeCli.OPENAI_CODEX)
+
+      rerender({ tool: CodeCli.DEEPSEEK_HARNESS })
+      expect(result.current.selectedCliTool).toBe(CodeCli.DEEPSEEK_HARNESS)
     })
   })
 
-  describe('currentConfig', () => {
-    it('should return per-tool modelId', () => {
-      setupOverridesMock({ 'claude-code': { enabled: true, modelId: 'anthropic::claude-3-opus' } })
+  describe('currentProviderId / currentProviderConfig', () => {
+    it('should expose the current provider id and its config', () => {
+      setupConfigsMock({
+        'claude-code': state({ anthropic: cfg() }, 'anthropic')
+      })
       const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedModel).toBe('anthropic::claude-3-opus')
+      expect(result.current.currentProviderId).toBe('anthropic')
+      expect(result.current.currentProviderConfig?.modelId).toBe('anthropic::claude-4')
     })
 
-    it('should return default terminal when none set', () => {
-      setupOverridesMock({})
+    it('should return null currentProviderConfig when no provider is active', () => {
+      setupConfigsMock({
+        'claude-code': state({ anthropic: cfg() }, null)
+      })
       const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedTerminal).toBe(terminalApps.systemDefault)
+      expect(result.current.currentProviderId).toBeNull()
+      expect(result.current.currentProviderConfig).toBeNull()
     })
   })
 
-  describe('setCliTool', () => {
-    it('should disable current tool and enable new tool', async () => {
-      const mockSetter = setupOverridesMock({ 'qwen-code': { enabled: true } })
+  describe('reorderProviders', () => {
+    it('should write sortIndex to each provider entry', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg(), openrouter: cfg({ modelId: 'openrouter::x' }) }, 'anthropic')
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.setCliTool(codeCLI.claudeCode)
+        await result.current.reorderProviders(['openrouter', 'anthropic'])
       })
 
-      expect(mockSetter).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'qwen-code': expect.objectContaining({ enabled: false }),
-          'claude-code': expect.objectContaining({ enabled: true })
+      const toolState = lastToolState(mockSetter)
+      expect(toolState.providers['openrouter']?.sortIndex).toBe(0)
+      expect(toolState.providers['anthropic']?.sortIndex).toBe(1)
+    })
+
+    it('should not fabricate missing provider configs while reordering', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg() }, 'anthropic')
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.reorderProviders(['openrouter', 'anthropic'])
+      })
+
+      const toolState = lastToolState(mockSetter)
+      expect(toolState.providers['openrouter']).toBeUndefined()
+      expect(toolState.providers['anthropic']?.sortIndex).toBe(1)
+    })
+  })
+
+  describe('upsertProviderConfig', () => {
+    it('should create a new provider config keyed by providerId', async () => {
+      const mockSetter = setupUpdaterMock({})
+      const { result } = renderHook(() => useCodeCli())
+
+      let returnedId = ''
+      await act(async () => {
+        returnedId = await result.current.upsertProviderConfig('openrouter', {
+          modelId: 'openrouter::claude-4'
         })
-      )
-    })
-  })
+      })
 
-  describe('setModel', () => {
-    it('should update modelId for current tool', async () => {
-      const mockSetter = setupOverridesMock({ 'qwen-code': { enabled: true } })
+      expect(returnedId).toBe('openrouter')
+      const toolState = lastToolState(mockSetter)
+      expect(providerConfig(toolState, 'openrouter').modelId).toBe('openrouter::claude-4')
+    })
+
+    it('should preserve existing config when updating only modelId', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg({ config: { foo: 1 } }) }, 'anthropic')
+      })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.setModel('openai::gpt-4')
-      })
-
-      expect(mockSetter).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'qwen-code': expect.objectContaining({ modelId: 'openai::gpt-4' })
+        await result.current.upsertProviderConfig('anthropic', {
+          modelId: 'anthropic::claude-5'
         })
-      )
-    })
-  })
-
-  describe('canLaunch', () => {
-    it('should be true when tool, directory, and model are set', () => {
-      setupOverridesMock({
-        'qwen-code': { enabled: true, modelId: 'openai::gpt-4', currentDirectory: '/tmp/project' }
       })
-      const { result } = renderHook(() => useCodeCli())
-      expect(result.current.canLaunch).toBe(true)
+
+      const updated = providerConfig(lastToolState(mockSetter), 'anthropic')
+      expect(updated.modelId).toBe('anthropic::claude-5')
+      expect(updated.config).toEqual({ foo: 1 })
     })
 
-    it('should be true for github-copilot-cli without model', () => {
-      setupOverridesMock({
-        'github-copilot-cli': { enabled: true, currentDirectory: '/tmp/project' }
+    it('should remove existing config when config is explicitly undefined', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg({ config: { foo: 1 } }) }, 'anthropic')
       })
-      const { result } = renderHook(() => useCodeCli())
-      expect(result.current.canLaunch).toBe(true)
-    })
-
-    it('should be false when no directory is set', () => {
-      setupOverridesMock({
-        'qwen-code': { enabled: true, modelId: 'openai::gpt-4' }
-      })
-      const { result } = renderHook(() => useCodeCli())
-      expect(result.current.canLaunch).toBe(false)
-    })
-
-    it('should be false when no model is set for non-copilot tool', () => {
-      setupOverridesMock({
-        'qwen-code': { enabled: true, currentDirectory: '/tmp/project' }
-      })
-      const { result } = renderHook(() => useCodeCli())
-      expect(result.current.canLaunch).toBe(false)
-    })
-  })
-
-  describe('setCurrentDir', () => {
-    it('should set directory and add to directories list', async () => {
-      const mockSetter = setupOverridesMock({ 'qwen-code': { enabled: true } })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.setCurrentDir('/new/project')
-      })
-
-      expect(mockSetter).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'qwen-code': expect.objectContaining({
-            currentDirectory: '/new/project',
-            directories: ['/new/project']
-          })
+        await result.current.upsertProviderConfig('anthropic', {
+          modelId: 'anthropic::claude-5',
+          config: undefined
         })
-      )
+      })
+
+      const updated = providerConfig(lastToolState(mockSetter), 'anthropic')
+      expect(updated.modelId).toBe('anthropic::claude-5')
+      expect(updated).not.toHaveProperty('config')
     })
 
-    it('should move existing directory to front of list', async () => {
-      const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, directories: ['/a', '/b', '/c'] }
+    it('should preserve existing sortIndex when updating model/config', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg({ sortIndex: 2 }) }, 'anthropic')
       })
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.setCurrentDir('/c')
-      })
-
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].directories).toEqual(['/c', '/a', '/b'])
-    })
-
-    it('should limit directories list to 10 entries', async () => {
-      const dirs = Array.from({ length: 10 }, (_, i) => `/dir${i}`)
-      const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, directories: dirs }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.setCurrentDir('/new-dir')
-      })
-
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].directories).toHaveLength(10)
-      expect(calledValue['qwen-code'].directories[0]).toBe('/new-dir')
-    })
-
-    it('should not modify directories when directory is empty', async () => {
-      const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, directories: ['/a', '/b'] }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.setCurrentDir('')
-      })
-
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].directories).toEqual(['/a', '/b'])
-      expect(calledValue['qwen-code'].currentDirectory).toBe('')
-    })
-  })
-
-  describe('removeDir', () => {
-    it('should remove directory from the list', async () => {
-      const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, directories: ['/a', '/b', '/c'] }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.removeDir('/b')
-      })
-
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].directories).toEqual(['/a', '/c'])
-    })
-
-    it('should reset currentDirectory when removing the current directory', async () => {
-      const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.removeDir('/a')
-      })
-
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].currentDirectory).toBe('')
-      expect(calledValue['qwen-code'].directories).toEqual(['/b'])
-    })
-
-    it('should not reset currentDirectory when removing a different directory', async () => {
-      const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.removeDir('/b')
-      })
-
-      const calledValue = mockSetter.mock.calls[0][0]
-      expect(calledValue['qwen-code'].currentDirectory).toBe('/a')
-      expect(calledValue['qwen-code'].directories).toEqual(['/a'])
-    })
-  })
-
-  describe('resetSettings', () => {
-    it('should reset overrides to empty object', async () => {
-      const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, modelId: 'some-model' }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.resetSettings()
-      })
-
-      expect(mockSetter).toHaveBeenCalledWith({})
-    })
-  })
-
-  describe('clearDirs', () => {
-    it('should clear directories and currentDirectory', async () => {
-      const mockSetter = setupOverridesMock({
-        'qwen-code': { enabled: true, currentDirectory: '/a', directories: ['/a', '/b'] }
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.clearDirs()
-      })
-
-      expect(mockSetter).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'qwen-code': expect.objectContaining({
-            directories: [],
-            currentDirectory: ''
-          })
+        await result.current.upsertProviderConfig('anthropic', {
+          modelId: 'anthropic::claude-5',
+          config: { foo: 1 }
         })
-      )
+      })
+
+      expect(lastToolState(mockSetter).providers['anthropic']?.sortIndex).toBe(2)
+    })
+  })
+
+  describe('upsertProviderConfig + setCurrentProvider (sequential write)', () => {
+    // The plain-value preference setter must see prior patches when updating
+    // the selected provider, even before the preference hook renders again.
+    it('preserves the upserted provider when selecting it immediately after', async () => {
+      const mockSetter = setupUpdaterMock({})
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.upsertProviderConfig('anthropic', {
+          modelId: 'anthropic::claude-4'
+        })
+        await result.current.setCurrentProvider('anthropic')
+      })
+
+      expect(mockSetter).toHaveBeenCalledTimes(2)
+      const toolState = lastToolState(mockSetter, 1)
+      expect(toolState.providers['anthropic']).toBeDefined()
+      expect(toolState.current).toBe('anthropic')
+    })
+
+    it('waits for an active preference write before merging a concurrent patch', async () => {
+      const mockSetter = setupUpdaterMock({})
+      const firstWrite = Promise.withResolvers<void>()
+      const firstStarted = Promise.withResolvers<void>()
+      mockSetter.mockImplementationOnce(() => {
+        firstStarted.resolve()
+        return firstWrite.promise
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      const upsert = result.current.upsertProviderConfig('anthropic', { modelId: 'anthropic::claude-4' })
+      const select = result.current.setCurrentProvider('anthropic')
+      await firstStarted.promise
+      expect(mockSetter.mock.calls).toHaveLength(1)
+
+      await act(async () => {
+        firstWrite.resolve()
+        await Promise.all([upsert, select])
+      })
+      const toolState = lastToolState(mockSetter)
+      expect(providerConfig(toolState, 'anthropic').modelId).toBe('anthropic::claude-4')
+      expect(toolState.current).toBe('anthropic')
+    })
+
+    it('reports a failed write while allowing the next queued patch to persist', async () => {
+      const mockSetter = setupUpdaterMock({})
+      const firstWrite = Promise.withResolvers<void>()
+      mockSetter.mockImplementationOnce(() => firstWrite.promise)
+      const { result } = renderHook(() => useCodeCli())
+      const failure = new Error('Preference write failed')
+
+      const failed = result.current.setDirectory('/project')
+      const next = result.current.setTerminal('zsh')
+      const rejection = expect(failed).rejects.toBe(failure)
+      await act(async () => {
+        firstWrite.reject(failure)
+        await Promise.all([rejection, next])
+      })
+
+      expect(lastToolState(mockSetter).terminal).toBe('zsh')
+    })
+  })
+
+  describe('deleteProviderConfig', () => {
+    it('should remove the provider config and clear current if it was active', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg() }, 'anthropic')
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.deleteProviderConfig('anthropic')
+      })
+
+      const toolState = lastToolState(mockSetter)
+      expect(toolState.providers['anthropic']).toBeUndefined()
+      expect(toolState.current).toBeNull()
+    })
+
+    it('should keep current when deleting an inactive provider', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg(), openrouter: cfg({ modelId: 'openrouter::x' }) }, 'anthropic')
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.deleteProviderConfig('openrouter')
+      })
+
+      expect(lastToolState(mockSetter).current).toBe('anthropic')
+    })
+  })
+
+  describe('setCurrentProvider', () => {
+    it('should set the tool current pointer (single-select)', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg(), openrouter: cfg({ modelId: 'openrouter::x' }) }, 'anthropic')
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.setCurrentProvider('openrouter')
+      })
+
+      expect(lastToolState(mockSetter).current).toBe('openrouter')
+    })
+
+    it('should support disabling via null', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg() }, 'anthropic')
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.setCurrentProvider(null)
+      })
+
+      expect(lastToolState(mockSetter).current).toBeNull()
+    })
+  })
+
+  describe('legacy modelId normalization', () => {
+    it("normalizes the legacy '' sentinel to null on read", () => {
+      setupConfigsMock({
+        'claude-code': state({ anthropic: { modelId: '' as unknown as null }, openrouter: cfg() }, 'anthropic')
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      expect(result.current.providerConfigs['anthropic']?.modelId).toBeNull()
+      expect(result.current.providerConfigs['openrouter']?.modelId).toBe('anthropic::claude-4')
+    })
+
+    it('self-heals the sentinel on the next write', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: { modelId: '' as unknown as null } }, 'anthropic')
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.setCurrentProvider(null)
+      })
+
+      expect(lastToolState(mockSetter).providers['anthropic']?.modelId).toBeNull()
+    })
+  })
+
+  describe('setDirectory', () => {
+    it('should set the tool-level directory', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg() }, 'anthropic')
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.setDirectory('/new/project')
+      })
+
+      expect(lastToolState(mockSetter).directory).toBe('/new/project')
     })
   })
 })

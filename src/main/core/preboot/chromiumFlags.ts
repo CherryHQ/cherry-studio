@@ -1,6 +1,7 @@
-import { isLinux, isWin } from '@main/core/platform'
-import { bootConfigService } from '@main/data/bootConfig'
 import { app } from 'electron'
+
+import { isLinux, isLinuxWayland, isWin } from '@main/core/platform'
+import { bootConfigService } from '@main/data/bootConfig'
 
 /**
  * Configure Chromium startup flags — the umbrella term Electron uses for
@@ -21,6 +22,12 @@ import { app } from 'electron'
  *
  * See core/preboot/README.md for the preboot membership criteria.
  */
+/** KDE sessions get KWallet from Chromium's own detection; leave them alone. */
+function isKdeSession(): boolean {
+  const { XDG_CURRENT_DESKTOP = '', DESKTOP_SESSION = '', KDE_FULL_SESSION } = process.env
+  return Boolean(KDE_FULL_SESSION) || /kde/i.test(`${XDG_CURRENT_DESKTOP}:${DESKTOP_SESSION}`)
+}
+
 export function configureChromiumFlags(): void {
   // Disable hardware acceleration if the user opted out via BootConfig.
   if (bootConfigService.get('app.disable_hardware_acceleration')) {
@@ -37,7 +44,7 @@ export function configureChromiumFlags(): void {
   // Linux Wayland: enable the xdg-desktop-portal global-shortcut backend so
   // globalShortcut.register() actually works under Wayland compositors.
   // https://www.electronjs.org/docs/latest/api/global-shortcut
-  if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
+  if (isLinuxWayland) {
     app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
   }
 
@@ -48,6 +55,12 @@ export function configureChromiumFlags(): void {
     app.commandLine.appendSwitch('name', 'CherryStudio')
   }
 
+  // Linux: Chromium uses plaintext key storage on desktops it doesn't recognise
+  // (Hyprland, Sway, i3…). Prefer libsecret there; it falls back if unavailable.
+  if (isLinux && !app.commandLine.hasSwitch('password-store') && !isKdeSession()) {
+    app.commandLine.appendSwitch('password-store', 'gnome-libsecret')
+  }
+
   // Unconditional Chromium feature flags:
   // - DocumentPolicyIncludeJSCallStacksInCrashReports: capture JS call stacks
   //   when the renderer is unresponsive (paired with the web-contents-created
@@ -55,9 +68,11 @@ export function configureChromiumFlags(): void {
   //   response header).
   // - EarlyEstablishGpuChannel + EstablishGpuChannelAsync: open the GPU IPC
   //   channel early to speed up first-paint.
+  // - PageAllocatorRetryOnCommitFailure: retry memory page commits under
+  //   transient commit pressure instead of failing immediately.
   // https://github.com/microsoft/vscode/pull/241640/files
   app.commandLine.appendSwitch(
     'enable-features',
-    'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync'
+    'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,PageAllocatorRetryOnCommitFailure'
   )
 }

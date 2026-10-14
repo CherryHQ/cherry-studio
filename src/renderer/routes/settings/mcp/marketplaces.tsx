@@ -1,9 +1,10 @@
-import { SettingsContentColumn } from '@renderer/pages/settings'
-import McpMarketList from '@renderer/pages/settings/McpSettings/McpMarketList'
 import { createFileRoute } from '@tanstack/react-router'
 
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import McpMarketList from '@renderer/pages/settings/McpSettings/McpMarketList'
+
 const MarketplacesWrapper = () => (
-  <SettingsContentColumn>
+  <SettingsContentColumn className="pt-2">
     <McpMarketList />
   </SettingsContentColumn>
 )

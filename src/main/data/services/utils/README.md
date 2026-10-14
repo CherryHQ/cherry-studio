@@ -6,6 +6,37 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
+### `activityTime.ts` — conversation activity semantics
+
+Shared by Topic and Agent Session message persistence. It identifies
+conversation-bearing roles and real assistant completion transitions so both
+domains apply the same activity semantics. `topic.lastActivityAt` and
+`agent_session.lastActivityAt` are monotonic high-water marks: once an activity
+happens, later deletion or metadata maintenance does not erase that history.
+The following operations advance the high-water mark:
+
+| Operation | Changes `lastActivityAt` |
+| --- | --- |
+| Create a Topic or Agent Session | Yes; initialized from container `createdAt` |
+| Create or fill a user message | Yes |
+| Create an assistant placeholder | Yes |
+| Complete, pause, or fail a pending assistant response | Yes |
+| Persist a tool-approval decision | Yes |
+| Complete a later continuation segment on the same assistant row | Yes |
+| Delete a content message | No |
+| Duplicate a Topic | Yes; initialized from the new Topic creation |
+| Persist a temporary Topic | Preserves the temporary Topic's activity time |
+| Rename, pin, reorder, navigate, edit metadata, or update message projections | No |
+| Boot-time `pending → error` crash reconciliation | No |
+| Create/update a system or virtual-root row | No |
+
+For an existing-v2 schema upgrade, the SQLite migration initializes each
+container directly from user creation times and the best available assistant
+completion proxy `max(createdAt, updatedAt)`; pending assistant rows contribute
+their creation time. The v1 ChatMigrator and AgentsMigrator derive the same
+container-level value while importing. Empty containers fall back to their own
+`createdAt` in both paths.
+
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
 Serves each Service's `rowToEntity` function, performing the boundary translation from a SQLite row to a domain entity.
@@ -96,10 +127,47 @@ Backs every Service's reorder write path and POST-create. Encapsulates the `frac
 
 - **Only operates on `order_key`**: business validation (does `:id` exist in the resource sense) lives in the service/handler layer, not here.
 - **Must run inside an outer transaction**: helpers take `tx` and never open their own transaction.
-- **`scope?` (SQL)**: constrains neighbor queries to a subset for partial ordering (e.g. `topic.groupId`, `userModel.providerId`). Scope applies to BOTH the target lookup and the anchor lookup — anchoring across scopes throws.
+- **`scope?` (SQL)**: constrains neighbor queries to a subset for partial ordering (e.g. `userModel.providerId`, `group.entityType`). Scope applies to BOTH the target lookup and the anchor lookup — anchoring across scopes throws.
 - **`pkColumn` is required**: tables have heterogeneous primary-key column names (`miniapp.appId`, `mcpServer.id`, `topic.id`, `group.id`). Helpers make zero assumptions.
 - **External imports of `fractional-indexing` are forbidden**: always go through the three generator wrappers above.
 - **Character set is locked to base62** (library default); no `digits` parameter is exposed. Changing the alphabet requires a whole-database migration, and the source-of-truth constant lives at the top of `orderKey.ts`.
+
+### `keysetCursor.ts` — keyset (cursor) pagination codec + predicate
+
+Backs every list endpoint that pages by a `(sortKey, id)` tuple. Owns the `<key>:<id>` wire-format codec and the strict-tuple keyset WHERE predicate, so the tie-break direction and the warn message live in one tested place instead of being hand-rolled (and drifting) per service.
+
+**Exports:**
+
+- `parseCursor<K>(raw, parseKey)` — pure `<key>:<id>` parser; splits on the FIRST `:` (so ids may contain `:`), returns `null` for any unparseable input (absent/empty raw, no separator, empty key, empty id, or a `parseKey` that rejects the key). Shared with `ftsSearch` so list and search parse identically.
+- `encodeCursor(key, id)` — encode a `(key, id)` boundary into `<key>:<id>`; `key` may be a number or a string.
+- `asNumericKey(s)` / `asStringKey(s)` — `parseKey` helpers for numeric (`createdAt`) and string (`orderKey`) sort columns. Both reject the empty string — `asNumericKey` must, because `Number('') === 0` is finite.
+- `decodeListCursor<K>(raw, parseKey, context)` — list-browsing decode: an absent cursor returns `null` (first page, no warn); a malformed cursor warns once with the locked message and falls back to the first page (`null`). `context` is a short caller tag carried in the warn payload.
+- `keysetOrdering(keyCol, idCol, { major, tie })` — returns `{ where(cursor), orderBy }` from one direction spec: `where` builds `after(keyCol) OR (keyCol = cursor.key AND after(idCol))` (`after` is `gt` for `'asc'`, `lt` for `'desc'`); `orderBy` is `[<major> keyCol, <tie> idCol]` ready to spread into `.orderBy(...)`. Both derive from the same `dir`, so the predicate and the ORDER BY cannot drift apart.
+
+**Design boundaries:**
+
+- **Two decode policies, deliberately split**: list browsing warns and falls back to the first page (`decodeListCursor` → `null`), while search throws 422 (`ftsSearch.decodeSearchCursor`). A stale server-issued list token must not lock the renderer; a malformed search cursor is a client contract violation.
+- **Warn message is locked**: `'decodeCursor: cursor unparseable, falling back to first page'` — kept uniform across call sites; the `context` field distinguishes the source.
+- **Single-tuple keyset only**: covers `(key, id)` pagination. Multi-band / sentinel cursors (e.g. `TopicService`'s pin/topic union with a first-page sentinel) cannot be expressed as one `(key, id)` tuple, and their malformed-fallback returns a sentinel rather than `null` — they keep their own codec and must NOT be routed here.
+- **Direction is declared once**: `keysetOrdering` emits both the `where` predicate and the matching `orderBy` from a single `{ major, tie }`, so the WHERE clause and the `ORDER BY` cannot disagree — the classic keyset skip/repeat bug becomes unrepresentable.
+
+**Example:**
+
+```ts
+import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+
+const ordering = keysetOrdering(table.createdAt, table.id, { major: 'desc', tie: 'asc' })
+const cursor = decodeListCursor(query.cursor, asNumericKey, 'translate-history')
+const conditions: SQL[] = [...filterConditions]
+if (cursor) conditions.push(ordering.where(cursor))
+const rows = await db
+  .select()
+  .from(table)
+  .where(and(...conditions))
+  .orderBy(...ordering.orderBy) // never drifts from ordering.where
+  .limit(limit + 1)
+const nextCursor = hasNext ? encodeCursor(tail.createdAt, tail.id) : undefined
+```
 
 ### `ftsSearch.ts` — FTS cursor, filtering, and pagination core
 
@@ -117,6 +185,7 @@ regex revalidation, bounded offset scanning, and next-cursor assembly.
 
 **Design boundaries:**
 
+- **Cursor codec is shared**: `decodeSearchCursor` / `encodeSearchCursor` delegate the `<key>:<id>` parsing to `keysetCursor.parseCursor` / `encodeCursor`; this module keeps only the 422-throw policy and the `SearchCursor = { createdAt, id }` shape.
 - **SQL shape stays with the owning service**: callers provide the raw SQL
   query and row mapper because each domain joins different tables.
 - **Read-only search only**: this utility never writes, opens transactions, or
@@ -132,14 +201,60 @@ regex revalidation, bounded offset scanning, and next-cursor assembly.
   in `@shared/data/types/message`; this generic utility does not know message
   roles.
 
+### `singleFileRef.ts` — single-file (logo) slot mechanics
+
+Backs the provider / mini-app logo slots. A *single-file slot* is an association table where one owner row holds at most one file: the ref row is the single source of truth for that owner's uploaded file, and the owner row keeps only a preset key.
+
+**Exports:**
+
+- `getSingleFileRefId(table, sourceId)` — the uploaded file's `file_entry` id for a slot, or `null`. One indexed lookup on the unique `(sourceId)` index.
+- `clearSingleFileRefTx(tx, table, sourceId)` — drop the slot's ref row.
+- `insertSingleFileRefTx(tx, table, sourceId, fileId)` — insert a ref row **without** clearing first (the migrator's empty-slot path).
+- `reconcileLogoSlotTx(tx, table, sourceId, input)` — replace the slot's ref per a `LogoBindInput` and return the `logoKey` to persist on the owner row; `null` when `input` is `undefined` (update no-op).
+- `LogoBindInput` / `LogoColumns` / `SingleFileRefTable` — the bind-input union, the resolved owner column, and the structural table constraint.
+
+**Design boundaries:**
+
+- **The table is a parameter, never a `switch`**: each owner service passes its own table, so a service has no way to reach another owner's slot (services/README "Own your table"), and adding a slot type needs no change here. Same rationale as `orderKey.ts`.
+- **DB-only**: never touches the filesystem. The caller stores the bytes first and passes an opaque `fileId`; superseded files are preserved per the file layer's policy.
+- **Structural table constraint**: `SingleFileRefTable` requires only `fileEntryId` + `sourceId` columns plus a unique index on `(sourceId)` — no assumption about the owning domain.
+- **"Single-file" is a precondition, not a label**: it names the category (opposed to the roled collection ref tables `chat_message_file_ref` / `painting_file_ref`, where one owner holds many rows), and the write path relies on it — it clears before inserting, so passing a table that permits several rows per `sourceId` would delete rows the caller never meant to touch.
+- **Two naming layers, deliberately**: the `SingleFileRef*` helpers are the table-agnostic mechanism; `reconcileLogoSlotTx` / `LogoBindInput` / `LogoColumns` sit above it and are logo-specific, because every single-file slot that exists today is a logo slot. Do not genericize the reconcile layer until a second kind of slot exists — `logoKey` maps to a real column name.
+- **`sourceType → table` resolution belongs to the caller**: callers holding a source type instead of a table (the v1 migrator) resolve it via `singleFileRefTablesBySourceType` in `db/schemas/fileRelations.ts`; this module never sees a source type.
+### `registryDataPaths.ts` — provider-registry file path resolution
+
+Resolves provider-registry paths for the v2 runtime. Remote snapshots may override `models.json` and `provider-models.json`; `providers.json` always resolves to the bundle so unsigned branch data cannot change credential-bearing routing. The one-shot v1-to-v2 migrator deliberately bypasses this resolver and stays pinned to bundled data.
+
+**Exports:**
+
+- `OVERRIDE_MANIFEST` — completion marker written last by `providerRegistrySnapshot.ts`.
+- `readActiveOverrideManifest()` — returns a complete, compatible snapshot manifest or `null`.
+- `resolveRegistryPaths()` — builds the mixed-trust `RegistryPaths`: bundled providers plus atomic model metadata.
+
+**Design boundaries:**
+
+- **Stateless, read-only**: this utility only inspects paths and the manifest; snapshot persistence belongs to the updater domain.
+- **Atomic model metadata**: both remote-safe files require a compatible completion manifest. Missing either file falls back to bundled model metadata.
+- **Explicit compatibility range**: `minAppVersion <= appVersion <= sourceAppVersion`, matching schema version, and a valid revision are required on every activation.
+- **Bundled routing**: provider endpoints, model-list URLs, adapter families, and authentication behavior never come from the unsigned branch.
+
+**Example:**
+
+```ts
+import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
+
+const loader = new RegistryLoader(resolveRegistryPaths())
+```
+
 ## Criteria for Adding a New Utility
 
 Before adding a new utility to this directory, confirm:
 
-1. **Has at least two real consumers** (history: `stripNulls` qualified because `MiniAppService` had made a copy-paste duplicate)
-2. **Do not extract simple single-field operations**: operations like `value ?? undefined` are already well-covered by TypeScript itself — do not wrap them
-3. **Does not duplicate an existing third-party library** (e.g. lodash) — unless we have specific boundary constraints
-4. **Add a new entry to the "File Index" above** documenting responsibility, signature, boundaries, and an example
+1. **Is domain-neutral** — the file must not name a specific business table, entity, or source type. The test: *when a new consumer adopts it, does this file have to change?* A generic mechanism is closed to that change (`orderKey.ts` and `singleFileRef.ts` take the table as a parameter); logic that grows a branch per consumer is shared **domain** logic and belongs with its owners, not here. Consumer count alone does not qualify a utility — two consumers of the same domain logic is still domain logic.
+2. **Has at least two real consumers** (history: `stripNulls` qualified because `MiniAppService` had made a copy-paste duplicate)
+3. **Do not extract simple single-field operations**: operations like `value ?? undefined` are already well-covered by TypeScript itself — do not wrap them
+4. **Does not duplicate an existing third-party library** (e.g. lodash) — unless we have specific boundary constraints
+5. **Add a new entry to the "File Index" above** documenting responsibility, signature, boundaries, and an example
 
 ## Rejected Alternatives
 

@@ -1,5 +1,4 @@
 import { autoUpdate, computePosition, flip, offset, shift, size } from '@floating-ui/dom'
-import { loggerService } from '@logger'
 import type { Editor } from '@tiptap/core'
 import type { MentionNodeAttrs } from '@tiptap/extension-mention'
 import { posToDOMRect, ReactRenderer } from '@tiptap/react'
@@ -30,6 +29,8 @@ import {
   Undo,
   X
 } from 'lucide-react'
+
+import { loggerService } from '@logger'
 
 import CommandListPopover from './CommandListPopover'
 
@@ -461,13 +462,24 @@ export interface CommandFilterOptions {
   query?: string
   category?: CommandCategory
   maxResults?: number
+  enableImageInsertion?: boolean
+  disabledCommands?: readonly string[]
 }
 
 // Filter commands based on search query and category
 export function filterCommands(options: CommandFilterOptions = {}): Command[] {
-  const { query = '', category } = options
+  const { query = '', category, enableImageInsertion = true, disabledCommands = [] } = options
 
   let filtered = getAllCommands()
+  const disabledCommandIds = new Set(disabledCommands)
+
+  if (!enableImageInsertion) {
+    disabledCommandIds.add('image')
+  }
+
+  if (disabledCommandIds.size > 0) {
+    filtered = filtered.filter((cmd) => !disabledCommandIds.has(cmd.id))
+  }
 
   // Filter by category if specified
   if (category) {
@@ -594,7 +606,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
           props,
           editor: props.editor
         })
-        const element = component.element as HTMLElement
+        const element = component.element
         // element.style.position = 'absolute'
         element.style.zIndex = '1001'
 
@@ -622,7 +634,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
         // Update position when items change (might affect size)
         if (component.element) {
           setTimeout(() => {
-            updatePosition(props.editor, component.element as HTMLElement)
+            updatePosition(props.editor, component.element)
           }, 0)
         }
       },
@@ -660,9 +672,28 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
 
       onExit: () => {
         if (cleanup) cleanup()
-        const element = component.element as HTMLElement
+        const element = component.element
         element.remove()
         component.destroy()
+      }
+    }
+  }
+}
+
+export const createCommandSuggestion = (
+  options: Pick<CommandFilterOptions, 'enableImageInsertion' | 'disabledCommands'> = {}
+): Omit<SuggestionOptions<Command, MentionNodeAttrs>, 'editor'> => {
+  const { enableImageInsertion = true, disabledCommands } = options
+  if (enableImageInsertion && !disabledCommands?.length) return commandSuggestion
+
+  return {
+    ...commandSuggestion,
+    items: ({ query }: { query: string }) => {
+      try {
+        return filterCommands({ query, enableImageInsertion, disabledCommands })
+      } catch (error) {
+        logger.error('Error filtering commands:', error as Error)
+        return []
       }
     }
   }

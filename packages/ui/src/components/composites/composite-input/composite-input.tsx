@@ -1,3 +1,9 @@
+import type { VariantProps } from 'class-variance-authority'
+import { cva } from 'class-variance-authority'
+import { Edit2Icon, EyeIcon, EyeOffIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+
 import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
 import {
   InputGroup,
@@ -16,24 +22,14 @@ import {
 } from '@cherrystudio/ui/components/primitives/select'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { toUndefinedIfNull } from '@cherrystudio/ui/utils/index'
-import type { VariantProps } from 'class-variance-authority'
-import { cva } from 'class-variance-authority'
-import { Edit2Icon, EyeIcon, EyeOffIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useCallback, useMemo, useState } from 'react'
 
 const inputGroupVariants = cva(
-  [
-    'h-auto',
-    'rounded-md',
-    'has-[[data-slot=input-group-control]:focus-visible]:ring-ring/40',
-    'has-[[data-slot=input-group-control]:focus-visible]:border-[#3CD45A]'
-  ],
+  ['h-auto', 'rounded-md', 'has-[[data-slot=input-group-control]:focus-visible]:border-ring'],
   {
     variants: {
       disabled: {
         false: null,
-        true: ['bg-background-subtle', 'border-border-hover', 'cursor-not-allowed']
+        true: ['bg-background-subtle', 'border-input', 'cursor-not-allowed']
       }
     },
     defaultVariants: {
@@ -57,7 +53,7 @@ const inputVariants = cva(['p-0', 'h-fit', 'min-w-0'], {
     },
     disabled: {
       false: null,
-      true: ['text-foreground/40', 'placeholder:text-foreground/40', 'disabled:opacity-100']
+      true: ['text-foreground-disabled', 'placeholder:text-foreground-disabled', 'disabled:opacity-100']
     }
   },
   defaultVariants: {
@@ -70,10 +66,10 @@ const inputVariants = cva(['p-0', 'h-fit', 'min-w-0'], {
 const inputWrapperVariants = cva(['flex', 'flex-1', 'items-center', 'gap-2'], {
   variants: {
     size: {
-      sm: ['p-3xs'],
+      sm: ['p-3'],
       // Why only the md size is fixed height???
-      md: ['p-3xs', 'h-5.5', 'box-content'],
-      lg: ['px-2xs', 'py-3xs']
+      md: ['p-3', 'h-5.5', 'box-content'],
+      lg: ['px-4', 'py-3']
     },
     variant: {
       default: [],
@@ -83,7 +79,7 @@ const inputWrapperVariants = cva(['flex', 'flex-1', 'items-center', 'gap-2'], {
     },
     disabled: {
       false: null,
-      true: 'border-background-subtle'
+      true: 'border-border-subtle'
     }
   },
   defaultVariants: {
@@ -100,7 +96,7 @@ const iconVariants = cva([], {
     },
     disabled: {
       false: null,
-      true: 'text-foreground/40'
+      true: 'text-foreground-disabled'
     }
   },
   defaultVariants: {
@@ -109,7 +105,7 @@ const iconVariants = cva([], {
   }
 })
 
-const iconButtonVariants = cva(['text-foreground/60 cursor-pointer transition-colors', 'hover:shadow-none'], {
+const iconButtonVariants = cva(['cursor-pointer text-muted-foreground transition-colors', 'hover:shadow-none'], {
   variants: {
     disabled: {
       false: null,
@@ -122,13 +118,13 @@ const iconButtonVariants = cva(['text-foreground/60 cursor-pointer transition-co
 })
 
 const buttonVariants = cva(
-  ['py-3xs', 'flex flex-col', 'text-foreground/60 cursor-pointer transition-colors', 'hover:shadow-none'],
+  ['py-3', 'flex flex-col', 'cursor-pointer text-muted-foreground transition-colors', 'hover:shadow-none'],
   {
     variants: {
       size: {
-        sm: 'px-3xs',
-        md: 'px-3xs',
-        lg: 'px-2xs'
+        sm: 'px-3',
+        md: 'px-3',
+        lg: 'px-4'
       },
       disabled: {
         false: null,
@@ -152,7 +148,7 @@ const buttonLabelVariants = cva([], {
     },
     disabled: {
       false: null,
-      true: ['text-foreground/40']
+      true: ['text-foreground-disabled']
     }
   },
   defaultVariants: {
@@ -161,17 +157,17 @@ const buttonLabelVariants = cva([], {
   }
 })
 
-const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60'], {
+const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-muted-foreground'], {
   variants: {
     size: {
       // TODO: semantic letter-spacing
-      sm: ['text-sm leading-4', 'p-3xs'],
-      md: ['leading-4.5', 'p-3xs'],
-      lg: ['leading-5 tracking-normal', 'px-2xs py-3xs']
+      sm: ['text-sm leading-4', 'p-3'],
+      md: ['leading-4.5', 'p-3'],
+      lg: ['leading-5 tracking-normal', 'px-4 py-3']
     },
     disabled: {
       false: null,
-      true: 'text-foreground/40'
+      true: 'text-foreground-disabled'
     }
   },
   defaultVariants: {
@@ -180,7 +176,7 @@ const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60
   }
 })
 
-const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60', 'p-0'], {
+const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-muted-foreground', 'p-0'], {
   variants: {
     size: {
       // TODO: semantic letter-spacing
@@ -190,7 +186,7 @@ const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foregro
     },
     disabled: {
       false: null,
-      true: 'text-foreground/40'
+      true: 'text-foreground-disabled'
     }
   },
   defaultVariants: {
@@ -201,16 +197,16 @@ const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foregro
 
 const selectTriggerVariants = cva(
   [
-    'border-none box-content pl-3 aria-expanded:border-none aria-expanded:ring-0 bg-transparent',
+    'box-content border-none bg-transparent pl-3 aria-expanded:border-none aria-expanded:ring-0',
     '*:data-[slot=select-value]:text-foreground',
     '[&_svg]:text-secondary-foreground!'
   ],
   {
     variants: {
       size: {
-        sm: ['h-5', 'pl-6 pr-3xs py-3', '*:data-[slot=select-value]:text-sm'],
-        md: ['h-5', 'pl-6 pr-3xs py-[13px]'],
-        lg: ['h-6', 'pl-7 pr-2xs py-3', '*:data-[slot=select-value]:text-lg']
+        sm: ['h-5', 'py-3 pr-3 pl-6', '*:data-[slot=select-value]:text-sm'],
+        md: ['h-5', 'py-[13px] pr-3 pl-6'],
+        lg: ['h-6', 'py-3 pr-4 pl-7', '*:data-[slot=select-value]:text-lg']
       }
     }
   }
@@ -231,7 +227,7 @@ function ShowPasswordButton({
   type,
   setType,
   size = 'md',
-  disabled = false
+  disabled
 }: {
   type: 'text' | 'password'
   setType: React.Dispatch<React.SetStateAction<'text' | 'password'>>
@@ -268,8 +264,7 @@ interface SelectGroup {
 }
 
 interface CompositeInputProps
-  extends Omit<InputProps, 'size' | 'disabled' | 'prefix'>,
-    VariantProps<typeof inputVariants> {
+  extends Omit<InputProps, 'size' | 'disabled' | 'prefix'>, VariantProps<typeof inputVariants> {
   buttonProps?: {
     label?: ReactNode
     onClick: React.DOMAttributes<HTMLButtonElement>['onClick']

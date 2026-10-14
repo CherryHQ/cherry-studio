@@ -1,50 +1,7 @@
-export type ApiKeyValidity =
-  | {
-      isValid: true
-      error?: never
-    }
-  | {
-      isValid: false
-      error: string
-    }
-
-export function normalizeFileProcessingApiKeys(keys: string[]): string[] {
-  return Array.from(new Set(keys.map((key) => key.trim()).filter(Boolean)))
-}
-
-export function validateFileProcessingApiKey(
-  key: string,
-  existingKeys: string[],
-  emptyError: string,
-  duplicateError: string
-): ApiKeyValidity {
-  const trimmedKey = key.trim()
-
-  if (!trimmedKey) {
-    return { isValid: false, error: emptyError }
-  }
-
-  if (existingKeys.includes(trimmedKey)) {
-    return { isValid: false, error: duplicateError }
-  }
-
-  return { isValid: true }
-}
-
-export function replaceFileProcessingApiKey(keys: string[], index: number, key: string): string[] | null {
-  if (index < 0 || index >= keys.length) {
-    return null
-  }
-
-  const nextKeys = [...keys]
-  nextKeys[index] = key
-  return normalizeFileProcessingApiKeys(nextKeys)
-}
-
-export function removeFileProcessingApiKey(keys: string[], index: number): string[] | null {
-  if (index < 0 || index >= keys.length) {
-    return null
-  }
-
-  return normalizeFileProcessingApiKeys(keys.filter((_, itemIndex) => itemIndex !== index))
-}
+export {
+  type ApiKeyValidity,
+  normalizeApiKeys as normalizeFileProcessingApiKeys,
+  removeApiKey as removeFileProcessingApiKey,
+  replaceApiKey as replaceFileProcessingApiKey,
+  validateApiKey as validateFileProcessingApiKey
+} from '../../utils/apiKeys'

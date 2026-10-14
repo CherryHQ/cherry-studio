@@ -69,6 +69,18 @@ describe('DynamicVirtualList', () => {
     return <DynamicVirtualList ref={ref} {...defaultProps} {...listProps} />
   }
 
+  const TestComponentWithScrollElementRef: React.FC<{
+    onScrollElementReady: (node: HTMLDivElement | null) => void
+  }> = ({ onScrollElementReady }) => {
+    const scrollElementRef = useRef<HTMLDivElement>(null)
+
+    React.useEffect(() => {
+      onScrollElementReady(scrollElementRef.current)
+    }, [onScrollElementReady])
+
+    return <DynamicVirtualList {...defaultProps} role="listbox" scrollElementRef={scrollElementRef} />
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -78,11 +90,6 @@ describe('DynamicVirtualList', () => {
   })
 
   describe('basic rendering', () => {
-    it('snapshot test', () => {
-      const { container } = render(<DynamicVirtualList {...defaultProps} />)
-      expect(container).toMatchSnapshot()
-    })
-
     it('should apply custom scroller styles', () => {
       const customStyle = { backgroundColor: 'red', height: '400px' }
       render(<DynamicVirtualList {...defaultProps} scrollerStyle={customStyle} />)
@@ -105,34 +112,47 @@ describe('DynamicVirtualList', () => {
       expect(firstItem).toHaveStyle('padding: 10px')
       expect(firstItem).toHaveStyle('margin: 5px')
     })
+
+    it('should skip item measurement when callers provide a fixed item height', () => {
+      render(<DynamicVirtualList {...defaultProps} itemContainerStyle={{ height: 32 }} />)
+
+      expect(mocks.virtualizer.measureElement).not.toHaveBeenCalled()
+    })
+
+    it('should expose the scroll element and allow overriding the container role', () => {
+      const onScrollElementReady = vi.fn()
+
+      render(<TestComponentWithScrollElementRef onScrollElementReady={onScrollElementReady} />)
+
+      const scrollContainer = screen.getByRole('listbox')
+      expect(onScrollElementReady).toHaveBeenCalledWith(scrollContainer)
+    })
   })
 
   describe('props integration', () => {
-    it('should render correctly with different item counts', () => {
-      const { rerender } = render(<DynamicVirtualList {...defaultProps} list={createTestItems(3)} />)
+    it('should remeasure when an initially empty list receives items', () => {
+      mocks.virtualizer.getVirtualItems.mockReturnValueOnce([])
+      const { rerender } = render(<DynamicVirtualList {...defaultProps} list={[]} size={0} />)
 
-      // Should render without errors
+      expect(mocks.virtualizer.measure).not.toHaveBeenCalled()
+
+      rerender(<DynamicVirtualList {...defaultProps} list={createTestItems(3)} size={150} />)
+
+      expect(mocks.virtualizer.measure).toHaveBeenCalledOnce()
       expect(screen.getByTestId('item-0')).toBeInTheDocument()
-
-      // Should handle dynamic item count changes
-      rerender(<DynamicVirtualList {...defaultProps} list={createTestItems(10)} />)
-      expect(document.querySelector('.dynamic-virtual-list')).toBeInTheDocument()
     })
 
     it('should work with custom estimateSize function', () => {
       const customEstimateSize = vi.fn(() => 80)
 
-      // Should render without errors when using custom estimateSize
-      expect(() => {
-        render(<DynamicVirtualList {...defaultProps} estimateSize={customEstimateSize} />)
-      }).not.toThrow()
+      render(<DynamicVirtualList {...defaultProps} estimateSize={customEstimateSize} />)
 
-      expect(screen.getByTestId('item-0')).toBeInTheDocument()
+      expect(mocks.useVirtualizer).toHaveBeenCalledWith(expect.objectContaining({ estimateSize: customEstimateSize }))
     })
   })
 
   describe('sticky feature', () => {
-    it('should apply sticky positioning to specified items', () => {
+    it('keeps sticky rows in the list stacking context', () => {
       const isSticky = vi.fn((index: number) => index === 0) // First item is sticky
 
       render(<DynamicVirtualList {...defaultProps} isSticky={isSticky} />)
@@ -143,8 +163,24 @@ describe('DynamicVirtualList', () => {
       // Sticky items within visible range should have proper z-index but may be absolute until scrolled
       const stickyItem = document.querySelector('[data-index="0"]') as HTMLElement
       expect(stickyItem).toBeInTheDocument()
-      // When sticky item is in visible range, it gets z-index but may not be sticky yet
-      expect(stickyItem).toHaveStyle('z-index: 999')
+      expect(stickyItem).toHaveStyle('z-index: 1')
+
+      const scrollContainer = document.querySelector('.dynamic-virtual-list')
+      expect(scrollContainer).toHaveClass('isolate')
+    })
+
+    it('keeps active sticky rows below shared floating layers', () => {
+      const isSticky = vi.fn((index: number) => index === 0)
+      mocks.useVirtualizer.mockImplementationOnce((options: { rangeExtractor: (range: unknown) => number[] }) => {
+        options.rangeExtractor({ startIndex: 1, endIndex: 2 })
+        return mocks.virtualizer
+      })
+
+      render(<DynamicVirtualList {...defaultProps} isSticky={isSticky} />)
+
+      const stickyItem = document.querySelector('[data-index="0"]') as HTMLElement
+      expect(stickyItem).toHaveStyle('position: sticky')
+      expect(stickyItem).toHaveStyle('z-index: 3')
     })
 
     it('should apply absolute positioning to non-sticky items', () => {
@@ -174,24 +210,22 @@ describe('DynamicVirtualList', () => {
     it('should work with custom rangeExtractor', () => {
       const customRangeExtractor = vi.fn(() => [0, 1, 2])
 
-      // Should render without errors when using custom rangeExtractor
-      expect(() => {
-        render(<DynamicVirtualList {...defaultProps} rangeExtractor={customRangeExtractor} />)
-      }).not.toThrow()
+      render(<DynamicVirtualList {...defaultProps} rangeExtractor={customRangeExtractor} />)
 
-      expect(screen.getByTestId('item-0')).toBeInTheDocument()
+      expect(mocks.useVirtualizer).toHaveBeenCalledWith(
+        expect.objectContaining({ rangeExtractor: customRangeExtractor })
+      )
     })
 
-    it('should handle both rangeExtractor and sticky props gracefully', () => {
+    it('should prefer a custom rangeExtractor when sticky props are also provided', () => {
       const customRangeExtractor = vi.fn(() => [0, 1, 2])
       const isSticky = vi.fn((index: number) => index === 0)
 
-      // Should render without conflicts when both props are provided
-      expect(() => {
-        render(<DynamicVirtualList {...defaultProps} rangeExtractor={customRangeExtractor} isSticky={isSticky} />)
-      }).not.toThrow()
+      render(<DynamicVirtualList {...defaultProps} rangeExtractor={customRangeExtractor} isSticky={isSticky} />)
 
-      expect(screen.getByTestId('item-0')).toBeInTheDocument()
+      expect(mocks.useVirtualizer).toHaveBeenCalledWith(
+        expect.objectContaining({ rangeExtractor: customRangeExtractor })
+      )
     })
   })
 
@@ -211,11 +245,10 @@ describe('DynamicVirtualList', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    it('should expose all required ref methods', () => {
+    it('should expose and delegate the virtualizer ref API', () => {
       expect(refInstance).toBeTruthy()
       expect(refInstance).not.toBeNull()
 
-      // Type assertion to help TypeScript understand the type
       const ref = refInstance as unknown as DynamicVirtualListRef
       expect(typeof ref.measure).toBe('function')
       expect(typeof ref.scrollElement).toBe('function')
@@ -225,21 +258,19 @@ describe('DynamicVirtualList', () => {
       expect(typeof ref.getTotalSize).toBe('function')
       expect(typeof ref.getVirtualItems).toBe('function')
       expect(typeof ref.getVirtualIndexes).toBe('function')
-    })
 
-    it('should allow calling all ref methods without throwing', () => {
-      const ref = refInstance as unknown as DynamicVirtualListRef
+      ref.measure()
+      ref.scrollToOffset(100, { align: 'start' })
+      ref.scrollToIndex(2, { align: 'center' })
+      ref.resizeItem(1, 80)
 
-      // Test that all methods can be called without errors
-      expect(() => ref.measure()).not.toThrow()
-      expect(() => ref.scrollToOffset(100, { align: 'start' })).not.toThrow()
-      expect(() => ref.scrollToIndex(2, { align: 'center' })).not.toThrow()
-      expect(() => ref.resizeItem(1, 80)).not.toThrow()
-
-      // Test that data methods return expected types
-      expect(typeof ref.getTotalSize()).toBe('number')
-      expect(Array.isArray(ref.getVirtualItems())).toBe(true)
-      expect(Array.isArray(ref.getVirtualIndexes())).toBe(true)
+      expect(mocks.virtualizer.measure).toHaveBeenCalledOnce()
+      expect(mocks.virtualizer.scrollToOffset).toHaveBeenCalledWith(100, { align: 'start' })
+      expect(mocks.virtualizer.scrollToIndex).toHaveBeenCalledWith(2, { align: 'center' })
+      expect(mocks.virtualizer.resizeItem).toHaveBeenCalledWith(1, 80)
+      expect(ref.getTotalSize()).toBe(150)
+      expect(ref.getVirtualItems()).toEqual(mocks.virtualizer.getVirtualItems())
+      expect(ref.getVirtualIndexes()).toEqual([0, 1, 2])
     })
   })
 
@@ -287,38 +318,6 @@ describe('DynamicVirtualList', () => {
     })
   })
 
-  describe('edge cases', () => {
-    it('should handle edge cases gracefully', () => {
-      // Empty items list
-      mocks.virtualizer.getVirtualItems.mockReturnValueOnce([])
-      expect(() => {
-        render(<DynamicVirtualList {...defaultProps} list={[]} />)
-      }).not.toThrow()
-
-      // Null ref
-      expect(() => {
-        render(<DynamicVirtualList {...defaultProps} ref={null} />)
-      }).not.toThrow()
-
-      // Zero estimate size
-      expect(() => {
-        render(<DynamicVirtualList {...defaultProps} estimateSize={() => 0} />)
-      }).not.toThrow()
-
-      // Items without expected properties
-      const itemsWithoutContent = [{ id: '1' }, { id: '2' }] as any[]
-      expect(() => {
-        render(
-          <DynamicVirtualList
-            {...defaultProps}
-            list={itemsWithoutContent}
-            children={(_item, index) => <div data-testid={`item-${index}`}>No content</div>}
-          />
-        )
-      }).not.toThrow()
-    })
-  })
-
   describe('auto hide scrollbar', () => {
     it('should always show scrollbar when autoHideScrollbar is false', () => {
       render(<DynamicVirtualList {...defaultProps} autoHideScrollbar={false} />)
@@ -330,7 +329,7 @@ describe('DynamicVirtualList', () => {
       expect(scrollContainer).not.toHaveAttribute('aria-hidden', 'true')
     })
 
-    it('should hide scrollbar initially and show during scrolling when autoHideScrollbar is true', async () => {
+    it('should hide only the scrollbar visuals when autoHideScrollbar is true', async () => {
       vi.useFakeTimers()
 
       render(<DynamicVirtualList {...defaultProps} autoHideScrollbar={true} />)
@@ -338,8 +337,9 @@ describe('DynamicVirtualList', () => {
       const scrollContainer = document.querySelector('.dynamic-virtual-list') as HTMLElement
       expect(scrollContainer).toBeInTheDocument()
 
-      // Initially hidden
-      expect(scrollContainer).toHaveAttribute('aria-hidden', 'true')
+      // The content container remains exposed to assistive technology.
+      expect(scrollContainer).not.toHaveAttribute('aria-hidden')
+      expect(scrollContainer).toHaveStyle('scrollbar-color: transparent transparent')
 
       // We can't easily simulate real scroll events in JSDOM, so we'll test the internal logic directly
       // by calling the onChange handler which should update the state
@@ -351,7 +351,8 @@ describe('DynamicVirtualList', () => {
       })
 
       // After scrolling starts, scrollbar should be visible
-      expect(scrollContainer).toHaveAttribute('aria-hidden', 'false')
+      expect(scrollContainer).not.toHaveAttribute('aria-hidden')
+      expect(scrollContainer).toHaveStyle('scrollbar-color: var(--scrollbar-thumb) transparent')
 
       // Simulate scroll end
       act(() => {
@@ -363,8 +364,9 @@ describe('DynamicVirtualList', () => {
         vi.advanceTimersByTime(10000)
       })
 
-      // After timeout, scrollbar should be hidden again
-      expect(scrollContainer).toHaveAttribute('aria-hidden', 'true')
+      // After timeout, scrollbar visuals should be hidden again
+      expect(scrollContainer).not.toHaveAttribute('aria-hidden')
+      expect(scrollContainer).toHaveStyle('scrollbar-color: transparent transparent')
 
       vi.useRealTimers()
     })

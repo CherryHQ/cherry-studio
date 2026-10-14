@@ -9,29 +9,25 @@
  * that already pull from `agentParams/`.
  */
 
-import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import type { ResolvedReasoningProfile, ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
+import type { CompressionModelDescriptor } from '@main/ai/contextBuild/resolveCompressionModel'
+import type { CompactionSink } from '@shared/ai/compaction'
+import type { EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import type { AppProviderKey, SdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import type { ToolApplyScope } from '../../../tools/adapters/aiSdk/types'
-import type { AppProviderId, AppProviderSettingsMap } from '../../../types'
-import type { AiBaseRequest } from '../../../types/requests'
+import type { AiChatRequest, AppProviderId } from '../../../types'
+import type { ResolvedReasoningInvocation } from '../../../utils/reasoningSerializers'
 import type { ResolvedCapabilities } from './capabilities'
 
-export type { ToolApplyScope }
-
-export type AppProviderKey = StringKeys<AppProviderSettingsMap>
-
-export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
-  readonly providerId: T
-  readonly providerSettings: AppProviderSettingsMap[T]
-  readonly modelId: string
-}
+export type { AppProviderKey, SdkConfig, ToolApplyScope }
 
 export interface RequestScope extends ToolApplyScope {
-  readonly request: AiBaseRequest & { chatId?: string }
+  readonly request: AiChatRequest
   readonly signal: AbortSignal | undefined
   readonly registry: ToolRegistry
   readonly model: Model
@@ -40,5 +36,16 @@ export interface RequestScope extends ToolApplyScope {
   readonly sdkConfig: SdkConfig
   readonly endpointType: EndpointType | undefined
   readonly aiSdkProviderId: AppProviderId
+  readonly reasoningProfile: ResolvedReasoningProfile
+  readonly reasoning: ResolvedReasoningInvocation
+  readonly serviceTierControl?: ResolvedServiceTierControl
   readonly requestContext: RequestContext
+  /** Resolved context-build settings (global prefs; assistant/topic
+   *  overrides wired in P2-D). */
+  readonly contextSettings: EffectiveContextSettings
+  /** Pre-resolved compression model (explicit pick, else current request
+   *  model). null when compression is disabled or resolution failed. */
+  readonly compressionModel: CompressionModelDescriptor | null
+  /** Reports compaction progress to the UI (see CompactionSink). */
+  readonly compactionSink?: CompactionSink
 }

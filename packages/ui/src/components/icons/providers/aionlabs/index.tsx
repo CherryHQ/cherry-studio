@@ -9,7 +9,7 @@ const Aionlabs = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const AionlabsIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Aionlabs, {
   Avatar: AionlabsAvatar,
-  colorPrimary: '#0A1B2C'
+  colorPrimary: '#000000'
 })
 
 export default AionlabsIcon

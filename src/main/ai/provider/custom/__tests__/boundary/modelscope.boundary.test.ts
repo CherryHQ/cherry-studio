@@ -46,8 +46,9 @@ describe('ModelScope request boundary', () => {
       modelId: 'MusePublic/489_ckpt_FLUX_1',
       prompt: 'a fox',
       size: '1024x1024',
-      providerParams: { numInferenceSteps: 30, guidanceScale: 4, negativePrompt: 'blur', seed: 7 }
-    } as ImageGenerationSubmitInput)
+      seed: 7,
+      providerParams: { numInferenceSteps: 30, guidanceScale: 4, negativePrompt: 'blur' }
+    })
 
     expect(req.url).toBe(url)
     txt2imgBody.parse(req.body)
@@ -60,7 +61,7 @@ describe('ModelScope request boundary', () => {
       modelId: 'Qwen/Qwen-Image-Edit',
       prompt: 'make it night',
       files: [{ mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }] as ImageGenerationSubmitInput['files']
-    } as ImageGenerationSubmitInput)
+    })
 
     expect(req.url).toBe(url)
     editBody.parse(req.body)

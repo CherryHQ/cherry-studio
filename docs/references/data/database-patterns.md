@@ -1,3 +1,11 @@
+---
+description: Database schema authoring patterns - file organization, naming, column helpers, write serialization (withWriteTx)
+sources:
+  - src/main/data/db/schemas
+  - src/main/data/db/schemas/_columnHelpers.ts
+  - src/main/data/db/DbService.ts
+---
+
 # Database Schema Guidelines
 
 ## Schema File Organization
@@ -244,11 +252,7 @@ export const messageTable = sqliteTable("message", {
 
 ## Migrations
 
-Generate migrations after schema changes:
-
-```bash
-pnpm agents:generate
-```
+The migration workflow — `pnpm db:migrations:generate` after schema changes, regenerate-never-rename, CI gates, and additive-vs-rebuild — is consolidated in **[Database Construction](./database-construction.md)**.
 
 ## Field Generation Rules
 
@@ -266,12 +270,12 @@ Always use `.returning()` to get inserted/updated data instead of re-querying:
 
 ```typescript
 // Good: Use returning()
-const [row] = await db.insert(table).values(data).returning();
-return rowToEntity(row);
+const [row] = db.insert(table).values(data).returning().all()
+return rowToEntity(row)
 
 // Avoid: Re-query after insert (unnecessary database round-trip)
-await db.insert(table).values({ id, ...data });
-return this.getById(id);
+db.insert(table).values({ id, ...data }).run()
+return this.getById(id)
 ```
 
 ### Row → Entity Mapping
@@ -310,7 +314,7 @@ camelCase mapping is automatic and fully type-safe.
 
 ```typescript
 // Step 1 — recursive CTE returns ID-only
-const idRows = await db.all<{ id: string }>(sql`
+const idRows = db.all<{ id: string }>(sql`
   WITH RECURSIVE ancestors AS (
     SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
     UNION ALL
@@ -324,7 +328,7 @@ const ids = idRows.map((r) => r.id)
 
 // Step 2 — fetch full rows via ORM (auto camelCase)
 const rows = ids.length > 0
-  ? await db.select().from(messageTable).where(inArray(messageTable.id, ids))
+  ? db.select().from(messageTable).where(inArray(messageTable.id, ids)).all()
   : []
 
 // Step 3 — restore CTE order (IN-list does not preserve order)
@@ -342,13 +346,9 @@ silently.
 Reference implementations: `MessageService.getTree` / `getBranchMessages` /
 `getPathToNode`, `KnowledgeItemService.getCascadeIdsInBase`.
 
-## Custom SQL
+## Custom SQL & FTS5
 
-Drizzle cannot manage triggers and virtual tables (e.g., FTS5). These are defined in `customSql.ts` and run automatically after every migration.
-
-**Why**: SQLite's `DROP TABLE` removes associated triggers. When Drizzle modifies a table schema, it drops and recreates the table, losing triggers in the process.
-
-**Adding new custom SQL**: Define statements as `string[]` in the relevant schema file, then spread into `CUSTOM_SQL_STATEMENTS` in `customSql.ts`. All statements must use `IF NOT EXISTS` to be idempotent.
+Triggers, FTS5 virtual tables, the `CUSTOM_SQL_STATEMENTS` every-boot replay (and why it's ~0.1 ms O(1)), the `fts_rowid` rowid-stability rule, and the idempotency rules (vtables `IF NOT EXISTS`, triggers `DROP+CREATE`) are consolidated in **[Database Construction](./database-construction.md)** (§3 Custom SQL, §4 FTS5).
 
 ## Seeding
 
@@ -356,61 +356,69 @@ For initial data population (default preferences, builtin languages, preset prov
 
 ## Write Serialization (`DbService.withWriteTx`)
 
-Concurrent write paths MUST go through `application.get('DbService').withWriteTx(fn)`. libsql client-ts upstream issue [#288](https://github.com/tursodatabase/libsql-client-ts/issues/288) makes `PRAGMA busy_timeout` ineffective for async transactions, so concurrent `db.transaction()` calls reliably surface `SQLITE_BUSY`.
+`application.get('DbService').withWriteTx(fn)` runs `fn` as one synchronous `BEGIN IMMEDIATE` transaction on the single persistent connection.
+
+**When it earns its keep.** With better-sqlite3 every statement is atomic on its own — a lone `getDb().insert(...).run()` is a complete implicit transaction and needs no wrapper. A transaction earns its keep only when a mutation must commit **all-or-nothing across more than one statement**:
+
+- **Use it** when composing multiple writes, or a read-then-write (validate/select then insert/update/delete), into one atomic unit — the majority of write paths here (create/update/delete that also touch join tables, purge pins/tags, reorder via neighbour reads, or cascade-delete). The premise is **atomicity** (rollback across statements), not serialization: the single synchronous connection already serializes every write by construction.
+- **Don't use** for a single autocommit write — call `getDb()` directly, or pass `getDb()` to the write's `*Tx` form (`this.fooTx(getDb(), …)`). Routing a lone write through `withWriteTx` buys nothing for atomicity and falsely implies a multi-statement invariant. The `*Tx` form stays composable, so the same primitive can still be pulled into a larger `withWriteTx` when a caller genuinely needs multi-write atomicity.
+
+**`withWriteTx` vs `db.transaction()`.** `withWriteTx(fn)` is a thin wrapper over `getDb().transaction(fn, { behavior: 'immediate' })` behind the `isReady` guard. `BEGIN IMMEDIATE` takes the write lock up front, which only matters when a second connection writes concurrently; the main DB uses one connection, so it behaves identically to a plain `db.transaction(fn)`. Prefer `withWriteTx` as the conventional, greppable write seam with the correct write-intent default — but a direct `db.transaction()` is **equivalent** for atomicity and not an error. `withWriteTx` is **not** the readiness gate: `getDb()` already throws when the DB isn't ready, so writes made outside `withWriteTx` are still guarded. The single synchronous connection serializes all access, so there is no process-wide mutex and no `SQLITE_BUSY` retry — the libsql-era serialization this wrapper originally existed for (upstream #288) is gone.
 
 ### Signature
 
 ```ts
-withWriteTx<T>(fn: (tx: DbOrTx) => Promise<T>): Promise<T>
+withWriteTx<T>(fn: (tx: DbOrTx) => T): T
 ```
 
-Internals: process-wide FIFO mutex + libsql's default `BEGIN IMMEDIATE` + single 50 ms `SQLITE_BUSY` retry. Callers never see BUSY (unless the retry also fails — extremely rare).
+`fn` must be **synchronous** — better-sqlite3 rejects a Promise-returning transaction callback. Internals: one synchronous `BEGIN IMMEDIATE` transaction behind the `isReady` guard; the single connection serializes all access, so callers never contend.
 
 ### Usage
 
 ```ts
 const dbService = application.get('DbService')
 
-// Single write
-await dbService.withWriteTx((tx) =>
-  jobService.setMetadataTx(tx, jobId, merged)
-)
+// A single write does NOT use withWriteTx — go straight through getDb(),
+// or pass it to the *Tx form:
+jobService.setMetadataTx(dbService.getDb(), jobId, merged)
 
-// Compose multiple writes into one transaction
-await dbService.withWriteTx(async (tx) => {
-  await jobService.cancelByIdsTx(tx, ids, error)
-  await jobService.resetToPendingByIdsTx(tx, otherIds)
+// withWriteTx is for composing multiple writes into one atomic transaction:
+dbService.withWriteTx((tx) => {
+  jobService.cancelByIdsTx(tx, ids, error)
+  jobService.resetToPendingByIdsTx(tx, otherIds)
 })
 ```
 
 ### Two-form DAO pattern
 
-Each write method has a composable `*Tx` form and a thin non-Tx wrapper. Simple callers use the wrapper and never see `withWriteTx`; batch/recovery paths compose `*Tx` calls inside a single `withWriteTx`. See `JobService` / `JobScheduleService` for canonical examples.
+Each write method has a composable `*Tx` form and a thin non-Tx wrapper. A single-write method's wrapper passes `getDb()` to the `*Tx` form; a multi-write / read-then-write method's wrapper composes one or more `*Tx` calls inside a single `withWriteTx`. Either way the `*Tx` form stays composable, so batch/recovery paths can pull it into a larger transaction. See `JobService` / `JobScheduleService` for canonical examples.
 
 ```ts
-async cancelByIdsTx(tx: DbOrTx, ids: string[], error: JobError): Promise<void> { /* SQL via tx */ }
+cancelByIdsTx(tx: DbOrTx, ids: string[], error: JobError): void { /* SQL via tx */ }
 
-async cancelByIds(ids: string[], error: JobError): Promise<void> {
-  const dbService = application.get('DbService')
-  return dbService.withWriteTx((tx) => this.cancelByIdsTx(tx, ids, error))
+// Single write → call the *Tx form with getDb() directly (no withWriteTx):
+cancelByIds(ids: string[], error: JobError): void {
+  return this.cancelByIdsTx(application.get('DbService').getDb(), ids, error)
 }
 ```
+
+`*Tx` forms also compose **across services**: `JobManager.enqueueTx(tx, type, input)` rides the caller's transaction so a business-state write and its job enqueue commit all-or-nothing (see [Transactional enqueue](../job-and-scheduler/overview.md#transactional-enqueue-enqueuetx)).
 
 ### Rules
 
 | Rule | Rationale |
 | --- | --- |
-| `fn` must only do DB ops — no `await` on network / file IO / handler execution | Holds the global write mutex; long awaits starve the queue |
-| Do not call `writeMutex.cancel()` | Mutex is non-cancellable; shutdown coordinates via service lifecycle |
+| `fn` must be synchronous and only do DB ops — no network / file IO / handler execution | better-sqlite3 rejects a Promise-returning callback; the transaction blocks the single connection until `fn` returns |
 | Do not wrap reads | WAL mode gives readers snapshot isolation; wrapping adds needless serialization |
-| Wrap tight loops in one `withWriteTx`, not per-iteration | One acquire/release vs N |
+| Don't wrap a single autocommit write | one statement is already an implicit transaction — call `getDb()` (or the `*Tx` form) directly; `getDb()` still guards readiness |
+| Wrap tight loops in one `withWriteTx`, not per-iteration | One `BEGIN IMMEDIATE` transaction vs N |
 
 ### When to migrate existing callsites
 
 | Path | Action |
 | --- | --- |
-| Concurrent write paths in hot code | Migrate |
-| Low-frequency writes (user settings, occasional CRUD) | Migrate when touching the code |
+| Multi-statement / read-then-write mutations | Wrap in a transaction — `withWriteTx` (preferred) or a direct `db.transaction()` |
+| Single-statement writes | Don't wrap — call `getDb()` (or the `*Tx` form) directly |
 | Boot-only writes (migrations, seeders) | Leave |
 | Pure reads | Leave |
 

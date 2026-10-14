@@ -1,7 +1,7 @@
-import type { HexColor } from '@renderer/types'
-import { isHexColor } from '@renderer/types'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+
+import { type HexColor, isHexColor } from '@renderer/utils/color'
 
 type ClassValue = string | number | boolean | undefined | null | ClassDictionary | ClassArray
 

@@ -1,0 +1,203 @@
+import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
+
+import { canEditAssistantMessageParts } from '../partsHelpers'
+
+const parts = (...items: Array<Record<string, unknown>>) => items as CherryMessagePart[]
+
+describe('canEditAssistantMessageParts', () => {
+  it.each([
+    {
+      messageParts: parts(
+        { type: 'reasoning', text: 'reasoning' },
+        { type: 'text', text: 'answer' },
+        { type: 'data-translation', data: { content: 'translation', targetLanguage: 'en-us' } }
+      )
+    },
+    {
+      messageParts: parts(
+        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+        { type: 'text', text: 'answer' }
+      )
+    },
+    {
+      messageParts: parts(
+        { type: 'text', text: 'answer' },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+        { type: 'data-citation', data: {} }
+      )
+    },
+    // The derived translation is dropped by the same save, so it does not displace the file
+    {
+      messageParts: parts(
+        { type: 'text', text: 'answer' },
+        { type: 'data-translation', data: { content: 'translation', targetLanguage: 'en-us' } },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' }
+      )
+    },
+    {
+      messageParts: parts({ type: 'text', text: 'first paragraph' }, { type: 'text', text: 'second paragraph' })
+    },
+    {
+      messageParts: parts(
+        { type: 'text', text: 'before tool' },
+        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+        { type: 'text', text: 'after tool' }
+      )
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with safe composer metadata',
+        providerMetadata: {
+          cherry: {
+            references: [],
+            composer: { version: 1, tokens: [] }
+          }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer from the Responses API',
+        providerMetadata: {
+          openai: { itemId: 'msg_1', phase: 'content' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with provider citations',
+        providerMetadata: {
+          anthropic: { citations: [{ title: 'Example', url: 'https://example.com' }] }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'provider-specific answer',
+        providerMetadata: {
+          futureProvider: { opaqueState: 'state-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with an out-of-spec provider entry',
+        providerMetadata: {
+          openai: 'msg_1'
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'cited answer [1]',
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: {
+                  source: 'websearch',
+                  results: [{ number: 1, url: 'https://example.com', title: 'Example' }]
+                }
+              }
+            ]
+          }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'signed answer',
+        providerMetadata: {
+          google: { thoughtSignature: 'signature-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'signed answer alongside roundtrippable Cherry metadata',
+        providerMetadata: {
+          cherry: { references: [] },
+          google: { thoughtSignature: 'signature-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer signed by a provider we do not know yet',
+        providerMetadata: {
+          futureProvider: { replaySignature: 'signature-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with unknown Cherry metadata',
+        providerMetadata: {
+          cherry: { futureField: 'state-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts(
+        {
+          type: 'text',
+          text: 'first paragraph',
+          providerMetadata: {
+            cherry: { composer: { version: 1, tokens: [] } }
+          }
+        },
+        { type: 'text', text: 'second paragraph' }
+      )
+    }
+  ])('is editable when the message has text', ({ messageParts }) => {
+    expect(canEditAssistantMessageParts(messageParts)).toBe(true)
+  })
+
+  it.each([
+    { messageParts: parts({ type: 'reasoning', text: 'reasoning only' }) },
+    {
+      messageParts: parts({ type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' })
+    },
+    { messageParts: parts({ type: 'file', mediaType: 'image/png', url: 'file:///result.png' }) },
+    { messageParts: parts({ type: 'text', text: '   ' }) },
+    { messageParts: parts() },
+    // Files have no anchor: Composer re-emits them as one run directly after the edited text, so a
+    // file parked anywhere else is moved by a save
+    {
+      messageParts: parts(
+        { type: 'text', text: 'answer' },
+        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' }
+      )
+    },
+    {
+      messageParts: parts(
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+        { type: 'text', text: 'answer' }
+      )
+    },
+    {
+      messageParts: parts(
+        { type: 'text', text: 'before file' },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+        { type: 'text', text: 'after file' }
+      )
+    }
+  ])('is not editable when the message has no text or a file outside the run after it', ({ messageParts }) => {
+    expect(canEditAssistantMessageParts(messageParts)).toBe(false)
+  })
+})

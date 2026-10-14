@@ -1,8 +1,10 @@
 import useSWRImmutable from 'swr/immutable'
 
+import { ipcApi } from '@renderer/ipc'
+
 async function loadOvmsSupport(): Promise<boolean> {
   try {
-    return await window.api.ovms.isSupported()
+    return await ipcApi.request('ovms.is_supported')
   } catch {
     return false
   }

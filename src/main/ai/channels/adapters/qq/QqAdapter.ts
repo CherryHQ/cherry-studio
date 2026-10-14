@@ -1,15 +1,36 @@
-import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
-import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { net } from 'electron'
+import { fileTypeFromBuffer } from 'file-type'
 import WebSocket from 'ws'
 
+import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { splitMessage } from '../../utils'
 
 const QQ_MAX_LENGTH = 2000
 const QQ_API_BASE = 'https://api.sgroup.qq.com'
+/**
+ * QQ passive-reply window per chat type (ms): the inbound msg_id is rejected once it lapses.
+ * Passive reply (against a recent msg_id) is the default delivery path and needs no opt-in.
+ * Active group push reopened 2026-06-22 but only when the group owner enables "机器人主动在群聊内
+ * 发言", and it is rate-limited (per-account 30-60 qpm, per-group 20 qpm). So once the window
+ * lapses we omit msg_id and fall back to an active push, which is delivered only if that toggle
+ * is on. Single chat (C2C) gets 60 min; group / guild subchannel / guild DM get 5 min.
+ * See https://bot.q.qq.com/wiki/develop/api-v2/server-inter/message/send-receive/send.html
+ */
+const QQ_PASSIVE_REPLY_TTL: Record<string, number> = {
+  c2c: 60 * 60 * 1000,
+  group: 5 * 60 * 1000,
+  channel: 5 * 60 * 1000,
+  dm: 5 * 60 * 1000
+}
+const QQ_PASSIVE_REPLY_TTL_DEFAULT = 5 * 60 * 1000
+/** QQ accepts at most 5 passive replies per inbound msg_id; the 6th is rejected. */
+const QQ_MAX_PASSIVE_REPLIES = 5
+/** Cap on tracked inbound ids; evict oldest beyond this so the map can't grow unbounded. */
+const QQ_MAX_PASSIVE_ENTRIES = 1000
 
 // QQ Bot WebSocket opcodes
 const OP_DISPATCH = 0
@@ -42,6 +63,14 @@ type QqAttachment = {
   url: string
 }
 
+/** Passive-reply state for one inbound message, keyed by `chatId:msgId`. */
+type PassiveReply = {
+  chatId: string
+  receivedAt: number
+  /** Reply counter; QQ v2 dedupes repeat replies on one msg_id unless msg_seq differs. */
+  seq: number
+}
+
 type QqMessage = {
   id: string
   author: {
@@ -65,6 +94,8 @@ class QqAdapter extends ChannelAdapter {
   private readonly clientSecret: string
   private readonly allowedChatIds: string[]
 
+  /** Passive-reply state keyed by `chatId:msgId`, so a reply targets the exact message it answers. */
+  private readonly passiveReplies = new Map<string, PassiveReply>()
   private tokenCache: QqTokenCache | null = null
   private sessionId: string | null = null
   private lastSeq: number | null = null
@@ -83,26 +114,35 @@ class QqAdapter extends ChannelAdapter {
   /** Number of rapid disconnects before invalidating session */
   private readonly maxRapidDisconnects = 3
 
+  private readonly mentionOnly: boolean
+
+  /** Dedup: msg ids seen recently (id → timestamp) to suppress duplicate @mention events. */
+  private readonly seenMsgIds = new Map<string, number>()
+
+  private readonly DEDUP_TTL_MS = 10_000
+  private readonly DEDUP_MAX_ENTRIES = 500
+
   constructor(config: ChannelAdapterConfig<'qq'>) {
     super(config)
-    const { app_id, client_secret, allowed_chat_ids } = config.channelConfig
+    const { app_id, client_secret, allowed_chat_ids, mention_only } = config.channelConfig
     this.appId = app_id
     this.clientSecret = client_secret
     this.allowedChatIds = allowed_chat_ids ?? []
     this.notifyChatIds = [...this.allowedChatIds]
+    this.mentionOnly = mention_only ?? true
   }
 
   protected override async checkReady(): Promise<boolean> {
     return !!(this.appId && this.clientSecret)
   }
 
-  protected override async performConnect(_signal: AbortSignal): Promise<void> {
+  protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.appId || !this.clientSecret) {
       throw new Error('QQ Bot AppID and ClientSecret are required')
     }
 
     this.shouldStop = false
-    await this.startGateway()
+    await this.startGateway(signal)
 
     this.log.info('QQ bot started')
   }
@@ -113,7 +153,7 @@ class QqAdapter extends ChannelAdapter {
     this.log.info('QQ bot stopped')
   }
 
-  private async getAccessToken(): Promise<string> {
+  private async getAccessToken(signal?: AbortSignal): Promise<string> {
     // Check cache
     if (this.tokenCache && Date.now() < this.tokenCache.expiresAt - 60000) {
       return this.tokenCache.accessToken
@@ -125,7 +165,8 @@ class QqAdapter extends ChannelAdapter {
       body: JSON.stringify({
         appId: this.appId,
         clientSecret: this.clientSecret
-      })
+      }),
+      signal
     })
 
     if (!response.ok) {
@@ -148,9 +189,10 @@ class QqAdapter extends ChannelAdapter {
 
   private async apiRequest(
     endpoint: string,
-    options?: { method?: string; body?: Record<string, unknown> }
+    options?: { method?: string; body?: Record<string, unknown> },
+    signal?: AbortSignal
   ): Promise<Response> {
-    const token = await this.getAccessToken()
+    const token = await this.getAccessToken(signal)
     const response = await net.fetch(endpoint, {
       method: options?.method ?? 'GET',
       headers: {
@@ -158,7 +200,8 @@ class QqAdapter extends ChannelAdapter {
         'Content-Type': 'application/json',
         'X-Union-Appid': this.appId
       },
-      ...(options?.body ? { body: JSON.stringify(options.body) } : {})
+      ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
+      signal
     })
 
     if (!response.ok) {
@@ -169,20 +212,21 @@ class QqAdapter extends ChannelAdapter {
     return response
   }
 
-  private async getGatewayUrl(): Promise<string> {
-    const response = await this.apiRequest(`${QQ_API_BASE}/gateway`)
+  private async getGatewayUrl(signal?: AbortSignal): Promise<string> {
+    const response = await this.apiRequest(`${QQ_API_BASE}/gateway`, undefined, signal)
     const data = (await response.json()) as { url: string }
     return data.url
   }
 
-  private async startGateway(): Promise<void> {
+  private async startGateway(signal?: AbortSignal): Promise<void> {
     if (this.isConnecting || this.shouldStop) return
     this.isConnecting = true
 
     try {
       this.cleanup()
 
-      const gatewayUrl = await this.getGatewayUrl()
+      const gatewayUrl = await this.getGatewayUrl(signal)
+      if (signal?.aborted || this.shouldStop) return
       this.log.info('Connecting to QQ gateway', { url: gatewayUrl })
 
       const ws = new WebSocket(gatewayUrl)
@@ -216,6 +260,7 @@ class QqAdapter extends ChannelAdapter {
         })
       })
     } catch (error) {
+      if (signal?.aborted) return
       this.log.error('Failed to start QQ gateway', {
         error: error instanceof Error ? error.message : String(error)
       })
@@ -342,7 +387,11 @@ class QqAdapter extends ChannelAdapter {
         await this.handleC2CMessage(data as QqMessage)
         break
       case 'GROUP_AT_MESSAGE_CREATE':
+        // Dedup lives inside handleGroupMessage (same layer as handleGroupFullMessage).
         await this.handleGroupMessage(data as QqMessage)
+        break
+      case 'GROUP_MESSAGE_CREATE':
+        await this.handleGroupFullMessage(data as QqMessage)
         break
       case 'AT_MESSAGE_CREATE':
         await this.handleGuildMessage(data as QqMessage)
@@ -362,7 +411,72 @@ class QqAdapter extends ChannelAdapter {
   private async handleGroupMessage(msg: QqMessage): Promise<void> {
     const chatId = `group:${msg.group_openid}`
     if (!this.isAllowed(chatId, msg.group_openid)) return
-    await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+    // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message.
+    // Must run before any await — processMessage downloads attachments, so an interleaved twin
+    // event would otherwise observe "not seen" while the first copy is still in flight.
+    // AT events are handled in both mention modes; mention_only only gates FULL events.
+    if (!this.markIfNew(msg.id)) return
+    await this.processGroupMessage(msg, chatId)
+  }
+
+  /** Group full-message handler (GROUP_MESSAGE_CREATE — all group messages when full mode is on). */
+  private async handleGroupFullMessage(msg: QqMessage): Promise<void> {
+    const chatId = `group:${msg.group_openid}`
+    if (!this.isAllowed(chatId, msg.group_openid)) return
+
+    // mention_only mode: ignore non-@ messages (they already arrive via GROUP_AT_MESSAGE_CREATE)
+    if (this.mentionOnly) return
+
+    // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message
+    if (!this.markIfNew(msg.id)) return
+
+    await this.processGroupMessage(msg, chatId)
+  }
+
+  /** Dedup gate shared by both group-message paths: false if already seen within the TTL window, otherwise marks and returns true. */
+  private markIfNew(msgId: string): boolean {
+    if (this.wasSeen(msgId)) return false
+    this.markSeen(msgId)
+    return true
+  }
+
+  /**
+   * Run the shared group-message pipeline; on failure, roll back the dedup mark so a
+   * twin event (or a platform re-push) can retry the message. The error is rethrown —
+   * the rollback must not swallow it.
+   */
+  private async processGroupMessage(msg: QqMessage, chatId: string): Promise<void> {
+    try {
+      await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+    } catch (err) {
+      this.seenMsgIds.delete(msg.id)
+      throw err
+    }
+  }
+
+  /**
+   * Mark a msg id as seen for dedup purposes.  Enforces the advertised
+   * cap with oldest-first eviction — mirroring `recordInbound` — so the
+   * map can never grow beyond the cap regardless of TTL.
+   */
+  private markSeen(msgId: string): void {
+    this.seenMsgIds.set(msgId, Date.now())
+    while (this.seenMsgIds.size > this.DEDUP_MAX_ENTRIES) {
+      const oldest = this.seenMsgIds.keys().next().value
+      if (oldest === undefined) break
+      this.seenMsgIds.delete(oldest)
+    }
+  }
+
+  /** Check whether a msg id was already processed (dedup). Cleans stale entries inline. */
+  private wasSeen(msgId: string): boolean {
+    const ts = this.seenMsgIds.get(msgId)
+    if (ts === undefined) return false
+    if (Date.now() - ts > this.DEDUP_TTL_MS) {
+      this.seenMsgIds.delete(msgId)
+      return false
+    }
+    return true
   }
 
   private async handleGuildMessage(msg: QqMessage): Promise<void> {
@@ -378,14 +492,20 @@ class QqAdapter extends ChannelAdapter {
   }
 
   private async processMessage(msg: QqMessage, chatId: string, userId: string, userName: string): Promise<void> {
+    // Record the inbound id at receive time (for the passive-reply window), keyed so a later
+    // reply targets this exact message rather than whatever arrived most recently in the chat.
+    // Passive reply is the default path and needs no group-owner opt-in; active group push works
+    // only when the owner enables it (reopened 2026-06-22, rate-limited).
+    this.recordInbound(chatId, msg.id)
+
     const text = this.parseContent(msg.content)
 
     if (isSlashCommand(text)) {
       if (text.startsWith('/whoami')) {
-        await this.sendWhoami(chatId)
+        await this.sendWhoami(chatId, msg.id)
         return
       }
-      this.emitCommand(chatId, userId, userName, text)
+      this.emitCommand(chatId, userId, userName, text, msg.id)
       return
     }
 
@@ -397,9 +517,20 @@ class QqAdapter extends ChannelAdapter {
       userId,
       userName,
       text,
+      messageId: msg.id,
       images,
       files
     })
+  }
+
+  /** Record an inbound message id for passive replies, evicting the oldest entries past the cap. */
+  private recordInbound(chatId: string, msgId: string): void {
+    this.passiveReplies.set(`${chatId}:${msgId}`, { chatId, receivedAt: Date.now(), seq: 0 })
+    while (this.passiveReplies.size > QQ_MAX_PASSIVE_ENTRIES) {
+      const oldest = this.passiveReplies.keys().next().value
+      if (oldest === undefined) break
+      this.passiveReplies.delete(oldest)
+    }
   }
 
   /**
@@ -434,11 +565,11 @@ class QqAdapter extends ChannelAdapter {
               const buffer = Buffer.from(await retry.arrayBuffer())
               // `att.size` is attacker-supplied metadata; cap on the real downloaded bytes.
               if (buffer.length > MAX_FILE_SIZE_BYTES) return
-              this.pushAttachment(att, buffer, images, files)
+              await this.pushAttachment(att, buffer, images, files)
             } else {
               const buffer = Buffer.from(await response.arrayBuffer())
               if (buffer.length > MAX_FILE_SIZE_BYTES) return
-              this.pushAttachment(att, buffer, images, files)
+              await this.pushAttachment(att, buffer, images, files)
             }
           } catch {
             this.log.warn('Failed to download QQ attachment', { filename: att.filename, url: att.url })
@@ -452,23 +583,31 @@ class QqAdapter extends ChannelAdapter {
     }
   }
 
-  private pushAttachment(att: QqAttachment, buffer: Buffer, images: ImageAttachment[], files: FileAttachment[]): void {
-    const mediaType = att.content_type || 'application/octet-stream'
-    if (mediaType.startsWith('image/')) {
-      images.push({ data: buffer.toString('base64'), media_type: mediaType })
+  private async pushAttachment(
+    att: QqAttachment,
+    buffer: Buffer,
+    images: ImageAttachment[],
+    files: FileAttachment[]
+  ): Promise<void> {
+    // `att.content_type` is attacker-supplied metadata; route on the sniffed bytes instead.
+    const sniffedType = (await fileTypeFromBuffer(buffer))?.mime
+    if (sniffedType?.startsWith('image/')) {
+      images.push({ data: buffer.toString('base64'), media_type: sniffedType })
     } else {
       files.push({
         filename: att.filename || 'file',
         data: buffer.toString('base64'),
-        media_type: mediaType,
+        media_type: sniffedType || att.content_type || 'application/octet-stream',
         size: buffer.length
       })
     }
   }
 
   private parseContent(content: string): string {
-    // Remove @bot mentions and trim
-    return content.replace(/<@!\d+>/g, '').trim()
+    // Strip inline @mention syntax. The platform already removes the bot prefix; this
+    // cleans mentions of *other* users, whose alphanumeric openids the old digit-only
+    // regex missed. The trailing whitespace is consumed so mentions don't leave gaps.
+    return content.replace(/<@![^>]*>\s*/g, '').trim()
   }
 
   private isAllowed(chatId: string, rawId?: string): boolean {
@@ -476,12 +615,12 @@ class QqAdapter extends ChannelAdapter {
     return this.allowedChatIds.includes(chatId) || (rawId !== undefined && this.allowedChatIds.includes(rawId))
   }
 
-  private emitCommand(chatId: string, userId: string, userName: string, text: string): void {
+  private emitCommand(chatId: string, userId: string, userName: string, text: string, messageId: string): void {
     const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
-    this.emit('command', { chatId, userId, userName, command: cmd })
+    this.emit('command', { chatId, userId, userName, command: cmd, messageId })
   }
 
-  private async sendWhoami(chatId: string): Promise<void> {
+  private async sendWhoami(chatId: string, messageId: string): Promise<void> {
     const [type] = chatId.split(':')
     const typeLabel =
       type === 'c2c' ? 'Private' : type === 'group' ? 'Group' : type === 'channel' ? 'Guild Channel' : 'Direct Message'
@@ -501,7 +640,7 @@ class QqAdapter extends ChannelAdapter {
     ].join('\n')
 
     try {
-      await this.sendMessage(chatId, message)
+      await this.sendMessage(chatId, message, { replyToMessageId: messageId })
     } catch (err) {
       this.log.error('Failed to send whoami response', {
         chatId,
@@ -510,12 +649,14 @@ class QqAdapter extends ChannelAdapter {
     }
   }
 
-  // oxlint-disable-next-line no-unused-vars -- abstract method signature
-  async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
+  async sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void> {
     const chunks = splitMessage(text, QQ_MAX_LENGTH)
+    // Reply against the message being answered, if the caller threaded one. QQ ids are strings;
+    // a numeric replyToMessageId (Telegram's shape) isn't a QQ msg_id, so ignore it.
+    const replyToMsgId = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
 
     for (let i = 0; i < chunks.length; i++) {
-      await this.sendToChat(chatId, chunks[i])
+      await this.sendToChat(chatId, chunks[i], replyToMsgId)
 
       if (i < chunks.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, 100))
@@ -523,34 +664,66 @@ class QqAdapter extends ChannelAdapter {
     }
   }
 
-  private async sendToChat(chatId: string, text: string): Promise<void> {
+  private async sendToChat(chatId: string, text: string, replyToMsgId?: string): Promise<void> {
     const [type, id] = chatId.split(':')
 
     let endpoint: string
-    let body: Record<string, unknown>
+    const body: Record<string, unknown> = { markdown: { content: text }, msg_type: 2 }
 
     switch (type) {
       case 'c2c':
         endpoint = `${QQ_API_BASE}/v2/users/${id}/messages`
-        body = { markdown: { content: text }, msg_type: 2 }
         break
       case 'group':
         endpoint = `${QQ_API_BASE}/v2/groups/${id}/messages`
-        body = { markdown: { content: text }, msg_type: 2 }
         break
       case 'channel':
         endpoint = `${QQ_API_BASE}/channels/${id}/messages`
-        body = { markdown: { content: text }, msg_type: 2 }
         break
       case 'dm':
         endpoint = `${QQ_API_BASE}/dms/${id}/messages`
-        body = { markdown: { content: text }, msg_type: 2 }
         break
       default:
         throw new Error(`Unknown chat type: ${type}`)
     }
 
+    const seq = replyToMsgId ? this.nextPassiveSeq(chatId, type, replyToMsgId) : undefined
+    if (seq !== undefined) {
+      body.msg_id = replyToMsgId
+      // v2 group/C2C dedupe repeat replies sharing one msg_id; a unique seq keeps every chunk.
+      if (type === 'group' || type === 'c2c') {
+        body.msg_seq = seq
+      }
+    }
+
     await this.apiRequest(endpoint, { method: 'POST', body })
+  }
+
+  /**
+   * Claim the next passive-reply seq for the exact inbound message being answered, or undefined
+   * to fall back to active push once the reply window has lapsed or the per-msg_id cap (5) is hit.
+   * Advancing the seq keeps chunked replies from being deduped by QQ (same msg_id + msg_seq fails).
+   */
+  private nextPassiveSeq(chatId: string, type: string, msgId: string): number | undefined {
+    const key = `${chatId}:${msgId}`
+    const entry = this.passiveReplies.get(key)
+    if (!entry) return undefined
+    const ttl = QQ_PASSIVE_REPLY_TTL[type] ?? QQ_PASSIVE_REPLY_TTL_DEFAULT
+    if (Date.now() - entry.receivedAt > ttl) {
+      this.passiveReplies.delete(key)
+      // The inbound msg_id has expired, so this reply degrades to an active push, which QQ
+      // delivers to a group only if the owner enabled "机器人主动在群聊内发言". Surface it so a
+      // silently-undelivered group reply is traceable.
+      this.log.warn('QQ passive-reply window lapsed; falling back to active push', { chatId, ttl })
+      return undefined
+    }
+    if (entry.seq >= QQ_MAX_PASSIVE_REPLIES) {
+      this.passiveReplies.delete(key)
+      this.log.warn('QQ passive-reply limit (5 per msg_id) reached; falling back to active push', { chatId })
+      return undefined
+    }
+    entry.seq += 1
+    return entry.seq
   }
 
   // oxlint-disable-next-line no-unused-vars -- no-op abstract method
@@ -628,12 +801,8 @@ class QqAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('qq', (channel, agentId) => {
+export function createQqAdapter(config: ChannelAdapterConfig<'qq'>) {
   return new QqAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

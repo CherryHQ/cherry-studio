@@ -1,8 +1,5 @@
 'use client'
 
-import { Label } from '@cherrystudio/ui/components/primitives/label'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import type * as LabelPrimitive from '@radix-ui/react-label'
 import { Slot } from '@radix-ui/react-slot'
 import * as React from 'react'
 import {
@@ -14,6 +11,9 @@ import {
   useFormContext,
   useFormState
 } from 'react-hook-form'
+
+import { Label } from '@cherrystudio/ui/components/primitives/label'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 const Form = FormProvider
 
@@ -82,7 +82,7 @@ function FormItem({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-function FormLabel({ className, ...props }: React.ComponentProps<typeof LabelPrimitive.Root>) {
+function FormLabel({ className, ...props }: React.ComponentProps<typeof Label>) {
   const { error, formItemId } = useFormField()
 
   return (
@@ -117,7 +117,7 @@ function FormDescription({ className, ...props }: React.ComponentProps<'p'>) {
     <p
       data-slot="form-description"
       id={formDescriptionId}
-      className={cn('text-muted-foreground text-sm', className)}
+      className={cn('text-sm text-muted-foreground', className)}
       {...props}
     />
   )
@@ -132,7 +132,7 @@ function FormMessage({ className, ...props }: React.ComponentProps<'p'>) {
   }
 
   return (
-    <p data-slot="form-message" id={formMessageId} className={cn('text-destructive text-sm', className)} {...props}>
+    <p data-slot="form-message" id={formMessageId} className={cn('text-sm text-destructive', className)} {...props}>
       {body}
     </p>
   )

@@ -1,5 +1,8 @@
 import type * as FsPromises from 'node:fs/promises'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { describe, expect, it, vi } from 'vitest'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import type {
   CherryMessagePart,
@@ -9,8 +12,6 @@ import type {
   TextUIPart
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it, vi } from 'vitest'
 
 // Use the repo-wide application mock; the default `getPath` already
 // returns deterministic `/mock/<key>/<filename>` paths.
@@ -36,7 +37,9 @@ vi.mock('node:fs/promises', async () => {
 
 import {
   buildMessageTree,
+  estimateLegacyRequestCount,
   extractCitationReferences,
+  findActiveNodeId,
   mergeStats,
   normalizeStatus,
   type OldBlock,
@@ -96,18 +99,17 @@ describe('buildMessageTree', () => {
     expect(tree.get('a1')!.siblingsGroupId).toBe(tree.get('a2')!.siblingsGroupId)
   })
 
-  it('links user message after multi-model group to foldSelected response', async () => {
+  it('links user message after multi-model group to the useful response', async () => {
     const messages = [
       msg('u1', 'user'),
       msg('a1', 'assistant', { askId: 'u1', foldSelected: true }),
-      msg('a2', 'assistant', { askId: 'u1' }),
+      msg('a2', 'assistant', { askId: 'u1', useful: true }),
       msg('u2', 'user')
     ]
 
     const tree = buildMessageTree(messages)
 
-    // u2 should link to the foldSelected response (a1)
-    expect(tree.get('u2')!.parentId).toBe('a1')
+    expect(tree.get('u2')!.parentId).toBe('a2')
   })
 
   // --- The fix: askId pointing to a deleted user message ---
@@ -140,6 +142,29 @@ describe('buildMessageTree', () => {
     expect(tree.get('a2')!.parentId).toBe('prev')
     expect(tree.get('a1')!.siblingsGroupId).toBeGreaterThan(0)
     expect(tree.get('a1')!.siblingsGroupId).toBe(tree.get('a2')!.siblingsGroupId)
+  })
+
+  it('does not link multi-model responses to an askId that appears later', async () => {
+    const messages = [
+      msg('a1', 'assistant', { askId: 'u1', foldSelected: true }),
+      msg('a2', 'assistant', { askId: 'u1' }),
+      msg('u1', 'user')
+    ]
+
+    const tree = buildMessageTree(messages)
+
+    // The future u1 cannot be the responses' parent. Both responses use the
+    // orphan-group fallback, then u1 follows the selected response.
+    expect(tree.get('a1')?.parentId).toBeNull()
+    expect(tree.get('a2')?.parentId).toBeNull()
+    expect(tree.get('u1')?.parentId).toBe('a1')
+
+    const indexById = new Map(messages.map((message, index) => [message.id, index]))
+    for (const [id, node] of tree) {
+      if (node.parentId) {
+        expect(indexById.get(node.parentId)).toBeLessThan(indexById.get(id)!)
+      }
+    }
   })
 
   it('handles mixed: some askIds valid, some pointing to deleted messages', async () => {
@@ -178,7 +203,7 @@ describe('buildMessageTree', () => {
     expect(tree.get('a1')!.siblingsGroupId).toBe(0)
   })
 
-  it('links user message after multi-model group with no foldSelected to last group member', async () => {
+  it('links user message after an unselected multi-model group to the first response', async () => {
     const messages = [
       msg('u1', 'user'),
       msg('a1', 'assistant', { askId: 'u1' }),
@@ -191,15 +216,14 @@ describe('buildMessageTree', () => {
     // Both responses are siblings under u1
     expect(tree.get('a1')!.parentId).toBe('u1')
     expect(tree.get('a2')!.parentId).toBe('u1')
-    // u2 should link to the last group member (a2), NOT to u1
-    expect(tree.get('u2')!.parentId).toBe('a2')
+    expect(tree.get('u2')!.parentId).toBe('a1')
   })
 
-  it('links user message after orphaned foldSelected group to the selected response', async () => {
+  it('links user message after an orphaned group to the useful response', async () => {
     const messages = [
       msg('prev', 'assistant'),
       msg('a1', 'assistant', { askId: 'deleted', foldSelected: true }),
-      msg('a2', 'assistant', { askId: 'deleted' }),
+      msg('a2', 'assistant', { askId: 'deleted', useful: true }),
       msg('u1', 'user')
     ]
 
@@ -208,8 +232,45 @@ describe('buildMessageTree', () => {
     // Orphaned siblings share 'prev' as parent
     expect(tree.get('a1')!.parentId).toBe('prev')
     expect(tree.get('a2')!.parentId).toBe('prev')
-    // u1 should link to foldSelected response a1
-    expect(tree.get('u1')!.parentId).toBe('a1')
+    expect(tree.get('u1')!.parentId).toBe('a2')
+  })
+})
+
+describe('findActiveNodeId', () => {
+  it('uses the useful response for a terminal multi-model group', () => {
+    const messages = [
+      msg('u1', 'user'),
+      msg('a1', 'assistant', { askId: 'u1', foldSelected: true }),
+      msg('a2', 'assistant', { askId: 'u1', useful: true })
+    ]
+
+    expect(findActiveNodeId(messages)).toBe('a2')
+  })
+
+  it('uses the first useful response when legacy data has multiple useful responses', () => {
+    const messages = [
+      msg('u1', 'user'),
+      msg('a1', 'assistant', { askId: 'u1', useful: true }),
+      msg('a2', 'assistant', { askId: 'u1', useful: true })
+    ]
+
+    expect(findActiveNodeId(messages)).toBe('a1')
+  })
+
+  it('uses the first response when a terminal multi-model group has no useful response', () => {
+    const messages = [
+      msg('u1', 'user'),
+      msg('a1', 'assistant', { askId: 'u1' }),
+      msg('a2', 'assistant', { askId: 'u1', foldSelected: true })
+    ]
+
+    expect(findActiveNodeId(messages)).toBe('a1')
+  })
+
+  it('uses the last message outside a multi-model group', () => {
+    const messages = [msg('u1', 'user'), msg('a1'), msg('u2', 'user')]
+
+    expect(findActiveNodeId(messages)).toBe('u2')
   })
 })
 
@@ -226,7 +287,7 @@ function block(type: string, extra: Record<string, unknown> = {}): OldBlock {
     createdAt: '2025-01-01T00:00:00.000Z',
     status: 'success',
     ...extra
-  } as OldBlock
+  }
 }
 
 describe('transformBlocksToParts', () => {
@@ -286,6 +347,118 @@ describe('transformBlocksToParts', () => {
     expect(part.input).toEqual({ query: 'test' })
     // output comes from rawMcpToolResponse.response
     expect(part.output).toEqual({ content: [{ type: 'text', text: 'result' }] })
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'mcp', serverId: 's1', serverName: 'search' }
+    })
+    expect(readCherryMeta(part)?.tool).toMatchObject({
+      type: 'mcp',
+      serverId: 's1',
+      serverName: 'search'
+    })
+  })
+
+  it('fills toolCallId from raw id when block and raw tool call ids are missing', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: '',
+        toolName: 'raw_id_tool',
+        metadata: {
+          rawMcpToolResponse: {
+            id: 'raw-call-id',
+            tool: { id: 'tool_raw', name: 'raw_id_tool', type: 'mcp' },
+            arguments: { value: true },
+            status: 'done',
+            response: 'ok',
+            toolCallId: ''
+          }
+        }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(part.toolCallId).toBe('raw-call-id')
+  })
+
+  it('fills toolCallId from block id when no legacy tool ids are present', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: '',
+        toolName: 'block_id_tool',
+        content: { content: [{ type: 'text', text: 'ok' }] }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(part.toolCallId).toBe('block-tool')
+  })
+
+  it('writes builtin tool metadata to providerMetadata', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: 'call-builtin',
+        toolName: 'builtin_clock',
+        metadata: {
+          rawMcpToolResponse: {
+            id: 'call-builtin',
+            tool: { id: 'tool_clock', name: 'builtin_clock', type: 'builtin' },
+            arguments: {},
+            status: 'done',
+            response: 'ok',
+            toolCallId: 'call-builtin'
+          }
+        }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'builtin' }
+    })
+    expect(readCherryMeta(part)?.tool).toEqual({ type: 'builtin' })
+  })
+
+  it('keeps server identity but omits invalid tool type metadata', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: 'call-custom',
+        toolName: 'custom_tool',
+        metadata: {
+          rawMcpToolResponse: {
+            id: 'call-custom',
+            tool: {
+              id: 'tool_custom',
+              name: 'custom_tool',
+              type: 'custom',
+              serverId: 'custom-server',
+              serverName: 'Custom'
+            },
+            arguments: {},
+            status: 'done',
+            response: 'ok',
+            toolCallId: 'call-custom'
+          }
+        }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(readCherryMeta(part)?.tool).toEqual({
+      serverId: 'custom-server',
+      serverName: 'Custom'
+    })
+  })
+
+  it('does not write cherry tool metadata when raw tool identity is absent', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: 'call-simple',
+        toolName: 'calc',
+        content: { content: [{ type: 'text', text: '2' }], isError: false }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(readCherryMeta(part)).toBeUndefined()
   })
 
   it('falls back to block fields when rawMcpToolResponse is missing', async () => {
@@ -325,6 +498,34 @@ describe('transformBlocksToParts', () => {
     const part = parts[0] as DynamicToolUIPart
     expect(part.toolName).toBe('fetch_url')
     expect(part.input).toEqual({ url: 'https://example.com' })
+  })
+
+  it('preserves provider tool metadata and fills toolCallId from raw response', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: '',
+        toolName: 'WebSearch',
+        metadata: {
+          rawMcpToolResponse: {
+            id: 'raw-call-id',
+            tool: { id: 'tool_web_search', name: 'WebSearch', type: 'provider' },
+            arguments: { query: 'desktop clients' },
+            status: 'done',
+            response: 'ok',
+            toolCallId: 'raw-tool-call-id'
+          }
+        }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(part.toolName).toBe('WebSearch')
+    expect(part.toolCallId).toBe('raw-tool-call-id')
+    expect(part.input).toEqual({ query: 'desktop clients' })
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'provider' }
+    })
+    expect(readCherryMeta(part)?.tool).toMatchObject({ type: 'provider' })
   })
 
   it('transforms tool with isError to output-error state', async () => {
@@ -456,6 +657,27 @@ describe('transformBlocksToParts', () => {
         expect(row.origin).toBe('internal')
         expect(row.ext).toBe('png')
       }
+    })
+
+    it('deduplicates legacy base64 image mirrored in url and generateImageResponse metadata', async () => {
+      const image = 'data:image/png;base64,AAA='
+      const { parts } = await transformBlocksToParts(
+        [
+          block('image', {
+            url: image,
+            metadata: { generateImageResponse: { type: 'base64', images: ['AAA='] } }
+          })
+        ],
+        { db: dbh.db, filesDataDir: MIGRATION_FILES_DIR }
+      )
+
+      expect(parts).toHaveLength(1)
+      const fileEntryId = readCherryMeta(parts[0] as FileUIPart)?.fileEntryId
+      expect(fileEntryId).toBeTruthy()
+
+      const rows = await dbh.db.select().from(fileEntryTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0].id).toBe(fileEntryId)
     })
 
     it('drops metadata.generateImageResponse base64 images when no db dep is provided (parity with pre-helper behavior)', async () => {
@@ -671,26 +893,47 @@ describe('transformMessage', () => {
     expect(result.modelId).toBeNull()
   })
 
-  it('builds modelSnapshot from model object', async () => {
+  it('builds the assistant snapshot with the model nested', async () => {
     const oldMsg: OldMessage = {
       ...msg('m1', 'assistant'),
       model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
     }
     const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
 
-    const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1')
+    const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1', undefined, {
+      id: 'asst-1',
+      name: 'Translator',
+      emoji: '🌐'
+    })
 
-    expect(result.modelSnapshot).toEqual({
-      id: 'gpt-4',
-      name: 'GPT-4',
-      provider: 'openai',
-      group: 'chatgpt'
+    expect(result.messageSnapshot).toEqual({
+      id: 'asst-1',
+      name: 'Translator',
+      emoji: '🌐',
+      model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
     })
   })
 
-  it('returns null modelSnapshot when model is missing', async () => {
-    const result = await transformMessage(msg('m1', 'assistant'), null, 0, [mainTextBlock('b1', 'm1', 'x')], 't1')
-    expect(result.modelSnapshot).toBeNull()
+  it('returns null snapshot when the assistant is missing (author owns the model)', async () => {
+    const oldMsg: OldMessage = {
+      ...msg('m1', 'assistant'),
+      model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
+    }
+    const result = await transformMessage(oldMsg, null, 0, [mainTextBlock('b1', 'm1', 'x')], 't1')
+    expect(result.messageSnapshot).toBeNull()
+  })
+
+  it('omits the snapshot from user-role messages even when an assistant is resolved', async () => {
+    const oldMsg: OldMessage = {
+      ...msg('m1', 'user'),
+      model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
+    }
+    const result = await transformMessage(oldMsg, null, 0, [mainTextBlock('b1', 'm1', 'x')], 't1', undefined, {
+      id: 'asst-1',
+      name: 'Translator',
+      emoji: '🌐'
+    })
+    expect(result.messageSnapshot).toBeNull()
   })
 
   it('drops legacy traceId because span history is not migrated', async () => {
@@ -702,7 +945,7 @@ describe('transformMessage', () => {
       't1'
     )
 
-    expect(result.traceId).toBeNull()
+    expect(result).not.toHaveProperty('traceId')
   })
 
   it('does not stamp block-level createdAt/updatedAt/metadata/error onto part.providerMetadata.cherry', async () => {
@@ -713,7 +956,7 @@ describe('transformMessage', () => {
         updatedAt: '2025-02-03T00:00:00.000Z',
         metadata: { legacy: 'value' },
         error: { name: 'OldErr', message: 'old' }
-      } as OldMainTextBlockType
+      }
     ]
     const result = await transformMessage(msg('m1', 'assistant'), null, 0, blocks, 't1')
     const part = result.data.parts?.[0] as TextUIPart
@@ -728,7 +971,7 @@ describe('transformMessage', () => {
         results: [{ title: 'Ex', url: 'https://ex.com', content: 'snippet' }],
         source: 'websearch'
       }
-    } as OldCitationBlock
+    }
     const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'cited [1]'), citationBlock]
     const result = await transformMessage(msg('m1', 'assistant'), null, 0, blocks, 't1')
     const textPart = result.data.parts?.find((p) => p.type === 'text') as TextUIPart
@@ -762,15 +1005,75 @@ describe('normalizeStatus', () => {
 // mergeStats
 // ============================================================================
 
+describe('estimateLegacyRequestCount', () => {
+  const block = (type: string): OldBlock => ({
+    id: `block-${type}`,
+    messageId: 'message-1',
+    type,
+    createdAt: '2025-01-01T00:00:00.000Z',
+    status: 'success',
+    ...(type === 'tool' ? { toolId: `tool-${type}` } : {}),
+    ...(type === 'main_text' || type === 'thinking' ? { content: 'output' } : {})
+  })
+
+  it('uses one baseline request for text-only and empty historical messages', () => {
+    expect(estimateLegacyRequestCount([])).toBe(1)
+    expect(estimateLegacyRequestCount([block('main_text')])).toBe(1)
+  })
+
+  it('counts parallel tool groups only when followed by more model output', () => {
+    expect(
+      estimateLegacyRequestCount([
+        block('tool'),
+        block('tool'),
+        block('citation'),
+        block('file'),
+        block('source'),
+        block('main_text'),
+        block('tool')
+      ])
+    ).toBe(2)
+  })
+
+  it('does not infer another request from a terminal tool group', () => {
+    expect(estimateLegacyRequestCount([block('main_text'), block('tool'), block('citation')])).toBe(1)
+  })
+})
+
 describe('mergeStats', () => {
   it('returns null when both usage and metrics are missing', async () => {
     expect(mergeStats()).toBeNull()
     expect(mergeStats(undefined, undefined)).toBeNull()
   })
 
-  it('merges usage tokens', async () => {
-    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 })
-    expect(stats).toEqual({ promptTokens: 10, completionTokens: 20, totalTokens: 30 })
+  it('merges usage tokens (AI SDK v6 names)', async () => {
+    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30, thoughts_tokens: 4 })
+    expect(stats).toEqual({
+      inputTokens: 10,
+      outputTokens: 20,
+      totalTokens: 30,
+      outputTokenDetails: { reasoningTokens: 4 },
+      requestCount: 1,
+      estimatedRequestCount: 1,
+      unpricedRequestCount: 1
+    })
+  })
+
+  it('maps v1 cost to a provider-reported USD cost', async () => {
+    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, cost: 0.0042 })
+    expect(stats).toMatchObject({
+      costs: [
+        {
+          currency: 'USD',
+          amount: 0.0042,
+          providerReportedRequestCount: 1,
+          computedRequestCount: 0
+        }
+      ],
+      requestCount: 1,
+      estimatedRequestCount: 1,
+      unpricedRequestCount: 0
+    })
   })
 
   it('merges metrics timing', async () => {
@@ -780,7 +1083,13 @@ describe('mergeStats', () => {
 
   it('merges both usage and metrics', async () => {
     const stats = mergeStats({ prompt_tokens: 5 }, { time_thinking_millsec: 200 })
-    expect(stats).toEqual({ promptTokens: 5, timeThinkingMs: 200 })
+    expect(stats).toEqual({
+      inputTokens: 5,
+      requestCount: 1,
+      estimatedRequestCount: 1,
+      unpricedRequestCount: 1,
+      timeThinkingMs: 200
+    })
   })
 })
 
@@ -826,7 +1135,7 @@ describe('extractCitationReferences', () => {
   it('extracts memory citations with fields mapped', async () => {
     const block: OldCitationBlock = {
       ...baseCitationBlock,
-      memories: [{ id: 'mem1', memory: 'user likes coffee', hash: 'abc', score: 0.9 } as any]
+      memories: [{ id: 'mem1', memory: 'user likes coffee', hash: 'abc', score: 0.9 }]
     }
     const refs = extractCitationReferences(block)
     expect(refs).toHaveLength(1)
@@ -841,7 +1150,7 @@ describe('extractCitationReferences', () => {
       ...baseCitationBlock,
       response: { results: [{ title: 'T', url: 'https://x.com' }], source: 'bing' },
       knowledge: [{ id: 'k1', content: 'doc' } as any],
-      memories: [{ id: 'm1', memory: 'fact' } as any]
+      memories: [{ id: 'm1', memory: 'fact' }]
     }
     const refs = extractCitationReferences(block)
     expect(refs).toHaveLength(3)

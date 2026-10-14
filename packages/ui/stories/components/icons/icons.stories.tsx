@@ -19,10 +19,13 @@ const IconsShowcase = ({ fontSize = 32 }: IconsShowcaseProps) => {
     <div className="flex flex-wrap gap-4 p-2">
       {icons.map(({ Component, name }) => (
         <div key={name} className="flex flex-col items-center justify-center">
-          <div className="border-gray-200 border-1 rounded-md p-2 w-min" key={name} style={{ fontSize }}>
+          <div
+            className="w-min overflow-hidden rounded-md border-1 border-gray-200 p-2"
+            key={name}
+            style={{ fontSize }}>
             <Component />
           </div>
-          <p className="text-sm text-center mt-2">{name}</p>
+          <p className="mt-2 text-center text-sm">{name}</p>
         </div>
       ))}
     </div>

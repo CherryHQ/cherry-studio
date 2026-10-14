@@ -3,7 +3,7 @@
  *
  * This is the first unit test for the renderer CacheService itself (prior
  * coverage was limited to useCache hook type tests). It locks down the
- * Object.is → lodash.isEqual upgrade for setInternal / setSharedInternal,
+ * Object.is → isEqual upgrade for setInternal / setSharedInternal,
  * and the deepEqual → isEqual refactor for setPersist, focusing on the
  * scenarios the upgrade actually changes: object/array/record values that
  * are reconstructed as new references on every write.
@@ -35,6 +35,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -118,5 +119,84 @@ describe('renderer CacheService equality semantics', () => {
       service.setPersist(key, [{ id: 't1' }, { id: 't2' }] as any)
       expect(broadcastSync).toHaveBeenCalledTimes(1)
     })
+  })
+
+  // hasPersist answers "has this key been overridden" (effective value differs
+  // from the schema default), NOT "is the key in the backing store" — mirrors the
+  // main-process tier. loadPersistCache seeds every key, so membership is always
+  // true and would carry no information.
+  describe('hasPersist (differs-from-default)', () => {
+    it('is false when the value equals the schema default (never set)', async () => {
+      const service = await createService()
+      expect(service.hasPersist('ui.sidebar.width')).toBe(false)
+    })
+
+    it('is true once an overriding (non-default) value is set', async () => {
+      const service = await createService()
+      service.setPersist('ui.sidebar.width', 999)
+      expect(service.hasPersist('ui.sidebar.width')).toBe(true)
+    })
+
+    it('is false when the set value happens to equal the default', async () => {
+      const service = await createService()
+      service.setPersist('ui.sidebar.width', 50) // 50 is the schema default
+      expect(service.hasPersist('ui.sidebar.width')).toBe(false)
+    })
+  })
+
+  describe('deletePersist (reset-to-default)', () => {
+    it('resets an overridden value back to the schema default', async () => {
+      const service = await createService()
+      service.setPersist('ui.sidebar.width', 999)
+      service.deletePersist('ui.sidebar.width')
+      expect(service.getPersist('ui.sidebar.width')).toBe(50)
+      expect(service.hasPersist('ui.sidebar.width')).toBe(false)
+    })
+
+    it('broadcasts the reset to other windows', async () => {
+      const service = await createService()
+      service.setPersist('ui.sidebar.width', 999)
+      broadcastSync.mockClear()
+
+      service.deletePersist('ui.sidebar.width')
+      expect(broadcastSync).toHaveBeenCalledTimes(1)
+    })
+
+    it('is a no-op when the value is already the default', async () => {
+      const service = await createService()
+      broadcastSync.mockClear()
+      service.deletePersist('ui.sidebar.width') // already default
+      expect(broadcastSync).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe('memory cache expiry', () => {
+  it('releases unread image drafts and notifies their consumers when TTL elapses', async () => {
+    vi.useFakeTimers()
+    const service = await createService()
+    const changed = vi.fn()
+    service.setCasual('image-draft', new Blob(['image']), 100)
+    service.subscribe('image-draft', changed)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(changed).toHaveBeenCalledOnce()
+    expect(service.getCasual('image-draft')).toBeUndefined()
+    service.cleanup()
+  })
+
+  it('retains refreshed drafts until their new deadline and preserves entries without TTL', async () => {
+    vi.useFakeTimers()
+    const service = await createService()
+    const image = new Blob(['image'])
+    service.setCasual('image-draft', image, 100)
+    service.setCasual('permanent', image)
+    await vi.advanceTimersByTimeAsync(75)
+    service.setCasual('image-draft', image, 100)
+    await vi.advanceTimersByTimeAsync(25)
+    expect(service.getCasual('image-draft')).toBe(image)
+    await vi.advanceTimersByTimeAsync(75)
+    expect(service.getCasual('image-draft')).toBeUndefined()
+    expect(service.getCasual('permanent')).toBe(image)
+    service.cleanup()
   })
 })

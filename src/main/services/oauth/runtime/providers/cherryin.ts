@@ -1,0 +1,75 @@
+import { net } from 'electron'
+
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
+
+import { ApiKeysResponseSchema, CHERRYIN_CONFIG, validateCherryInApiHost } from '../../CherryInOAuthConfig'
+import { OAuthServiceError } from '../../errors'
+import { PkceOAuthClient } from '../PkceOAuthClient'
+import type { OAuthAccount, OAuthRuntimeProviderContext, OAuthRuntimeProviderDefinition } from '../types'
+
+export interface CherryInOAuthContext extends OAuthRuntimeProviderContext {
+  oauthServer?: string
+  apiHost?: string
+}
+
+export interface CherryInSignInResult extends OAuthAccount {
+  apiKeys: string
+}
+
+const API_KEYS_HTTP_TIMEOUT_MS = 30_000
+
+function resolveCherryInContext(context?: CherryInOAuthContext): { oauthServer: string; apiHost: string } {
+  const oauthServer = context?.oauthServer ?? CHERRYIN_CONFIG.ALLOWED_HOSTS[0]
+  validateCherryInApiHost(oauthServer)
+
+  const apiHost = context?.apiHost ?? oauthServer
+  validateCherryInApiHost(apiHost)
+  return { oauthServer, apiHost }
+}
+
+async function fetchCherryInApiKeys(accessToken: string, apiHost: string): Promise<string> {
+  const response = await net.fetch(`${apiHost}/api/v1/oauth/tokens`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(API_KEYS_HTTP_TIMEOUT_MS)
+  })
+
+  if (!response.ok) {
+    throw new OAuthServiceError(`Failed to fetch API keys: ${response.status}`)
+  }
+
+  const keysArray = ApiKeysResponseSchema.parse(await response.json())
+  const apiKeys = keysArray.filter(Boolean).join(',')
+  if (!apiKeys) {
+    throw new OAuthServiceError('No API keys received')
+  }
+  return apiKeys
+}
+
+export const cherryInOAuthProvider = {
+  providerId: SystemProviderIds.cherryin,
+  clientId: CHERRYIN_CONFIG.CLIENT_ID,
+  transport: {
+    hosts: ['127.0.0.1'],
+    port: CHERRYIN_CONFIG.CALLBACK_PORT,
+    path: CHERRYIN_CONFIG.CALLBACK_PATH,
+    redirectUri: CHERRYIN_CONFIG.REDIRECT_URI
+  },
+  matchesSignInContext: (current, requested) =>
+    current.oauthServer === requested.oauthServer && current.apiHost === requested.apiHost,
+  createClient: (context?: CherryInOAuthContext) => {
+    const { oauthServer, apiHost } = resolveCherryInContext(context)
+    const tokenHost = context?.oauthServer ?? apiHost
+    return new PkceOAuthClient({
+      clientId: CHERRYIN_CONFIG.CLIENT_ID,
+      authorizeUrl: `${oauthServer}/oauth2/auth`,
+      tokenUrl: `${tokenHost}/oauth2/token`,
+      redirectUri: CHERRYIN_CONFIG.REDIRECT_URI,
+      scope: CHERRYIN_CONFIG.SCOPES
+    })
+  },
+  afterPersistTokens: async (tokenData, context) => {
+    const { apiHost } = resolveCherryInContext(context)
+    return { apiKeys: await fetchCherryInApiKeys(tokenData.access_token, apiHost) }
+  }
+} satisfies OAuthRuntimeProviderDefinition<CherryInOAuthContext, Pick<CherryInSignInResult, 'apiKeys'>>

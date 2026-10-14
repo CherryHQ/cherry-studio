@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getToastUtilities, type ToastLabels, ToastProvider, ToastViewport, useToasts } from '../toast'
@@ -20,6 +20,80 @@ describe('Toast', () => {
     vi.useRealTimers()
   })
 
+  it('keeps older actions inaccessible until the stack expands, then restores the chosen item', async () => {
+    const user = userEvent.setup()
+    const archived = new Set(['First', 'Second', 'Third', 'Fourth'])
+    render(<ToastViewport />)
+    act(() => {
+      for (const title of archived) {
+        toast.success({
+          title,
+          action: {
+            label: `Restore ${title}`,
+            onClick: () => {
+              archived.delete(title)
+            }
+          }
+        })
+      }
+    })
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+    expect(screen.getByText('Fourth').closest('[inert]')).toBeNull()
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.mouseEnter(region)
+    expect(screen.getByText('First').closest('[inert]')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Restore Second' }))
+    expect([...archived]).toEqual(['First', 'Third', 'Fourth'])
+    expect(screen.queryByText('Second')).not.toBeInTheDocument()
+    fireEvent.mouseLeave(region)
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+  })
+
+  it('pauses existing and newly arriving notifications while expanded and resumes the remaining timeout', () => {
+    vi.useFakeTimers()
+    render(<ToastViewport />)
+    act(() => {
+      toast.info({ title: 'First', timeout: 1000 })
+    })
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.mouseEnter(region)
+    act(() => {
+      toast.info({ title: 'Second', timeout: 1000 })
+    })
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+    expect(screen.getByText('First')).toBeInTheDocument()
+    expect(screen.getByText('Second')).toBeInTheDocument()
+    fireEvent.mouseLeave(region)
+    act(() => {
+      vi.advanceTimersByTime(600)
+    })
+    expect(screen.queryByText('First')).not.toBeInTheDocument()
+    expect(screen.getByText('Second')).toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+  })
+
+  it('expands for keyboard focus and stays expanded when the pointer leaves', () => {
+    render(<ToastViewport />)
+    act(() => {
+      toast.info('First')
+      toast.info('Second')
+    })
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.focus(screen.getAllByRole('button', { name: 'Close' })[0])
+    fireEvent.mouseLeave(region)
+    expect(screen.getByText('First').closest('[inert]')).toBeNull()
+    fireEvent.blur(region, { relatedTarget: document.body })
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+  })
+
   it('renders a string toast in the viewport', () => {
     render(<ToastViewport />)
 
@@ -30,6 +104,99 @@ describe('Toast', () => {
     expect(screen.getByText('Saved')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'notifications' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('dismisses an actionable toast before running its action without triggering the toast click', async () => {
+    const user = userEvent.setup()
+    const onToastClick = vi.fn()
+    const onAction = vi.fn(() => {
+      expect(toast.getToastQueue().toasts).toHaveLength(0)
+    })
+
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.success({
+        action: { label: 'Undo', onClick: onAction },
+        key: 'deleted-item',
+        onClick: onToastClick,
+        title: 'Item deleted'
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+
+    expect(screen.queryByText('Item deleted')).not.toBeInTheDocument()
+    expect(onToastClick).not.toHaveBeenCalled()
+    expect(onAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs the secondary action without disturbing the primary one, then dismisses the toast', async () => {
+    // The archive action navigates instead of restoring, so it must not also fire the
+    // primary action or the toast's own click handler.
+    const user = userEvent.setup()
+    const onSecondaryAction = vi.fn(() => {
+      expect(toast.getToastQueue().toasts).toHaveLength(0)
+    })
+    const onAction = vi.fn()
+    const onToastClick = vi.fn()
+
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.success({
+        action: { label: 'Undo', onClick: onAction },
+        key: 'archived-item',
+        onClick: onToastClick,
+        secondaryAction: { label: 'View in Archive', onClick: onSecondaryAction },
+        title: 'Archived Draft'
+      })
+    })
+
+    const secondaryButton = screen.getByRole('button', { name: 'View in Archive' })
+
+    expect(secondaryButton).toHaveAttribute('data-variant', 'link')
+
+    await user.click(secondaryButton)
+
+    expect(onSecondaryAction).toHaveBeenCalledTimes(1)
+    expect(onAction).not.toHaveBeenCalled()
+    expect(onToastClick).not.toHaveBeenCalled()
+    expect(screen.queryByText('Archived Draft')).not.toBeInTheDocument()
+  })
+
+  it('aligns actionable toast controls to the primary content row', () => {
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.info({
+        action: { label: 'Undo', onClick: vi.fn() },
+        description: 'The item can be restored for 30 days.',
+        title: 'Item deleted'
+      })
+    })
+
+    const actionButton = screen.getByRole('button', { name: 'Undo' })
+    const closeButton = screen.getByRole('button', { name: 'Close' })
+    const title = screen.getByText('Item deleted')
+
+    expect(actionButton).toHaveAttribute('data-variant', 'outline')
+    // These layout classes keep the 28px action, primary copy, and close control on one row
+    // while the root remains top-aligned so the description stays below that row.
+    expect(screen.getByRole('status')).toHaveClass('items-start')
+    expect(actionButton).toHaveClass('min-h-7')
+    expect(title).toHaveClass('min-h-7', 'py-1')
+    expect(closeButton.parentElement).toHaveClass('flex', 'min-h-7', 'items-center')
+  })
+
+  it('marks toast items as no-drag so they stay clickable over titlebar drag regions', () => {
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.success('Saved')
+    })
+
+    expect(screen.getByRole('status')).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
   it('auto-dismisses non-sticky toasts after their timeout', () => {
@@ -184,7 +351,11 @@ describe('Toast', () => {
     expect(screen.queryByText('Success')).not.toBeInTheDocument()
   })
 
-  it('isolates queues between ToastProvider instances', () => {
+  it('shares the single default store across ToastProvider instances', () => {
+    // ToastProvider no longer forks a per-instance store: every provider and its
+    // viewport read defaultToastStore, so utilities obtained from different
+    // providers observe one shared queue (fixes the command-entry-vs-viewport
+    // store split that black-holed window.toast in viewport-less windows).
     const providerToastA = vi.fn<(toastApi: ReturnType<typeof useToasts>) => void>()
     const providerToastB = vi.fn<(toastApi: ReturnType<typeof useToasts>) => void>()
 
@@ -212,12 +383,33 @@ describe('Toast', () => {
     expect(toastB).toBeDefined()
 
     act(() => {
-      toastA?.success('Only A')
+      toastA?.success('Shared')
     })
 
     expect(toastA?.getToastQueue().toasts).toHaveLength(1)
-    expect(toastB?.getToastQueue().toasts).toHaveLength(0)
-    expect(screen.getByText('Only A')).toBeInTheDocument()
+    expect(toastB?.getToastQueue().toasts).toHaveLength(1)
+  })
+
+  it('resolves a labels getter each time a toast fires', () => {
+    // A getter lets callers read i18n lazily: each fire re-invokes it, so a
+    // language switch between two toasts is reflected without re-creating the
+    // utilities object.
+    let currentLoading = 'Loading EN'
+    const labelsGetter = (): Partial<ToastLabels> => ({ loading: currentLoading })
+    const localizedToast = getToastUtilities(labelsGetter)
+
+    render(<ToastViewport labels={labelsGetter} />)
+
+    act(() => {
+      localizedToast.loading({ key: 'getter-a', promise: new Promise<void>(() => {}) })
+    })
+    expect(screen.getByText('Loading EN')).toBeInTheDocument()
+
+    currentLoading = 'Loading ZH'
+    act(() => {
+      localizedToast.loading({ key: 'getter-b', promise: new Promise<void>(() => {}) })
+    })
+    expect(screen.getByText('Loading ZH')).toBeInTheDocument()
   })
 
   it('closeAll removes every toast and invokes each onClose', () => {

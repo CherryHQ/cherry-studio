@@ -1,7 +1,8 @@
-import { MenuList } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
+
+import { MenuList } from '@cherrystudio/ui'
 
 export interface ActionMenuItem {
   key: string
@@ -61,8 +62,8 @@ export const ActionMenu: FC<ActionMenuProps> = ({ show, position, items, onClose
         left: position.x,
         top: position.y,
         zIndex: 2000,
-        background: 'var(--color-bg-base)',
-        border: '1px solid var(--color-border)',
+        background: 'var(--background)',
+        border: '1px solid var(--border)',
         borderRadius: 6,
         boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
         overflow: 'hidden',

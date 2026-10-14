@@ -1,18 +1,25 @@
+import { lazy, type ReactNode } from 'react'
+
+import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
+import { isCodexProviderId } from '@shared/data/presets/codex'
+import { isGrokCliProviderId } from '@shared/data/presets/grokCli'
 import type { Provider } from '@shared/data/types/provider'
 import { isAwsBedrockProvider, isProviderSupportAuth, isVertexProvider, matchesPreset } from '@shared/utils/provider'
-import type { ReactNode } from 'react'
 
-import OpenaiAlert from '../components/OpenaiAlert'
 import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
-import AwsBedrockSettings from './AwsBedrockSettings'
-import CherryInOauth from './CherryInOauth'
-import DmxapiSettings from './DmxapiSettings'
-import GithubCopilotSettings from './GithubCopilotSettings'
-import GpuStackSettings from './GpuStackSettings'
-import LmStudioSettings from './LmStudioSettings'
-import OvmsSettings from './OvmsSettings'
-import ProviderOauth from './ProviderOauth'
-import VertexAiSettings from './VertexAiSettings'
+
+const AwsBedrockSettings = lazy(() => import('./AwsBedrockSettings'))
+const CherryInOauth = lazy(() => import('./CherryInOauth'))
+const ClaudeCodeSettings = lazy(() => import('./ClaudeCodeSettings'))
+const DmxapiSettings = lazy(() => import('./DmxapiSettings'))
+const GithubCopilotSettings = lazy(() => import('./GithubCopilotSettings'))
+const GpuStackSettings = lazy(() => import('./GpuStackSettings'))
+const LmStudioSettings = lazy(() => import('./LmStudioSettings'))
+const LoginOauthPanel = lazy(() => import('./LoginOauthPanel'))
+const OvmsSettings = lazy(() => import('./OvmsSettings'))
+const ProviderOauth = lazy(() => import('./ProviderOauth'))
+const VertexAiSettings = lazy(() => import('./VertexAiSettings'))
+const DoubaoSetupGuide = lazy(() => import('./DoubaoSetupGuide'))
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
 
@@ -40,11 +47,6 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
       render: (providerId) => <CherryInOauth providerId={providerId} />
     },
     {
-      key: 'openai-alert',
-      when: ({ provider }) => matchesPreset(provider, 'openai'),
-      render: () => <OpenaiAlert />
-    },
-    {
       key: 'ovms-settings',
       when: ({ provider }) => matchesPreset(provider, 'ovms'),
       render: () => <OvmsSettings />
@@ -53,6 +55,26 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
       key: 'dmxapi-settings',
       when: ({ meta }) => meta.isDmxapi,
       render: (providerId) => <DmxapiSettings providerId={providerId} />
+    },
+    {
+      key: 'doubao-setup-guide',
+      when: ({ provider }) => matchesPreset(provider, 'doubao'),
+      render: (providerId) => <DoubaoSetupGuide providerId={providerId} />
+    },
+    {
+      key: 'claude-code-settings',
+      when: ({ provider }) => isClaudeCodeProviderId(provider.id),
+      render: (providerId) => <ClaudeCodeSettings providerId={providerId} />
+    },
+    {
+      key: 'codex-oauth',
+      when: ({ provider }) => isCodexProviderId(provider.id),
+      render: (providerId) => <LoginOauthPanel providerId={providerId} i18nNs="codex" showAccountId />
+    },
+    {
+      key: 'grok-cli-oauth',
+      when: ({ provider }) => isGrokCliProviderId(provider.id),
+      render: (providerId) => <LoginOauthPanel providerId={providerId} i18nNs="grok_cli" />
     }
   ],
   afterAuth: [

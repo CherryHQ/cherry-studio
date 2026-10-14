@@ -1,43 +1,51 @@
 import { paintingService } from '@data/services/PaintingService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { PaintingsSchemas } from '@shared/data/api/schemas/paintings'
 import {
   CreatePaintingSchema,
+  DeletePaintingQuerySchema,
   ListPaintingsQuerySchema,
   UpdatePaintingSchema
 } from '@shared/data/api/schemas/paintings'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const paintingHandlers: HandlersFor<PaintingsSchemas> = {
   '/paintings': {
     GET: async ({ query }) => {
       const parsed = ListPaintingsQuerySchema.parse(query ?? {})
-      return await paintingService.list(parsed)
+      return paintingService.list(parsed)
     },
     POST: async ({ body }) => {
       const parsed = CreatePaintingSchema.parse(body)
-      return await paintingService.create(parsed)
+      return paintingService.create(parsed)
     }
   },
 
   '/paintings/:id': {
     GET: async ({ params }) => {
-      return await paintingService.getById(params.id)
+      return paintingService.getById(params.id)
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdatePaintingSchema.parse(body)
-      return await paintingService.update(params.id, parsed)
+      return paintingService.update(params.id, parsed)
     },
-    DELETE: async ({ params }) => {
-      await paintingService.delete(params.id)
+    DELETE: async ({ params, query }) => {
+      const parsed = DeletePaintingQuerySchema.parse(query ?? {})
+      paintingService.delete(params.id, parsed)
       return undefined
+    }
+  },
+
+  '/paintings/:id/restore': {
+    POST: async ({ params }) => {
+      return paintingService.restore(params.id)
     }
   },
 
   '/paintings/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
-      await paintingService.reorder(params.id, parsed)
+      paintingService.reorder(params.id, parsed)
       return undefined
     }
   },
@@ -45,7 +53,7 @@ export const paintingHandlers: HandlersFor<PaintingsSchemas> = {
   '/paintings/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      await paintingService.reorderBatch(parsed.moves)
+      paintingService.reorderBatch(parsed.moves)
       return undefined
     }
   }

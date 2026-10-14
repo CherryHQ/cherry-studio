@@ -1,6 +1,9 @@
-import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
-import type { ShortcutBinding } from '@shared/shortcuts/tokens'
 import * as z from 'zod'
+
+import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { AgentLanguage } from '@shared/data/types/agentLanguage'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
 
@@ -30,6 +33,16 @@ export type PreferenceShortcutType = {
 
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
+
+export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
+
+export type RetryFallbackModelId = UniqueModelId
+
+/**
+ * Global default Agent reply language (`agent.language`). Human-readable label
+ * ("English", "ไทย"), not an app locale code; null = no constraint injected.
+ */
+export type AgentLanguagePreference = AgentLanguage
 
 export enum SelectionTriggerMode {
   Selected = 'selected',
@@ -74,34 +87,84 @@ export type LanguageVarious =
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'tr-TR'
   | 'vi-VN'
 
 export type WindowStyle = 'transparent' | 'opaque'
 
-export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
+/**
+ * A composer key binding (send / line break / steer). Stored as a token array so the
+ * platform-aware `CommandOrControl` token and the shared formatting helpers apply.
+ * Values written before 2.0 are one of five fixed strings; readers normalize them.
+ */
+export type ComposerShortcut = ShortcutBinding
 
 export type AssistantTabSortType = 'tags' | 'list'
 
-export type SidebarIcon =
-  | 'assistants'
-  | 'agents'
-  | 'store'
-  | 'paintings'
-  | 'translate'
-  | 'mini_app'
-  | 'knowledge'
-  | 'files'
-  | 'code_tools'
-  | 'notes'
-  | 'openclaw'
+export type TopicDisplayMode = 'time' | 'assistant'
+
+export type TopicTabPosition = 'left' | 'right'
+
+export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
+
+export const SIDEBAR_FAVORITES = [
+  'assistants',
+  'agents',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes',
+  'openclaw'
+] as const
+
+export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
+
+/**
+ * Group-ready sidebar storage contract.
+ *
+ * Leaf items are stored as tagged objects, not bare ids. Keep the `type` values,
+ * id semantics, and one ordered heterogeneous top-level array stable: a future
+ * `group` variant can then be added as another top-level item without migrating
+ * existing flat `SidebarFavoriteItem[]` values.
+ */
+export type SidebarFavoriteItem =
+  | { type: 'app'; id: SidebarFavorite }
+  | { type: 'mini_app'; id: string }
+  | { type: 'agent'; id: string }
+  | { type: 'assistant'; id: string }
+
+export interface ResourceLocator {
+  providerId: string
+  resourceId: string
+}
+
+export type SidebarShortcutTarget = {
+  kind: 'resource'
+  locator: ResourceLocator
+  activationId?: string
+}
+
+export interface SidebarShortcutItem {
+  type: 'shortcut'
+  id: string
+  target: SidebarShortcutTarget
+  fallbackLabel?: string
+}
+
+export function createSidebarShortcutId(target: SidebarShortcutTarget): string {
+  const parts = ['sidebar-shortcut', target.locator.providerId, target.locator.resourceId]
+  if (target.activationId !== undefined) parts.push(target.activationId)
+  return parts.map(encodeURIComponent).join(':')
+}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
 export type ProxyMode = 'system' | 'custom' | 'none'
 
 export type MultiModelFoldDisplayMode = 'expanded' | 'compact'
-
-export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
 
 export enum UpgradeChannel {
   LATEST = 'latest', // 最新稳定版本
@@ -122,6 +185,9 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 // ============================================================================
 
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
+
+/** The canonical reasoning-effort selection — the same type an assistant persists. */
+export type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 /**
  * Strict language code pattern — only real codes such as "en-us" / "zh-cn" / "ja".
@@ -154,6 +220,20 @@ export const parseTranslateLangCode = (value: string): TranslateLangCode => Tran
 export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
   TranslateLangCodeSchema.safeParse(value).success
 export type TranslateSourceLanguage = TranslateLangCode | 'auto'
+/**
+ * Fold a UI-side language code down to what persistence accepts.
+ *
+ * `'unknown'` and `'auto'` are UI sentinels with no `translate_language` row, so
+ * they collapse to `null` — the FK's "language not recorded" state — instead of
+ * breaking the FK or the read-side {@link PersistedLangCodeSchema} parse. Shared
+ * by the renderer's history mutations and main's `PdfTranslationService`.
+ */
+export const toPersistedLangCodeOrNull = (
+  langCode: TranslateSourceLanguage | null | undefined
+): PersistedLangCode | null => {
+  if (langCode === null || langCode === undefined || langCode === 'unknown' || langCode === 'auto') return null
+  return parsePersistedLangCode(langCode)
+}
 export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
 export const parseTranslateBidirectionalPair = (value: readonly [string, string]): TranslateBidirectionalPair => [
   parseTranslateLangCode(value[0]),
@@ -177,7 +257,11 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'bocha',
   'querit',
   'fetch',
-  'jina'
+  'jina',
+  'firecrawl',
+  'crawl4ai',
+  'parallel',
+  'serply'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
@@ -220,6 +304,10 @@ export interface WebSearchProvider {
   /** Capability API settings (user override merged into preset capabilities) */
   capabilities: Array<{
     feature: WebSearchCapability
+    /** Whether this capability requires a configured HTTP(S) endpoint. */
+    requiresApiHost?: boolean
+    /** Whether this capability requires at least one configured API key. */
+    requiresApiKey?: boolean
     /** Can be empty for self-hosted or hostless providers; resolve and validate via resolveProviderApiHost. */
     apiHost?: string
   }>
@@ -235,32 +323,54 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import { codeCLI } from '@shared/config/constant'
+import { CodeCli } from '@shared/types/codeCli'
 
-export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
-  'qwen-code',
+export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'claude-code',
-  'gemini-cli',
   'openai-codex',
-  'iflow-cli',
+  'opencode',
+  'openclaw',
+  'deepseek-harness',
+  'gemini-cli',
+  'antigravity-cli',
+  'qwen-code',
+  'kimi-code',
+  'qoder-cli',
   'github-copilot-cli',
-  'kimi-cli',
-  'opencode'
+  'pi',
+  'hermes',
+  'minimax-code'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
 
-export type CodeCliOverride = {
-  enabled?: boolean
-  modelId?: string | null
-  envVars?: string
-  /** Terminal app name — should match `terminalApps` enum values */
-  terminal?: string
-  currentDirectory?: string
-  directories?: string[]
+/** A per-tool provider entry, keyed by providerId in `CodeCliToolState.providers`. */
+export interface CliProviderConfig {
+  /**
+   * Unique model id ("providerId::modelId"), or null for the two legal
+   * model-less states: the own-login placeholder and a Claude detailed-models
+   * config with no common model.
+   */
+  modelId: UniqueModelId | null
+  /** User-edited tool-specific config blob. */
+  config?: Record<string, unknown>
+  /** Sort order in the provider list (lower = first). */
+  sortIndex?: number
 }
 
-export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
+/** Per-CLI-tool state: per-provider configs (keyed by providerId) + the active one. */
+export interface CodeCliToolState {
+  providers: Record<string, CliProviderConfig>
+  /** Currently enabled providerId (single-select). */
+  current: string | null
+  /** Terminal app — an id from `code_cli.get_available_terminals`. */
+  terminal?: string
+  /** Working directory for this CLI tool (shared across all its providers). */
+  directory?: string
+}
+
+/** Preference value for `feature.code_cli.configs`. */
+export type CodeCliConfigs = Partial<Record<CodeCliId, CodeCliToolState>>
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)
@@ -287,7 +397,9 @@ export type FileProcessorFeature = (typeof FILE_PROCESSOR_FEATURES)[number]
 export const FILE_PROCESSOR_IDS = [
   'tesseract',
   'system',
+  'local-document',
   'paddleocr',
+  'local-paddleocr',
   'ovocr',
   'mineru',
   'doc2x',
@@ -320,3 +432,19 @@ export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcess
 export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
+
+/** User-configurable settings for BinaryManager's isolated mise install environment. */
+export type BinaryInstallSettings = {
+  githubMirror: string
+  githubToken: string
+  npmRegistry: string
+  pipIndexUrl: string
+  verifySignatures: boolean
+}
+
+/** A user-added custom tool definition persisted in the BinaryManager custom registry. */
+export type CustomToolDefinition = {
+  name: string
+  tool: string
+  requestedVersion?: string
+}

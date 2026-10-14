@@ -2,6 +2,15 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { dataSourceTypeDisplayConfig, type KnowledgeItemRowViewModel } from './models'
 
+/**
+ * Whether reindexing this item would be admitted by the main process. Mirrors
+ * `REINDEX_ALLOWED_STATUSES` in `KnowledgeIngestionService`, which rejects the whole
+ * batch when any selected subtree is still active — so the bulk action must filter
+ * with the same predicate the row menu uses, or one in-flight item blocks the rest.
+ */
+export const canReindexKnowledgeItem = (item: KnowledgeItem): boolean =>
+  item.status === 'completed' || item.status === 'failed'
+
 export const getItemStatus = (item: KnowledgeItem) => {
   switch (item.type) {
     case 'file':
@@ -27,9 +36,6 @@ export const getItemTitle = (item: KnowledgeItem): string => {
       return dataSourceTypeDisplayConfig.url.getTitle(item, { language: '' })
   }
 }
-
-export const getReadyCount = (items: KnowledgeItem[]) =>
-  items.reduce((readyCount, item) => readyCount + (item.status === 'completed' ? 1 : 0), 0)
 
 export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: string): KnowledgeItemRowViewModel => {
   switch (item.type) {

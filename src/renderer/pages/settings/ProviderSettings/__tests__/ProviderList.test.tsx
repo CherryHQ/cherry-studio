@@ -1,8 +1,12 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ProviderList from '../ProviderList'
+import { toast } from '@renderer/services/toast'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+
+import { ProviderList } from '../ProviderList'
 
 const reorderSpy = vi.fn()
 const useProvidersMock = vi.fn()
@@ -12,6 +16,10 @@ const useReorderMock = vi.fn()
 const useOvmsSupportMock = vi.fn()
 const deleteProviderMock = vi.fn()
 const scrollIntoViewMock = vi.fn()
+const { providerEditorDrawerSpy, providerEditorModuleState } = vi.hoisted(() => ({
+  providerEditorDrawerSpy: vi.fn(),
+  providerEditorModuleState: { loaded: false }
+}))
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
 
@@ -113,9 +121,35 @@ vi.mock('../ProviderList/ProviderListItemWithContextMenu', () => ({
   )
 }))
 
-vi.mock('../ProviderList/ProviderEditorDrawer', () => ({
-  default: ({ open }: any) => <div data-testid="provider-editor-drawer" data-open={open ? 'true' : 'false'} />
+vi.mock('../ProviderList/ProviderEditorDrawer', () => {
+  providerEditorModuleState.loaded = true
+
+  return {
+    default: (props: any) => {
+      providerEditorDrawerSpy(props)
+      return (
+        <div data-testid="provider-editor-drawer" data-open={props.open ? 'true' : 'false'}>
+          <button type="button" onClick={props.onClose}>
+            close-provider-editor
+          </button>
+        </div>
+      )
+    }
+  }
+})
+
+// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
+// the gated action (as if the user confirmed) and assert the delete flow.
+const { confirmActionShow } = vi.hoisted(() => ({
+  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+    await options?.action?.()
+    return true
+  })
 }))
+vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
+
+const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.fn() }))
 
 describe('ProviderList', () => {
   const providers = [
@@ -142,6 +176,7 @@ describe('ProviderList', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     reorderSpy.mockClear()
     useProvidersMock.mockReturnValue({
       providers,
@@ -170,12 +205,26 @@ describe('ProviderList', () => {
       configurable: true,
       value: vi.fn()
     })
-    ;(window as any).api = {
-      ...(window as any).api,
-      getAppInfo: vi.fn().mockResolvedValue({ appDataPath: '' })
-    }
-    ;(window as any).modal = { confirm: vi.fn() }
-    ;(window as any).toast = { error: vi.fn(), success: vi.fn() }
+    ipcRequest.mockImplementation((route: string) =>
+      route === 'app.get_info' ? Promise.resolve({ appDataPath: '' }) : Promise.resolve(undefined)
+    )
+  })
+
+  it('loads the provider editor only when the user opens it', async () => {
+    const user = userEvent.setup()
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(providerEditorModuleState.loaded).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: '添加服务商' }))
+
+    expect(await screen.findByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
+    expect(providerEditorModuleState.loaded).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'close-provider-editor' }))
+
+    expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'false')
   })
 
   it('filters providers by search text and forwards selection', () => {
@@ -218,7 +267,53 @@ describe('ProviderList', () => {
     expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
   })
 
-  it('triggers add and reorder actions', () => {
+  it('offers only safe canonical preset sources to the custom provider editor', async () => {
+    const user = userEvent.setup()
+    const canonicalOpenAI = {
+      ...providers[0],
+      presetProviderId: 'openai',
+      authType: 'api-key'
+    }
+    const canonicalNewApi = {
+      id: 'new-api',
+      name: 'New API',
+      presetProviderId: 'new-api',
+      authType: 'api-key',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://localhost:3000' }
+      }
+    }
+    useProvidersMock.mockReturnValue({
+      providers: [
+        canonicalOpenAI,
+        canonicalNewApi,
+        { ...canonicalOpenAI, id: 'openai-work' },
+        {
+          ...providers[1],
+          id: 'claude-code',
+          presetProviderId: 'claude-code',
+          authType: 'api-key',
+          authMethods: ['external-cli']
+        }
+      ],
+      createProvider: vi.fn()
+    })
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: '添加服务商' }))
+
+    await waitFor(() => {
+      expect(providerEditorDrawerSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          presetSources: [canonicalOpenAI, canonicalNewApi],
+          onSelectPreset: expect.any(Function)
+        })
+      )
+    })
+  })
+
+  it('triggers add and reorder actions', async () => {
     const reorderableProviders = [
       { ...providers[0], isEnabled: true },
       { ...providers[1], isEnabled: true }
@@ -232,12 +327,44 @@ describe('ProviderList', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     expect(useReorderMock).toHaveBeenCalledWith('/providers', { revalidateOnSuccess: false })
-    expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'false')
-    fireEvent.click(screen.getByRole('button', { name: /添加/i }))
-    expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
+    expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: /添加/i })[0])
+    expect(await screen.findByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-reorder' }))
     expect(reorderSpy).toHaveBeenCalledWith([reorderableProviders[1], reorderableProviders[0]])
+  })
+
+  it('reports a newly created custom provider so model setup can continue automatically', async () => {
+    const user = userEvent.setup()
+    const createProvider = vi.fn().mockResolvedValue({ id: 'custom-provider', name: 'Custom Provider' })
+    const onSelectProvider = vi.fn()
+    const onCustomProviderCreated = vi.fn()
+    useProvidersMock.mockReturnValue({ providers, createProvider })
+
+    render(
+      <ProviderList
+        selectedProviderId="openai"
+        onSelectProvider={onSelectProvider}
+        onCustomProviderCreated={onCustomProviderCreated}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '添加服务商' }))
+    const submit = providerEditorDrawerSpy.mock.calls.at(-1)?.[0].onSubmit
+
+    await act(async () => {
+      await submit({
+        mode: 'create',
+        name: 'Custom Provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        authConfig: { type: 'api-key' },
+        apiKeys: [{ id: 'key-1', key: 'sk-test', isEnabled: true }]
+      })
+    })
+
+    expect(onSelectProvider).toHaveBeenCalledWith('custom-provider')
+    expect(onCustomProviderCreated).toHaveBeenCalledWith('custom-provider', true)
   })
 
   it('does not scroll back to the selected provider after drag reorder changes provider order', () => {
@@ -286,6 +413,35 @@ describe('ProviderList', () => {
     expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
   })
 
+  it('restores the provider filter after leaving and returning to the page', () => {
+    const first = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '筛选服务商' }))
+    fireEvent.click(screen.getByRole('button', { name: '仅已禁用' }))
+
+    expect(MockUseCacheUtils.getPersistCacheValue('settings.provider.filter_mode')).toBe('disabled')
+
+    first.unmount()
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
+    expect(screen.queryByText('Anthropic')).not.toBeInTheDocument()
+  })
+
+  it('keeps a single add action below the scrollable provider list', () => {
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    const addButton = screen.getByRole('button', { name: '添加服务商' })
+    const scrollbar = screen.getByTestId('provider-list-scrollbar')
+    const filterButton = screen.getByRole('button', { name: '筛选服务商' })
+    const searchInput = screen.getByPlaceholderText('搜索模型平台...')
+    const searchWrap = searchInput.closest('div')
+
+    expect(scrollbar).not.toContainElement(addButton)
+    expect(scrollbar.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(searchWrap).toContainElement(filterButton)
+  })
+
   it('surfaces reorder persistence errors', async () => {
     reorderSpy.mockRejectedValueOnce(new Error('persist failed'))
 
@@ -294,21 +450,38 @@ describe('ProviderList', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'trigger-reorder' })[0])
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 
-  it('applies an external filter hint without making the page own list filter state', () => {
+  it('applies the agent filter hint without hiding gateway-routable providers', () => {
     const onSelectProvider = vi.fn()
+    useProvidersMock.mockReturnValue({
+      providers: [
+        ...providers,
+        {
+          id: 'gemini',
+          name: 'Gemini',
+          presetProviderId: 'gemini',
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+          authType: 'api-key',
+          isEnabled: true
+        }
+      ],
+      createProvider: vi.fn()
+    })
     const { rerender } = render(<ProviderList selectedProviderId="openai" onSelectProvider={onSelectProvider} />)
 
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
+    expect(screen.getByText('Gemini')).toBeInTheDocument()
 
     rerender(<ProviderList selectedProviderId="openai" filterModeHint="agent" onSelectProvider={onSelectProvider} />)
 
-    expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
+    expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
+    expect(screen.getByText('Gemini')).toBeInTheDocument()
+    expect(MockUseCacheUtils.getPersistCacheValue('settings.provider.filter_mode')).toBe('all')
   })
 
   it('shows management actions for preset-derived and custom providers but not canonical presets', () => {
@@ -350,22 +523,14 @@ describe('ProviderList', () => {
 
     fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
 
-    expect(window.modal.confirm).toHaveBeenCalledTimes(1)
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.title).toBeTruthy()
-    expect(options.okText).toBeTruthy()
-    expect(options.okButtonProps).toEqual({ danger: true })
-    expect(options.centered).toBe(true)
+    expect(confirmActionShow).toHaveBeenCalledTimes(1)
   })
 
   it('delegates provider deletion from the confirmation callback', async () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
 
-    await options.onOk()
-
-    expect(deleteProviderMock).toHaveBeenCalledWith('openai')
+    await vi.waitFor(() => expect(deleteProviderMock).toHaveBeenCalledWith('openai'))
   })
 })

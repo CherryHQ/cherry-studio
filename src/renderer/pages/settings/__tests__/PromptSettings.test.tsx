@@ -1,226 +1,406 @@
-import type { Prompt } from '@shared/data/types/prompt'
-import { MockUseDataApiUtils, mockUseMutation } from '@test-mocks/renderer/useDataApi'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type React from 'react'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import PromptSettings from '../PromptSettings'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
-const applyReorderedListMock = vi.hoisted(() => vi.fn())
+import { PromptSettings } from '../PromptSettings'
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: {
-    type: '3rdParty',
-    init: vi.fn()
-  },
-  useTranslation: () => ({
-    t: (key: string) => key
-  })
-}))
-
-vi.mock('@renderer/context/ThemeProvider', () => ({
-  useTheme: () => ({ theme: 'light' })
-}))
-
-vi.mock('@data/hooks/useReorder', () => ({
-  useReorder: () => ({
-    applyReorderedList: applyReorderedListMock,
-    isPending: false
-  })
-}))
-
-vi.mock('@renderer/utils', () => ({
-  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
-}))
-
-vi.mock('@renderer/components/Icons', () => ({
-  DeleteIcon: () => <span>Delete</span>,
-  EditIcon: () => <span>Edit</span>
-}))
-
-vi.mock('@renderer/pages/files/FileItem', () => ({
-  default: ({ fileInfo }: { fileInfo: { name: string; extra?: React.ReactNode; actions: React.ReactNode } }) => (
-    <div data-testid={`prompt-row-${fileInfo.name}`}>
-      <div>{fileInfo.name}</div>
-      <div>{fileInfo.extra}</div>
-      <div>{fileInfo.actions}</div>
-    </div>
-  )
-}))
-
-vi.mock('@renderer/components/DraggableList', () => ({
-  DraggableList: ({
-    list,
-    onUpdate,
-    children
-  }: {
-    list: Prompt[]
-    onUpdate: (items: Prompt[]) => void
-    children: (item: Prompt) => React.ReactNode
-  }) => (
-    <div>
-      {list.map((item) => (
-        <div key={item.id}>{children(item)}</div>
-      ))}
-      <button type="button" onClick={() => onUpdate([...list].reverse())}>
-        mock-reorder
-      </button>
-    </div>
-  )
-}))
-
-vi.mock('@cherrystudio/ui', () => {
-  const Textarea = {
-    Input: ({
-      onValueChange,
-      ...props
-    }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { onValueChange?: (value: string) => void }) => (
-      <textarea {...props} onChange={(event) => onValueChange?.(event.target.value)} />
-    )
-  }
-
-  return {
-    Button: ({
-      children,
-      loading,
-      ...props
-    }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
-      <button type="button" {...props} disabled={props.disabled || loading}>
-        {children}
-      </button>
-    ),
-    ConfirmDialog: ({
-      open,
-      title,
-      description,
-      confirmText,
-      cancelText,
-      onConfirm,
-      onOpenChange
-    }: {
-      open: boolean
-      title: string
-      description: string
-      confirmText: string
-      cancelText: string
-      onConfirm: () => void
-      onOpenChange: (open: boolean) => void
-    }) =>
-      open ? (
-        <div role="dialog">
-          <div>{title}</div>
-          <div>{description}</div>
-          <button type="button" onClick={onConfirm}>
-            {confirmText}
-          </button>
-          <button type="button" onClick={() => onOpenChange(false)}>
-            {cancelText}
-          </button>
-        </div>
-      ) : null,
-    Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (open ? <>{children}</> : null),
-    DialogContent: ({ children }: { children: React.ReactNode }) => <div role="dialog">{children}</div>,
-    DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
-    Divider: () => <hr />,
-    ColFlex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-    Flex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-    Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-    RowFlex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-    Spinner: ({ text }: { text: string }) => <div>{text}</div>,
-    Textarea
-  }
-})
-
-const prompts: Prompt[] = [
+const prompts = [
   {
-    id: 'old',
-    title: 'Old prompt',
-    content: 'old content',
+    id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
+    title: 'Global prompt',
+    content: 'Available everywhere',
+    visibility: 'global' as const,
     orderKey: 'a0',
-    createdAt: '2024-01-01T00:00:00.000Z',
-    updatedAt: '2024-01-01T00:00:00.000Z'
+    createdAt: '2026-05-01T00:00:00.000Z',
+    updatedAt: '2026-05-01T00:00:00.000Z'
   },
   {
-    id: 'new',
-    title: 'New prompt',
-    content: 'new content',
+    id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ad',
+    title: 'Targeted prompt',
+    content: 'Available when linked',
+    visibility: 'restricted' as const,
     orderKey: 'a1',
-    createdAt: '2024-01-02T00:00:00.000Z',
-    updatedAt: '2024-01-02T00:00:00.000Z'
+    createdAt: '2026-05-02T00:00:00.000Z',
+    updatedAt: '2026-05-02T00:00:00.000Z'
+  },
+  {
+    id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ae',
+    title: 'Second targeted prompt',
+    content: 'Available when linked elsewhere',
+    visibility: 'restricted' as const,
+    orderKey: 'a2',
+    createdAt: '2026-05-03T00:00:00.000Z',
+    updatedAt: '2026-05-03T00:00:00.000Z'
   }
 ]
 
-const mutationTriggers = new Map<string, ReturnType<typeof vi.fn>>()
+const promptBindings = [
+  {
+    promptId: prompts[1].id,
+    targetType: 'assistant',
+    targetId: 'assistant-1'
+  },
+  {
+    promptId: prompts[1].id,
+    targetType: 'agent',
+    targetId: 'agent-1'
+  }
+]
+
+const mocks = vi.hoisted(() => ({
+  applyReorderedList: vi.fn(),
+  createPrompt: vi.fn(),
+  deletePrompt: vi.fn(),
+  refetch: vi.fn(),
+  refetchBindings: vi.fn(),
+  updatePrompt: vi.fn(),
+  useQuery: vi.fn()
+}))
+
+vi.mock('@data/hooks/useDataApi', () => ({
+  useDataChange: vi.fn(),
+  useQuery: (...args: unknown[]) => mocks.useQuery(...args)
+}))
+
+vi.mock('@data/hooks/useReorder', () => ({
+  useReorder: () => ({ applyReorderedList: mocks.applyReorderedList, isPending: false })
+}))
+
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  agentAdapter: {
+    useList: () => ({ data: [], error: undefined, isLoading: false, refetch: vi.fn() })
+  },
+  assistantAdapter: {
+    useList: () => ({ data: [], error: undefined, isLoading: false, refetch: vi.fn() })
+  },
+  usePromptMutations: () => ({ createPrompt: mocks.createPrompt }),
+  usePromptMutationsById: () => ({ deletePrompt: mocks.deletePrompt, updatePrompt: mocks.updatePrompt })
+}))
+
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
+  PromptEditDialog: ({
+    onSave,
+    open,
+    prompt
+  }: {
+    onSave: (value: { title: string; content: string; visibility: 'global' | 'restricted' }) => Promise<void>
+    open: boolean
+    prompt?: (typeof prompts)[number] | null
+  }) =>
+    open ? (
+      <div data-testid="prompt-edit-dialog">
+        <span>{prompt ? `edit:${prompt.title}` : 'create'}</span>
+        <button
+          type="button"
+          onClick={() =>
+            void onSave({ title: 'Saved title', content: 'Saved content', visibility: prompt?.visibility ?? 'global' })
+          }>
+          save prompt
+        </button>
+        <button
+          type="button"
+          onClick={() => void onSave({ title: 'Saved title', content: 'Saved content', visibility: 'global' })}>
+          save global prompt
+        </button>
+      </div>
+    ) : null
+}))
+
+vi.mock('../PromptTargetPopover', () => ({
+  PromptTargetPopover: () => null
+}))
+
+vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
+vi.mock('@renderer/utils/error', () => ({
+  formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { count?: number }) => (options?.count === undefined ? key : `${key}:${options.count}`)
+  })
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ message }: { message: ReactNode }) => <div role="alert">{message}</div>,
+  Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+  Button: ({
+    children,
+    loading,
+    size,
+    variant,
+    ...props
+  }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => {
+    void loading
+    void size
+    void variant
+    return (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    )
+  },
+  ConfirmDialog: ({
+    cancelText,
+    confirmText,
+    description,
+    onConfirm,
+    onOpenChange,
+    open,
+    title
+  }: {
+    cancelText: string
+    confirmText: string
+    description: ReactNode
+    onConfirm: () => Promise<void>
+    onOpenChange: (open: boolean) => void
+    open: boolean
+    title: string
+  }) =>
+    open ? (
+      <div role="dialog" aria-label={title}>
+        <span>{description}</span>
+        <button type="button" onClick={() => void onConfirm().catch(() => undefined)}>
+          {confirmText}
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          {cancelText}
+        </button>
+      </div>
+    ) : null,
+  DropdownMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+    variant,
+    ...props
+  }: {
+    children: ReactNode
+    onSelect?: () => void
+    variant?: string
+    'aria-label'?: string
+  }) => {
+    void variant
+    return (
+      <button type="button" onClick={onSelect} {...props}>
+        {children}
+      </button>
+    )
+  },
+  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  EmojiIcon: ({ emoji }: { emoji: string }) => <span>{emoji}</span>,
+  EmptyState: ({ title }: { title: ReactNode }) => <div>{title}</div>,
+  Input: (props: ComponentProps<'input'>) => <input {...props} />,
+  ReorderableList: ({
+    items,
+    renderItem
+  }: {
+    items: typeof prompts
+    renderItem: (prompt: (typeof prompts)[number], index: number, state: { dragHandleProps?: undefined }) => ReactNode
+  }) => (
+    <div>
+      {items.map((prompt, index) => (
+        <div key={prompt.id}>{renderItem(prompt, index, {})}</div>
+      ))}
+    </div>
+  ),
+  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Skeleton: (props: ComponentProps<'div'>) => <div {...props} />,
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.useQuery.mockImplementation((path: string) => {
+    if (path === '/prompts') {
+      return { data: prompts, error: undefined, isLoading: false, refetch: mocks.refetch }
+    }
+    if (path === '/prompt-bindings') {
+      return { data: promptBindings, error: undefined, isLoading: false, refetch: mocks.refetchBindings }
+    }
+    return {
+      data: [],
+      error: undefined,
+      isLoading: false,
+      refetch: mocks.refetchBindings
+    }
+  })
+  mocks.createPrompt.mockResolvedValue(prompts[0])
+  mocks.updatePrompt.mockResolvedValue(prompts[0])
+  mocks.deletePrompt.mockResolvedValue(undefined)
+  mocks.refetchBindings.mockResolvedValue([])
+})
 
 describe('PromptSettings', () => {
-  beforeEach(() => {
-    MockUseDataApiUtils.resetMocks()
-    mutationTriggers.clear()
-    applyReorderedListMock.mockReset()
-    applyReorderedListMock.mockResolvedValue(undefined)
-    MockUseDataApiUtils.mockQueryData('/prompts', prompts)
-    MockUseDataApiUtils.seedCache('/prompts', prompts)
-    mockUseMutation.mockImplementation((method: string, path: string) => {
-      const trigger = vi.fn().mockResolvedValue(undefined)
-      mutationTriggers.set(`${method} ${path}`, trigger)
+  it('lists global and restricted prompts from the settings route', () => {
+    render(<PromptSettings />)
+
+    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {})
+    expect(screen.getByText('Global prompt')).toBeInTheDocument()
+    expect(screen.getByText('Targeted prompt')).toBeInTheDocument()
+    expect(screen.getByText('settings.prompts.visibility.global.badge')).toBeInTheDocument()
+    expect(screen.queryByText('settings.prompts.visibility.restricted.badge')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.search' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.edit Global prompt' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.delete Global prompt' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Global prompt' })).not.toBeInTheDocument()
+  })
+
+  it('creates a prompt with its selected visibility', async () => {
+    const user = userEvent.setup()
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.prompts.add' }))
+    expect(screen.getByTestId('prompt-edit-dialog')).toHaveTextContent('create')
+    await user.click(screen.getByRole('button', { name: 'save prompt' }))
+
+    await waitFor(() =>
+      expect(mocks.createPrompt).toHaveBeenCalledWith({
+        title: 'Saved title',
+        content: 'Saved content',
+        visibility: 'global'
+      })
+    )
+  })
+
+  it('requires confirmation before making a linked restricted prompt global', async () => {
+    const user = userEvent.setup()
+    const bindings = [
+      { type: 'assistant' as const, id: '11111111-1111-4111-8111-111111111111' },
+      { type: 'agent' as const, id: 'agent-1' }
+    ]
+    mocks.refetchBindings.mockResolvedValue(bindings)
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit Targeted prompt' }))
+    await user.click(screen.getByRole('button', { name: 'save global prompt' }))
+
+    const confirmDialog = await screen.findByRole('dialog', {
+      name: 'settings.prompts.visibility.makeGlobalConfirmTitle'
+    })
+    expect(confirmDialog).toHaveTextContent('settings.prompts.visibility.makeGlobalConfirmDescription:2')
+    expect(mocks.updatePrompt).not.toHaveBeenCalled()
+
+    await user.click(within(confirmDialog).getByRole('button', { name: 'common.confirm' }))
+
+    await waitFor(() =>
+      expect(mocks.updatePrompt).toHaveBeenCalledWith({
+        title: 'Saved title',
+        content: 'Saved content',
+        visibility: 'global',
+        expectedBindings: bindings
+      })
+    )
+  })
+
+  it('refreshes a stale binding snapshot and requires confirmation again', async () => {
+    const user = userEvent.setup()
+    const originalBindings = [{ type: 'agent' as const, id: 'agent-old' }]
+    const replacementBindings = [{ type: 'agent' as const, id: 'agent-new' }]
+    mocks.refetchBindings.mockResolvedValueOnce(originalBindings).mockResolvedValueOnce(replacementBindings)
+    mocks.updatePrompt
+      .mockRejectedValueOnce(DataApiErrorFactory.concurrentModification('Prompt bindings', prompts[1].id))
+      .mockResolvedValueOnce(prompts[0])
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit Targeted prompt' }))
+    await user.click(screen.getByRole('button', { name: 'save global prompt' }))
+    const confirmDialog = await screen.findByRole('dialog', {
+      name: 'settings.prompts.visibility.makeGlobalConfirmTitle'
+    })
+
+    await user.click(within(confirmDialog).getByRole('button', { name: 'common.confirm' }))
+    await waitFor(() => expect(mocks.refetchBindings).toHaveBeenCalledTimes(2))
+    expect(mocks.updatePrompt).toHaveBeenNthCalledWith(1, {
+      title: 'Saved title',
+      content: 'Saved content',
+      visibility: 'global',
+      expectedBindings: originalBindings
+    })
+    expect(screen.getByRole('dialog', { name: 'settings.prompts.visibility.makeGlobalConfirmTitle' })).toBeVisible()
+
+    await user.click(within(confirmDialog).getByRole('button', { name: 'common.confirm' }))
+    await waitFor(() =>
+      expect(mocks.updatePrompt).toHaveBeenNthCalledWith(2, {
+        title: 'Saved title',
+        content: 'Saved content',
+        visibility: 'global',
+        expectedBindings: replacementBindings
+      })
+    )
+  })
+
+  it('opens confirmation when a binding appears after an empty preflight snapshot', async () => {
+    const user = userEvent.setup()
+    const addedBindings = [{ type: 'agent' as const, id: 'agent-new' }]
+    mocks.refetchBindings.mockResolvedValueOnce([]).mockResolvedValueOnce(addedBindings)
+    mocks.updatePrompt
+      .mockRejectedValueOnce(DataApiErrorFactory.concurrentModification('Prompt bindings', prompts[1].id))
+      .mockResolvedValueOnce(prompts[0])
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit Targeted prompt' }))
+    await user.click(screen.getByRole('button', { name: 'save global prompt' }))
+
+    const confirmDialog = await screen.findByRole('dialog', {
+      name: 'settings.prompts.visibility.makeGlobalConfirmTitle'
+    })
+    expect(mocks.updatePrompt).toHaveBeenNthCalledWith(1, {
+      title: 'Saved title',
+      content: 'Saved content',
+      visibility: 'global',
+      expectedBindings: []
+    })
+    expect(confirmDialog).toHaveTextContent('settings.prompts.visibility.makeGlobalConfirmDescription:1')
+
+    await user.click(within(confirmDialog).getByRole('button', { name: 'common.confirm' }))
+    await waitFor(() =>
+      expect(mocks.updatePrompt).toHaveBeenNthCalledWith(2, {
+        title: 'Saved title',
+        content: 'Saved content',
+        visibility: 'global',
+        expectedBindings: addedBindings
+      })
+    )
+  })
+
+  it('does not reuse the previous prompt binding count while a new delete target loads', async () => {
+    const user = userEvent.setup()
+    mocks.useQuery.mockImplementation((path: string, options?: { params?: { id?: string } }) => {
+      if (path === '/prompts') {
+        return { data: prompts, error: undefined, isLoading: false, refetch: mocks.refetch }
+      }
+
+      const loadingSecondTarget = options?.params?.id === prompts[2].id
       return {
-        trigger,
-        isLoading: false,
-        error: undefined
+        data: loadingSecondTarget ? undefined : [{ targetId: 'assistant-1' }, { targetId: 'agent-1' }],
+        error: undefined,
+        isLoading: loadingSecondTarget,
+        refetch: mocks.refetchBindings
       }
     })
-    window.toast = {
-      error: vi.fn(),
-      success: vi.fn(),
-      warning: vi.fn(),
-      info: vi.fn(),
-      loading: vi.fn()
-    } as unknown as typeof window.toast
-  })
-
-  it('updates an existing prompt through the edit modal', async () => {
     render(<PromptSettings />)
 
-    const row = screen.getByTestId('prompt-row-New prompt')
-    fireEvent.click(within(row).getByRole('button', { name: 'Edit' }))
+    await user.click(screen.getByRole('button', { name: 'common.delete Targeted prompt' }))
+    expect(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).toHaveTextContent(
+      'settings.prompts.deleteSharedConfirm:2'
+    )
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
 
-    fireEvent.change(screen.getByPlaceholderText('settings.prompts.titlePlaceholder'), {
-      target: { value: 'Updated prompt' }
-    })
-    fireEvent.change(screen.getByPlaceholderText('settings.prompts.contentPlaceholder'), {
-      target: { value: 'updated content' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
+    await user.click(screen.getByRole('button', { name: 'common.delete Second targeted prompt' }))
 
-    await waitFor(() => {
-      expect(mutationTriggers.get('PATCH /prompts/:id')).toHaveBeenCalledWith({
-        params: { id: 'new' },
-        body: { title: 'Updated prompt', content: 'updated content' }
-      })
-    })
-  })
-
-  it('deletes a prompt after confirmation', async () => {
-    render(<PromptSettings />)
-
-    const row = screen.getByTestId('prompt-row-Old prompt')
-    fireEvent.click(within(row).getByRole('button', { name: 'Delete' }))
-    fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
-
-    await waitFor(() => {
-      expect(mutationTriggers.get('DELETE /prompts/:id')).toHaveBeenCalledWith({ params: { id: 'old' } })
-    })
-  })
-
-  it('reorders display order back to canonical API order before patching', async () => {
-    render(<PromptSettings />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'mock-reorder' }))
-
-    await waitFor(() => {
-      expect(applyReorderedListMock).toHaveBeenCalledWith([prompts[1], prompts[0]])
+    expect(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).toHaveTextContent(
+      'settings.prompts.deleteRestrictedConfirm'
+    )
+    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts/:id/bindings', {
+      enabled: true,
+      params: { id: prompts[2].id },
+      swrOptions: { keepPreviousData: false }
     })
   })
 })

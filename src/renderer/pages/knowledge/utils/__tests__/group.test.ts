@@ -1,8 +1,9 @@
-import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
-import type { Group } from '@shared/data/types/group'
 import { describe, expect, it } from 'vitest'
 
-import { buildKnowledgeBaseGroupSections } from '..'
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
+import type { Group } from '@shared/data/types/group'
+
+import { buildKnowledgeBaseGroupSections } from '../group'
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
   id: '',
@@ -15,12 +16,11 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
-  threshold: undefined,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   documentCount: undefined,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
-  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -107,6 +107,24 @@ describe('buildKnowledgePageBaseGroupSections', () => {
         groupId: 'group-2',
         items: [bases[1]]
       }
+    ])
+  })
+
+  it('finds initials without changing group or base ordering and restores empty groups on clear', () => {
+    const bases = [
+      createKnowledgeBase({ id: 'cn-1', name: '知识库 B', groupId: 'group-1' }),
+      createKnowledgeBase({ id: 'other', name: 'Other', groupId: 'group-2' }),
+      createKnowledgeBase({ id: 'cn-2', name: '知识库 A', groupId: 'group-1' })
+    ]
+    const groups = [createGroup({ id: 'group-1' }), createGroup({ id: 'group-2' })]
+    expect(buildKnowledgeBaseGroupSections(bases, groups, ' ZSK ')).toEqual([
+      { groupId: 'group-1', items: [bases[0], bases[2]] }
+    ])
+    expect(buildKnowledgeBaseGroupSections(bases, groups, 'zk')).toEqual([])
+    expect(buildKnowledgeBaseGroupSections(bases, groups, '').map((section) => section.groupId)).toEqual([
+      null,
+      'group-1',
+      'group-2'
     ])
   })
 

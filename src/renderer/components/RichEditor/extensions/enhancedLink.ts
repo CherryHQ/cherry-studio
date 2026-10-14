@@ -306,6 +306,18 @@ export interface EnhancedLinkOptions {
 export const EnhancedLink = Link.extend<EnhancedLinkOptions>({
   name: 'enhancedLink',
 
+  // The base Link's inherited parseMarkdown hardcodes the 'link' mark name. Because this extension
+  // renames the mark to 'enhancedLink' (and StarterKit's built-in link is disabled), parsing any
+  // markdown link would otherwise emit a non-existent 'link' mark — ProseMirror's markFromJSON then
+  // throws and drops the entire surrounding text. Re-map the link token onto our mark name.
+  // (renderMarkdown is inherited unchanged — it reads node.attrs generically, no name hardcoding.)
+  parseMarkdown(token, helpers) {
+    return helpers.applyMark('enhancedLink', helpers.parseInline(token.tokens || []), {
+      href: token.href,
+      title: token.title || null
+    })
+  },
+
   addOptions() {
     return {
       ...this.parent?.(),

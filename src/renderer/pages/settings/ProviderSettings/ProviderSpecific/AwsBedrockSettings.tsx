@@ -1,10 +1,12 @@
-import { Input, Label, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Input, Label, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 
 import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
 import {
@@ -62,7 +64,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     if (localRegion.trim().length > 0) {
       return true
     }
-    window.toast.warning(t('settings.provider.aws-bedrock.region_required'))
+    toast.warning(t('settings.provider.aws-bedrock.region_required'))
     return false
   }
 
@@ -80,7 +82,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
       isIamDraftDirtyRef.current = false
     } catch (error) {
       logger.error('Failed to update AWS Bedrock auth type', { providerId, error })
-      window.toast.error(t('settings.provider.save_failed'))
+      toast.error(t('settings.provider.save_failed'))
     }
   }
 
@@ -98,7 +100,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
       isIamDraftDirtyRef.current = false
     } catch (error) {
       logger.error('Failed to save AWS Bedrock IAM config', { providerId, error })
-      window.toast.error(t('settings.provider.save_failed'))
+      toast.error(t('settings.provider.save_failed'))
       isIamDraftDirtyRef.current = false
       resetLocalIamConfig()
     }
@@ -110,7 +112,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
       isIamDraftDirtyRef.current = false
     } catch (error) {
       logger.error('Failed to save AWS Bedrock api-key region', { providerId, error })
-      window.toast.error(t('settings.provider.save_failed'))
+      toast.error(t('settings.provider.save_failed'))
       isIamDraftDirtyRef.current = false
       resetLocalIamConfig()
     }
@@ -133,7 +135,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     <>
       <ProviderSettingsSubtitle className="mt-1.5">{t('settings.provider.aws-bedrock.title')}</ProviderSettingsSubtitle>
       <div
-        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
+        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm text-foreground"
         role="status">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <span>{t('settings.provider.aws-bedrock.description')}</span>
@@ -150,13 +152,13 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
         }}>
         <div className="flex items-start gap-2">
           <RadioGroupItem value="iam" id="aws-bedrock-auth-iam" className="mt-0.5" />
-          <Label htmlFor="aws-bedrock-auth-iam" className="cursor-pointer font-normal leading-snug">
+          <Label htmlFor="aws-bedrock-auth-iam" className="cursor-pointer leading-snug font-normal">
             {t('settings.provider.aws-bedrock.auth_type_iam')}
           </Label>
         </div>
         <div className="flex items-start gap-2">
           <RadioGroupItem value="apiKey" id="aws-bedrock-auth-apikey" className="mt-0.5" />
-          <Label htmlFor="aws-bedrock-auth-apikey" className="cursor-pointer font-normal leading-snug">
+          <Label htmlFor="aws-bedrock-auth-apikey" className="cursor-pointer leading-snug font-normal">
             {t('settings.provider.aws-bedrock.auth_type_api_key')}
           </Label>
         </div>

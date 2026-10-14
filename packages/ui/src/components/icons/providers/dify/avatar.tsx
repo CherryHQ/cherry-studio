@@ -10,7 +10,7 @@ export function DifyAvatar({ size = 32, shape = 'circle', className }: Omit<Icon
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <DifyLight style={{ width: size * 0.7, height: size * 0.7 }} />
+        <DifyLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

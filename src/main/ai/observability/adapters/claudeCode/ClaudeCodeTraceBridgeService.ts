@@ -19,7 +19,7 @@ interface TraceContextEntry {
 
 @Injectable('ClaudeCodeTraceBridgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['SpanCacheService'])
+@DependsOn(['TraceStorageService'])
 export class ClaudeCodeTraceBridgeService extends BaseService implements Activatable {
   private server?: Server
   private endpoint?: string
@@ -52,34 +52,15 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
   }
 
   async prepareTrace(context: ClaudeCodeTraceContext): Promise<Record<string, string> | undefined> {
-    if (!this.isActivated) return undefined
-
-    if (!isTraceId(context.traceId) || !isSpanId(context.rootSpanId)) {
-      logger.warn('Skipping Claude Code trace env for invalid trace context', {
-        traceId: context.traceId,
-        rootSpanId: context.rootSpanId
-      })
-      return undefined
-    }
-
-    const normalizedContext: ClaudeCodeTraceContext = {
-      ...context,
-      traceId: context.traceId.toLowerCase(),
-      rootSpanId: context.rootSpanId.toLowerCase()
-    }
-
-    this.setTraceContext(normalizedContext)
-    observabilitySinks.registerTraceMeta(normalizedContext.traceId, {
-      topicId: normalizedContext.topicId,
-      modelName: normalizedContext.modelName
-    })
+    const normalizedContext = this.registerTraceContext(context)
+    if (!normalizedContext) return undefined
 
     const endpoint = await this.ensureServer()
     // INTENTIONAL DEV-ONLY BEHAVIOR. This whole bridge only runs when developer_mode is
     // enabled (see onReady), and these flags ask Claude Code to emit verbose telemetry —
     // user prompts (OTEL_LOG_USER_PROMPTS), tool details/content, and raw API request/response
     // bodies (OTEL_LOG_RAW_API_BODIES). Those payloads land in span attributes that
-    // SpanCacheService persists as plaintext JSONL trace files on disk, so they may contain
+    // TraceStorageService persists as plaintext JSONL trace files on disk, so they may contain
     // secrets (e.g. authorization headers, API keys embedded in raw bodies). We do NOT redact
     // here: redaction would require parsing arbitrary OTLP attribute structures across the
     // ingest path and risk dropping legitimate trace data. The accepted tradeoff (local-only,
@@ -105,6 +86,35 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
       OTEL_LOG_RAW_API_BODIES: '1',
       TRACEPARENT: `00-${normalizedContext.traceId}-${normalizedContext.rootSpanId}-01`
     }
+  }
+
+  refreshTraceContext(context: ClaudeCodeTraceContext): void {
+    this.registerTraceContext(context)
+  }
+
+  private registerTraceContext(context: ClaudeCodeTraceContext): ClaudeCodeTraceContext | undefined {
+    if (!this.isActivated) return undefined
+
+    if (!isTraceId(context.traceId) || !isSpanId(context.rootSpanId)) {
+      logger.warn('Skipping invalid Claude Code trace context', {
+        traceId: context.traceId,
+        rootSpanId: context.rootSpanId
+      })
+      return undefined
+    }
+
+    const normalizedContext: ClaudeCodeTraceContext = {
+      ...context,
+      traceId: context.traceId.toLowerCase(),
+      rootSpanId: context.rootSpanId.toLowerCase()
+    }
+
+    this.setTraceContext(normalizedContext)
+    observabilitySinks.registerTraceMeta(normalizedContext.traceId, {
+      topicId: normalizedContext.topicId,
+      modelName: normalizedContext.modelName
+    })
+    return normalizedContext
   }
 
   private async ensureServer(): Promise<string> {

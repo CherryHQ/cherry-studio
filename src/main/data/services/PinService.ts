@@ -20,17 +20,20 @@
  *   variant emits a single aggregated log line and a single SQL round trip.
  */
 
+import { and, asc, eq, inArray } from 'drizzle-orm'
+
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type PinRow, pinTable } from '@data/db/schemas/pin'
 import { classifySqliteError } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreatePinDto } from '@shared/data/api/schemas/pins'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Pin } from '@shared/data/types/pin'
-import { and, asc, eq, inArray } from 'drizzle-orm'
 
 import { applyScopedMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
@@ -48,6 +51,32 @@ function rowToPin(row: PinRow): Pin {
   }
 }
 
+function notifyPinReadModelChange(pins: readonly Pin[], kind: 'membership' | 'order'): void {
+  if (pins.length === 0) return
+
+  const pinIds = [...new Set(pins.map((pin) => pin.id))]
+  const effects: DataApiDataChangeEffect[] = [
+    kind === 'membership'
+      ? { endpoint: '/pins', kind: 'membership', entityIds: pinIds }
+      : { endpoint: '/pins', kind: 'order', dimension: 'orderKey', entityIds: pinIds },
+    { endpoint: '/pins/:id', entityIds: pinIds }
+  ]
+
+  for (const entityType of ['topic', 'session'] as const) {
+    const entityIds = [...new Set(pins.filter((pin) => pin.entityType === entityType).map((pin) => pin.entityId))]
+    if (entityIds.length === 0) continue
+
+    const endpoint = entityType === 'topic' ? '/topics' : '/agent-sessions'
+    effects.push(
+      kind === 'membership'
+        ? { endpoint, kind: 'membership', dimension: 'pinned', entityIds }
+        : { endpoint, kind: 'order', dimension: 'pinned', entityIds }
+    )
+  }
+
+  notifyDataApiDataChange(effects)
+}
+
 export class PinService {
   private get db() {
     return application.get('DbService').getDb()
@@ -56,20 +85,21 @@ export class PinService {
   /**
    * List pins for a given entityType, ordered by orderKey ASC.
    */
-  async listByEntityType(entityType: EntityType): Promise<Pin[]> {
-    const rows = await this.db
+  listByEntityType(entityType: EntityType): Pin[] {
+    const rows = this.db
       .select()
       .from(pinTable)
       .where(eq(pinTable.entityType, entityType))
       .orderBy(asc(pinTable.orderKey))
+      .all()
     return rows.map(rowToPin)
   }
 
   /**
    * Get a pin by ID.
    */
-  async getById(id: string): Promise<Pin> {
-    const [row] = await this.db.select().from(pinTable).where(eq(pinTable.id, id)).limit(1)
+  getById(id: string): Pin {
+    const [row] = this.db.select().from(pinTable).where(eq(pinTable.id, id)).limit(1).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Pin', id)
@@ -93,17 +123,18 @@ export class PinService {
    * fast-path SELECT IS the pre-validation here; the UNIQUE catch is purely
    * the TOCTOU concurrency fallback.
    */
-  async pin(dto: CreatePinDto): Promise<Pin> {
-    return this.db.transaction(async (tx) => {
-      const [existing] = await tx
+  pin(dto: CreatePinDto): Pin {
+    const result = this.db.transaction((tx) => {
+      const [existing] = tx
         .select()
         .from(pinTable)
         .where(and(eq(pinTable.entityType, dto.entityType), eq(pinTable.entityId, dto.entityId)))
         .limit(1)
-      if (existing) return rowToPin(existing)
+        .all()
+      if (existing) return { pin: rowToPin(existing), created: false }
 
       try {
-        const inserted = await insertWithOrderKey(
+        const inserted = insertWithOrderKey(
           tx,
           pinTable,
           { entityType: dto.entityType, entityId: dto.entityId },
@@ -118,31 +149,35 @@ export class PinService {
           entityType: mapped.entityType,
           entityId: mapped.entityId
         })
-        return mapped
+        return { pin: mapped, created: true }
       } catch (e) {
         if (classifySqliteError(e)?.kind !== 'unique') throw e
 
-        const [winner] = await tx
+        const [winner] = tx
           .select()
           .from(pinTable)
           .where(and(eq(pinTable.entityType, dto.entityType), eq(pinTable.entityId, dto.entityId)))
           .limit(1)
+          .all()
         if (!winner) throw e
-        return rowToPin(winner)
+        return { pin: rowToPin(winner), created: false }
       }
     })
+    if (result.created) notifyPinReadModelChange([result.pin], 'membership')
+    return result.pin
   }
 
   /**
    * Unpin by pin id. Hard delete.
    */
-  async unpin(id: string): Promise<void> {
-    const [row] = await this.db.delete(pinTable).where(eq(pinTable.id, id)).returning({ id: pinTable.id })
+  unpin(id: string): void {
+    const [row] = this.db.delete(pinTable).where(eq(pinTable.id, id)).returning().all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Pin', id)
     }
 
+    notifyPinReadModelChange([rowToPin(row)], 'membership')
     logger.info('Deleted pin', { id })
   }
 
@@ -150,26 +185,37 @@ export class PinService {
    * Move a single pin relative to an anchor. Scope (entityType) is inferred
    * from the target row — callers do not pass scope.
    */
-  async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    await this.db.transaction(async (tx) =>
+  reorder(id: string, anchor: OrderRequest): void {
+    const pins = this.db.transaction((tx) => {
       applyScopedMoves(tx, pinTable, [{ id, anchor }], {
         pkColumn: pinTable.id,
         scopeColumn: pinTable.entityType
       })
-    )
+      return tx.select().from(pinTable).where(eq(pinTable.id, id)).all().map(rowToPin)
+    })
+    notifyPinReadModelChange(pins, 'order')
   }
 
   /**
    * Apply a batch of moves atomically. `applyScopedMoves` rejects batches that
    * span multiple entityTypes with a VALIDATION_ERROR.
    */
-  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
-    await this.db.transaction(async (tx) =>
+  reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
+    if (moves.length === 0) return
+    const ids = [...new Set(moves.map((move) => move.id))]
+    const pins = this.db.transaction((tx) => {
       applyScopedMoves(tx, pinTable, moves, {
         pkColumn: pinTable.id,
         scopeColumn: pinTable.entityType
       })
-    )
+      return tx.select().from(pinTable).where(inArray(pinTable.id, ids)).all().map(rowToPin)
+    })
+    notifyPinReadModelChange(pins, 'order')
+  }
+
+  /** Publish after a caller-owned transaction purges pins through the Tx helpers below. */
+  notifyPurged(): void {
+    notifyDataApiDataChange([{ endpoint: '/pins', kind: 'membership' }])
   }
 
   /**
@@ -185,8 +231,10 @@ export class PinService {
    * Signature is tx-first (mainstream ORM convention) — mirrors
    * `tagService.purgeForEntityTx`.
    */
-  async purgeForEntityTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void> {
-    await tx.delete(pinTable).where(and(eq(pinTable.entityType, entityType), eq(pinTable.entityId, entityId)))
+  purgeForEntityTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): void {
+    tx.delete(pinTable)
+      .where(and(eq(pinTable.entityType, entityType), eq(pinTable.entityId, entityId)))
+      .run()
 
     logger.info('Purged pins for entity', { entityType, entityId })
   }
@@ -197,9 +245,11 @@ export class PinService {
    * of the same type). Empty input is a no-op. Emits a single aggregated log
    * line so a large cascade does not produce per-id log entries.
    */
-  async purgeForEntitiesTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityIds: string[]): Promise<void> {
+  purgeForEntitiesTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityIds: string[]): void {
     if (entityIds.length === 0) return
-    await tx.delete(pinTable).where(and(eq(pinTable.entityType, entityType), inArray(pinTable.entityId, entityIds)))
+    tx.delete(pinTable)
+      .where(and(eq(pinTable.entityType, entityType), inArray(pinTable.entityId, entityIds)))
+      .run()
 
     logger.info('Purged pins for entities', { entityType, count: entityIds.length })
   }

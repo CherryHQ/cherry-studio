@@ -7,8 +7,8 @@
   "results": {
     "result": [
       {
-        "title": "Querit Title",
         "snippet": "Querit Content",
+        "title": "Querit Title",
         "url": "https://querit.example/result"
       }
     ]

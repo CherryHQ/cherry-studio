@@ -1,20 +1,13 @@
-import type { PreferenceKeyType, PreferenceUpdateOptions } from '@shared/data/preference/preferenceTypes'
 import { vi } from 'vitest'
 
-import { mockPreferenceDefaults } from './PreferenceService'
+import type { PreferenceKeyType, PreferenceUpdateOptions } from '@shared/data/preference/preferenceTypes'
+
+import { mockPreferenceDefaults, mockPreferenceService, mockPreferenceState } from './PreferenceService'
 
 /**
  * Mock usePreference hooks for testing
  * Provides comprehensive mocks for preference management hooks
  */
-
-// Mock preference state storage
-const mockPreferenceState = new Map<PreferenceKeyType, any>()
-
-// Initialize with defaults
-Object.entries(mockPreferenceDefaults).forEach(([key, value]) => {
-  mockPreferenceState.set(key as PreferenceKeyType, value)
-})
 
 // Mock subscribers for preference changes
 const mockPreferenceSubscribers = new Map<PreferenceKeyType, Set<() => void>>()
@@ -160,10 +153,7 @@ export const MockUsePreferenceUtils = {
     mockUseMultiplePreferences.mockClear()
 
     // Reset state to defaults
-    mockPreferenceState.clear()
-    Object.entries(mockPreferenceDefaults).forEach(([key, value]) => {
-      mockPreferenceState.set(key as PreferenceKeyType, value)
-    })
+    mockPreferenceService._resetMockState()
 
     // Clear subscribers
     mockPreferenceSubscribers.clear()

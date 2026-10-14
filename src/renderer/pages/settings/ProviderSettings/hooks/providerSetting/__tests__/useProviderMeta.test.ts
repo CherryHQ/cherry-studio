@@ -35,14 +35,7 @@ describe('useProviderMeta', () => {
         name: 'OpenAI',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true,
         websites: {
@@ -69,14 +62,7 @@ describe('useProviderMeta', () => {
         name: 'My OpenAI',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true,
         websites: {
@@ -99,14 +85,7 @@ describe('useProviderMeta', () => {
         name: 'Custom Provider',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       }
@@ -118,5 +97,71 @@ describe('useProviderMeta', () => {
     expect(result.current.apiKeyWebsite).toBeUndefined()
     expect(result.current.docsWebsite).toBeUndefined()
     expect(result.current.modelsWebsite).toBeUndefined()
+  })
+
+  it('keeps api options hidden for system OpenAI-compatible providers without drawer-supported settings', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'openai',
+        presetProviderId: 'openai',
+        name: 'OpenAI',
+        defaultChatEndpoint: 'openai-responses',
+        authType: 'api-key',
+        apiKeys: [],
+        reportsActualCost: false,
+        settings: {},
+        isEnabled: true
+      }
+    })
+
+    const { result } = renderHook(() => useProviderMeta('openai'))
+
+    expect(result.current.showApiOptionsButton).toBe(false)
+  })
+
+  it('keeps api options hidden for system OpenAI-compatible providers without visible settings', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'cerebras',
+        presetProviderId: 'cerebras',
+        name: 'Cerebras AI',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://api.cerebras.ai/v1',
+            adapterFamily: 'cerebras'
+          }
+        },
+        authType: 'api-key',
+        apiKeys: [],
+        reportsActualCost: false,
+        settings: {},
+        isEnabled: true
+      }
+    })
+
+    const { result } = renderHook(() => useProviderMeta('cerebras'))
+
+    expect(result.current.showApiOptionsButton).toBe(false)
+  })
+
+  it('keeps api options hidden for system providers without supported api options', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'google',
+        presetProviderId: 'gemini',
+        name: 'Gemini',
+        defaultChatEndpoint: 'google-generate-content',
+        authType: 'api-key',
+        apiKeys: [],
+        reportsActualCost: false,
+        settings: {},
+        isEnabled: true
+      }
+    })
+
+    const { result } = renderHook(() => useProviderMeta('google'))
+
+    expect(result.current.showApiOptionsButton).toBe(false)
   })
 })

@@ -1,12 +1,18 @@
+import { BrowserWindow, ipcMain, type IpcMainEvent, nativeImage, nativeTheme } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
+import { validateSender } from '@main/core/security/validateSender'
+import { syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
+import { openTabInMainWindow } from '@main/services/mainWindowNavigation'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { BrowserWindow, nativeImage, nativeTheme } from 'electron'
 
 import iconPath from '../../../build/icon.png?asset'
 
@@ -18,9 +24,6 @@ const logger = loggerService.withContext('SubWindowService')
 // Windows reads the taskbar icon from the exe manifest. So we only materialize
 // one on Linux and only pass it through on Linux; the field is omitted otherwise.
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
-
-/** Height of the tab bar area used for drag-to-attach detection (must match CSS h-10) */
-const TAB_BAR_HEIGHT = 40
 
 /** Default content-size cache for SubWindow (must match windowRegistry width/height) */
 const SUB_WINDOW_DEFAULT_WIDTH = 800
@@ -50,49 +53,55 @@ type SubWindowState = {
 export class SubWindowService extends BaseService {
   /** tabId → windowId map (windowId belongs to WindowManager's namespace, distinct from tabId) */
   private tabIdToWindowId: Map<string, string> = new Map()
-  private windowState: Map<string, SubWindowState> = new Map()
+  private windowState: Map<number, SubWindowState> = new Map()
 
   protected async onInit() {
     this.registerIpcHandlers()
+    this.registerZoomTracking()
+    if (isWin || isLinux) {
+      // Registry gives Windows and Linux sub-windows WCO; covers pre-warmed standbys like registerZoomTracking.
+      this.registerDisposable(
+        application
+          .get('WindowManager')
+          .onWindowCreatedByType(WindowType.SubWindow, ({ window }) => syncTitleBarOverlayWithTheme(window))
+      )
+    }
+  }
+
+  /**
+   * electron#10572 workaround, mirroring MainWindowService.setupWindowEvents: a window's
+   * zoom can snap back to its webPreferences-cached value on resize. Attached via
+   * onWindowCreatedByType so pre-warmed pool standbys are covered too — attaching at the
+   * open() call site would miss them (destroy-on-close pool: each BrowserWindow instance
+   * is opened exactly once, so the listeners never accumulate).
+   */
+  private registerZoomTracking() {
+    const preferenceService = application.get('PreferenceService')
+    const wm = application.get('WindowManager')
+    this.registerDisposable(
+      wm.onWindowCreatedByType(WindowType.SubWindow, ({ window }) => {
+        const reapplyZoom = () => {
+          if (!window.isDestroyed()) {
+            window.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+          }
+        }
+        window.on('will-resize', reapplyZoom)
+        window.on('restore', reapplyZoom)
+        if (isLinux) {
+          window.on('resize', reapplyZoom)
+        }
+      })
+    )
   }
 
   private registerIpcHandlers() {
-    this.ipcOn(IpcChannel.Tab_Detach, (_, payload) => {
-      this.createWindow(payload)
-    })
-
-    this.ipcHandle(IpcChannel.Tab_Attach, (event, payload) => {
-      const wm = application.get('WindowManager')
-      if (wm.getWindowsByType(WindowType.Main).length === 0) {
-        logger.warn('Tab_Attach failed: main window not available')
-        return false
-      }
-
-      try {
-        wm.broadcastToType(WindowType.Main, IpcChannel.Tab_Attach, payload)
-      } catch (err) {
-        logger.error('Tab_Attach failed: could not send to main window', err as Error)
-        return false
-      }
-
-      // Close the sender sub window after successful broadcast. Membership is
-      // determined via WindowManager's own type index (not the service's private
-      // map) so this branch does not depend on tabIdToWindowId staying in sync.
-      const senderId = wm.getWindowIdByWebContents(event.sender)
-      const isSubWindow = senderId
-        ? wm.getWindowInfosByType(WindowType.SubWindow).some((w) => w.id === senderId)
-        : false
-      if (senderId && isSubWindow) {
-        try {
-          wm.close(senderId)
-        } catch (err) {
-          logger.error('Failed to close sub window after tab attach', err as Error)
-        }
-      }
-      return true
-    })
-
-    this.ipcOn(IpcChannel.Tab_MoveWindow, (event, payload: { tabId: string; x: number; y: number }) => {
+    // Tab_MoveWindow is the repo's only per-frame R→M escape hatch (see docs Not-In-Scope):
+    // it stays on native IPC rather than IpcApi. Registered with native ipcMain.on + an explicit
+    // validateSender gate (mirroring the data subsystems), cleaned up via registerDisposable —
+    // NOT the `this.ipcOn` sugar (slated for removal). Tab_Attach / Tab_Detach / Tab_DragEnd /
+    // SubWindow_SetAlwaysOnTop moved to IpcApi (tab.* / window.*).
+    const onMoveWindow = (event: IpcMainEvent, payload: { tabId: string; x: number; y: number }) => {
+      if (!validateSender(event)) return
       const wm = application.get('WindowManager')
       // Prefer tabId lookup: when the main window sends this IPC, event.sender is the main window,
       // but we want to move the sub window identified by tabId.
@@ -101,7 +110,7 @@ export class SubWindowService extends BaseService {
       if (win && !win.isDestroyed()) {
         const x = Math.round(payload.x)
         const y = Math.round(payload.y)
-        this.moveWindow(win, payload.tabId, x, y)
+        this.moveWindow(win, x, y)
         if (!win.isVisible()) {
           win.show()
         }
@@ -113,59 +122,9 @@ export class SubWindowService extends BaseService {
           win.setOpacity(0.85)
         }
       }
-    })
-
-    this.ipcHandle(
-      IpcChannel.Tab_TryAttach,
-      (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
-        const wm = application.get('WindowManager')
-        const mainWindow = wm.getWindowsByType(WindowType.Main)[0]
-        if (!mainWindow) {
-          logger.warn('Tab_TryAttach failed: main window not available')
-          return false
-        }
-
-        const bounds = mainWindow.getBounds()
-        const isOverTabBar =
-          payload.screenX >= bounds.x &&
-          payload.screenX <= bounds.x + bounds.width &&
-          payload.screenY >= bounds.y &&
-          payload.screenY <= bounds.y + TAB_BAR_HEIGHT
-
-        if (isOverTabBar) {
-          try {
-            wm.broadcastToType(WindowType.Main, IpcChannel.Tab_Attach, payload.tab)
-          } catch (err) {
-            logger.error('Tab_TryAttach failed: could not send to main window', err as Error)
-            return false
-          }
-
-          const subWindowId = this.tabIdToWindowId.get(payload.tab.id)
-          if (subWindowId) {
-            wm.close(subWindowId)
-          }
-          return true
-        }
-
-        // Not over tab bar — restore opacity
-        const subWindowId = this.tabIdToWindowId.get(payload.tab.id)
-        const subWin = subWindowId ? wm.getWindow(subWindowId) : undefined
-        if (subWin && !subWin.isDestroyed()) {
-          subWin.setOpacity(1)
-        }
-
-        return false
-      }
-    )
-
-    this.ipcOn(IpcChannel.Tab_DragEnd, (event) => {
-      // Restore opacity for the sender window after drag ends. Main window never sets
-      // opacity <1, so the opacity predicate self-gates — no additional SubWindow filter needed.
-      const senderWindow = BrowserWindow.fromWebContents(event.sender)
-      if (senderWindow && !senderWindow.isDestroyed() && senderWindow.getOpacity() < 1) {
-        senderWindow.setOpacity(1)
-      }
-    })
+    }
+    ipcMain.on(IpcChannel.Tab_MoveWindow, onMoveWindow)
+    this.registerDisposable(() => ipcMain.removeListener(IpcChannel.Tab_MoveWindow, onMoveWindow))
   }
 
   /**
@@ -173,9 +132,9 @@ export class SubWindowService extends BaseService {
    * On Win/Linux uses setContentBounds with cached size to avoid electron#27651 outer-bounds creep.
    * On macOS uses setPosition (no reported creep issue).
    */
-  private moveWindow(win: BrowserWindow, tabId: string, x: number, y: number) {
+  private moveWindow(win: BrowserWindow, x: number, y: number) {
     if (USE_CONTENT_BOUNDS_MOVE) {
-      const state = this.windowState.get(tabId)
+      const state = this.windowState.get(win.id)
       if (state) {
         state.lastMoveAt = Date.now()
       }
@@ -191,13 +150,13 @@ export class SubWindowService extends BaseService {
    * DPI-rounding debounce in moveWindow. Cleanup of windowState is handled centrally
    * by the `.once('closed')` listener in createWindow — do not attach one here too.
    */
-  private trackWindowSize(tabId: string, win: BrowserWindow) {
-    this.windowState.set(tabId, { width: SUB_WINDOW_DEFAULT_WIDTH, height: SUB_WINDOW_DEFAULT_HEIGHT, lastMoveAt: 0 })
+  private trackWindowSize(win: BrowserWindow) {
+    this.windowState.set(win.id, { width: SUB_WINDOW_DEFAULT_WIDTH, height: SUB_WINDOW_DEFAULT_HEIGHT, lastMoveAt: 0 })
 
     win.on('ready-to-show', () => {
       if (!win.isDestroyed()) {
         const { width, height } = win.getContentBounds()
-        const state = this.windowState.get(tabId)
+        const state = this.windowState.get(win.id)
         if (state) {
           state.width = width
           state.height = height
@@ -207,7 +166,7 @@ export class SubWindowService extends BaseService {
 
     win.on('resize', () => {
       if (win.isDestroyed()) return
-      const state = this.windowState.get(tabId)
+      const state = this.windowState.get(win.id)
       if (!state || Date.now() - state.lastMoveAt < MOVE_RESIZE_IGNORE_MS) return
       const { width, height } = win.getContentBounds()
       state.width = width
@@ -219,33 +178,41 @@ export class SubWindowService extends BaseService {
     id: string
     url: string
     title?: string
+    icon?: string
     type?: string
     isPinned?: boolean
     x?: number
     y?: number
+    metadata?: Tab['metadata']
   }): string {
     const wm = application.get('WindowManager')
-    const { id: tabId, url, title, type, isPinned, x, y } = payload
+    const { id: tabId, url, title, icon, type, isPinned, x, y } = payload
     const hasPosition = x !== undefined && y !== undefined
     const dark = nativeTheme.shouldUseDarkColors
+    const preferenceService = application.get('PreferenceService')
+    const zoomFactor = preferenceService.get('app.zoom_factor')
 
     const initData: SubWindowInitData = {
       tabId,
       url,
       title,
+      ...(icon && { icon }),
       type: type === 'route' || type === 'webview' ? type : 'route',
-      isPinned
+      isPinned,
+      metadata: payload.metadata
     }
 
     // Dynamic options injected per-call (registry carries platform-static defaults only).
     // Deliberately omit `backgroundColor` on macOS — an undefined value can still overwrite
     // the vibrancy-enabled default through the options merge path.
+    // zoomFactor mirrors MainWindowService: PreferenceService-dependent, so injected per-call.
     const options: Partial<WindowOptions> = {
       title: title || 'Cherry Studio Tab',
       darkTheme: dark,
       ...(!isMac && { backgroundColor: dark ? '#181818' : '#FFFFFF' }),
       ...(isLinux && { icon: linuxIcon }),
-      ...(hasPosition && { x, y })
+      ...(hasPosition && { x, y }),
+      webPreferences: { zoomFactor }
     }
 
     const windowId = wm.open(WindowType.SubWindow, { initData, options })
@@ -255,30 +222,60 @@ export class SubWindowService extends BaseService {
       return windowId
     }
 
+    // open() may pop a pre-warmed standby whose webPreferences carry the Electron default
+    // zoom (1.0) — the value injected above only reaches freshly constructed windows.
+    // Re-apply so a detached tab never opens at 100% while app.zoom_factor is e.g. 130%.
+    win.webContents.setZoomFactor(zoomFactor)
+
     this.tabIdToWindowId.set(tabId, windowId)
 
-    // showMode: 'manual' — WM does not auto-show. Callers that supply an initial position
-    // will receive Tab_MoveWindow which shows the window after repositioning; otherwise
-    // auto-show once Electron signals ready.
-    if (!hasPosition) {
-      win.once('ready-to-show', () => {
-        if (!win.isDestroyed()) win.show()
-      })
+    // Direct opens show here; positioned drag detaches are shown by detachTab after creation.
+    // Pooled standbys have already fired ready-to-show, so neither path waits for it.
+    if (!hasPosition && !win.isDestroyed()) {
+      win.show()
     }
 
     if (USE_CONTENT_BOUNDS_MOVE) {
-      this.trackWindowSize(tabId, win)
+      this.trackWindowSize(win)
     }
 
     // Single cleanup entry point. Node's EventEmitter snapshots listeners at emit time,
     // so even if WindowManager's internal 'closed' handler later calls removeAllListeners,
     // this callback has already executed.
     win.once('closed', () => {
-      this.tabIdToWindowId.delete(tabId)
-      this.windowState.delete(tabId)
+      for (const [id, owner] of this.tabIdToWindowId) if (owner === windowId) this.tabIdToWindowId.delete(id)
+      this.windowState.delete(win.id)
     })
 
     logger.info(`Created sub window for tab ${tabId}`, { windowId, url, title, type, isPinned })
     return windowId
+  }
+
+  /** Whether the calling window resolves to a SubWindow (guards operations that must never act on the main window). */
+  private isSubWindowSender(senderId: WindowId | null): senderId is WindowId {
+    return senderId != null && application.get('WindowManager').getWindowType(senderId) === WindowType.SubWindow
+  }
+
+  public detachTab(payload: Parameters<SubWindowService['createWindow']>[0]): void {
+    const windowId = this.createWindow(payload)
+    application.get('WindowManager').getWindow(windowId)?.show()
+  }
+
+  public attachTab(tab: Tab, senderId: WindowId | null): void {
+    if (!this.isSubWindowSender(senderId)) throw new Error('Only a detached window can return a tab')
+    openTabInMainWindow(tab)
+    this.tabIdToWindowId.delete(tab.id)
+    application.get('WindowManager').close(senderId)
+  }
+
+  /**
+   * Pins/unpins the caller sub-window (always-on-top). Only a SubWindow caller is honored —
+   * the main window is rejected. Returns whether the pin was applied (the renderer reads this
+   * to reconcile its toggle state).
+   */
+  public setAlwaysOnTop(senderId: WindowId | null, pinned: boolean): boolean {
+    if (!this.isSubWindowSender(senderId)) return false
+    application.get('WindowManager').behavior.setAlwaysOnTop(senderId, pinned)
+    return true
   }
 }

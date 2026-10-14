@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,5 +38,11 @@ describe('SegmentedControl', () => {
 
     expect(onValueChange).not.toHaveBeenCalled()
     expect(screen.getByRole('radio', { name: 'App' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('keeps localized labels on one line without shrinking the options', () => {
+    render(<SegmentedControl defaultValue="app" options={options} />)
+
+    expect(screen.getByRole('radio', { name: 'Window' })).toHaveClass('shrink-0', 'whitespace-nowrap')
   })
 })

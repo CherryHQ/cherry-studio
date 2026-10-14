@@ -1,6 +1,7 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { definePlugin } from '@cherrystudio/ai-core'
 import type { LanguageModelMiddleware } from 'ai'
+
+import { definePlugin } from '@cherrystudio/ai-core'
 
 /**
  * https://openrouter.ai/docs/docs/best-practices/reasoning-tokens#example-preserving-reasoning-blocks-with-openrouter-and-claude
@@ -61,7 +62,7 @@ const createOpenrouterReasoningPlugin = () =>
     }
   })
 
-import { SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { RequestFeature } from '../feature'
 

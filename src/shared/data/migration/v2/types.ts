@@ -3,16 +3,7 @@
  */
 
 // Migration stages for UI flow
-export type MigrationStage =
-  | 'version_incompatible'
-  | 'introduction'
-  | 'backup_required'
-  | 'backup_progress'
-  | 'backup_confirmed'
-  | 'migration'
-  | 'migration_completed'
-  | 'completed'
-  | 'error'
+export type MigrationStage = 'version_incompatible' | 'introduction' | 'migration' | 'completed' | 'error'
 
 // Individual migrator status
 export type MigratorStatus = 'pending' | 'running' | 'completed' | 'failed'
@@ -31,6 +22,15 @@ export interface I18nMessage {
   params?: Record<string, string | number>
 }
 
+// Completion-screen summary stats (display metadata only, derived on success)
+export interface MigrationSummary {
+  completedMigrators: number
+  totalMigrators: number
+  itemsProcessed: number
+  /** Migration-stage visible duration shown on the completion screen */
+  durationMs: number
+}
+
 // Overall migration progress
 export interface MigrationProgress {
   stage: MigrationStage
@@ -42,6 +42,17 @@ export interface MigrationProgress {
   error?: string
   /** Non-fatal diagnostics aggregated across migrators, surfaced on the completion screen */
   warnings?: string[]
+  /** Non-fatal diagnostics translated by the migration renderer */
+  warningMessages?: I18nMessage[]
+  /** Completion-screen summary stats; written only on successful completion */
+  summary?: MigrationSummary
+  /**
+   * Resolved v1 data directory to surface on the introduction screen, seeded
+   * only when the migration gate auto-recovered a non-default custom userData
+   * location (fuzzy fallback). Absent otherwise. Its presence is what tells
+   * the renderer to render the "data migration directory" notice.
+   */
+  dataLocation?: string
 }
 
 // Prepare phase result
@@ -51,6 +62,7 @@ export interface PrepareResult {
   /** Fatal reason when `success === false`. Non-fatal diagnostics belong in `warnings`. */
   error?: string
   warnings?: string[]
+  warningMessages?: I18nMessage[]
 }
 
 // Execute phase result
@@ -60,6 +72,7 @@ export interface ExecuteResult {
   error?: string
   /** Non-fatal diagnostics recorded during execute (e.g. files kept but not reindexable) */
   warnings?: string[]
+  warningMessages?: I18nMessage[]
 }
 
 // Validation error detail
@@ -94,6 +107,7 @@ export interface MigratorResult {
   error?: string
   /** Non-fatal diagnostics from prepare + execute, surfaced in the migration report */
   warnings?: string[]
+  warningMessages?: I18nMessage[]
 }
 
 // Overall migration result
@@ -107,6 +121,8 @@ export interface MigrationResult {
 // Migration status stored in app_state table
 export interface MigrationStatusValue {
   status: 'completed' | 'failed' | 'in_progress'
+  /** True only when a v1-to-v2 migration completed successfully. Missing on historical records. */
+  migratedFromV1?: boolean
   completedAt?: number
   failedAt?: number
   version: string
@@ -120,10 +136,30 @@ export interface LocalStorageRecord {
 }
 
 export interface StartMigrationPayload {
-  reduxData: Record<string, unknown>
+  reduxExportPath: string
   dexieExportPath: string
-  localStorageExportPath?: string
+  localStorageExportPath: string
 }
+
+export interface PreparedMigrationExportPaths extends StartMigrationPayload {
+  localStorageExportDirectory: string
+}
+
+/** localStorage keys that are still consumed by the v1 -> v2 migration. */
+export const MIGRATION_LOCAL_STORAGE_KEYS = ['onboarding-completed'] as const
+
+export type MigrationDiagnosticSaveResult =
+  | { status: 'saved'; logs: 'included' | 'not_included' }
+  | { status: 'canceled' }
+  | { status: 'failed' }
+
+export interface MigrationDiagnosticSavePayload {
+  dialogTitle: string
+  logDate: string
+}
+
+export type MigrationExportFileWriteMode = 'overwrite' | 'append'
+export type MigrationExportStage = { source: 'redux' } | { source: 'dexie'; table: string } | { source: 'localStorage' }
 
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
@@ -131,23 +167,40 @@ export const MigrationIpcChannels = {
   CheckNeeded: 'migration:check-needed',
   GetProgress: 'migration:get-progress',
   GetLastError: 'migration:get-last-error',
-  GetUserDataPath: 'migration:get-user-data-path',
 
   // Flow control
   Start: 'migration:start',
-  ProceedToBackup: 'migration:proceed-to-backup',
-  ShowBackupDialog: 'migration:show-backup-dialog',
-  BackupCompleted: 'migration:backup-completed',
+  PrepareExport: 'migration:prepare-export',
   StartMigration: 'migration:start-migration',
+  // Main-process breadcrumb for renderer export OOM diagnostics.
+  ReportExportStage: 'migration:report-export-stage',
+  // Renderer-local failure mirrored to main's terminal error stage.
+  ReportError: 'migration:report-error',
   Retry: 'migration:retry',
   Cancel: 'migration:cancel',
   Restart: 'migration:restart',
 
   // File transfer (Renderer -> Main)
   WriteExportFile: 'migration:write-export-file',
+  SaveDiagnosticBundle: 'migration:save-diagnostic-bundle',
+  ShowDiagnosticBundleInFolder: 'migration:show-diagnostic-bundle-in-folder',
+
+  // Open the region-appropriate v1 download page in the system browser
+  // (the preboot window has no shell access; main picks the site by egress IP)
+  OpenDownloadPage: 'migration:open-download-page',
 
   // Skip migration (version incompatible — user chose to use defaults)
   SkipMigration: 'migration:skip-migration',
+
+  // Window controls (Renderer -> Main)
+  Minimize: 'migration:minimize',
+  CloseWindow: 'migration:close-window',
+  // In-flow close confirmation: Main asks the renderer to show its in-app dialog
+  // (ConfirmClose); the renderer reports a confirmed quit back (ConfirmQuit), or that the
+  // dialog was dismissed without quitting (CancelClose) so Main drops its pending-close flag.
+  ConfirmClose: 'migration:confirm-close',
+  ConfirmQuit: 'migration:confirm-quit',
+  CancelClose: 'migration:cancel-close',
 
   // Progress broadcast (Main -> Renderer)
   Progress: 'migration:progress',

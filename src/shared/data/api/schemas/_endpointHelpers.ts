@@ -15,10 +15,9 @@
  * new `_xxxHelpers.ts` files.
  *
  * Future extension point:
- * Resources supporting group-scoped ordering (e.g. future topic) may extend
- * OrderRequestSchema in their own schema file by adding an optional
- * `groupId: string`. See `docs/references/data/data-ordering-guide.md` for
- * the grouping extension story.
+ * Resources supporting scoped ordering can define resource-specific request
+ * schemas and service predicates while reusing these scope-agnostic anchors.
+ * See `docs/references/data/data-ordering-guide.md` for the extension story.
  */
 
 import * as z from 'zod'

@@ -11,15 +11,24 @@ const ThinkAnyLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="9 9 102 102"
+      viewBox="0 0 120 120"
       {...props}>
-      <g clipPath={`url(#${iconId}-thinkanylight__a)`}>
-        <path fill={`url(#${iconId}-thinkanylight__b)`} d="M18.5 18.5H101.5V101.5H18.5z" />
+      <mask
+        id={`${iconId}-thinkanylight__a`}
+        width={65}
+        height={65}
+        x={28}
+        y={28}
+        maskUnits="userSpaceOnUse"
+        style={{
+          maskType: 'luminance'
+        }}>
+        <path fill="#fff" d="M93 28H28V93H93V28Z" />
+      </mask>
+      <g mask={`url(#${iconId}-thinkanylight__a)`}>
+        <path fill={`url(#${iconId}-thinkanylight__b)`} d="M93 28H28V93H93V28Z" />
       </g>
       <defs>
-        <clipPath id={`${iconId}-thinkanylight__a`}>
-          <path fill="#fff" d="M0 0H83V83H0z" transform="translate(18.5 18.5)" />
-        </clipPath>
         <pattern id={`${iconId}-thinkanylight__b`} width={1} height={1} patternContentUnits="objectBoundingBox">
           <use xlinkHref={`#${iconId}-thinkanylight__c`} transform="scale(.00467 .0039)" />
         </pattern>

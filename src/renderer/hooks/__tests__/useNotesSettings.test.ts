@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
+
 import { useNotesSettings } from '../useNotesSettings'
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -15,17 +17,9 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 describe('useNotesSettings', () => {
-  const toastErrorMock = vi.fn()
-
   beforeEach(() => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
-    Object.assign(window, {
-      toast: {
-        ...window.toast,
-        error: toastErrorMock
-      }
-    })
   })
 
   it('updates only the requested notes settings fields', async () => {
@@ -72,7 +66,7 @@ describe('useNotesSettings', () => {
     })
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('notes.settings.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('notes.settings.save_failed')
     })
   })
 

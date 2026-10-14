@@ -12,8 +12,8 @@
  *     in-memory queue Map is empty on cold start and dispatchAll would
  *     otherwise iterate nothing)
  *   - Graceful shutdown: handlers observe AbortSignal and finish promptly
- *   - Layer 0 + Layer 1 mutex: multiple queues dispatching in parallel without
- *     libsql SQLITE_BUSY (regression guard for upstream issue #288)
+ *   - Layer 0 write tx + Layer 1 mutex: multiple queues dispatching in parallel
+ *     all commit without contention or SQLITE_BUSY
  *
  * Note on scope: retry / singleton cases assert the full recovery →
  * resurrect → dispatch → completed chain. The terminal assertion is load-
@@ -22,19 +22,22 @@
  * enforce.
  */
 
-import { application } from '@application'
-import { jobTable } from '@data/db/schemas/job'
-import type { DbType } from '@data/db/types'
-import { jobService } from '@data/services/JobService'
-import { JobManager } from '@main/core/job/JobManager'
-import type { JobHandler } from '@main/core/job/types'
-import { BaseService } from '@main/core/lifecycle/BaseService'
-import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
+import type { DbType } from '@data/db/types'
+import { jobScheduleService } from '@data/services/JobScheduleService'
+import { jobService } from '@data/services/JobService'
+import { JobManager } from '@main/core/job/JobManager'
+import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
+import { BaseService } from '@main/core/lifecycle/BaseService'
+import { SchedulerService } from '@main/core/scheduler/SchedulerService'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import { drainTrailingDispatch } from './_helpers'
 
@@ -51,6 +54,12 @@ interface SlowInput {
 interface SlowOutput {
   echoed: string
 }
+
+/**
+ * Set by a test that needs to know a slow handler is genuinely parked in its
+ * abortable await, instead of sleeping a fixed interval and hoping (#17703).
+ */
+let onSlowHandlerEntered: (() => void) | null = null
 
 function makeSlowHandler(recovery: 'abandon' | 'retry' | 'singleton'): JobHandler<SlowInput> {
   return {
@@ -70,6 +79,7 @@ function makeSlowHandler(recovery: 'abandon' | 'retry' | 'singleton'): JobHandle
           },
           { once: true }
         )
+        onSlowHandlerEntered?.()
       })
       return { echoed: `echo: ${ctx.input.message}` } satisfies SlowOutput
     }
@@ -84,6 +94,20 @@ async function drainAllQueues(jm: JobManager): Promise<void> {
 interface BootstrapOptions {
   /** Register these handlers BEFORE _doInit so onReady's recovery sees them. */
   handlers?: Array<[string, JobHandler]>
+  /**
+   * Invoked after `_doAllReady()` schedules the quiet-window timer but before
+   * it is advanced — models calls arriving before startup recovery runs.
+   * Receives the JobManager being bootstrapped (the caller's destructured
+   * binding does not exist yet at hook time).
+   */
+  beforeRecovery?: (jobManager: JobManager) => Promise<void> | void
+  /**
+   * Return while fake timers are still installed so the test can advance
+   * schedule timers armed during recovery (their due time lies beyond the
+   * quiet-window advance, and `useRealTimers` would discard them). The
+   * caller MUST call `vi.useRealTimers()` itself.
+   */
+  keepFakeTimers?: boolean
 }
 
 async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
@@ -96,7 +120,7 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
 
   const dbSvc = MockMainDbServiceExport.dbService
   const cacheSvc = MockMainCacheServiceExport.cacheService
-  ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+  ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
     switch (name) {
       case 'DbService':
         return dbSvc
@@ -106,6 +130,8 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
         return scheduler
       case 'JobManager':
         return jobManager
+      case 'PowerService':
+        return { preventSleep: () => ({ dispose: () => {} }) }
     }
     throw new Error(`Unexpected application.get('${name}')`)
   })
@@ -137,12 +163,13 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
   // completes before we switch back.
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   void jobManager._doAllReady()
+  if (opts.beforeRecovery) await opts.beforeRecovery(jobManager)
   await vi.advanceTimersByTimeAsync(60_000)
   await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
   for (let i = 0; i < 5; i++) {
     await vi.advanceTimersByTimeAsync(100)
   }
-  vi.useRealTimers()
+  if (!opts.keepFakeTimers) vi.useRealTimers()
   return { scheduler, jobManager }
 }
 
@@ -194,10 +221,81 @@ describe('JobManager integration', () => {
         handlers: [['task.abandon', makeSlowHandler('abandon') as JobHandler]]
       })
 
-      const all = await jobService.list({ type: 'task.abandon' })
+      const all = jobService.list({ type: 'task.abandon' })
       expect(all).toHaveLength(2)
       expect(all.every((r) => r.status === 'cancelled')).toBe(true)
       expect(all.every((r) => r.error?.code === 'JOB_CANCELLED')).toBe(true)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('cancelRequested: settles the leftover without disturbing a newer finished run in the projection', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      // Disabled so recovery's overdue catch-up cannot dispatch a fresh run
+      // mid-test; only the two inserted rows drive the projection.
+      const schedule = jobScheduleService.create({
+        type: 'task.retry',
+        name: 'mixed-run',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' },
+        enabled: false
+      })
+
+      const now = Date.now()
+      const cancelRequestedAt = now - 5_000
+      const newerFinishedAt = now - 2_000
+      const inserted = await dbh
+        .insert(jobTable)
+        .values([
+          {
+            type: 'task.retry',
+            status: 'running',
+            queue: 'task.retry',
+            scheduleId: schedule.id,
+            scheduledAt: now - 9_000,
+            startedAt: now - 8_000,
+            attempt: 0,
+            maxAttempts: 1,
+            input: { message: 'leftover' },
+            cancelRequested: true,
+            cancelRequestedAt,
+            metadata: {}
+          },
+          {
+            type: 'task.retry',
+            status: 'completed',
+            queue: 'task.retry',
+            scheduleId: schedule.id,
+            scheduledAt: now - 3_500,
+            startedAt: now - 3_000,
+            finishedAt: newerFinishedAt,
+            attempt: 0,
+            maxAttempts: 1,
+            input: { message: 'newer' },
+            cancelRequested: false,
+            metadata: {}
+          }
+        ])
+        .returning()
+      const leftoverId = inserted.find((r) => r.status === 'running')!.id
+
+      const before = jobService.getRunStatesByScheduleIds('task.retry', [schedule.id])
+      expect(before.get(schedule.id)).toEqual({ kind: 'terminal', status: 'completed', finishedAt: newerFinishedAt })
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.retry', makeSlowHandler('retry') as JobHandler]]
+      })
+
+      const settled = jobService.getById(leftoverId)
+      expect(settled?.status).toBe('cancelled')
+      expect(settled?.error?.code).toBe('JOB_CANCELLED')
+      // finishedAt is the real settle time; the projection stays put because it
+      // orders cancelled runs by the immutable cancelRequestedAt instead.
+      expect(settled && Date.parse(settled.finishedAt!)).toBeGreaterThanOrEqual(now)
+      expect(settled && Date.parse(settled.cancelRequestedAt!)).toBe(cancelRequestedAt)
+      expect(jobService.getRunStatesByScheduleIds('task.retry', [schedule.id])).toEqual(before)
 
       await teardownManager(scheduler, jobManager)
     })
@@ -249,18 +347,90 @@ describe('JobManager integration', () => {
       await drainAllQueues(jobManager)
       const deadline = Date.now() + 1000
       while (Date.now() < deadline) {
-        const row = await jobService.getById(runningId)
+        const row = jobService.getById(runningId)
         if (row && row.status !== 'pending' && row.status !== 'running') break
         await new Promise((r) => setTimeout(r, 20))
       }
       await drainAllQueues(jobManager)
 
-      const finalRunning = await jobService.getById(runningId)
+      const finalRunning = jobService.getById(runningId)
       expect(finalRunning?.status).toBe('completed')
 
       // delayed remains delayed until its scheduledAt arrives (+60s in future).
-      const finalDelayed = await jobService.getById(delayedId)
+      const finalDelayed = jobService.getById(delayedId)
       expect(finalDelayed?.status).toBe('delayed')
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('retry: leaves a job already executing in THIS process alone (no double-dispatch)', async () => {
+      // Regression for #16291: a job enqueued + started during the startup quiet
+      // window is still `running` when the recovery sweep fires. Without the
+      // in-flight guard the retry strategy resets that running row → pending and
+      // dispatchAll re-claims it, running the handler a SECOND time for one
+      // enqueue. The handler must execute exactly once.
+      let executeCount = 0
+      let releaseGate!: () => void
+      const gate = new Promise<void>((resolve) => {
+        releaseGate = resolve
+      })
+      const gateHandler: JobHandler<SlowInput> = {
+        recovery: 'retry',
+        cancelTimeoutMs: 1500,
+        defaultConcurrency: 1,
+        async execute(ctx) {
+          executeCount++
+          // Park on a manually-resolved gate (NOT a setTimeout, which would be
+          // a faked timer and could fire mid-sweep), staying in-flight until the
+          // test releases it. Still honor abort so shutdown/cancel stays clean.
+          await new Promise<void>((resolve, reject) => {
+            if (ctx.signal.aborted) return reject(new Error('AbortError'))
+            const onAbort = () => reject(new Error('AbortError'))
+            ctx.signal.addEventListener('abort', onAbort, { once: true })
+            void gate.then(() => {
+              ctx.signal.removeEventListener('abort', onAbort)
+              resolve()
+            })
+          })
+          return { echoed: `echo: ${ctx.input.message}` } satisfies SlowOutput
+        }
+      }
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['inflight.guard', gateHandler as JobHandler]]
+      })
+
+      // Enqueue + let it start executing: the row is `running` in the DB and the
+      // jobId is in inFlightExecuted, with execute() parked on the gate.
+      const handle = jobManager.enqueue('inflight.guard' as never, { message: 'x' } as never)
+      await drainAllQueues(jobManager)
+      expect(executeCount).toBe(1)
+      expect(jobService.getById(handle.id)?.status).toBe('running')
+
+      // Run the startup-recovery sweep WHILE the job is genuinely in-flight in
+      // this process. Invoked directly — the same flow the 60s timer triggers —
+      // to keep the test deterministic without re-driving fake timers.
+      await (jobManager as unknown as { runStartupRecoveryFlow: () => Promise<void> }).runStartupRecoveryFlow()
+
+      // This assertion is NEGATIVE (count must NOT grow), so give any buggy
+      // re-dispatch ample opportunity to land before asserting — drain + settle
+      // repeatedly so a slow second spawn can't slip past a single drain and
+      // leave the test a false negative.
+      for (let i = 0; i < 5; i++) {
+        await drainAllQueues(jobManager)
+        await new Promise((r) => setTimeout(r, 20))
+      }
+
+      // Positive signal: recovery left the live row alone (still `running`, not
+      // reset to `pending`). Load-bearing negative: handler ran exactly once.
+      expect(jobService.getById(handle.id)?.status).toBe('running')
+      expect(executeCount).toBe(1)
+
+      // Release the gate → the single execution finalizes the row once.
+      releaseGate()
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
+      expect(executeCount).toBe(1)
 
       await teardownManager(scheduler, jobManager)
     })
@@ -313,14 +483,14 @@ describe('JobManager integration', () => {
       await drainAllQueues(jobManager)
       const deadline = Date.now() + 1000
       while (Date.now() < deadline) {
-        const row = await jobService.getById(newerId)
+        const row = jobService.getById(newerId)
         if (row && row.status !== 'pending' && row.status !== 'running') break
         await new Promise((r) => setTimeout(r, 20))
       }
       await drainAllQueues(jobManager)
 
-      const finalOlder = await jobService.getById(olderId)
-      const finalNewer = await jobService.getById(newerId)
+      const finalOlder = jobService.getById(olderId)
+      const finalNewer = jobService.getById(newerId)
       expect(finalOlder?.status).toBe('cancelled')
       expect(finalNewer?.status).toBe('completed')
 
@@ -386,15 +556,231 @@ describe('JobManager integration', () => {
       await drainAllQueues(jobManager)
       const deadline = Date.now() + 1000
       while (Date.now() < deadline) {
-        const row = await jobService.getById(inserted.id)
+        const row = jobService.getById(inserted.id)
         if (row && row.status !== 'pending' && row.status !== 'running') break
         await new Promise((r) => setTimeout(r, 20))
       }
       await drainAllQueues(jobManager)
 
-      const final = await jobService.getById(inserted.id)
+      const final = jobService.getById(inserted.id)
       expect(final?.status).toBe('completed')
       expect(final?.output).toEqual({ echoed: 'echo: resurrected' })
+
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('startup recovery — once schedules', () => {
+    const onceNoopHandler: JobHandler = {
+      recovery: 'abandon',
+      cancelTimeoutMs: 1000,
+      defaultConcurrency: 1,
+      async execute() {
+        return {}
+      }
+    }
+
+    function armedScheduleIds(jm: JobManager): Set<string> {
+      return new Set((jm as unknown as { scheduleDisposables: Map<string, unknown> }).scheduleDisposables.keys())
+    }
+
+    it('does not re-arm a spent once schedule (fired one-shot must not replay on restart)', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at: now - 60_000 },
+          jobInputTemplate: { message: 'spent' },
+          enabled: true,
+          lastRun: now - 60_000,
+          nextRun: null,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+      await drainAllQueues(jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(0)
+      expect(armedScheduleIds(jobManager).has(row.id)).toBe(false)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('re-arms and fires a never-fired once schedule whose at-time passed while the app was closed', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      await dbh.insert(jobScheduleTable).values({
+        type: 'task.once',
+        trigger: { kind: 'once', at: now - 60_000 },
+        jobInputTemplate: { message: 'missed' },
+        enabled: true,
+        lastRun: null,
+        nextRun: null,
+        catchUpPolicy: { kind: 'skip-missed' },
+        metadata: {}
+      })
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+      await drainAllQueues(jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(1)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('re-arms a manually pre-fired once schedule whose natural fire is still pending', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at: now + 600_000 },
+          jobInputTemplate: { message: 'pending-natural-fire' },
+          enabled: true,
+          // Manual trigger writes lastRun before the natural fire happens
+          // (triggerJobScheduleNowById's non-cron fallback) — a bare lastRun
+          // null-check would wrongly treat this schedule as spent.
+          lastRun: now - 1_000,
+          nextRun: null,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+      await drainAllQueues(jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(0)
+      expect(armedScheduleIds(jobManager).has(row.id)).toBe(true)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('re-arms a future once schedule without rewriting a matching nextRun', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const at = now + 600_000
+      const updatedAt = now - 60_000
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at },
+          jobInputTemplate: { message: 'matching-next-run' },
+          enabled: true,
+          lastRun: null,
+          nextRun: at,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {},
+          updatedAt
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+
+      const rearmed = jobScheduleService.getById(row.id)
+      expect(armedScheduleIds(jobManager).has(row.id)).toBe(true)
+      expect(rearmed?.nextRun).toBe(new Date(at).toISOString())
+      expect(rearmed?.updatedAt).toBe(new Date(updatedAt).toISOString())
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('persists a natural fire clamped to trigger.at so an early fire does not replay on restart', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      // The once timer elapses on fake timers while Date.now() stays on the
+      // real clock — advancing 31s fires the timer while wall time barely
+      // moves, an amplified reproduction of the monotonic/wall-clock mismatch
+      // that makes natural fires observe Date.now() < trigger.at.
+      const at = Date.now() + 30_000
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at },
+          jobInputTemplate: { message: 'early-natural-fire' },
+          enabled: true,
+          lastRun: null,
+          nextRun: null,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const boot1 = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]],
+        keepFakeTimers: true
+      })
+      await vi.advanceTimersByTimeAsync(31_000)
+      for (let i = 0; i < 5; i++) {
+        await vi.advanceTimersByTimeAsync(100)
+      }
+      vi.useRealTimers()
+      await drainAllQueues(boot1.jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(1)
+      const fired = jobScheduleService.getById(row.id)
+      expect(fired?.lastRun).not.toBeNull()
+      expect(Date.parse(fired!.lastRun!)).toBeGreaterThanOrEqual(at)
+
+      await teardownManager(boot1.scheduler, boot1.jobManager)
+
+      // Simulated restart: the spent row must be skipped, not replayed.
+      const boot2 = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+      await drainAllQueues(boot2.jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(1)
+      expect(armedScheduleIds(boot2.jobManager).has(row.id)).toBe(false)
+
+      await teardownManager(boot2.scheduler, boot2.jobManager)
+    })
+
+    it('marks a manual fire of an overdue once spent before recovery', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const at = now - 60_000
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at },
+          jobInputTemplate: { message: 'manual-during-quiet-window' },
+          enabled: true,
+          lastRun: null,
+          nextRun: at,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]],
+        beforeRecovery: async (bootingManager) => {
+          expect(await bootingManager.triggerJobScheduleNowById(row.id)).toBe(true)
+          const manuallyFired = jobScheduleService.getById(row.id)
+          expect(manuallyFired?.nextRun).toBeNull()
+          expect(Date.parse(manuallyFired?.lastRun ?? '')).toBeGreaterThanOrEqual(at)
+        }
+      })
+      await drainAllQueues(jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(1)
+      expect(armedScheduleIds(jobManager).has(row.id)).toBe(false)
 
       await teardownManager(scheduler, jobManager)
     })
@@ -406,7 +792,11 @@ describe('JobManager integration', () => {
         handlers: [['shutdown.slow', makeSlowHandler('retry') as JobHandler]]
       })
 
-      const handle = await jobManager.enqueue(
+      const entered = new Promise<void>((resolve) => {
+        onSlowHandlerEntered = resolve
+      })
+
+      const handle = jobManager.enqueue(
         'shutdown.slow' as never,
         {
           message: 'long',
@@ -414,17 +804,15 @@ describe('JobManager integration', () => {
         } as never
       )
 
-      // Wait for dispatch + handler.execute to be inside its await.
+      // Wait for dispatch + handler.execute to be inside its await — the handler
+      // signals that itself, so _doStop() cannot race a fixed sleep.
       await drainAllQueues(jobManager)
-      await new Promise<void>((r) => setTimeout(r, 50))
+      await entered
+      onSlowHandlerEntered = null
 
       const stopPromise = jobManager._doStop()
-      const settled = await Promise.race([
-        handle.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 1000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('cancelled')
+      const settled = await handle.finished
+      expect(settled.status).toBe('cancelled')
 
       await stopPromise
       await teardownManager(scheduler, jobManager)
@@ -437,16 +825,10 @@ describe('JobManager integration', () => {
         handlers: [['parallel.task', makeSlowHandler('abandon') as JobHandler]]
       })
 
-      const handles = await Promise.all(
-        Array.from({ length: 20 }, (_, i) =>
-          jobManager.enqueue(
-            'parallel.task' as never,
-            { message: `n-${i}`, sleepMs: 5 } as never,
-            {
-              queue: `parallel-${i}`
-            } as never
-          )
-        )
+      const handles = Array.from({ length: 20 }, (_, i) =>
+        jobManager.enqueue('parallel.task' as never, { message: `n-${i}`, sleepMs: 5 } as never, {
+          queue: `parallel-${i}`
+        })
       )
 
       const settled = await Promise.all(handles.map((h) => h.finished))
@@ -472,20 +854,16 @@ describe('JobManager integration', () => {
       ;(jobManager as unknown as { globalMaxConcurrency: number }).globalMaxConcurrency = 1
 
       // Queue qB occupies the only global slot with a slow job.
-      const occupant = await jobManager.enqueue(
-        'cap.task' as never,
-        { message: 'occupant', sleepMs: 150 } as never,
-        { queue: 'qB' } as never
-      )
+      const occupant = jobManager.enqueue('cap.task' as never, { message: 'occupant', sleepMs: 150 } as never, {
+        queue: 'qB'
+      })
       await drainAllQueues(jobManager)
 
       // Queue qA is enqueued while the global cap is saturated → blocked pending,
       // even though qA's own per-queue slots are free.
-      const starved = await jobManager.enqueue(
-        'cap.task' as never,
-        { message: 'starved', sleepMs: 10 } as never,
-        { queue: 'qA' } as never
-      )
+      const starved = jobManager.enqueue('cap.task' as never, { message: 'starved', sleepMs: 10 } as never, {
+        queue: 'qA'
+      })
 
       // Pin the regression deterministically: qA's dispatch must have observed
       // the global cap saturated and set the flag. Drain first so qA's (fire-and-
@@ -498,12 +876,8 @@ describe('JobManager integration', () => {
 
       // Occupant finishes → frees the global slot → must wake qA.
       await occupant.finished
-      const settled = await Promise.race([
-        starved.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 2000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('completed')
+      const settled = await starved.finished
+      expect(settled.status).toBe('completed')
 
       await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
@@ -533,15 +907,13 @@ describe('JobManager integration', () => {
       // Persistently fail the retry persist path with a non-BUSY error so
       // withWriteTx does NOT retry (only BUSY is retried) — the failure
       // propagates back to scheduleRetry, triggering the fallback finalize.
-      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(async () => {
+      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(() => {
         throw Object.assign(new Error('synthetic-corrupt'), { code: 'SQLITE_CORRUPT' })
       })
 
-      const handle = await jobManager.enqueue(
-        'retry.fallback.task' as never,
-        { message: 'doomed' } as never,
-        { maxAttempts: 3 } as never
-      )
+      const handle = jobManager.enqueue('retry.fallback.task' as never, { message: 'doomed' } as never, {
+        maxAttempts: 3
+      })
 
       // Drive the dispatch + handler.execute + fallback finalize chain to
       // completion. Poll the row instead of using a fixed sleep — the
@@ -553,7 +925,7 @@ describe('JobManager integration', () => {
       while (Date.now() < deadline) {
         await drainAllQueues(jobManager)
         await new Promise((r) => setTimeout(r, 20))
-        final = await jobService.getById(handle.id)
+        final = jobService.getById(handle.id)
         if (final?.status === 'failed') break
       }
 
@@ -587,18 +959,14 @@ describe('JobManager integration', () => {
 
       // Force both writes to fail so the §D outer .catch path becomes the
       // last line of defense.
-      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(async () => {
+      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(() => {
         throw Object.assign(new Error('synthetic-corrupt'), { code: 'SQLITE_CORRUPT' })
       })
-      const terminalSpy = vi.spyOn(jobService, 'setTerminalTx').mockImplementation(async () => {
+      const terminalSpy = vi.spyOn(jobService, 'setTerminalTx').mockImplementation(() => {
         throw Object.assign(new Error('synthetic-corrupt-terminal'), { code: 'SQLITE_CORRUPT' })
       })
 
-      await jobManager.enqueue(
-        'retry.fallback.task.2' as never,
-        { message: 'doubled-doom' } as never,
-        { maxAttempts: 3 } as never
-      )
+      jobManager.enqueue('retry.fallback.task.2' as never, { message: 'doubled-doom' } as never, { maxAttempts: 3 })
 
       // Drive the dispatch + handler + fallback chain. With both retry and
       // terminal writes mocked to fail, the production code falls all the
@@ -615,6 +983,365 @@ describe('JobManager integration', () => {
       process.off('unhandledRejection', listener)
       retrySpy.mockRestore()
       terminalSpy.mockRestore()
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('settled event payload', () => {
+    it('delivers input / parentId / final metadata to onSettled and exposes ctx.parentId', async () => {
+      const settledEvents: JobSettledEvent<{ label: string }>[] = []
+      const ctxParentIds: Array<string | null> = []
+      const handler: JobHandler<{ label: string }> = {
+        recovery: 'abandon',
+        async execute(ctx) {
+          ctxParentIds.push(ctx.parentId)
+          // Patch metadata mid-execution: the settled event must carry the
+          // FINAL merged value, not the enqueue-time one.
+          await ctx.patchMetadata({ phase: 'done' })
+          return { ok: true }
+        },
+        onSettled(event) {
+          settledEvents.push(event)
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['settled.payload', handler as JobHandler]]
+      })
+
+      // parentId has a self-referencing FK — the parent must be a real row.
+      const parent = jobManager.enqueue('settled.payload' as never, { label: 'parent' } as never)
+      await parent.finished
+
+      const child = jobManager.enqueue('settled.payload' as never, { label: 'child' } as never, {
+        parentId: parent.id,
+        metadata: { origin: 'test' }
+      })
+      const snapshot = await child.finished
+      expect(snapshot.status).toBe('completed')
+
+      expect(ctxParentIds).toEqual([null, parent.id])
+      expect(settledEvents).toHaveLength(2)
+      const childEvent = settledEvents[1]
+      expect(childEvent.input).toEqual({ label: 'child' })
+      expect(childEvent.parentId).toBe(parent.id)
+      expect(childEvent.metadata).toEqual({ origin: 'test', phase: 'done' })
+      expect(settledEvents[0].parentId).toBeNull()
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('onEnqueued', () => {
+    it('exposes a timer-fired pending row while its queue is full', async () => {
+      const observed: JobSnapshot[] = []
+      const release = Promise.withResolvers<void>()
+      const entered = Promise.withResolvers<void>()
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        defaultConcurrency: 1,
+        onEnqueued(snapshot) {
+          observed.push(jobService.getById(snapshot.id)!)
+        },
+        async execute() {
+          entered.resolve()
+          await release.promise
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['enqueue.observe', handler]],
+        keepFakeTimers: true
+      })
+      try {
+        const first = jobManager.enqueue('enqueue.observe' as never, {} as never)
+        await entered.promise
+        const schedule = jobManager.registerJobSchedule({
+          type: 'enqueue.observe' as never,
+          trigger: { kind: 'once', at: Date.now() + 1000 },
+          jobInputTemplate: {} as never,
+          catchUpPolicy: { kind: 'skip-missed' }
+        })
+        await vi.advanceTimersByTimeAsync(1000)
+
+        expect(observed).toHaveLength(2)
+        expect(observed[0]).toMatchObject({ id: first.id, status: 'pending' })
+        expect(observed[1]).toMatchObject({ scheduleId: schedule.id, status: 'pending', startedAt: null })
+        expect(jobService.getById(observed[1].id)?.status).toBe('pending')
+      } finally {
+        release.resolve()
+        await drainAllQueues(jobManager)
+        await teardownManager(scheduler, jobManager)
+        vi.useRealTimers()
+      }
+    })
+
+    it('notifies only committed new rows, never rolled-back or idempotently reused rows', async () => {
+      const observed: JobSnapshot[] = []
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [
+          [
+            'enqueue.tx',
+            {
+              recovery: 'abandon',
+              onEnqueued(snapshot) {
+                observed.push(jobService.getById(snapshot.id)!)
+              },
+              async execute() {}
+            }
+          ]
+        ]
+      })
+      jobManager.pause()
+      try {
+        const dbSvc = application.get('DbService')
+        const handle = dbSvc.withWriteTx((tx) => {
+          const created = jobManager.enqueueTx(tx, 'enqueue.tx' as never, {} as never, { idempotencyKey: 'one' })
+          expect(observed).toEqual([])
+          return created
+        })
+        await Promise.resolve()
+        expect(observed).toHaveLength(1)
+        expect(observed[0]).toMatchObject({ id: handle.id, status: 'pending' })
+
+        expect(() =>
+          dbSvc.withWriteTx((tx) => {
+            jobManager.enqueueTx(tx, 'enqueue.tx' as never, {} as never)
+            throw new Error('rollback')
+          })
+        ).toThrow('rollback')
+        const reused = jobManager.enqueue('enqueue.tx' as never, {} as never, { idempotencyKey: 'one' })
+        const reusedTx = dbSvc.withWriteTx((tx) =>
+          jobManager.enqueueTx(tx, 'enqueue.tx' as never, {} as never, { idempotencyKey: 'one' })
+        )
+        await Promise.resolve()
+        expect(reused.id).toBe(handle.id)
+        expect(reusedTx.id).toBe(handle.id)
+        expect(observed).toHaveLength(1)
+      } finally {
+        await teardownManager(scheduler, jobManager)
+      }
+    })
+
+    it('still dispatches committed jobs when the enqueue observer throws', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [
+          [
+            'enqueue.throws',
+            {
+              recovery: 'abandon',
+              onEnqueued() {
+                throw new Error('observer failed')
+              },
+              async execute() {
+                return 'done'
+              }
+            }
+          ]
+        ]
+      })
+      try {
+        const direct = jobManager.enqueue('enqueue.throws' as never, {} as never)
+        const transactional = application
+          .get('DbService')
+          .withWriteTx((tx) => jobManager.enqueueTx(tx, 'enqueue.throws' as never, {} as never))
+        expect(await direct.finished).toMatchObject({ status: 'completed', output: 'done' })
+        expect(await transactional.finished).toMatchObject({ status: 'completed', output: 'done' })
+      } finally {
+        await teardownManager(scheduler, jobManager)
+      }
+    })
+  })
+
+  describe('enqueueTx (transactional enqueue)', () => {
+    // These cases MUST run inside a REAL drizzle transaction from the
+    // setupTestDatabase handle: the mock DbService.withWriteTx has no
+    // transaction (it passes the bare db, auto-committing per statement),
+    // so the rollback case would falsely fail through it.
+
+    it('commits the job with the caller transaction and dispatches after commit', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.task', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      let handle!: JobHandle
+      db.transaction(
+        (tx) => {
+          // Companion "business write" in the same tx — a terminal dummy row.
+          tx.insert(jobTable)
+            .values({
+              type: 'tx.task',
+              status: 'completed',
+              queue: 'biz',
+              scheduledAt: Date.now(),
+              input: {},
+              maxAttempts: 1
+            })
+            .run()
+          handle = jobManager.enqueueTx(tx, 'tx.task' as never, { message: 'atomic' } as never)
+        },
+        { behavior: 'immediate' }
+      )
+
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
+      // Both writes of the tx are visible.
+      expect(jobService.count({ queue: 'biz' })).toBe(1)
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('rolls back the job row with the caller transaction — no dispatch, no resolver leak', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.rollback', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+      const resolvers = (jobManager as unknown as { finishedResolvers: Map<string, unknown> }).finishedResolvers
+
+      let jobId = ''
+      expect(() =>
+        db.transaction(
+          (tx) => {
+            const handle = jobManager.enqueueTx(tx, 'tx.rollback' as never, { message: 'doomed' } as never)
+            jobId = handle.id
+            expect(resolvers.has(jobId)).toBe(true) // registered inside the tx
+            throw new Error('business-write-failed')
+          },
+          { behavior: 'immediate' }
+        )
+      ).toThrow('business-write-failed')
+
+      // Let the deferred post-commit microtask observe the rollback and clean up.
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(jobService.getById(jobId)).toBeNull()
+      expect(resolvers.has(jobId)).toBe(false)
+      expect(jobService.count({ type: 'tx.rollback' })).toBe(0)
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('returns the existing handle on an idempotency hit inside the tx — no new row', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.idem', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      const first = jobManager.enqueue('tx.idem' as never, { message: 'one', sleepMs: 300 } as never, {
+        idempotencyKey: 'tx-idem-key'
+      })
+
+      let second!: JobHandle
+      db.transaction(
+        (tx) => {
+          second = jobManager.enqueueTx(tx, 'tx.idem' as never, { message: 'two' } as never, {
+            idempotencyKey: 'tx-idem-key'
+          })
+        },
+        { behavior: 'immediate' }
+      )
+
+      expect(second.id).toBe(first.id)
+      expect(jobService.count({ type: 'tx.idem' })).toBe(1)
+
+      await first.finished
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('arms a delayed job after commit and promotes it at scheduledAt', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.delayed', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      let handle!: JobHandle
+      db.transaction(
+        (tx) => {
+          handle = jobManager.enqueueTx(tx, 'tx.delayed' as never, { message: 'later', sleepMs: 5 } as never, {
+            scheduledAt: Date.now() + 150
+          })
+        },
+        { behavior: 'immediate' }
+      )
+
+      expect(handle.snapshot.status).toBe('delayed')
+
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('delayed promotion re-arm on early once-fire', () => {
+    // The once-timer elapses on the monotonic clock while promoteDelayedDue
+    // compares scheduledAt <= Date.now() on the wall clock; the domains round
+    // to whole ms independently, so a fire can land with Date.now() still 1ms
+    // short of scheduledAt and promote nothing (measured locally at ~0.4% of
+    // fires). These tests pin the miss deterministically by no-oping the FIRST
+    // promotion pass; the job must still complete via a re-armed second pass.
+    it('re-arms the delayed-job promotion when the first fire misses', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.delayed.skew', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      const promoteSpy = vi.spyOn(jobService, 'promoteDelayedDue')
+      promoteSpy.mockImplementationOnce(() => 0)
+
+      let handle!: JobHandle
+      db.transaction(
+        (tx) => {
+          handle = jobManager.enqueueTx(tx, 'tx.delayed.skew' as never, { message: 'later', sleepMs: 5 } as never, {
+            scheduledAt: Date.now() + 50
+          })
+        },
+        { behavior: 'immediate' }
+      )
+
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
+      // The mocked miss must have been followed by a real promotion pass.
+      expect(promoteSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+      promoteSpy.mockRestore()
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('re-arms the retry promotion when the first fire misses', async () => {
+      let attempts = 0
+      const handler: JobHandler = {
+        recovery: 'retry',
+        cancelTimeoutMs: 500,
+        defaultConcurrency: 2,
+        defaultRetryPolicy: { maxAttempts: 2, backoff: 'fixed', baseDelayMs: 50, maxDelayMs: 50 },
+        async execute() {
+          attempts++
+          if (attempts === 1) throw new Error('first-attempt-fails')
+          return { echoed: 'recovered' }
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['retry.skew.task', handler]]
+      })
+
+      const promoteSpy = vi.spyOn(jobService, 'promoteDelayedDue')
+      promoteSpy.mockImplementationOnce(() => 0)
+
+      const handle = jobManager.enqueue('retry.skew.task' as never, { message: 'flaky-once' } as never)
+
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
+      expect(attempts).toBe(2)
+      expect(promoteSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+      promoteSpy.mockRestore()
+      await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
     })
   })

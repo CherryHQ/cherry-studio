@@ -1,67 +1,20 @@
-import 'katex/dist/katex.min.css'
-
-import { TableKit } from '@cherrystudio/extension-table-plus'
-import { loggerService } from '@logger'
-import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
-import type { FormattingState } from '@renderer/components/RichEditor/types'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import {
-  htmlToMarkdown,
-  isMarkdownContent,
-  markdownToHtml,
-  markdownToPreviewText
-} from '@renderer/utils/markdownConverter'
+import '@renderer/assets/styles/vendor/katex.css'
 import type { Editor } from '@tiptap/core'
-import { Extension } from '@tiptap/core'
-import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { migrateMathStrings } from '@tiptap/extension-mathematics'
-import Mention from '@tiptap/extension-mention'
-import {
-  getHierarchicalIndexes,
-  type TableOfContentDataItem,
-  TableOfContents
-} from '@tiptap/extension-table-of-contents'
-import Typography from '@tiptap/extension-typography'
+import type { TableOfContentDataItem } from '@tiptap/extension-table-of-contents'
 import { useEditor, useEditorState } from '@tiptap/react'
-import { StarterKit } from '@tiptap/starter-kit'
 import { t } from 'i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { commandSuggestion } from './command'
-import { CodeBlockShiki } from './extensions/codeBlockShiki/codeBlockShiki'
-import { EnhancedImage } from './extensions/enhancedImage'
-import { EnhancedLink } from './extensions/enhancedLink'
-import { EnhancedMath } from './extensions/enhancedMath'
-import { Placeholder } from './extensions/placeholder'
-import { YamlFrontMatter } from './extensions/yamlFrontMatter'
+import { loggerService } from '@logger'
+import type { FormattingState } from '@renderer/components/RichEditor/types'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+
+import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
+import { pickInlinePasteContent, stripImageNodes, stripImageNodesFromSlice } from './helpers/markdownPaste'
 
 const logger = loggerService.withContext('useRichEditor')
-
-// Create extension to preserve data-source-line attribute
-const SourceLineAttribute = Extension.create({
-  name: 'sourceLineAttribute',
-  addGlobalAttributes() {
-    return [
-      {
-        types: ['paragraph', 'heading', 'blockquote', 'bulletList', 'orderedList', 'listItem', 'horizontalRule'],
-        attributes: {
-          dataSourceLine: {
-            default: null,
-            parseHTML: (element) => {
-              const value = element.getAttribute(MARKDOWN_SOURCE_LINE_ATTR)
-              return value
-            },
-            renderHTML: (attributes) => {
-              if (!attributes.dataSourceLine) return {}
-              return { [MARKDOWN_SOURCE_LINE_ATTR]: attributes.dataSourceLine }
-            }
-          }
-        }
-      }
-    ]
-  }
-})
 
 export interface UseRichEditorOptions {
   /** Initial markdown content */
@@ -76,16 +29,22 @@ export interface UseRichEditorOptions {
   onBlur?: () => void
   /** Callback when paste event occurs */
   onPaste?: (html: string) => void
-  /** Maximum length for preview text */
-  previewLength?: number
   /** Placeholder text when editor is empty */
   placeholder?: string
   /** Whether the editor is editable */
   editable?: boolean
+  /** Whether to focus the end of the document when the editor mounts or becomes editable */
+  autoFocus?: boolean
   /** Whether to enable table of contents functionality */
   enableTableOfContents?: boolean
   /** Whether to enable spell check */
   enableSpellCheck?: boolean
+  /** Accessible name for the editing surface, for editors with no visible label */
+  ariaLabel?: string
+  /** Whether users can insert images */
+  enableImageInsertion?: boolean
+  /** Slash-menu commands hidden for this editor instance */
+  disabledCommands?: readonly string[]
   /** Show table action menu (row/column) with concrete actions and position */
   onShowTableActionMenu?: (payload: {
     type: 'row' | 'column'
@@ -101,12 +60,6 @@ export interface UseRichEditorReturn {
   editor: Editor
   /** Current markdown content */
   markdown: string
-  /** Current HTML content (converted from markdown) */
-  html: string
-  /** Preview text for display */
-  previewText: string
-  /** Whether content is detected as markdown */
-  isMarkdown: boolean
   /** Whether editor is disabled */
   disabled: boolean
   /** Current formatting state from TipTap editor */
@@ -125,24 +78,13 @@ export interface UseRichEditorReturn {
 
   /** Set markdown content */
   setMarkdown: (content: string) => void
-  /** Set HTML content (converts to markdown) */
-  setHtml: (html: string) => void
   /** Clear all content */
   clear: () => void
-
-  /** Convert markdown to HTML */
-  toHtml: (markdown: string) => string
-  /** Convert markdown to safe HTML */
-  toSafeHtml: (markdown: string) => string
-  /** Convert HTML to markdown */
-  toMarkdown: (html: string) => string
-  /** Get preview text from markdown */
-  getPreviewText: (markdown: string, maxLength?: number) => string
 }
 
 /**
- * Custom hook for managing rich text content with Markdown storage
- * Provides conversion between Markdown and HTML with sanitization
+ * Custom hook for managing rich text content. Markdown is the single source of truth: parsing and
+ * serialization go through the native @tiptap/markdown AST (see createRichEditorExtensions).
  */
 export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditorReturn => {
   const {
@@ -152,29 +94,18 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onContentChange,
     onBlur,
     onPaste,
-    previewLength = 50,
     placeholder = '',
     editable = true,
+    autoFocus = true,
     enableSpellCheck = false,
+    ariaLabel,
+    enableImageInsertion = true,
+    disabledCommands,
     onShowTableActionMenu,
     scrollParent
   } = options
 
   const [markdown, setMarkdownState] = useState<string>(initialContent)
-
-  const html = useMemo(() => {
-    if (!markdown) return ''
-    return markdownToHtml(markdown)
-  }, [markdown])
-
-  const previewText = useMemo(() => {
-    if (!markdown) return ''
-    return markdownToPreviewText(markdown, previewLength)
-  }, [markdown, previewLength])
-
-  const isMarkdown = useMemo(() => {
-    return isMarkdownContent(markdown)
-  }, [markdown])
 
   // Get theme and language mapping from CodeStyleProvider
   const { activeShikiTheme } = useCodeStyle()
@@ -220,25 +151,18 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
   const handleLinkHoverEnd = useCallback(() => {}, [])
 
-  // TipTap editor extensions
+  // TipTap editor extensions. The schema/markdown hooks live in createRichEditorExtensions (shared
+  // with the round-trip tests); only the interactive callbacks below are wired up from the hook.
   const extensions = useMemo(
-    () => [
-      SourceLineAttribute,
-      StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3, 4, 5, 6]
-        },
-        codeBlock: false,
-        link: false
-      }),
-      EnhancedLink.configure({
+    () =>
+      createRichEditorExtensions({
+        editable,
+        placeholder,
+        shikiTheme: activeShikiTheme,
         onLinkHover: handleLinkHover,
         onLinkHoverEnd: handleLinkHoverEnd,
-        editable: editable
-      }),
-      TableOfContents.configure({
-        getIndex: getHierarchicalIndexes,
-        onUpdate(content) {
+        tocScrollParent: scrollParent,
+        onTocUpdate: (content) => {
           const resolveParent = (): HTMLElement | null => {
             if (!scrollParent) return null
             return typeof scrollParent === 'function' ? (scrollParent as () => HTMLElement)() : scrollParent
@@ -278,14 +202,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
           setTableOfContentsItems(normalized)
         },
-        scrollParent: (scrollParent as any) ?? window
-      }),
-      CodeBlockShiki.configure({
-        theme: activeShikiTheme,
-        defaultLanguage: 'text'
-      }),
-      EnhancedMath.configure({
-        blockOptions: {
+        mathBlockOptions: {
           onClick: (node, pos) => {
             // Get position from the clicked element
             let position: { x: number; y: number; top: number } | undefined
@@ -315,7 +232,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
             return true
           }
         },
-        inlineOptions: {
+        mathInlineOptions: {
           onClick: (node, pos) => {
             let position: { x: number; y: number; top: number } | undefined
             if (event?.target instanceof HTMLElement) {
@@ -343,56 +260,28 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
             window.dispatchEvent(customEvent)
             return true
           }
-        }
-      }),
-      EnhancedImage,
-      Placeholder.configure({
-        placeholder,
-        showOnlyWhenEditable: true,
-        showOnlyCurrent: true,
-        includeChildren: false
-      }),
-      YamlFrontMatter,
-      Mention.configure({
-        HTMLAttributes: {
-          class: 'mention'
         },
-        suggestion: commandSuggestion
-      }),
-      Typography,
-      TableKit.configure({
-        table: {
-          resizable: true,
-          allowTableNodeSelection: true,
-          onRowActionClick: ({ rowIndex, position }) => {
-            showTableActionMenu('row', rowIndex, position)
-          },
-          onColumnActionClick: ({ colIndex, position }) => {
-            showTableActionMenu('column', colIndex, position)
-          }
+        onRowActionClick: ({ rowIndex, position }) => {
+          showTableActionMenu('row', rowIndex, position)
         },
-        tableRow: {},
-        tableHeader: {},
-        tableCell: {
-          allowNestedNodes: false
-        }
+        onColumnActionClick: ({ colIndex, position }) => {
+          showTableActionMenu('column', colIndex, position)
+        },
+        enableImageInsertion,
+        disabledCommands
       }),
-      TaskList,
-      TaskItem.configure({
-        nested: true
-      })
-    ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd]
+    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
   )
 
   const editor = useEditor({
     shouldRerenderOnTransaction: true,
     extensions,
-    content: html || '',
+    content: markdown || '',
+    contentType: 'markdown',
     editable: editable,
     editorProps: {
-      handlePaste: (view, event) => {
+      handlePaste: (view, event, slice) => {
         // First check if we're inside a code block - if so, insert plain text
         const { selection } = view.state
         const { $from } = selection
@@ -408,8 +297,12 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         // Handle image paste
         const items = Array.from(event.clipboardData?.items || [])
         const imageItem = items.find((item) => item.type.startsWith('image/'))
+        const clipboardText = event.clipboardData?.getData('text/plain') ?? ''
+        const clipboardHtml = !enableImageInsertion ? (event.clipboardData?.getData('text/html') ?? '') : ''
+        const htmlDoc = clipboardHtml ? new DOMParser().parseFromString(clipboardHtml, 'text/html') : null
+        const htmlHasImage = htmlDoc?.querySelector('img') != null
 
-        if (imageItem) {
+        if (imageItem && enableImageInsertion) {
           const file = imageItem.getAsFile()
           if (file) {
             // Handle image paste by saving to local storage
@@ -418,32 +311,75 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           }
         }
 
-        // Default behavior for non-code blocks
-        const text = event.clipboardData?.getData('text/plain') ?? ''
+        // An image with nothing else to keep: swallow it rather than fall through. ProseMirror runs
+        // `transformPasted` *before* handing us `slice`, so images are already stripped out of it;
+        // when that leaves it empty, falling through has the default handling replace the selection
+        // with nothing — deleting whatever the user had selected in exchange for nothing.
+        //
+        // The stripped slice is the only honest measure of "nothing to keep". Copying a region
+        // containing an image commonly yields an `image/*` item *and* rich HTML whose text must
+        // survive; conversely a clipboard's HTML text can sit entirely in tags ProseMirror ignores
+        // (`<style>`, `<script>`), which must not count as something to keep.
+        if (!enableImageInsertion && (imageItem || htmlHasImage) && !clipboardText && slice.content.size === 0) {
+          return true
+        }
+
+        // Default behavior for non-code blocks: insert clipboard text via the native markdown AST
+        const text = clipboardText
         if (text) {
-          const html = markdownToHtml(text)
+          if (!enableImageInsertion) {
+            const parsed = editor.markdown?.parse(text)
+            if (parsed) {
+              const sanitized = stripImageNodes(parsed)
+              if (sanitized.removedImages) {
+                const inline = pickInlinePasteContent(sanitized.doc)
+                if (inline) {
+                  editor.commands.insertContent(inline)
+                } else if (sanitized.doc.content?.length) {
+                  editor.commands.insertContent(sanitized.doc.content)
+                }
+                onPaste?.(text)
+                return true
+              }
+            }
+          }
+
           const { $from } = selection
           const atStartOfLine = $from.parentOffset === 0
           const inEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent === ''
+          const hasMultipleLines = /[\r\n]/.test(text)
 
-          if (!atStartOfLine && !inEmptyParagraph) {
-            const cleanHtml = html.replace(/^<p>(.*?)<\/p>/s, '$1')
-            editor.commands.insertContent(cleanHtml)
+          if (!atStartOfLine && !inEmptyParagraph && !hasMultipleLines) {
+            // Inline paste inside a non-empty block: parse the markdown so markers like **bold** /
+            // [text](url) become real marks (otherwise getMarkdown would later escape the literal
+            // text), but splice in only the inline content so the paste isn't wrapped in a new block.
+            // Fall back to verbatim text for block-y lines (heading/list/etc.) that have no inline form.
+            const inline = pickInlinePasteContent(editor.markdown?.parse(text))
+            if (inline) {
+              editor.commands.insertContent(inline)
+            } else {
+              const tr = view.state.tr.insertText(text, selection.from, selection.to)
+              view.dispatch(tr)
+            }
           } else {
-            editor.commands.insertContent(html)
+            editor.commands.insertContent(text, { contentType: 'markdown' })
           }
-          onPaste?.(html)
+          onPaste?.(text)
           return true
         }
         return false
       },
+      transformPasted: (slice) => (enableImageInsertion ? slice : stripImageNodesFromSlice(slice)),
       attributes: {
         // Allow text selection even when not editable
         style: editable
           ? ''
           : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;',
         // Set spellcheck attribute on the contenteditable element
-        spellcheck: enableSpellCheck ? 'true' : 'false'
+        spellcheck: enableSpellCheck ? 'true' : 'false',
+        // `placeholder` only reaches a ProseMirror decoration, so it gives the contenteditable no
+        // accessible name; callers without a visible label supply one here.
+        ...(ariaLabel ? { 'aria-label': ariaLabel } : {})
       }
     },
     onUpdate: ({ editor, transaction }) => {
@@ -452,18 +388,18 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       if (!editable || !transaction.docChanged || !editor.isFocused) return
 
       const content = editor.getText()
-      const htmlContent = editor.getHTML()
       try {
-        const convertedMarkdown = htmlToMarkdown(htmlContent)
+        // Serialize straight from the ProseMirror doc via the native markdown AST.
+        const convertedMarkdown = editor.getMarkdown()
         setMarkdownState(convertedMarkdown)
         onChange?.(convertedMarkdown)
 
         onContentChange?.(content)
         if (onHtmlChange) {
-          onHtmlChange(htmlContent)
+          onHtmlChange(editor.getHTML())
         }
       } catch (error) {
-        logger.error('Error converting HTML to markdown:', error as Error)
+        logger.error('Error serializing editor content to markdown:', error as Error)
       }
     },
     onBlur: () => {
@@ -471,6 +407,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     },
     onCreate: ({ editor: currentEditor }) => {
       migrateMathStrings(currentEditor)
+      if (!autoFocus) return
       try {
         currentEditor.commands.focus('end')
       } catch (error) {
@@ -514,16 +451,32 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         const arrayBuffer = await blobToArrayBuffer(processedFile)
         const buffer = new Uint8Array(arrayBuffer)
 
-        // Save image to local storage
-        const fileMetadata = await window.api.file.savePastedImage(buffer, extension)
+        const entry = await window.api.file.createInternalEntry({
+          source: 'bytes',
+          data: buffer,
+          name: 'Pasted Image',
+          ext: extension.replace(/^\./, ''),
+          // `manual`, unlike the chat/painting paste paths that use
+          // `delete_when_unreferenced`. The reference here is a `file://` URL
+          // written into the note's markdown — user-owned text in a user-chosen
+          // folder (`feature.notes.path`), which Cherry is not the only writer of.
+          // A ref row could therefore never be released soundly: removing the
+          // image from the note never reaches us, and copying the markdown into
+          // a second note creates a reference we never saw. So the entry is
+          // pinned instead, and reclaiming note images stays a question for a
+          // content scan over the notes tree, not a ref table.
+          cleanupPolicy: 'manual'
+        })
+        const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
 
         // Insert image into editor using local file path
         if (editor && !editor.isDestroyed) {
-          const imageUrl = `file://${fileMetadata.path}`
-          editor.chain().focus().setImage({ src: imageUrl, alt: fileMetadata.origin_name }).run()
+          const imageUrl = `file://${physicalPath}`
+          const alt = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}`
+          editor.chain().focus().setImage({ src: imageUrl, alt }).run()
         }
 
-        logger.info('Image pasted and saved:', fileMetadata)
+        logger.info('Image pasted and saved:', { id: entry.id })
       } catch (error) {
         logger.error('Failed to handle image paste:', error as Error)
       }
@@ -534,7 +487,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
       editor.setEditable(editable)
-      if (editable) {
+      if (editable && autoFocus) {
         try {
           setTimeout(() => {
             if (editor && !editor.isDestroyed) {
@@ -549,7 +502,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         }
       }
     }
-  }, [editor, editable])
+  }, [editor, editable, autoFocus])
 
   // Link editor callbacks (after editor is defined)
   const handleLinkSave = useCallback(
@@ -668,14 +621,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     [editor, onShowTableActionMenu]
   )
 
-  useEffect(() => {
-    return () => {
-      if (editor && !editor.isDestroyed) {
-        editor.destroy()
-      }
-    }
-  }, [editor])
-
   const formattingState = useEditorState({
     editor,
     selector: ({ editor }) => {
@@ -763,33 +708,15 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         setMarkdownState(content)
         onChange?.(content)
 
-        const convertedHtml = markdownToHtml(content)
+        // Parse markdown straight into the ProseMirror doc via the native AST.
+        editor.commands.setContent(content, { contentType: 'markdown' })
 
-        editor.commands.setContent(convertedHtml)
-
-        onHtmlChange?.(convertedHtml)
+        onHtmlChange?.(editor.getHTML())
       } catch (error) {
         logger.error('Error setting markdown content:', error as Error)
       }
     },
-    [editor.commands, onChange, onHtmlChange]
-  )
-
-  const setHtml = useCallback(
-    (htmlContent: string) => {
-      try {
-        const convertedMarkdown = htmlToMarkdown(htmlContent)
-        setMarkdownState(convertedMarkdown)
-        onChange?.(convertedMarkdown)
-
-        editor.commands.setContent(htmlContent)
-
-        onHtmlChange?.(htmlContent)
-      } catch (error) {
-        logger.error('Error setting HTML content:', error as Error)
-      }
-    },
-    [editor.commands, onChange, onHtmlChange]
+    [editor, onChange, onHtmlChange]
   )
 
   const clear = useCallback(() => {
@@ -798,55 +725,12 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onHtmlChange?.('')
   }, [onChange, onHtmlChange])
 
-  // Utility methods
-  const toHtml = useCallback((content: string): string => {
-    try {
-      return markdownToHtml(content)
-    } catch (error) {
-      logger.error('Error converting markdown to HTML:', error as Error)
-      return ''
-    }
-  }, [])
-
-  const toSafeHtml = useCallback((content: string): string => {
-    try {
-      return markdownToHtml(content)
-    } catch (error) {
-      logger.error('Error converting markdown to safe HTML:', error as Error)
-      return ''
-    }
-  }, [])
-
-  const toMarkdown = useCallback((htmlContent: string): string => {
-    try {
-      return htmlToMarkdown(htmlContent)
-    } catch (error) {
-      logger.error('Error converting HTML to markdown:', error as Error)
-      return ''
-    }
-  }, [])
-
-  const getPreviewText = useCallback(
-    (content: string, maxLength?: number): string => {
-      try {
-        return markdownToPreviewText(content, maxLength || previewLength)
-      } catch (error) {
-        logger.error('Error generating preview text:', error as Error)
-        return ''
-      }
-    },
-    [previewLength]
-  )
-
   return {
     // Editor instance
     editor,
 
     // State
     markdown,
-    html,
-    previewText,
-    isMarkdown,
     disabled: !editable,
     formattingState,
     tableOfContentsItems,
@@ -861,13 +745,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
     // Actions
     setMarkdown,
-    setHtml,
-    clear,
-
-    // Utilities
-    toHtml,
-    toSafeHtml,
-    toMarkdown,
-    getPreviewText
+    clear
   }
 }

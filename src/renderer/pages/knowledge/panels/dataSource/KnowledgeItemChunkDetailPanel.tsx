@@ -1,19 +1,23 @@
-import { Button, ConfirmDialog, EmptyState, Scrollbar } from '@cherrystudio/ui'
+import { ArrowLeft } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, EmptyState, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { ipcApi } from '@renderer/ipc'
+import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
-import { ArrowLeft, Trash2 } from 'lucide-react'
-import type { MouseEvent } from 'react'
-import type { ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
 const logger = loggerService.withContext('KnowledgeItemChunkDetailPanel')
+const CHUNK_ESTIMATED_HEIGHT = 92
+const CHUNK_ITEM_CONTAINER_STYLE = { paddingBottom: 8 }
+const estimateChunkSize = () => CHUNK_ESTIMATED_HEIGHT
 
 interface KnowledgeItemChunkDetailPanelProps {
   baseId: string
@@ -22,79 +26,30 @@ interface KnowledgeItemChunkDetailPanelProps {
   onBack: () => void
 }
 
-const KnowledgeItemChunkActionButton = ({
-  label,
-  className,
-  children,
-  disabled,
-  onClick
-}: {
-  label: string
-  className?: string
-  children: ReactNode
-  disabled?: boolean
-  onClick?: () => void
-}) => {
-  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    onClick?.()
-  }
-
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      aria-label={label}
-      className={cn(
-        'size-5 min-h-5 rounded p-0 text-foreground-muted shadow-none transition-colors hover:bg-accent hover:text-foreground',
-        className
-      )}
-      disabled={disabled}
-      onClick={handleClick}>
-      {children}
-    </Button>
-  )
-}
-
-const KnowledgeItemChunkCard = ({
-  chunk,
-  isDeleting,
-  onDelete
-}: {
-  chunk: KnowledgeItemChunk
-  isDeleting: boolean
-  onDelete: (chunk: KnowledgeItemChunk) => void
-}) => {
+const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="group/ck rounded-lg border border-border-subtle transition-all hover:border-border-hover">
+    <div className="rounded-lg border border-border-subtle transition-all hover:border-border-strong">
       <div className="flex items-center gap-2 px-3 py-2">
-        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-foreground-muted text-xs leading-4">
-          {chunk.metadata.chunkIndex}
+        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-xs leading-4 text-foreground-tertiary">
+          {chunk.metadata.chunkIndex + 1}
         </span>
-        <span className="flex-1 text-foreground-muted text-xs leading-4">
+        <span className="flex-1 text-xs leading-4 text-foreground-tertiary">
           {chunk.metadata.tokenCount} {t('knowledge.rag.tokens_unit')}
         </span>
-        <div className="flex items-center gap-0.5 opacity-0 transition-all group-hover/ck:opacity-100">
-          <KnowledgeItemChunkActionButton
-            label={t('common.delete')}
-            className="hover:bg-error-bg hover:text-error-text"
-            disabled={isDeleting}
-            onClick={() => onDelete(chunk)}>
-            <Trash2 className="size-3" />
-          </KnowledgeItemChunkActionButton>
-        </div>
       </div>
       <div className="px-3 pb-3">
-        <p className="line-clamp-2 text-foreground-secondary text-sm leading-relaxed">{chunk.content}</p>
+        <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{chunk.content}</p>
       </div>
     </div>
   )
 }
 
+const renderChunk = (chunk: KnowledgeItemChunk) => <KnowledgeItemChunkCard chunk={chunk} />
+
 const KnowledgeItemChunkState = ({ children }: { children: ReactNode }) => (
-  <div className="flex min-h-full items-center justify-center px-4 py-10 text-center text-foreground-muted text-sm leading-5">
+  <div className="flex min-h-full items-center justify-center px-4 py-10 text-center text-sm leading-5 text-foreground-tertiary">
     {children}
   </div>
 )
@@ -120,15 +75,11 @@ const KnowledgeItemChunkDetailPanel = ({
   const [chunks, setChunks] = useState<KnowledgeItemChunk[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const [deletingChunkId, setDeletingChunkId] = useState<string | null>(null)
-  const [pendingDeleteChunk, setPendingDeleteChunk] = useState<KnowledgeItemChunk | null>(null)
-  const keepDeleteDialogOpenRef = useRef(false)
   const item = fetchedItem ?? initialItem
   const viewModel = item ? toKnowledgeItemRowViewModel(item, language) : null
   const Icon = viewModel?.icon.icon
-  const typeMeta = item && viewModel ? viewModel.suffix || t(`knowledge.data_source.filters.${item.type}`) : ''
   const chunksCountMeta = t('knowledge.data_source.chunks_count', { count: chunks.length })
-  const metaParts = [typeMeta, chunksCountMeta].filter((part): part is string => Boolean(part))
+  const getChunkKey = useCallback((index: number) => chunks[index]?.id ?? index, [chunks])
 
   useEffect(() => {
     let isActive = true
@@ -138,7 +89,7 @@ const KnowledgeItemChunkDetailPanel = ({
       setError(null)
 
       try {
-        const itemChunks = await window.api.knowledge.listItemChunks(baseId, itemId)
+        const itemChunks = await ipcApi.request('knowledge.list_item_chunks', { baseId, itemId })
         if (isActive) {
           setChunks(itemChunks)
         }
@@ -167,122 +118,60 @@ const KnowledgeItemChunkDetailPanel = ({
     }
   }, [baseId, itemId])
 
-  const handleRequestDeleteChunk = (chunk: KnowledgeItemChunk) => {
-    keepDeleteDialogOpenRef.current = false
-    setPendingDeleteChunk(chunk)
-  }
-
-  const handleConfirmDeleteChunk = async () => {
-    const chunk = pendingDeleteChunk
-    if (!chunk) {
-      return
-    }
-
-    setDeletingChunkId(chunk.id)
-    setError(null)
-    keepDeleteDialogOpenRef.current = false
-
-    try {
-      await window.api.knowledge.deleteItemChunk(baseId, chunk.itemId, chunk.id)
-      setChunks((currentChunks) => currentChunks.filter((currentChunk) => currentChunk.id !== chunk.id))
-      setPendingDeleteChunk(null)
-    } catch (chunkError) {
-      const normalizedError = normalizeKnowledgeError(chunkError)
-
-      logger.error('Failed to delete knowledge item chunk', normalizedError, {
-        baseId,
-        itemId: chunk.itemId,
-        chunkId: chunk.id
-      })
-      setError(normalizedError)
-      window.toast.error(formatErrorMessageWithPrefix(normalizedError, t('knowledge.data_source.delete_failed')))
-      keepDeleteDialogOpenRef.current = true
-    } finally {
-      setDeletingChunkId(null)
-    }
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-border-muted border-b px-3 py-2">
+      <div className="relative flex h-11 shrink-0 items-center gap-2 px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           aria-label={t('common.back')}
-          className="size-5 min-h-5 min-w-5 rounded p-0 text-foreground-muted shadow-none transition-colors hover:bg-accent hover:text-foreground"
+          className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground"
           onClick={onBack}>
           <ArrowLeft className="size-3.5" />
         </Button>
         {Icon && viewModel ? (
-          <div
-            className={cn(
-              'flex size-6 shrink-0 items-center justify-center rounded bg-accent',
-              viewModel.icon.iconClassName
-            )}>
-            <Icon className="size-3.5" strokeWidth={1.6} />
-          </div>
+          <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
+            <Icon className={cn('size-3.5', viewModel.icon.iconClassName)} />
+          </span>
         ) : null}
         <div className="min-w-0 flex-1">
-          <span className="block truncate text-foreground text-sm leading-5">
+          <span className="block truncate text-sm leading-5 text-foreground">
             {viewModel?.title ?? t('common.loading')}
           </span>
-          <div className="flex items-center gap-2 text-foreground-muted text-xs leading-4">
-            {metaParts.map((part) => (
-              <span key={part} className={viewModel && part === typeMeta && viewModel.suffix ? 'uppercase' : undefined}>
-                {part}
-              </span>
-            ))}
+          <div className="flex items-center gap-2 text-xs leading-4 text-foreground-tertiary">
+            <span>{chunksCountMeta}</span>
           </div>
         </div>
       </div>
 
-      <Scrollbar className="min-h-0 flex-1 px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {isItemLoading || isLoading ? <KnowledgeItemChunkState>{t('common.loading')}</KnowledgeItemChunkState> : null}
-        {!isItemLoading && itemError ? <KnowledgeItemChunkState>{itemError.message}</KnowledgeItemChunkState> : null}
-        {!isItemLoading && !isLoading && !itemError && error ? (
-          <KnowledgeItemChunkState>{error.message}</KnowledgeItemChunkState>
-        ) : null}
-        {!isItemLoading && !isLoading && !itemError && !error && chunks.length === 0 ? (
-          <EmptyState
-            preset="no-file"
-            title={t('knowledge.data_source.empty_description')}
-            compact
-            className="h-full"
-          />
-        ) : null}
-        {!isItemLoading && !isLoading && !itemError && chunks.length > 0 ? (
-          <div className="space-y-2">
-            {chunks.map((chunk) => (
-              <KnowledgeItemChunkCard
-                key={chunk.id}
-                chunk={chunk}
-                isDeleting={deletingChunkId === chunk.id}
-                onDelete={handleRequestDeleteChunk}
-              />
-            ))}
-          </div>
-        ) : null}
-      </Scrollbar>
-      <ConfirmDialog
-        open={Boolean(pendingDeleteChunk)}
-        onOpenChange={(open) => {
-          if (!open) {
-            if (keepDeleteDialogOpenRef.current) {
-              keepDeleteDialogOpenRef.current = false
-              return
-            }
-            setPendingDeleteChunk(null)
-          }
-        }}
-        title={t('knowledge.data_source.chunk_delete_confirm_title')}
-        description={t('knowledge.data_source.chunk_delete_confirm_description')}
-        confirmText={t('common.delete')}
-        cancelText={t('common.cancel')}
-        destructive
-        confirmLoading={Boolean(deletingChunkId)}
-        onConfirm={handleConfirmDeleteChunk}
-      />
+      {!isItemLoading && !isLoading && !itemError && !error && chunks.length > 0 ? (
+        <DynamicVirtualList
+          list={chunks}
+          getItemKey={getChunkKey}
+          estimateSize={estimateChunkSize}
+          itemContainerStyle={CHUNK_ITEM_CONTAINER_STYLE}
+          autoHideScrollbar={false}
+          className="min-h-0 flex-1 px-4 py-3">
+          {renderChunk}
+        </DynamicVirtualList>
+      ) : (
+        <Scrollbar autoHideScrollbar={false} className="min-h-0 flex-1 px-4 py-3">
+          {isItemLoading || isLoading ? <KnowledgeItemChunkState>{t('common.loading')}</KnowledgeItemChunkState> : null}
+          {!isItemLoading && itemError ? <KnowledgeItemChunkState>{itemError.message}</KnowledgeItemChunkState> : null}
+          {!isItemLoading && !isLoading && !itemError && error ? (
+            <KnowledgeItemChunkState>{error.message}</KnowledgeItemChunkState>
+          ) : null}
+          {!isItemLoading && !isLoading && !itemError && !error && chunks.length === 0 ? (
+            <EmptyState
+              preset="no-file"
+              title={t('knowledge.data_source.empty_description')}
+              compact
+              className="h-full"
+            />
+          ) : null}
+        </Scrollbar>
+      )}
     </div>
   )
 }

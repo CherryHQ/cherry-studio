@@ -1,20 +1,30 @@
-import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
+import dayjs from 'dayjs'
+import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
 import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
 import Selector from '@renderer/components/Selector'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppSelector } from '@renderer/store'
-import type { AppInfo } from '@renderer/types'
-import dayjs from 'dayjs'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
+import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import type { AppInfo } from '@renderer/types/app'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 const logger = loggerService.withContext('LocalBackupSettings')
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const LocalBackupSettings: React.FC = () => {
   const [, setLocalBackupAutoSync] = usePreference('data.backup.local.auto_sync')
@@ -24,12 +34,13 @@ const LocalBackupSettings: React.FC = () => {
   const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
 
   const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
+  const [localBackupDirDraft, setLocalBackupDirDraft] = useState(localBackupDir)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [appInfo, setAppInfo] = useState<AppInfo>()
 
   useEffect(() => {
-    void window.api.getAppInfo().then(setAppInfo)
+    void ipcApi.request('app.get_info').then(setAppInfo)
   }, [])
 
   useEffect(() => {
@@ -38,20 +49,22 @@ const LocalBackupSettings: React.FC = () => {
     }
   }, [localBackupDir])
 
+  useEffect(() => {
+    setLocalBackupDirDraft(localBackupDir)
+  }, [localBackupDir])
+
   const { theme } = useTheme()
 
   const { t } = useTranslation()
 
-  const { localBackupSync } = useAppSelector((state) => state.backup)
+  const localBackupSync = useBackupSyncState('local')
 
-  const onSyncIntervalChange = (value: number) => {
-    void setLocalBackupSyncInterval(value)
+  const onSyncIntervalChange = async (value: number) => {
+    await setLocalBackupSyncInterval(value)
     if (value === 0) {
-      void setLocalBackupAutoSync(false)
-      stopAutoSync('local')
+      await setLocalBackupAutoSync(false)
     } else {
-      void setLocalBackupAutoSync(true)
-      void startAutoSync(false, 'local')
+      await setLocalBackupAutoSync(true)
     }
   }
 
@@ -61,25 +74,26 @@ const LocalBackupSettings: React.FC = () => {
     }
 
     const resolvedDir = await window.api.resolvePath(dir)
+    const info = appInfo ?? (await ipcApi.request('app.get_info'))
 
     // check new local backup dir is not in app data path
     // if is in app data path, show error
-    if (await window.api.isPathInside(resolvedDir, appInfo!.appDataPath)) {
-      window.toast.error(t('settings.data.local.directory.select_error_app_data_path'))
+    if (await window.api.isPathInside(resolvedDir, info.appDataPath)) {
+      toast.error(t('settings.data.local.directory.select_error_app_data_path'))
       return false
     }
 
     // check new local backup dir is not in app install path
     // if is in app install path, show error
-    if (await window.api.isPathInside(resolvedDir, appInfo!.installPath)) {
-      window.toast.error(t('settings.data.local.directory.select_error_in_app_install_path'))
+    if (await window.api.isPathInside(resolvedDir, info.installPath)) {
+      toast.error(t('settings.data.local.directory.select_error_in_app_install_path'))
       return false
     }
 
     // check new app data path has write permission
     const hasWritePermission = await window.api.hasWritePermission(resolvedDir)
     if (!hasWritePermission) {
-      window.toast.error(t('settings.data.local.directory.select_error_write_permission'))
+      toast.error(t('settings.data.local.directory.select_error_write_permission'))
       return false
     }
 
@@ -88,35 +102,29 @@ const LocalBackupSettings: React.FC = () => {
 
   const handleLocalBackupDirChange = async (value: string) => {
     if (value === localBackupDir) {
+      setLocalBackupDirDraft(localBackupDir)
       return
     }
 
     if (value === '') {
-      void handleClearDirectory()
+      await handleClearDirectory()
       return
     }
 
     if (await checkLocalBackupDirValid(value)) {
       await setLocalBackupDir(value)
+      setLocalBackupDirDraft(value)
       setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       await setLocalBackupAutoSync(true)
-      void startAutoSync(true, 'local')
       return
     }
 
-    if (localBackupDir) {
-      await setLocalBackupDir(localBackupDir)
-      return
-    }
+    setLocalBackupDirDraft(localBackupDir)
   }
 
   const onMaxBackupsChange = (value: number) => {
     void setLocalBackupMaxBackups(value)
-  }
-
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setLocalBackupSkipBackupFile(value)
   }
 
   const handleBrowseDirectory = async () => {
@@ -137,29 +145,29 @@ const LocalBackupSettings: React.FC = () => {
   }
 
   const handleClearDirectory = async () => {
+    setLocalBackupDirDraft('')
     await setLocalBackupDir('')
     await setLocalBackupAutoSync(false)
-    stopAutoSync('local')
   }
 
   const renderSyncStatus = () => {
     if (!localBackupDir) return null
 
     if (!localBackupSync.lastSyncTime && !localBackupSync.syncing && !localBackupSync.lastSyncError) {
-      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.local.noSync')}</span>
+      return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.local.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {localBackupSync.syncing && <SyncOutlined spin />}
+        {localBackupSync.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
-            iconProps={{ style: { color: 'red' } }}
+            iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
         {localBackupSync.lastSyncTime && (
-          <span style={{ color: 'var(--color-foreground-secondary)' }}>
+          <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.local.lastSync')}: {dayjs(localBackupSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
@@ -182,22 +190,22 @@ const LocalBackupSettings: React.FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.local.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-local-backup-directory" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
         <RowFlex className="gap-1.25">
           <Input
-            value={localBackupDir}
-            onChange={(e) => setLocalBackupDir(e.target.value)}
-            onBlur={(e) => handleLocalBackupDirChange(e.target.value)}
+            value={localBackupDirDraft}
+            onChange={(e) => setLocalBackupDirDraft(e.target.value)}
+            onBlur={(e) => void handleLocalBackupDirChange(e.target.value)}
             placeholder={t('settings.data.local.directory.placeholder')}
             style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
           />
           <Button onClick={handleBrowseDirectory} variant="outline">
-            <FolderOpenOutlined />
+            <FolderOpen size={14} />
             {t('common.browse')}
           </Button>
           <Button onClick={handleClearDirectory} disabled={!localBackupDir} variant="destructive">
-            <DeleteOutlined />
+            <Trash2 size={14} />
             {t('common.clear')}
           </Button>
         </RowFlex>
@@ -207,11 +215,11 @@ const LocalBackupSettings: React.FC = () => {
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
           <Button onClick={showBackupModal} disabled={!localBackupDir || backuping} variant="outline">
-            <SaveOutlined />
+            <Save size={14} />
             {t('settings.data.local.backup.button')}
           </Button>
           <Button onClick={showBackupManager} disabled={!localBackupDir} variant="outline">
-            <FolderOpenOutlined />
+            <FolderOpen size={14} />
             {t('settings.data.local.restore.button')}
           </Button>
         </RowFlex>
@@ -260,7 +268,10 @@ const LocalBackupSettings: React.FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch checked={localBackupSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
+        <Switch
+          checked={localBackupSkipBackupFile}
+          onCheckedChange={(value) => void setLocalBackupSkipBackupFile(value)}
+        />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>

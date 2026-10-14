@@ -1,0 +1,182 @@
+import { describe, expect, it, vi } from 'vitest'
+
+import type { Topic } from '@renderer/types/topic'
+
+import { executeTopicMenuAction, resolveTopicMenuActions, type TopicActionContext } from '../topicContextMenuActions'
+
+const t = ((key: string) => key) as TopicActionContext['t']
+
+const exportMenuOptions: TopicActionContext['exportMenuOptions'] = {
+  docx: true,
+  image: true,
+  joplin: true,
+  markdown: true,
+  markdown_reason: true,
+  notion: true,
+  obsidian: true,
+  plain_text: true,
+  siyuan: true,
+  yuque: true
+}
+
+const topic: Topic = {
+  id: 'topic-a',
+  assistantId: 'assistant-a',
+  name: 'Topic A',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  messages: [],
+  pinned: false,
+  isNameManuallyEdited: false
+}
+
+function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): TopicActionContext {
+  return {
+    assistantMoveTargets: [],
+    exportMenuOptions,
+    isArchiveBlocked: false,
+    isActiveInCurrentTab: false,
+    isRenaming: false,
+    onAutoRename: vi.fn(),
+    onClearMessages: vi.fn(),
+    onCopyImage: vi.fn(),
+    onCopyMarkdown: vi.fn(),
+    onCopyPlainText: vi.fn(),
+    onDelete: vi.fn(),
+    onExportImage: vi.fn(),
+    onExportJoplin: vi.fn(),
+    onExportMarkdown: vi.fn(),
+    onExportMarkdownReason: vi.fn(),
+    onExportNotion: vi.fn(),
+    onExportObsidian: vi.fn(),
+    onExportSiyuan: vi.fn(),
+    onExportWord: vi.fn(),
+    onExportYuque: vi.fn(),
+    onPinTopic: vi.fn(),
+    onSaveToKnowledge: vi.fn(),
+    onSaveToNotes: vi.fn(),
+    onStartRename: vi.fn(),
+    t,
+    topic,
+    topicsLength: 2,
+    ...overrides
+  }
+}
+
+describe('topic context menu actions', () => {
+  it('exposes recoverable Archive without a destructive style or confirmation', async () => {
+    const onDelete = vi.fn()
+    const context = createTopicActionFixture({ onDelete })
+    const actions = resolveTopicMenuActions(context)
+    const deleteAction = actions.find((action) => action.id === 'topic.delete')
+
+    expect(deleteAction?.danger).toBe(false)
+    expect(deleteAction?.label).toBe('common.archive')
+    expect(deleteAction?.confirm).toBeUndefined()
+
+    await executeTopicMenuAction(deleteAction!, context)
+
+    expect(onDelete).toHaveBeenCalledWith(topic)
+  })
+
+  it('does not offer permanent deletion in the conversation menu', () => {
+    const actions = resolveTopicMenuActions(createTopicActionFixture())
+    expect(actions.map((action) => action.id)).not.toContain('topic.delete-permanently')
+  })
+
+  it('keeps Delete visible but disabled while the Topic has unsettled generation work', async () => {
+    const onDelete = vi.fn()
+    const context = createTopicActionFixture({ isArchiveBlocked: true, onDelete })
+    const deleteAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.delete')
+
+    expect(deleteAction?.availability).toEqual({
+      visible: true,
+      enabled: false,
+      reason: 'recycle_bin.move.blocked_generation'
+    })
+    await expect(executeTopicMenuAction(deleteAction!, context)).resolves.toBe(false)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('keeps Save to Notes independent from export and copy preferences', () => {
+    const actions = resolveTopicMenuActions(
+      createTopicActionFixture({
+        exportMenuOptions: {
+          ...exportMenuOptions,
+          image: false,
+          plain_text: false
+        }
+      })
+    )
+
+    expect(actions.map((action) => action.id)).toContain('topic.save-notes')
+
+    const copyAction = actions.find((action) => action.id === 'topic.copy')
+    expect(copyAction?.children.map((action) => action.id)).toEqual(['topic.copy.markdown'])
+
+    const exportAction = actions.find((action) => action.id === 'topic.export')
+    expect(exportAction?.children.map((action) => action.id)).not.toContain('topic.export.image')
+  })
+
+  it('keeps ordinary pinning separate from sidebar shortcuts', async () => {
+    const onToggleSidebar = vi.fn()
+    const context = createTopicActionFixture({ onToggleSidebar, sidebarPinned: true })
+    const actions = resolveTopicMenuActions(context)
+    const sidebarAction = actions.find((action) => action.id === 'topic.toggle-sidebar')
+
+    expect(actions.find((action) => action.id === 'topic.pin')?.label).toBe('chat.topics.pin')
+    expect(sidebarAction?.label).toBe('launchpad.unpin_from_sidebar')
+
+    await executeTopicMenuAction(sidebarAction!, context)
+    expect(onToggleSidebar).toHaveBeenCalledWith(topic)
+  })
+
+  it('runs a move-to-assistant submenu action', async () => {
+    const onMoveToAssistant = vi.fn()
+    const context = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-b', name: 'Assistant B' }],
+      onMoveToAssistant
+    })
+
+    const actions = resolveTopicMenuActions(context)
+    const moveAction = actions.find((action) => action.id === 'topic.move-to-assistant')
+
+    expect(moveAction?.label).toBe('chat.topics.move_to')
+    expect(moveAction?.children.map((action) => action.label)).toEqual(['Assistant B'])
+
+    await executeTopicMenuAction(moveAction!.children[0], context)
+
+    expect(onMoveToAssistant).toHaveBeenCalledWith(topic, 'assistant-b')
+  })
+
+  it('does not run a stale move-to-assistant submenu action', async () => {
+    const onMoveToAssistant = vi.fn()
+    const context = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-b', name: 'Assistant B' }],
+      onMoveToAssistant
+    })
+    const moveAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.move-to-assistant')
+    const staleAction = moveAction!.children[0]
+
+    const currentContext = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-c', name: 'Assistant C' }],
+      onMoveToAssistant
+    })
+
+    await expect(executeTopicMenuAction(staleAction, currentContext)).resolves.toBe(false)
+    expect(onMoveToAssistant).not.toHaveBeenCalled()
+  })
+
+  it('does not run a move-to-assistant submenu action for the current assistant', async () => {
+    const onMoveToAssistant = vi.fn()
+    const context = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-a', name: 'Assistant A' }],
+      onMoveToAssistant
+    })
+    const moveAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.move-to-assistant')
+
+    await expect(executeTopicMenuAction(moveAction!.children[0], context)).resolves.toBe(false)
+    expect(onMoveToAssistant).not.toHaveBeenCalled()
+  })
+})

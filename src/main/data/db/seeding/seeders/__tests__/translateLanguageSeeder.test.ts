@@ -1,15 +1,16 @@
-import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
-import { TranslateLanguageSeeder } from '@data/db/seeding/seeders/translateLanguageSeeder'
-import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translate-languages'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
+
+import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
+import { TranslateLanguageSeeder } from '@data/db/seeding/seeders/translateLanguageSeeder'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 
 describe('TranslateLanguageSeeder', () => {
   const dbh = setupTestDatabase()
 
   it('should insert all builtin languages into empty table', async () => {
     const seed = new TranslateLanguageSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const rows = await dbh.db.select().from(translateLanguageTable)
     expect(rows).toHaveLength(BUILTIN_TRANSLATE_LANGUAGES.length)
@@ -20,7 +21,7 @@ describe('TranslateLanguageSeeder', () => {
     await dbh.db.insert(translateLanguageTable).values(preExisting)
 
     const seed = new TranslateLanguageSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const rows = await dbh.db.select().from(translateLanguageTable)
     expect(rows).toHaveLength(BUILTIN_TRANSLATE_LANGUAGES.length)
@@ -31,7 +32,7 @@ describe('TranslateLanguageSeeder', () => {
     const beforeCount = (await dbh.db.select().from(translateLanguageTable)).length
 
     const seed = new TranslateLanguageSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const afterCount = (await dbh.db.select().from(translateLanguageTable)).length
     expect(afterCount).toBe(beforeCount)

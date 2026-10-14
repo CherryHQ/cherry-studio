@@ -16,14 +16,21 @@ export interface CodeEditorHandles {
   save?: () => void
   scrollToLine?: (lineNumber: number, options?: { highlight?: boolean }) => void
   getContent?: () => string
+  getSelection?: () => { from: number; to: number; text: string } | null
+  /** Replace a document range with literal text; return false when editing is unavailable or the range is invalid. */
+  replaceRange?: (range: { from: number; to: number }, text: string) => boolean
+  insertText?: (text: string) => boolean
+  focus?: () => void
 }
 
 export interface CodeEditorProps {
-  ref?: React.RefObject<CodeEditorHandles | null>
+  ref?: React.Ref<CodeEditorHandles>
   /** Value used in controlled mode, e.g., code blocks. */
   value: string
   /** Placeholder when the editor content is empty. */
   placeholder?: string | HTMLElement
+  /** Whether the editor should focus after its EditorView is created. */
+  autoFocus?: boolean
   /**
    * Code language string.
    * - Case-insensitive.
@@ -113,4 +120,10 @@ export interface CodeEditorProps {
    * @default true
    */
   wrapped?: boolean
+  /**
+   * Keep the internal editor scroller pinned to the document bottom while content grows.
+   * Intended for streaming, collapsed code blocks.
+   * @default false
+   */
+  autoScrollToBottom?: boolean
 }

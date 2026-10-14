@@ -1,6 +1,7 @@
 # Logs
 logs
-*.log*
+*.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -11,6 +12,7 @@ lerna-debug.log*
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea
 .DS_Store
 *.suo
@@ -33,12 +35,15 @@ Thumbs.db
 
 # Project
 node_modules
+.pnpm-store/
 dist
 out
 mcp_server
 stats.html
 .eslintcache
+# Downloaded native binaries (mise, etc.)
 resources/binaries/
+scripts/linux-native/prebuilt/
 
 # ENV
 .env
@@ -62,6 +67,10 @@ local
 .zed/*
 !.zed/settings.json.example
 CLAUDE.local.md
+AGENTS.override.md
+
+# Local Electron development
+.context/cherry-electron-dev/
 
 # vitest
 coverage
@@ -82,7 +91,13 @@ vitest.config.*.timestamp-*
 playwright-report
 test-results
 
+# Python bytecode. Skill scripts under resources/skills are run straight from the tree, and the
+# cache lands next to them — from there it ships into users' skill directories.
+__pycache__/
+*.py[cod]
+
 YOUR_MEMORY_FILE_PATH
 
 .sessions/
 .devtools
+.omo/

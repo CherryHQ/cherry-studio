@@ -16,7 +16,6 @@ import {
   objectValues,
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
-  RuntimeReasoningSchema,
   type UniqueModelId,
   UniqueModelIdSchema
 } from '../../types/model'
@@ -33,6 +32,8 @@ export const ListModelsQuerySchema = z.object({
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
 /** DTO for creating a new model */
+const PositiveModelTokenLimitSchema = z.number().int().positive()
+
 export const CreateModelSchema = z.strictObject({
   /** Provider ID */
   providerId: z.string().min(1),
@@ -55,15 +56,13 @@ export const CreateModelSchema = z.strictObject({
   /** Endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Context window size */
-  contextWindow: z.number().int().positive().optional(),
+  contextWindow: PositiveModelTokenLimitSchema.optional(),
   /** Maximum input tokens */
-  maxInputTokens: z.number().int().positive().optional(),
+  maxInputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Maximum output tokens */
-  maxOutputTokens: z.number().int().positive().optional(),
+  maxOutputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Streaming support */
   supportsStreaming: z.boolean().optional(),
-  /** Reasoning configuration */
-  reasoning: RuntimeReasoningSchema.optional(),
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
   /** Pricing configuration */
@@ -73,6 +72,7 @@ export type CreateModelDto = z.infer<typeof CreateModelSchema>
 
 export const MODELS_BATCH_MAX_ITEMS = 500
 export const MODELS_BULK_UPDATE_MAX_ITEMS = 1000
+export const MODELS_DELETE_MAX_IDS = 1000
 export const MODELS_RECONCILE_MAX_ITEMS = 5000
 
 /**
@@ -93,6 +93,10 @@ export const UpdateModelSchema = CreateModelSchema.omit({
 })
   .partial()
   .extend({
+    /** `null` explicitly clears a stored limit; `undefined` or an absent key leaves it unchanged. */
+    contextWindow: PositiveModelTokenLimitSchema.nullable().optional(),
+    maxInputTokens: PositiveModelTokenLimitSchema.nullable().optional(),
+    maxOutputTokens: PositiveModelTokenLimitSchema.nullable().optional(),
     isEnabled: z.boolean().optional(),
     isHidden: z.boolean().optional(),
     isDeprecated: z.boolean().optional(),
@@ -122,6 +126,18 @@ export type BulkUpdateModelItem = z.infer<typeof BulkUpdateModelItemSchema>
 export const BulkUpdateModelsSchema = z.array(BulkUpdateModelItemSchema).min(1).max(MODELS_BULK_UPDATE_MAX_ITEMS)
 export type BulkUpdateModelsDto = z.infer<typeof BulkUpdateModelsSchema>
 
+const DeleteModelsIdsQueryValueSchema = z.union([
+  UniqueModelIdSchema.transform((id) => [id]),
+  z.array(UniqueModelIdSchema).min(1).max(MODELS_DELETE_MAX_IDS)
+])
+
+/** Query params for `DELETE /models`: one or more model IDs, deleted atomically.
+ * A string value is one UniqueModelId; arrays represent repeated/structured query values. */
+export const DeleteModelsQuerySchema = z.strictObject({
+  ids: DeleteModelsIdsQueryValueSchema
+})
+export type DeleteModelsQuery = z.input<typeof DeleteModelsQuerySchema>
+
 /**
  * `POST /providers/:providerId/models:reconcile` body.
  *
@@ -142,9 +158,8 @@ export type ReconcileProviderModelsDto = z.infer<typeof ReconcileProviderModelsS
 export const ResolveProviderModelsQuerySchema = z.strictObject({
   /**
    * Raw model IDs from SDK listModels(), repeated as ?ids=a&ids=b or provided as an array by IPC callers.
-   * Omit ids to list active provider-model pairs from the registry.
    */
-  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional()
+  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])
 })
 export type ResolveProviderModelsQuery = z.infer<typeof ResolveProviderModelsQuerySchema>
 
@@ -183,6 +198,11 @@ export type ModelSchemas = {
     PATCH: {
       body: BulkUpdateModelsDto
       response: Model[]
+    }
+    /** Delete one or more models in a single transaction. */
+    DELETE: {
+      query: DeleteModelsQuery
+      response: void
     }
   }
 

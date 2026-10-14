@@ -1,3 +1,10 @@
+---
+description: Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition
+sources:
+  - src/main/ai/tools/adapters/aiSdk
+  - src/main/ai/tools/adapters/claudeCode/agentTools.ts
+---
+
 # Tool Registry
 
 ## Model
@@ -5,7 +12,8 @@
 ```ts
 interface ToolEntry {
   name: string         // wire-name, what the LLM emits in tool_calls
-  namespace: string    // grouping for `tool_search` (web, kb, mcp:<id>, meta)
+  namespace: string    // ownership key (web, kb, mcp:<serverId>, meta) — never shown to the model
+  namespaceLabel?: string // what `tool_search` groups by and shows; defaults to `namespace`
   description: string  // one-line summary for `tool_search`
   defer: 'never' | 'always' | 'auto'
   tool: Tool           // AI SDK Tool (schema + execute + needsApproval + toModelOutput)
@@ -14,11 +22,12 @@ interface ToolEntry {
 ```
 
 `registry` (`src/main/ai/tools/adapters/aiSdk/registry.ts`) is a
-process-wide singleton. Tool files register at module-import time; the
-registry is read at request time by `buildAgentParams`. The Claude Code
-runtime has a *separate* tool system — `tools/adapters/claudeCode/agentTools.ts`
-builds its descriptors from MCP servers and built-in descriptors directly;
-it does not consume this aiSdk `ToolRegistry`.
+process-wide singleton. `AiService.onInit()` calls the single
+`registerBuiltinTools()` entry point; request preparation later reads the
+registry through `buildAgentParams`. Agent-session runtimes build their own
+runtime-native tool surfaces. For example,
+`tools/adapters/claudeCode/agentTools.ts` combines Claude descriptors with MCP
+tools and does not consume this AI SDK `ToolRegistry`.
 
 Tests construct their own `new ToolRegistry()` to avoid singleton pollution.
 
@@ -29,27 +38,35 @@ unambiguous):
 
 | Source | Name pattern | Example |
 |---|---|---|
-| Built-in | `<namespace>__<verb>` | `web__search`, `kb__search` |
-| MCP | `mcp__<camelCase(server)>__<camelCase(tool)>` | `mcp__gmail__sendMessage` |
+| Built-in | fixed wire name (`<namespace>_<verb>`) | `web_search`, `kb_search` |
+| MCP (AI SDK) | `mcp__<server-slug>__<tool-slug>_<identity-digest>` | `mcp__gmail__sendMessage_a1b2c3d4e5f60718293a` |
 | Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect` (`tool_exec` is defined but not injected — see below) |
+
+The built-in wire names live in `@shared/ai/builtinTools` (single-underscore,
+e.g. `web_search`); they are not derived from a `__` segment convention like MCP.
+The AI SDK MCP digest is derived from the stable server id plus the original
+protocol tool name. The readable slugs romanize Han characters (`tiny-pinyin`)
+so CJK names still produce a meaningful segment; kana and Hangul do not
+romanize and fall back to `server` / `tool` plus the digest. Claude Code keeps
+its separate runtime naming contract.
 
 ## Built-in tools
 
-`src/main/ai/tools/adapters/aiSdk/builtin/` registers **four** entries:
+`src/main/ai/tools/adapters/aiSdk/builtin/` currently registers **eleven**
+entries:
 
-- `web__search` (`WebSearchTool.ts` → `createWebSearchToolEntry`) — namespace
-  `web`. Talks to the configured web-search provider via the
-  renderer-shared search service.
-- `web__fetch` (`WebSearchTool.ts` → `createWebFetchToolEntry`) — namespace
-  `web`. Fetches a URL's content.
-- `kb__search` (`KnowledgeSearchTool.ts`) — semantic search over the active
-  knowledge base.
-- `kb__list` (`KnowledgeListTool.ts`) — enumerate available knowledge bases /
-  documents.
+| Namespace | Tools | Current gate |
+|---|---|---|
+| `web` | `web_search`, `web_fetch` | Selected client-side web routes |
+| `kb` | `kb_list`, `kb_search`, `kb_read`, `kb_manage` | At least one in-scope knowledge base |
+| `file` | `read_file` | First-party conversation attachments exist |
+| `fs` | `fs_read` | Persisted/offloaded tool output can be read back |
+| `mcp_resource` | `mcp_resource_list`, `mcp_resource_read` | An in-scope MCP resource server exists |
+| `image` | `generate_image` | Assistant opt-in plus a configured painting model |
 
-Registration happens in `builtin/index.ts` (`registerBuiltinTools`). Each
-tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
-`enableWebSearch`).
+Registration happens in `builtin/registerBuiltinTools.ts` (`registerBuiltinTools`). Each
+tool's `applies` predicate gates it on the current request scope; the gate is
+not limited to assistant settings.
 
 ## MCP tools
 
@@ -57,14 +74,44 @@ tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
 
 - `resolveAssistantMcpToolIds` — assistant's enabled MCP servers + per-tool
   disable list → set of tool ids.
-- `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — calls
-  `listTools` on each MCP server that owns at least one selected tool,
-  registers each as a `ToolEntry` whose `tool.execute` proxies through
-  the MCP transport. **Scope:** only servers owning a selected tool are
-  hit — avoids paying the per-server round-trip when only one MCP tool
-  is in use for this request.
+- `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — scans active servers'
+  cache-only catalogs via `McpCatalogService.listTools`, matches full tool ids,
+  and registers only exact selections as `ToolEntry` objects whose
+  `tool.execute` proxies through the MCP transport. The scan stops early once
+  every selected id has been claimed. Ownership uses the stable
+  `namespace: mcp:<serverId>`; display names never determine it, and
+  `namespaceLabel: mcp:<serverName>` is what `tool_search` groups by and shows
+  the model. Because reads are last-known-good cache snapshots, a transient
+  catalog failure does not evict a still-active server's prior entries.
 
 The sync is idempotent; a stale entry is overwritten on the next sync.
+
+### Tool catalog reads never block on MCP
+
+`McpCatalogService` splits the MCP tool catalog into a **read** facade and a
+**write/refresh** path:
+
+- **`listTools(serverId)`** is cache-only — it returns the shared
+  `mcp.tools.<serverId>` cache and **never connects** to the upstream MCP server.
+  Every hot path that builds an agent/chat's tool surface uses it: the Claude Code
+  SDK bridge (`createMcpBridgeServer`), `buildMcpToolMetadata`, the agent
+  tool-policy (`agentTools.listMcpDescriptors`), and the two AI-SDK adapters
+  above. A dead or slow server therefore cannot block agent/chat startup
+  (issue #16242).
+- **`refreshTools(serverId)`** (and the private `listToolsForServer`) is the live
+  path that connects, lists, and writes the cache. It is driven entirely by
+  background warmers: `prewarmActiveServerTools` (at `onReady`), the
+  `onToolListChanged` refresh, the renderer's on-demand `refreshTools` (via
+  `useAgentTools`), the server-enable toggle, and `restartServer`.
+
+`listTools` also fires a single non-blocking `refreshTools` the first time it sees
+a never-warmed server (cache `undefined`, distinct from a warmed-but-empty `[]`),
+so headless/cron starts self-warm without re-probing dead servers.
+
+Trade-off: tool availability is **eventually consistent**. A server whose cache
+is still cold when a session starts contributes no tools to that session and
+appears on the next one — the Claude Agent SDK snapshots the tool list per
+session, so this cannot be made live mid-session.
 
 ## Meta-tools
 
@@ -116,6 +163,10 @@ deliberately leaves it out: its `worker_threads` + `new Function` sandbox
 runs model-authored code with full Node privileges, a privilege-escalation
 surface vs the renderer's prior restrictions. It is meant to be re-enabled
 behind an explicit Preference key once there is a concrete need.
+
+This statement is specific to the AI SDK registry. The Pi agent runtime has a
+native Pi 1.0 `codemode`, `tool_search`, and MCP extensions over its session tools;
+see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
 
 ## `applies` and tool-call repair
 

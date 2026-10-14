@@ -73,9 +73,7 @@ describe('miniAppHandlers', () => {
       appId: 'my-app',
       name: 'My App',
       url: 'https://my.app',
-      logo: 'application',
-      bordered: true,
-      supportedRegions: ['CN', 'Global'] as ('CN' | 'Global')[]
+      logo: { kind: 'key', key: 'application' } as const
     }
 
     it('should parse body and delegate to service', async () => {
@@ -95,6 +93,16 @@ describe('miniAppHandlers', () => {
       expect(result).toEqual(created)
     })
 
+    it('should accept file URLs before delegating to service', async () => {
+      const body = { ...validBody, url: 'file:///Users/test/custom-app/index.html' }
+      createMock.mockResolvedValueOnce({ ...body, presetMiniAppId: null, status: 'enabled', orderKey: 'a0' })
+
+      const result = await miniAppHandlers['/mini-apps'].POST({ body })
+
+      expect(createMock).toHaveBeenCalledWith(body)
+      expect(result).toMatchObject({ url: body.url })
+    })
+
     it('should reject missing required fields before calling the service', async () => {
       await expect(miniAppHandlers['/mini-apps'].POST({ body: { appId: '' } } as never)).rejects.toHaveProperty(
         'name',
@@ -105,16 +113,34 @@ describe('miniAppHandlers', () => {
     })
 
     it('should reject body with empty name before calling the service', async () => {
-      await expect(
-        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, name: '' } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
+      await expect(miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, name: '' } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
 
       expect(createMock).not.toHaveBeenCalled()
     })
 
     it('should reject body with empty url before calling the service', async () => {
+      await expect(miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, url: '' } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
+
+      expect(createMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject malformed URLs before calling the service', async () => {
       await expect(
-        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, url: '' } } as never)
+        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, url: 'not a url' } })
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject unsupported URL protocols before calling the service', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, url: 'javascript:alert(1)' } })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(createMock).not.toHaveBeenCalled()
@@ -128,17 +154,9 @@ describe('miniAppHandlers', () => {
       expect(createMock).not.toHaveBeenCalled()
     })
 
-    it('should reject body with invalid region before calling the service', async () => {
+    it('should reject unsupported create metadata before calling the service', async () => {
       await expect(
-        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, supportedRegions: ['EU'] } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(createMock).not.toHaveBeenCalled()
-    })
-
-    it('should reject body with empty supportedRegions before calling the service', async () => {
-      await expect(
-        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, supportedRegions: [] } } as never)
+        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, supportedRegions: ['CN'] } } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(createMock).not.toHaveBeenCalled()
@@ -152,7 +170,7 @@ describe('miniAppHandlers', () => {
       await miniAppHandlers['/mini-apps/:id/order'].PATCH({
         params: { id: 'openai' },
         body: { after: 'gemini' }
-      } as never)
+      })
 
       expect(reorderMock).toHaveBeenCalledWith([{ id: 'openai', anchor: { after: 'gemini' } }])
     })
@@ -162,7 +180,7 @@ describe('miniAppHandlers', () => {
         miniAppHandlers['/mini-apps/:id/order'].PATCH({
           params: { id: 'openai' },
           body: { sortOrder: 0 } as never
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(reorderMock).not.toHaveBeenCalled()
@@ -177,7 +195,7 @@ describe('miniAppHandlers', () => {
         { id: 'qwen', anchor: { position: 'first' as const } }
       ]
 
-      await miniAppHandlers['/mini-apps/order:batch'].PATCH({ body: { moves } } as never)
+      await miniAppHandlers['/mini-apps/order:batch'].PATCH({ body: { moves } })
 
       expect(reorderMock).toHaveBeenCalledWith(moves)
     })
@@ -186,7 +204,7 @@ describe('miniAppHandlers', () => {
       await expect(
         miniAppHandlers['/mini-apps/order:batch'].PATCH({
           body: { moves: [{ id: '', anchor: { position: 'first' } }] } as never
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(reorderMock).not.toHaveBeenCalled()
@@ -233,9 +251,78 @@ describe('miniAppHandlers', () => {
       expect(result).toMatchObject({ status: 'disabled' })
     })
 
+    it('should parse custom display fields and delegate to service', async () => {
+      const updated = {
+        appId: 'custom-app',
+        presetMiniAppId: null,
+        status: 'enabled',
+        sortOrder: 0,
+        name: 'Renamed App',
+        url: 'https://renamed.app',
+        logo: 'data:image/png;base64,avatar'
+      }
+      updateMock.mockResolvedValueOnce(updated)
+
+      const result = await miniAppHandlers['/mini-apps/:appId'].PATCH({
+        params: { appId: 'custom-app' },
+        body: { name: 'Renamed App', url: 'https://renamed.app' }
+      })
+
+      // Logo edits no longer ride in the PATCH body (they go through the
+      // `mini_app.settings.set_logo` command); only name/url/status are delegated here.
+      expect(updateMock).toHaveBeenCalledWith('custom-app', {
+        name: 'Renamed App',
+        url: 'https://renamed.app'
+      })
+      expect(result).toMatchObject({ name: 'Renamed App' })
+    })
+
+    it('should pass an installed app model choice through to the service', async () => {
+      // The model lives on the installation row, not `mini_app`; the DTO still has to
+      // admit it or the panel's only write path is refused at the schema.
+      updateMock.mockResolvedValueOnce({ appId: 'com.example.a', kind: 'app', aiModelId: 'openai::gpt-4o-mini' })
+
+      await miniAppHandlers['/mini-apps/:appId'].PATCH({
+        params: { appId: 'com.example.a' },
+        body: { aiModelId: 'openai::gpt-4o-mini' }
+      })
+
+      expect(updateMock).toHaveBeenCalledWith('com.example.a', { aiModelId: 'openai::gpt-4o-mini' })
+    })
+
     it('should reject invalid status in PATCH body before calling the service', async () => {
       await expect(
         miniAppHandlers['/mini-apps/:appId'].PATCH({ params: { appId: 'openai' }, body: { status: 'banned' } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject invalid custom display fields before calling the service', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps/:appId'].PATCH({ params: { appId: 'custom-app' }, body: { name: '' } })
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject invalid custom URLs before calling the service', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps/:appId'].PATCH({
+          params: { appId: 'custom-app' },
+          body: { url: 'ftp://example.com/app' }
+        })
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject unsupported custom metadata before calling the service', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps/:appId'].PATCH({
+          params: { appId: 'custom-app' },
+          body: { background: '#fff' }
+        } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateMock).not.toHaveBeenCalled()

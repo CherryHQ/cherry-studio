@@ -1,9 +1,10 @@
-import { SettingsContentColumn } from '@renderer/pages/settings'
-import EnvironmentDependencies from '@renderer/pages/settings/McpSettings/EnvironmentDependencies'
 import { createFileRoute } from '@tanstack/react-router'
 
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
+
 const McpInstallWrapper = () => (
-  <SettingsContentColumn className="bg-inherit">
+  <SettingsContentColumn className="bg-inherit pt-2">
     <EnvironmentDependencies />
   </SettingsContentColumn>
 )

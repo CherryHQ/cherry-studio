@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Painting as PaintingRecord } from '@shared/data/types/painting'
 
@@ -63,8 +63,10 @@ async function resolveEntries(ids: string[]): Promise<FileEntry[]> {
  * a different tab.
  */
 export async function recordToPaintingData(record: PaintingRecord): Promise<PaintingData> {
-  const outputEntries = await resolveEntries(record.files.output)
-  const inputFiles = await resolveEntries(record.files.input)
+  const [outputEntries, inputFiles] = await Promise.all([
+    resolveEntries(record.files.output),
+    resolveEntries(record.files.input)
+  ])
   const files = await Promise.all(outputEntries.map(fileEntryToMetadata))
 
   const model = normalizeStoredPaintingModel(record.modelId)

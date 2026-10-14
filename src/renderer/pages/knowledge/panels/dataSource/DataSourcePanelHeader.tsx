@@ -1,76 +1,69 @@
-import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import type { KnowledgeItemType } from '@shared/data/types/knowledge'
-import { Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Plus, RefreshCw, Settings2, Trash2 } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { formatRelativeTime } from '@renderer/utils/time'
+import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 
 interface DataSourcePanelHeaderProps {
-  readyCount: number
-  totalCount: number
+  /** Server-side total across all pages. */
+  total: number
+  /** Rows currently loaded in the renderer (≤ total when pages remain). */
+  loadedCount: number
   selectedCount: number
+  updatedAt: string
   onBulkReindex: () => void
   onBulkDelete: () => void
-  onCancelBulk: () => void
   onAdd: (source: KnowledgeItemType) => void
+  /** Adding is only meaningful at the base root; a drilled-in directory mirrors a read-only
+   *  filesystem folder, so the entry is hidden there to avoid "add" silently landing at the root. */
+  canAddSource?: boolean
+  localModelStatus?: {
+    label: string
+    onOpenSettings?: () => void
+  }
 }
 
 const DataSourcePanelHeader = ({
-  readyCount,
-  totalCount,
+  total,
+  loadedCount,
   selectedCount,
+  updatedAt,
   onBulkReindex,
   onBulkDelete,
-  onCancelBulk,
-  onAdd
+  onAdd,
+  canAddSource = true,
+  localModelStatus
 }: DataSourcePanelHeaderProps) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [isSourceMenuOpen, setIsSourceMenuOpen] = useState(false)
-  const sourceMenuCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const clearSourceMenuCloseTimer = useCallback(() => {
-    if (sourceMenuCloseTimerRef.current) {
-      clearTimeout(sourceMenuCloseTimerRef.current)
-      sourceMenuCloseTimerRef.current = null
-    }
-  }, [])
-
-  const openSourceMenu = useCallback(() => {
-    clearSourceMenuCloseTimer()
-    setIsSourceMenuOpen(true)
-  }, [clearSourceMenuCloseTimer])
-
-  const scheduleSourceMenuClose = useCallback(() => {
-    clearSourceMenuCloseTimer()
-    sourceMenuCloseTimerRef.current = setTimeout(() => {
-      setIsSourceMenuOpen(false)
-      sourceMenuCloseTimerRef.current = null
-    }, 120)
-  }, [clearSourceMenuCloseTimer])
 
   const handleSourceSelect = useCallback(
     (source: KnowledgeItemType) => {
-      clearSourceMenuCloseTimer()
       setIsSourceMenuOpen(false)
       onAdd(source)
     },
-    [clearSourceMenuCloseTimer, onAdd]
+    [onAdd]
   )
-
-  useEffect(() => clearSourceMenuCloseTimer, [clearSourceMenuCloseTimer])
 
   if (selectedCount > 0) {
     return (
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="text-foreground text-sm">
+      <div className="flex min-h-8 w-full min-w-0 items-center justify-between gap-3">
+        <span className="flex min-w-0 items-baseline gap-2 pl-2">
+          <span className="truncate text-sm text-foreground">
             {t('knowledge.data_source.bulk.selected_count', { count: selectedCount })}
           </span>
-          <Button type="button" variant="ghost" size="sm" onClick={onCancelBulk}>
-            {t('knowledge.data_source.bulk.cancel')}
-          </Button>
-        </div>
+          {/* Selection only covers loaded rows; warn when unloaded pages remain so the
+              checked-all state doesn't read as "all rows in the base". */}
+          {total > loadedCount ? (
+            <span className="shrink-0 text-xs text-foreground-tertiary">
+              {t('knowledge.data_source.bulk.loaded_only_hint', { total })}
+            </span>
+          ) : null}
+        </span>
         <div className="flex shrink-0 items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onBulkReindex}>
             <RefreshCw className="size-3.5" />
@@ -86,55 +79,68 @@ const DataSourcePanelHeader = ({
   }
 
   return (
-    <div className="flex min-w-0 items-center justify-end gap-2">
+    <div className="flex min-h-8 w-full min-w-0 items-center justify-between gap-2">
+      <span className="min-w-0 truncate pl-2 text-xs leading-4 text-foreground-tertiary">
+        {t('knowledge.meta.updated_at', { time: formatRelativeTime(updatedAt, i18n.language) })}
+      </span>
       <div className="flex shrink-0 items-center gap-2">
-        {totalCount > 0 ? (
-          <span className="text-foreground-muted text-xs leading-4">
-            {t('knowledge.data_source.ready_summary', { ready: readyCount, total: totalCount })}
-          </span>
+        {localModelStatus ? (
+          <>
+            <span
+              role="status"
+              className="max-w-52 truncate text-xs text-muted-foreground"
+              title={localModelStatus.label}>
+              {localModelStatus.label}
+            </span>
+            {localModelStatus.onOpenSettings ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 min-h-0 gap-1 rounded-md bg-transparent px-2 py-1 text-xs leading-4 font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                onClick={localModelStatus.onOpenSettings}>
+                <Settings2 className="size-3" />
+                {t('common.go_to_settings')}
+              </Button>
+            ) : null}
+          </>
+        ) : canAddSource ? (
+          <Popover open={isSourceMenuOpen} onOpenChange={setIsSourceMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-haspopup="menu"
+                aria-expanded={isSourceMenuOpen}
+                className="h-7 min-h-0 gap-1 rounded-md bg-transparent px-2 py-1 text-xs leading-4 font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                <Plus className="size-3" />
+                {t('knowledge.data_source.toolbar.add')}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              side="top"
+              sideOffset={8}
+              collisionPadding={8}
+              className="w-[var(--radix-popover-trigger-width)] rounded-xl p-1.5"
+              onOpenAutoFocus={(event) => event.preventDefault()}
+              onCloseAutoFocus={(event) => event.preventDefault()}>
+              <MenuList role="menu" className="gap-1">
+                {KNOWLEDGE_DATA_SOURCE_TYPES.map((source) => (
+                  <MenuItem
+                    key={source.value}
+                    role="menuitem"
+                    variant="ghost"
+                    label={t(source.labelKey)}
+                    className="h-8 rounded-lg px-2.5 text-sm"
+                    onClick={() => handleSourceSelect(source.value)}
+                  />
+                ))}
+              </MenuList>
+            </PopoverContent>
+          </Popover>
         ) : null}
-
-        <Popover open={isSourceMenuOpen} onOpenChange={setIsSourceMenuOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-haspopup="menu"
-              aria-expanded={isSourceMenuOpen}
-              className="min-h-0 rounded-lg px-3 py-1.5 font-medium text-foreground-secondary text-sm leading-5 shadow-none hover:bg-accent hover:text-foreground"
-              onClick={openSourceMenu}
-              onFocus={openSourceMenu}
-              onMouseEnter={openSourceMenu}
-              onMouseLeave={scheduleSourceMenuClose}>
-              <Plus className="size-3.5" />
-              {t('knowledge.data_source.toolbar.add')}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="end"
-            side="top"
-            sideOffset={8}
-            collisionPadding={8}
-            className="w-[var(--radix-popover-trigger-width)] rounded-xl p-1.5"
-            onMouseEnter={openSourceMenu}
-            onMouseLeave={scheduleSourceMenuClose}
-            onOpenAutoFocus={(event) => event.preventDefault()}
-            onCloseAutoFocus={(event) => event.preventDefault()}>
-            <MenuList role="menu" className="gap-1">
-              {KNOWLEDGE_DATA_SOURCE_TYPES.map((source) => (
-                <MenuItem
-                  key={source.value}
-                  role="menuitem"
-                  variant="ghost"
-                  label={t(source.labelKey)}
-                  className="h-8 rounded-lg px-2.5 text-sm"
-                  onClick={() => handleSourceSelect(source.value)}
-                />
-              ))}
-            </MenuList>
-          </PopoverContent>
-        </Popover>
       </div>
     </div>
   )

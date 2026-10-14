@@ -1,24 +1,38 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
-import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api'
+import { computeMinimalMoves } from '@renderer/data/utils/reorder'
+import { useOptionalTabsContext } from '@renderer/hooks/tab'
+import { useMiniAppRuntime } from '@renderer/hooks/useMiniAppRuntime'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
+import { getAppEdition } from '@renderer/utils/appEdition'
+import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
+import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
-import { useCallback, useEffect, useMemo } from 'react'
+import type { AppEdition } from '@shared/types/appEdition'
+import { resolveLocalizedText } from '@shared/types/miniAppManifest'
+import { AsyncInitializer } from '@shared/utils/async'
 
 /**
  * Data Flow Design:
  *
- * PRINCIPLE: Region filtering is a VIEW concern, not a DATA concern.
+ * PRINCIPLE: Catalog filtering is a VIEW concern, not a DATA concern.
  *
- * - DataApi stores ALL apps (including region-restricted ones) to preserve user preferences
- * - ORIGIN_DEFAULT_MIN_APPS is the preset data source containing region definitions
- * - This hook applies region filtering only when READING for UI display
- * - Mutations target individual apps by appId, never touching region-hidden apps
+ * - DataApi stores ALL apps (including hidden catalog entries) to preserve user preferences
+ * - PRESETS_MINI_APPS is the preset data source containing region definitions
+ * - This hook applies region and edition filtering only when reading for UI display
+ * - Mutations target individual apps by appId, never touching hidden apps
  */
 
 /**
@@ -26,18 +40,12 @@ import { useCallback, useEffect, useMemo } from 'react'
  *
  * Region-based visibility rules:
  * 1. CN users see everything.
- * 2. Global users:
- *    - Preset apps with supportedRegions including 'Global' → visible.
- *    - Preset apps without supportedRegions → CN-only (preserves the existing
- *      curated catalog semantics: presets that omit the field are intentionally
- *      gated to CN by the catalog author).
- *    - Custom apps (`presetMiniAppId === null`) without supportedRegions →
- *      visible. Custom apps come from migrated v1 data (which had no region
- *      concept) or from the user's own form, neither of which has a curated
- *      region intent. Defaulting them to CN-only would silently hide a user's
- *      own app under Global.
+ * 2. Global users see presets that support Global. Presets without a region
+ *    declaration retain the legacy CN-only default.
+ * 3. User-added sites and installed local apps remain visible everywhere.
  */
 const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
+  if (app.kind === 'app') return true
   if (region === 'CN') return true
 
   if (!app.supportedRegions || app.supportedRegions.length === 0) {
@@ -46,54 +54,61 @@ const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
   return app.supportedRegions.includes('Global')
 }
 
+const isVisibleForEdition = (app: MiniApp, appEdition: AppEdition): boolean => {
+  if (appEdition === 'global' || app.kind === 'app' || app.presetMiniAppId === null) return true
+  return !app.supportedRegions?.length || app.supportedRegions.includes('CN')
+}
+
+function isVisibleStatus(status: MiniAppStatus): boolean {
+  return status === 'enabled' || status === 'pinned'
+}
+
+function compareOrderKey(a: MiniApp, b: MiniApp): number {
+  return a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0
+}
+
 // Filter apps by region
 const filterByRegion = (apps: MiniApp[], region: MiniAppRegion): MiniApp[] => {
   return apps.filter((app) => isVisibleForRegion(app, region))
 }
 
-// Module-level promise to ensure only one IP detection request is made
-let regionDetectionPromise: Promise<MiniAppRegion> | null = null
+const filterByEdition = (apps: MiniApp[], appEdition: AppEdition): MiniApp[] => {
+  return apps.filter((app) => isVisibleForEdition(app, appEdition))
+}
+
+const loadUserRegion = async (): Promise<MiniAppRegion> => {
+  try {
+    const country = await ipcApi.request('system.get_ip_country')
+    return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
+  } catch (err) {
+    // Default to CN so mainland China users — the primary audience — never
+    // silently lose access to region-restricted apps they expect.
+    const error = err as Error
+    loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', {
+      error: error.message,
+      stack: error.stack,
+      fallback: 'CN'
+    })
+    return 'CN'
+  }
+}
+
+let regionDetection = new AsyncInitializer(loadUserRegion)
 
 /**
  * @only_for_testing - Reset module-level region detection state between tests
  */
 export const __resetRegionDetectionForTesting = () => {
-  regionDetectionPromise = null
+  regionDetection = new AsyncInitializer(loadUserRegion)
 }
 
-// Detect user region via IPC call to main process (cached at module level)
-const detectUserRegion = async (): Promise<MiniAppRegion> => {
-  // Return existing promise if detection is already in progress
-  if (regionDetectionPromise) {
-    return regionDetectionPromise
-  }
-
-  regionDetectionPromise = (async () => {
-    try {
-      const country = await window.api.getIpCountry()
-      return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
-    } catch (err) {
-      // Default to CN so mainland China users — the primary audience — never
-      // silently lose access to region-restricted apps they expect.
-      const error = err as Error
-      loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', {
-        error: error.message,
-        stack: error.stack,
-        fallback: 'CN'
-      })
-      return 'CN'
-    }
-  })()
-
-  return regionDetectionPromise
-}
+const detectUserRegion = async (): Promise<MiniAppRegion> => regionDetection.get()
 
 /**
  * V2 useMiniApps hook — DataApi + Preference + Cache
  */
 // Module-level logger to avoid recreating on every render (rerender-defer-reads)
 const logger = loggerService.withContext('useMiniApps')
-
 /**
  * Process Promise.allSettled results: throw on partial failures so callers
  * can distinguish "all succeeded" from "partially failed", and invalidate
@@ -126,9 +141,21 @@ async function settleAndInvalidate(
   return fulfilled.map((r) => r.value)
 }
 
-export const useMiniApps = () => {
-  const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps')
-  const rawApps: MiniApp[] = useMemo(() => data ?? [], [data])
+export const useMiniApps = (options: { enabled?: boolean } = {}) => {
+  const queryEnabled = options.enabled ?? true
+  const appEdition = getAppEdition()
+  const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
+  const { i18n: i18nInstance } = useTranslation()
+  const language = i18nInstance.language
+  // Main resolved `name` for the language at query time and the query is cached; a
+  // language switch would otherwise leave every installed app under its old name.
+  const rawApps: MiniApp[] = useMemo(
+    () =>
+      (data ?? []).map((app) =>
+        app.kind === 'app' ? { ...app, name: resolveLocalizedText(app.nameI18n, language) } : app
+      ),
+    [data, language]
+  )
 
   // Partition by status in single pass (js-combine-iterations)
   const { allApps, enabled, disabled, pinned } = useMemo(() => {
@@ -150,15 +177,17 @@ export const useMiniApps = () => {
   const [detectedRegion, setDetectedRegion] = useCache('mini_app.detected_region')
 
   const effectiveRegion: MiniAppRegion =
-    miniAppRegionSetting === 'auto'
-      ? (detectedRegion ?? 'CN')
-      : miniAppRegionSetting === 'CN' || miniAppRegionSetting === 'Global'
-        ? miniAppRegionSetting
-        : 'CN'
+    appEdition === 'cn'
+      ? 'CN'
+      : miniAppRegionSetting === 'auto'
+        ? (detectedRegion ?? 'CN')
+        : miniAppRegionSetting === 'CN' || miniAppRegionSetting === 'Global'
+          ? miniAppRegionSetting
+          : 'CN'
 
   // Auto-detect region once per session
   useEffect(() => {
-    if (miniAppRegionSetting !== 'auto' || detectedRegion) return
+    if (appEdition === 'cn' || !queryEnabled || miniAppRegionSetting !== 'auto' || detectedRegion) return
     let cancelled = false
     detectUserRegion()
       .then((region) => {
@@ -176,25 +205,29 @@ export const useMiniApps = () => {
     return () => {
       cancelled = true
     }
-  }, [miniAppRegionSetting, detectedRegion, setDetectedRegion])
+  }, [appEdition, detectedRegion, miniAppRegionSetting, queryEnabled, setDetectedRegion])
 
   // === Region-filtered views ===
   // Include pinned apps so they remain visible in the grid when pinned to launchpad/sidebar
-  // Sort by sortOrder to maintain consistent positions regardless of status
+  // Sort by orderKey to maintain consistent visible positions regardless of status
   const miniApps = useMemo(() => {
     const visibleApps = [...enabled, ...pinned]
     const regionFiltered = filterByRegion(visibleApps, effectiveRegion)
-    return regionFiltered.sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
-  }, [enabled, effectiveRegion, pinned])
-  const disabledApps = useMemo(() => filterByRegion(disabled, effectiveRegion), [disabled, effectiveRegion])
-  // Pinned apps are always visible regardless of region
-  const pinnedApps = pinned
+    const editionFiltered = filterByEdition(regionFiltered, appEdition)
+    return editionFiltered.sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
+  }, [appEdition, enabled, effectiveRegion, pinned])
+  const disabledApps = useMemo(
+    () => filterByEdition(filterByRegion(disabled, effectiveRegion), appEdition),
+    [appEdition, disabled, effectiveRegion]
+  )
+  // Global keeps pinned apps across region choices; CN still enforces its edition catalog.
+  const pinnedApps = useMemo(() => filterByEdition(pinned, appEdition), [appEdition, pinned])
 
-  // === UI State Cache (unchanged) ===
-  const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
-  const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
-  const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
-  const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const { openedKeepAliveMiniApps, currentMiniAppId, miniAppShow, splitOpen, splitMiniAppId } = useMiniAppRuntime()
+  const { remove: removeSidebarShortcut } = useSidebarShortcuts()
+  const tabsContext = useOptionalTabsContext()
+  const tabsContextRef = useRef(tabsContext)
+  tabsContextRef.current = tabsContext
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
@@ -228,6 +261,12 @@ export const useMiniApps = () => {
   const { trigger: patchAppTrigger } = useMutation('PATCH', '/mini-apps/:appId', {
     refresh: ['/mini-apps']
   })
+  const { trigger: patchMiniAppOrderTrigger } = useMutation('PATCH', '/mini-apps/:id/order', {
+    refresh: ['/mini-apps']
+  })
+  const { trigger: patchMiniAppOrderBatchTrigger } = useMutation('PATCH', '/mini-apps/order:batch', {
+    refresh: ['/mini-apps']
+  })
   const { trigger: deleteAppTrigger } = useMutation('DELETE', '/mini-apps/:appId', {
     refresh: ['/mini-apps']
   })
@@ -249,6 +288,21 @@ export const useMiniApps = () => {
       }
     },
     [patchAppTrigger]
+  )
+
+  const closeMiniAppTabs = useCallback((appId: string) => {
+    if (cacheService.get('mini_app.split')?.appId === appId) cacheService.set('mini_app.split', null)
+    const context = tabsContextRef.current
+    context?.closeTabs(context.tabs.filter((tab) => miniAppIdFromTabUrl(tab.url) === appId).map((tab) => tab.id))
+  }, [])
+
+  const hideMiniApp = useCallback(
+    async (appId: string) => {
+      const updated = await updateAppStatus(appId, 'disabled')
+      closeMiniAppTabs(appId)
+      return updated
+    },
+    [closeMiniAppTabs, updateAppStatus]
   )
 
   /**
@@ -285,16 +339,79 @@ export const useMiniApps = () => {
     [postMiniApp]
   )
 
+  const syncOpenedCustomMiniApp = useCallback((updated: MiniApp) => {
+    const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
+    // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+    const icon = updated.logoSrc ?? updated.logo
+    for (const tab of tabsContextRef.current?.tabs ?? []) {
+      if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
+        tabsContextRef.current?.updateTab(tab.id, { title, icon })
+      }
+    }
+  }, [])
+
+  const cleanupOpenedCustomMiniApp = useCallback(
+    (appId: string) => {
+      closeMiniAppTabs(appId)
+      removeSidebarShortcut(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId))
+    },
+    [closeMiniAppTabs, removeSidebarShortcut]
+  )
+
+  const updateCustomMiniApp = useCallback(
+    async (appId: string, dto: UpdateMiniAppDto) => {
+      try {
+        const updated = await patchAppTrigger({ params: { appId }, body: dto })
+        try {
+          syncOpenedCustomMiniApp(updated)
+        } catch (syncError) {
+          logger.error('Failed to sync opened custom mini app after update', { appId, error: syncError })
+        }
+        return updated
+      } catch (error) {
+        logger.error('Failed to update custom mini app', { appId, error: toDataApiError(error) })
+        throw toDataApiError(error)
+      }
+    },
+    [patchAppTrigger, syncOpenedCustomMiniApp]
+  )
+
+  const refreshCustomMiniApp = useCallback(
+    async (appId: string) => {
+      try {
+        const updated = await dataApiService.get(`/mini-apps/${encodeURIComponent(appId)}`)
+        syncOpenedCustomMiniApp(updated)
+      } catch (syncError) {
+        logger.error('Failed to sync custom mini app after logo update', { appId, error: syncError })
+      }
+
+      try {
+        await invalidate('/mini-apps')
+      } catch (refreshError) {
+        logger.error('Failed to refresh mini apps after logo update', { appId, error: refreshError })
+      }
+    },
+    [invalidate, syncOpenedCustomMiniApp]
+  )
+
   const removeCustomMiniApp = useCallback(
     async (appId: string) => {
       try {
-        return await deleteAppTrigger({ params: { appId } })
+        const result = await deleteAppTrigger({ params: { appId } })
+        // The row is already gone; a cleanup failure must not report the
+        // delete itself as failed.
+        try {
+          cleanupOpenedCustomMiniApp(appId)
+        } catch (syncError) {
+          logger.error('Failed to cleanup opened custom mini app after delete', { appId, error: syncError })
+        }
+        return result
       } catch (error) {
         logger.error('Failed to remove custom mini app', { appId, error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [deleteAppTrigger]
+    [cleanupOpenedCustomMiniApp, deleteAppTrigger]
   )
 
   /**
@@ -315,30 +432,34 @@ export const useMiniApps = () => {
   )
 
   /**
-   * Reorder miniApps inside a single status partition.
+   * Reorder miniApps inside a status-backed list.
    *
-   * `useReorder('/mini-apps')` diffs the new list against the full `/mini-apps`
-   * cache and `computeMinimalMoves` requires a permutation of the cache rows.
-   * Settings UI hands us only one column (e.g. enabled rows). We splice the
-   * subset back into the cache shape so the diff is well-formed and the
-   * resulting moves all stay within one partition — the server enforces single
-   * scope (see MiniAppService.reorder + applyScopedMoves).
+   * Settings UI only passes the affected list, so compute moves against that
+   * list's own order-key baseline. The service validates the same scopes:
+   * `enabled` + `pinned` share the visible list; `disabled` stays hidden.
    */
   const reorderMiniAppsByStatus = useCallback(
-    async (status: MiniAppStatus, orderedPartition: MiniApp[]) => {
-      let cursor = 0
-      const merged = allApps.map((a) => {
-        if (a.status !== status) return a
-        return orderedPartition[cursor++] ?? a
-      })
+    async (status: MiniAppStatus | 'visible', orderedPartition: MiniApp[]) => {
+      const inScope = (app: MiniApp) => (status === 'visible' ? isVisibleStatus(app.status) : app.status === status)
+      const orderedIds = new Set(orderedPartition.map((app) => app.appId))
+      const currentPartition = allApps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
+      const moves = computeMinimalMoves(currentPartition, orderedPartition, 'appId')
+      if (moves.length === 0) return
+
       try {
-        await applyMiniAppOrder(merged)
+        if (moves.length === 1) {
+          const [move] = moves
+          await patchMiniAppOrderTrigger({ params: { id: move.id }, body: move.anchor })
+        } else {
+          await patchMiniAppOrderBatchTrigger({ body: { moves } })
+        }
       } catch (error) {
+        await invalidate('/mini-apps')
         logger.error('Failed to reorder mini apps within status', { status, error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [allApps, applyMiniAppOrder]
+    [allApps, invalidate, patchMiniAppOrderBatchTrigger, patchMiniAppOrderTrigger]
   )
 
   return {
@@ -349,17 +470,17 @@ export const useMiniApps = () => {
     openedKeepAliveMiniApps,
     currentMiniAppId,
     miniAppShow,
-    openedOneOffMiniApp,
-    setOpenedKeepAliveMiniApps,
-    setCurrentMiniAppId,
-    setMiniAppShow,
-    setOpenedOneOffMiniApp,
+    splitOpen,
+    splitMiniAppId,
     isLoading,
     error,
     refetch,
     updateAppStatus,
+    hideMiniApp,
     setAppStatusBulk,
     createCustomMiniApp,
+    updateCustomMiniApp,
+    refreshCustomMiniApp,
     removeCustomMiniApp,
     reorderMiniApps,
     reorderMiniAppsByStatus
@@ -367,3 +488,16 @@ export const useMiniApps = () => {
 }
 
 export type UseMiniAppsReturn = ReturnType<typeof useMiniApps>
+
+/**
+ * Converges `/mini-apps` after the writes DataApi cannot see: install, uninstall,
+ * update apply and rollback commit through IpcApi, so no mutation invalidates the
+ * query cache. Main publishes `notifyDataApiDataChange` after each commit; this is
+ * the renderer half. Mounted ONCE per window by `useWindowRuntime`.
+ */
+export function useMiniAppListSync(): void {
+  const invalidate = useInvalidateCache()
+  useDataChange('/mini-apps', () => {
+    void invalidate('/mini-apps')
+  })
+}

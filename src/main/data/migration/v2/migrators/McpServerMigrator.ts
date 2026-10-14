@@ -4,17 +4,18 @@
  * Data sources:
  * - Redux mcp slice (state.mcp.servers) -> mcp_server table
  *
- * Skipped fields (runtime/cache, re-detected when MCP settings are accessed):
- * - isUvInstalled, isBunInstalled -> usePersistCache
+ * Skipped fields (runtime/cache, derived again from live binary availability):
+ * - isUvInstalled, isBunInstalled
  *
  * Not migrated (regenerable cache, re-fetched from provider API):
  * - Dexie mcp:provider:*:servers (handled in separate PR)
  */
 
+import { sql } from 'drizzle-orm'
+
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -29,10 +30,13 @@ export class McpServerMigrator extends BaseMigrator {
   readonly order = 1.5
 
   private preparedResults: McpServerTransformResult[] = []
+  /** Rows that failed to insert on their own (malformed legacy records); see execute(). */
+  private executeSkipped: string[] = []
   private skippedCount = 0
 
   override reset(): void {
     this.preparedResults = []
+    this.executeSkipped = []
     this.skippedCount = 0
   }
 
@@ -103,38 +107,83 @@ export class McpServerMigrator extends BaseMigrator {
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     if (this.preparedResults.length === 0) {
+      // Always publish the (empty) mapping so downstream migrators can distinguish
+      // "ran with zero servers" from "never ran". Without this, AssistantMigrator
+      // throws a fatal error when assistants still reference now-deleted servers,
+      // instead of gracefully dropping those dangling refs.
+      ctx.sharedData.set('mcpServerIdMapping', new Map<string, string>())
       return { success: true, processedCount: 0 }
     }
 
     try {
       let processed = 0
+      const skippedIds = new Set<string>()
+      const warnings: string[] = []
       const rows = this.preparedResults.map((r) => r.row)
 
       const BATCH_SIZE = 100
-      await ctx.db.transaction(async (tx) => {
+      ctx.db.transaction((tx) => {
         for (let i = 0; i < rows.length; i += BATCH_SIZE) {
           const batch = rows.slice(i, i + BATCH_SIZE)
-          await tx.insert(mcpServerTable).values(batch)
-          processed += batch.length
+          let batchError: unknown
+          try {
+            tx.insert(mcpServerTable).values(batch).run()
+            processed += batch.length
+            continue
+          } catch (error) {
+            // A single malformed legacy record aborts the whole batched INSERT
+            // (#20301). Retry the batch row by row so only the offending rows
+            // are skipped and every other server still migrates.
+            batchError = error
+            logger.warn('Batch insert failed, retrying rows individually', error as Error)
+          }
+          let recovered = 0
+          for (const row of batch) {
+            try {
+              tx.insert(mcpServerTable).values(row).run()
+              processed += 1
+              recovered += 1
+            } catch (rowError) {
+              const message = rowError instanceof Error ? rowError.message : String(rowError)
+              skippedIds.add(row.id!)
+              warnings.push(`Skipped MCP server "${row.name}" (${row.id}): ${message}`)
+              logger.warn('Skipped MCP server that could not be inserted', { id: row.id, name: row.name, message })
+            }
+          }
+          if (recovered === 0) {
+            // Not one row of the batch could be written: that is a database-wide
+            // failure (locked file, missing table, closed connection), not bad
+            // data. Skipping everything would report success with no servers.
+            const message = batchError instanceof Error ? batchError.message : String(batchError)
+            throw new Error(`MCP server batch insert failed and no row could be recovered individually: ${message}`)
+          }
         }
       })
 
       // Share oldId → newId mapping so downstream migrators (e.g. AssistantMigrator)
-      // can remap legacy MCP server references to the new UUIDs
+      // can remap legacy MCP server references to the new UUIDs. A skipped
+      // server has no row, so it stays unmapped and its references are dropped.
       const idMapping = new Map<string, string>()
       for (const result of this.preparedResults) {
-        idMapping.set(result.oldId, result.row.id!)
+        if (!skippedIds.has(result.row.id!)) {
+          idMapping.set(result.oldId, result.row.id!)
+        }
       }
       ctx.sharedData.set('mcpServerIdMapping', idMapping)
+      this.executeSkipped = warnings
 
       this.reportProgress(100, `Migrated ${processed} items`, {
         key: 'migration.progress.migrated_mcp_servers',
         params: { processed, total: this.preparedResults.length }
       })
 
-      logger.info('Execute completed', { processedCount: processed })
+      logger.info('Execute completed', { processedCount: processed, skippedCount: skippedIds.size })
 
-      return { success: true, processedCount: processed }
+      return {
+        success: true,
+        processedCount: processed,
+        ...(warnings.length > 0 ? { warnings } : {})
+      }
     } catch (error) {
       logger.error('Execute failed', error as Error)
       return {
@@ -147,18 +196,22 @@ export class McpServerMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const serverResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).get()
+      const serverResult = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(mcpServerTable)
+        .get()
       const serverCount = serverResult?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
-      if (serverCount !== this.preparedResults.length) {
+      const expectedCount = this.preparedResults.length - this.executeSkipped.length
+      if (serverCount !== expectedCount) {
         errors.push({
           key: 'count_mismatch',
-          message: `Expected ${this.preparedResults.length} servers but found ${serverCount}`
+          message: `Expected ${expectedCount} servers but found ${serverCount}`
         })
       }
 
-      const sample = await ctx.db.select().from(mcpServerTable).limit(3).all()
+      const sample = ctx.db.select().from(mcpServerTable).limit(3).all()
       for (const server of sample) {
         if (!server.id || !server.name) {
           errors.push({ key: server.id ?? 'unknown', message: 'Missing required field (id or name)' })
@@ -171,7 +224,7 @@ export class McpServerMigrator extends BaseMigrator {
         stats: {
           sourceCount: this.preparedResults.length,
           targetCount: serverCount,
-          skippedCount: this.skippedCount
+          skippedCount: this.skippedCount + this.executeSkipped.length
         }
       }
     } catch (error) {

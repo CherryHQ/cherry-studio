@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -112,6 +111,24 @@ describe('ReorderableList', () => {
     expect(onDragStateChange).toHaveBeenNthCalledWith(1, true)
     expect(onDragStateChange).toHaveBeenNthCalledWith(2, false)
     expect(onDragStateChange).toHaveBeenNthCalledWith(3, false)
+  })
+
+  it('forwards dragHandle and accessibility to Sortable', () => {
+    const accessibility = { screenReaderInstructions: { draggable: 'reorder' } }
+
+    render(
+      <ReorderableList
+        items={items}
+        getId={(item) => item.id}
+        onReorder={vi.fn()}
+        dragHandle
+        accessibility={accessibility}
+        renderItem={(item) => <div>{item.id}</div>}
+      />
+    )
+
+    expect(sortablePropsStore.current.dragHandle).toBe(true)
+    expect(sortablePropsStore.current.accessibility).toBe(accessibility)
   })
 
   it('does not reorder or emit drag state when disabled', () => {

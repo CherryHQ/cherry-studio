@@ -1,2 +1,2 @@
-export * from './BootConfigService'
-export * from './types'
+export { BootConfigService, bootConfigService } from './BootConfigService'
+export type { BootConfigLoadError } from './types'

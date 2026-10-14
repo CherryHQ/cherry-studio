@@ -1,14 +1,22 @@
+---
+description: Adding fixed and template cache keys to the cache schemas - naming rules and fixed/template/casual selection
+sources:
+  - src/shared/data/cache/cacheSchemas.ts
+  - src/shared/data/cache/cacheValueTypes.ts
+---
+
 # Cache Schema Guide
 
 How to add fixed and template keys. Aligned with [Preference Schema Guide](./preference-schema-guide.md) and [Boot Config Schema Guide](./boot-config-schema-guide.md).
 
 ## Schemas
 
-| Schema                          | Tier    | File                                                | Default map                 |
-| ------------------------------- | ------- | --------------------------------------------------- | --------------------------- |
-| `UseCacheSchema`                | Memory  | `src/shared/data/cache/cacheSchemas.ts`        | `DefaultUseCache`           |
-| `SharedCacheSchema`             | Shared  | `src/shared/data/cache/cacheSchemas.ts`        | `DefaultSharedCache`        |
-| `RendererPersistCacheSchema`    | Persist | `src/shared/data/cache/cacheSchemas.ts`        | `DefaultRendererPersistCache` |
+| Schema                          | Tier               | File                                                | Default map                   |
+| ------------------------------- | ------------------ | --------------------------------------------------- | ----------------------------- |
+| `UseCacheSchema`                | Memory             | `src/shared/data/cache/cacheSchemas.ts`        | `DefaultUseCache`             |
+| `SharedCacheSchema`             | Shared             | `src/shared/data/cache/cacheSchemas.ts`        | `DefaultSharedCache`          |
+| `RendererPersistCacheSchema`    | Persist (Renderer) | `src/shared/data/cache/cacheSchemas.ts`        | `DefaultRendererPersistCache` |
+| `MainPersistCacheSchema`        | Persist (Main)     | `src/shared/data/cache/cacheSchemas.ts`        | `DefaultMainPersistCache`     |
 
 Complex value types go in `src/shared/data/cache/cacheValueTypes.ts` and are imported via `CacheValueTypes.*`.
 

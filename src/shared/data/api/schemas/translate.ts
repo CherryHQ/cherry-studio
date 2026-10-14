@@ -16,7 +16,7 @@ import {
   type TranslateLanguage,
   TranslateLanguageSchema
 } from '../../types/translate'
-import type { CursorPaginationParams, CursorPaginationResponse } from '../apiTypes'
+import type { CursorPaginationParams, CursorPaginationResponse } from '../types'
 
 // ============================================================================
 // Translate History DTOs & Query

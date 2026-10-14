@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
+
 import { useShowWorkspace } from '../useShowWorkspace'
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -15,17 +17,9 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 describe('useShowWorkspace', () => {
-  const toastErrorMock = vi.fn()
-
   beforeEach(() => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
-    Object.assign(window, {
-      toast: {
-        ...window.toast,
-        error: toastErrorMock
-      }
-    })
   })
 
   it('toggles workspace visibility from the current preference value', async () => {
@@ -56,7 +50,7 @@ describe('useShowWorkspace', () => {
     })
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('notes.settings.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('notes.settings.save_failed')
     })
   })
 })

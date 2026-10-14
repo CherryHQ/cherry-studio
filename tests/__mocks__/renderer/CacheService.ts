@@ -1,3 +1,6 @@
+import { isEqual } from 'es-toolkit/compat'
+import { vi } from 'vitest'
+
 import type {
   InferSharedCacheValue,
   InferUseCacheValue,
@@ -9,7 +12,12 @@ import type {
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSubscriber } from '@shared/data/cache/cacheTypes'
-import { vi } from 'vitest'
+
+/**
+ * Local mirror of production's `CacheSetStateAction` — importing it from
+ * `@data/CacheService` would pull the real module into the mock that replaces it.
+ */
+type CacheSetStateAction<T> = T | ((prev: any) => T)
 
 /**
  * Mock CacheService for testing
@@ -193,6 +201,12 @@ export const createMockCacheService = (
       return entry.value as InferSharedCacheValue<K>
     }),
 
+    // Pure physical read (external-store snapshot reader): no TTL evaluation,
+    // no eviction, no notification, no schema-default fallback.
+    getSharedSnapshot: vi.fn(<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined => {
+      return sharedCache.get(key)?.value as InferSharedCacheValue<K> | undefined
+    }),
+
     setShared: vi.fn(<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void => {
       const entry: CacheEntry = {
         value,
@@ -239,13 +253,30 @@ export const createMockCacheService = (
       if (persistCache.has(key)) {
         return persistCache.get(key) as RendererPersistCacheSchema[K]
       }
-      return DefaultRendererPersistCache[key]
+      return DefaultRendererPersistCache[key] as RendererPersistCacheSchema[K]
     }),
 
-    setPersist: vi.fn(<K extends RendererPersistCacheKey>(key: K, value: RendererPersistCacheSchema[K]): void => {
-      persistCache.set(key, value)
-      notifySubscribers(key)
-    }),
+    setPersist: vi.fn(
+      <K extends RendererPersistCacheKey>(key: K, value: CacheSetStateAction<RendererPersistCacheSchema[K]>): void => {
+        // Mirrors production: resolve the updater against the latest stored value,
+        // then drop no-op writes so tests observe the same notification count as
+        // the real service (several call sites rely on that suppression).
+        const nextValue = (
+          typeof value === 'function'
+            ? (value as (prev: RendererPersistCacheSchema[K]) => RendererPersistCacheSchema[K])(
+                mockCacheService.getPersist(key) as RendererPersistCacheSchema[K]
+              )
+            : value
+        ) as RendererPersistCacheSchema[K]
+
+        if (isEqual(persistCache.get(key), nextValue)) {
+          return
+        }
+
+        persistCache.set(key, nextValue)
+        notifySubscribers(key)
+      }
+    ),
 
     hasPersist: vi.fn((key: RendererPersistCacheKey): boolean => {
       return persistCache.has(key)
@@ -424,6 +455,10 @@ export const MockCacheService = {
       return mockCacheService.getShared(key) as InferSharedCacheValue<K> | undefined
     }
 
+    getSharedSnapshot<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+      return mockCacheService.getSharedSnapshot(key) as InferSharedCacheValue<K> | undefined
+    }
+
     setShared<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void {
       return mockCacheService.setShared(key, value as never, ttl)
     }
@@ -442,10 +477,13 @@ export const MockCacheService = {
 
     // ============ Persist Cache ============
     getPersist<K extends RendererPersistCacheKey>(key: K): RendererPersistCacheSchema[K] {
-      return mockCacheService.getPersist(key)
+      return mockCacheService.getPersist(key) as RendererPersistCacheSchema[K]
     }
 
-    setPersist<K extends RendererPersistCacheKey>(key: K, value: RendererPersistCacheSchema[K]): void {
+    setPersist<K extends RendererPersistCacheKey>(
+      key: K,
+      value: CacheSetStateAction<RendererPersistCacheSchema[K]>
+    ): void {
       return mockCacheService.setPersist(key, value)
     }
 

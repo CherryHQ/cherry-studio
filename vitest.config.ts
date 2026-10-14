@@ -1,7 +1,24 @@
 import { resolve } from 'path'
+
 import { defineConfig } from 'vitest/config'
 
 import electronViteConfig from './electron.vite.config'
+
+// The repository intentionally remains CommonJS while Vite bundles its TypeScript
+// config files. Native config loading cannot parse that combination yet.
+process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING = 'true'
+
+// Pin the test timezone to UTC so date-dependent tests are deterministic on every
+// machine. CI runners default to UTC; without this, tests that bucket UTC timestamps
+// by local day (e.g. Topics "Today/Yesterday") pass in CI but fail on dev machines in
+// a non-UTC zone. Set here (main process, before workers spawn) so every thread worker
+// inherits TZ=UTC at creation and V8 parses Date in UTC from the start.
+process.env.TZ = 'UTC'
+
+// Fork workers pipe their output into the runner streams. The full suite can
+// legitimately attach more listeners than Node's default warning threshold.
+process.stdout.setMaxListeners(64)
+process.stderr.setMaxListeners(64)
 
 const mainConfig = (electronViteConfig as any).main
 const rendererConfig = (electronViteConfig as any).renderer
@@ -13,12 +30,26 @@ export default defineConfig({
       {
         extends: true,
         plugins: mainConfig.plugins,
+        define: { __CLAUDE_CODE_BINARY_MANIFEST__: mainConfig.define.__CLAUDE_CODE_BINARY_MANIFEST__ },
         resolve: {
-          alias: mainConfig.resolve.alias
+          alias: [...mainConfig.resolve.alias, { find: '@renderer', replacement: resolve('src/renderer') }]
         },
         test: {
           name: 'main',
           environment: 'node',
+          // This project loads the REAL native better-sqlite3, which is ABI-specific (it is NOT
+          // an N-API module). Vitest runs under system Node, so the module must be built for the
+          // Node ABI — `pretest:main` guarantees that via `pnpm rebuild:node`. `pnpm dev` and
+          // packaging flip it to the Electron ABI instead (`pnpm rebuild:electron`); each flip is
+          // a cached restore (~0.3s/~2s), not a recompile. See
+          // docs/references/testing/database-testing.md.
+          //
+          // pool: 'forks' — better-sqlite3 is a NAN/V8 native addon that is not safe under
+          // worker_threads (its finalizers crash at thread teardown — SIGSEGV at process exit).
+          // Forks give each worker a clean V8 isolate. (This mirrors Vitest 3's own default pool,
+          // which is `forks` for native-addon safety; the global config below overrides it back
+          // to the faster `threads` for the non-native projects.)
+          pool: 'forks',
           setupFiles: ['tests/main.setup.ts'],
           include: [
             'src/main/**/*.{test,spec}.{ts,tsx}',
@@ -47,9 +78,27 @@ export default defineConfig({
           }
         }
       },
+      {
+        extends: true,
+        resolve: {
+          alias: [
+            { find: /^@cherrystudio\/ui$/, replacement: resolve('packages/file-preview/src/bundledUi.ts') },
+            { find: '@cherrystudio/ui', replacement: resolve('packages/ui/src') }
+          ]
+        },
+        test: {
+          name: 'file-preview',
+          environment: 'jsdom',
+          setupFiles: ['@vitest/web-worker', 'tests/file-preview.setup.ts'],
+          include: ['packages/file-preview/src/**/*.test.{ts,tsx}']
+        }
+      },
       // 脚本单元测试配置
       {
         extends: true,
+        resolve: {
+          alias: rendererConfig.resolve.alias
+        },
         test: {
           name: 'scripts',
           environment: 'node',
@@ -93,6 +142,24 @@ export default defineConfig({
           }
         }
       },
+      // preload 单元测试配置
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@shared': resolve('src/shared')
+          }
+        },
+        test: {
+          name: 'preload',
+          environment: 'node',
+          // vitest shards per (groupOrder, pool) bucket and rejects buckets smaller
+          // than the shard count; preload's single test file must share main's forks
+          // pool (CI always runs it alongside main) instead of crashing --shard=i/3.
+          pool: 'forks',
+          include: ['src/preload/**/*.{test,spec}.ts', 'src/preload/**/__tests__/**/*.{test,spec}.ts']
+        }
+      },
       // provider-registry 包单元测试配置
       {
         extends: true,
@@ -112,16 +179,12 @@ export default defineConfig({
           ]
         }
       },
-      // vectorstores 包单元测试配置
       {
         extends: true,
         test: {
-          name: 'vectorstores',
+          name: 'system-speech',
           environment: 'node',
-          include: [
-            'packages/vectorstores/**/*.{test,spec}.{ts,tsx}',
-            'packages/vectorstores/**/__tests__/**/*.{test,spec}.{ts,tsx}'
-          ]
+          include: ['packages/system-speech/tests/**/*.test.ts']
         }
       },
       // packages/ui 单元测试配置
@@ -141,7 +204,19 @@ export default defineConfig({
             'packages/ui/src/**/__tests__/**/*.{test,spec}.{ts,tsx}'
           ]
         }
-      }
+      },
+      ...[
+        ['ai-sdk-provider', 'src'],
+        ['remote-protocol', 'tests'],
+        ['remote-transport', 'tests']
+      ].map(([name, directory]) => ({
+        extends: true as const,
+        test: {
+          name,
+          environment: 'node' as const,
+          include: [`packages/${name}/${directory}/**/*.{test,spec}.{ts,tsx}`]
+        }
+      }))
     ],
     // 全局共享配置
     globals: true,
@@ -171,10 +246,8 @@ export default defineConfig({
     },
     testTimeout: 20000,
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: false
-      }
-    }
+    // Vitest 4 uses all available parallelism by default. Cap workers so the
+    // full suite does not starve subprocess, worker-thread, and timing tests.
+    maxWorkers: process.env.CI ? '50%' : 2
   }
 })

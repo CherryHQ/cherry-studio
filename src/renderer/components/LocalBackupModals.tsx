@@ -1,9 +1,10 @@
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { backupToLocal } from '@renderer/services/BackupService'
-import dayjs from 'dayjs'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { createDefaultBackupFileName } from '@renderer/utils/backupFileName'
 
 interface LocalBackupModalProps {
   isModalVisible: boolean
@@ -28,11 +29,12 @@ export function LocalBackupModal({
 
   return (
     <Dialog open={isModalVisible} onOpenChange={(nextOpen) => !nextOpen && handleCancel()}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>{t('settings.data.local.backup.modal.title')}</DialogTitle>
         </DialogHeader>
         <Input
+          autoFocus
           value={customFileName}
           onChange={(e) => setCustomFileName(e.target.value)}
           placeholder={t('settings.data.local.backup.modal.filename.placeholder')}
@@ -61,12 +63,7 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
   }
 
   const showBackupModal = useCallback(async () => {
-    // 获取默认文件名
-    const deviceType = await window.api.system.getDeviceType()
-    const hostname = await window.api.system.getHostname()
-    const timestamp = dayjs().format('YYYYMMDDHHmmss')
-    const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
-    setCustomFileName(defaultFileName)
+    setCustomFileName(await createDefaultBackupFileName())
     setIsModalVisible(true)
   }, [])
 
@@ -78,10 +75,7 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
 
     setBackuping(true)
     try {
-      await backupToLocal({
-        showMessage: true,
-        customFileName: customFileName || undefined
-      })
+      await backupToLocal({ customFileName })
       setIsModalVisible(false)
     } catch (error) {
       logger.error('Backup failed:', error as Error)

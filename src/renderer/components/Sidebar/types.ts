@@ -1,39 +1,30 @@
-import type { CompoundIcon } from '@cherrystudio/ui'
-import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 
-export interface SidebarMiniApp {
-  id: string
-  color?: string
-  url?: string
-  logo?: string | CompoundIcon
+import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+
+export interface SidebarIconPresentation {
+  slotSize: number
+  glyphSize: number
 }
 
-export interface SidebarMiniAppTab {
-  id: string
-  title: string
-  type: 'miniapp'
-  miniApp: SidebarMiniApp
-}
-
-export interface SidebarMenuItem {
-  id: string
+/**
+ * A fully-resolved, type-agnostic sidebar row. The app shell produces these through
+ * the shortcut registry; the presentation layer has no resource-domain dependencies.
+ */
+export interface ResolvedSidebarEntry {
+  /** Stable identity used as both React key and reorder key. */
+  key: string
   label: string
-  icon: LucideIcon
-  miniAppTabs?: SidebarMiniAppTab[]
+  renderIcon: (presentation: SidebarIconPresentation) => ReactNode
+  isActive: boolean
+  statusLabel?: string
+  onOpen: () => void
+  disabled?: boolean
+  onOpenNewTab?: () => void
+  contextMenuItems?: readonly CommandContextMenuExtraItem[]
 }
 
-export interface SidebarRouteTab {
-  id: string
-  title: string
-  type: 'route'
-  icon: LucideIcon
-  sourceMenuItemId?: string
-  dockTarget?: 'sidebar'
-}
-
-export type SidebarTab = SidebarRouteTab | SidebarMiniAppTab
-
-export type SidebarLayout = 'hidden' | 'icon' | 'vertical-card' | 'full'
+export type SidebarLayout = 'hidden' | 'icon' | 'full'
 
 export type SidebarVisibleLayout = Exclude<SidebarLayout, 'hidden'>
 

@@ -5,11 +5,10 @@ import type { JobManager } from '@main/core/job/JobManager'
  * queue, i.e. no dispatch transaction is currently in flight.
  *
  * Background: JobManager fires `void this.dispatch(queue)` from finalizeJob —
- * after `await handle.finished` resolves the caller, that follow-up tx is
- * still in flight against libsql. If the next operation (or the next test's
- * truncate) hits db.transaction before it completes, libsql client-ts raises
- * SQLITE_BUSY (upstream issue #288: busy_timeout not effective for async
- * transactions).
+ * after `await handle.finished` resolves the caller, that follow-up dispatch is
+ * still in flight (awaiting its queue mutex / pending microtasks). If the next
+ * operation (or the next test's truncate) runs before it settles, the trailing
+ * write can land out of order and pollute the following test.
  *
  * Polling the queue mutex is more reliable than a fixed sleep — once the
  * mutex is free, the trailing tx has truly committed and a follow-up write

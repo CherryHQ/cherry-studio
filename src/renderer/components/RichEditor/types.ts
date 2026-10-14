@@ -1,5 +1,5 @@
 export interface RichEditorProps {
-  /** Initial content for the editor (can be markdown or HTML) */
+  /** Initial markdown content for the editor */
   initialContent?: string
   /** Placeholder text when editor is empty */
   placeholder?: string
@@ -17,8 +17,12 @@ export interface RichEditorProps {
   onPaste?: (event: ClipboardEvent) => string
   /** Whether the editor is editable */
   editable?: boolean
+  /** Whether to focus the end of the document when the editor mounts or becomes editable */
+  autoFocus?: boolean
   /** Whether to show the table of contents component */
   showTableOfContents?: boolean
+  /** Whether to render single line breaks as new lines instead of collapsing them */
+  lineBreaks?: boolean
   /** Custom CSS class name */
   className?: string
   /** Custom styles for the outer editor wrapper */
@@ -31,8 +35,6 @@ export interface RichEditorProps {
   maxHeight?: number
   /** Available toolbar tools */
   toolbarItems?: ToolbarItem[]
-  /** Whether initial content is markdown (default: auto-detect) */
-  isMarkdown?: boolean
   /** Initial commands to register on mount */
   initialCommands?: Command[]
   /** Command configuration callback called after editor initialization */
@@ -54,6 +56,12 @@ export interface RichEditorProps {
   fontSize?: number
   /** Whether to enable spell check */
   enableSpellCheck?: boolean
+  /** Accessible name for the editing surface, for editors with no visible label */
+  ariaLabel?: string
+  /** Whether users can insert images */
+  enableImageInsertion?: boolean
+  /** Toolbar and slash-menu commands hidden for this editor instance */
+  disabledCommands?: readonly string[]
 }
 
 export interface ToolbarItem {
@@ -89,14 +97,12 @@ export interface ToolbarDropdownOption {
 export interface RichEditorRef {
   /** Get current editor content as plain text */
   getContent: () => string
-  /** Get current editor content as HTML */
-  getHtml: () => string
   /** Get current editor content as Markdown */
   getMarkdown: () => string
-  /** Set editor content (plain text) */
-  setContent: (content: string) => void
-  /** Set editor HTML content */
-  setHtml: (html: string) => void
+  /** Get the current document selection and its plain text */
+  getSelection: () => { from: number; to: number; text: string } | null
+  /** Replace a document range with literal text; return false when editing is unavailable or the range is invalid. */
+  replaceRange: (range: { from: number; to: number }, text: string) => boolean
   /** Set editor Markdown content */
   setMarkdown: (markdown: string) => void
   /** Focus the editor */
@@ -107,8 +113,6 @@ export interface RichEditorRef {
   insertText: (text: string) => void
   /** Execute a formatting command */
   executeCommand: (command: string, value?: any) => void
-  /** Get preview text from current content */
-  getPreviewText: (maxLength?: number) => string
   /** Get scrollTop of the editor scroll container */
   getScrollTop: () => number
   /** Set scrollTop of the editor scroll container */
@@ -239,6 +243,10 @@ export interface ToolbarProps {
   onCommand: (command: FormattingCommand) => void
   /** Scroll container reference to prevent scrolling when dialogs open */
   scrollContainer?: React.RefObject<HTMLDivElement | null>
+  /** Whether image insertion controls are enabled */
+  enableImageInsertion?: boolean
+  /** Toolbar commands hidden for this editor instance */
+  disabledCommands?: readonly string[]
 }
 
 // Command System Types for Slash Commands

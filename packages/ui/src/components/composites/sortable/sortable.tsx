@@ -1,6 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import type {
   Active,
+  CollisionDetection,
   DragEndEvent,
   DragStartEvent,
   DropAnimation,
@@ -33,6 +33,8 @@ import {
 import React, { useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { cn } from '@cherrystudio/ui/lib/utils'
+
 import { ItemRenderer } from './item-renderer'
 import { SortableItem } from './sortable-item'
 import type { RenderItemType } from './types'
@@ -61,6 +63,13 @@ interface SortableProps<T> {
    * If you want to hide ghost item, set showGhost to false rather than useDragOverlay.
    */
   useDragOverlay?: boolean
+  /** Whether the drag overlay scales to match the dragged element's measured size.
+   * Disable when the overlay renders a different (e.g. compact) representation than
+   * the in-list item, so dnd-kit doesn't stretch/squish it to the source rect.
+   */
+  adjustScale?: boolean
+  /** Collision detection algorithm passed to dnd-kit */
+  collisionDetection?: CollisionDetection
   /** Whether to show ghost item, only works when useDragOverlay is true */
   showGhost?: boolean
   /** Item list class name */
@@ -82,6 +91,17 @@ interface SortableProps<T> {
   }
   /** Additional modifiers */
   modifiers?: Modifier[]
+  /**
+   * Route the drag activator to a dedicated handle instead of the whole row.
+   * `renderItem` then receives `dragHandleProps` to spread onto the handle element,
+   * keeping the row itself non-interactive (better for nested controls / a11y).
+   */
+  dragHandle?: boolean
+  /**
+   * Forwarded to dnd-kit's `DndContext` — pass localized `announcements` and
+   * `screenReaderInstructions` so drag feedback isn't the default English + item id.
+   */
+  accessibility?: React.ComponentProps<typeof DndContext>['accessibility']
 }
 
 function Sortable<T>({
@@ -95,6 +115,8 @@ function Sortable<T>({
   layout = 'list',
   horizontal = false,
   useDragOverlay = true,
+  adjustScale = true,
+  collisionDetection,
   showGhost = false,
   className,
   disabled = false,
@@ -102,7 +124,9 @@ function Sortable<T>({
   itemStyle,
   gap,
   restrictions,
-  modifiers: customModifiers
+  modifiers: customModifiers,
+  dragHandle = false,
+  accessibility
 }: SortableProps<T>) {
   const sensors = useSensors(
     useSensor(PortalSafePointerSensor, {
@@ -192,7 +216,9 @@ function Sortable<T>({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
-      modifiers={modifiers}>
+      collisionDetection={collisionDetection}
+      modifiers={modifiers}
+      accessibility={accessibility}>
       <SortableContext items={itemIds} strategy={strategy}>
         <div
           className={cn(
@@ -215,6 +241,7 @@ function Sortable<T>({
               useDragOverlay={useDragOverlay}
               showGhost={showGhost}
               itemStyle={itemStyle}
+              dragHandle={dragHandle}
             />
           ))}
         </div>
@@ -222,7 +249,7 @@ function Sortable<T>({
 
       {useDragOverlay &&
         createPortal(
-          <DragOverlay adjustScale dropAnimation={dropAnimation}>
+          <DragOverlay adjustScale={adjustScale} dropAnimation={dropAnimation}>
             {activeItem && <ItemRenderer item={activeItem} renderItem={renderItem} itemStyle={itemStyle} dragOverlay />}
           </DragOverlay>,
           document.body

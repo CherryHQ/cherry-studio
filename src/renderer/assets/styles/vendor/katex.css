@@ -1,0 +1,4 @@
+/* Layered wrapper — import this instead of the bare vendor stylesheet so its
+   rules land in the `app` cascade layer (see index.css layer order) and user
+   custom CSS can override them without !important. */
+@import 'katex/dist/katex.min.css' layer(app);

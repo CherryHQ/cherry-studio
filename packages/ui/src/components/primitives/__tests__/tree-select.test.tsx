@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +32,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
   Element.prototype.scrollIntoView = vi.fn()
 })
 
@@ -43,6 +42,14 @@ afterEach(() => {
 })
 
 describe('TreeSelect', () => {
+  it('keeps the resting border when opened and reserves the theme border for keyboard focus', () => {
+    render(<TreeSelect treeData={treeData} />)
+
+    const trigger = screen.getByRole('combobox')
+    expect(trigger).toHaveClass('focus-visible:border-primary')
+    expect(trigger).not.toHaveClass('aria-expanded:border-primary')
+  })
+
   it('renders the selected value in the trigger', () => {
     render(<TreeSelect treeData={treeData} value="docs/guide.md" />)
 

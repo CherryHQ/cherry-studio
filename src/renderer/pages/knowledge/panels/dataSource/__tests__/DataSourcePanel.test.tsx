@@ -1,14 +1,61 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import DataSourcePanel from '../DataSourcePanel'
+import { toast } from '@renderer/services/toast'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
+
+import DataSourcePanelComponent, { type DataSourcePanelProps } from '../DataSourcePanel'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
+const { mockOpenSettingsTab, mockUseLocalModel } = vi.hoisted(() => ({
+  mockOpenSettingsTab: vi.fn(),
+  mockUseLocalModel: vi.fn()
+}))
 const mockUseQuery = vi.fn()
+const defaultOnPreviewFile = vi.fn()
+
+type TestDataSourcePanelProps = Omit<DataSourcePanelProps, 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'> &
+  Partial<Pick<DataSourcePanelProps, 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'>>
+
+const DataSourcePanel = ({
+  onDeleteItems = vi.fn(),
+  onPreviewFile = defaultOnPreviewFile,
+  onReindexItems = vi.fn(),
+  ...props
+}: TestDataSourcePanelProps) => (
+  <DataSourcePanelComponent
+    {...props}
+    onDeleteItems={onDeleteItems}
+    onPreviewFile={onPreviewFile}
+    onReindexItems={onReindexItems}
+  />
+)
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
+}))
+
+vi.mock('@renderer/hooks/useLocalModel', () => ({
+  useLocalModel: () => mockUseLocalModel()
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mockOpenSettingsTab
+}))
+
+// The real DynamicVirtualList renders nothing under jsdom (no layout to measure),
+// so stub it with a plain pass-through that renders every row.
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: <T,>({ list, children }: { list: T[]; children: (item: T) => ReactNode }) => (
+    <div data-testid="virtual-list">
+      {list.map((item, index) => (
+        <div key={index}>{children(item)}</div>
+      ))}
+    </div>
+  )
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -109,13 +156,120 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/pages/knowledge/utils', () => ({
+// Each row's actions live behind a whole-row right-click menu (CommandContextMenu). Stub it as a
+// wrapper that opens on contextMenu and renders the `extraItems` as plain buttons so tests can
+// right-click a row and click an action.
+type StubExtraItem = {
+  type: 'item' | 'submenu' | 'separator'
+  id?: string
+  label?: string
+  destructive?: boolean
+  onSelect?: () => void
+}
+
+vi.mock('@renderer/components/command', async () => {
+  const React = await import('react')
+
+  return {
+    CommandContextMenu: ({
+      children,
+      extraItems = [],
+      onOpenChange
+    }: {
+      children: ReactNode
+      extraItems?: StubExtraItem[]
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      const [open, setOpen] = React.useState(false)
+
+      return (
+        <>
+          <div
+            onContextMenu={(event) => {
+              event.preventDefault()
+              setOpen(true)
+              onOpenChange?.(true)
+            }}>
+            {children}
+          </div>
+          {open ? (
+            <div role="menu">
+              {extraItems
+                .filter((item) => item.type === 'item')
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      item.onSelect?.()
+                      setOpen(false)
+                      onOpenChange?.(false)
+                    }}>
+                    {item.label}
+                  </button>
+                ))}
+            </div>
+          ) : null}
+        </>
+      )
+    },
+    // The row's hover "more" button opens the same item model on click. Stub it as a toggle on
+    // the trigger (mirroring the real asChild) so tests can open the menu and click an action.
+    CommandPopupMenu: ({ children, extraItems = [] }: { children: ReactNode; extraItems?: StubExtraItem[] }) => {
+      const [open, setOpen] = React.useState(false)
+      const trigger = React.isValidElement(children)
+        ? // eslint-disable-next-line @eslint-react/no-clone-element -- Mirrors CommandPopupMenu's asChild trigger path.
+          React.cloneElement(children as React.ReactElement<{ onClick?: (event: unknown) => void }>, {
+            onClick: (event: unknown) => {
+              ;(children.props as { onClick?: (event: unknown) => void }).onClick?.(event)
+              setOpen((value) => !value)
+            }
+          })
+        : children
+
+      return (
+        <>
+          {trigger}
+          {open ? (
+            <div role="menu">
+              {extraItems
+                .filter((item) => item.type === 'item')
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      item.onSelect?.()
+                      setOpen(false)
+                    }}>
+                    {item.label}
+                  </button>
+                ))}
+            </div>
+          ) : null}
+        </>
+      )
+    }
+  }
+})
+
+vi.mock('@renderer/utils/time', () => ({
   formatRelativeTime: () => '刚刚'
 }))
 
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessageWithPrefix: (error: unknown, prefix: string) =>
     `${prefix}: ${error instanceof Error ? error.message : String(error)}`
+}))
+
+// Isolate the panel's activate dispatch from the real system-open hook (which touches window.api).
+const previewSourceMock = vi.hoisted(() => vi.fn())
+const invalidatePreviewRequestsMock = vi.hoisted(() => vi.fn())
+vi.mock('../../../hooks/usePreviewKnowledgeSource', () => ({
+  usePreviewKnowledgeSource: () => ({
+    invalidatePreviewRequests: invalidatePreviewRequestsMock,
+    previewSource: previewSourceMock
+  })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -128,16 +282,20 @@ vi.mock('react-i18next', () => ({
       language: 'zh-CN'
     },
     t: (key: string, options?: Record<string, unknown>) => {
-      if (key === 'knowledge.data_source.ready_summary') {
-        return `已就绪 ${options?.ready}/${options?.total}`
-      }
-
       if (key === 'knowledge.data_source.bulk.selected_count') {
         return `已选 ${options?.count} 项`
       }
 
+      if (key === 'knowledge.data_source.bulk.loaded_only_hint') {
+        return `仅已加载，共 ${options?.total} 项`
+      }
+
       if (key === 'knowledge.data_source.bulk.delete_confirm_description') {
         return `确认删除选中的 ${options?.count} 个数据源`
+      }
+
+      if (key === 'knowledge.meta.updated_at') {
+        return `更新于 ${options?.time ?? ''}`
       }
 
       return (
@@ -145,15 +303,14 @@ vi.mock('react-i18next', () => ({
           {
             'knowledge.data_source.add_dialog.title': '添加数据源',
             'knowledge.data_source.toolbar.add': '添加数据源',
-            'knowledge.data_source.toolbar.search_placeholder': '搜索数据源',
-            'knowledge.data_source.toolbar.no_search_results': '未找到匹配的数据源',
             'knowledge.data_source.empty.title': '上传第一个数据源',
             'knowledge.data_source.empty.shortcuts.file.title': '文件',
             'knowledge.data_source.empty.shortcuts.url.title': '链接',
             'knowledge.data_source.empty.shortcuts.directory.title': '目录导入',
-            'knowledge.data_source.bulk.cancel': '取消',
             'knowledge.data_source.bulk.delete': '删除',
             'knowledge.data_source.bulk.reindex': '重新索引',
+            'knowledge.data_source.bulk.reindex_skipped': `已跳过 ${options?.count} 个处理中的数据源`,
+            'knowledge.data_source.bulk.reindex_none_eligible': '选中的数据源都在处理中，暂时无法重新索引',
             'knowledge.data_source.bulk.delete_confirm_title': '确认批量删除',
             'knowledge.data_source.table.columns.name': '名称',
             'knowledge.data_source.table.columns.type': '类型',
@@ -162,6 +319,11 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.table.columns.actions': '操作',
             'knowledge.data_source.table.select_all': '全选',
             'knowledge.data_source.table.select_row': '选择行',
+            'knowledge.data_source.table.aria_label': '数据源列表',
+            'knowledge.data_source.back_to_parent': '返回上级',
+            'knowledge.data_source.empty_folder': '该文件夹为空',
+            'knowledge.data_source.list.loading_more': '加载更多…',
+            'knowledge.data_source.list.end_reached': '没有更多了',
             'common.add': '添加数据源',
             'common.clear': '清除',
             'common.loading': '加载中...',
@@ -169,6 +331,8 @@ vi.mock('react-i18next', () => ({
             'common.delete': '删除',
             'common.more': '更多',
             'common.no_results': '暂无结果',
+            'common.go_to_settings': '前往设置',
+            'files.drag_upload': '拖拽文件到此处上传',
             'knowledge.data_source.actions.preview_source': '预览原文',
             'knowledge.data_source.actions.view_chunks': '查看 Chunks',
             'knowledge.data_source.actions.reindex': '重新索引',
@@ -191,9 +355,14 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.status.embedding': '向量化中',
             'knowledge.data_source.status.chunking': '分块中',
             'knowledge.data_source.status.pending': '等待中',
+            'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
+            'knowledge.rag.download_local_embedding_failed': '本地嵌入模型下载失败',
+            'knowledge.rag.download_local_model': '下载本地模型',
             'knowledge.file_hint': `支持 ${options?.file_types} 格式`,
             'knowledge.status.processing': '处理中',
-            'knowledge.rag.file_processing': '文件处理'
+            'settings.dependencies.localModels.embedding.name': '本地嵌入模型',
+            'settings.dependencies.localModels.status.downloading': '下载中…',
+            'settings.dependencies.localModels.unsupported': '当前平台不支持本地模型。'
           } as Record<string, string>
         )[key] ?? key
       )
@@ -204,26 +373,139 @@ vi.mock('react-i18next', () => ({
 describe('DataSourcePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseLocalModel.mockReturnValue({ status: 'ready', percent: 100 })
     mockUseQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
       error: undefined
     })
-    Object.assign(window, {
-      toast: {
-        error: vi.fn()
-      }
-    })
+  })
+
+  it('shows local model download progress and hides every add-source entry until ready', () => {
+    mockUseLocalModel.mockReturnValue({ status: 'downloading', percent: 42 })
+    const props = {
+      embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+      updatedAt: '2026-04-15T09:00:00+08:00',
+      items: [],
+      isLoading: false,
+      onAdd: vi.fn(),
+      onDelete: vi.fn(),
+      onReindex: vi.fn()
+    }
+    const { rerender } = render(<DataSourcePanel {...props} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('42%')
+    expect(screen.getByText('本地嵌入模型')).toBeInTheDocument()
+    expect(screen.getByText('下载中…')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '文件' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '笔记' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '目录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '链接' })).not.toBeInTheDocument()
+
+    mockUseLocalModel.mockReturnValue({ status: 'ready', percent: 100 })
+    rerender(<DataSourcePanel {...props} />)
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加数据源' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
+  })
+
+  it.each([
+    { status: 'not_downloaded' as const, label: '下载本地模型' },
+    { status: 'error' as const, label: '本地嵌入模型下载失败' }
+  ])('links the $status state to local model settings', async ({ status, label }) => {
+    const user = userEvent.setup()
+    mockUseLocalModel.mockReturnValue({ status, percent: 0 })
+
+    render(
+      <DataSourcePanel
+        embeddingModelId={LOCAL_EMBEDDING_UNIQUE_MODEL_ID}
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent(label)
+    expect(screen.queryByText('0%')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '前往设置' }))
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/local-models')
+  })
+
+  it('shows unsupported local models without an invalid settings action', () => {
+    mockUseLocalModel.mockReturnValue({ status: 'unsupported', percent: 0 })
+
+    render(
+      <DataSourcePanel
+        embeddingModelId={LOCAL_EMBEDDING_UNIQUE_MODEL_ID}
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('当前平台不支持本地模型。')
+    expect(screen.queryByRole('button', { name: '前往设置' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+  })
+
+  it('keeps existing sources visible while the header provides recovery and hides Add', async () => {
+    const user = userEvent.setup()
+    mockUseLocalModel.mockReturnValue({ status: 'error', percent: 0 })
+
+    render(
+      <DataSourcePanel
+        embeddingModelId={LOCAL_EMBEDDING_UNIQUE_MODEL_ID}
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('本地嵌入模型下载失败')
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '前往设置' }))
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/local-models')
   })
 
   it('renders loading and empty states through the list composition without changing panel behavior', () => {
     const { rerender } = render(
-      <DataSourcePanel items={[]} isLoading onAdd={vi.fn()} onDelete={vi.fn()} onReindex={vi.fn()} />
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
     )
 
     expect(screen.getByText('加载中...')).toBeInTheDocument()
 
-    rerender(<DataSourcePanel items={[]} isLoading={false} onAdd={vi.fn()} onDelete={vi.fn()} onReindex={vi.fn()} />)
+    rerender(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
 
     expect(screen.getByText('上传第一个数据源')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
@@ -237,7 +519,14 @@ describe('DataSourcePanel', () => {
     const onAdd = vi.fn()
 
     const { rerender } = render(
-      <DataSourcePanel items={[]} isLoading={false} onAdd={onAdd} onDelete={vi.fn()} onReindex={vi.fn()} />
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={onAdd}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
     )
 
     expect(screen.getByText('暂无数据源')).toBeInTheDocument()
@@ -248,23 +537,62 @@ describe('DataSourcePanel', () => {
     expect(screen.getByRole('button', { name: '链接' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '网站' })).not.toBeInTheDocument()
 
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
-    const filePickerClick = vi.spyOn(fileInput, 'click')
+    expect(document.querySelector('input[type="file"]')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '文件' }))
 
-    expect(onAdd).not.toHaveBeenCalled()
-    expect(filePickerClick).toHaveBeenCalledTimes(1)
+    expect(onAdd).toHaveBeenCalledWith('file')
 
-    rerender(<DataSourcePanel items={[]} isLoading={false} onAdd={onAdd} onDelete={vi.fn()} onReindex={vi.fn()} />)
+    rerender(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={onAdd}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: '链接' }))
 
     expect(onAdd).toHaveBeenCalledWith('url')
   })
 
+  it('sends dropped files through the existing file add flow while preserving the picker entry', () => {
+    const onAdd = vi.fn()
+    const files = [
+      new File(['report'], 'report.pdf', { type: 'application/pdf' }),
+      new File(['unsupported'], 'unsupported.exe', { type: 'application/octet-stream' })
+    ]
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={onAdd}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    const dropTarget = screen.getByText('上传第一个数据源')
+    expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
+
+    fireEvent.dragEnter(dropTarget, { dataTransfer: { files } })
+    expect(screen.getByText('拖拽文件到此处上传')).toBeInTheDocument()
+
+    fireEvent.drop(dropTarget, { dataTransfer: { files } })
+
+    expect(onAdd).toHaveBeenCalledWith('file', files)
+    expect(screen.queryByText('拖拽文件到此处上传')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
+  })
+
   it('uses the first non-empty note line as the title and leaves blank notes without the old fallback label', () => {
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createNoteItem({ id: 'note-1', content: '\n \n  第一行标题  \n第二行内容' }),
           createNoteItem({ id: 'note-2', content: '\n   \n' })
@@ -278,12 +606,12 @@ describe('DataSourcePanel', () => {
 
     expect(screen.getByText('第一行标题')).toBeInTheDocument()
     expect(screen.getAllByText('笔记')).toHaveLength(2)
-    expect(screen.getByText('已就绪 2/2')).toBeInTheDocument()
   })
 
-  it('renders url and directory items from their required source fields and keeps the ready count correct', () => {
+  it('renders url and directory items from their required source fields', () => {
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' }),
           createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })
@@ -299,12 +627,13 @@ describe('DataSourcePanel', () => {
     const directoryTitle = screen.getByText('本地资料夹')
     expect(directoryTitle).toBeInTheDocument()
     expect(directoryTitle).toHaveAttribute('title', '/Users/eeee/本地资料夹')
-    expect(screen.getByText('已就绪 2/2')).toBeInTheDocument()
+    expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
   })
 
   it('renders processing directory rows as processing when no phase is available', () => {
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹', status: 'processing' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -320,11 +649,38 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByText('等待中')).not.toBeInTheDocument()
   })
 
+  it('renders a migrated v1 directory as a red failure with a migration-failed tooltip', () => {
+    // The v2 migration drops a v1 folder's container-level vectors and marks the
+    // item `failed` with this code; the row must render it with the localized
+    // migration-failed tooltip so the user knows to delete and re-upload.
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createDirectoryItem({
+            id: 'directory-1',
+            source: '/Users/eeee/本地资料夹',
+            status: 'failed',
+            error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+          })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('失败')).toBeInTheDocument()
+    expect(screen.getByLabelText('该文件夹内容迁移失败，请删除后重新上传。')).toBeInTheDocument()
+  })
+
   it('does not open the add source dialog from the header button before a source is selected', () => {
     const onAdd = vi.fn()
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={onAdd}
@@ -339,11 +695,12 @@ describe('DataSourcePanel', () => {
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
   })
 
-  it('opens the file picker after selecting the file source from the header menu', () => {
+  it('opens the add dialog when selecting the file source from the header menu', () => {
     const onAdd = vi.fn()
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={onAdd}
@@ -352,14 +709,12 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
-    const filePickerClick = vi.spyOn(fileInput, 'click')
+    expect(document.querySelector('input[type="file"]')).toBeNull()
 
     fireEvent.mouseEnter(screen.getByRole('button', { name: '添加数据源' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '文件' }))
 
-    expect(onAdd).not.toHaveBeenCalled()
-    expect(filePickerClick).toHaveBeenCalledTimes(1)
+    expect(onAdd).toHaveBeenCalledWith('file')
   })
 
   it('shows source choices on header add hover and forwards the selected source', () => {
@@ -367,6 +722,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={onAdd}
@@ -381,39 +737,20 @@ describe('DataSourcePanel', () => {
     expect(onAdd).toHaveBeenCalledWith('directory')
   })
 
-  it('filters rows with the search query controlled by the detail header', () => {
-    render(
-      <DataSourcePanel
-        items={[
-          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
-          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
-        ]}
-        isLoading={false}
-        searchQuery="季度"
-        onAdd={vi.fn()}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
-    expect(screen.queryByText('会议记录.pdf')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '搜索数据源' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
-  })
-
-  it('prunes selected item ids when search hides selected rows', async () => {
-    const onDelete = vi.fn().mockResolvedValue(undefined)
+  it('prunes selected item ids when items are removed', async () => {
+    const onDeleteItems = vi.fn().mockResolvedValue(undefined)
 
     const { rerender } = render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
         ]}
         isLoading={false}
         onAdd={vi.fn()}
-        onDelete={onDelete}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
         onReindex={vi.fn()}
       />
     )
@@ -423,14 +760,12 @@ describe('DataSourcePanel', () => {
 
     rerender(
       <DataSourcePanel
-        items={[
-          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
-          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
-        ]}
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
-        searchQuery="季度"
         onAdd={vi.fn()}
-        onDelete={onDelete}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
         onReindex={vi.fn()}
       />
     )
@@ -444,18 +779,18 @@ describe('DataSourcePanel', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
-      expect(onDelete).toHaveBeenCalledTimes(1)
+      expect(onDeleteItems).toHaveBeenCalledTimes(1)
     })
-    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
-    expect(onDelete).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'file-2' }))
+    expect(onDeleteItems).toHaveBeenCalledWith(['file-1'])
   })
 
-  it('forwards row clicks to the item chunk detail handler', () => {
+  it('dispatches a file row click to source preview instead of viewing chunks', () => {
     const onItemClick = vi.fn()
     const item = createFileItem({ id: 'file-1', originName: '季度报告.pdf' })
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[item]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -467,15 +802,17 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(screen.getByText('季度报告.pdf'))
 
-    expect(onItemClick).toHaveBeenCalledWith('file-1')
+    expect(previewSourceMock).toHaveBeenCalledWith(item)
+    expect(onItemClick).not.toHaveBeenCalled()
   })
 
-  it('forwards view chunks menu actions to the item chunk detail handler', () => {
+  it('dispatches a URL row click to source preview', () => {
     const onItemClick = vi.fn()
-    const item = createFileItem({ id: 'file-1', originName: '季度报告.pdf' })
+    const item = createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[item]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -485,7 +822,149 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByText('https://example.com/product-docs'))
+
+    expect(previewSourceMock).toHaveBeenCalledWith(item)
+    expect(onItemClick).not.toHaveBeenCalled()
+  })
+
+  it('views the original note content in-app on a note row click, not its chunks', () => {
+    const onItemClick = vi.fn()
+    const onViewNoteContent = vi.fn()
+    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[item]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onItemClick={onItemClick}
+        onViewNoteContent={onViewNoteContent}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByText('会议纪要'))
+
+    expect(onViewNoteContent).toHaveBeenCalledWith('note-1')
+    expect(onItemClick).not.toHaveBeenCalled()
+    expect(previewSourceMock).not.toHaveBeenCalled()
+  })
+
+  it('drills into a directory on a directory row click', () => {
+    const onItemClick = vi.fn()
+    const onDrillIntoDirectory = vi.fn()
+    const item = createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[item]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onItemClick={onItemClick}
+        onDrillIntoDirectory={onDrillIntoDirectory}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByText('本地资料夹'))
+
+    expect(invalidatePreviewRequestsMock).toHaveBeenCalledOnce()
+    expect(invalidatePreviewRequestsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      onDrillIntoDirectory.mock.invocationCallOrder[0]
+    )
+    expect(onDrillIntoDirectory).toHaveBeenCalledWith(item)
+    expect(onItemClick).not.toHaveBeenCalled()
+    expect(previewSourceMock).not.toHaveBeenCalled()
+  })
+
+  it('shows a back-to-parent control inside a directory and navigates up on click', () => {
+    const onNavigateUp = vi.fn()
+    const directory = createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        currentDirectory={directory}
+        onNavigateUp={onNavigateUp}
+      />
+    )
+
+    const backButton = screen.getByRole('button', { name: '返回上级' })
+    expect(backButton).toBeInTheDocument()
+    // The current folder's name is shown alongside the control.
+    expect(screen.getByText('本地资料夹')).toBeInTheDocument()
+
+    fireEvent.click(backButton)
+
+    expect(invalidatePreviewRequestsMock).toHaveBeenCalledOnce()
+    expect(invalidatePreviewRequestsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      onNavigateUp.mock.invocationCallOrder[0]
+    )
+    expect(onNavigateUp).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the header add-source entry inside a directory so adding cannot silently target the root', () => {
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        currentDirectory={createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })}
+        onNavigateUp={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+  })
+
+  it('shows an empty-folder message instead of add shortcuts inside an empty directory', () => {
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        currentDirectory={createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })}
+        onNavigateUp={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('该文件夹为空')).toBeInTheDocument()
+    expect(screen.queryByText('上传第一个数据源')).not.toBeInTheDocument()
+  })
+
+  it('forwards view chunks menu actions to the item chunk detail handler', () => {
+    const onItemClick = vi.fn()
+    const item = createFileItem({ id: 'file-1', originName: '季度报告.pdf' })
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[item]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onItemClick={onItemClick}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.contextMenu(screen.getByText('季度报告.pdf'))
     fireEvent.click(screen.getByRole('button', { name: '查看 Chunks' }))
 
     expect(onItemClick).toHaveBeenCalledWith('file-1')
@@ -496,6 +975,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -504,7 +984,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByText('季度报告.pdf'))
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('确认删除数据源')
@@ -522,6 +1002,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -530,12 +1011,12 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByText('季度报告.pdf'))
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
@@ -545,6 +1026,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -553,7 +1035,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByText('季度报告.pdf'))
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     await waitFor(() => {
@@ -562,10 +1044,11 @@ describe('DataSourcePanel', () => {
   })
 
   it('shows bulk reindex failure toast and keeps the current selection when reindex rejects', async () => {
-    const onReindex = vi.fn().mockRejectedValue(new Error('reindex failed'))
+    const onReindexItems = vi.fn().mockRejectedValue(new Error('reindex failed'))
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -573,7 +1056,8 @@ describe('DataSourcePanel', () => {
         isLoading={false}
         onAdd={vi.fn()}
         onDelete={vi.fn()}
-        onReindex={onReindex}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
       />
     )
 
@@ -581,16 +1065,19 @@ describe('DataSourcePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('重新索引数据源失败: reindex failed')
+      expect(toast.error).toHaveBeenCalledWith('重新索引数据源失败: reindex failed')
     })
+    expect(onReindexItems).toHaveBeenCalledOnce()
+    expect(onReindexItems).toHaveBeenCalledWith(['file-1'])
     expect(screen.getByText('已选 1 项')).toBeInTheDocument()
   })
 
   it('clears the current selection after bulk reindex succeeds', async () => {
-    const onReindex = vi.fn().mockResolvedValue(undefined)
+    const onReindexItems = vi.fn().mockResolvedValue(undefined)
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -598,7 +1085,8 @@ describe('DataSourcePanel', () => {
         isLoading={false}
         onAdd={vi.fn()}
         onDelete={vi.fn()}
-        onReindex={onReindex}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
       />
     )
 
@@ -606,25 +1094,88 @@ describe('DataSourcePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     await waitFor(() => {
-      expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+      expect(onReindexItems).toHaveBeenCalledOnce()
     })
+    expect(onReindexItems).toHaveBeenCalledWith(['file-1'])
     await waitFor(() => {
       expect(screen.queryByText('已选 1 项')).not.toBeInTheDocument()
     })
   })
 
-  it('confirms bulk delete for selected rows and clears selection after deleting each item', async () => {
-    const onDelete = vi.fn().mockResolvedValue(undefined)
+  // The main process rejects a reindex batch outright when any selected subtree is still
+  // active, so sending in-flight rows would also drop the failed ones the user meant to retry
+  // (issue #18508: concurrent embedding leaves some rows processing, select-all then fails).
+  it('sends only completed/failed rows to bulk reindex and reports the skipped in-flight ones', async () => {
+    const onReindexItems = vi.fn().mockResolvedValue(undefined)
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf', status: 'failed' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf', status: 'processing' }),
+          createFileItem({ id: 'file-3', originName: '年度总结.pdf', status: 'completed' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    await waitFor(() => {
+      expect(onReindexItems).toHaveBeenCalledWith(['file-1', 'file-3'])
+    })
+    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个处理中的数据源')
+  })
+
+  it('skips the reindex request entirely when every selected row is still in flight', async () => {
+    const onReindexItems = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf', status: 'processing' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf', status: 'embedding' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('选中的数据源都在处理中，暂时无法重新索引')
+    })
+    expect(onReindexItems).not.toHaveBeenCalled()
+    // Selection survives so the user can switch to another bulk action (delete allows in-flight rows).
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+  })
+
+  it('confirms bulk delete for selected rows and clears selection after one bulk operation', async () => {
+    const onDeleteItems = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
         ]}
         isLoading={false}
         onAdd={vi.fn()}
-        onDelete={onDelete}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
         onReindex={vi.fn()}
       />
     )
@@ -640,34 +1191,29 @@ describe('DataSourcePanel', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
-      expect(onDelete).toHaveBeenCalledTimes(2)
+      expect(onDeleteItems).toHaveBeenCalledOnce()
     })
-    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
-    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-2' }))
+    expect(onDeleteItems).toHaveBeenCalledWith(['file-1', 'file-2'])
     await waitFor(() => {
       expect(screen.queryByText('已选 2 项')).not.toBeInTheDocument()
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('shows bulk delete failure toast and keeps selection when one selected delete rejects', async () => {
-    const onDelete = vi.fn().mockImplementation((item) => {
-      if (item.id === 'file-2') {
-        return Promise.reject(new Error('delete failed'))
-      }
-
-      return Promise.resolve()
-    })
+  it('shows bulk delete failure toast and keeps selection when bulk delete rejects', async () => {
+    const onDeleteItems = vi.fn().mockRejectedValue(new Error('delete failed'))
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
         ]}
         isLoading={false}
         onAdd={vi.fn()}
-        onDelete={onDelete}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
         onReindex={vi.fn()}
       />
     )
@@ -679,8 +1225,10 @@ describe('DataSourcePanel', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
     })
+    expect(onDeleteItems).toHaveBeenCalledOnce()
+    expect(onDeleteItems).toHaveBeenCalledWith(['file-1', 'file-2'])
     expect(screen.getByText('已选 2 项')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
@@ -688,6 +1236,7 @@ describe('DataSourcePanel', () => {
   it('selects all rows from the header checkbox and clears selection when toggled again from all selected', async () => {
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -709,10 +1258,6 @@ describe('DataSourcePanel', () => {
     expect(selectedRowCheckboxes[0]).toBeChecked()
     expect(selectedRowCheckboxes[1]).toBeChecked()
 
-    fireEvent.click(screen.getByRole('button', { name: '取消' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
-    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
-
     fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
 
     await waitFor(() => {
@@ -720,9 +1265,34 @@ describe('DataSourcePanel', () => {
     })
   })
 
+  it('warns that select-all only covers loaded rows when more pages remain on the server', () => {
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        total={10}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+
+    // Selection is accurate (2 loaded), but the bulk bar makes clear it won't touch the
+    // other 8 rows that haven't been paged in yet.
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+    expect(screen.getByText('仅已加载，共 10 项')).toBeInTheDocument()
+  })
+
   it('shows the header select-all checkbox as partially selected after deselecting one selected row', () => {
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -744,6 +1314,7 @@ describe('DataSourcePanel', () => {
   it('prunes selected item ids when the backing item list changes', async () => {
     const { rerender } = render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -760,6 +1331,7 @@ describe('DataSourcePanel', () => {
 
     rerender(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-2', originName: '会议记录.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -771,7 +1343,6 @@ describe('DataSourcePanel', () => {
     await waitFor(() => {
       expect(screen.queryByText('已选 1 项')).not.toBeInTheDocument()
     })
-    expect(screen.getByText('已就绪 1/1')).toBeInTheDocument()
   })
 
   it('does not forward menu actions as row clicks', async () => {
@@ -780,6 +1351,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -789,7 +1361,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByText('季度报告.pdf'))
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     await waitFor(() => {

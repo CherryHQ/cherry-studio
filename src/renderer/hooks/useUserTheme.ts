@@ -1,8 +1,7 @@
-// import { useAppDispatch, useAppSelector } from '@renderer/store'
-// import { setUserTheme, UserTheme } from '@renderer/store/settings'
+import Color from 'color'
 
 import { usePreference } from '@data/hooks/usePreference'
-import Color from 'color'
+import { getForegroundColor } from '@renderer/utils/style'
 
 export default function useUserTheme() {
   const [colorPrimary, setColorPrimary] = usePreference('ui.theme_user.color_primary')
@@ -22,8 +21,9 @@ export default function useUserTheme() {
     const colorPrimary = Color(theme.colorPrimary)
 
     document.documentElement.style.setProperty('--cs-theme-primary', colorPrimary.toString())
-    setOptionalCssVar('--cs-user-font-family', userFontFamily)
-    setOptionalCssVar('--cs-user-code-font-family', userCodeFontFamily)
+    document.documentElement.style.setProperty('--cs-theme-primary-foreground', getForegroundColor(colorPrimary.hex()))
+    setOptionalCssVar('--app-user-font-family', userFontFamily)
+    setOptionalCssVar('--app-user-code-font-family', userCodeFontFamily)
   }
 
   return {

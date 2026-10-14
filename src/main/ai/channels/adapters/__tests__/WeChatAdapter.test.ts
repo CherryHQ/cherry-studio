@@ -1,13 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
   }
-}))
-
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -36,23 +34,17 @@ const mockBot = {
   send: vi.fn().mockResolvedValue(undefined),
   reply: vi.fn().mockResolvedValue(undefined),
   sendTyping: vi.fn().mockResolvedValue(undefined),
-  stopTyping: vi.fn().mockResolvedValue(undefined)
+  stopTyping: vi.fn().mockResolvedValue(undefined),
+  sendFile: vi.fn().mockResolvedValue(undefined)
 }
 
 vi.mock('../wechat/WeChatProtocol', () => ({
-  WeixinBot: vi.fn().mockImplementation(() => mockBot)
+  WeixinBot: vi.fn().mockImplementation(function WeixinBotMock() {
+    return mockBot
+  })
 }))
 
-// Import the module to trigger self-registration side effect
-import '../wechat/WeChatAdapter'
-
-import { registerAdapterFactory } from '../../ChannelManager'
-
-function getFactory() {
-  const call = vi.mocked(registerAdapterFactory).mock.calls.find((c) => c[0] === 'wechat')
-  if (!call) throw new Error('registerAdapterFactory was not called for wechat')
-  return call[1] as (channel: any, agentId: string) => any
-}
+import { createWeChatAdapter } from '../wechat/WeChatAdapter'
 
 describe('WeChatAdapter', () => {
   beforeEach(() => {
@@ -69,26 +61,24 @@ describe('WeChatAdapter', () => {
     mockBot.reply.mockClear().mockResolvedValue(undefined)
     mockBot.sendTyping.mockClear().mockResolvedValue(undefined)
     mockBot.stopTyping.mockClear().mockResolvedValue(undefined)
+    mockBot.sendFile.mockClear().mockResolvedValue(undefined)
+    vi.mocked(application.get('IpcApiService').broadcastToType).mockClear()
   })
 
   afterEach(() => {
     vi.useRealTimers()
   })
 
-  function createAdapter(overrides: Record<string, unknown> = {}) {
-    const factory = getFactory()
-    return factory(
-      {
-        id: (overrides.channelId as string) ?? 'ch-1',
-        type: 'wechat',
-        enabled: true,
-        config: {
-          token_path: (overrides.token_path as string) ?? '',
-          allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? []
-        }
-      },
-      (overrides.agentId as string) ?? 'agent-1'
-    )
+  function createAdapter(overrides: Record<string, unknown> = {}): any {
+    return createWeChatAdapter({
+      channelId: (overrides.channelId as string) ?? 'ch-1',
+      channelType: 'wechat',
+      agentId: (overrides.agentId as string) ?? 'agent-1',
+      channelConfig: {
+        token_path: (overrides.token_path as string) ?? '',
+        allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? []
+      }
+    })
   }
 
   it('connect() logs in, registers message handler, and starts polling', async () => {
@@ -98,6 +88,44 @@ describe('WeChatAdapter', () => {
     expect(mockBot.login).toHaveBeenCalledTimes(1)
     expect(mockBot.onMessage).toHaveBeenCalledTimes(1)
     expect(mockBot.run).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports QR login errors to the renderer', async () => {
+    mockBot.login.mockRejectedValue(new Error('Login unavailable'))
+    const adapter = createAdapter()
+
+    await expect(adapter.connect()).rejects.toThrow('Login unavailable')
+
+    expect(application.get('IpcApiService').broadcastToType).toHaveBeenCalledWith(
+      expect.anything(),
+      'channel.wechat.qr_login',
+      {
+        channelId: 'ch-1',
+        url: '',
+        status: 'error',
+        userId: undefined
+      }
+    )
+  })
+
+  it('reports exhausted QR codes as expired to the renderer', async () => {
+    mockBot.login.mockRejectedValue(
+      new Error('QR login failed after 3 expired QR codes. Use config tool to reconnect.')
+    )
+    const adapter = createAdapter()
+
+    await expect(adapter.connect()).rejects.toThrow('expired QR codes')
+
+    expect(application.get('IpcApiService').broadcastToType).toHaveBeenCalledWith(
+      expect.anything(),
+      'channel.wechat.qr_login',
+      {
+        channelId: 'ch-1',
+        url: '',
+        status: 'expired',
+        userId: undefined
+      }
+    )
   })
 
   it('disconnect() stops the bot', async () => {
@@ -132,6 +160,56 @@ describe('WeChatAdapter', () => {
     expect(mockBot.send.mock.calls[1][1]).toHaveLength(1000)
   })
 
+  it('sendFile() delegates image routing to the protocol', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await adapter.sendFile('user-123', {
+      filename: 'chart.png',
+      data: Buffer.from('png-bytes').toString('base64'),
+      media_type: 'image/png',
+      size: 9
+    })
+
+    expect(mockBot.sendFile).toHaveBeenCalledWith('user-123', 'chart.png', Buffer.from('png-bytes'), 'image/png')
+  })
+
+  it('sendFile() forwards documents and videos with their filename and media type', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await adapter.sendFile('user-123', {
+      filename: 'report.pdf',
+      data: Buffer.from('pdf-bytes').toString('base64'),
+      media_type: 'application/pdf',
+      size: 9
+    })
+    await adapter.sendFile('user-123', {
+      filename: 'demo.mp4',
+      data: Buffer.from('video-bytes').toString('base64'),
+      media_type: 'video/mp4',
+      size: 11
+    })
+
+    expect(mockBot.sendFile).toHaveBeenNthCalledWith(
+      1,
+      'user-123',
+      'report.pdf',
+      Buffer.from('pdf-bytes'),
+      'application/pdf'
+    )
+    expect(mockBot.sendFile).toHaveBeenNthCalledWith(2, 'user-123', 'demo.mp4', Buffer.from('video-bytes'), 'video/mp4')
+  })
+
+  it('sendMessage() clears the typing indicator after delivery', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await adapter.sendMessage('user-123', 'Done')
+
+    expect(mockBot.stopTyping).toHaveBeenCalledWith('user-123')
+  })
+
   it('sendTypingIndicator() calls bot.sendTyping()', async () => {
     const adapter = createAdapter()
     await adapter.connect()
@@ -153,12 +231,14 @@ describe('WeChatAdapter', () => {
       _contextToken: 'ctx-1'
     })
 
-    expect(messageSpy).toHaveBeenCalledWith({
-      chatId: 'user-123',
-      userId: 'user-123',
-      userName: 'user-123',
-      text: 'Hello bot'
-    })
+    expect(messageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'user-123',
+        userId: 'user-123',
+        userName: 'user-123',
+        text: 'Hello bot'
+      })
+    )
   })
 
   it('message handler emits command events for /new', async () => {

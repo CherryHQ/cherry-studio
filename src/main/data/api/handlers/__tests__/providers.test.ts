@@ -12,6 +12,7 @@ const {
   getAuthConfigMock,
   updateApiKeyMock,
   deleteApiKeyMock,
+  getProviderPresetMock,
   moveMock,
   reorderMock
 } = vi.hoisted(() => ({
@@ -26,8 +27,15 @@ const {
   getAuthConfigMock: vi.fn(),
   updateApiKeyMock: vi.fn(),
   deleteApiKeyMock: vi.fn(),
+  getProviderPresetMock: vi.fn(),
   moveMock: vi.fn(),
   reorderMock: vi.fn()
+}))
+
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: {
+    getProviderPreset: getProviderPresetMock
+  }
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -53,17 +61,18 @@ import { providerHandlers } from '../providers'
 describe('providerHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getByProviderIdMock.mockReset().mockImplementation((providerId: string) => ({ id: providerId }))
   })
 
   describe('/providers', () => {
     it('accepts a minimal create payload without DB-managed fields', async () => {
-      createMock.mockResolvedValueOnce({
+      createMock.mockReturnValueOnce({
         id: 'custom-provider',
         name: 'CherryAI',
         defaultChatEndpoint: 'openai-chat-completions',
         apiKeys: [],
         authType: 'api-key',
-        apiFeatures: {},
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       })
@@ -100,15 +109,15 @@ describe('providerHandlers', () => {
 
   describe('/providers/:providerId', () => {
     it('delegates PATCH to providerService.update with parsed body', async () => {
-      const updated = { id: 'openai', isEnabled: false }
-      updateMock.mockResolvedValueOnce(updated)
+      const updated = { id: 'openai', isEnabled: true }
+      updateMock.mockReturnValueOnce(updated)
 
       const result = await providerHandlers['/providers/:providerId'].PATCH({
         params: { providerId: 'openai' },
-        body: { isEnabled: false }
-      } as never)
+        body: { isEnabled: true }
+      })
 
-      expect(updateMock).toHaveBeenCalledWith('openai', { isEnabled: false })
+      expect(updateMock).toHaveBeenCalledWith('openai', { isEnabled: true })
       expect(result).toBe(updated)
     })
 
@@ -124,11 +133,11 @@ describe('providerHandlers', () => {
     })
 
     it('delegates DELETE to providerService.delete', async () => {
-      deleteMock.mockResolvedValueOnce(undefined)
+      deleteMock.mockReturnValueOnce(undefined)
 
       const result = await providerHandlers['/providers/:providerId'].DELETE({
         params: { providerId: 'openai' }
-      } as never)
+      })
 
       expect(deleteMock).toHaveBeenCalledWith('openai')
       expect(result).toBeUndefined()
@@ -141,7 +150,7 @@ describe('providerHandlers', () => {
         { id: 'enabled-key', key: 'sk-enabled', isEnabled: true },
         { id: 'disabled-key', key: 'sk-disabled', isEnabled: false, label: 'Backup' }
       ]
-      getApiKeysMock.mockResolvedValueOnce(keys)
+      getApiKeysMock.mockReturnValueOnce(keys)
 
       const result = await providerHandlers['/providers/:providerId/api-keys'].GET({
         params: { providerId: 'openai' }
@@ -153,12 +162,12 @@ describe('providerHandlers', () => {
 
     it('forwards ?enabled=true to the service so callers can request enabled keys only', async () => {
       const enabledKeys = [{ id: 'enabled-key', key: 'sk-enabled', isEnabled: true }]
-      getApiKeysMock.mockResolvedValueOnce(enabledKeys)
+      getApiKeysMock.mockReturnValueOnce(enabledKeys)
 
       const result = await providerHandlers['/providers/:providerId/api-keys'].GET({
         params: { providerId: 'openai' },
         query: { enabled: true }
-      } as never)
+      })
 
       expect(getApiKeysMock).toHaveBeenCalledWith('openai', { enabled: true })
       expect(result).toEqual({ keys: enabledKeys })
@@ -171,7 +180,7 @@ describe('providerHandlers', () => {
       await providerHandlers['/providers/:providerId/api-keys'].PUT({
         params: { providerId: 'openai' },
         body: { keys }
-      } as never)
+      })
 
       expect(replaceApiKeysMock).toHaveBeenCalledWith('openai', keys)
     })
@@ -183,7 +192,7 @@ describe('providerHandlers', () => {
       const result = await providerHandlers['/providers/:providerId/api-keys'].POST({
         params: { providerId: 'openai' },
         body: { key: 'sk-a', label: 'Primary' }
-      } as never)
+      })
 
       expect(addApiKeyMock).toHaveBeenCalledWith('openai', 'sk-a', 'Primary')
       expect(result).toBe(updated)
@@ -194,7 +203,7 @@ describe('providerHandlers', () => {
         providerHandlers['/providers/:providerId/api-keys'].POST({
           params: { providerId: 'openai' },
           body: { key: '' }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(addApiKeyMock).not.toHaveBeenCalled()
@@ -215,14 +224,83 @@ describe('providerHandlers', () => {
   describe('/providers/:providerId/auth-config', () => {
     it('delegates GET to providerService.getAuthConfig', async () => {
       const authConfig = { type: 'bearer', token: 'token' }
-      getAuthConfigMock.mockResolvedValueOnce(authConfig)
+      getAuthConfigMock.mockReturnValueOnce(authConfig)
 
       const result = await providerHandlers['/providers/:providerId/auth-config'].GET({
         params: { providerId: 'vertexai' }
-      } as never)
+      })
 
       expect(getAuthConfigMock).toHaveBeenCalledWith('vertexai')
       expect(result).toBe(authConfig)
+    })
+
+    it('strips oauth access/refresh tokens but keeps non-secret metadata', async () => {
+      getAuthConfigMock.mockReturnValueOnce({
+        type: 'oauth',
+        clientId: 'client-1',
+        accountId: 'acc-1',
+        accessToken: 'secret-access',
+        refreshToken: 'secret-refresh',
+        expiresAt: 123
+      })
+
+      const result = await providerHandlers['/providers/:providerId/auth-config'].GET({
+        params: { providerId: 'cherryin' }
+      })
+
+      expect(result).toEqual({ type: 'oauth', clientId: 'client-1', accountId: 'acc-1', expiresAt: 123 })
+      expect(result).not.toHaveProperty('accessToken')
+      expect(result).not.toHaveProperty('refreshToken')
+    })
+  })
+
+  describe('/providers/:providerId/preset', () => {
+    it('returns only the requested validated preset fields', async () => {
+      getByProviderIdMock.mockReturnValueOnce({ id: 'custom-openai', presetProviderId: 'openai' })
+      getProviderPresetMock.mockReturnValueOnce({
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.openai.com/v1' } },
+        models: []
+      })
+
+      const result = await providerHandlers['/providers/:providerId/preset'].GET({
+        params: { providerId: 'custom-openai' },
+        query: { fields: ['endpointConfigs', 'models'] }
+      } as never)
+
+      expect(getProviderPresetMock).toHaveBeenCalledWith('custom-openai', ['endpointConfigs', 'models'], 'openai')
+      expect(result).toEqual({
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.openai.com/v1' } },
+        models: []
+      })
+    })
+
+    it('preserves explicit custom provenance when the runtime provider has no preset id', async () => {
+      getByProviderIdMock.mockReturnValueOnce({ id: 'future-registry-collision', presetProviderId: undefined })
+      getProviderPresetMock.mockReturnValueOnce({ endpointConfigs: null })
+
+      await providerHandlers['/providers/:providerId/preset'].GET({
+        params: { providerId: 'future-registry-collision' },
+        query: { fields: 'endpointConfigs' }
+      } as never)
+
+      expect(getProviderPresetMock).toHaveBeenCalledWith('future-registry-collision', ['endpointConfigs'], null)
+    })
+
+    it('rejects unknown or missing fields before resolving the provider', async () => {
+      await expect(
+        providerHandlers['/providers/:providerId/preset'].GET({
+          params: { providerId: 'openai' },
+          query: { fields: 'websites' }
+        } as never)
+      ).rejects.toThrow()
+      await expect(
+        providerHandlers['/providers/:providerId/preset'].GET({
+          params: { providerId: 'openai' }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(getByProviderIdMock).not.toHaveBeenCalled()
+      expect(getProviderPresetMock).not.toHaveBeenCalled()
     })
   })
 
@@ -234,7 +312,7 @@ describe('providerHandlers', () => {
       const result = await providerHandlers['/providers/:providerId/api-keys/:keyId'].PATCH({
         params: { providerId: 'openai', keyId: 'key-a' },
         body: { key: 'sk-new', isEnabled: false }
-      } as never)
+      })
 
       expect(updateApiKeyMock).toHaveBeenCalledWith('openai', 'key-a', { key: 'sk-new', isEnabled: false })
       expect(result).toBe(updated)
@@ -245,7 +323,7 @@ describe('providerHandlers', () => {
         providerHandlers['/providers/:providerId/api-keys/:keyId'].PATCH({
           params: { providerId: 'openai', keyId: 'key-a' },
           body: { key: '' }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(updateApiKeyMock).not.toHaveBeenCalled()
@@ -257,7 +335,7 @@ describe('providerHandlers', () => {
 
       const result = await providerHandlers['/providers/:providerId/api-keys/:keyId'].DELETE({
         params: { providerId: 'openai', keyId: 'key-a' }
-      } as never)
+      })
 
       expect(deleteApiKeyMock).toHaveBeenCalledWith('openai', 'key-a')
       expect(result).toBe(updated)
@@ -269,7 +347,7 @@ describe('providerHandlers', () => {
       await providerHandlers['/providers/:id/order'].PATCH({
         params: { id: 'openai' },
         body: { before: 'anthropic' }
-      } as never)
+      })
 
       expect(moveMock).toHaveBeenCalledWith('openai', { before: 'anthropic' })
     })
@@ -279,7 +357,7 @@ describe('providerHandlers', () => {
         providerHandlers['/providers/:id/order'].PATCH({
           params: { id: 'openai' },
           body: { before: '' }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(moveMock).not.toHaveBeenCalled()
@@ -292,7 +370,7 @@ describe('providerHandlers', () => {
 
       await providerHandlers['/providers/order:batch'].PATCH({
         body: { moves }
-      } as never)
+      })
 
       expect(reorderMock).toHaveBeenCalledWith(moves)
     })
@@ -301,7 +379,7 @@ describe('providerHandlers', () => {
       await expect(
         providerHandlers['/providers/order:batch'].PATCH({
           body: { moves: [] }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(reorderMock).not.toHaveBeenCalled()

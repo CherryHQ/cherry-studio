@@ -1,10 +1,14 @@
-import { userProviderTable } from '@data/db/schemas/userProvider'
-import { providerService } from '@data/services/ProviderService'
-import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
+import '@data/services/ProviderRegistryService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { providerService } from '@data/services/ProviderService'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { ErrorCode } from '@shared/data/api/errors'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 describe('ProviderService reorder', () => {
   const dbh = setupTestDatabase()
@@ -23,21 +27,24 @@ describe('ProviderService reorder', () => {
     return rows.map((row) => row.providerId)
   }
 
-  it('creates new providers at the end of the list', async () => {
+  it('creates new providers at the top of the list', async () => {
     await seedProviders()
 
-    await providerService.create({ providerId: 'grok', name: 'Grok' })
+    const created = providerService.create({ providerId: 'grok', name: 'Grok' })
 
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'grok')).limit(1)
 
     expect(rows[0]?.orderKey).toBeTruthy()
-    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini', 'grok'])
+    // Created disabled; auto-enable later must not rely on update() to jump it to the top.
+    expect(created.isEnabled).toBe(false)
+    expect(rows[0]?.isEnabled).toBe(false)
+    expect(await readOrder()).toEqual(['grok', 'openai', 'anthropic', 'gemini'])
   })
 
   it('batchUpsert appends only missing providers in input order', async () => {
     await seedProviders()
 
-    await providerService.batchUpsert([
+    providerService.batchUpsert([
       { providerId: 'anthropic', name: 'Anthropic duplicate' },
       { providerId: 'grok', name: 'Grok' },
       { providerId: 'openrouter', name: 'OpenRouter' }
@@ -49,15 +56,49 @@ describe('ProviderService reorder', () => {
   it('moves a provider to the first position', async () => {
     await seedProviders()
 
-    await providerService.move('gemini', { position: 'first' })
+    providerService.move('gemini', { position: 'first' })
 
     expect(await readOrder()).toEqual(['gemini', 'openai', 'anthropic'])
+  })
+
+  it('preserves user order when update enables a provider', async () => {
+    await seedProviders()
+
+    const updated = providerService.update('gemini', { isEnabled: true, name: 'Gemini OAuth' })
+
+    expect(updated.isEnabled).toBe(true)
+    expect(updated.name).toBe('Gemini OAuth')
+    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini'])
+
+    const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'gemini'))
+    expect(row.isEnabled).toBe(true)
+    expect(row.name).toBe('Gemini OAuth')
+  })
+
+  it('preserves user order when update receives a redundant enabled state', async () => {
+    await seedProviders()
+    await dbh.db.update(userProviderTable).set({ isEnabled: true }).where(eq(userProviderTable.providerId, 'gemini'))
+
+    const updated = providerService.update('gemini', { isEnabled: true })
+
+    expect(updated.isEnabled).toBe(true)
+    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini'])
+  })
+
+  it('preserves user order when update disables a provider', async () => {
+    await seedProviders()
+    await dbh.db.update(userProviderTable).set({ isEnabled: true }).where(eq(userProviderTable.providerId, 'gemini'))
+
+    const updated = providerService.update('gemini', { isEnabled: false })
+
+    expect(updated.isEnabled).toBe(false)
+    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini'])
   })
 
   it('moves a provider after an anchor', async () => {
     await seedProviders()
 
-    await providerService.move('openai', { after: 'gemini' })
+    providerService.move('openai', { after: 'gemini' })
 
     expect(await readOrder()).toEqual(['anthropic', 'gemini', 'openai'])
   })
@@ -69,7 +110,7 @@ describe('ProviderService reorder', () => {
     // place it immediately before gemini, between anthropic and gemini.
     await seedProviders()
 
-    await providerService.move('openai', { before: 'gemini' })
+    providerService.move('openai', { before: 'gemini' })
 
     expect(await readOrder()).toEqual(['anthropic', 'openai', 'gemini'])
   })
@@ -77,7 +118,13 @@ describe('ProviderService reorder', () => {
   it('rejects a before-anchor that equals the move target', async () => {
     await seedProviders()
 
-    await expect(providerService.move('openai', { before: 'openai' })).rejects.toMatchObject({
+    let err: unknown
+    try {
+      providerService.move('openai', { before: 'openai' })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     })
   })
@@ -85,7 +132,7 @@ describe('ProviderService reorder', () => {
   it('applies batch moves sequentially', async () => {
     await seedProviders()
 
-    await providerService.reorder([
+    providerService.reorder([
       { id: 'gemini', anchor: { position: 'first' } },
       { id: 'openai', anchor: { after: 'gemini' } }
     ])
@@ -96,7 +143,13 @@ describe('ProviderService reorder', () => {
   it('throws when target provider does not exist', async () => {
     await seedProviders()
 
-    await expect(providerService.move('missing', { position: 'first' })).rejects.toMatchObject({
+    let err: unknown
+    try {
+      providerService.move('missing', { position: 'first' })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: ErrorCode.NOT_FOUND,
       details: { resource: 'Provider', id: 'missing' }
     })
@@ -105,9 +158,45 @@ describe('ProviderService reorder', () => {
   it('throws when anchor provider does not exist', async () => {
     await seedProviders()
 
-    await expect(providerService.move('openai', { after: 'missing' })).rejects.toMatchObject({
+    let err: unknown
+    try {
+      providerService.move('openai', { after: 'missing' })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: ErrorCode.NOT_FOUND,
       details: { resource: 'Provider', id: 'missing' }
     })
+  })
+
+  it('rejects moving the managed CherryAI provider', async () => {
+    await seedProviders()
+    await dbh.db.insert(userProviderTable).values({
+      providerId: CHERRYAI_PROVIDER_ID,
+      name: 'CherryAI',
+      orderKey: 'z0',
+      isEnabled: true
+    })
+
+    let moveErr: unknown
+    try {
+      providerService.move(CHERRYAI_PROVIDER_ID, { position: 'first' })
+    } catch (e) {
+      moveErr = e
+    }
+    expect(moveErr).toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+    let reorderErr: unknown
+    try {
+      providerService.reorder([{ id: CHERRYAI_PROVIDER_ID, anchor: { position: 'last' } }])
+    } catch (e) {
+      reorderErr = e
+    }
+    expect(reorderErr).toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini', CHERRYAI_PROVIDER_ID])
   })
 })

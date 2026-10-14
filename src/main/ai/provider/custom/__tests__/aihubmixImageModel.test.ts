@@ -15,13 +15,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('i18next', () => ({
-  default: { t: (key: string) => key }
-}))
-
-vi.mock('@renderer/i18n', () => ({
-  default: { t: (key: string) => key }
-}))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 import { createAihubmixImageModel } from '../aihubmix/aihubmixImageModel'
 
@@ -44,18 +38,17 @@ describe('AihubmixImageModel', () => {
 
   const make = (modelId: string) => createAihubmixImageModel(modelId, { baseURL, resolveApiKey, headers })
 
-  const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions =>
-    ({
-      prompt: 'a fox',
-      n: 1,
-      size: undefined,
-      aspectRatio: undefined,
-      seed: undefined,
-      files: undefined,
-      mask: undefined,
-      providerOptions: { aihubmix: {} },
-      ...overrides
-    }) as ImageModelV3CallOptions
+  const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions => ({
+    prompt: 'a fox',
+    n: 1,
+    size: undefined,
+    aspectRatio: undefined,
+    seed: undefined,
+    files: undefined,
+    mask: undefined,
+    providerOptions: { aihubmix: {} },
+    ...overrides
+  })
 
   const okJson = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
 
@@ -88,7 +81,7 @@ describe('AihubmixImageModel', () => {
       const model = make('gemini-3-pro-image-preview')
       const result = await model.doGenerate(
         callOptions({
-          providerOptions: { aihubmix: { mode: 'generate', aspectRatio: 'ASPECT_16_9', imageSize: '2k' } } as any
+          providerOptions: { aihubmix: { mode: 'generate', aspectRatio: 'ASPECT_16_9', imageSize: '2k' } }
         })
       )
 
@@ -108,7 +101,7 @@ describe('AihubmixImageModel', () => {
       const result = await make('imagen-4.0-generate-preview-06-06').doGenerate(
         callOptions({
           size: '16:9' as never,
-          providerOptions: { aihubmix: { personGeneration: 'ALLOW_ADULT' } } as any
+          providerOptions: { aihubmix: { personGeneration: 'ALLOW_ADULT' } }
         })
       )
 
@@ -142,7 +135,7 @@ describe('AihubmixImageModel', () => {
               negativePrompt: 'blur',
               magicPromptOption: true
             }
-          } as any
+          }
         })
       )
 
@@ -231,7 +224,7 @@ describe('AihubmixImageModel', () => {
               negativePrompt: 'noise',
               magicPromptOption: false
             }
-          } as any
+          }
         })
       )
 
@@ -339,7 +332,7 @@ describe('AihubmixImageModel', () => {
         const innerResult = { images: ['data:image/png;base64,DELEGATED'], warnings: [], response: {} }
         innerDoGenerate.mockResolvedValue(innerResult)
 
-        const options = callOptions({ providerOptions: { aihubmix: { mode: 'generate', quality: 'high' } } as any })
+        const options = callOptions({ providerOptions: { aihubmix: { mode: 'generate', quality: 'high' } } })
         const result = await make(id).doGenerate(options)
 
         expect(InnerCtor).toHaveBeenCalledWith(id, expect.objectContaining({ provider: 'aihubmix.image', headers }))

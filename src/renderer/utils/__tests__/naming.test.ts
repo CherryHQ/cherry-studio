@@ -1,17 +1,7 @@
-import type { Provider, SystemProvider } from '@renderer/types'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-// Mock i18n to return English provider labels
-vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: vi.fn((id: string) => {
-    const labelMap: Record<string, string> = {
-      dashscope: 'Alibaba Cloud',
-      openai: 'OpenAI',
-      anthropic: 'Anthropic'
-    }
-    return labelMap[id] || id
-  })
-}))
+import i18n from '@renderer/i18n/resolver'
+import type { Provider, SystemProvider } from '@renderer/types/provider'
 
 import {
   firstLetter,
@@ -22,12 +12,25 @@ import {
   getFirstCharacter,
   getLeadingEmoji,
   getLowerBaseModelName,
+  getProviderDisplayNameById,
   isEmoji,
   removeLeadingEmoji,
   removeSpecialCharactersForTopicName,
-  sanitizeProviderName,
   truncateText
 } from '../naming'
+
+// 测试环境的 mock 偏好默认语言是 zh-CN，显式切到 en-US 以匹配英文断言
+let previousLanguage: string
+
+beforeAll(async () => {
+  // Capture here, not at import time: i18n is initialized by the global setup hook.
+  previousLanguage = i18n.language
+  await i18n.changeLanguage('en-US')
+})
+
+afterAll(async () => {
+  await i18n.changeLanguage(previousLanguage)
+})
 
 describe('naming', () => {
   describe('firstLetter', () => {
@@ -39,6 +42,14 @@ describe('naming', () => {
     it('should return first emoji of string', () => {
       // 验证包含表情符号的字符串
       expect(firstLetter('😊Hello')).toBe('😊')
+    })
+
+    it('should return full emoji sequence from string', () => {
+      // 验证 ZWJ/keycap/flag/skin-tone 表情不会被截断
+      expect(firstLetter('🧛‍♂️Bob')).toBe('🧛‍♂️')
+      expect(firstLetter('1️⃣First')).toBe('1️⃣')
+      expect(firstLetter('🇺🇸USA')).toBe('🇺🇸')
+      expect(firstLetter('👍🏽User')).toBe('👍🏽')
     })
 
     it('should return empty string for empty input', () => {
@@ -62,6 +73,16 @@ describe('naming', () => {
       // 验证全表情符号字符串
       expect(removeLeadingEmoji('😊😊')).toBe('')
     })
+
+    it('should remove leading ZWJ emoji sequence', () => {
+      // 验证移除开头的 ZWJ 组合表情（含 joiner/gender 后缀）
+      expect(removeLeadingEmoji('🧛‍♂️Alice')).toBe('Alice')
+    })
+
+    it('should remove leading keycap emoji', () => {
+      // 验证移除开头的 keycap 表情
+      expect(removeLeadingEmoji('1️⃣First')).toBe('First')
+    })
   })
 
   describe('getLeadingEmoji', () => {
@@ -79,12 +100,29 @@ describe('naming', () => {
       // 验证全表情符号字符串
       expect(getLeadingEmoji('😊😊')).toBe('😊😊')
     })
+
+    it('should return full ZWJ emoji sequence', () => {
+      // 验证完整提取 ZWJ 组合表情，而非半个
+      expect(getLeadingEmoji('🧛‍♂️Assistant')).toBe('🧛‍♂️')
+    })
+
+    it('should return keycap emoji', () => {
+      // 验证提取 keycap 表情
+      expect(getLeadingEmoji('1️⃣First')).toBe('1️⃣')
+    })
   })
 
   describe('isEmoji', () => {
     it('should return true for pure emoji string', () => {
       // 验证纯表情符号字符串返回 true
       expect(isEmoji('😊')).toBe(true)
+      expect(isEmoji('🧛‍♂️')).toBe(true)
+      expect(isEmoji('1️⃣')).toBe(true)
+      expect(isEmoji('👨‍👩‍👧‍👦')).toBe(true) // multi-person ZWJ family
+      expect(isEmoji('🇺🇸')).toBe(true) // regional-indicator flag
+      expect(isEmoji('👍🏽')).toBe(true) // skin-tone modifier
+      expect(isEmoji('#️⃣')).toBe(true) // non-digit keycap
+      expect(isEmoji('😊🌈')).toBe(true) // multi-emoji string
     })
 
     it('should return false for mixed emoji and text string', () => {
@@ -95,6 +133,7 @@ describe('naming', () => {
     it('should return false for non-emoji string', () => {
       // 验证非表情符号字符串返回 false
       expect(isEmoji('Hello')).toBe(false)
+      expect(isEmoji('1')).toBe(false)
     })
 
     it('should return false for data URI or URL', () => {
@@ -320,7 +359,7 @@ describe('naming', () => {
         models: [],
         isSystem: true
       }
-      // 默认 i18n 环境是 en-us
+      // beforeAll 已将 i18n 切到 en-US
       expect(getFancyProviderName(mockSystemProvider)).toBe('Alibaba Cloud')
     })
 
@@ -337,57 +376,20 @@ describe('naming', () => {
     })
   })
 
-  describe('sanitizeProviderName', () => {
-    it('should replace spaces with dashes', () => {
-      expect(sanitizeProviderName('My Provider')).toBe('My-Provider')
+  describe('getProviderDisplayNameById', () => {
+    it('uses the canonical label for a system provider id', () => {
+      expect(getProviderDisplayNameById('minimax')).toBe('MiniMax CN')
     })
 
-    it('should strip characters outside env-var-safe whitelist', () => {
-      expect(sanitizeProviderName('Provider/Name')).toBe('ProviderName')
+    it.each([
+      ['openai-codex', 'OpenAI Codex'],
+      ['grok-cli', 'Grok CLI']
+    ])('uses the canonical label for the registry provider id %s', (providerId, expectedLabel) => {
+      expect(getProviderDisplayNameById(providerId)).toBe(expectedLabel)
     })
 
-    it('should handle mixed special characters', () => {
-      expect(sanitizeProviderName('My Provider <test>:name')).toBe('My-Provider-testname')
-    })
-
-    it('should return empty string for empty input', () => {
-      expect(sanitizeProviderName('')).toBe('')
-    })
-
-    it('should fall back to hash for pure non-ASCII names', () => {
-      expect(sanitizeProviderName('测试')).toMatch(/^p_[a-z0-9]+$/)
-      // deterministic: same input produces same hash
-      expect(sanitizeProviderName('测试')).toBe(sanitizeProviderName('测试'))
-    })
-
-    it('should handle various non-ASCII characters', () => {
-      // Chinese
-      expect(sanitizeProviderName('测试')).toMatch(/^p_[a-z0-9]+$/)
-      // Japanese
-      expect(sanitizeProviderName('プロバイダー')).toMatch(/^p_[a-z0-9]+$/)
-      // Korean
-      expect(sanitizeProviderName('공급자')).toMatch(/^p_[a-z0-9]+$/)
-      // Emoji
-      expect(sanitizeProviderName('🎉provider')).toBe('provider')
-    })
-
-    it('should produce a valid env var identifier for mixed ASCII and non-ASCII', () => {
-      expect(sanitizeProviderName('日本語Provider')).toBe('Provider')
-      expect(sanitizeProviderName('My 测试 Provider')).toBe('My-Provider')
-    })
-
-    it('should strip ASCII symbols not allowed in env var names', () => {
-      expect(sanitizeProviderName('foo@bar')).toBe('foobar')
-      expect(sanitizeProviderName('foo@bar+baz(test)')).toBe('foobarbaztest')
-      expect(sanitizeProviderName('my$provider!name')).toBe('myprovidername')
-      expect(sanitizeProviderName('a#b%c&d')).toBe('abcd')
-    })
-
-    it('should keep allowed env-var-safe characters', () => {
-      expect(sanitizeProviderName('my-provider')).toBe('my-provider')
-      expect(sanitizeProviderName('my_provider')).toBe('my_provider')
-      expect(sanitizeProviderName('my.provider')).toBe('my.provider')
-      expect(sanitizeProviderName('Provider123')).toBe('Provider123')
+    it('preserves a custom provider id when metadata is unavailable', () => {
+      expect(getProviderDisplayNameById('my-custom')).toBe('my-custom')
     })
   })
 

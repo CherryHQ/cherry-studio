@@ -1,6 +1,7 @@
-import type { NotesSettings } from '@renderer/hooks/useNotesSettings'
-import { Copy, FileText, MonitorSpeaker, Settings, Type } from 'lucide-react'
+import { AlignJustify, Copy, FileDown, FileText, MonitorSpeaker, Printer, Settings, Type } from 'lucide-react'
 import type { ReactNode } from 'react'
+
+import type { NotesSettings } from '@renderer/hooks/useNotesSettings'
 
 export interface MenuItem {
   key: string
@@ -13,6 +14,8 @@ export interface MenuItem {
   component?: (settings: NotesSettings, updateSettings: (newSettings: Partial<NotesSettings>) => void) => ReactNode
   copyAction?: boolean
   exportToWordAction?: boolean
+  exportToPdfAction?: boolean
+  printAction?: boolean
   showSettingsPopup?: boolean
 }
 
@@ -28,6 +31,18 @@ export const menuItems: MenuItem[] = [
     labelKey: 'notes.exportToWord',
     icon: FileText,
     exportToWordAction: true
+  },
+  {
+    key: 'export-to-pdf',
+    labelKey: 'notes.exportToPDF',
+    icon: FileDown,
+    exportToPdfAction: true
+  },
+  {
+    key: 'print',
+    labelKey: 'notes.print',
+    icon: Printer,
+    printAction: true
   },
   {
     key: 'divider0',
@@ -47,6 +62,13 @@ export const menuItems: MenuItem[] = [
     icon: Type,
     action: (settings, updateSettings) => updateSettings({ showTableOfContents: !settings.showTableOfContents }),
     isActive: (settings) => settings.showTableOfContents
+  },
+  {
+    key: 'line-breaks',
+    labelKey: 'notes.settings.display.line_breaks',
+    icon: AlignJustify,
+    action: (settings, updateSettings) => updateSettings({ lineBreaks: !settings.lineBreaks }),
+    isActive: (settings) => settings.lineBreaks
   },
   {
     key: 'divider1',

@@ -1,9 +1,9 @@
 {
   "search_result": [
     {
-      "title": "Zhipu Title",
       "content": "Zhipu Content",
-      "link": "https://zhipu.example/result"
+      "link": "https://zhipu.example/result",
+      "title": "Zhipu Title"
     }
   ]
 }

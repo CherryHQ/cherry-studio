@@ -1,4 +1,3 @@
-import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
   DataUIPart,
   DynamicToolUIPart,
@@ -13,6 +12,13 @@ import type {
 } from 'ai'
 import * as z from 'zod'
 
+import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
+import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
+import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+
+import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
 
 /**
@@ -27,74 +33,104 @@ export const MessageIdSchema = z.uuid()
 export type MessageId = z.infer<typeof MessageIdSchema>
 
 /**
- * Message Statistics - combines token usage and performance metrics
- * Replaces the separate `usage` and `metrics` fields
+ * Materialized statistics for one assistant message.
  *
- * TODO(message-stats-redesign): This schema is flat, OpenAI-legacy-named, and
- * does not cover the actual modalities / billing dimensions we ship today.
- * Known gaps, to be addressed in a dedicated follow-up:
- *
- *  1. Naming drift vs AI SDK v5
- *     - `promptTokens` / `completionTokens` → should be `inputTokens` / `outputTokens`
- *     - `thoughtsTokens` is Gemini-only phrasing; AI SDK uses `reasoningTokens`
- *
- *  2. Cache accounting entirely missing
- *     - AI SDK `inputTokenDetails` has `noCacheTokens` / `cacheReadTokens` / `cacheWriteTokens`
- *     - Claude prompt caching and Gemini context caching are currently folded
- *       into a single `promptTokens`, so users can't see cache hit-rate or
- *       audit premium-rate cache writes
- *
- *  3. Output breakdown missing
- *     - AI SDK `outputTokenDetails` has `textTokens` / `reasoningTokens`;
- *       we only have a single `thoughtsTokens` patch
- *
- *  4. Non-text modalities not modelled
- *     - Embedding (single `tokens` field, no output concept)
- *     - Image generation (real billing is image count × size × quality, not tokens)
- *     - Audio (OpenAI audio tokens, Gemini per-second)
- *     - Video (Gemini, per-second or token-equivalent)
- *
- *  5. Cost auditability
- *     - Single `cost: number` loses per-bucket breakdown
- *     - No pricing snapshot — if provider pricing changes, historical
- *       stats drift. Need `{ costBreakdown, pricingSnapshot }` pair
- *
- * Target shape (draft):
- *   interface MessageStats {
- *     language?: LanguageUsage         // inputTokens, outputTokens, totalTokens,
- *                                      // inputBreakdown{noCache,cacheRead,cacheWrite},
- *                                      // outputBreakdown{text,reasoning}
- *     embedding?: EmbeddingUsage       // tokens, vectorCount
- *     image?: ImageUsage               // imageCount, size, quality, (tokens?)
- *     audio?: AudioUsage               // inputAmount/unit, outputAmount/unit
- *     video?: VideoUsage               // inputSeconds, (tokens?)
- *     timings?: { timeFirstTokenMs, timeCompletionMs, timeThinkingMs }
- *     cost?: number                    // aggregate
- *     costBreakdown?: Partial<Record<CostBucket, number>>
- *     pricingSnapshot?: { rates, capturedAt }
- *   }
- *
- * Redesign touches: renderer usage UI, DB column readers (old rows still
- * have promptTokens/completionTokens — need fallback), pricing subsystem,
- * V1/V2 migration. Tracked as a separate PR series so this layer isn't
- * rushed alongside stream-manager changes.
+ * Usage, request counts, costs, and provider performance are projections of
+ * immutable `ai_usage_record` rows. Runtime timing and the durable-compaction
+ * context anchor are message-owned and written by runtime persistence. Scalar
+ * timing fields are historical compatibility data read only when
+ * `runtimeTiming` is absent.
  */
+const MessageProviderPerformanceSchema = z.strictObject({
+  measuredOutputTokens: z.number().nonnegative(),
+  generationDurationMs: z.number().nonnegative()
+})
+export type MessageProviderPerformance = z.infer<typeof MessageProviderPerformanceSchema>
+
+const MessageRuntimeToolExecutionSpanSchema = z.strictObject({
+  id: z.string().min(1),
+  kind: z.literal('tool-execution'),
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1).optional(),
+  startedAt: z.number(),
+  completedAt: z.number().optional()
+})
+
+const MessageRuntimeApprovalWaitSpanSchema = z.strictObject({
+  id: z.string().min(1),
+  kind: z.literal('approval-wait'),
+  approvalId: z.string().min(1),
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1).optional(),
+  startedAt: z.number(),
+  completedAt: z.number().optional()
+})
+
+export const MessageRuntimeTimingSchema = z.strictObject({
+  startedAt: z.number(),
+  completedAt: z.number().optional(),
+  spans: z.array(
+    z.discriminatedUnion('kind', [MessageRuntimeToolExecutionSpanSchema, MessageRuntimeApprovalWaitSpanSchema])
+  )
+})
+export type MessageRuntimeTiming = z.infer<typeof MessageRuntimeTimingSchema>
+export type MessageRuntimeSpan = MessageRuntimeTiming['spans'][number]
+
 export const MessageStatsSchema = z.strictObject({
-  // Token consumption (from API response)
-  promptTokens: z.number().optional(),
-  completionTokens: z.number().optional(),
+  // ── Token usage (AI SDK v6 `LanguageModelUsage` names, minus its
+  //    deprecated flat mirrors — the nested breakdowns are the only truth) ──
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
   totalTokens: z.number().optional(),
-  thoughtsTokens: z.number().optional(),
+  /**
+   * Real end-of-turn context size: the last step's total tokens, rather than
+   * the cumulative per-invocation sum. Message-owned durable-compaction anchor.
+   */
+  contextTokens: z.number().optional(),
 
-  // Cost (calculated at message completion time)
-  cost: z.number().optional(),
+  /** Input token breakdown (cache accounting). Mirrors v6 `inputTokenDetails`. */
+  inputTokenDetails: z
+    .strictObject({
+      noCacheTokens: z.number().optional(),
+      cacheReadTokens: z.number().optional(),
+      cacheWriteTokens: z.number().optional()
+    })
+    .optional(),
+  /** Output token breakdown. Mirrors v6 `outputTokenDetails`. */
+  outputTokenDetails: z
+    .strictObject({
+      textTokens: z.number().optional(),
+      reasoningTokens: z.number().optional()
+    })
+    .optional(),
 
-  // Performance metrics (measured locally)
+  requestCount: z.number().int().nonnegative().optional(),
+  estimatedRequestCount: z.number().int().nonnegative().optional(),
+  unpricedRequestCount: z.number().int().nonnegative().optional(),
+  costs: z
+    .array(
+      z.strictObject({
+        currency: z.enum(objectValues(CURRENCY)),
+        amount: z.number().nonnegative(),
+        providerReportedRequestCount: z.number().int().nonnegative(),
+        computedRequestCount: z.number().int().nonnegative()
+      })
+    )
+    .optional(),
+
+  // ── Provider performance (projected from measured invocation records) ──
+  providerPerformance: MessageProviderPerformanceSchema.optional(),
+
+  // ── Message runtime timing (measured locally) ──
+  runtimeTiming: MessageRuntimeTimingSchema.optional(),
+
+  // ── Historical scalar timing compatibility (rows without runtimeTiming) ──
   timeFirstTokenMs: z.number().optional(),
   timeCompletionMs: z.number().optional(),
   timeThinkingMs: z.number().optional()
 })
 export type MessageStats = z.infer<typeof MessageStatsSchema>
+export type MessageRuntimeStatsInput = Readonly<Pick<MessageStats, 'runtimeTiming' | 'contextTokens'>>
 
 // ============================================================================
 // Message Data
@@ -102,6 +138,13 @@ export type MessageStats = z.infer<typeof MessageStatsSchema>
 
 /** Cherry-specific UIMessagePart with our custom DataUIPart types baked in. */
 export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
+
+/** Request controls frozen when an assistant turn is created. */
+export interface AssistantTurnOptions {
+  reasoningEffort?: ReasoningEffortOption
+  serviceTier?: ServiceTierSelection
+  fastMode?: boolean
+}
 
 /**
  * Message data field structure — the type for the `data` column in the
@@ -113,6 +156,10 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
+  /** Explicit multi-model or per-reply selection; default for ordinary single-model turns, absent on old replies. */
+  modelSelection?: 'default' | 'explicit'
+  /** Main-authoritative request controls for resuming this assistant turn. */
+  turnOptions?: AssistantTurnOptions
 }
 
 // ── Cherry-specific UI message types ────────────────────────────────
@@ -120,54 +167,62 @@ export interface MessageData {
 /**
  * Metadata carried on a streamed `CherryUIMessage`.
  *
- * These fields mirror the token columns on `MessageStats` so that once the
- * accumulator writes a snapshot into `exec.finalMessage.metadata`, the
- * persistence backend can translate it 1:1 into the DB `stats` column
- * without inventing extra plumbing. Keep the names aligned with the
- * legacy `MessageStats` shape (promptTokens / completionTokens / ...)
- * until the redesign tracked in `MessageStats` lands — the same names on
- * both sides make `statsFromMetadata()` a trivial projection.
+ * Live cumulative token usage rides in the nested `stats` snapshot — there are
+ * deliberately no flat token mirrors. This stream metadata is not the
+ * persistent fact source: SQLite `MessageStats` usage/cost is rebuilt from
+ * per-invocation records, while message persistence owns only message timing.
+ *
+ * Deep-merge invariant: the AI SDK recursively merges each
+ * `message-metadata` chunk into the accumulating message. Usage writers still
+ * emit a FULL cumulative `stats` snapshot every step because the object
+ * represents message totals, not a per-step patch. A partial step snapshot
+ * would overwrite present counters with the latest step while retaining
+ * omitted buckets from earlier steps, producing a mixed and invalid total.
  */
 export interface CherryUIMessageMetadata {
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means
-  //    `adaptedMessages` and every other consumer can read directly from
-  //    `message.metadata` without a parallel `metadataMap` lookup that
-  //    lags behind state.messages.
+  //    shared message-list consumers can read directly from `message.metadata`
+  //    without a parallel `metadataMap` lookup that lags behind state.messages.
   /** `parent_id` of the persisted row; drives `askId` / tree walks. */
   parentId?: string | null
   /** Non-zero for messages that belong to a regenerate/multi-model cohort. */
   siblingsGroupId?: number
   /** `UniqueModelId` (`providerId::modelId`) the assistant was generated with. */
   modelId?: string
-  /** Snapshot captured at message creation (`{id, name, provider, group?}`). */
-  modelSnapshot?: ModelSnapshot
+  /** Persisted model selection source used when regenerating this reply. */
+  modelSelection?: MessageData['modelSelection']
+  /** Snapshot of the producing author (assistant|agent, model nested) captured at creation. */
+  messageSnapshot?: MessageSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
-  /** Trace id for the assistant execution that produced this message. */
-  traceId?: string | null
+  /** Main-authoritative request controls frozen with the persisted assistant row. */
+  turnOptions?: AssistantTurnOptions
+  /**
+   * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
+   * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
+   * recompute is owned by the chat-page renderer slice.
+   */
+  isActiveBranch?: boolean
 
   /** Creation timestamp (ISO). */
   createdAt?: string
   /** Last modification timestamp (ISO). Mirrors v1 Message.updatedAt during migration. */
   updatedAt?: string
 
-  // ── Token stats. First four duplicate fields on `stats` so call-sites
-  //    that only need a single counter can skip the nested object.
-  /** Total tokens reported by the provider (mirrors `MessageStats.totalTokens`). */
-  totalTokens?: number
-  /** Input / prompt tokens (AI SDK `inputTokens`, legacy `promptTokens`). */
-  promptTokens?: number
-  /** Output / completion tokens (AI SDK `outputTokens`, legacy `completionTokens`). */
-  completionTokens?: number
   /**
-   * Reasoning / thinking tokens — AI SDK `outputTokenDetails.reasoningTokens`
-   * (Gemini thoughts, Anthropic extended thinking, OpenAI o-series).
+   * Total-tokens convenience mirror of `MessageStats.totalTokens`, populated by
+   * the DB→UI projection so call-sites that only need the single counter can
+   * skip the nested `stats` object.
    */
-  thoughtsTokens?: number
-  /** Full persisted stats (tokens + durations) when available. */
+  totalTokens?: number
+  /** Live token/timing view using the same shape as persisted `MessageStats`. */
   stats?: MessageStats
+  /** Trusted cross-session sender attribution and durable delivery lifecycle. */
+  delivery?: AgentSessionDelivery
+  /** Why a runtime opened this assistant turn with no user message (goal round, background work). */
+  turnOrigin?: AutonomousTurnOrigin
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
@@ -357,6 +412,23 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  if (v.modelSelection !== undefined && v.modelSelection !== 'default' && v.modelSelection !== 'explicit') return false
+  if (v.turnOptions !== undefined) {
+    if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
+    if (
+      v.turnOptions.reasoningEffort !== undefined &&
+      !ReasoningEffortOptionSchema.safeParse(v.turnOptions.reasoningEffort).success
+    ) {
+      return false
+    }
+    if (
+      v.turnOptions.serviceTier !== undefined &&
+      !ServiceTierSelectionSchema.safeParse(v.turnOptions.serviceTier).success
+    ) {
+      return false
+    }
+    if (v.turnOptions.fastMode !== undefined && typeof v.turnOptions.fastMode !== 'boolean') return false
+  }
   return true
 })
 
@@ -365,10 +437,8 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
 // ============================================================================
 
 /**
- * Model snapshot captured at message creation time.
- * Preserves model identity and metadata even if the model is later removed from provider.
- *
- * TODO: Replace with Pick/Omit from v2 Model type once stabilized.
+ * Model identity captured at message creation time.
+ * Preserves model identity even if the model is later removed from provider.
  */
 export const ModelSnapshotSchema = z.strictObject({
   id: z.string(),
@@ -378,15 +448,59 @@ export const ModelSnapshotSchema = z.strictObject({
 })
 export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
 
+/**
+ * Per-message snapshot of the producing author (chat assistant or session agent),
+ * captured at creation time so the header/export can still show it after the entity
+ * is renamed or deleted. The author owns the model it ran — `model` is nested. Chat
+ * vs session is already implied by the message's topic, so the kind isn't recorded
+ * here (and the two are converging), keeping this a single flat author shape.
+ */
+export const MessageSnapshotSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  emoji: z.string().optional(),
+  model: ModelSnapshotSchema
+})
+export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
+
 // ============================================================================
 // Message Entity Types
 // ============================================================================
 
 /**
- * Message role - user, assistant, or system
+ * Message role.
+ *
+ * - `user` / `assistant` / `system` — content messages.
+ * - `root` — the per-topic content-less virtual root sentinel (one per topic,
+ *   `parentId IS NULL`). Self-identifying so role-filtered content queries
+ *   (`WHERE role = 'system'`) exclude it for free; never rendered or sent to a
+ *   model. See `docs/references/chat/message-tree.md`.
  */
-export const MessageRoleSchema = z.enum(['user', 'assistant', 'system'])
+export const MessageRoleSchema = z.enum(['user', 'assistant', 'system', 'root'])
 export type MessageRole = z.infer<typeof MessageRoleSchema>
+
+/**
+ * Roles a caller may supply when creating/updating a message — content roles only.
+ * The virtual-root sentinel (`role = 'root'`) is written exclusively by
+ * `createRootMessageTx` / the migrator, never through the public create/update DTOs,
+ * so input schemas use this to reject `'root'` at validation (a clean 422) rather than
+ * letting it reach the DB and trip `message_root_parent_check`.
+ */
+export const ContentMessageRoleSchema = z.enum(['user', 'assistant', 'system'])
+/** Roles that carry content — everything except the virtual-root sentinel. */
+export type ContentMessageRole = z.infer<typeof ContentMessageRoleSchema>
+
+/**
+ * Narrow a message role to a content role for model serialization. The virtual root
+ * (`role = 'root'`) is structural and never serialized — it is excluded from every
+ * history/path query — so reaching here with `'root'` is a bug, not a state to map.
+ */
+export function toContentRole(role: MessageRole): ContentMessageRole {
+  if (role === 'root') {
+    throw new Error('virtual root (role=root) must not be serialized into model history')
+  }
+  return role
+}
 
 export const TOPIC_MESSAGE_SEARCH_ROLES = ['user', 'assistant'] as const satisfies readonly MessageRole[]
 export type TopicMessageSearchRole = (typeof TOPIC_MESSAGE_SEARCH_ROLES)[number]
@@ -418,8 +532,8 @@ export type MessageStatus = z.infer<typeof MessageStatusSchema>
 /**
  * Complete message entity as stored in database.
  *
- * JSON blob columns (`data`, `modelSnapshot`, `stats`) are typed via
- * {@link MessageDataSchema} / {@link ModelSnapshotSchema} / {@link MessageStatsSchema}.
+ * JSON blob columns (`data`, `messageSnapshot`, `stats`) are typed via
+ * {@link MessageDataSchema} / {@link MessageSnapshotSchema} / {@link MessageStatsSchema}.
  */
 export const MessageSchema = z.strictObject({
   /** Message ID (UUID — v4 legacy or v7 v2-native) */
@@ -430,9 +544,9 @@ export const MessageSchema = z.strictObject({
   parentId: z.string().nullable(),
   /** Message role */
   role: MessageRoleSchema,
-  /** Message content (blocks with inline references) */
+  /** Message content stored as AI SDK UIMessage.parts */
   data: MessageDataSchema,
-  /** Searchable text extracted from data.blocks (DB DEFAULT ''; trigger fills on insert/update) */
+  /** Searchable text extracted from data.parts (DB DEFAULT ''; trigger fills on insert/update) */
   searchableText: z.string(),
   /** Message status */
   status: MessageStatusSchema,
@@ -441,12 +555,12 @@ export const MessageSchema = z.strictObject({
   // Assistant info is derived via topic → assistant FK chain; not stored on message.
   /** Model identifier */
   modelId: z.string().nullable().optional(),
-  /** Snapshot of model at message creation time */
-  modelSnapshot: ModelSnapshotSchema.nullable().optional(),
-  /** Trace ID for tracking */
-  traceId: z.string().nullable().optional(),
+  /** Snapshot of the producing author (assistant|agent, model nested) at creation time */
+  messageSnapshot: MessageSnapshotSchema.nullable().optional(),
   /** Statistics: token usage, performance metrics */
   stats: MessageStatsSchema.nullable().optional(),
+  /** Durable compaction marker: rolling summary covering the conversation up to & incl. this row. */
+  compactionSummary: z.string().nullable().optional(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */
@@ -465,10 +579,14 @@ export type Message = z.infer<typeof MessageSchema>
 export interface TreeNode {
   /** Message ID */
   id: string
-  /** Parent message ID (null for root, omitted in SiblingsGroup.nodes) */
-  parentId?: string | null
-  /** Message role */
-  role: MessageRole
+  /** Parent message ID — the topic's virtual root for first turns, else a content message; omitted in SiblingsGroup.nodes */
+  parentId: string
+  /** Message role — a tree node is never the virtual root, so content roles only */
+  role: ContentMessageRole
+  /** Derived from the message's hidden `data-clear` part. */
+  isContextBoundary?: boolean
+  /** Whether this is an empty successful user leaf awaiting composer input. */
+  isAwaitingInput?: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */
@@ -486,7 +604,7 @@ export interface TreeNode {
  * Used for multi-model responses in tree view
  */
 export interface SiblingsGroup {
-  /** Parent message ID */
+  /** Parent message ID — the virtual root for first-turn groups, else a content message */
   parentId: string
   /** Siblings group ID (non-zero) */
   siblingsGroupId: number
@@ -504,6 +622,8 @@ export interface TreeResponse {
   siblingsGroups: SiblingsGroup[]
   /** Current active node ID */
   activeNodeId: string | null
+  /** The topic's virtual-root id */
+  rootId: string | null
 }
 
 // ============================================================================
@@ -527,6 +647,8 @@ export interface BranchMessage {
 export interface BranchMessagesResponse extends CursorPaginationResponse<BranchMessage> {
   /** Current active node ID */
   activeNodeId: string | null
+  /** The topic's virtual-root id */
+  rootId: string | null
   /**
    * Topic's `assistantId` — embedded in the response so renderers don't
    * need a separate `/topics/:id` round-trip just to enrich each message

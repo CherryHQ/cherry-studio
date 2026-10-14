@@ -4,8 +4,10 @@ import {
   formatApiHost,
   formatApiKeys,
   getTrailingApiVersion,
-  hasAPIVersion,
+  hasApiVersion,
+  isBareVertexApiHost,
   isWithTrailingSharp,
+  joinApiKeyString,
   splitApiKeyString,
   withoutTrailingApiVersion,
   withoutTrailingSharp
@@ -59,26 +61,26 @@ describe('api', () => {
     })
   })
 
-  describe('hasAPIVersion', () => {
+  describe('hasApiVersion', () => {
     it('detects numeric version suffix', () => {
-      expect(hasAPIVersion('https://api.example.com/v1')).toBe(true)
-      expect(hasAPIVersion('http://localhost:3000/v2beta')).toBe(true)
-      expect(hasAPIVersion('/v3alpha/resources')).toBe(true)
+      expect(hasApiVersion('https://api.example.com/v1')).toBe(true)
+      expect(hasApiVersion('http://localhost:3000/v2beta')).toBe(true)
+      expect(hasApiVersion('/v3alpha/resources')).toBe(true)
     })
 
     it('returns false when no version found', () => {
-      expect(hasAPIVersion('https://api.example.com')).toBe(false)
-      expect(hasAPIVersion('')).toBe(false)
-      expect(hasAPIVersion(undefined)).toBe(false)
+      expect(hasApiVersion('https://api.example.com')).toBe(false)
+      expect(hasApiVersion('')).toBe(false)
+      expect(hasApiVersion(undefined)).toBe(false)
     })
 
     it('return false when starting without v character', () => {
-      expect(hasAPIVersion('https://api.example.com/a1v')).toBe(false)
-      expect(hasAPIVersion('/av1/users')).toBe(false)
+      expect(hasApiVersion('https://api.example.com/a1v')).toBe(false)
+      expect(hasApiVersion('/av1/users')).toBe(false)
     })
 
     it('return false when starting with v- word', () => {
-      expect(hasAPIVersion('https://api.example.com/vendor')).toBe(false)
+      expect(hasApiVersion('https://api.example.com/vendor')).toBe(false)
     })
   })
 
@@ -108,6 +110,14 @@ describe('api', () => {
 
     it('ignores empty keys', () => {
       expect(splitApiKeyString('key1,,key2, ,key3')).toEqual(['key1', 'key2', 'key3'])
+    })
+  })
+
+  describe('joinApiKeyString', () => {
+    it('escapes commas so keys round-trip through splitApiKeyString', () => {
+      const apiKeys = ['key,1', 'key2']
+
+      expect(splitApiKeyString(joinApiKeyString(apiKeys))).toEqual(apiKeys)
     })
   })
 
@@ -344,6 +354,35 @@ describe('api', () => {
     it('preserves URL with trailing # and other content', () => {
       expect(withoutTrailingSharp('https://api.example.com/v1#')).toBe('https://api.example.com/v1')
       expect(withoutTrailingSharp('https://api.example.com/v2beta#')).toBe('https://api.example.com/v2beta')
+    })
+  })
+
+  describe('isBareVertexApiHost', () => {
+    it.each([
+      'https://aiplatform.googleapis.com',
+      'https://aiplatform.googleapis.com/',
+      'https://us-central1-aiplatform.googleapis.com',
+      'http://aiplatform.googleapis.com',
+      // Wire-identical to the bare host: URL normalises :443 away and a lone
+      // trailing '#' parses to an empty hash.
+      'https://aiplatform.googleapis.com:443',
+      'https://aiplatform.googleapis.com#',
+      '  https://aiplatform.googleapis.com  '
+    ])('treats %s as the official default host', (host) => {
+      expect(isBareVertexApiHost(host)).toBe(true)
+    })
+
+    it.each([
+      'https://aiplatform.googleapis.com:8443',
+      'https://aiplatform.googleapis.com/v1',
+      'https://us-central1-aiplatform.googleapis.com/v1/projects/p/locations/l',
+      'https://aiplatform.googleapis.com/?key=1',
+      'https://aiplatform.googleapis.com#generateContent',
+      'https://custom.googleapis.com/vertex',
+      'not a url',
+      ''
+    ])('treats %s as a user override', (host) => {
+      expect(isBareVertexApiHost(host)).toBe(false)
     })
   })
 })

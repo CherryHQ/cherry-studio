@@ -1,5 +1,6 @@
-import { Checkbox, Input, Label } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
+
+import { Checkbox, Input, Label } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Label> = {
   title: 'Components/Primitives/Label',
@@ -40,8 +41,8 @@ export const WithCheckbox: Story = {
 export const Required: Story = {
   render: () => (
     <div className="flex w-72 flex-col gap-2">
-      <Label htmlFor="name">
-        Name <span className="text-destructive">*</span>
+      <Label htmlFor="name" required>
+        Name
       </Label>
       <Input id="name" placeholder="Required field" />
     </div>

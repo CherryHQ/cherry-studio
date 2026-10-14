@@ -1,120 +1,279 @@
-import { DeleteIcon } from '@renderer/components/Icons'
-import ImageViewer from '@renderer/components/ImageViewer'
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { handleDelete } from '@renderer/services/FileAction'
-import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata, FileType } from '@renderer/types'
-import { FILE_TYPE } from '@renderer/types'
-import { formatFileSize } from '@renderer/utils'
-import { t } from 'i18next'
-import { CircleAlert } from 'lucide-react'
-import React, { memo, useCallback } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { ChevronDown, ChevronsUpDown, ChevronUp, FolderOpen, Pencil, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
+import { memo, type RefObject, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import FileItem from './FileItem'
+import { Button, Checkbox, type CheckedState } from '@cherrystudio/ui'
 
-interface FileItemProps {
-  id: FileType | 'all' | string
-  list: {
-    key: FileType | 'all' | string
-    file: React.ReactNode
-    files?: FileMetadata[]
-    count?: number
-    size: string
-    ext: string
-    created_at: string
-    actions: React.ReactNode
-  }[]
-  files?: FileMetadata[]
-}
+import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
+import type { FileItem } from './fileDisplay'
+import { getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
+import { InlineRename } from './InlineRename'
 
-const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
-  const estimateSize = useCallback(() => 75, [])
+export type SortKey = 'name' | 'size' | 'updatedAt' | 'type'
+export type SortDir = 'asc' | 'desc'
 
-  if (id === FILE_TYPE.IMAGE && files?.length && files?.length > 0) {
-    const previewItems = files.map((file) => ({
-      alt: FileManager.formatFileName(file),
-      id: file.id,
-      src: FileManager.getFileUrl(file)
-    }))
+const FILE_ROW_HEIGHT_PX = 44
+const FILE_LIST_GRID = 'grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_4rem_7rem_6.5rem] items-center gap-2'
+const FILE_LIST_CHECKBOX_CLASS_NAME =
+  'inline-flex items-center justify-center align-middle text-foreground hover:bg-accent data-[state=checked]:border-border-selected data-[state=checked]:bg-background-subtle data-[state=checked]:text-foreground focus-visible:border-ring'
 
-    return (
-      <div className="overflow-y-auto p-4">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4">
-          {files.map((file, index) => (
-            <div
-              className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-border/70 bg-background-subtle"
-              key={file.id}>
-              <div className="absolute inset-0 flex items-center justify-center bg-background-subtle">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white/90" />
-              </div>
-              <ImageViewer
-                alt={FileManager.formatFileName(file)}
-                className="h-full w-full cursor-pointer object-cover opacity-0 transition-[opacity,transform] duration-300 [&.loaded]:opacity-100 group-hover:[&.loaded]:scale-105"
-                preview={{
-                  defaultActiveIndex: index,
-                  items: previewItems
-                }}
-                src={FileManager.getFileUrl(file)}
-                onLoad={(e) => {
-                  const img = e.target as HTMLImageElement
-                  img.classList.add('loaded')
-                }}
-              />
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/60 px-2 py-[5px] text-white text-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                <div className="truncate">{formatFileSize(file.size)}</div>
-              </div>
-              <button
-                className="absolute top-2 right-2 z-[1] flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity duration-300 hover:bg-red-600/80 group-hover:opacity-100"
-                title={t('files.delete.title')}
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  window.modal.confirm({
-                    title: t('files.delete.title'),
-                    content: t('files.delete.content'),
-                    okText: t('common.confirm'),
-                    cancelText: t('common.cancel'),
-                    centered: true,
-                    onOk: () => {
-                      void handleDelete(file.id, t)
-                    },
-                    icon: <CircleAlert className="size-4 text-red-500" />
-                  })
-                }}>
-                <DeleteIcon size={14} className="lucide-custom" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
+function SortHeader({
+  label,
+  field,
+  sortKey,
+  sortDir,
+  onSort
+}: {
+  label: string
+  field: SortKey
+  sortKey: SortKey
+  sortDir: SortDir
+  onSort: (key: SortKey) => void
+}) {
+  const active = sortKey === field
+  const SortIcon = active ? (sortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown
+  const iconClass = active ? 'shrink-0 opacity-70' : 'shrink-0 opacity-40'
   return (
-    <DynamicVirtualList
-      list={list}
-      estimateSize={estimateSize}
-      overscan={2}
-      scrollerStyle={{
-        padding: '0 16px 16px 16px'
-      }}
-      itemContainerStyle={{
-        height: '75px',
-        paddingTop: '12px'
-      }}>
-      {(item) => (
-        <FileItem
-          key={item.key}
-          fileInfo={{
-            name: item.file,
-            ext: item.ext,
-            extra: `${item.created_at} · ${item.count}${t('files.count')} · ${item.size}`,
-            actions: item.actions
-          }}
-        />
-      )}
-    </DynamicVirtualList>
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => onSort(field)}
+      className="h-full min-h-0 w-full justify-start gap-1 rounded-none px-0 py-0 text-xs font-medium !text-muted-foreground shadow-none hover:bg-transparent hover:!text-foreground">
+      <span>{label}</span>
+      <SortIcon size={9} className={iconClass} />
+    </Button>
   )
 }
 
-export default memo(FileList)
+export const FileListHeader = memo(function FileListHeader({
+  visibleSelectionState,
+  onSelectAll,
+  sortKey,
+  sortDir,
+  onSort
+}: {
+  visibleSelectionState: CheckedState
+  onSelectAll: (checked: boolean) => void
+  sortKey: SortKey
+  sortDir: SortDir
+  onSort: (key: SortKey) => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className={`${FILE_LIST_GRID} mx-3 mb-2 h-10 shrink-0 border-b border-border px-2.5`}>
+      <div className="flex items-center self-stretch">
+        <label className="flex size-full cursor-pointer items-center">
+          <Checkbox
+            size="sm"
+            className={FILE_LIST_CHECKBOX_CLASS_NAME}
+            checked={visibleSelectionState}
+            onCheckedChange={(checked) => onSelectAll(Boolean(checked))}
+            aria-label={t('files.select_all')}
+          />
+        </label>
+      </div>
+      <div className="min-w-0 self-stretch">
+        <SortHeader label={t('files.name')} field="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+      </div>
+      <div className="self-stretch">
+        <SortHeader label={t('files.size')} field="size" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+      </div>
+      <div className="self-stretch">
+        <SortHeader label={t('files.type')} field="type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+      </div>
+      <div className="self-stretch">
+        <SortHeader
+          label={t('files.modified_at')}
+          field="updatedAt"
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={onSort}
+        />
+      </div>
+      <div aria-label={t('files.actions')} />
+    </div>
+  )
+})
+
+export const FileList = memo(function FileList({
+  files,
+  selectedIds,
+  onSelect,
+  onOpen,
+  onDelete,
+  onRename,
+  onShowInFolder,
+  menuActions,
+  scrollRef,
+  renamingId,
+  onRenameConfirm,
+  onRenameCancel,
+  deleteDisabled = false
+}: {
+  files: FileItem[]
+  selectedIds: Set<string>
+  onSelect: (id: string, isChecked: boolean, shouldSelectRange: boolean) => void
+  onOpen: (file: FileItem) => void
+  onDelete: (id: string) => void
+  onRename: (id: string) => void
+  onShowInFolder: (id: string) => void
+  menuActions: FileContextMenuActions
+  scrollRef: RefObject<HTMLDivElement | null>
+  renamingId: string | null
+  onRenameConfirm: (id: string, name: string) => void
+  onRenameCancel: () => void
+  deleteDisabled?: boolean
+}) {
+  const { t } = useTranslation()
+  const getItemKey = useCallback((index: number) => files[index]?.id ?? index, [files])
+  const rowVirtualizer = useVirtualizer({
+    count: files.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => FILE_ROW_HEIGHT_PX,
+    getItemKey,
+    overscan: 8
+  })
+
+  useEffect(() => {
+    if (!renamingId) return
+    const index = files.findIndex((file) => file.id === renamingId)
+    if (index >= 0) rowVirtualizer.scrollToIndex(index, { align: 'auto' })
+  }, [files, renamingId, rowVirtualizer])
+
+  return (
+    <div className="relative flex flex-col" style={{ height: rowVirtualizer.getTotalSize() }}>
+      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+        const file = files[virtualRow.index]
+        if (!file) return null
+        const selected = selectedIds.has(file.id)
+        const Icon = typeIcons[file.type]
+        const isRenaming = renamingId === file.id
+        const canUseFileActions = !file.isMissing
+        const canOpen = canUseFileActions
+        const canRename = canUseFileActions
+        const canShowInFolder = canUseFileActions
+        const deleteLabel = file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
+        const renderActionPlaceholder = (key: string) => <div key={key} className="size-6" aria-hidden="true" />
+
+        return (
+          <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
+            <div
+              onClick={() => {
+                if (!isRenaming && !file.isMissing) onOpen(file)
+              }}
+              className={`${FILE_LIST_GRID} group absolute top-0 right-3 left-3 h-10 cursor-default rounded-md px-2.5 transition-colors ${
+                selected ? 'bg-accent ring-1 ring-border-subtle ring-inset' : 'hover:bg-accent'
+              }`}
+              style={{ transform: `translateY(${virtualRow.start}px)` }}>
+              <div className="flex items-center self-stretch" onClick={(e) => e.stopPropagation()}>
+                <label className="flex size-full cursor-pointer items-center">
+                  <Checkbox
+                    size="sm"
+                    className={FILE_LIST_CHECKBOX_CLASS_NAME}
+                    checked={selected}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSelect(file.id, !selected, e.shiftKey)
+                    }}
+                    data-file-selection-checkbox
+                    aria-label={t('files.select_file', { name: file.name })}
+                  />
+                </label>
+              </div>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background-subtle">
+                  <Icon size={14} strokeWidth={1.4} className={`shrink-0 ${typeIconColors[file.type]}`} />
+                </span>
+                {isRenaming ? (
+                  <InlineRename
+                    value={file.name}
+                    onConfirm={(v) => onRenameConfirm(file.id, v)}
+                    onCancel={onRenameCancel}
+                    className="flex-1 px-2"
+                  />
+                ) : (
+                  <>
+                    <span className="truncate text-sm text-foreground">{file.name}</span>
+                    {file.isMissing && (
+                      <span className="shrink-0 rounded border border-error-border bg-error-subtle px-1.5 py-0.5 text-[10px] text-error-subtle-foreground">
+                        {t('files.missing')}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+              <span className="truncate text-xs text-muted-foreground">{file.size}</span>
+              <span className="truncate text-xs text-muted-foreground">{getFormatLabel(file.format)}</span>
+              <span className="truncate text-xs text-foreground-tertiary">{file.updatedAt}</span>
+              <div className="grid grid-cols-4 justify-items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                {canOpen ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('files.open')}
+                    title={t('files.open')}
+                    className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onOpen(file)
+                    }}>
+                    <SquareArrowOutUpRight size={13} />
+                  </Button>
+                ) : (
+                  renderActionPlaceholder('open')
+                )}
+                {canRename ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('files.rename')}
+                    title={t('files.rename')}
+                    className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onRename(file.id)
+                    }}>
+                    <Pencil size={13} />
+                  </Button>
+                ) : (
+                  renderActionPlaceholder('rename')
+                )}
+                {canShowInFolder ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('files.show_in_folder')}
+                    title={t('files.show_in_folder')}
+                    className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onShowInFolder(file.id)
+                    }}>
+                    <FolderOpen size={14} />
+                  </Button>
+                ) : (
+                  renderActionPlaceholder('location')
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={deleteDisabled}
+                  aria-label={deleteLabel}
+                  title={deleteLabel}
+                  className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete(file.id)
+                  }}>
+                  <Trash2 size={13} />
+                </Button>
+              </div>
+            </div>
+          </FileContextMenu>
+        )
+      })}
+    </div>
+  )
+})

@@ -6,8 +6,8 @@ import { promisify } from 'node:util'
 
 import { application } from '@application'
 import { isWin } from '@main/core/platform'
-import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import { FILE_TYPE, type FileInfo } from '@shared/file/types'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import { FILE_TYPE, type FileInfo } from '@shared/types/file'
 
 import type { ImageToTextHandlerOutput } from '../types'
 import type { PreparedOvOcrContext } from './types'

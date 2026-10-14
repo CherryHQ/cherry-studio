@@ -1,0 +1,4 @@
+{"level":"error","message":"File not found: /tmp/export.png","module":"FileManager","process":"main","timestamp":"2026-08-20 13:00:00"}
+{"level":"error","message":"Error listing models Not Found","stack":"AI_APICallError: Not Found\n    at postToApi","module":"ProviderService","process":"main","timestamp":"2026-08-20 13:00:01"}
+{"level":"error","message":"Request handling failed: POST /models Provider with id 'example-provider' not found","module":"DataApi","process":"main","timestamp":"2026-08-20 13:00:02"}
+{"level":"error","message":"Download failed with 404 for https://example.com/models/demo-weights.onnx","module":"BinaryManager","process":"main","timestamp":"2026-08-20 13:00:03"}

@@ -1,18 +1,15 @@
-import { Button, RowFlex } from '@cherrystudio/ui'
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import OauthButton from '@renderer/components/Oauth/OauthButton'
-import { PROVIDER_URLS } from '@renderer/config/providers'
-import { useProvider } from '@renderer/hooks/useProvider'
-import { getProviderLabel } from '@renderer/i18n/label'
-import {
-  oauthCardClasses,
-  sectionHeadingClasses
-} from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { providerBills, providerCharge } from '@renderer/utils/oauth'
-import { hasApiKeys } from '@shared/utils/provider'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
+
+import { Button, RowFlex } from '@cherrystudio/ui'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
+import OauthButton from '@renderer/components/Oauth/OauthButton'
+import { useProvider } from '@renderer/hooks/useProvider'
+import { getProviderLabelKey } from '@renderer/i18n/label'
+import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import { providerBills, providerCharge } from '@renderer/services/oauth'
+import { hasApiKeys } from '@shared/utils/provider'
 
 interface Props {
   providerId: string
@@ -21,6 +18,8 @@ interface Props {
 const ProviderOauth: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, updateProvider, addApiKey } = useProvider(providerId)
+  // Resolved before the early return below — hooks must run unconditionally.
+  const Icon = useIcon(resolveProviderIconRef(providerId))
 
   const setApiKey = async (newKey: string) => {
     await addApiKey(newKey, 'OAuth')
@@ -29,45 +28,36 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
 
   if (!provider) return null
 
-  let providerWebsite =
-    PROVIDER_URLS[provider.id]?.api?.url.replace('https://', '').replace('api.', '') || provider.name
-  if (provider.id === 'ppio') {
-    providerWebsite = 'ppio.com'
-  }
   const officialWebsite = provider.websites?.official
-
-  const Icon = resolveProviderIcon(provider.id)
+  const providerWebsite = officialWebsite?.replace(/^https?:\/\//, '').replace(/\/.*$/, '') || provider.name
 
   const serviceDescription = (
     <Trans
       i18nKey="settings.provider.oauth.description"
       components={{
-        website: (
-          <a className="text-inherit hover:underline" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
-        )
+        website: <a className="text-inherit" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
       }}
       values={{ provider: providerWebsite }}
     />
   )
 
-  // Logged-out: align with the CherryIN account card (section heading + bordered shell + one row:
+  // Logged-out: align with the CherryIN account card (bordered shell + one row:
   // avatar/name/description on the left, login button on the right).
   if (!hasApiKeys(provider)) {
     return (
-      <div className="flex flex-col gap-3">
-        <h3 className={sectionHeadingClasses}>{t('settings.provider.section.account')}</h3>
+      <div className={oauthCardClasses.container}>
         <div className={oauthCardClasses.shell}>
           <div className={oauthCardClasses.loggedInRow}>
             <div className={oauthCardClasses.profileMeta}>
               {Icon ? (
-                <Icon.Avatar size={48} />
+                <Icon.Avatar size={40} />
               ) : (
-                <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-(--color-background-soft) font-bold text-[20px]">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-[18px] font-bold">
                   {provider.name[0]}
                 </div>
               )}
               <div className={oauthCardClasses.nameBlock}>
-                <div className={oauthCardClasses.loggedInName}>{getProviderLabel(provider.id)}</div>
+                <div className={oauthCardClasses.loggedInName}>{t(getProviderLabelKey(provider.id))}</div>
                 <div className={oauthCardClasses.loggedInEmail}>{serviceDescription}</div>
               </div>
             </div>
@@ -85,23 +75,21 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
       {Icon ? (
         <Icon.Avatar size={60} />
       ) : (
-        <div className="flex size-[60px] shrink-0 items-center justify-center rounded-full bg-(--color-background-soft) font-bold text-[24px]">
+        <div className="flex size-15 shrink-0 items-center justify-center rounded-full bg-muted text-[24px] font-bold">
           {provider.name[0]}
         </div>
       )}
       <RowFlex className="gap-2.5">
-        <Button
-          className="rounded-lg px-3 py-[6px] text-[13px] shadow-none"
-          onClick={() => providerCharge(provider.id)}>
-          <CircleDollarSign aria-hidden className="size-4 shrink-0 text-white" />
+        <Button className="rounded-lg px-3 py-1.5 text-[13px] shadow-none" onClick={() => providerCharge(provider.id)}>
+          <CircleDollarSign aria-hidden className="size-4 shrink-0 text-primary-foreground" />
           {t('settings.provider.charge')}
         </Button>
-        <Button className="rounded-lg px-3 py-[6px] text-[13px] shadow-none" onClick={() => providerBills(provider.id)}>
-          <ReceiptText aria-hidden className="size-4 shrink-0 text-white" />
+        <Button className="rounded-lg px-3 py-1.5 text-[13px] shadow-none" onClick={() => providerBills(provider.id)}>
+          <ReceiptText aria-hidden className="size-4 shrink-0 text-primary-foreground" />
           {t('settings.provider.bills')}
         </Button>
       </RowFlex>
-      <div className="flex items-center gap-1.5 text-(--color-text-2) text-[13px] leading-[1.35]">
+      <div className="flex items-center gap-1.5 text-[13px] leading-[1.35] text-muted-foreground">
         {serviceDescription}
       </div>
     </div>

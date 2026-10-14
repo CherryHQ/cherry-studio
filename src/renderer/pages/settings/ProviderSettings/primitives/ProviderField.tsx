@@ -1,5 +1,6 @@
-import { cn } from '@renderer/utils'
 import type { ReactNode } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 interface ProviderFieldProps {
   title: ReactNode
@@ -9,6 +10,7 @@ interface ProviderFieldProps {
   help?: ReactNode
   children: ReactNode
   className?: string
+  layout?: 'vertical' | 'horizontal'
 }
 
 export default function ProviderField({
@@ -17,22 +19,24 @@ export default function ProviderField({
   action,
   help,
   children,
-  className
+  className,
+  layout = 'vertical'
 }: ProviderFieldProps) {
+  const isHorizontal = layout === 'horizontal'
+
   return (
-    <div className={cn('space-y-2', className)}>
-      <div className="flex items-center justify-between gap-3">
-        <div
-          className={cn(
-            'font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-sm)] text-foreground-secondary leading-[var(--line-height-body-sm)]',
-            titleClassName
-          )}>
-          {title}
-        </div>
+    <div
+      className={cn(
+        'space-y-2',
+        className,
+        isHorizontal && 'grid grid-cols-[7rem_minmax(0,1fr)] items-start space-y-0 gap-x-3 gap-y-1.5'
+      )}>
+      <div className={cn('flex items-center justify-between gap-3', isHorizontal && 'min-h-8 justify-start')}>
+        <div className={cn('text-sm leading-5 font-medium text-muted-foreground', titleClassName)}>{title}</div>
         {action}
       </div>
       {children}
-      {help}
+      {help && isHorizontal ? <div className="col-start-2">{help}</div> : help}
     </div>
   )
 }

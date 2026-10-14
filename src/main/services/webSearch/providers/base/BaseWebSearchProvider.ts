@@ -1,6 +1,7 @@
-import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
-import { withoutTrailingSlash } from '@shared/utils'
 import type * as z from 'zod'
+
+import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import { withoutTrailingSlash } from '@shared/utils/api'
 
 import type { ApiKeyRotationState } from '../../utils/provider'
 import { resolveProviderApiHost } from '../../utils/provider'

@@ -11,7 +11,8 @@ import type {
 
 const validRegistry = {
   tesseract: {
-    isAvailable: () => true,
+    runtime: 'local',
+    isSupported: () => true,
     capabilities: {
       image_to_text: {
         mode: 'background',
@@ -26,23 +27,33 @@ const validRegistry = {
     }
   },
   system: {
-    isAvailable: () => true,
+    runtime: 'local',
+    isSupported: () => true,
     capabilities: {}
   },
   paddleocr: {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
+    capabilities: {}
+  },
+  'local-paddleocr': {
+    runtime: 'local',
+    isSupported: () => true,
     capabilities: {}
   },
   ovocr: {
-    isAvailable: () => true,
+    runtime: 'local',
+    isSupported: () => true,
     capabilities: {}
   },
   mineru: {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
     capabilities: {}
   },
   doc2x: {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
     capabilities: {
       document_to_markdown: {
         mode: 'remote-poll',
@@ -68,11 +79,18 @@ const validRegistry = {
     }
   },
   mistral: {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
+    capabilities: {}
+  },
+  'local-document': {
+    runtime: 'local',
+    isSupported: () => true,
     capabilities: {}
   },
   'open-mineru': {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
     capabilities: {}
   }
 } satisfies FileProcessingProcessorRegistry
@@ -121,7 +139,8 @@ const validTypedRemoteContextHandler: FileProcessingCapabilityHandler<'document_
 const validTypedRemoteContextRegistry = {
   ...validRegistry,
   doc2x: {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
     capabilities: {
       document_to_markdown: validTypedRemoteContextHandler
     }

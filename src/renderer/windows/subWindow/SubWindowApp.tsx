@@ -1,56 +1,63 @@
-import '@renderer/databases'
+import { useEffect } from 'react'
 
-import { preferenceService } from '@data/PreferenceService'
-import TopViewContainer from '@renderer/components/TopView'
-import AntdProvider from '@renderer/context/AntdProvider'
-import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { NotificationProvider } from '@renderer/context/NotificationProvider'
-import StyleSheetManager from '@renderer/context/StyleSheetManager'
-import { TabsProvider } from '@renderer/context/TabsContext'
-import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import { CommandProvider, ContextKeyProvider } from '@renderer/features/command'
-import store from '@renderer/store'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
+import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { McpInteractionHost } from '@renderer/components/McpInteractionHost'
+import { PopupHost } from '@renderer/components/PopupHost'
+import { ThemeProvider } from '@renderer/components/ThemeProvider'
+import ToastHost from '@renderer/components/ToastHost'
+import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
+import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
+import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
+import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Provider } from 'react-redux'
 
-void preferenceService.preloadAll()
+// Headless behavior leaf inside the providers: the shared window runtime (same route
+// tree as main, so it needs the same window-level side effects). It renders nothing;
+// the popup/toast hosts are explicit siblings in the App JSX below. The subWindow has
+// none of the main-only concerns (boot spinner/timer, update/storage notification).
+function SubWindowRuntime(): null {
+  useWindowRuntime()
+  useAutoReadPreferenceSync()
 
-// Create React Query client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false
-    }
-  }
-})
+  // Same route tree as main, so topic/message exports run here too — register the
+  // image-mode popup behind the services seam like MainApp does.
+  useEffect(() => {
+    registerImageModeChooser((imageCount) =>
+      import('@renderer/components/MarkdownImageExportPopup').then((m) => m.default.show({ imageCount }))
+    )
+  }, [])
+
+  return null
+}
 
 function SubWindowApp(): React.ReactElement {
   return (
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <StyleSheetManager>
-          <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <ContextKeyProvider>
-                    <CommandProvider>
-                      <TabsProvider>
-                        <TopViewContainer>
-                          <SubWindowAppShell />
-                        </TopViewContainer>
-                      </TabsProvider>
-                    </CommandProvider>
-                  </ContextKeyProvider>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
-          </ThemeProvider>
-        </StyleSheetManager>
-      </QueryClientProvider>
-    </Provider>
+    // The boundary must stay the ANCESTOR of every provider so a provider throwing
+    // during render falls back instead of white-screening.
+    <ErrorBoundary fallbackComponent={WindowFatalFallback}>
+      <ThemeProvider>
+        <CodeStyleProvider>
+          <CommandContextKeyProvider>
+            <CommandProvider>
+              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+                <SubWindowAppShell />
+                <SubWindowRuntime />
+                <ConversationNotificationRuntime />
+                <McpInteractionHost />
+                <PopupHost />
+                <ToastHost />
+                <VoicePlaybackHost />
+              </TabsProvider>
+            </CommandProvider>
+          </CommandContextKeyProvider>
+        </CodeStyleProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }
 

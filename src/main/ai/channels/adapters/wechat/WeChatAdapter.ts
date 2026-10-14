@@ -1,11 +1,9 @@
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
-import { IpcChannel } from '@shared/IpcChannel'
-import { parseDataUrl } from '@shared/utils'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
@@ -49,7 +47,15 @@ class WeChatAdapter extends ChannelAdapter {
     // Abort guard — if disconnect() was called before login completes
     if (signal.aborted) return
 
-    const credentials = await bot.login({ signal })
+    const credentials = await bot.login({ signal }).catch((error) => {
+      if (!signal.aborted) {
+        const isExpired =
+          error instanceof Error &&
+          error.message === 'QR login failed after 3 expired QR codes. Use config tool to reconnect.'
+        this.sendQrToRenderer('', isExpired ? 'expired' : 'error')
+      }
+      throw error
+    })
     if (signal.aborted) return
 
     this.sendQrToRenderer('', 'confirmed', credentials.userId)
@@ -84,15 +90,28 @@ class WeChatAdapter extends ChannelAdapter {
       throw new Error('Bot is not connected')
     }
 
-    const chunks = splitMessage(text, WECHAT_MAX_LENGTH)
+    const bot = this.bot
+    try {
+      const chunks = splitMessage(text, WECHAT_MAX_LENGTH)
+      for (let i = 0; i < chunks.length; i++) {
+        await bot.send(chatId, chunks[i])
 
-    for (let i = 0; i < chunks.length; i++) {
-      await this.bot.send(chatId, chunks[i])
-
-      if (i < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        if (i < chunks.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
       }
+    } finally {
+      bot.stopTyping(chatId).catch(() => {})
     }
+  }
+
+  override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not connected')
+    }
+
+    await this.bot.sendFile(chatId, file.filename, Buffer.from(file.data, 'base64'), file.media_type)
+    this.log.info('Sent file', { chatId, filename: file.filename, size: file.size })
   }
 
   async sendTypingIndicator(chatId: string): Promise<void> {
@@ -110,10 +129,10 @@ class WeChatAdapter extends ChannelAdapter {
 
   private sendQrToRenderer(
     url: string,
-    status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
+    status: 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error',
     userId?: string
   ): void {
-    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.WeChat_QrLogin, {
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'channel.wechat.qr_login', {
       channelId: this.channelId,
       url,
       status,
@@ -138,7 +157,7 @@ class WeChatAdapter extends ChannelAdapter {
           .map((uri) => {
             const result = parseDataUrl(uri)
             if (!result || !result.isBase64 || !result.mediaType) return null
-            return { media_type: result.mediaType, data: result.data } as ImageAttachment
+            return { media_type: result.mediaType, data: result.data }
           })
           .filter((img): img is ImageAttachment => img !== null)
         if (parsed.length > 0) images = parsed
@@ -155,7 +174,8 @@ class WeChatAdapter extends ChannelAdapter {
             return {
               filename: r.filename,
               data: r.data.toString('base64'),
-              media_type: FILE_EXTENSION_MIME_MAP[ext] || 'application/octet-stream',
+              media_type:
+                r.mediaType === 'application/octet-stream' ? FILE_EXTENSION_MIME_MAP[ext] || r.mediaType : r.mediaType,
               size: r.data.length
             } satisfies FileAttachment
           })
@@ -214,12 +234,8 @@ class WeChatAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('wechat', (channel, agentId) => {
+export function createWeChatAdapter(config: ChannelAdapterConfig<'wechat'>) {
   return new WeChatAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

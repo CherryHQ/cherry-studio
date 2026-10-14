@@ -15,7 +15,7 @@
 
 import { loggerService } from '@logger'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import { normalizeShortcutBinding } from '@shared/shortcuts/tokens'
+import { normalizeShortcutBinding } from '@shared/utils/shortcut'
 
 import type { TransformFunction } from './ComplexPreferenceMappings'
 
@@ -35,6 +35,7 @@ export const LEGACY_KEY_TO_TARGET_KEY: Record<string, string> = {
   toggle_show_topics: 'shortcut.topic.sidebar.toggle',
   toggle_show_assistants: 'shortcut.app.sidebar.toggle',
   toggle_sidebar: 'shortcut.app.sidebar.toggle',
+  toggle_new_context: 'shortcut.chat.context.toggle_new',
   copy_last_message: 'shortcut.chat.message.copy_last',
   edit_last_user_message: 'shortcut.chat.message.edit_last_user',
   search_message_in_chat: 'shortcut.chat.message.search',

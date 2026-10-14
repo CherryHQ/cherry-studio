@@ -1,10 +1,12 @@
+import { and, asc, eq, type SQL } from 'drizzle-orm'
+
 import { application } from '@application'
 import { type InsertJobScheduleRow, type JobScheduleRow, jobScheduleTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import {
   type CatchUpPolicy,
@@ -16,7 +18,6 @@ import {
   TriggerSchema,
   type UpdateJobScheduleDto
 } from '@shared/data/api/schemas/jobs'
-import { and, asc, eq, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('JobScheduleService')
 
@@ -44,41 +45,54 @@ export class JobScheduleService {
 
   // ---------------- Read ----------------
 
-  async listAll(filter: JobScheduleListFilter = {}): Promise<JobScheduleSnapshot[]> {
-    const db = this.getDb()
+  listAll(filter: JobScheduleListFilter = {}): JobScheduleSnapshot[] {
+    return this.listAllTx(this.getDb(), filter)
+  }
+
+  listAllTx(tx: DbOrTx, filter: JobScheduleListFilter = {}): JobScheduleSnapshot[] {
     const conditions: SQL[] = []
     if (filter.type) conditions.push(eq(jobScheduleTable.type, filter.type))
     if (filter.enabled !== undefined) conditions.push(eq(jobScheduleTable.enabled, filter.enabled))
 
     const baseQuery = conditions.length
-      ? db
+      ? tx
           .select()
           .from(jobScheduleTable)
           .where(and(...conditions))
           .orderBy(asc(jobScheduleTable.createdAt))
-      : db.select().from(jobScheduleTable).orderBy(asc(jobScheduleTable.createdAt))
+      : tx.select().from(jobScheduleTable).orderBy(asc(jobScheduleTable.createdAt))
 
     const rows =
       filter.limit !== undefined
         ? filter.offset !== undefined
-          ? await baseQuery.limit(filter.limit).offset(filter.offset)
-          : await baseQuery.limit(filter.limit)
-        : await baseQuery
+          ? baseQuery.limit(filter.limit).offset(filter.offset).all()
+          : baseQuery.limit(filter.limit).all()
+        : baseQuery.all()
 
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
-  async listEnabled(): Promise<JobScheduleSnapshot[]> {
-    const rows = await this.getDb()
+  listEnabled(): JobScheduleSnapshot[] {
+    const rows = this.getDb()
       .select()
       .from(jobScheduleTable)
       .where(eq(jobScheduleTable.enabled, true))
       .orderBy(asc(jobScheduleTable.createdAt))
+      .all()
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
-  async getById(id: string): Promise<JobScheduleSnapshot | null> {
-    const [row] = await this.getDb().select().from(jobScheduleTable).where(eq(jobScheduleTable.id, id)).limit(1)
+  getById(id: string): JobScheduleSnapshot | null {
+    return this.getByIdTx(this.getDb(), id)
+  }
+
+  /**
+   * Transactional read — lets a caller inside `withWriteTx` do an atomic
+   * read-modify-write on a schedule row (e.g. merging into `metadata`, which
+   * `updateTx` replaces wholesale).
+   */
+  getByIdTx(tx: DbOrTx, id: string): JobScheduleSnapshot | null {
+    const [row] = tx.select().from(jobScheduleTable).where(eq(jobScheduleTable.id, id)).limit(1).all()
     return row ? this.rowToSnapshot(row) : null
   }
 
@@ -87,12 +101,13 @@ export class JobScheduleService {
    * Returns null when not found so the caller (JobManager) can wrap absence
    * into a typed error with a `knownNames` list for better DX.
    */
-  async getByTypeAndName(type: string, name: string): Promise<JobScheduleSnapshot | null> {
-    const [row] = await this.getDb()
+  getByTypeAndName(type: string, name: string): JobScheduleSnapshot | null {
+    const [row] = this.getDb()
       .select()
       .from(jobScheduleTable)
       .where(and(eq(jobScheduleTable.type, type), eq(jobScheduleTable.name, name)))
       .limit(1)
+      .all()
     return row ? this.rowToSnapshot(row) : null
   }
 
@@ -101,11 +116,12 @@ export class JobScheduleService {
    * error context. The singleton sentinel `''` is filtered out so callers see
    * only user-visible names.
    */
-  async listNamesForType(type: string): Promise<string[]> {
-    const rows = await this.getDb()
+  listNamesForType(type: string): string[] {
+    const rows = this.getDb()
       .select({ name: jobScheduleTable.name })
       .from(jobScheduleTable)
       .where(eq(jobScheduleTable.type, type))
+      .all()
     return rows.map((r) => r.name).filter((n) => n !== '')
   }
 
@@ -114,7 +130,7 @@ export class JobScheduleService {
    * schedules — JobManager applies the per-schedule policy. Filtering more
    * aggressively here would duplicate policy knowledge from JobManager.
    */
-  async getCatchUpCandidates(): Promise<JobScheduleSnapshot[]> {
+  getCatchUpCandidates(): JobScheduleSnapshot[] {
     return this.listEnabled()
   }
 
@@ -125,11 +141,26 @@ export class JobScheduleService {
    *   - `*Tx(tx, ...)` — pure DB operation against a provided transaction.
    *     Use for composing multiple writes into one transaction.
    *   - non-Tx public methods — thin wrappers routing through
-   *     `DbService.withWriteTx` to serialize against other writes (avoids
-   *     libsql issue #288 SQLITE_BUSY). Input validation lives here.
+   *     `DbService.withWriteTx` to serialize against other writes. Input
+   *     validation lives here.
    */
 
-  async createTx(tx: DbOrTx, dto: CreateJobScheduleDto): Promise<JobScheduleSnapshot> {
+  /**
+   * Validate a user-supplied schedule name against the soft-constraint atom.
+   * Exposed for callers composing `createTx` / `updateTx` into their own
+   * transaction (JobManager's `*Tx` primitives) — the non-Tx wrappers below
+   * call it themselves.
+   */
+  assertValidName(name: string): void {
+    const parsed = JobScheduleNameAtomSchema.safeParse(name)
+    if (!parsed.success) {
+      throw DataApiErrorFactory.invalidOperation(
+        `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
+      )
+    }
+  }
+
+  createTx(tx: DbOrTx, dto: CreateJobScheduleDto): JobScheduleSnapshot {
     // Drizzle's `text({ mode: 'json' })` columns accept JS values directly —
     // no manual JSON.stringify needed. The ORM serializes on write and parses
     // on read.
@@ -143,7 +174,7 @@ export class JobScheduleService {
       metadata: dto.metadata ?? {}
     }
 
-    const result = await withSqliteErrors(() => tx.insert(jobScheduleTable).values(insertData).returning(), {
+    const result = withSqliteErrors(() => tx.insert(jobScheduleTable).values(insertData).returning().all(), {
       ...defaultHandlersFor('JobSchedule', '<auto>'),
       unique: () =>
         DataApiErrorFactory.conflict(
@@ -159,30 +190,28 @@ export class JobScheduleService {
     return this.rowToSnapshot(row)
   }
 
-  async create(dto: CreateJobScheduleDto): Promise<JobScheduleSnapshot> {
-    if (dto.name) {
-      const parsed = JobScheduleNameAtomSchema.safeParse(dto.name)
-      if (!parsed.success) {
-        throw DataApiErrorFactory.invalidOperation(
-          `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
-        )
-      }
-    }
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.createTx(tx, dto))
+  create(dto: CreateJobScheduleDto): JobScheduleSnapshot {
+    if (dto.name) this.assertValidName(dto.name)
+    return this.createTx(application.get('DbService').getDb(), dto)
   }
 
-  async updateTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): Promise<JobScheduleSnapshot | null> {
+  updateTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
     const updateData: Partial<InsertJobScheduleRow> = { updatedAt: Date.now() }
     if (patch.name !== undefined) updateData.name = patch.name ?? ''
-    if (patch.trigger !== undefined) updateData.trigger = patch.trigger
+    if (patch.trigger !== undefined) {
+      updateData.trigger = patch.trigger
+      updateData.nextRun = null
+    }
     if (patch.jobInputTemplate !== undefined) updateData.jobInputTemplate = patch.jobInputTemplate
     if (patch.catchUpPolicy !== undefined) updateData.catchUpPolicy = patch.catchUpPolicy
-    if (patch.enabled !== undefined) updateData.enabled = patch.enabled
+    if (patch.enabled !== undefined) {
+      updateData.enabled = patch.enabled
+      if (!patch.enabled) updateData.nextRun = null
+    }
     if (patch.metadata !== undefined) updateData.metadata = patch.metadata
 
-    const result = await withSqliteErrors(
-      () => tx.update(jobScheduleTable).set(updateData).where(eq(jobScheduleTable.id, id)).returning(),
+    const result = withSqliteErrors(
+      () => tx.update(jobScheduleTable).set(updateData).where(eq(jobScheduleTable.id, id)).returning().all(),
       {
         ...defaultHandlersFor('JobSchedule', id),
         unique: () =>
@@ -198,58 +227,66 @@ export class JobScheduleService {
     return this.rowToSnapshot(row)
   }
 
-  async update(id: string, patch: UpdateJobScheduleDto): Promise<JobScheduleSnapshot | null> {
-    if (patch.name) {
-      const parsed = JobScheduleNameAtomSchema.safeParse(patch.name)
-      if (!parsed.success) {
-        throw DataApiErrorFactory.invalidOperation(
-          `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
-        )
-      }
-    }
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.updateTx(tx, id, patch))
+  update(id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
+    if (patch.name) this.assertValidName(patch.name)
+    return this.updateTx(application.get('DbService').getDb(), id, patch)
   }
 
-  async setEnabledTx(tx: DbOrTx, id: string, enabled: boolean): Promise<boolean> {
-    const result = await tx
-      .update(jobScheduleTable)
-      .set({ enabled, updatedAt: Date.now() })
-      .where(eq(jobScheduleTable.id, id))
-    return result.rowsAffected > 0
+  setEnabledTx(tx: DbOrTx, id: string, enabled: boolean): boolean {
+    const updateData: Partial<InsertJobScheduleRow> = { enabled, updatedAt: Date.now() }
+    if (!enabled) updateData.nextRun = null
+    const result = tx.update(jobScheduleTable).set(updateData).where(eq(jobScheduleTable.id, id)).run()
+    return result.changes > 0
   }
 
-  async setEnabled(id: string, enabled: boolean): Promise<boolean> {
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.setEnabledTx(tx, id, enabled))
+  setEnabled(id: string, enabled: boolean): boolean {
+    return this.setEnabledTx(application.get('DbService').getDb(), id, enabled)
   }
 
-  async deleteTx(tx: DbOrTx, id: string): Promise<boolean> {
-    const result = await tx.delete(jobScheduleTable).where(eq(jobScheduleTable.id, id))
-    logger.info('JobSchedule deleted', { id, deleted: result.rowsAffected > 0 })
-    return result.rowsAffected > 0
+  deleteTx(tx: DbOrTx, id: string): boolean {
+    const result = tx.delete(jobScheduleTable).where(eq(jobScheduleTable.id, id)).run()
+    logger.info('JobSchedule deleted', { id, deleted: result.changes > 0 })
+    return result.changes > 0
   }
 
-  async delete(id: string): Promise<boolean> {
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.deleteTx(tx, id))
+  delete(id: string): boolean {
+    return this.deleteTx(application.get('DbService').getDb(), id)
   }
 
   /**
-   * Record a fire event: set lastRun to the actual fire timestamp and nextRun
-   * to the next expected fire (or null for terminal one-shot / no-more-runs).
-   * Called from the SchedulerService callback after each fire.
+   * Record a fire event: set lastRun to the fire timestamp reported by the
+   * caller and nextRun to the next expected fire (or null for terminal
+   * one-shot / no-more-runs). Called after automatic fires and when an overdue
+   * once trigger is consumed manually. The natural-fire path passes an effective
+   * fire time clamped to no earlier than `trigger.at` (see
+   * `JobManager.armSchedule`), so lastRun may exceed the wall-clock instant
+   * the callback actually ran.
    */
-  async markFiredTx(tx: DbOrTx, id: string, lastRun: number, nextRun: number | null): Promise<void> {
-    await tx
-      .update(jobScheduleTable)
+  markFiredTx(tx: DbOrTx, id: string, lastRun: number, nextRun: number | null): void {
+    tx.update(jobScheduleTable)
       .set({ lastRun, nextRun, updatedAt: Date.now() })
       .where(eq(jobScheduleTable.id, id))
+      .run()
   }
 
-  async markFired(id: string, lastRun: number, nextRun: number | null): Promise<void> {
-    const dbService = application.get('DbService')
-    await dbService.withWriteTx((tx) => this.markFiredTx(tx, id, lastRun, nextRun))
+  markFired(id: string, lastRun: number, nextRun: number | null): void {
+    this.markFiredTx(application.get('DbService').getDb(), id, lastRun, nextRun)
+  }
+
+  setNextRunTx(tx: DbOrTx, id: string, nextRun: number | null): void {
+    tx.update(jobScheduleTable).set({ nextRun, updatedAt: Date.now() }).where(eq(jobScheduleTable.id, id)).run()
+  }
+
+  setNextRun(id: string, nextRun: number | null): void {
+    this.setNextRunTx(application.get('DbService').getDb(), id, nextRun)
+  }
+
+  setLastRunTx(tx: DbOrTx, id: string, lastRun: number): void {
+    tx.update(jobScheduleTable).set({ lastRun, updatedAt: Date.now() }).where(eq(jobScheduleTable.id, id)).run()
+  }
+
+  setLastRun(id: string, lastRun: number): void {
+    this.setLastRunTx(application.get('DbService').getDb(), id, lastRun)
   }
 
   // ---------------- Row → Entity ----------------
@@ -274,7 +311,7 @@ export class JobScheduleService {
       trigger: this.validateTrigger(row.id, row.trigger),
       jobInputTemplate: row.jobInputTemplate,
       enabled: row.enabled,
-      nextRun: row.nextRun != null ? timestampToISO(row.nextRun) : null,
+      nextRun: row.enabled && row.nextRun != null ? timestampToISO(row.nextRun) : null,
       lastRun: row.lastRun != null ? timestampToISO(row.lastRun) : null,
       catchUpPolicy: this.validateCatchUpPolicy(row.id, row.catchUpPolicy),
       metadata: row.metadata,

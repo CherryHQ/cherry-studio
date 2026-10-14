@@ -1,13 +1,18 @@
-import { application } from '@application'
 import { loggerService } from '@logger'
+import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 
 const logger = loggerService.withContext('ProtocolService:providersImport')
 
 export function parseProvidersImportData(data: string) {
   try {
-    const result = JSON.parse(
-      Buffer.from(data, 'base64').toString('utf-8').replaceAll("'", '"').replaceAll('(', '').replaceAll(')', '')
-    )
+    const decoded = Buffer.from(data, 'base64').toString('utf-8')
+    let result: unknown
+
+    try {
+      result = JSON.parse(decoded)
+    } catch {
+      result = JSON.parse(decoded.replaceAll("'", '"').replaceAll('(', '').replaceAll(')', ''))
+    }
 
     return JSON.stringify(result)
   } catch (error) {
@@ -21,10 +26,10 @@ export async function handleProvidersProtocolUrl(url: URL) {
     case '/api-keys': {
       // jsonConfig example:
       // {
-      //   "id": "tokenflux",
-      //   "baseUrl": "https://tokenflux.ai/v1",
+      //   "id": "custom-openai",
+      //   "baseUrl": "https://api.example.com/v1",
       //   "apiKey": "sk-xxxx",
-      //   "name": "TokenFlux", // optional
+      //   "name": "Custom OpenAI", // optional
       //   "type": "openai" // optional
       // }
       // cherrystudio://providers/api-keys?v=1&data={base64Encode(JSON.stringify(jsonConfig))}
@@ -45,7 +50,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
         logger.debug('handleProvidersProtocolUrl', { data, version })
       }
 
-      application.get('SettingsWindowService').open(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
+      openSettingsInMainWindow(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
       break
     }
     default:

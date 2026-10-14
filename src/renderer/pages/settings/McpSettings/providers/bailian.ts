@@ -1,7 +1,8 @@
-import { loggerService } from '@logger'
-import { nanoid } from '@reduxjs/toolkit'
-import type { McpServer } from '@renderer/types'
 import i18next from 'i18next'
+import { nanoid } from 'nanoid'
+
+import { loggerService } from '@logger'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('BailianSyncUtils')
 

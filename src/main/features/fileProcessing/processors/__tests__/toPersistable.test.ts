@@ -5,17 +5,19 @@
  * projection logic to guarantee that no sensitive material (apiKey, raw
  * remote-context fields) ever reaches `jobTable.metadata`.
  */
-import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import { type FileInfo, FileInfoSchema } from '@shared/file/types'
-import { describe, expect, it } from 'vitest'
+import fs from 'node:fs/promises'
 
-import { doc2xDocumentToMarkdownHandler } from '../doc2x/document-to-markdown/handler'
-import { mineruDocumentToMarkdownHandler } from '../mineru/document-to-markdown/handler'
-import { paddleDocumentToMarkdownHandler } from '../paddleocr/document-to-markdown/handler'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import { type FileInfo, FileInfoSchema } from '@shared/types/file'
+
+import { doc2xDocumentToMarkdownHandler } from '../doc2x/documentToMarkdown/handler'
+import { mineruDocumentToMarkdownHandler } from '../mineru/documentToMarkdown/handler'
+import { paddleDocumentToMarkdownHandler } from '../paddleocr/documentToMarkdown/handler'
 import type { PreparedRemoteJob } from '../types'
 
-const createFileInfo = (input: Parameters<typeof FileInfoSchema.parse>[0]): FileInfo =>
-  FileInfoSchema.parse(input) as FileInfo
+const createFileInfo = (input: Parameters<typeof FileInfoSchema.parse>[0]): FileInfo => FileInfoSchema.parse(input)
 
 const FAKE_PDF = createFileInfo({
   path: '/tmp/paper.pdf',
@@ -42,7 +44,7 @@ function buildConfig(id: 'doc2x' | 'mineru' | 'paddleocr', apiHost: string): Fil
         apiHost
       }
     ]
-  } as FileProcessorMerged
+  }
 }
 
 async function prepareRemote(
@@ -56,16 +58,21 @@ async function prepareRemote(
   if (prepared.mode !== 'remote-poll') {
     throw new Error('Expected remote-poll prepared job')
   }
-  return prepared as PreparedRemoteJob<'document_to_markdown'>
+  return prepared
 }
 
 describe('A1 whitelist invariant: real toPersistable() never emits apiKey', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(fs, 'stat').mockResolvedValue({ size: 1024 } as never)
+  })
+
   it('doc2x.toPersistable excludes apiKey and includes publishable fields', async () => {
     const config = buildConfig('doc2x', 'https://doc2x.example.com')
     const prepared = await prepareRemote(doc2xDocumentToMarkdownHandler, config)
 
     const persisted = prepared.toPersistable(
-      { apiHost: 'https://doc2x.example.com', apiKey: 'SUPER_SECRET', stage: 'exporting' } as never,
+      { apiHost: 'https://doc2x.example.com', apiKey: 'SUPER_SECRET', stage: 'exporting' },
       'provider-task-xyz'
     )
 
@@ -84,7 +91,7 @@ describe('A1 whitelist invariant: real toPersistable() never emits apiKey', () =
     const prepared = await prepareRemote(mineruDocumentToMarkdownHandler, config)
 
     const persisted = prepared.toPersistable(
-      { apiHost: 'https://mineru.example.com', apiKey: 'SUPER_SECRET' } as never,
+      { apiHost: 'https://mineru.example.com', apiKey: 'SUPER_SECRET' },
       'batch-id-abc'
     )
 
@@ -102,7 +109,7 @@ describe('A1 whitelist invariant: real toPersistable() never emits apiKey', () =
     const prepared = await prepareRemote(paddleDocumentToMarkdownHandler, config)
 
     const persisted = prepared.toPersistable(
-      { apiHost: 'https://paddle.example.com', apiKey: 'SUPER_SECRET' } as never,
+      { apiHost: 'https://paddle.example.com', apiKey: 'SUPER_SECRET' },
       'job-id-123'
     )
 

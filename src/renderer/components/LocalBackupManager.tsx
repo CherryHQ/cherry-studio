@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
+import type { Key } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ColumnDef } from '@cherrystudio/ui'
 import {
   Button,
@@ -12,12 +18,10 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { restoreFromLocal } from '@renderer/services/BackupService'
-import { formatFileSize } from '@renderer/utils'
-import dayjs from 'dayjs'
-import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
-import type { Key } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
+import { formatFileSize } from '@renderer/utils/file'
 
 interface BackupFile {
   fileName: string
@@ -52,8 +56,8 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     try {
       const files = await window.api.backup.listLocalBackupFiles(localBackupDir)
       setBackupFiles(files)
-    } catch (error: any) {
-      window.toast.error(`${t('settings.data.local.backup.manager.fetch.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.local.backup.manager.fetch.error'))
     } finally {
       setLoading(false)
     }
@@ -96,7 +100,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
 
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
-      window.toast.warning(t('settings.data.local.backup.manager.select.files.delete'))
+      toast.warning(t('settings.data.local.backup.manager.select.files.delete'))
       return
     }
 
@@ -104,32 +108,30 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       return
     }
 
-    window.modal.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.local.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.local.backup.manager.delete.confirm.multiple', { count: selectedRowKeys.length }),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setDeleting(true)
-        try {
-          // Delete selected files one by one
-          for (const key of selectedRowKeys) {
-            await window.api.backup.deleteLocalBackupFile(key.toString(), localBackupDir)
-          }
-          window.toast.success(
-            t('settings.data.local.backup.manager.delete.success.multiple', { count: selectedRowKeys.length })
-          )
-          setSelectedRowKeys([])
-          await fetchBackupFiles()
-        } catch (error: any) {
-          window.toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
-        } finally {
-          setDeleting(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      // Delete selected files one by one
+      for (const key of selectedRowKeys) {
+        await window.api.backup.deleteLocalBackupFile(key.toString(), localBackupDir)
+      }
+      toast.success(t('settings.data.local.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
+      setSelectedRowKeys([])
+      await fetchBackupFiles()
+    } catch {
+      toast.error(t('settings.data.local.backup.manager.delete.error'))
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleDeleteSingle = async (fileName: string) => {
@@ -137,26 +139,26 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       return
     }
 
-    window.modal.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.local.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.local.backup.manager.delete.confirm.single', { fileName }),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setDeleting(true)
-        try {
-          await window.api.backup.deleteLocalBackupFile(fileName, localBackupDir)
-          window.toast.success(t('settings.data.local.backup.manager.delete.success.single'))
-          await fetchBackupFiles()
-        } catch (error: any) {
-          window.toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
-        } finally {
-          setDeleting(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      await window.api.backup.deleteLocalBackupFile(fileName, localBackupDir)
+      toast.success(t('settings.data.local.backup.manager.delete.success.single'))
+      await fetchBackupFiles()
+    } catch {
+      toast.error(t('settings.data.local.backup.manager.delete.error'))
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleRestore = async (fileName: string) => {
@@ -164,38 +166,38 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       return
     }
 
-    window.modal.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.local.restore.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.local.restore.confirm.content'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setRestoring(true)
-        try {
-          await (restoreMethod || restoreFromLocal)(fileName)
-          window.toast.success(t('settings.data.local.backup.manager.restore.success'))
-          onClose() // Close the modal
-        } catch (error: any) {
-          window.toast.error(`${t('settings.data.local.backup.manager.restore.error')}: ${error.message}`)
-        } finally {
-          setRestoring(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setRestoring(true)
+    try {
+      await (restoreMethod || restoreFromLocal)(fileName)
+      toast.success(t('settings.data.local.backup.manager.restore.success'))
+      onClose() // Close the modal
+    } catch (error) {
+      toast.error(getLocalizedBackupErrorMessage(error, 'settings.data.local.backup.manager.restore.error'))
+    } finally {
+      setRestoring(false)
+    }
   }
 
   const columns: ColumnDef<BackupFile>[] = [
     {
       accessorKey: 'fileName',
       header: t('settings.data.local.backup.manager.columns.fileName'),
-      meta: { width: 'calc(100% - 460px)', className: 'min-w-0' },
+      meta: { width: 'calc(100% - 504px)', className: 'min-w-0' },
       cell: ({ getValue }) => {
         const fileName = getValue() as string
         return (
-          <Tooltip content={fileName} placement="top-start">
-            <span className="block truncate">{fileName}</span>
+          <Tooltip content={fileName} placement="top-start" fullWidthTrigger>
+            <span className="block w-full min-w-0 truncate">{fileName}</span>
           </Tooltip>
         )
       }
@@ -269,7 +271,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
             )}
           </div>
           {backupFiles.length > PAGE_SIZE && (
-            <div className="flex items-center justify-end gap-2 text-muted-foreground text-sm">
+            <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
               <span>
                 {safeCurrentPage} / {totalPages}
               </span>

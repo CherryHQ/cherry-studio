@@ -1,13 +1,15 @@
 import { existsSync } from 'node:fs'
 
+import { eq } from 'drizzle-orm'
+import { afterAll, describe, expect, it } from 'vitest'
+
 import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { MessageData } from '@shared/data/types/message'
-import { eq } from 'drizzle-orm'
-import { afterAll, describe, expect, it } from 'vitest'
 
 import { truncateAll } from '../internal/truncate'
+import { withRoot } from '../messageTree'
 import { setupTestDatabase } from '../testDatabase'
 
 function mainText(content: string): MessageData {
@@ -17,14 +19,14 @@ function mainText(content: string): MessageData {
 describe('setupTestDatabase — basic lifecycle and schema', () => {
   const dbh = setupTestDatabase()
 
-  it('PRAGMA foreign_keys is ON after init', async () => {
-    const result = await dbh.client.execute('PRAGMA foreign_keys')
-    expect(Number(result.rows[0]?.[0])).toBe(1)
+  it('PRAGMA foreign_keys is ON after init', () => {
+    const result = dbh.sqlite.pragma('foreign_keys', { simple: true })
+    expect(Number(result)).toBe(1)
   })
 
-  it('PRAGMA integrity_check returns ok', async () => {
-    const result = await dbh.client.execute('PRAGMA integrity_check')
-    expect(result.rows[0]?.[0]).toBe('ok')
+  it('PRAGMA integrity_check returns ok', () => {
+    const result = dbh.sqlite.pragma('integrity_check', { simple: true })
+    expect(result).toBe('ok')
   })
 
   it('topic table exists and is empty', async () => {
@@ -32,14 +34,14 @@ describe('setupTestDatabase — basic lifecycle and schema', () => {
     expect(rows).toEqual([])
   })
 
-  it('__drizzle_migrations journal table is preserved across init', async () => {
-    const result = await dbh.client.execute("SELECT name FROM sqlite_master WHERE name='__drizzle_migrations'")
-    expect(result.rows).toHaveLength(1)
+  it('__drizzle_migrations journal table is preserved across init', () => {
+    const result = dbh.sqlite.prepare("SELECT name FROM sqlite_master WHERE name='__drizzle_migrations'").all()
+    expect(result).toHaveLength(1)
   })
 
-  it('FTS5 virtual table message_fts is created by CUSTOM_SQL_STATEMENTS', async () => {
-    const result = await dbh.client.execute("SELECT name FROM sqlite_master WHERE name='message_fts'")
-    expect(result.rows).toHaveLength(1)
+  it('FTS5 virtual table message_fts is created by CUSTOM_SQL_STATEMENTS', () => {
+    const result = dbh.sqlite.prepare("SELECT name FROM sqlite_master WHERE name='message_fts'").all()
+    expect(result).toHaveLength(1)
   })
 })
 
@@ -57,30 +59,29 @@ describe('setupTestDatabase — data isolation between tests', () => {
     expect(rows).toEqual([])
   })
 
-  it('__drizzle_migrations journal remains populated between tests (not truncated)', async () => {
-    const result = await dbh.client.execute('SELECT COUNT(*) AS cnt FROM __drizzle_migrations')
-    expect(Number(result.rows[0]?.[0])).toBeGreaterThan(0)
+  it('__drizzle_migrations journal remains populated between tests (not truncated)', () => {
+    const result = dbh.sqlite.prepare('SELECT COUNT(*) AS cnt FROM __drizzle_migrations').get() as { cnt: number }
+    expect(result.cnt).toBeGreaterThan(0)
   })
 })
 
-describe('setupTestDatabase — transaction + PRAGMA replay', () => {
+describe('setupTestDatabase — transaction', () => {
   const dbh = setupTestDatabase()
 
   it('data inserted inside a transaction is visible after commit', async () => {
-    await dbh.db.transaction(async (tx) => {
-      await tx.insert(topicTable).values({ id: 'topic-tx', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+    dbh.db.transaction((tx) => {
+      tx.insert(topicTable).values({ id: 'topic-tx', orderKey: 'a0', createdAt: 1, updatedAt: 1 }).run()
     })
     const rows = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-tx'))
     expect(rows).toHaveLength(1)
   })
 
-  it('FK enforcement survives transaction-triggered connection reset', async () => {
-    // Drive a transaction to force @libsql/client to recycle its connection.
-    await dbh.db.transaction(async (tx) => {
-      await tx.insert(topicTable).values({ id: 'topic-fk', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+  it('FK enforcement stays ON after a transaction', () => {
+    dbh.db.transaction((tx) => {
+      tx.insert(topicTable).values({ id: 'topic-fk', orderKey: 'a0', createdAt: 1, updatedAt: 1 }).run()
     })
-    const result = await dbh.client.execute('PRAGMA foreign_keys')
-    expect(Number(result.rows[0]?.[0])).toBe(1)
+    const result = dbh.sqlite.pragma('foreign_keys', { simple: true })
+    expect(Number(result)).toBe(1)
   })
 })
 
@@ -93,58 +94,67 @@ describe('setupTestDatabase — FTS5 triggers and truncate cascade', () => {
 
   it('INSERT INTO message populates message_fts via AFTER INSERT trigger', async () => {
     await seedTopic('topic-fts-1')
-    await dbh.db.insert(messageTable).values({
-      id: 'msg-fts-1',
-      parentId: null,
-      topicId: 'topic-fts-1',
-      role: 'user',
-      data: mainText('hello world'),
-      status: 'success',
-      siblingsGroupId: 0,
-      createdAt: 1,
-      updatedAt: 1
-    })
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-fts-1', [
+        {
+          id: 'msg-fts-1',
+          parentId: null,
+          topicId: 'topic-fts-1',
+          role: 'user',
+          data: mainText('hello world'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+    )
 
-    const result = await dbh.client.execute({
-      sql: 'SELECT rowid FROM message_fts WHERE message_fts MATCH ?',
-      args: ['hello']
-    })
-    expect(result.rows.length).toBeGreaterThan(0)
+    const result = dbh.sqlite.prepare('SELECT rowid FROM message_fts WHERE message_fts MATCH ?').all('hello')
+    expect(result.length).toBeGreaterThan(0)
   })
 
   it('truncateAll clears message_fts via the AFTER DELETE trigger cascade', async () => {
     await seedTopic('topic-fts-2')
-    await dbh.db.insert(messageTable).values({
-      id: 'msg-fts-2',
-      parentId: null,
-      topicId: 'topic-fts-2',
-      role: 'user',
-      data: mainText('goodbye'),
-      status: 'success',
-      siblingsGroupId: 0,
-      createdAt: 1,
-      updatedAt: 1
-    })
-    await truncateAll(dbh.db, dbh.client)
-    const count = await dbh.client.execute('SELECT COUNT(*) FROM message_fts')
-    expect(Number(count.rows[0]?.[0])).toBe(0)
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-fts-2', [
+        {
+          id: 'msg-fts-2',
+          parentId: null,
+          topicId: 'topic-fts-2',
+          role: 'user',
+          data: mainText('goodbye'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+    )
+    truncateAll(dbh.db, dbh.sqlite)
+    const count = dbh.sqlite.prepare('SELECT COUNT(*) AS n FROM message_fts').get() as { n: number }
+    expect(count.n).toBe(0)
   })
 
   it('truncateAll does not throw when message has no extractable text', async () => {
     await seedTopic('topic-null-fts')
     // No extractable text — the FTS trigger COALESCEs the missing concat to ''.
-    await dbh.db.insert(messageTable).values({
-      id: 'msg-null-fts',
-      parentId: null,
-      topicId: 'topic-null-fts',
-      role: 'user',
-      data: { parts: [] },
-      status: 'success',
-      siblingsGroupId: 0,
-      createdAt: 1,
-      updatedAt: 1
-    })
-    await expect(truncateAll(dbh.db, dbh.client)).resolves.toBeUndefined()
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-null-fts', [
+        {
+          id: 'msg-null-fts',
+          parentId: null,
+          topicId: 'topic-null-fts',
+          role: 'user',
+          data: { parts: [] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+    )
+    expect(() => truncateAll(dbh.db, dbh.sqlite)).not.toThrow()
   })
 })
 
@@ -161,35 +171,6 @@ describe('setupTestDatabase — production code routing via MockMainDbService', 
   })
 })
 
-describe('setupTestDatabase — replay array does not accumulate across truncate cycles', () => {
-  const dbh = setupTestDatabase()
-
-  it('100 truncate cycles do not cause a visible latency regression', async () => {
-    // Bootstrap: one transaction to warm up the connection
-    await dbh.db.transaction(async () => {})
-
-    const ITER = 100
-    for (let i = 0; i < ITER; i++) {
-      await truncateAll(dbh.db, dbh.client)
-    }
-
-    // After 100 cycles: measure latency of one more transaction.
-    const start = performance.now()
-    await dbh.db.transaction(async (tx) => {
-      await tx.insert(topicTable).values({ id: 'after-cycles', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-    })
-    const elapsed = performance.now() - start
-
-    // If setPragma replay grew to O(N), reconnect would replay 2*ITER PRAGMAs
-    // and this transaction would measurably slow. 50ms is a generous bound
-    // chosen to be noisy-proof on CI while still catching a regression.
-    expect(elapsed).toBeLessThan(50)
-
-    const rows = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'after-cycles'))
-    expect(rows).toHaveLength(1)
-  })
-})
-
 // This last test runs after all describes; it simply observes that the
 // harness does not obviously leak tmpdirs. It cannot be exhaustive within
 // a single test file (we only see our own tmpdirs), so we just smoke-test
@@ -199,11 +180,10 @@ describe('setupTestDatabase — cleanup smoke check', () => {
 
   let dbPathAtSetup: string | null = null
   it('records the db path during setup', () => {
-    // We use client's underlying URL — indirectly derived. Since our harness
-    // does not expose `path`, we skip a strict path check. Just assert the
-    // DB file exists now.
+    // Our harness does not expose the db `path`, so we skip a strict path check
+    // and just assert the raw connection handle is available now.
     dbPathAtSetup = '<recorded>'
-    expect(dbh.client).toBeDefined()
+    expect(dbh.sqlite).toBeDefined()
   })
 
   afterAll(() => {

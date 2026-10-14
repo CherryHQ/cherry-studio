@@ -2,29 +2,35 @@ import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
 import { createOpenAI } from '@ai-sdk/openai'
-import { OpenAIImageModel } from '@ai-sdk/openai/internal'
 import {
   OpenAICompatibleChatLanguageModel,
   OpenAICompatibleEmbeddingModel,
   OpenAICompatibleImageModel
 } from '@ai-sdk/openai-compatible'
+import { OpenAIImageModel } from '@ai-sdk/openai/internal'
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils'
 
-import { createImageGenerationModel } from '../imageGenerationModel'
+import { resolveDmxapiChatFamily } from '@shared/data/presets/gatewayChatRouting'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+
+import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
+import { resolveDmxapiNativeImageFamily } from './dmxapiImageRouting'
 import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
+
+export { dmxapiUsesCustomTransport } from './dmxapiImageRouting'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
 
 export interface DmxapiProviderSettings {
   apiKey?: string
-  /** Chat / embedding baseURL — typically `https://www.dmxapi.cn/v1` or a
-   *  user-configured proxy. The factory derives the native-API origin (host
-   *  root) from this by stripping the OpenAI-compat path suffix, so callers
-   *  only need to configure one URL. */
+  /** Base URL selected for this request. When `endpointBaseURLs` is absent, the
+   *  factory retains the legacy behavior of deriving every protocol from it. */
   baseURL?: string
+  /** Explicit per-protocol URLs for providers whose endpoints use different hosts. */
+  endpointBaseURLs?: Partial<Record<EndpointType, string>>
   headers?: Record<string, string>
   fetch?: FetchFunction
 }
@@ -34,33 +40,6 @@ export interface DmxapiProvider extends ProviderV3 {
   languageModel(modelId: string): LanguageModelV3
   embeddingModel(modelId: string): EmbeddingModelV3
   imageModel(modelId: string): ImageModelV3
-}
-
-type DmxapiChatFamily = 'openai-compat' | 'openai' | 'anthropic' | 'gemini'
-
-const CHAT_FAMILY_TABLE: Array<{
-  family: Exclude<DmxapiChatFamily, 'openai-compat'>
-  match: (modelId: string) => boolean
-}> = [
-  { family: 'anthropic', match: (id) => /claude/i.test(id) },
-  {
-    family: 'gemini',
-    // Gemini *chat* models — exclude image / imagen / tts / audio / embedding
-    // variants which are non-chat and have their own routing branches.
-    match: (id) => /^gemini-/i.test(id) && !/(image|imagen|tts|audio|embedding)/i.test(id)
-  },
-  {
-    family: 'openai',
-    // Native OpenAI chat (`gpt-*`, `o1`/`o3`/`o4`-series). Excludes the
-    // image variants (`gpt-image-*`, `dall-e-*`, `gpt-4o-image*`) which are
-    // never used as chat models. Goes through `@ai-sdk/openai` so vision
-    // image_url, structured outputs, reasoning effort, etc. light up natively.
-    match: (id) => /^(gpt-|o\d)/i.test(id) && !/(image|dall-e)/i.test(id)
-  }
-]
-
-function resolveChatFamily(modelId: string): DmxapiChatFamily {
-  return CHAT_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-compat'
 }
 
 type DmxapiEmbeddingFamily = 'openai-compat' | 'gemini'
@@ -79,22 +58,23 @@ function resolveEmbeddingFamily(modelId: string): DmxapiEmbeddingFamily {
   return EMBEDDING_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-compat'
 }
 
-type DmxapiNativeImageFamily = 'openai-compat-image' | 'openai-native' | 'gemini-native'
-
-const NATIVE_IMAGE_FAMILY_TABLE: Array<{
-  family: Exclude<DmxapiNativeImageFamily, 'openai-compat-image'>
-  match: (modelId: string) => boolean
-}> = [
-  { family: 'openai-native', match: (id) => /^(gpt-image|dall-e)/i.test(id) },
-  // Native Google image — covers both `imagen-*` (Imagen API) and
-  // `gemini-*-image*` previews (Gemini generateContent with image output).
-  // The Google SDK dispatches internally; pointing it at DMXAPI's baseURL
-  // routes the request through the gateway's Gemini-compatible path.
-  { family: 'gemini-native', match: (id) => /^imagen-/i.test(id) || /^gemini-.*image/i.test(id) }
-]
-
-function resolveNativeImageFamily(modelId: string): DmxapiNativeImageFamily {
-  return NATIVE_IMAGE_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-compat-image'
+/**
+ * Build the DMXAPI submit/poll image transport from provider settings. Shared
+ * by the provider factory and the image-generation job's transport registry so
+ * the job handler can rebuild the same transport after a restart from the
+ * re-resolved provider settings.
+ */
+export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGenerationTransport {
+  const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? settings.baseURL
+  if (!chatBaseURL) {
+    throw new Error('DMXAPI provider requires a non-empty `baseURL` to build the image transport.')
+  }
+  return createDmxapiTransport({
+    apiKey: settings.apiKey ?? '',
+    // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
+    // OpenAI-compat version suffix from the chat baseURL to avoid a double `/v1`.
+    baseURL: withoutTrailingApiVersion(chatBaseURL)
+  })
 }
 
 export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): DmxapiProvider {
@@ -113,11 +93,19 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     ...settings.headers
   })
 
-  const compatUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+  const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? baseURL
+  const compatUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(chatBaseURL)}${path}`
+  const nativeBaseURL = withoutTrailingApiVersion(baseURL)
+  const anthropicBaseURL =
+    settings.endpointBaseURLs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ?? formatApiHost(nativeBaseURL, true)
+  const geminiBaseURL =
+    settings.endpointBaseURLs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] ?? formatApiHost(nativeBaseURL, true, 'v1beta')
+  const openaiBaseURL =
+    settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? formatApiHost(nativeBaseURL, true)
 
   const googleProvider = () =>
     createGoogleGenerativeAI({
-      baseURL: formatApiHost(baseURL, true, 'v1beta'),
+      baseURL: geminiBaseURL,
       apiKey: resolveApiKey(),
       headers: settings.headers,
       fetch: customFetch
@@ -128,25 +116,20 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
 
   const openaiChatModel = (modelId: string) =>
     createOpenAI({
-      baseURL: formatApiHost(baseURL, true),
+      baseURL: openaiBaseURL,
       apiKey: resolveApiKey(),
       headers: settings.headers,
       fetch: customFetch
     }).chat(modelId)
 
-  const transport = createDmxapiTransport({
-    apiKey: settings.apiKey ?? '',
-    // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
-    // OpenAI-compat version suffix from the chat baseURL to avoid a double `/v1`.
-    baseURL: withoutTrailingApiVersion(baseURL)
-  })
+  const transport = buildDmxapiTransport(settings)
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
-    switch (resolveChatFamily(modelId)) {
+    switch (resolveDmxapiChatFamily(modelId)) {
       case 'anthropic':
         return new AnthropicMessagesLanguageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.anthropic`,
-          baseURL: formatApiHost(baseURL, true),
+          baseURL: anthropicBaseURL,
           headers: () => ({ 'x-api-key': resolveApiKey(), ...settings.headers }),
           fetch: customFetch,
           supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] }),
@@ -155,7 +138,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       case 'gemini':
         return new GoogleGenerativeAILanguageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.google`,
-          baseURL: formatApiHost(baseURL, true, 'v1beta'),
+          baseURL: geminiBaseURL,
           headers: () => ({ 'x-goog-api-key': resolveApiKey(), ...settings.headers }),
           fetch: customFetch,
           generateId: () => `${DMXAPI_PROVIDER_NAME}-${Date.now()}`,
@@ -180,7 +163,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     // Putting these ahead of `resolveDmxapiFamily` ensures a model that has
     // a first-party adapter is never accidentally routed to the bespoke
     // transport just because a family-table matcher overlaps.
-    switch (resolveNativeImageFamily(modelId)) {
+    switch (resolveDmxapiNativeImageFamily(modelId)) {
       case 'openai-native':
         return new OpenAIImageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.openai-image`,
@@ -225,5 +208,5 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   }
   provider.imageModel = createImageModelV3
 
-  return provider as DmxapiProvider
+  return provider
 }

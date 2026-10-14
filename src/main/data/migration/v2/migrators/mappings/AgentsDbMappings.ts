@@ -103,7 +103,7 @@ export function buildUserModelLookupExpr(sourceColumn: string): string {
  * handled by `AgentsMigrator.migrateScheduledTasksTs` in TypeScript — the
  * v1 `(scheduleType, scheduleValue)` columns cannot be encoded into a
  * `Trigger` JSON blob with pure SQL expressions cleanly, and v1 run logs
- * are discarded (see breaking-changes/2026-05-19).
+ * are discarded.
  *
  * Do not reorder entries without updating the child `whereClause`s.
  */
@@ -120,9 +120,11 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       { name: 'model', expr: buildUserModelLookupExpr('model'), sourceColumn: 'model' },
       { name: 'plan_model', expr: buildUserModelLookupExpr('plan_model'), sourceColumn: 'plan_model' },
       { name: 'small_model', expr: buildUserModelLookupExpr('small_model'), sourceColumn: 'small_model' },
-      notNullCol('mcps', "'[]'"),
-      notNullCol('allowed_tools', "'[]'"),
+      // v1 allowed_tools stored auto-approval preferences; the v2 disabledTools hard-block set starts empty.
+      notNullCol('disabled_tools', "'[]'"),
       notNullCol('configuration', "'{}'"),
+      // Placeholder; AgentsMigrator backfills real fractional-indexing keys
+      // ordered by source `sort_order` after INSERT.
       notNullCol('order_key', "''"),
       {
         name: 'deleted_at',
@@ -158,6 +160,13 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       // scoped by agentId, ordered by source `sort_order` after INSERT.
       notNullCol('order_key', "''"),
       {
+        // Seed the required parent field from creation. AgentsMigrator replaces
+        // it with the exact maximum imported message activity after message import.
+        name: 'last_activity_at',
+        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
+        sourceColumn: 'created_at'
+      },
+      {
         name: 'created_at',
         expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
         sourceColumn: 'created_at'
@@ -178,8 +187,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     sourceTable: 'skills',
     targetTable: 'agent_global_skill',
     // Legacy `skills.created_at` / `updated_at` are already stored as INTEGER
-    // epoch-milliseconds (see resources/database/drizzle/0005_normal_doomsday.sql),
-    // so no strftime() wrapping is needed — copy through verbatim.
+    // epoch-milliseconds, so no strftime() wrapping is needed — copy through verbatim.
     columns: [
       'id',
       'name',
@@ -199,8 +207,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'agent_skills',
     targetTable: 'agent_skill',
-    // Legacy `agent_skills.created_at` / `updated_at` are already INTEGER epoch-ms
-    // (see resources/database/drizzle/0006_famous_fallen_one.sql) — no wrapping.
+    // Legacy `agent_skills.created_at` / `updated_at` are already INTEGER epoch-ms — no wrapping.
     columns: ['agent_id', 'skill_id', notNullCol('is_enabled', '0'), 'created_at', 'updated_at'],
     // Only import agent_skill rows whose agent and skill were both successfully
     // migrated; orphaned rows would fail the FK checks.
@@ -211,9 +218,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'channels',
     targetTable: 'agent_channel',
-    // Legacy `channels.created_at` / `updated_at` are NULLABLE INTEGER epoch-ms
-    // (resources/database/drizzle/0004_busy_giant_girl.sql:21-22). v2
-    // `agent_channel` uses `createUpdateTimestamps` (`notNull().$defaultFn(...)`) —
+    // Legacy `channels.created_at` / `updated_at` are NULLABLE INTEGER epoch-ms.
+    // v2 `agent_channel` uses `createUpdateTimestamps` (`notNull().$defaultFn(...)`) —
     // a JS-side default that raw INSERT...SELECT bypasses, so a legacy NULL
     // would trip SQLITE_CONSTRAINT_NOTNULL. COALESCE to "now" mirrors the
     // pattern used for task_run_logs above.
@@ -223,6 +229,12 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'name',
       'agent_id',
       'session_id',
+      {
+        name: 'workspace',
+        expr: 'COALESCE(workspace, \'{"type":"system"}\')',
+        sourceColumn: 'workspace',
+        fallbackExpr: '\'{"type":"system"}\''
+      },
       'config',
       notNullCol('is_active', '1'),
       notNullCol('active_chat_ids', "'[]'"),

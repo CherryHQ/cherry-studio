@@ -1,3 +1,9 @@
+---
+description: Entry point for WindowManager docs — configuration layers, bounds persistence, runtime setters, and doc navigation
+sources:
+  - src/main/core/window
+---
+
 # WindowManager Reference
 
 This is the main entry point for Cherry Studio's WindowManager documentation. WindowManager is a lifecycle-managed service that creates, tracks, and reuses Electron `BrowserWindow` instances with three lifecycle modes (default / singleton / pooled), IPC broadcast, domain-service event hooks, and elastic pool reuse.
@@ -14,7 +20,7 @@ This is the main entry point for Cherry Studio's WindowManager documentation. Wi
 
 ### Reference Guides
 
-- [Warmup Mechanics](./window-manager-warmup-mechanics.md) — Shared warmup state machine (pooled two-axis model + singleton variant), config matrix, GC timer, suspend/resume, `WindowManager_Reused` IPC
+- [Warmup Mechanics](./window-manager-warmup-mechanics.md) — Shared warmup state machine (pooled two-axis model + singleton variant), config matrix, GC timer, suspend/resume, and the `window.reused` IpcApi event
 - [Platform Configuration](./window-manager-platform.md) — Static `platformOverrides`, declarative `behavior`, and OS `quirks` (macOS focus / hover / always-on-top)
 - [API Reference](./window-manager-api-reference.md) — Full method tables: open/close/create/destroy, window ops, queries, broadcast, init data, pool management, runtime setters, events
 - [Migration Guide](./window-manager-migration-guide.md) — Converting direct `BrowserWindow` usage to WindowManager
@@ -29,9 +35,21 @@ Per-type metadata in `windowRegistry.ts` is split into three layers. Each field 
 |---|---|---|---|
 | `windowOptions` | Arguments to `new BrowserWindow(...)` — Electron-native constructor options | Electron rejects the build or behaves wrong on construction | `width`, `alwaysOnTop: true`, `frame: false`, `platformOverrides` |
 | `behavior` | Cross-platform, non-hacky declarative behavior that Electron's constructor cannot express | WindowManager behavior diverges from intent (e.g. no auto-hide on blur) | `hideOnBlur`, `alwaysOnTop: { level, relativeLevel }`, `visibleOnAllWorkspaces`, `macShowInDock` |
-| `quirks` | OS-specific hacks / workarounds applied via monkey-patches | Sub-par UX on the specific OS (focus steal, Dock flicker, level demotion) | `macRestoreFocusOnHide`, `macClearHoverOnHide`, `macReapplyAlwaysOnTop` |
+| `quirks` | OS-specific hacks / workarounds applied via monkey-patches | Sub-par UX on the specific OS (focus steal, Dock flicker, level demotion) | `macRestoreFocusOnHide`, `macClearHoverOnHide`, `reapplyAlwaysOnTop` |
 
 **Naming rule (orthogonal to layering)**: any field that is effective only on one platform carries a `mac` / `win` / `linux` prefix — regardless of layer. `behavior.macShowInDock` is a behavior field but its `mac` prefix signals the platform scope; `quirks.macRestoreFocusOnHide` is a hack with the same prefix.
+
+---
+
+## Bounds Persistence
+
+`rememberBounds` is a per-type metadata flag — a sibling of `showMode` / `lifecycle`, **not** part of the three configuration layers above. When set, WindowManager persists the window's position/size on teardown and restores them on the next open, onto the display it was last on (clamping into that display's work area if a monitor was removed or resized — never resetting to the primary display). It is backed by the main-process persist cache (`window.bounds` key); old geometry is loseable, so there is no migration.
+
+**Singleton-only.** Bounds answer "where does this window reopen?", which has a unique answer only when window identity equals window type — i.e. a single instance. The flag is ignored (with a dev warning) for non-singleton types. Multi-instance types would need a per-instance *content identity* (e.g. a tab id) plus reopen-restore and stale-id GC; that is a documented future extension.
+
+**Maximize stays consumer-side.** The maximized flag is persisted, but re-applying `maximize()` is left to the consumer (read it back via [`peekWindowBounds`](./window-manager-api-reference.md#bounds-persistence)). Geometry is injected declaratively at construction (`x/y/width/height` are `BrowserWindow` constructor options), but Electron has no `maximized` constructor option — so maximize is a post-construction imperative call whose correct timing is coupled to each window's show choreography (e.g. Main defers it to first show when launching to tray). The split: WindowManager owns saving + restoring geometry; the consumer owns re-applying maximize.
+
+**Runtime toggle.** [`wm.setRememberBounds(type, enabled)`](./window-manager-api-reference.md#bounds-persistence) overrides the registry flag at runtime and is orthogonal to it — it can disable a flag-on type or enable a type that declares no flag. Switching it off also drops the saved record immediately, so the next open uses the registry default. Fullscreen is neither persisted nor restored.
 
 ---
 
@@ -146,4 +164,6 @@ Behavioral injection goes through **`onWindowCreated`** (or its type-filtered co
 
 - [`src/renderer/windows/README.md`](../../../src/renderer/windows/README.md) — Renderer window entry-point convention (`entryPoint.tsx` + `XxxApp.tsx` three-layer structure)
 - `src/renderer/hooks/useWindowInitData.ts` — Canonical hook for init data consumption
-- `src/shared/IpcChannel.ts` — `WindowManager_*` IPC channel constants
+- `src/shared/ipc/schemas/window.ts` — caller-window request routes and directed window events
+- `src/main/ipc/handlers/window.ts` — renderer-to-main adapters for caller-window operations
+- `src/renderer/hooks/useWindowInitData.ts` — cold-start request plus `window.reused` subscription

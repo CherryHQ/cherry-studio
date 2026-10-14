@@ -5,8 +5,7 @@ import { createDmxapiTransport } from '../../dmxapi/dmxapiTransport'
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
 import { captureImageRequest } from './captureRequest'
 
-vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
-vi.mock('i18next', () => ({ default: { t: (k: string) => k } }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 /**
  * Request-boundary contract for the DMXAPI transport. Each fixture drives one

@@ -1,6 +1,7 @@
-import { getI18n } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'
 import { Menu } from 'electron'
+
+import { t } from '@main/i18n'
 
 class ContextMenu {
   public contextMenu(w: Electron.WebContents) {
@@ -26,12 +27,10 @@ class ContextMenu {
   }
 
   private createInspectMenuItems(w: Electron.WebContents): MenuItemConstructorOptions[] {
-    const i18n = getI18n()
-    const { common } = i18n.translation
     const template: MenuItemConstructorOptions[] = [
       {
         id: 'inspect',
-        label: common.inspect,
+        label: t('common.inspect'),
         click: () => {
           w.toggleDevTools()
         },
@@ -43,29 +42,27 @@ class ContextMenu {
   }
 
   private createEditMenuItems(properties: Electron.ContextMenuParams): MenuItemConstructorOptions[] {
-    const i18n = getI18n()
-    const { common } = i18n.translation
     const hasText = properties.selectionText.trim().length > 0
     const can = (type: string) => properties.editFlags[`can${type}`] && hasText
 
     const template: MenuItemConstructorOptions[] = [
       {
         id: 'copy',
-        label: common.copy,
+        label: t('common.copy'),
         role: 'copy',
         enabled: can('Copy'),
         visible: properties.isEditable || hasText
       },
       {
         id: 'paste',
-        label: common.paste,
+        label: t('common.paste'),
         role: 'paste',
         enabled: properties.editFlags.canPaste,
         visible: properties.isEditable
       },
       {
         id: 'cut',
-        label: common.cut,
+        label: t('common.cut'),
         role: 'cut',
         enabled: can('Cut'),
         visible: properties.isEditable

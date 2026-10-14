@@ -1,0 +1,684 @@
+import { ArrowLeft, Copy, FileUp, Sparkles } from 'lucide-react'
+import React, { memo, useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import CodeViewer from '@renderer/components/CodeViewer'
+import { DoctorPopup } from '@renderer/components/doctor'
+import { DoctorAgentDialog } from '@renderer/components/doctor'
+import i18n from '@renderer/i18n/resolver'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
+import {
+  isSerializedAiSdkApiCallError,
+  isSerializedAiSdkDownloadError,
+  isSerializedAiSdkError,
+  isSerializedAiSdkErrorUnion,
+  isSerializedAiSdkInvalidArgumentError,
+  isSerializedAiSdkInvalidDataContentError,
+  isSerializedAiSdkInvalidMessageRoleError,
+  isSerializedAiSdkInvalidPromptError,
+  isSerializedAiSdkInvalidToolInputError,
+  isSerializedAiSdkJSONParseError,
+  isSerializedAiSdkMessageConversionError,
+  isSerializedAiSdkNoObjectGeneratedError,
+  isSerializedAiSdkNoSpeechGeneratedError,
+  isSerializedAiSdkNoSuchModelError,
+  isSerializedAiSdkNoSuchProviderError,
+  isSerializedAiSdkNoSuchToolError,
+  isSerializedAiSdkRetryError,
+  isSerializedAiSdkToolCallRepairError,
+  isSerializedAiSdkTooManyEmbeddingValuesForCallError,
+  isSerializedAiSdkTypeValidationError,
+  isSerializedAiSdkUnsupportedFunctionalityError,
+  isSerializedError
+} from '@renderer/types/error'
+import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
+import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
+import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
+import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
+import { parseDataUrl } from '@shared/utils/dataUrl'
+import { doctorScopeKey } from '@shared/utils/doctor'
+
+import Scrollbar from '../Scrollbar'
+import {
+  buildDiagnosticReportDescription,
+  type DiagnosticReportConfig,
+  resolveDiagnosticReportLocation
+} from './diagnosticReportDescription'
+import { ErrorBasicInformation } from './ErrorBasicInformation'
+import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
+
+interface ErrorDetailContentProps {
+  error?: SerializedError
+  localizedErrorMessage?: string
+  diagnosisContext?: DiagnosisContext
+  diagnosticReport?: DiagnosticReportConfig
+  subject?: DoctorSubjectRef
+  /** The failed message this error belongs to; binds the AI consultation to it. */
+  incident?: DoctorAgentIncident
+  onOpenDiagnosticReport?: (description: string) => void
+  onDoctorNavigate?: (target: DoctorNavigateTarget) => void
+}
+
+interface ErrorDetailContentInternalProps extends ErrorDetailContentProps {
+  readonly doctorCloseBlocked?: boolean
+  readonly onDoctorCloseBlockedChange?: (blocked: boolean) => void
+}
+
+const ignoreDoctorNavigation = () => undefined
+
+const truncateLargeData = (
+  data: string,
+  t: (key: string) => string
+): { content: string; truncated: boolean; isLikelyBase64: boolean } => {
+  const parsed = parseDataUrl(data)
+  const isLikelyBase64 = parsed?.isBase64 ?? false
+
+  if (!data || data.length <= 100_000) {
+    return { content: data, truncated: false, isLikelyBase64 }
+  }
+
+  if (isLikelyBase64) {
+    return {
+      content: `[${t('error.base64DataTruncated')}]`,
+      truncated: true,
+      isLikelyBase64: true
+    }
+  }
+
+  return {
+    content: data.slice(0, 100_000) + `\n\n... [${t('error.truncated')}]`,
+    truncated: true,
+    isLikelyBase64: false
+  }
+}
+
+const ErrorDetailContainer = ({ className, ...props }: React.ComponentProps<typeof Scrollbar>) => (
+  <Scrollbar className={cn('max-h-[60vh] pr-[5px]', className)} {...props} />
+)
+
+const ErrorDetailList = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex flex-col gap-4', className)} {...props} />
+)
+
+const ErrorDetailItem = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex flex-col gap-2', className)} {...props} />
+)
+
+const ErrorDetailLabel = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('font-semibold text-[14px] text-foreground', className)} {...props} />
+)
+
+const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'rounded-[4px] border border-border bg-background-subtle p-2 font-[var(--code-font-family)] text-[12px] text-foreground [word-break:break-word]',
+      className
+    )}
+    {...props}
+  />
+)
+
+const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'rounded-[6px] border border-error-border bg-background-subtle p-3 [&_pre]:m-0 [&_pre]:whitespace-pre-wrap [&_pre]:font-[var(--code-font-family)] [&_pre]:text-[12px] [&_pre]:text-error [&_pre]:leading-[1.4] [&_pre]:[word-break:break-word]',
+      className
+    )}
+    {...props}
+  />
+)
+
+const TruncatedBadge = ({ className, style, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
+  <span
+    className={cn('ml-2 rounded-[4px] px-1.5 py-0.5 font-normal text-[10px] text-warning', className)}
+    style={{
+      background: 'var(--warning-subtle)',
+      ...style
+    }}
+    {...props}
+  />
+)
+
+// --- Sub-Components ---
+
+const BuiltinError = memo(({ error }: { error: SerializedError }) => {
+  const { t } = useTranslation()
+  return (
+    <>
+      {error.name && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.name')}:</ErrorDetailLabel>
+          <ErrorDetailValue className="selectable">{error.name}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+      {error.message && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.message')}:</ErrorDetailLabel>
+          <ErrorDetailValue className="selectable">{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+      {error.stack && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.stack')}:</ErrorDetailLabel>
+          <StackTrace>
+            <pre>{error.stack}</pre>
+          </StackTrace>
+        </ErrorDetailItem>
+      )}
+    </>
+  )
+})
+
+const AiSdkErrorBase = memo(({ error }: { error: SerializedAiSdkError }) => {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <BuiltinError error={error} />
+      {error.cause && <TruncatedCodeViewer value={error.cause} label={t('error.cause')} />}
+    </>
+  )
+})
+
+const TruncatedCodeViewer = memo(
+  ({ value, label, language = 'json' }: { value: string; label: string; language?: string }) => {
+    const { t } = useTranslation()
+    const { content, truncated, isLikelyBase64 } = truncateLargeData(value, t)
+
+    return (
+      <ErrorDetailItem>
+        <ErrorDetailLabel>
+          {label}:{truncated && <TruncatedBadge>{t('error.truncatedBadge')}</TruncatedBadge>}
+        </ErrorDetailLabel>
+        {isLikelyBase64 ? (
+          <ErrorDetailValue>{content}</ErrorDetailValue>
+        ) : (
+          <CodeViewer value={content} className="source-view selectable" language={language} expanded />
+        )}
+      </ErrorDetailItem>
+    )
+  }
+)
+
+const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
+  const { t } = useTranslation()
+
+  return (
+    <ErrorDetailList>
+      {(isSerializedAiSdkApiCallError(error) || isSerializedAiSdkDownloadError(error)) && error.url && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.requestUrl')}:</ErrorDetailLabel>
+          <ErrorDetailValue className="selectable">{error.url}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkApiCallError(error) && error.responseBody && (
+        <TruncatedCodeViewer value={error.responseBody} label={t('error.responseBody')} />
+      )}
+
+      {(isSerializedAiSdkApiCallError(error) || isSerializedAiSdkDownloadError(error)) && error.statusCode && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
+          <ErrorDetailValue className="selectable">{error.statusCode}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkApiCallError(error) && (
+        <>
+          {error.responseHeaders && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.responseHeaders')}:</ErrorDetailLabel>
+              <CodeViewer
+                value={JSON.stringify(error.responseHeaders, null, 2)}
+                className="source-view"
+                language="json"
+                expanded
+              />
+            </ErrorDetailItem>
+          )}
+
+          {error.requestBodyValues && (
+            <TruncatedCodeViewer value={safeToString(error.requestBodyValues)} label={t('error.requestBodyValues')} />
+          )}
+
+          {error.data && <TruncatedCodeViewer value={safeToString(error.data)} label={t('error.data')} />}
+        </>
+      )}
+
+      {isSerializedAiSdkDownloadError(error) && error.statusText && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.statusText')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.statusText}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkInvalidArgumentError(error) && error.parameter && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.parameter')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.parameter}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {(isSerializedAiSdkInvalidArgumentError(error) || isSerializedAiSdkTypeValidationError(error)) && error.value && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.value')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{safeToString(error.value)}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkInvalidDataContentError(error) && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.content')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{safeToString(error.content)}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkInvalidMessageRoleError(error) && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.role')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.role}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkInvalidPromptError(error) && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.prompt')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{safeToString(error.prompt)}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkInvalidToolInputError(error) && (
+        <>
+          {error.toolName && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.toolName')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.toolName}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+          {error.toolInput && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.toolInput')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.toolInput}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+        </>
+      )}
+
+      {(isSerializedAiSdkJSONParseError(error) || isSerializedAiSdkNoObjectGeneratedError(error)) && error.text && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.text')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.text}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkMessageConversionError(error) && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.originalMessage')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{safeToString(error.originalMessage)}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkNoSpeechGeneratedError(error) && error.responses && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.responses')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.responses.join(', ')}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkNoObjectGeneratedError(error) && (
+        <>
+          {error.response && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.response')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{safeToString(error.response)}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+          {error.usage && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.usage')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{safeToString(error.usage)}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+          {error.finishReason && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.finishReason')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.finishReason}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+        </>
+      )}
+
+      {(isSerializedAiSdkNoSuchModelError(error) ||
+        isSerializedAiSdkNoSuchProviderError(error) ||
+        isSerializedAiSdkTooManyEmbeddingValuesForCallError(error)) &&
+        error.modelId && (
+          <ErrorDetailItem>
+            <ErrorDetailLabel>{t('error.modelId')}:</ErrorDetailLabel>
+            <ErrorDetailValue>{error.modelId}</ErrorDetailValue>
+          </ErrorDetailItem>
+        )}
+
+      {(isSerializedAiSdkNoSuchModelError(error) || isSerializedAiSdkNoSuchProviderError(error)) && error.modelType && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.modelType')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.modelType}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkNoSuchProviderError(error) && (
+        <>
+          <ErrorDetailItem>
+            <ErrorDetailLabel>{t('error.providerId')}:</ErrorDetailLabel>
+            <ErrorDetailValue>{error.providerId}</ErrorDetailValue>
+          </ErrorDetailItem>
+
+          <ErrorDetailItem>
+            <ErrorDetailLabel>{t('error.availableProviders')}:</ErrorDetailLabel>
+            <ErrorDetailValue>{error.availableProviders.join(', ')}</ErrorDetailValue>
+          </ErrorDetailItem>
+        </>
+      )}
+
+      {isSerializedAiSdkNoSuchToolError(error) && (
+        <>
+          <ErrorDetailItem>
+            <ErrorDetailLabel>{t('error.toolName')}:</ErrorDetailLabel>
+            <ErrorDetailValue>{error.toolName}</ErrorDetailValue>
+          </ErrorDetailItem>
+          {error.availableTools && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.availableTools')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.availableTools?.join(', ') || t('common.none')}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+        </>
+      )}
+
+      {isSerializedAiSdkRetryError(error) && (
+        <>
+          {error.reason && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.reason')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.reason}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+          {error.lastError && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.lastError')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{safeToString(error.lastError)}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+          {error.errors && error.errors.length > 0 && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.errors')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.errors.map((e) => safeToString(e)).join('\n\n')}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+        </>
+      )}
+
+      {isSerializedAiSdkTooManyEmbeddingValuesForCallError(error) && (
+        <>
+          {error.provider && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.provider')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.provider}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+          {error.maxEmbeddingsPerCall && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.maxEmbeddingsPerCall')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.maxEmbeddingsPerCall}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+          {error.values && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.values')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{safeToString(error.values)}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+        </>
+      )}
+
+      {isSerializedAiSdkToolCallRepairError(error) && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.originalError')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{safeToString(error.originalError)}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkUnsupportedFunctionalityError(error) && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.functionality')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.functionality}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      <AiSdkErrorBase error={error} />
+    </ErrorDetailList>
+  )
+})
+
+// --- Main Content Component ---
+
+const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
+  error,
+  localizedErrorMessage,
+  diagnosisContext,
+  subject,
+  incident,
+  diagnosticReport,
+  onOpenDiagnosticReport,
+  onDoctorNavigate,
+  doctorCloseBlocked = false,
+  onDoctorCloseBlockedChange
+}) => {
+  const { t } = useTranslation()
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [agentOpen, setAgentOpen] = useState(false)
+  const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
+  const copyErrorDetails = useCallback(() => {
+    if (!error) {
+      return
+    }
+
+    let errorText: string
+    if (isSerializedAiSdkError(error)) {
+      errorText = formatAiSdkError(error)
+    } else if (isSerializedError(error)) {
+      errorText = formatError(error)
+    } else {
+      errorText = safeToString(error)
+    }
+
+    void navigator.clipboard.writeText(errorText)
+    toast.success(t('message.copied'))
+  }, [error, t])
+
+  const openDiagnosticReport = useCallback(() => {
+    if (doctorCloseBlocked || !diagnosticReport || !onOpenDiagnosticReport) return
+    onOpenDiagnosticReport(
+      buildDiagnosticReportDescription({
+        diagnosisContext,
+        error,
+        localizedErrorMessage,
+        labels: {
+          errorMessage: t('error.message'),
+          location: t('error.diagnostic_report.location'),
+          model: t('error.modelId')
+        },
+        location: resolveDiagnosticReportLocation(t, diagnosticReport.location, i18n.language)
+      })
+    )
+  }, [diagnosticReport, diagnosisContext, doctorCloseBlocked, error, localizedErrorMessage, onOpenDiagnosticReport, t])
+
+  const showDetails = () => {
+    setDetailsOpen(true)
+  }
+
+  const renderErrorDetails = (error?: SerializedError) => {
+    if (!error) {
+      return <div>{t('error.unknown')}</div>
+    }
+
+    if (isSerializedAiSdkErrorUnion(error)) {
+      return <AiSdkError error={error} />
+    }
+
+    return (
+      <ErrorDetailList>
+        <BuiltinError error={error} />
+      </ErrorDetailList>
+    )
+  }
+
+  return (
+    <>
+      <DialogHeader className="pr-8">
+        <DialogTitle>{t('error.detail')}</DialogTitle>
+      </DialogHeader>
+      <ErrorDetailContainer>
+        <div className="space-y-4">
+          {subject ? (
+            <ErrorDoctorDiagnostics
+              key={doctorScopeKey(subject)}
+              subject={subject}
+              incident={incident}
+              onNavigate={onDoctorNavigate ?? ignoreDoctorNavigation}
+              onReportProblem={onOpenDiagnosticReport}
+              onCloseBlockedChange={onDoctorCloseBlockedChange}
+            />
+          ) : (
+            <p className="text-muted-foreground text-sm">{t('error.diagnostics.context_unavailable')}</p>
+          )}
+          <ErrorBasicInformation
+            viewDetailsButtonRef={viewDetailsButtonRef}
+            error={error}
+            localizedErrorMessage={localizedErrorMessage}
+            diagnosisContext={diagnosisContext}
+            diagnosticReport={diagnosticReport}
+            onCopy={copyErrorDetails}
+            onViewDetails={showDetails}
+          />
+        </div>
+      </ErrorDetailContainer>
+
+      {subject || (diagnosticReport && onOpenDiagnosticReport) ? (
+        <div className="flex justify-end gap-2">
+          {diagnosticReport && onOpenDiagnosticReport ? (
+            <Button variant="outline" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
+              <FileUp size={14} />
+              {t('error.diagnostic_report.action')}
+            </Button>
+          ) : null}
+          {subject ? (
+            <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={() => setAgentOpen(true)}>
+              <Sparkles size={14} />
+              {t('settings.doctor.agent.title')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {subject && agentOpen ? (
+        <DoctorAgentDialog
+          subject={subject}
+          incident={incident}
+          open
+          onOpenChange={setAgentOpen}
+          onReportProblem={diagnosticReport && onOpenDiagnosticReport ? openDiagnosticReport : undefined}
+        />
+      ) : null}
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent
+          size="xl"
+          closeLabel={t('common.close')}
+          className="max-h-[calc(100vh-2rem)] overflow-hidden"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            viewDetailsButtonRef.current?.focus()
+          }}>
+          <DialogHeader className="flex-row items-center gap-2 pr-8">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('error.diagnostics.back_to_overview')}
+              onClick={() => setDetailsOpen(false)}>
+              <ArrowLeft className="size-4" aria-hidden />
+            </Button>
+            <DialogTitle>{t('error.detail')}</DialogTitle>
+          </DialogHeader>
+          <ErrorDetailContainer>
+            <div className="space-y-4">{renderErrorDetails(error)}</div>
+          </ErrorDetailContainer>
+          <DialogFooter>
+            <Button variant="outline" disabled={!error} onClick={copyErrorDetails}>
+              <Copy size={14} />
+              {t('common.copy')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+type ErrorDetailPopupParams = Omit<ErrorDetailContentProps, 'onDoctorNavigate' | 'onOpenDiagnosticReport'>
+
+const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => {
+  const [doctorCloseBlocked, setDoctorCloseBlocked] = useState(false)
+  const close = useCallback(() => {
+    if (!doctorCloseBlocked) resolve()
+  }, [doctorCloseBlocked, resolve])
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) close()
+      }}>
+      <DialogContent
+        size="xl"
+        closeLabel={i18n.t('common.close')}
+        closeOnOverlayClick={!doctorCloseBlocked}
+        showCloseButton={!doctorCloseBlocked}
+        className="max-h-[calc(100vh-2rem)] overflow-hidden"
+        onEscapeKeyDown={(event) => {
+          if (doctorCloseBlocked) event.preventDefault()
+        }}>
+        <ErrorDetailContent
+          {...props}
+          doctorCloseBlocked={doctorCloseBlocked}
+          onDoctorCloseBlockedChange={setDoctorCloseBlocked}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const ErrorDetailPopup = createPopup<ErrorDetailContentProps, void>(ErrorDetailDialog)
+
+export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
+  const finishHandoff = (action: () => void) => {
+    ErrorDetailPopup.hide()
+    window.setTimeout(action, POPUP_EXIT_MS)
+  }
+
+  void ErrorDetailPopup.show({
+    ...params,
+    onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
+    onOpenDiagnosticReport: (initialDescription) =>
+      finishHandoff(() => {
+        void DoctorPopup.show({ initialPanel: 'report', initialDescription })
+      })
+  })
+}
+
+export { ErrorDetailContent }
+export type { ErrorDetailContentProps }

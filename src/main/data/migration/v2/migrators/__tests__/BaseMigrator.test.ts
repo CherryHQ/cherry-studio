@@ -1,9 +1,11 @@
-import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionTable } from '@data/db/schemas/agentSession'
-import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { BaseMigrator } from '../BaseMigrator'
@@ -39,7 +41,15 @@ async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: s
 }
 
 async function insertSession(db: ReturnType<typeof setupTestDatabase>['db'], id: string, agentId: string) {
-  await db.insert(agentSessionTable).values({ id, agentId, name: 'S', orderKey: 'a0' })
+  const workspaceId = `workspace-${id}`
+  await db.insert(agentWorkspaceTable).values({
+    id: workspaceId,
+    name: workspaceId,
+    path: `/tmp/${workspaceId}`,
+    type: 'user',
+    orderKey: 'a0'
+  })
+  await db.insert(agentSessionTable).values({ id, agentId, name: 'S', workspaceId, orderKey: 'a0' })
 }
 
 describe('BaseMigrator.assertOwnedForeignKeys', () => {
@@ -48,35 +58,35 @@ describe('BaseMigrator.assertOwnedForeignKeys', () => {
 
   it('throws when an owned table has an unsatisfied foreign key', async () => {
     // FK=OFF lets us stage a dangling reference, mirroring the migration window.
-    await dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
+    dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
     await insertSession(dbh.db, 'session_x', 'ghost-agent') // agentId not present
 
-    await expect(probe.checkOwnedForeignKeys(dbh.db, [agentSessionTable])).rejects.toThrow(/foreign-key violation/)
+    expect(() => probe.checkOwnedForeignKeys(dbh.db, [agentSessionTable])).toThrow(/foreign-key violation/)
   })
 
   it('does not throw when owned tables are referentially consistent', async () => {
-    await dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
+    dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
     await insertAgent(dbh.db, 'a1')
     await insertSession(dbh.db, 's1', 'a1')
 
-    await expect(probe.checkOwnedForeignKeys(dbh.db, [agentTable, agentSessionTable])).resolves.toBeUndefined()
+    expect(probe.checkOwnedForeignKeys(dbh.db, [agentTable, agentSessionTable])).toBeUndefined()
   })
 
   it('aggregates violations across multiple owned tables', async () => {
-    await dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
+    dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
     await insertSession(dbh.db, 's_dangling', 'ghost-agent')
 
     // agentTable is clean; agentSessionTable has the dangling ref — must still throw.
-    await expect(probe.checkOwnedForeignKeys(dbh.db, [agentTable, agentSessionTable])).rejects.toThrow(
+    expect(() => probe.checkOwnedForeignKeys(dbh.db, [agentTable, agentSessionTable])).toThrow(
       /ProbeMigrator left \d+ foreign-key violation/
     )
   })
 
   it('checks only the tables passed in (a dangling ref in an unlisted table is ignored)', async () => {
-    await dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
+    dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
     await insertSession(dbh.db, 's_unlisted', 'ghost-agent') // violation lives in agent_session
 
     // Only agentTable is passed → the agent_session violation is out of scope here.
-    await expect(probe.checkOwnedForeignKeys(dbh.db, [agentTable])).resolves.toBeUndefined()
+    expect(probe.checkOwnedForeignKeys(dbh.db, [agentTable])).toBeUndefined()
   })
 })

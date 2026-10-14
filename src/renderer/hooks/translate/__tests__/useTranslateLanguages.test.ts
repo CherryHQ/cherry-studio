@@ -3,13 +3,14 @@ import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
+
 import { useTranslateLanguages } from '../useTranslateLanguages'
+import { setLanguagesQuery } from './testUtils'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => `t(${key})` })
 }))
-
-const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
 
 const languagesFixture = [
   { langCode: 'en-us', value: 'English', emoji: '🇺🇸' },
@@ -19,21 +20,10 @@ const languagesFixture = [
 describe('useTranslateLanguages', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'toast', { value: toast, writable: true, configurable: true })
   })
 
   it('loads languages and exposes label helpers', () => {
-    mockUseQuery.mockImplementation(
-      () =>
-        ({
-          data: languagesFixture,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          refetch: vi.fn(),
-          mutate: vi.fn()
-        }) as any
-    )
+    setLanguagesQuery(languagesFixture)
 
     const { result } = renderHook(() => useTranslateLanguages())
 
@@ -43,19 +33,15 @@ describe('useTranslateLanguages', () => {
     expect(result.current.getLanguage('zh-cn')?.langCode).toBe('zh-cn')
   })
 
+  it('forwards the disabled state to the languages query', () => {
+    renderHook(() => useTranslateLanguages({ enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/translate/languages', { enabled: false })
+  })
+
   it('toasts a user-visible load error exactly once across re-renders', () => {
     const err = new Error('IPC down')
-    mockUseQuery.mockImplementation(
-      () =>
-        ({
-          data: undefined,
-          isLoading: false,
-          isRefreshing: false,
-          error: err,
-          refetch: vi.fn(),
-          mutate: vi.fn()
-        }) as any
-    )
+    setLanguagesQuery(undefined, { error: err })
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
 
     const { rerender, result } = renderHook(() => useTranslateLanguages())
@@ -69,22 +55,12 @@ describe('useTranslateLanguages', () => {
   })
 
   it('logs a warning for invalid lang code strings but stays silent for null', () => {
-    mockUseQuery.mockImplementation(
-      () =>
-        ({
-          data: languagesFixture,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          refetch: vi.fn(),
-          mutate: vi.fn()
-        }) as any
-    )
+    setLanguagesQuery(languagesFixture)
     const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
 
     const { result } = renderHook(() => useTranslateLanguages())
 
-    result.current.getLabel('NOT-A-CODE' as any)
+    result.current.getLabel('NOT-A-CODE')
     result.current.getLabel(null)
 
     expect(warnSpy).toHaveBeenCalledTimes(1)
@@ -99,15 +75,15 @@ describe('useTranslateLanguages', () => {
     const removeTrigger = vi.fn().mockResolvedValue(undefined)
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'POST' && path === '/translate/languages') {
-        return { trigger: addTrigger, isLoading: false, error: undefined } as any
+        return { trigger: addTrigger, isLoading: false, error: undefined }
       }
       if (method === 'PATCH' && path === '/translate/languages/:langCode') {
-        return { trigger: updateTrigger, isLoading: false, error: undefined } as any
+        return { trigger: updateTrigger, isLoading: false, error: undefined }
       }
       if (method === 'DELETE' && path === '/translate/languages/:langCode') {
-        return { trigger: removeTrigger, isLoading: false, error: undefined } as any
+        return { trigger: removeTrigger, isLoading: false, error: undefined }
       }
-      return { trigger: vi.fn(), isLoading: false, error: undefined } as any
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
 
     const { result } = renderHook(() => useTranslateLanguages())

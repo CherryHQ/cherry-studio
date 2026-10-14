@@ -1,226 +1,363 @@
 /**
- * FileRefService — pure DB repository for the `file_ref` polymorphic table.
+ * FileRefService — cross-source read facade.
  *
- * Phase status: Phase 1b.2 lands all read + mutation methods.
- *
- * ## Scope
- *
- * - **Pure DB.** Queries and mutations only; no dangling / orphan awareness.
- *   OrphanRefScanner in Phase 1b.4 is a separate service that *uses* this one.
- * - **Polymorphic sourceType keying.** No FK constraint on `sourceId` (see
- *   file schema). Producers MUST pass a `FileRefSourceType` literal that
- *   appears in the central registry (`src/shared/data/types/file/ref/index.ts`);
- *   schema variants for non-`temp_session` sourceTypes are registered
- *   incrementally in Phase 1b.2.
- *
- * ## Pull-model cleanup
- *
- * `cleanupBySource(sourceType, sourceId)` is the canonical delete hook —
- * business delete flows (ChatService, KnowledgeItemService, etc.) call it
- * when the source entity is removed. OrphanRefScanner (Phase 1b.4) is the
- * belt-and-suspenders safety net for missed paths.
+ * Persistent business refs are owned by their source domains and stored in
+ * FK-constrained association tables (`chat_message_file_ref`, `painting_file_ref`,
+ * `job_file_ref`, …). This service does not create, copy, or replace those
+ * persistent relationships; source services/migrators write their own tables. It
+ * only aggregates a unified FileRef projection across sources, because File
+ * DataApi and the file sweep need one.
  */
 
+import { asc, count, eq, inArray } from 'drizzle-orm'
+
 import { application } from '@application'
-import { fileRefTable } from '@data/db/schemas/file'
-import type { DbType } from '@data/db/types'
+import {
+  agentSessionMessageFileRefTable,
+  chatMessageFileRefTable,
+  jobFileRefTable,
+  type MiniAppFileRefRow,
+  miniAppFileRefTable,
+  type MiniAppLogoFileRefRow,
+  miniAppLogoFileRefTable,
+  paintingFileRefTable,
+  type PersistentFileRefSourceType,
+  persistentFileRefTablesBySourceType,
+  type ProviderLogoFileRefRow,
+  providerLogoFileRefTable,
+  translateHistoryFileRefTable
+} from '@data/db/schemas/fileRelations'
+import type { DbOrTx } from '@data/db/types'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
-import { FileRefSchema } from '@shared/data/types/file'
-import { and, asc, count, eq, inArray } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
+import {
+  agentSessionMessageSourceType,
+  chatMessageSourceType,
+  FileRefSchema,
+  jobSourceType,
+  miniAppFileRef,
+  miniAppLogoRef,
+  paintingSourceType,
+  providerLogoRef,
+  translateHistorySourceType
+} from '@shared/data/types/file'
 
 export interface FileRefSourceKey {
   readonly sourceType: FileRefSourceType
   readonly sourceId: string
 }
 
-export interface CreateFileRefRow extends FileRefSourceKey {
-  readonly fileEntryId: FileEntryId
-  readonly role: string
+export interface FileRefService {
+  /** All refs pointing at a given file_entry. */
+  findByEntryId(fileEntryId: FileEntryId): FileRef[]
+
+  /** All refs owned by a business source (chat message, painting, job, translate history, logo). */
+  findBySource(source: FileRefSourceKey): FileRef[]
+
+  /** Ref-count aggregation for a batch of entry ids. */
+  countByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number>
+
+  /** Persistent-ref count for one entry, inside the caller's tx (cleanup pass §5.4). */
+  countPersistentRefsByEntryIdTx(tx: DbOrTx, id: FileEntryId): number
 }
 
-export interface FileRefService {
-  /** All refs pointing at a given file_entry. Respects CASCADE — deleted entries return `[]`. */
-  findByEntryId(fileEntryId: FileEntryId): Promise<FileRef[]>
+const SQLITE_INARRAY_CHUNK = 500
 
-  /** All refs owned by a business source (chat message, knowledge item, …). */
-  findBySource(source: FileRefSourceKey): Promise<FileRef[]>
+type AgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferSelect
+type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
+type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
+type JobFileRefRow = typeof jobFileRefTable.$inferSelect
+type TranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferSelect
 
-  /**
-   * Insert a new ref. Violating `file_ref_unique_idx` (same entry + source +
-   * role) throws — callers SHOULD upsert by catching and re-querying, or use
-   * `createMany` with on-conflict-ignore semantics.
-   */
-  create(values: CreateFileRefRow): Promise<FileRef>
+function compareRefs(left: FileRef, right: FileRef): number {
+  const createdDelta = left.createdAt - right.createdAt
+  if (createdDelta !== 0) return createdDelta
+  return left.id.localeCompare(right.id)
+}
 
-  /** Batch variant. Rows that violate the uniqueness constraint are skipped. */
-  createMany(values: readonly CreateFileRefRow[]): Promise<FileRef[]>
+function agentSessionMessageRowToFileRef(row: AgentSessionMessageFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: agentSessionMessageSourceType })
+}
 
-  /**
-   * Pull-model cleanup: remove all refs owned by the given source. Called
-   * when the business entity itself is deleted. Thin wrapper that opens its
-   * own transaction around {@link FileRefService.cleanupBySourceTx}.
-   */
-  cleanupBySource(source: FileRefSourceKey): Promise<number>
+function chatMessageRowToFileRef(row: ChatMessageFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: chatMessageSourceType })
+}
 
-  /**
-   * Transaction-aware variant of {@link FileRefService.cleanupBySource}. Lets
-   * an owning service delete its row AND its file refs in one atomic boundary
-   * (tx-first, `Tx` suffix — same convention as `TagService.purgeForEntityTx`).
-   */
-  cleanupBySourceTx(tx: Pick<DbType, 'delete'>, source: FileRefSourceKey): Promise<number>
-
-  /** Batch variant of `cleanupBySource` — one `DELETE … IN (…)` per sourceType. */
-  cleanupBySourceBatch(sourceType: FileRefSourceType, sourceIds: readonly string[]): Promise<number>
-
-  /**
-   * Distinct `sourceId` values currently held by refs of the given sourceType.
-   * Backs OrphanRefScanner — the only consumer.
-   */
-  listDistinctSourceIds(sourceType: FileRefSourceType): Promise<string[]>
-
-  /**
-   * Pure-SQL ref-count aggregation for a batch of entry ids — `COUNT(*) … GROUP BY
-   * fileEntryId`, chunked against SQLite's `IN (?, …)` parameter cap. Entries
-   * with no refs are absent from the map; callers should treat missing keys as
-   * zero.
-   */
-  countByEntryIds(ids: readonly FileEntryId[]): Promise<Map<FileEntryId, number>>
+function paintingRowToFileRef(row: PaintingFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: paintingSourceType })
 }
 
 /**
- * SQLite parameter cap is configurable but defaults to 999; keep batches well
- * under that for `inArray()` even with comparison overhead. Same constant lives
- * in `orphanCheckerRegistry.knowledgeItemChecker` — kept lexically separate
- * because the two callers can diverge as their query shapes evolve.
+ * The two single-file logo association tables share one row shape (no
+ * `sourceType` column — the table is the discriminator), so one mapper stamps
+ * the caller-supplied `sourceType` and validates against its variant schema.
  */
-const SQLITE_INARRAY_CHUNK = 500
+function singleFileRowToFileRef(
+  row: ProviderLogoFileRefRow | MiniAppLogoFileRefRow | MiniAppFileRefRow,
+  sourceType: typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType | typeof miniAppFileRef.sourceType
+): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType })
+}
 
-type FileRefRow = typeof fileRefTable.$inferSelect
+function jobRowToFileRef(row: JobFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: jobSourceType })
+}
 
-function rowToFileRef(row: FileRefRow): FileRef {
-  return FileRefSchema.parse(row)
+function translateHistoryRowToFileRef(row: TranslateHistoryFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: translateHistorySourceType })
 }
 
 class FileRefServiceImpl implements FileRefService {
+  private getDbService() {
+    return application.get('DbService')
+  }
+
   private getDb() {
-    return application.get('DbService').getDb()
+    return this.getDbService().getDb()
   }
 
-  async findByEntryId(fileEntryId: FileEntryId): Promise<FileRef[]> {
-    const rows = await this.getDb()
-      .select()
-      .from(fileRefTable)
-      .where(eq(fileRefTable.fileEntryId, fileEntryId))
-      // Deterministic order so paginated / diff'd callers get stable results;
-      // SQLite returns rows in arbitrary order without ORDER BY, which makes
-      // tests flaky on rebuilds and observation noise indistinguishable from
-      // real change. Tiebreaker on `id` keeps duplicate-createdAt batches
-      // ordered consistently.
-      .orderBy(asc(fileRefTable.createdAt), asc(fileRefTable.id))
-    return rows.map(rowToFileRef)
+  findByEntryId(fileEntryId: FileEntryId): FileRef[] {
+    const persistentRefReaders = {
+      [agentSessionMessageSourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(agentSessionMessageFileRefTable)
+          .where(eq(agentSessionMessageFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(agentSessionMessageFileRefTable.createdAt), asc(agentSessionMessageFileRefTable.id))
+          .all()
+        return rows.map(agentSessionMessageRowToFileRef)
+      },
+      [chatMessageSourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(chatMessageFileRefTable)
+          .where(eq(chatMessageFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(chatMessageFileRefTable.createdAt), asc(chatMessageFileRefTable.id))
+          .all()
+        return rows.map(chatMessageRowToFileRef)
+      },
+      [paintingSourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(paintingFileRefTable)
+          .where(eq(paintingFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
+          .all()
+        return rows.map(paintingRowToFileRef)
+      },
+      [providerLogoRef.sourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(providerLogoFileRefTable)
+          .where(eq(providerLogoFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(providerLogoFileRefTable.createdAt), asc(providerLogoFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, providerLogoRef.sourceType))
+      },
+      [miniAppLogoRef.sourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(miniAppLogoFileRefTable)
+          .where(eq(miniAppLogoFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
+      },
+      [miniAppFileRef.sourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(miniAppFileRefTable)
+          .where(eq(miniAppFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(miniAppFileRefTable.createdAt), asc(miniAppFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, miniAppFileRef.sourceType))
+      },
+      [jobSourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(jobFileRefTable)
+          .where(eq(jobFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(jobFileRefTable.createdAt), asc(jobFileRefTable.id))
+          .all()
+        return rows.map(jobRowToFileRef)
+      },
+      [translateHistorySourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(translateHistoryFileRefTable)
+          .where(eq(translateHistoryFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(translateHistoryFileRefTable.createdAt), asc(translateHistoryFileRefTable.id))
+          .all()
+        return rows.map(translateHistoryRowToFileRef)
+      }
+    } satisfies Record<PersistentFileRefSourceType, () => FileRef[]>
+
+    return Object.values(persistentRefReaders)
+      .flatMap((readRefs) => readRefs())
+      .sort(compareRefs)
   }
 
-  async findBySource(source: FileRefSourceKey): Promise<FileRef[]> {
-    const rows = await this.getDb()
-      .select()
-      .from(fileRefTable)
-      .where(and(eq(fileRefTable.sourceType, source.sourceType), eq(fileRefTable.sourceId, source.sourceId)))
-      .orderBy(asc(fileRefTable.createdAt), asc(fileRefTable.id))
-    return rows.map(rowToFileRef)
-  }
-
-  async create(values: CreateFileRefRow): Promise<FileRef> {
-    const now = Date.now()
-    const rows = await this.getDb()
-      .insert(fileRefTable)
-      .values({
-        id: uuidv4(),
-        fileEntryId: values.fileEntryId,
-        sourceType: values.sourceType,
-        sourceId: values.sourceId,
-        role: values.role,
-        createdAt: now,
-        updatedAt: now
-      })
-      .returning()
-    return rowToFileRef(rows[0])
-  }
-
-  async createMany(values: readonly CreateFileRefRow[]): Promise<FileRef[]> {
-    if (values.length === 0) return []
-    const now = Date.now()
-    const rows = await this.getDb()
-      .insert(fileRefTable)
-      .values(
-        values.map((v) => ({
-          id: uuidv4(),
-          fileEntryId: v.fileEntryId,
-          sourceType: v.sourceType,
-          sourceId: v.sourceId,
-          role: v.role,
-          createdAt: now,
-          updatedAt: now
-        }))
-      )
-      .onConflictDoNothing()
-      .returning()
-    return rows.map(rowToFileRef)
-  }
-
-  async cleanupBySource(source: FileRefSourceKey): Promise<number> {
-    return this.getDb().transaction((tx) => this.cleanupBySourceTx(tx, source))
-  }
-
-  async cleanupBySourceTx(tx: Pick<DbType, 'delete'>, source: FileRefSourceKey): Promise<number> {
-    const rows = await tx
-      .delete(fileRefTable)
-      .where(and(eq(fileRefTable.sourceType, source.sourceType), eq(fileRefTable.sourceId, source.sourceId)))
-      .returning({ id: fileRefTable.id })
-    return rows.length
-  }
-
-  async cleanupBySourceBatch(sourceType: FileRefSourceType, sourceIds: readonly string[]): Promise<number> {
-    if (sourceIds.length === 0) return 0
-    let total = 0
-    // SQLite caps `IN (?, ?, …)` at SQLITE_LIMIT_VARIABLE_NUMBER (default 999;
-    // sometimes 32766). Chunk so a long-tenured user with thousands of
-    // orphaned source ids doesn't blow up the single-statement DELETE.
-    for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
-      const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
-      const rows = await this.getDb()
-        .delete(fileRefTable)
-        .where(and(eq(fileRefTable.sourceType, sourceType), inArray(fileRefTable.sourceId, chunk)))
-        .returning({ id: fileRefTable.id })
-      total += rows.length
+  findBySource(source: FileRefSourceKey): FileRef[] {
+    switch (source.sourceType) {
+      case agentSessionMessageSourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(agentSessionMessageFileRefTable)
+          .where(eq(agentSessionMessageFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(agentSessionMessageFileRefTable.createdAt), asc(agentSessionMessageFileRefTable.id))
+          .all()
+        return rows.map(agentSessionMessageRowToFileRef)
+      }
+      case chatMessageSourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(chatMessageFileRefTable)
+          .where(eq(chatMessageFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(chatMessageFileRefTable.createdAt), asc(chatMessageFileRefTable.id))
+          .all()
+        return rows.map(chatMessageRowToFileRef)
+      }
+      case paintingSourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(paintingFileRefTable)
+          .where(eq(paintingFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
+          .all()
+        return rows.map(paintingRowToFileRef)
+      }
+      case providerLogoRef.sourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(providerLogoFileRefTable)
+          .where(eq(providerLogoFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(providerLogoFileRefTable.createdAt), asc(providerLogoFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, providerLogoRef.sourceType))
+      }
+      case miniAppLogoRef.sourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(miniAppLogoFileRefTable)
+          .where(eq(miniAppLogoFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
+      }
+      case miniAppFileRef.sourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(miniAppFileRefTable)
+          .where(eq(miniAppFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(miniAppFileRefTable.createdAt), asc(miniAppFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, miniAppFileRef.sourceType))
+      }
+      case jobSourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(jobFileRefTable)
+          .where(eq(jobFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(jobFileRefTable.createdAt), asc(jobFileRefTable.id))
+          .all()
+        return rows.map(jobRowToFileRef)
+      }
+      case translateHistorySourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(translateHistoryFileRefTable)
+          .where(eq(translateHistoryFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(translateHistoryFileRefTable.createdAt), asc(translateHistoryFileRefTable.id))
+          .all()
+        return rows.map(translateHistoryRowToFileRef)
+      }
     }
-    return total
   }
 
-  async listDistinctSourceIds(sourceType: FileRefSourceType): Promise<string[]> {
-    const rows = await this.getDb()
-      .selectDistinct({ sourceId: fileRefTable.sourceId })
-      .from(fileRefTable)
-      .where(eq(fileRefTable.sourceType, sourceType))
-    return rows.map((r) => r.sourceId)
-  }
-
-  async countByEntryIds(ids: readonly FileEntryId[]): Promise<Map<FileEntryId, number>> {
+  countByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number> {
     const counts = new Map<FileEntryId, number>()
     if (ids.length === 0) return counts
+
+    const add = (entryId: FileEntryId, refCount: number) => {
+      counts.set(entryId, (counts.get(entryId) ?? 0) + refCount)
+    }
+
     for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
-      const rows = await this.getDb()
-        .select({
-          entryId: fileRefTable.fileEntryId,
-          refCount: count()
-        })
-        .from(fileRefTable)
-        .where(inArray(fileRefTable.fileEntryId, chunk))
-        .groupBy(fileRefTable.fileEntryId)
-      for (const r of rows) counts.set(r.entryId, r.refCount)
+      const persistentRefCounters = {
+        [agentSessionMessageSourceType]: () =>
+          this.getDb()
+            .select({ entryId: agentSessionMessageFileRefTable.fileEntryId, refCount: count() })
+            .from(agentSessionMessageFileRefTable)
+            .where(inArray(agentSessionMessageFileRefTable.fileEntryId, chunk))
+            .groupBy(agentSessionMessageFileRefTable.fileEntryId)
+            .all(),
+        [chatMessageSourceType]: () =>
+          this.getDb()
+            .select({ entryId: chatMessageFileRefTable.fileEntryId, refCount: count() })
+            .from(chatMessageFileRefTable)
+            .where(inArray(chatMessageFileRefTable.fileEntryId, chunk))
+            .groupBy(chatMessageFileRefTable.fileEntryId)
+            .all(),
+        [paintingSourceType]: () =>
+          this.getDb()
+            .select({ entryId: paintingFileRefTable.fileEntryId, refCount: count() })
+            .from(paintingFileRefTable)
+            .where(inArray(paintingFileRefTable.fileEntryId, chunk))
+            .groupBy(paintingFileRefTable.fileEntryId)
+            .all(),
+        [providerLogoRef.sourceType]: () =>
+          this.getDb()
+            .select({ entryId: providerLogoFileRefTable.fileEntryId, refCount: count() })
+            .from(providerLogoFileRefTable)
+            .where(inArray(providerLogoFileRefTable.fileEntryId, chunk))
+            .groupBy(providerLogoFileRefTable.fileEntryId)
+            .all(),
+        [miniAppLogoRef.sourceType]: () =>
+          this.getDb()
+            .select({ entryId: miniAppLogoFileRefTable.fileEntryId, refCount: count() })
+            .from(miniAppLogoFileRefTable)
+            .where(inArray(miniAppLogoFileRefTable.fileEntryId, chunk))
+            .groupBy(miniAppLogoFileRefTable.fileEntryId)
+            .all(),
+        [miniAppFileRef.sourceType]: () =>
+          this.getDb()
+            .select({ entryId: miniAppFileRefTable.fileEntryId, refCount: count() })
+            .from(miniAppFileRefTable)
+            .where(inArray(miniAppFileRefTable.fileEntryId, chunk))
+            .groupBy(miniAppFileRefTable.fileEntryId)
+            .all(),
+        [jobSourceType]: () =>
+          this.getDb()
+            .select({ entryId: jobFileRefTable.fileEntryId, refCount: count() })
+            .from(jobFileRefTable)
+            .where(inArray(jobFileRefTable.fileEntryId, chunk))
+            .groupBy(jobFileRefTable.fileEntryId)
+            .all(),
+        [translateHistorySourceType]: () =>
+          this.getDb()
+            .select({ entryId: translateHistoryFileRefTable.fileEntryId, refCount: count() })
+            .from(translateHistoryFileRefTable)
+            .where(inArray(translateHistoryFileRefTable.fileEntryId, chunk))
+            .groupBy(translateHistoryFileRefTable.fileEntryId)
+            .all()
+      } satisfies Record<PersistentFileRefSourceType, () => Array<{ entryId: FileEntryId; refCount: number }>>
+
+      const rowGroups = Object.values(persistentRefCounters).map((countRefs) => countRefs())
+      for (const rows of rowGroups) {
+        for (const row of rows) add(row.entryId, row.refCount)
+      }
     }
+
     return counts
+  }
+
+  countPersistentRefsByEntryIdTx(tx: DbOrTx, id: FileEntryId): number {
+    let total = 0
+    for (const table of Object.values(persistentFileRefTablesBySourceType)) {
+      const rows = tx.select({ c: count() }).from(table).where(eq(table.fileEntryId, id)).all()
+      total += rows[0]?.c ?? 0
+    }
+    return total
   }
 }
 

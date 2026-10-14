@@ -27,8 +27,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 
-import { ApiServer, IpcAdapter } from './api'
-import { apiHandlers } from './api/handlers'
+import { apiHandlers, ApiServer, IpcAdapter } from './api'
 
 const logger = loggerService.withContext('DataApiService')
 
@@ -52,18 +51,10 @@ export class DataApiService extends BaseService {
 
   protected async onInit(): Promise<void> {
     try {
-      logger.info('Initializing Data API system...')
-
-      // API handlers are already registered during ApiServer initialization
-      logger.debug('API handlers initialized with type-safe routing')
-
       // Setup IPC adapter and register for automatic lifecycle cleanup
       this.ipcAdapter.setup()
       this.registerDisposable(this.ipcAdapter)
 
-      logger.info('Data API system initialized successfully')
-
-      // Log system info
       this.logSystemInfo()
     } catch (error) {
       logger.error('Failed to initialize Data API system', error as Error)
@@ -77,12 +68,9 @@ export class DataApiService extends BaseService {
   private logSystemInfo(): void {
     const systemInfo = this.apiServer.getSystemInfo()
 
-    logger.info('Data API system ready', {
-      server: systemInfo.server,
-      version: systemInfo.version,
-      handlers: systemInfo.handlers,
-      middlewares: systemInfo.middlewares
-    })
+    logger.info(
+      `Data API system ready: ${systemInfo.handlers.total} endpoints, ${systemInfo.middlewares.length} middlewares`
+    )
   }
 
   /**

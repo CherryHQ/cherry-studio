@@ -1,14 +1,17 @@
 import { DragDropContext } from '@hello-pangea/dnd'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 
-import { SettingDivider, SettingGroup } from '../..'
+import { usePreference } from '@data/hooks/usePreference'
+import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
+import { SettingDivider, SettingGroup } from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+
 import { useActionItems } from '../hooks/useSettingsActionsList'
 import ActionsList from './ActionsList'
 import ActionsListDivider from './ActionsListDivider'
+import SelectionActionModelSettings from './SelectionActionModelSettings'
 import SelectionActionSearchModal from './SelectionActionSearchModal'
 import SelectionActionUserModal from './SelectionActionUserModal'
 import SettingsActionsListHeader from './SettingsActionsListHeader'
@@ -45,6 +48,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
   } = useActionItems(actionItems, setActionItems)
 
   const { theme } = useTheme()
+  const [isCompact] = usePreference('feature.selection.compact')
 
   if (!actionItems || actionItems.length === 0) {
     setActionItems(DefaultPreferences.default['feature.selection.action_items'])
@@ -61,8 +65,16 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
 
       <SettingDivider />
 
+      <SelectionActionModelSettings />
+
       <div className="my-6 flex items-center justify-center">
-        <SelectionToolbar demo />
+        <SelectionToolbarView
+          actionItems={actionItems?.filter((item) => item.enabled) ?? []}
+          isCompact={isCompact}
+          handleAction={() => {}}
+          copyIconStatus="normal"
+          copyIconAnimation="none"
+        />
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
@@ -91,12 +103,14 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         </div>
       </DragDropContext>
 
-      <SelectionActionUserModal
-        isModalOpen={isUserModalOpen}
-        editingAction={userEditingAction}
-        onOk={handleUserModalOk}
-        onCancel={() => setIsUserModalOpen(false)}
-      />
+      {isUserModalOpen && (
+        <SelectionActionUserModal
+          isModalOpen={isUserModalOpen}
+          editingAction={userEditingAction}
+          onOk={handleUserModalOk}
+          onCancel={() => setIsUserModalOpen(false)}
+        />
+      )}
 
       <SelectionActionSearchModal
         isModalOpen={isSearchModalOpen}

@@ -1,5 +1,8 @@
 import { join } from 'node:path'
 
+import { app, BrowserWindow, screen } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
@@ -22,16 +25,14 @@ import {
   type OpenWindowArgs,
   type PoolConfig,
   type SingletonConfig,
-  VALID_WINDOW_TYPES,
   type WarmupState,
   type WarmupStateInit,
   type WindowInfo,
   type WindowOptions
 } from '@main/core/window/types'
+import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
-import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, screen, shell } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
+import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
 
 const logger = loggerService.withContext('WindowManager')
 
@@ -60,6 +61,7 @@ type WarmupOp =
   | 'pool-release'
   | 'pool-release-destroy-disabled'
   | 'pool-release-destroy-overcap'
+  | 'pool-release-destroy-fullscreen'
   | 'pool-decay'
   | 'pool-lazy-backfill'
   | 'pool-suspend'
@@ -104,6 +106,14 @@ export class WindowManager extends BaseService {
 
   /** One-time initialization data per window (consumed by renderer via getInitData IPC) */
   private initDataStore = new Map<string, unknown>()
+
+  /**
+   * Runtime override for the registry `rememberBounds` flag, keyed by window type
+   * (set via {@link setRememberBounds}). When present it wins over the registry
+   * default; absent falls back to the declared flag. This map is the only state
+   * the bounds capability holds — `windowBoundsTracker` itself is stateless.
+   */
+  private rememberBoundsOverride = new Map<WindowType, boolean>()
 
   /**
    * Runtime overrides and setters for the declarative `behavior` layer
@@ -171,7 +181,6 @@ export class WindowManager extends BaseService {
 
   protected override onInit(): void {
     this.updateDockVisibility()
-    this.registerIpcHandlers()
   }
 
   /**
@@ -252,6 +261,19 @@ export class WindowManager extends BaseService {
     return normalized === retentionTime ? cfg : { ...cfg, retentionTime: normalized }
   }
 
+  protected override onStop(): void {
+    // Persist bounds for any window still alive at shutdown — the SIGINT/SIGTERM
+    // path, where neither the native 'close' event nor destroyWindow runs before
+    // teardown. onStop executes in the stopAll pass (reverse init order), so
+    // WindowManager (WhenReady) stops BEFORE CacheService (BeforeReady): these
+    // setPersist writes land before CacheService's own onStop flushes the persist
+    // map to disk and clears it. The window-destroy loop stays in onDestroy.
+    // persistBoundsFor is gated, so non-remember windows no-op.
+    for (const managed of this.windows.values()) {
+      this.persistBoundsFor(managed.window, managed.type)
+    }
+  }
+
   protected override onDestroy(): void {
     logger.info('Destroying, closing all windows...')
 
@@ -273,65 +295,6 @@ export class WindowManager extends BaseService {
     this.windowsByType.clear()
   }
 
-  // ─── IPC handlers ─────────────────────────────────────────────
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.WindowManager_Open, (_event, type: string, initData?: unknown) => {
-      if (!VALID_WINDOW_TYPES.has(type)) {
-        throw new Error(`Invalid window type: ${type}`)
-      }
-      return this.open(type as WindowType, initData !== undefined ? { initData } : undefined)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_GetInitData, (event) => {
-      const windowId = this.getWindowIdByWebContents(event.sender)
-      if (!windowId) return null
-      return this.getInitData(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_Close, (event) => {
-      const windowId = this.getWindowIdByWebContents(event.sender)
-      if (!windowId) return false
-      return this.close(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_Minimize, (event) => {
-      const windowId = this.getWindowIdByWebContents(event.sender)
-      if (!windowId) return false
-      return this.minimize(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_Maximize, (event) => {
-      const windowId = this.getWindowIdByWebContents(event.sender)
-      if (!windowId) return false
-      return this.maximize(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_Unmaximize, (event) => {
-      const windowId = this.getWindowIdByWebContents(event.sender)
-      if (!windowId) return false
-      return this.unmaximize(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_IsMaximized, (event) => {
-      const windowId = this.getWindowIdByWebContents(event.sender)
-      if (!windowId) return false
-      return this.isMaximized(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_SetFullScreen, (event, value: boolean) => {
-      const windowId = this.getWindowIdByWebContents(event.sender)
-      if (!windowId) return false
-      return this.setFullScreen(windowId, value)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_IsFullScreen, (event) => {
-      const windowId = this.getWindowIdByWebContents(event.sender)
-      if (!windowId) return false
-      return this.isFullScreen(windowId)
-    })
-  }
-
   // ─── Public API: Open / Create / Close / Destroy ──────────────
 
   /**
@@ -344,7 +307,7 @@ export class WindowManager extends BaseService {
    * - The data is synchronously written into the init-data store before this
    *   method returns, so `getInitData(windowId)` always sees the fresh value.
    * - For **reuse** paths (singleton reopen / pool recycle), the data is ALSO
-   *   pushed to the renderer via `IpcChannel.WindowManager_Reused` as the event
+   *   pushed to the renderer via the IpcApi `window.reused` event as the
    *   payload. Fresh-window paths do not fire the event (renderer is not yet
    *   ready to listen).
    *
@@ -372,7 +335,7 @@ export class WindowManager extends BaseService {
           // initData. `applyReusedInitData(managed, undefined)` deletes the
           // initDataStore entry, which violates the "preserve state across hide"
           // contract — the stored payload must survive hide so a renderer
-          // reload during hide can restore context via `WindowManager_GetInitData`.
+          // reload during hide can restore context via `window.get_init_data`.
           if (args?.initData !== undefined) {
             this.applyReusedInitData(candidate, args.initData)
           }
@@ -439,7 +402,7 @@ export class WindowManager extends BaseService {
    * - Other types: always creates a new window
    *
    * Because `create()` never reuses an existing window, it never fires a
-   * `WindowManager_Reused` event — only `setInitData` is called so the renderer
+   * `window.reused` event — only `setInitData` is called so the renderer
    * can read the payload via cold-start `getInitData` once it mounts.
    *
    * @param type - Window type to create
@@ -481,7 +444,7 @@ export class WindowManager extends BaseService {
   /**
    * Apply init data to a window that is being re-used (singleton reopen or
    * pool recycle). Writes to the init-data store and pushes the same payload
-   * to the renderer via `WindowManager_Reused` so the renderer can update
+   * to the renderer via `window.reused` so the renderer can update
    * in-place without a round-trip.
    *
    * When `data === undefined`, any previously stored init data for this window
@@ -495,9 +458,8 @@ export class WindowManager extends BaseService {
       return
     }
     this.setInitData(managed.id, data)
-    if (!managed.window.isDestroyed()) {
-      managed.window.webContents.send(IpcChannel.WindowManager_Reused, data)
-    }
+    // No isDestroyed guard needed: IpcApiService.send no-ops on a gone/destroyed window.
+    application.get('IpcApiService').send(managed.id, 'window.reused', data)
   }
 
   /**
@@ -631,6 +593,11 @@ export class WindowManager extends BaseService {
     }
   }
 
+  /** Get a window's registered type by ID (O(1) lookup; undefined if unknown/closed). */
+  public getWindowType(windowId: string): WindowType | undefined {
+    return this.windows.get(windowId)?.type
+  }
+
   /** Get all live BrowserWindow instances of a specific type (skips destroyed) */
   public getWindowsByType(type: WindowType): BrowserWindow[] {
     const windowIds = this.windowsByType.get(type)
@@ -680,12 +647,17 @@ export class WindowManager extends BaseService {
 
   /**
    * Broadcast an IPC message to all managed windows.
-   * Skips destroyed windows automatically.
+   * Skips destroyed windows automatically. Send failures are isolated per
+   * window — one window's `send()` throwing must not abort delivery to the
+   * remaining windows.
    */
   public broadcast(channel: string, ...args: unknown[]): void {
-    for (const managed of this.windows.values()) {
-      if (!managed.window.isDestroyed()) {
+    for (const [id, managed] of this.windows) {
+      if (managed.window.isDestroyed()) continue
+      try {
         managed.window.webContents.send(channel, ...args)
+      } catch (error) {
+        logger.warn(`broadcast to window '${id}' failed on channel '${channel}'`, error as Error)
       }
     }
   }
@@ -716,9 +688,13 @@ export class WindowManager extends BaseService {
     return this.initDataStore.get(windowId) ?? null
   }
 
+  public clearInitData(windowId: string): void {
+    this.initDataStore.delete(windowId)
+  }
+
   /**
    * Push fresh init data to a single already-open window and notify its
-   * renderer in-place, reusing the same IPC channel (`WindowManager_Reused`)
+   * renderer in-place, reusing the same IpcApi event (`window.reused`)
    * that pool-recycle and singleton-reopen paths use. The renderer's
    * `useWindowInitData` hook picks this up without remounting the subtree.
    *
@@ -730,7 +706,7 @@ export class WindowManager extends BaseService {
    * Semantics:
    * - Writes `data` into the init-data store so subsequent `getInitData()`
    *   calls (devtools reload, lazy child mount) observe the latest value.
-   * - Sends `WindowManager_Reused` to the window's `webContents`.
+   * - Sends `window.reused` to the window's `webContents`.
    * - Returns `true` if the window exists and is not destroyed, `false`
    *   otherwise. No throw on miss.
    *
@@ -742,7 +718,7 @@ export class WindowManager extends BaseService {
     const managed = this.windows.get(windowId)
     if (!managed || managed.window.isDestroyed()) return false
     this.setInitData(windowId, data)
-    managed.window.webContents.send(IpcChannel.WindowManager_Reused, data)
+    application.get('IpcApiService').send(windowId, 'window.reused', data)
     return true
   }
 
@@ -840,7 +816,7 @@ export class WindowManager extends BaseService {
    * Open a pooled window: recycle from idle pool or create fresh.
    *
    * Recycled windows:
-   * - Receive `WindowManager_Reused` IPC **only when** `args.initData` is
+   * - Receive `window.reused` IPC **only when** `args.initData` is
    *   provided — the event payload is that initData. No data → no event.
    * - Are shown/focused immediately based on metadata `show` behavior.
    */
@@ -1004,6 +980,16 @@ export class WindowManager extends BaseService {
     // registry-declared defaults rather than the previous consumer's pin.
     this.behavior.clearForWindow(windowId)
 
+    // Never hide a fullscreen window: on macOS `orderOut:` orphans its fullscreen Space as an
+    // undismissable black screen (electron#20263). Drop the instance — standby replenishes it.
+    if (!managed.window.isDestroyed() && managed.window.isFullScreen()) {
+      this.destroyWindow(managed.window)
+      this.initDataStore.delete(windowId)
+      this.logWarmupEvent('pool-release-destroy-fullscreen', type, state, { windowId })
+      this.updateDockVisibility()
+      return
+    }
+
     const recycleMax = poolConfig.recycleMaxSize ?? 0
     const standby = poolConfig.standbySize ?? 0
 
@@ -1095,7 +1081,7 @@ export class WindowManager extends BaseService {
     // INTENTIONAL — preserve state across hide. Do NOT:
     //   - clear behavior override: user-pinned alwaysOnTop / hideOnBlur survives.
     //   - delete initDataStore entry: allows renderer reload during hide to
-    //     restore last initData via WindowManager_GetInitData. Next open() with
+    //     restore last initData via window.get_init_data. Next open() with
     //     fresh args will overwrite via applyReusedInitData; next open() without
     //     args leaves the entry intact (singleton's single-consumer semantics).
     //   - reset geometry: user-adjusted window size is part of preserved state.
@@ -1358,12 +1344,22 @@ export class WindowManager extends BaseService {
     const metadata = getWindowTypeMetadata(type)
     const windowId = uuidv4()
     const config = mergeWindowOptions(type, args?.options)
+
+    // Restore remembered geometry into the merged options before construction.
+    // Gated to singleton + rememberBounds (registry flag or runtime override);
+    // injectSavedBounds no-ops without a valid saved record, so the window opens
+    // at its registry default. Restore is fixed at this moment — a later runtime
+    // toggle only affects the next open.
+    if (this.shouldRememberBounds(type)) {
+      injectSavedBounds(type, config)
+    }
+
     const showMode = metadata.showMode ?? 'auto'
 
     // Resolve preload path. `metadata.preload` mirrors `htmlPath`'s three-state
     // encoding: omitted → default file, non-empty string → that file, empty
     // string → no preload (for nodeIntegration:true cases).
-    const preloadName = metadata.preload ?? 'index.js'
+    const preloadName = metadata.preload ?? 'preload.js'
     const preloadPath = preloadName ? join(__dirname, '../preload/', preloadName) : undefined
 
     // 1. Create BrowserWindow
@@ -1376,22 +1372,31 @@ export class WindowManager extends BaseService {
       }
     })
 
-    // Intercept external links: open in system browser
-    window.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('http:') || url.startsWith('https:')) {
-        void shell.openExternal(url)
-      }
-      return { action: 'deny' }
-    })
+    // Domain services may route denied popups after onWindowCreated.
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
     window.webContents.on('will-navigate', (event, url) => {
       if (url.startsWith('http:') || url.startsWith('https:')) {
         const currentURL = window.webContents.getURL()
         if (currentURL && new URL(url).origin !== new URL(currentURL).origin) {
           event.preventDefault()
-          void shell.openExternal(url)
         }
+      } else {
+        // Non-web schemes (file:, custom protocols) have no legitimate in-window
+        // navigation path; deny like the window-open handler denies non-http(s) popups.
+        event.preventDefault()
+        logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
+    })
+
+    // A script-less sandboxed subframe still follows <a href>: deny (fail-closed) unless the
+    // app's own main frame initiated it (by frameTreeNodeId — wrapper identity isn't stable).
+    window.webContents.on('will-frame-navigate', (event) => {
+      if (event.isMainFrame) return
+      const initiatorId = event.initiator?.frameTreeNodeId
+      if (initiatorId !== undefined && initiatorId === window.webContents.mainFrame.frameTreeNodeId) return
+      event.preventDefault()
+      logger.warn(`Blocked subframe navigation to: ${event.url}`)
     })
 
     // 2. Setup event listeners
@@ -1443,11 +1448,25 @@ export class WindowManager extends BaseService {
     // wrappers then transparently apply around any subsequent hide()/show()/close().
     // Also runs AFTER applyWindowBehavior so the behavior layer's initial setter
     // calls do not trigger the monkey-patched show/showInactive.
-    applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks, managedWindow.metadata.behavior)
+    applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks, managedWindow.metadata.behavior, () =>
+      this.behavior.getAlwaysOnTopLevelOverride(windowId)
+    )
+
+    // 4c. Persist bounds on native close for singletons (GUI quit and
+    // hide-to-tray, where the window is still alive). Attached to every singleton
+    // — not just ones with the flag set now — so a runtime setRememberBounds(true)
+    // on a previously-off singleton still captures bounds on the next close;
+    // persistBoundsFor re-checks the gate at fire time. Programmatic destroys
+    // (window.destroy()) skip 'close' and are covered in destroyWindow; a
+    // shutdown while still alive is covered in onStop. The 'closed' handler's
+    // removeAllListeners cleans this listener up.
+    if (metadata.lifecycle === 'singleton') {
+      window.on('close', () => this.persistBoundsFor(window, type))
+    }
 
     // 5. Store initData synchronously — renderer's cold-start `getInitData`
     //    invoke (fired after mount) is guaranteed to see the fresh value.
-    //    Never fire WindowManager_Reused for fresh windows: the renderer is
+    //    Never fire window.reused for fresh windows: the renderer is
     //    not yet ready to listen. Fresh windows must PULL via getInitData.
     if (args?.initData !== undefined) {
       this.setInitData(windowId, args.initData)
@@ -1480,6 +1499,13 @@ export class WindowManager extends BaseService {
   /** Force-destroy a BrowserWindow. Skips the `close` event — only `closed` fires. */
   private destroyWindow(window: BrowserWindow): void {
     if (window.isDestroyed()) return
+    // window.destroy() skips the 'close' event, so the singleton close-listener
+    // persist path never runs for programmatic destroys (e.g. QuickAssistant
+    // deactivate via wm.close → destroyWindow). Capture bounds here first, while
+    // the window is still alive. Gated, so non-remember windows (pool recycle,
+    // trim, etc.) no-op.
+    const managed = this.findManagedByWindow(window)
+    if (managed) this.persistBoundsFor(window, managed.type)
     window.destroy()
   }
 
@@ -1490,6 +1516,67 @@ export class WindowManager extends BaseService {
     const firstId = windowIds.values().next().value
     if (!firstId) return undefined
     return this.windows.get(firstId)
+  }
+
+  // ─── Bounds persistence (rememberBounds capability) ───────────
+
+  /**
+   * Whether a window type's bounds should be persisted & restored right now.
+   *
+   * Singleton-only: bounds answer "where does this window reopen?", which has a
+   * unique answer only when identity = type (a single instance). A non-singleton
+   * that declares the flag is ignored (dev warn). Otherwise the runtime override
+   * wins over the registry default, making the toggle fully orthogonal to the
+   * flag — it can disable a flag-on type or enable a type with no declared flag.
+   */
+  private shouldRememberBounds(type: WindowType): boolean {
+    const metadata = getWindowTypeMetadata(type)
+    if (metadata.lifecycle !== 'singleton') {
+      if (metadata.rememberBounds && isDev) {
+        logger.warn(`rememberBounds is singleton-only; ignored for non-singleton window type "${type}"`)
+      }
+      return false
+    }
+    return this.rememberBoundsOverride.get(type) ?? metadata.rememberBounds ?? false
+  }
+
+  /** Snapshot a window's bounds into the persist cache when the gate allows. */
+  private persistBoundsFor(window: BrowserWindow, type: WindowType): void {
+    if (this.shouldRememberBounds(type)) {
+      persistNow(window, type)
+    }
+  }
+
+  /** Reverse-lookup the managed entry for a raw BrowserWindow (small map, linear scan). */
+  private findManagedByWindow(window: BrowserWindow): ManagedWindow | undefined {
+    for (const managed of this.windows.values()) {
+      if (managed.window === window) return managed
+    }
+    return undefined
+  }
+
+  /**
+   * Runtime toggle for the `rememberBounds` capability, orthogonal to the
+   * registry flag (see {@link shouldRememberBounds}). `true` → persist on
+   * teardown and restore on the next open. `false` → stop persisting AND drop
+   * the saved record immediately, so the next open uses the registry default.
+   * Affects restore on the next open; the live window keeps its geometry.
+   */
+  public setRememberBounds(type: WindowType, enabled: boolean): void {
+    this.rememberBoundsOverride.set(type, enabled)
+    if (!enabled) {
+      clearSavedBounds(type)
+    }
+  }
+
+  /**
+   * Read a window type's saved bounds without restoring them. Lets a consumer
+   * apply state WindowManager does not — e.g. MainWindowService re-applies the
+   * maximized flag on its own show schedule. Returns undefined when nothing is
+   * saved.
+   */
+  public peekWindowBounds(type: WindowType): WindowBoundsState | undefined {
+    return peekSavedState(type)
   }
 
   // ─── Window event listeners ───────────────────────────────────
@@ -1515,19 +1602,19 @@ export class WindowManager extends BaseService {
     //   treat FullscreenChanged as the source of truth (the green button defaults
     //   to native fullscreen, which fires reliably).
     // - HTML5 element.requestFullscreen() and macOS setSimpleFullScreen() are
-    //   intentionally NOT bridged here: useFullscreen / useFullScreenNotice
-    //   semantics is OS-level native fullscreen only.
+    //   intentionally NOT bridged here: the renderer's fullscreen handling
+    //   (useWindowRuntime) is OS-level native fullscreen only.
     window.on('maximize', () => {
-      window.webContents.send(IpcChannel.WindowManager_MaximizedChanged, true)
+      application.get('IpcApiService').send(windowId, 'window.maximized_changed', true)
     })
     window.on('unmaximize', () => {
-      window.webContents.send(IpcChannel.WindowManager_MaximizedChanged, false)
+      application.get('IpcApiService').send(windowId, 'window.maximized_changed', false)
     })
     window.on('enter-full-screen', () => {
-      window.webContents.send(IpcChannel.WindowManager_FullscreenChanged, true)
+      application.get('IpcApiService').send(windowId, 'window.fullscreen_changed', true)
     })
     window.on('leave-full-screen', () => {
-      window.webContents.send(IpcChannel.WindowManager_FullscreenChanged, false)
+      application.get('IpcApiService').send(windowId, 'window.fullscreen_changed', false)
     })
 
     // Intercept native close for warmup-tracked windows — hide and return to
@@ -1542,6 +1629,9 @@ export class WindowManager extends BaseService {
         const metadata = getWindowTypeMetadata(type)
         if (metadata.lifecycle === 'pooled') {
           if (state.suspended) return // let native close proceed
+          // A fullscreen window is closed natively, never hidden — the same rule as
+          // releaseToPool()'s fullscreen guard; cancelling here would orphan its Space.
+          if (window.isFullScreen()) return
           event.preventDefault()
           if (state.idle.includes(windowId)) return // already idle
           const managed = this.windows.get(windowId)

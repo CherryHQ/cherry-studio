@@ -17,8 +17,11 @@ const BaseNavigatorGroupSection = ({
   onRenameBase,
   onRenameGroup,
   onCreateBaseInGroup,
+  onCreateGroup,
   onDeleteGroup,
-  onDeleteBase
+  onDeleteBase,
+  onToggleSidebar,
+  sidebarPinnedBaseIds
 }: BaseNavigatorGroupSectionProps) => {
   const groupValue = section.groupId ?? UNGROUPED_SECTION_VALUE
 
@@ -27,13 +30,12 @@ const BaseNavigatorGroupSection = ({
       {group ? (
         <KnowledgeGroupRow
           group={group}
-          itemCount={section.items.length}
           onRenameGroup={onRenameGroup}
           onCreateBase={onCreateBaseInGroup}
           onDeleteGroup={onDeleteGroup}
         />
       ) : (
-        <BaseNavigatorSectionTrigger label={groupLabel} itemCount={section.items.length} />
+        <BaseNavigatorSectionTrigger label={groupLabel} />
       )}
 
       <AccordionContent
@@ -49,7 +51,10 @@ const BaseNavigatorGroupSection = ({
               onSelectBase={onSelectBase}
               onMoveBase={onMoveBase}
               onRenameBase={onRenameBase}
+              onCreateGroup={onCreateGroup}
               onDeleteBase={onDeleteBase}
+              onToggleSidebar={onToggleSidebar}
+              sidebarPinned={sidebarPinnedBaseIds.has(base.id)}
             />
           ))}
         </div>

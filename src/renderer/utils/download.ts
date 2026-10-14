@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
 
 const logger = loggerService.withContext('Utils:download')
 
@@ -7,10 +6,10 @@ export const download = (url: string, filename?: string) => {
   // 处理可直接通过 <a> 标签下载的 URL:
   // - 本地文件 ( file:// )
   // - 对象 URL ( blob: )
-  // - 相对安全的内联数据 ( data:image/png, data:image/jpeg )
-  //   (注: 其他 data 类型，如 data:text/html 或 data:image/svg+xml，
-  //    因其潜在安全风险，不在此处理，将由后续 fetch 逻辑处理或被 CSP 阻止。)
-  const SUPPORTED_PREFIXES = ['file://', 'blob:', 'data:image/png', 'data:image/jpeg']
+  // - 内联数据 ( data:image/png, data:image/jpeg, data:image/svg+xml )
+  //   (注: data:text/html 等有安全风险的类型不在此处理；
+  //    data:image/svg+xml 之前因 CSP connect-src 不含 data: 导致 fetch 失败，故加入直接下载)
+  const SUPPORTED_PREFIXES = ['file://', 'blob:', 'data:image/png', 'data:image/jpeg', 'data:image/svg+xml']
   if (SUPPORTED_PREFIXES.some((prefix) => url.startsWith(prefix))) {
     const link = document.createElement('a')
     link.href = url
@@ -38,7 +37,7 @@ export const download = (url: string, filename?: string) => {
   }
 
   // 处理普通 URL
-  fetch(url)
+  return fetch(url)
     .then((response) => {
       let finalFilename = filename || 'download'
 
@@ -46,9 +45,13 @@ export const download = (url: string, filename?: string) => {
         // 尝试从Content-Disposition头获取文件名
         const contentDisposition = response.headers.get('Content-Disposition')
         if (contentDisposition) {
-          const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i)
-          if (filenameMatch) {
-            finalFilename = filenameMatch[1]
+          // A quoted filename may hold escaped quotes (\"), so capture up to the
+          // first *unescaped* delimiter and unescape afterwards.
+          const quotedName = contentDisposition.match(/filename="((?:[^"\\]|\\.)*)"/i)
+          const bareName = contentDisposition.match(/filename=([^";\r\n]+)/i)
+          const parsedName = quotedName ? quotedName[1] : bareName?.[1]
+          if (parsedName) {
+            finalFilename = parsedName.replace(/\\(.)/g, '$1')
           }
         }
 
@@ -83,12 +86,10 @@ export const download = (url: string, filename?: string) => {
     })
     .catch((error) => {
       logger.error('Download failed:', error)
-      // 显示用户友好的错误提示
-      if (error.message) {
-        window.toast?.error(`${i18n.t('message.download.failed')}：${error.message}`)
-      } else {
-        window.toast?.error(i18n.t('message.download.failed'))
-      }
+      // Re-throw so the caller can surface the failure (utils must not toast — it
+      // would import the renderer services layer). useImageTools awaits this and
+      // toasts from the component side.
+      throw error
     })
 }
 
