@@ -1,7 +1,7 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { act, render, renderHook } from '@testing-library/react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
 import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +10,9 @@ import {
   writeAskUserQuestionDraftCache
 } from '@renderer/components/composer/variants/askUserQuestionDraftCache'
 import type * as AgentSessionPartsModule from '@renderer/hooks/useAgentSessionParts'
+import type * as TurnControllerModule from '@renderer/hooks/useConversationTurnController'
+import { toast } from '@renderer/services/toast'
+import type * as ToastServiceModule from '@renderer/services/toast'
 import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
@@ -29,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   resetOverlay: vi.fn(),
   useTopicOverlayHandoffOnTerminal: vi.fn(),
   sendTurn: vi.fn(),
+  streamOpen: vi.fn(),
   editTarget: vi.fn(),
   editResend: vi.fn(),
   controllerOptions: vi.fn(),
@@ -52,7 +56,9 @@ vi.mock('@renderer/ipc', () => ({
           ? mocks.editTarget(input)
           : route === 'ai.agent.session.edit_resend'
             ? mocks.editResend(input)
-            : Promise.resolve(undefined),
+            : route === 'ai.stream.open'
+              ? mocks.streamOpen(input)
+              : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))
@@ -81,8 +87,7 @@ vi.mock('@renderer/services/voice', () => ({
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   useConversationTurnController: (options: unknown) => {
-    mocks.controllerOptions(options)
-    return { send: mocks.sendTurn }
+    return mocks.controllerOptions(options) ?? { send: mocks.sendTurn }
   }
 }))
 
@@ -101,7 +106,16 @@ vi.mock('react-i18next', () => ({
 
 import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
 
-vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError, warning: mocks.toastWarning } }))
+vi.mock('@cherrystudio/ui', async () => {
+  const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
+  const { getToastUtilities } = await import('@cherrystudio/ui/components/primitives/toast')
+  return { ...MockCherrystudioUI, getToastUtilities }
+})
+
+vi.mock('@renderer/services/toast', async (importOriginal) => {
+  const actual = await importOriginal<typeof ToastServiceModule>()
+  return { toast: { ...actual.toast, error: mocks.toastError, warning: mocks.toastWarning } }
+})
 
 // <Activity> harness: tab switches hide/show the session UI without unmounting
 // it, so hooks keep their state but effects are destroyed and re-created.
@@ -373,6 +387,9 @@ describe('useAgentChatRuntimeState', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    toast.closeAll()
+    mocks.controllerOptions.mockReset()
+    mocks.streamOpen.mockReset()
     MockCacheUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
@@ -448,6 +465,63 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(sent).toBe(false)
+  })
+
+  it.each([false, true])('keeps compact startup feedback in its recovery toast (dismissed: %s)', async (dismissed) => {
+    const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+      '@renderer/hooks/useConversationTurnController'
+    )
+    mocks.controllerOptions.mockImplementation(useConversationTurnController)
+    mocks.streamOpen.mockRejectedValueOnce(new Error('context window exceeded'))
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        agentType: 'claude-code',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    await act(async () => {
+      expect(await result.current.sendMessage({ text: 'ordinary message' })).toBe(false)
+    })
+    const original = toast.getToastQueue().toasts[0]
+    expect(original.action).toBeDefined()
+    let rejectStartup!: (error: Error) => void
+    mocks.streamOpen.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectStartup = reject
+        })
+    )
+    let recovery!: Promise<void>
+    await act(async () => {
+      recovery = Promise.resolve(original.action!.onClick())
+    })
+    await waitFor(() => expect(mocks.streamOpen).toHaveBeenCalledTimes(2))
+    expect(toast.getToastQueue().toasts[0]).toMatchObject({ key: original.key, type: 'loading' })
+    if (dismissed) toast.closeToast(original.key)
+    await act(async () => {
+      rejectStartup(new Error('compact startup failed'))
+      await recovery
+    })
+
+    if (dismissed) expect(toast.getToastQueue().toasts).toEqual([])
+    else {
+      expect(toast.getToastQueue().toasts).toEqual([
+        expect.objectContaining({
+          key: original.key,
+          type: 'error',
+          title: expect.stringContaining('compact startup failed')
+        })
+      ])
+    }
+    mocks.streamOpen.mockRejectedValueOnce(new Error('manual compact failed'))
+    await act(async () => {
+      expect(await result.current.sendMessage({ text: '/compact' })).toBe(false)
+    })
+    expect(toast.getToastQueue().toasts).toEqual([
+      expect.objectContaining({ type: 'error', title: expect.stringContaining('manual compact failed') })
+    ])
   })
 
   it('wires auto-read to overlay finish without taking over the terminal refresh handoff', () => {
