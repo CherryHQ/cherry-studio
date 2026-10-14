@@ -14,9 +14,12 @@ import { runRestorePromotion } from '@data/db/restore/restorePromotion'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeConnection } from '@main/ai/runtime/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
@@ -24,7 +27,7 @@ import { BackupManager } from '../LegacyBackupManager'
 
 const MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d100'
 
-describe('restore with retained Agent output', () => {
+describe('restore with Agent runtime activity', () => {
   const dbh = setupTestDatabase()
   let runtime: AgentSessionRuntimeService
   let backup: BackupManager
@@ -107,6 +110,8 @@ describe('restore with retained Agent output', () => {
 
   afterEach(async () => {
     await runtime['onStop']()
+    Object.assign(application, { isQuitting: false })
+    runtimeDriverRegistry.clearForTest()
     removeRestoreJournal()
     vi.useRealTimers()
     vi.restoreAllMocks()
@@ -200,5 +205,98 @@ describe('restore with retained Agent output', () => {
       release.resolve()
       await restore.catch(() => {})
     }
+  })
+
+  function preparePrewarm(traceId: string | null = null) {
+    dbh.db.insert(userProviderTable).values({ providerId: 'claude-code', name: 'Test', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'claude-code::claude-sonnet-4-5',
+        providerId: 'claude-code',
+        modelId: 'claude-sonnet-4-5',
+        name: 'Test',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db.update(agentTable).set({ model: 'claude-code::claude-sonnet-4-5' }).run()
+    dbh.db.update(agentSessionTable).set({ traceId }).run()
+    runtimeDriverRegistry.register({
+      type: 'claude-code',
+      capabilities: ['agent-session'],
+      validateSession: () => {},
+      listAvailableTools: async () => [],
+      connect: async () => {
+        throw new Error('No external runtime needed for this database admission test')
+      }
+    })
+  }
+
+  it.each([null, 'a'.repeat(32)])(
+    'keeps a staged restore valid during pending cleanup (traceId=%s)',
+    async (traceId) => {
+      preparePrewarm(traceId)
+      await backup['restoreDirect'](extractionDir)
+      const journal = readRestoreJournal()
+      if (journal.kind !== 'ok') throw new Error('Restore journal missing')
+      expect(runtime.isWriteQuiesced).toBe(true)
+      expect(dbh.db.select({ traceId: agentSessionTable.traceId }).from(agentSessionTable).get()?.traceId).toBe(traceId)
+      const cleanup = Promise.withResolvers<void>()
+      vi.spyOn(runtime['forks'], 'cancel').mockReturnValue(cleanup.promise)
+      const stopping = runtime['onStop']()
+      try {
+        runtime.acquireWarmLease('session', undefined)
+        await runtime.primeConnection('session')
+      } finally {
+        cleanup.resolve()
+        await stopping
+      }
+      await runtime.drainInFlight({ timeoutMs: 5000 })
+      checkpointTruncateAssert(dbh.sqlite)
+      expect
+        .soft(dbh.db.select({ traceId: agentSessionTable.traceId }).from(agentSessionTable).get()?.traceId)
+        .toBe(traceId)
+      expect.soft(await hashDbFile(livePath)).toBe(journal.journal.db.fingerprint)
+      const bootPath = join(dirname(livePath), 'boot.db')
+      copyFileSync(livePath, bootPath)
+      livePath = bootPath
+      await runRestorePromotion()
+      const promoted = new Database(livePath, { readonly: true })
+      try {
+        expect.soft(promoted.prepare('SELECT name FROM agent WHERE id = ?').get('agent')).toEqual({ name: 'Restored' })
+        expect.soft(readRestoreJournal()).toMatchObject({ kind: 'ok', journal: { state: 'completed' } })
+      } finally {
+        promoted.close()
+      }
+    }
+  )
+
+  it.each(['application', 'runtime'] as const)('rejects prewarm after %s shutdown starts', async (owner) => {
+    preparePrewarm()
+    if (owner === 'application') {
+      // Application marks quitting before earlier services finish stopping.
+      Object.assign(application, { isQuitting: true })
+    } else {
+      await runtime['onStop']()
+    }
+    runtime.acquireWarmLease('session', undefined)
+    await runtime.primeConnection('session')
+    expect(dbh.db.select({ traceId: agentSessionTable.traceId }).from(agentSessionTable).get()?.traceId).toBeNull()
+  })
+
+  it('allows prewarm again after a restore pause is released', async () => {
+    preparePrewarm()
+    const hold = runtime.pause('restore')
+    runtime.acquireWarmLease('session', undefined)
+    await runtime.primeConnection('session')
+    expect(dbh.db.select({ traceId: agentSessionTable.traceId }).from(agentSessionTable).get()?.traceId).toBeNull()
+    hold.dispose()
+    runtime.acquireWarmLease('session', undefined)
+    await runtime.primeConnection('session')
+    expect(dbh.db.select({ traceId: agentSessionTable.traceId }).from(agentSessionTable).get()?.traceId).toMatch(
+      /^[\da-f]{32}$/
+    )
   })
 })

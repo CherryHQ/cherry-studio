@@ -725,6 +725,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
+    if (application.isQuitting || this.isShuttingDown || this.isWriteQuiesced) return
     if (this.forks.edits.has(sessionId)) return
     try {
       const existing = this.entries.get(sessionId)
@@ -1121,6 +1122,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * connection if nothing else holds it.
    */
   acquireWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void {
+    if (application.isQuitting || this.isShuttingDown || this.isWriteQuiesced) return
     const pendingTeardown = this.pendingWarmTeardowns.get(sessionId)
     if (pendingTeardown) {
       clearTimeout(pendingTeardown)
