@@ -4979,7 +4979,6 @@
   "settings.models.retry.fallback_models_count_with_invalid": "{{valid}} selected ({{invalid}} unavailable)",
   "settings.models.retry.fallback_models_description": "Models tried in order when the primary model fails",
   "settings.models.retry.fallback_models_unavailable": "No valid fallback models ({{count}} unavailable)",
-  "settings.models.retry.label": "Model Call Retry",
   "settings.models.retry.max_attempts": "Max retry attempts",
   "settings.models.retry.tooltip": "Retryable errors retry the current model up to the configured limit. If it still fails, or the error is not retryable, fallback models are tried once each in order. With multiple API keys for the same model, 401/429 errors switch to the next key first. Retries and fallbacks only apply before content starts streaming.",
   "settings.models.toolbar.pull_short": "Sync models",
