@@ -1974,6 +1974,46 @@ describe('AiStreamManager', () => {
       expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
     })
 
+    it('joins a duplicate user Stop so it cannot cancel the successor the first stop resumed', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      let successorAdmitted!: () => void
+      const successorStarted = new Promise<void>((resolve) => {
+        successorAdmitted = resolve
+      })
+      mockHandleUserStop.mockImplementation(async () => {
+        // The graceful stop resumes a queued successor while still holding the dispatch lock.
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+        successorAdmitted()
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence')]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      await successorStarted
+      // A renderer Stop sends its abort twice: the explicit abort plus `sdkStop`'s transport
+      // signal. The duplicate arrives while the first drain still holds the lock.
+      const duplicate = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(duplicate).resolves.toBeUndefined()
+
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
+      // The successor the first stop admitted is not the duplicate's target: it must keep running.
+      expect(continuationListener.pausedResults).toHaveLength(0)
+    })
+
     it('routes a user Stop through the runtime graceful path and every other drain through closeSession', async () => {
       vi.useRealTimers()
       startSingle(mgr, {

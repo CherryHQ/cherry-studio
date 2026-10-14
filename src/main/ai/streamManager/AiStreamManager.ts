@@ -370,6 +370,8 @@ export class AiStreamManager extends BaseService {
   /** In-flight steer-continuation launches (registered synchronously in `scheduleNextChatTurn`),
    *  part of `drainInFlight`'s wait-set — a launch admitted before a pause must be awaited. */
   private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
+  /** Stop drains in flight by topic and reason, so duplicate abort requests join instead of stacking. */
+  private readonly drainingTopics = new Map<string, Promise<void>>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -1242,7 +1244,13 @@ export class AiStreamManager extends BaseService {
 
   /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
   async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
-    await this.withDispatchLock(topicId, async () => {
+    // A renderer Stop sends its abort twice (explicit abort + `sdkStop`'s transport signal). The
+    // duplicate must join the running drain: once the lock releases it would capture — and cancel —
+    // the queued successor the first stop just resumed.
+    const drainKey = `${topicId}\u0000${reason}`
+    const inFlight = this.drainingTopics.get(drainKey)
+    if (inFlight) return inFlight
+    const draining = this.withDispatchLock(topicId, async () => {
       beforeAbort?.()
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
@@ -1286,7 +1294,11 @@ export class AiStreamManager extends BaseService {
         await runtimeClosing
         if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
       }
+    }).finally(() => {
+      if (this.drainingTopics.get(drainKey) === draining) this.drainingTopics.delete(drainKey)
     })
+    this.drainingTopics.set(drainKey, draining)
+    return draining
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
