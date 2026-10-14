@@ -16,19 +16,13 @@ export {
 } from '@shared/utils/api'
 
 /**
- * Endpoint segment names recognised when stripping a pasted Ollama URL, so that
- * proxy mount prefixes such as `/api/ollama` survive normalisation.
+ * Matches one or more trailing `/api` segments so a pasted base URL that already
+ * carries the Ollama suffix does not double up, e.g. `/api`, `/api/api`.
  */
-const OLLAMA_ENDPOINT_SEGMENT =
-  '(?:v1|api|chat|completions|generate|embeddings|tags|show|create|copy|delete|pull|push|ps|version|models|blobs)'
-
-/** Matches up to three trailing recognised endpoint segments, e.g. `/api/chat`, `/v1/chat/completions`. */
-const TRAILING_OLLAMA_ENDPOINT_REGEX = new RegExp(
-  `\\/(?:${OLLAMA_ENDPOINT_SEGMENT})(?:\\/${OLLAMA_ENDPOINT_SEGMENT}){0,2}$`
-)
+const TRAILING_API_SEGMENTS_REGEX = /(?:\/api)+$/
 
 export function formatOllamaApiHost(host: string): string {
-  const normalizedHost = withoutTrailingSlash(host).replace(TRAILING_OLLAMA_ENDPOINT_REGEX, '')
+  const normalizedHost = withoutTrailingSlash(host).replace(TRAILING_API_SEGMENTS_REGEX, '')
   return formatApiHost(normalizedHost + '/api', false)
 }
 

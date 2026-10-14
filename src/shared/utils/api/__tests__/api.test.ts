@@ -391,18 +391,9 @@ describe('api', () => {
     it.each([
       'http://localhost:11434',
       'http://localhost:11434/',
-      'http://localhost:11434/v1',
       'http://localhost:11434/api',
-      'http://localhost:11434/chat',
-      // Documented Ollama endpoints pasted as the host must collapse to one /api.
-      'http://localhost:11434/api/chat',
-      'http://localhost:11434/api/generate',
-      'http://localhost:11434/api/show',
-      'http://localhost:11434/api/tags',
-      'http://localhost:11434/api/chat/',
-      'http://localhost:11434/v1/chat',
-      'http://localhost:11434/v1/chat/completions',
-      'http://localhost:11434/v1/models'
+      'http://localhost:11434/api/',
+      'http://localhost:11434/api/api'
     ])('normalises %s to exactly one /api base', (host) => {
       expect(formatOllamaApiHost(host)).toBe('http://localhost:11434/api')
     })
@@ -412,7 +403,26 @@ describe('api', () => {
     })
 
     it('does not treat a proxy mount segment as an endpoint', () => {
-      expect(formatOllamaApiHost('https://proxy.example.com/api/ollama')).toBe('https://proxy.example.com/api/ollama/api')
+      expect(formatOllamaApiHost('https://proxy.example.com/api/ollama')).toBe(
+        'https://proxy.example.com/api/ollama/api'
+      )
+    })
+
+    it('keeps a proxy mount that spells an endpoint word', () => {
+      expect(formatOllamaApiHost('https://proxy.example.com/models/api')).toBe('https://proxy.example.com/models/api')
+    })
+
+    it('keeps a single-label hostname that spells an endpoint word', () => {
+      expect(formatOllamaApiHost('http://models')).toBe('http://models/api')
+    })
+
+    it.each([
+      'http://localhost:11434/v1',
+      'http://localhost:11434/chat',
+      'http://localhost:11434/api/chat',
+      'http://localhost:11434/v1/chat/completions'
+    ])('appends /api to non-/api endpoint paths (%s)', (host) => {
+      expect(formatOllamaApiHost(host)).toBe(`${host}/api`)
     })
   })
 })
