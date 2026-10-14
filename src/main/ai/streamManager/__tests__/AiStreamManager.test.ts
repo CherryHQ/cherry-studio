@@ -3383,7 +3383,7 @@ describe('AiStreamManager', () => {
       // Let the tee → broadcast → terminal chain drain.
       await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      expect(listener.errorResults[0].error).toMatchObject({ name: 'Error', message: 'boom' })
+      expect(listener.errorResults[0].error).toMatchObject({ name: 'StreamError', message: 'boom' })
       expect(listener.errorResults[0].status).toBe('error')
       expect(mgr.inspect('a')!.status).toBe('error')
     })
