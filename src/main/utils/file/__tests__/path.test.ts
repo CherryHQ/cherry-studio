@@ -91,26 +91,43 @@ describe('canonicalizePathForContainment', () => {
 })
 
 describe('normalizePathForComparison', () => {
-  it.runIf(process.platform === 'darwin' || process.platform === 'win32')(
-    'folds unicode-equivalent path spellings on case-insensitive hosts',
-    async () => {
-      vi.resetModules()
-      vi.doMock('@main/core/platform', () => ({
-        isMac: true,
-        isWin: false,
-        isLinux: false,
-        isDev: false,
-        isPortable: false,
-        isDarwinX64: false,
-        isWinArm64: false
-      }))
-      const { normalizePathForComparison: normalize } = await import('../path')
-      const base = path.join(tmpdir(), 'unicode-lock')
-      expect(normalize(path.join(base, 'café.txt'))).toBe(normalize(path.join(base, 'cafe\u0301.txt')))
-      vi.doUnmock('@main/core/platform')
-      vi.resetModules()
-    }
-  )
+  it('folds unicode-equivalent path spellings on macOS', async () => {
+    vi.resetModules()
+    vi.doMock('@main/core/platform', () => ({
+      isMac: true,
+      isWin: false,
+      isLinux: false,
+      isDev: false,
+      isPortable: false,
+      isDarwinX64: false,
+      isWinArm64: false
+    }))
+    const { normalizePathForComparison: normalize } = await import('../path')
+    const base = path.join(tmpdir(), 'unicode-lock')
+    expect(normalize(path.join(base, 'café.txt'))).toBe(normalize(path.join(base, 'cafe\u0301.txt')))
+    vi.doUnmock('@main/core/platform')
+    vi.resetModules()
+  })
+
+  it('preserves distinct unicode directory names on Windows for containment', async () => {
+    vi.resetModules()
+    vi.doMock('@main/core/platform', () => ({
+      isMac: false,
+      isWin: true,
+      isLinux: false,
+      isDev: false,
+      isPortable: false,
+      isDarwinX64: false,
+      isWinArm64: false
+    }))
+    const { isPathInside, normalizePathForComparison: normalize } = await import('../path')
+    const workspace = path.join('C:', 'review', 'café')
+    const outsideChild = path.join('C:', 'review', 'cafe\u0301', 'secret.txt')
+    expect(normalize(path.join(workspace, 'file.txt'))).not.toBe(normalize(outsideChild))
+    expect(isPathInside(outsideChild, workspace)).toBe(false)
+    vi.doUnmock('@main/core/platform')
+    vi.resetModules()
+  })
 })
 
 describe('isPathInside', () => {
