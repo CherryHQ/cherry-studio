@@ -6,10 +6,6 @@ import { useMandatoryGateOpen } from '@renderer/components/MandatoryGateProvider
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useIpcOn } from '@renderer/ipc'
 
-interface Props {
-  sessionId: string
-}
-
 /**
  * Main refuses to bridge an agent through a disabled API gateway (it never starts it implicitly),
  * so it asks here instead. Enabling persists the preference, which is also what makes the gateway
@@ -19,17 +15,17 @@ interface Props {
  * approved, rebuilt from text alone — dropping attachments, knowledge scope and the reasoning /
  * fast-mode selection frozen with the original turn.
  */
-export function ApiGatewayRequiredDialog({ sessionId }: Props) {
+export function ApiGatewayRequiredDialog() {
   const [open, setOpen] = useState(false)
   // A mandatory gate (privacy update) owns the window; the prompt waits rather than stacking on it.
   const mandatoryGateOpen = useMandatoryGateOpen()
 
-  useIpcOn('api_gateway.required', (payload) => {
-    if (payload.sessionId === sessionId) setOpen(true)
+  useIpcOn('api_gateway.required', () => {
+    setOpen(true)
   })
 
-  // Every agent chat renders this, but the prompt is rare — keep the gateway preference and
-  // shared-cache subscriptions out of the common path until it actually fires.
+  // The prompt is rare — keep the gateway preference and shared-cache subscriptions
+  // out of the common path until it actually fires.
   if (!open || mandatoryGateOpen) return null
   return <GatewayPrompt onOpenChange={setOpen} />
 }

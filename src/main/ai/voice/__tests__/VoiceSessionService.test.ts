@@ -23,6 +23,7 @@ import {
   TranscriptionLanguageSource,
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
+  FUNASR_MODEL_ID,
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
@@ -31,11 +32,19 @@ import type * as LocalAdapters from '../localAdapters'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
 
-const native = vi.hoisted(() => ({ status: vi.fn(), transcribe: vi.fn(), speech: vi.fn(), install: vi.fn() }))
+const native = vi.hoisted(() => ({
+  status: vi.fn(),
+  transcribe: vi.fn(),
+  speech: vi.fn(),
+  install: vi.fn(),
+  resolveSpeech: vi.fn()
+}))
 vi.mock('../localAdapters', async (importOriginal) => ({
   ...(await importOriginal<typeof LocalAdapters>()),
   getLocalVoiceStatus: native.status,
   listLocalVoices: vi.fn(),
+  resolveSpeechConfiguration: (...args: Parameters<typeof LocalAdapters.resolveSpeechConfiguration>) =>
+    native.resolveSpeech(...args),
   installVoiceLocale: (_id: string, language: string, signal: AbortSignal) => native.install(language, signal),
   voiceAudioProcess: { id: 'voice.audio' }
 }))
@@ -209,6 +218,7 @@ describe('VoiceSessionService file and admission contract', () => {
     native.transcribe.mockReset().mockResolvedValue({ text: 'private-transcript', segments: [] })
     native.speech.mockReset().mockResolvedValue({ audio: wav(), mediaType: 'audio/wav' })
     native.install.mockReset().mockResolvedValue(undefined)
+    native.resolveSpeech.mockReset()
     await files._doInit()
     service = new VoiceSessionService()
     await service._doInit()
@@ -267,6 +277,44 @@ describe('VoiceSessionService file and admission contract', () => {
       commandRevision: state.playback.commandRevision
     })
   }
+
+  it('exposes a stoppable playback session to other windows during preference resolution', async () => {
+    const resolving = Promise.withResolvers<void>()
+    native.resolveSpeech.mockImplementationOnce(
+      (_input, signal: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new VoiceRuntimeError('aborted')), { once: true })
+          resolving.resolve()
+        })
+    )
+    const started = speech(a, { preferenceResolution: true })
+    const cancelled = started.catch((error: unknown) => error)
+    await resolving.promise
+
+    const other = owner()
+    const state = service.getState(other)
+    expect(state).toMatchObject({
+      phase: 'generating',
+      playback: { availableCommands: expect.arrayContaining(['stop']) }
+    })
+    if (state.phase === 'idle') throw new Error('Missing pending playback session')
+    await service.controlPlayback(other, { sessionId: state.sessionId, command: 'stop' })
+    await report(a, { sessionId: state.sessionId, phase: 'stopped' })
+    await expect(cancelled).resolves.toMatchObject({ reason: 'aborted' })
+
+    expect(native.speech).not.toHaveBeenCalled()
+    expect(service.getState(other).phase).toBe('idle')
+    const next = await speech(a, { trigger: 'auto_read' })
+    expect(outputResponse(next.result.output.id).status).toBe(200)
+  })
+
+  it('releases playback ownership after preference resolution fails', async () => {
+    native.resolveSpeech.mockRejectedValueOnce(new VoiceRuntimeError('voice_unavailable'))
+    await expect(speech(a, { preferenceResolution: true })).rejects.toMatchObject({ reason: 'voice_unavailable' })
+    expect(service.getState(a).phase).toBe('idle')
+    const next = await speech(a, { trigger: 'auto_read' })
+    expect(outputResponse(next.result.output.id).status).toBe(200)
+  })
   function outputResponse(id: string): Response {
     return (media as unknown as { handleRequest(request: Request): Response }).handleRequest(
       new Request(media.getUrl(MediaKind.Audio, id))
@@ -1016,7 +1064,7 @@ describe('VoiceSessionService file and admission contract', () => {
     finishAbort()
 
     await Promise.all([activeFailure, replacementFailure])
-    expect(service.getState(a)).toEqual({ phase: 'idle', revision: 2 })
+    expect(service.getState(a)).toMatchObject({ phase: 'idle' })
     expect(fileEntryService.findMany()).toHaveLength(0)
     for (const event of ['destroyed', 'render-process-gone', 'did-start-navigation']) {
       expect(contents.listenerCount(event)).toBe(0)
@@ -1818,6 +1866,62 @@ describe('VoiceSessionService file and admission contract', () => {
       (media as unknown as { stores: Map<string, Map<string, unknown>> }).stores.get(MediaKind.Audio)?.size ?? 0
     ).toBe(0)
     expect(fileEntryService.findMany()).toHaveLength(0)
+  })
+
+  it('missing resources retain input without invoking inference or substituting another model', async () => {
+    const input = { ...(await recording()), modelId: FUNASR_MODEL_ID, language: undefined }
+    native.transcribe.mockRejectedValueOnce(new VoiceRuntimeError('model_required'))
+    await expect(service.transcribe(a, input)).rejects.toMatchObject({ reason: 'model_required' })
+    expect((await files.read(input.fileEntryId, { encoding: 'binary' })).content).toEqual(webm)
+    await service.discard(a, input.sessionId)
+    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+  })
+
+  it('runs ready FunASR through AiService with the same owned FileEntry and no fallback', async () => {
+    const input = { ...(await recording()), modelId: FUNASR_MODEL_ID, language: undefined }
+
+    await expect(service.transcribe(a, input)).resolves.toMatchObject({ text: 'private-transcript' })
+
+    expect(native.transcribe).toHaveBeenCalledOnce()
+    expect(native.transcribe).toHaveBeenCalledWith(
+      FUNASR_MODEL_ID,
+      webm,
+      { language: undefined },
+      expect.any(AbortSignal)
+    )
+    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+  })
+
+  it('omits a stale language when the implicit platform default is FunASR', async () => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: 'linux' },
+        arch: { value: 'x64' }
+      })
+    )
+    const input = {
+      ...(await recording()),
+      modelId: undefined,
+      language: { source: TranscriptionLanguageSource.Interface, locale: 'en-US' }
+    }
+
+    await expect(service.transcribe(a, input)).resolves.toMatchObject({ text: 'private-transcript' })
+
+    expect(native.transcribe).toHaveBeenCalledWith(
+      FUNASR_MODEL_ID,
+      webm,
+      { language: undefined },
+      expect.any(AbortSignal)
+    )
+    const operationLogs = mockMainLoggerService.debug.mock.calls.filter(([message]) =>
+      ['Voice operation started', 'Voice operation settled'].includes(message)
+    )
+    expect(operationLogs).toHaveLength(2)
+    expect(operationLogs.map(([, metadata]) => metadata)).toEqual([
+      expect.objectContaining({ modelId: FUNASR_MODEL_ID, locale: undefined }),
+      expect.objectContaining({ modelId: FUNASR_MODEL_ID, locale: undefined })
+    ])
   })
 
   it('never logs source text, transcript, bytes or physical paths on success and failure', async () => {

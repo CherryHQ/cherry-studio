@@ -14,7 +14,7 @@ import { type LocalVoiceModelId, type VoiceSessionSource, type VoiceSessionTrigg
 import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { VoiceSessionCommand, VoiceSessionPhase, VoiceSessionState } from '@shared/ipc/schemas/voice'
-import type { InputFor } from '@shared/ipc/types'
+import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 import {
   getLocalVoiceStatus,
@@ -76,6 +76,8 @@ type Session = {
   attach: () => void
   detach: () => void
   requestId?: string
+  // Not an inspection: the next manual admission must still be able to displace it.
+  preflightAbort?: AbortController
   operation?: VoiceOperation
   speechPlan?: ReturnType<typeof resolveSpeechRequest>
   selectedModel?: LocalVoiceModelId
@@ -300,67 +302,110 @@ export class VoiceSessionService extends BaseService {
   }
 
   async speech(owner: VoiceOwner, input: InputFor<'ai.speech.generate'>) {
-    const plan = resolveSpeechRequest(input)
-    const { modelId, options: speechOptions } = plan
+    const resolvesPreferences = input.preferenceResolution === true
+    if (resolvesPreferences) {
+      resolveSpeechRequest({
+        modelId: input.modelId,
+        voice: input.voice ?? '',
+        language: input.language,
+        speed: input.speed
+      })
+    }
+    let plan = resolvesPreferences ? undefined : resolveSpeechRequest(input)
     const trigger = input.trigger ?? 'manual'
     const session = await this.preparePlayback(owner, input, trigger)
-    if (
-      session.speechPlan &&
-      (session.speechPlan.modelId !== modelId ||
-        session.speechPlan.options.voice !== speechOptions.voice ||
-        session.speechPlan.options.language !== speechOptions.language ||
-        session.speechPlan.options.speed !== speechOptions.speed)
-    )
-      throw new VoiceRuntimeError('invalid_request')
-    session.speechPlan ??= plan
-    const normalizedText = input.text.normalize('NFC').trim()
-    return this.run(
-      session,
-      input.requestId,
-      modelId,
-      'speech',
-      async (signal) => {
-        const result = await application.get('AiService').generateSpeech(modelId, normalizedText, speechOptions, signal)
-        signal.throwIfAborted()
-        const wav = Buffer.from(result.audio)
-        if (
-          result.mediaType !== 'audio/wav' ||
-          wav.length < 44 ||
-          wav.toString('ascii', 0, 4) !== 'RIFF' ||
-          wav.toString('ascii', 8, 12) !== 'WAVE' ||
-          wav.readUInt32LE(4) + 8 !== wav.length
-        )
-          throw new VoiceRuntimeError('invalid_audio')
-        if (session.closed || !this.accepting || session.owner.webContents.isDestroyed())
+    try {
+      let resolved: OutputFor<'ai.speech.generate'>['resolved']
+      if (resolvesPreferences && !session.speechPlan) {
+        const powerEpoch = this.powerEpoch
+        const configuration = await this.resolveAdmittedSpeech(session, input)
+        if (session.closed || session.requestId !== input.requestId || powerEpoch !== this.powerEpoch) {
           throw new VoiceRuntimeError('aborted')
-        const media = application.get('MediaProtocolService')
-        const outputId = media.store(MediaKind.Audio, wav, 'audio/wav', { webContentsId: owner.webContents.id })
-        session.outputId = outputId
-        session.currentChunkIndex = input.chunkIndex
-        if (input.chunkIndex === undefined) session.generatedUnchunked = true
-        signal.throwIfAborted()
-        session.playback = completePlaybackSynthesis(session.playback!)
-        this.publishPlayback(session)
-        this.armPlaybackTimeout(session)
-        return {
-          sessionId: session.id,
-          requestId: input.requestId,
-          output: { id: outputId, url: media.getUrl(MediaKind.Audio, outputId), mimeType: 'audio/wav' as const },
-          playback: createPlaybackSnapshot(session.playback, true)
         }
-      },
-      {
-        startPhase: 'generating',
-        failurePhase: 'failed',
-        cleanupOnFailure: true,
-        log: {
-          locale: input.language,
-          normalizedTextLength: normalizedText.length,
-          chunkIndex: input.chunkIndex,
-          chunkCount: input.chunkCount
+        if (!configuration.modelId || !configuration.voice || configuration.status.status !== 'ready') {
+          throw new VoiceRuntimeError(configuration.status.reason ?? 'voice_unavailable')
+        }
+        plan = resolveSpeechRequest({
+          modelId: configuration.modelId,
+          voice: configuration.voice,
+          language: configuration.language,
+          speed: configuration.speed
+        })
+        resolved = {
+          modelId: plan.modelId,
+          voice: configuration.voice,
+          ...(configuration.language && { language: configuration.language }),
+          speed: plan.options.speed
         }
       }
-    )
+      plan ??= resolveSpeechRequest(input)
+      if (!plan.options.voice) throw new VoiceRuntimeError('voice_unavailable')
+      const { modelId, options: speechOptions } = plan
+      const definiteOptions = { ...speechOptions, voice: plan.options.voice }
+      if (
+        session.speechPlan &&
+        (session.speechPlan.modelId !== modelId ||
+          session.speechPlan.options.voice !== speechOptions.voice ||
+          session.speechPlan.options.language !== speechOptions.language ||
+          session.speechPlan.options.speed !== speechOptions.speed)
+      )
+        throw new VoiceRuntimeError('invalid_request')
+      session.speechPlan ??= plan
+      const normalizedText = input.text.normalize('NFC').trim()
+      const result = await this.run(
+        session,
+        input.requestId,
+        modelId,
+        'speech',
+        async (signal) => {
+          const result = await application
+            .get('AiService')
+            .generateSpeech(modelId, normalizedText, definiteOptions, signal)
+          signal.throwIfAborted()
+          const wav = Buffer.from(result.audio)
+          if (
+            result.mediaType !== 'audio/wav' ||
+            wav.length < 44 ||
+            wav.toString('ascii', 0, 4) !== 'RIFF' ||
+            wav.toString('ascii', 8, 12) !== 'WAVE' ||
+            wav.readUInt32LE(4) + 8 !== wav.length
+          )
+            throw new VoiceRuntimeError('invalid_audio')
+          if (session.closed || !this.accepting || session.owner.webContents.isDestroyed())
+            throw new VoiceRuntimeError('aborted')
+          const media = application.get('MediaProtocolService')
+          const outputId = media.store(MediaKind.Audio, wav, 'audio/wav', { webContentsId: owner.webContents.id })
+          session.outputId = outputId
+          session.currentChunkIndex = input.chunkIndex
+          if (input.chunkIndex === undefined) session.generatedUnchunked = true
+          signal.throwIfAborted()
+          session.playback = completePlaybackSynthesis(session.playback!)
+          this.publishPlayback(session)
+          this.armPlaybackTimeout(session)
+          return {
+            sessionId: session.id,
+            requestId: input.requestId,
+            output: { id: outputId, url: media.getUrl(MediaKind.Audio, outputId), mimeType: 'audio/wav' as const },
+            playback: createPlaybackSnapshot(session.playback, true)
+          }
+        },
+        {
+          startPhase: 'generating',
+          failurePhase: 'failed',
+          cleanupOnFailure: true,
+          log: {
+            locale: definiteOptions.language,
+            normalizedTextLength: normalizedText.length,
+            chunkIndex: input.chunkIndex,
+            chunkCount: input.chunkCount
+          }
+        }
+      )
+      return resolved ? { ...result, resolved } : result
+    } catch (error) {
+      await this.abandonUnstartedPlayback(session, input.requestId)
+      throw error
+    }
   }
 
   async releaseOutput(owner: VoiceOwner, input: InputFor<'ai.voice.output.release'>): Promise<void> {
@@ -481,12 +526,16 @@ export class VoiceSessionService extends BaseService {
     const session = this.sessions.get(input.sessionId)
     if (!session) return
     this.assertOwner(session, owner)
-    if (
-      this.active?.session !== session ||
-      this.active.requestId !== input.requestId ||
-      session.operation !== expectedOperation
-    )
-      return
+    const activeMatches =
+      this.active?.session === session &&
+      this.active.requestId === input.requestId &&
+      session.operation === expectedOperation
+    const preflightMatches =
+      expectedOperation === 'speech' &&
+      session.preflightAbort !== undefined &&
+      session.requestId === input.requestId &&
+      session.operation === undefined
+    if (!activeMatches && !preflightMatches) return
     await this.closeSession(session, true)
   }
 
@@ -533,6 +582,8 @@ export class VoiceSessionService extends BaseService {
       if (session.closed || powerEpoch !== this.powerEpoch) throw new VoiceRuntimeError('aborted')
       if (input.chunkIndex !== undefined && input.chunkIndex !== 0) throw new VoiceRuntimeError('invalid_request')
       this.acquireLease(session)
+      session.playback = beginPlaybackSynthesis(session.playback!)
+      this.publishPlayback(session)
       return session
     } catch (error) {
       await this.closeSession(session, true)
@@ -880,6 +931,7 @@ export class VoiceSessionService extends BaseService {
     this.removeOutput(session)
     this.syncSleepHold()
     session.detach()
+    session.preflightAbort?.abort(new VoiceRuntimeError('aborted'))
     if (this.active?.session === session) this.active.controller.abort(new VoiceRuntimeError('aborted'))
     const cleanup = (async () => {
       try {
@@ -914,6 +966,40 @@ export class VoiceSessionService extends BaseService {
     })()
     session.cleanup = cleanup
     return cleanup
+  }
+
+  private resolveAdmittedSpeech(session: Session, input: InputFor<'ai.speech.generate'>) {
+    const controller = new AbortController()
+    session.preflightAbort = controller
+    const powerEpoch = this.powerEpoch
+    const configuration = this.track(
+      session,
+      resolveSpeechConfiguration(
+        {
+          ...(input.modelId && { modelId: input.modelId }),
+          ...(input.voice && { voice: input.voice }),
+          language: input.language,
+          speed: input.speed
+        },
+        controller.signal
+      )
+    )
+    return configuration
+      .catch((error: unknown) => {
+        if (controller.signal.aborted || session.closed || powerEpoch !== this.powerEpoch) {
+          throw new VoiceRuntimeError('aborted')
+        }
+        throw error
+      })
+      .finally(() => {
+        if (session.preflightAbort === controller) session.preflightAbort = undefined
+      })
+  }
+
+  private async abandonUnstartedPlayback(session: Session, requestId: string): Promise<void> {
+    if (session.closed || this.lease !== session || session.requestId !== requestId || session.outputId) return
+    if (session.operation) return
+    await this.closeSession(session, true)
   }
 
   private async inspect<T>(owner: VoiceOwner, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -1045,7 +1131,12 @@ export class VoiceSessionService extends BaseService {
       ipc.broadcastToType(type, 'ai.voice.session_event', event)
     }
     const session = this.lease
-    if (!session || session.closed || session.phase === 'paused') return
+    if (!session || session.closed) return
+    if (session.preflightAbort) {
+      session.preflightAbort.abort(new VoiceRuntimeError('aborted'))
+      return
+    }
+    if (session.phase === 'paused') return
     if (session.kind === 'recording') {
       this.sendCommand(session, 'interrupt')
       return
