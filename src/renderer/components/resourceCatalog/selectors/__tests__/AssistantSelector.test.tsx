@@ -1,11 +1,12 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
-import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
-import type * as UseModelModule from '@renderer/hooks/useModel'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import type * as UseModelModule from '@renderer/hooks/useModel'
 
 const {
   assistantGroupReadMock,
@@ -75,20 +76,25 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTa
   PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
-  useInfiniteQuery: () => ({
-    pages: [{ items: [], total: 0 }],
-    isLoading: false,
-    isRefreshing: false,
-    error: undefined,
-    hasNext: false,
-    loadNext: vi.fn(),
-    refresh: vi.fn()
-  }),
-  useMutation: useMutationMock,
-  useQuery: useQueryMock
-}))
+vi.mock('@renderer/data/hooks/useDataApi', async () => {
+  const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
+
+  return {
+    ...MockUseDataApi,
+    useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
+    useInfiniteQuery: () => ({
+      pages: [{ items: [], total: 0 }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    }),
+    useMutation: useMutationMock,
+    useQuery: useQueryMock
+  }
+})
 
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
@@ -111,7 +117,8 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -255,7 +262,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
   if (!HTMLElement.prototype.hasPointerCapture) {
     HTMLElement.prototype.hasPointerCapture = () => false
   }

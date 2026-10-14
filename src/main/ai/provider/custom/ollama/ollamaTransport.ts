@@ -66,7 +66,7 @@ class OllamaTransport implements ImageGenerationTransport {
       }),
       signal: input.signal,
       ...(this.fetch ? {} : { dispatcher: longRunningDispatcher })
-    } as RequestInit)
+    })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))

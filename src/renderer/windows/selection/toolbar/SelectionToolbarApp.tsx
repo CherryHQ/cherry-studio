@@ -1,9 +1,10 @@
+import type { FC } from 'react'
+
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
-import type { FC } from 'react'
 
 import SelectionToolbar from './SelectionToolbar'
 

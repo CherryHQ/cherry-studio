@@ -11,8 +11,8 @@ import { vi } from 'vitest'
  * `.run()` → RunResult-shaped, `.all()` → `[]`, `.get()` → `undefined`. Tests that
  * need specific results override these via `vi.spyOn`/`mockReturnValue`.
  */
-function makeQueryBuilderMock(): Record<string, ReturnType<typeof vi.fn>> {
-  const builder: Record<string, ReturnType<typeof vi.fn>> = {}
+function makeQueryBuilderMock(): Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>> {
+  const builder: Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>> = {}
   const chainMethods = [
     'from',
     'where',

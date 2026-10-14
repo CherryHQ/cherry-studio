@@ -1,11 +1,12 @@
+import { sql } from 'drizzle-orm'
+import { check, index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
 import {
   type PromptBindingTargetType,
   PromptBindingTargetTypeSchema,
   type PromptVisibility,
   PromptVisibilitySchema
 } from '@shared/data/types/prompt'
-import { sql } from 'drizzle-orm'
-import { check, index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 

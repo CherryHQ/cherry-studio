@@ -1,10 +1,12 @@
+import { type ChildProcess, execFile, spawn, type SpawnOptions } from 'child_process'
+import path from 'path'
+import { promisify } from 'util'
+
+import crossSpawn from 'cross-spawn'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { type ChildProcess, execFile, spawn, type SpawnOptions } from 'child_process'
-import crossSpawn from 'cross-spawn'
-import path from 'path'
-import { promisify } from 'util'
 
 import { getShellEnv } from './shellEnv'
 
@@ -170,6 +172,29 @@ export function waitForProcessExit(child: ChildProcess, timeoutMs: number): Prom
   })
 }
 
+/** Rejection of `executeCommand` when output passes `maxOutputBytes`; the command has been killed. */
+export class CommandOutputLimitError extends Error {
+  constructor(maxOutputBytes: number) {
+    super(`Command output exceeded ${maxOutputBytes} bytes`)
+    this.name = 'CommandOutputLimitError'
+  }
+}
+
+/** Rejection of `executeCommand` when the command ran to completion with a non-zero exit code. */
+export class CommandFailedError extends Error {
+  readonly code: number
+  readonly stdout: string
+  readonly stderr: string
+
+  constructor(code: number, stdout: string, stderr: string) {
+    super(stderr || `Command failed with code ${code}`)
+    this.name = 'CommandFailedError'
+    this.code = code
+    this.stdout = stdout
+    this.stderr = stderr
+  }
+}
+
 /**
  * Execute a command and return its output.
  * Uses crossPlatformSpawn internally for proper Windows .cmd handling.
@@ -205,7 +230,7 @@ export async function executeCommand(
       const chunkBytes = Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(text)
       const nextOutputBytes = outputBytes + chunkBytes
       if (options?.maxOutputBytes !== undefined && nextOutputBytes > options.maxOutputBytes) {
-        outputLimitError = new Error(`Command output exceeded ${options.maxOutputBytes} bytes`)
+        outputLimitError = new CommandOutputLimitError(options.maxOutputBytes)
         if (timeoutId) clearTimeout(timeoutId)
         child.kill('SIGKILL')
         return null
@@ -241,7 +266,7 @@ export async function executeCommand(
       } else if (code === 0) {
         resolve(options?.capture !== false ? stdout : '')
       } else {
-        reject(new Error(stderr || `Command failed with code ${code}`))
+        reject(new CommandFailedError(code ?? -1, stdout, stderr))
       }
     })
   })

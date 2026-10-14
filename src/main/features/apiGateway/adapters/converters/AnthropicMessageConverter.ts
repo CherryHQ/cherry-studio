@@ -15,12 +15,13 @@ import type {
   Tool as AnthropicTool,
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
+import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
+import { tool, zodSchema } from 'ai'
+
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGemini3ModelId } from '@shared/utils/model'
-import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
@@ -192,15 +193,12 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
     }
 
-    // tool_use id → name (for tool_result parts) and tool_use id → result conversion.
-    const toolCallIdToName = new Map<string, string>()
+    // tool_use id → result conversion.
     const toolResults = new Map<string, ToolResultConversion>()
     for (const msg of params.messages) {
       if (!Array.isArray(msg.content)) continue
       for (const block of msg.content) {
-        if (block.type === 'tool_use') {
-          toolCallIdToName.set(block.id, block.name)
-        } else if (block.type === 'tool_result') {
+        if (block.type === 'tool_result') {
           toolResults.set(
             block.tool_use_id,
             block.content ? toolResultToOutput(block.tool_use_id, block.content) : { output: '', relocatedParts: [] }
@@ -303,7 +301,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     }
     const reasoningDetails = this.openRouterReasoningCache?.get(`openrouter-${toolCallId}`)
     if (reasoningDetails) {
-      options.openrouter = { reasoning_details: (sanitizeJson(reasoningDetails) as JSONValue[]) || [] }
+      options.openrouter = { reasoning_details: sanitizeJson(reasoningDetails) || [] }
     }
     return Object.keys(options).length > 0 ? options : undefined
   }

@@ -1,8 +1,9 @@
+import { Check, Copy, GitBranchPlus, MessageSquareText } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { Badge, Button, Tooltip } from '@cherrystudio/ui'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
-import { Check, Copy, GitBranchPlus, MessageSquareText } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { ToolInput, ToolOutput } from '../shared/agentToolTypes'

@@ -2,10 +2,11 @@
  * TODO：distinguish static and dynamic system prompt and xml-based user prompt
  */
 
+import type { ToolSet } from 'ai'
+
 import { replacePromptVariables } from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
-import type { ToolSet } from 'ai'
 
 import { TOOL_SEARCH_TOOL_NAME } from '../../../tools/adapters/aiSdk/meta/toolSearch'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
@@ -23,6 +24,7 @@ export interface AssembleSystemPromptInput {
   hasCitableTools?: boolean
   /** Add a volatile local-date anchor when this request can execute web search. */
   webSearchEnabled?: boolean
+  mcpInstructions?: string
   /** Injectable clock for deterministic tests. */
   now?: Date
 }
@@ -54,6 +56,8 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
   if (webSearchEnabled) {
     sections.push(buildWebSearchDateContext(input.now ?? new Date()))
   }
+
+  if (input.mcpInstructions) sections.push(input.mcpInstructions)
 
   if (sections.length === 0) return undefined
   return sections.join('\n\n')

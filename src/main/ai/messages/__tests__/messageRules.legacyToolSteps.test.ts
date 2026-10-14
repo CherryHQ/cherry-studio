@@ -4,12 +4,12 @@ import { describe, expect, it } from 'vitest'
 
 import { toModelMessages } from '../messageRules'
 
-const completedTool = (toolCallId: string): DynamicToolUIPart => ({
+const completedTool = (toolCallId: string, input: unknown = { query: toolCallId }): DynamicToolUIPart => ({
   type: 'dynamic-tool',
   toolName: 'lookup',
   toolCallId,
   state: 'output-available',
-  input: { query: toolCallId },
+  input,
   output: { result: toolCallId }
 })
 
@@ -45,11 +45,15 @@ describe('legacy tool step replay', () => {
   })
 
   it('serializes Responses tool outputs before the next assistant item', async () => {
+    const parameterized = {
+      paths: ['a.ts', 'b.ts'],
+      options: { filters: [{ field: 'status', values: ['open', 'closed'] }], flags: { recursive: true } }
+    }
     const prompt = await toModelMessages([
       assistant([
         { type: 'text', text: 'Before tools' },
-        completedTool('call-1'),
-        completedTool('call-2'),
+        completedTool('call-1', parameterized),
+        completedTool('call-2', {}),
         { type: 'text', text: 'After tools' }
       ])
     ])
@@ -82,6 +86,10 @@ describe('legacy tool step replay', () => {
       'function_call_output',
       'function_call_output',
       'assistant'
+    ])
+    expect(requestBody.input?.filter((item) => item.type === 'function_call')).toMatchObject([
+      { call_id: 'call-1', arguments: JSON.stringify(parameterized) },
+      { call_id: 'call-2', arguments: '{}' }
     ])
   })
 

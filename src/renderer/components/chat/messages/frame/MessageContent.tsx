@@ -1,7 +1,8 @@
-import { Flex } from '@cherrystudio/ui'
-import { createUniqueModelId } from '@shared/data/types/model'
 import { isEmpty } from 'es-toolkit/compat'
 import React from 'react'
+
+import { Flex } from '@cherrystudio/ui'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 import MessagePartsRenderer from '../blocks/MessagePartsRenderer'
 import type { MessageListItem } from '../types'

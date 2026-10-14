@@ -1,13 +1,14 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 const mocks = vi.hoisted(() => ({
   openSettingsTab: vi.fn(),
   showDownloadPopup: vi.fn<(params: Record<string, unknown>) => Promise<boolean>>(),
   localModel: {
-    status: 'ready' as 'not_downloaded' | 'downloading' | 'ready' | 'error' | 'unsupported',
+    status: 'ready',
     isStatusResolved: true,
     percent: 0,
     download: vi.fn<() => Promise<boolean>>(),
@@ -57,7 +58,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as typeof ResizeObserver
+  }
 })
 
 beforeEach(() => {

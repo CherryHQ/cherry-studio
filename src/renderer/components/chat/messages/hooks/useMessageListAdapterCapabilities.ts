@@ -1,7 +1,14 @@
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
+import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 
-import type { MessageListActions, MessageListItem, MessageStreamingLayers } from '../types'
+import type {
+  MessageListActions,
+  MessageListItem,
+  MessageListSelectAllPagination,
+  MessageStreamingLayers
+} from '../types'
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageErrorActions } from './useMessageErrorActions'
 import { useMessageExportActions } from './useMessageExportActions'
@@ -15,12 +22,15 @@ import { useMessageUiStateCache } from './useMessageUiStateCache'
 interface UseMessageListAdapterCapabilitiesOptions {
   topicId: string
   topicName: string
+  exportToObsidian: ExportMessagesToObsidian
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   deleteMessage?: MessageListActions['deleteMessage']
   diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
-  persistDiagnosis?: ErrorDetailContentProps['onDiagnosisComplete']
+  getDoctorSubject: (message: MessageListItem) => DoctorSubjectRef | undefined
+  /** Load-all pagination handle for select-all; absent = fully loaded. */
+  selectAllPagination?: MessageListSelectAllPagination
 }
 
 /**
@@ -31,28 +41,32 @@ interface UseMessageListAdapterCapabilitiesOptions {
 export function useMessageListAdapterCapabilities({
   topicId,
   topicName,
+  exportToObsidian,
   messages,
   partsByMessageId,
   streamingLayers,
   deleteMessage,
   diagnosticReport,
-  persistDiagnosis
+  getDoctorSubject,
+  selectAllPagination
 }: UseMessageListAdapterCapabilitiesOptions) {
   const messageActivity = useMessageActivityState(topicId, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
-  const exportActions = useMessageExportActions({ topicName })
+  const exportActions = useMessageExportActions({ topicName, exportToObsidian })
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
-  const errorActions = useMessageErrorActions({ diagnosticReport, persistDiagnosis })
+  const errorActions = useMessageErrorActions({ diagnosticReport, getDoctorSubject })
   const selectionController = useMessageSelectionController({
     topicId,
+    exportMessages: exportActions.exportMessages,
     messages,
     partsByMessageId,
     deleteMessage,
     saveTextFile: exportActions.saveTextFile,
-    copyRichContent: leafCapabilities.copyRichContent
+    copyRichContent: leafCapabilities.copyRichContent,
+    selectAllPagination
   })
 
   return {

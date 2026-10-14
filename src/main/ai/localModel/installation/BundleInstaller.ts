@@ -172,7 +172,7 @@ export class BundleInstaller {
       }
     } else {
       const error = failure?.error ?? new Error(`Local model bundle ${this.bundle.id} is incomplete after download.`)
-      logger.error(`local ${this.bundle.capability} model download failed`, error as Error)
+      logger.error(`local ${this.bundle.capability} model download failed`, error)
       outcome = {
         kind: 'error',
         error,

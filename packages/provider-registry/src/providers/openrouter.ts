@@ -1,5 +1,7 @@
 import { CURRENCY } from '../schemas/enums'
+import { fixedSamplingParameterSupport } from './parameterSupports'
 import { defineProvider } from './types'
+import { EFFORT, modeWire } from './wires'
 
 export default defineProvider({
   id: 'openrouter',
@@ -30,11 +32,7 @@ export default defineProvider({
       baseUrl: 'https://openrouter.ai/api/v1/',
       reasoningFormat: {
         type: 'openai-chat',
-        wire: {
-          off: { operations: [{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }] },
-          auto: { operations: [{ target: 'reasoning.effort', value: { source: 'literal', value: 'medium' } }] },
-          effort: { operations: [{ target: 'reasoning.effort', value: { source: 'effort' } }] }
-        }
+        wire: modeWire('reasoning.effort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
       },
       requestControls: {
         serviceTier: {
@@ -79,6 +77,12 @@ export default defineProvider({
       modelId: 'gpt-5-4-image-2',
       name: 'OpenAI: GPT-5.4 Image 2',
       ownedBy: 'openrouter'
-    }
+    },
+    // OpenRouter forwards sampling params verbatim, so the Moonshot fixed lock reaches
+    // these SKUs through it; declaring it makes the app omit instead of surfacing the 400.
+    ...['kimi-k2-5', 'kimi-k2-6', 'kimi-k2-7-code', 'kimi-k3', 'kimi-latest'].map((modelId) => ({
+      modelId,
+      parameterSupport: fixedSamplingParameterSupport
+    }))
   ]
 })

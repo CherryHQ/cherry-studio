@@ -22,10 +22,10 @@ describe('provider reasoning contracts', () => {
   })
 
   it('uses the documented DeepSeek V4 peak prices as the static catalog ceiling', () => {
-    expect(override('deepseek', 'deepseek-v4-flash').pricing).toEqual({
-      cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
-      input: { currency: 'USD', perMillionTokens: 0.44 },
-      output: { currency: 'USD', perMillionTokens: 1.32 }
+    expect(override('deepseek', 'deepseek-flash').pricing).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.006 },
+      input: { currency: 'USD', perMillionTokens: 0.3 },
+      output: { currency: 'USD', perMillionTokens: 1.2 }
     })
     expect(override('deepseek', 'deepseek-v4-pro').pricing).toEqual({
       cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
@@ -34,37 +34,76 @@ describe('provider reasoning contracts', () => {
     })
   })
 
-  // DeepSeek publishes one effort table for every V4 SKU (thinking_mode guide), so the Flash, Vision
-  // and Pro contracts must not drift apart — and none may send `xhigh` verbatim, which DeepSeek
-  // degrades to `high`.
-  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
-    'maps %s reasoning to the official effort vocabulary',
-    (modelId) => {
-      const contracts = override('deepseek', modelId).reasoningContracts
-      const responsesWire = contracts?.['openai-responses']?.wire
-      expect(responsesWire?.off?.operations).toEqual([
-        { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
-      ])
-      expect(responsesWire?.auto?.effortMap).toEqual({
-        auto: 'high',
-        minimal: 'low',
-        low: 'low',
-        medium: 'high',
-        xhigh: 'max'
-      })
-      expect(responsesWire?.effort).toMatchObject({
-        operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
-        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-      })
-      expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
-        operations: [
-          { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-          { target: 'reasoningEffort', value: { source: 'effort' } }
-        ],
-        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-      })
+  it.each(['kimi-k3', 'kimi-k3-fast'])('gives Moonshot %s an effort wire of its own', (modelId) => {
+    // The provider wire only carries `thinking.type`; without this contract every tier collapses to it.
+    const moonshotWire = override('moonshot', modelId).reasoningContracts?.['openai-chat-completions']?.wire
+
+    expect(moonshotWire?.effort?.operations).toEqual([{ target: 'reasoningEffort', value: { source: 'effort' } }])
+  })
+
+  // `auto` is the one selection no model validates, so the serializer projects a profile's automatic
+  // tier onto the model's declared efforts. A tier buried in a literal operation is invisible to it
+  // and reaches the wire unchecked — which is how Kimi K3 received `medium` and returned 400 (#20029).
+  it('declares every automatic effort tier through effortMap, never as a literal', () => {
+    const tiers = new Set(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+    const offenders: string[] = []
+
+    for (const entry of PROVIDERS) {
+      const wires = [
+        ...Object.entries(entry.endpointConfigs ?? {}).map(
+          ([endpoint, config]) => [`${entry.id}/${endpoint}`, config.reasoningFormat?.wire] as const
+        ),
+        ...(entry.overrides ?? []).flatMap((model) =>
+          Object.entries(model.reasoningContracts ?? {}).map(
+            ([endpoint, contract]) => [`${entry.id}/${model.modelId}/${endpoint}`, contract.wire] as const
+          )
+        )
+      ]
+
+      for (const [label, wire] of wires) {
+        for (const operation of wire?.auto?.operations ?? []) {
+          if (operation.value.source === 'literal' && tiers.has(String(operation.value.value))) {
+            offenders.push(`${label} → ${operation.target}=${operation.value.value}`)
+          }
+        }
+      }
     }
-  )
+
+    expect(offenders).toEqual([])
+  })
+
+  it('keeps DashScope Kimi K3 reasoning within the provider-supported effort vocabulary', () => {
+    const dashscopeSupport = override('dashscope', 'kimi-k3').reasoningContracts?.['openai-chat-completions']?.support
+
+    expect(dashscopeSupport?.controls).toEqual([{ default: 'max', kind: 'effort', values: ['none', 'max'] }])
+  })
+
+  // Both current models must translate xhigh to DeepSeek's supported max effort.
+  it.each(['deepseek-flash', 'deepseek-v4-pro'])('maps %s reasoning to the official effort vocabulary', (modelId) => {
+    const contracts = override('deepseek', modelId).reasoningContracts
+    const responsesWire = contracts?.['openai-responses']?.wire
+    expect(responsesWire?.off?.operations).toEqual([
+      { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+    ])
+    expect(responsesWire?.auto?.effortMap).toEqual({
+      auto: 'high',
+      minimal: 'low',
+      low: 'low',
+      medium: 'high',
+      xhigh: 'max'
+    })
+    expect(responsesWire?.effort).toMatchObject({
+      operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+    })
+    expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
+      operations: [
+        { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+        { target: 'reasoningEffort', value: { source: 'effort' } }
+      ],
+      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+    })
+  })
 
   // The generic deepseek wire serves deepseek-chat / deepseek-reasoner (reasoningFamilies toggle
   // models with no per-model override). The @ai-sdk/deepseek schema only accepts thinking.type

@@ -17,7 +17,7 @@ import type { ProviderModelOverride } from '../src/schemas/provider-models'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 
 const MODALITY = new Set(['text', 'image', 'audio', 'video'])
-const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'])
+const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'auto'])
 
 export const CAP_ORDER = [
   'function-call',
@@ -211,7 +211,7 @@ export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null 
     })
   }
 
-  return dropUndef({ controls, ...deriveLegacyReasoningFields(controls) }) as ReasoningSupport
+  return dropUndef({ controls, ...deriveLegacyReasoningFields(controls) })
 }
 
 /** Merge generated OpenRouter support with a hand-written exact override. Hand-written fields win. */

@@ -8,6 +8,8 @@
  *   target-specific order. Callers never touch `orderKey` directly.
  */
 
+import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
@@ -26,7 +28,6 @@ import type {
   PromptBindingTargetType
 } from '@shared/data/types/prompt'
 import { PromptContentSchema, PromptTitleSchema } from '@shared/data/types/prompt'
-import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
@@ -96,7 +97,7 @@ export class PromptService {
     }
 
     if ('targetType' in query) {
-      const target = { type: query.targetType, id: query.targetId } as PromptBindingTarget
+      const target = { type: query.targetType, id: query.targetId }
       const boundPrompts = this.listBoundToTargetMatching(target, conditions)
       if (!query.includeGlobal) return boundPrompts
 
@@ -321,6 +322,15 @@ export class PromptService {
       .where(and(eq(promptBindingTable.targetType, targetType), eq(promptBindingTable.targetId, targetId)))
       .run()
     logger.info('Purged prompt bindings for target', { targetType, targetId })
+  }
+
+  /** Bulk form for retention purges — bindings are polymorphic, so no FK reclaims them. */
+  purgeForTargetsTx(tx: Pick<DbType, 'delete'>, targetType: PromptBindingTargetType, targetIds: string[]): void {
+    if (targetIds.length === 0) return
+    tx.delete(promptBindingTable)
+      .where(and(eq(promptBindingTable.targetType, targetType), inArray(promptBindingTable.targetId, targetIds)))
+      .run()
+    logger.info('Purged prompt bindings for targets', { targetType, count: targetIds.length })
   }
 
   update(id: string, dto: UpdatePromptDto): Prompt {

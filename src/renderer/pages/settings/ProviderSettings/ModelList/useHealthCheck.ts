@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
@@ -20,7 +22,6 @@ import {
 } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import { checkModelsHealth } from './checkModelsHealth'

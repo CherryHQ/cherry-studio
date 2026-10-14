@@ -2,10 +2,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import { miniAppTable } from '@data/db/schemas/miniApp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 
 import { MINI_APP_QUOTAS, QuotaExceededError, RateLimitedError } from '../quota'
 import { storageCapability } from '../storage'

@@ -5,8 +5,9 @@
  * Content search is full-text-oriented and keeps per-source cursor semantics.
  */
 
-import type { AgentSessionMessageSearchRole, TopicMessageSearchRole } from '@shared/data/types/message'
 import * as z from 'zod'
+
+import type { AgentSessionMessageSearchRole, TopicMessageSearchRole } from '@shared/data/types/message'
 
 export type EntitySearchTarget =
   | { type: 'assistant'; target: { assistantId: string } }

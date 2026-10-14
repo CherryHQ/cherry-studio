@@ -1,5 +1,5 @@
 import { Extension, InputRule, mergeAttributes, Node } from '@tiptap/core'
-import { BlockMath, InlineMath } from '@tiptap/extension-mathematics'
+import { BlockMath, InlineMath, type MathematicsOptions } from '@tiptap/extension-mathematics'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 
 import MathPlaceholderNodeView from '../components/placeholder/MathPlaceholderNodeView'
@@ -12,7 +12,10 @@ declare module '@tiptap/core' {
   }
 }
 
-export const EnhancedMath = Extension.create({
+// EnhancedMath takes the same options as upstream Mathematics (block/inline/katex).
+export type EnhancedMathOptions = MathematicsOptions
+
+export const EnhancedMath = Extension.create<EnhancedMathOptions>({
   name: 'enhancedMath',
 
   addOptions() {

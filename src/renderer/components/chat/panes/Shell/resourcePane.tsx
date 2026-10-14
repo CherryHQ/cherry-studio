@@ -1,5 +1,6 @@
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { type ReactNode, useEffect, useRef } from 'react'
+
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 
 import { type RightPanelCapability, type RightPanelComponentProps, useRightPanelActions } from './RightPanel'
 

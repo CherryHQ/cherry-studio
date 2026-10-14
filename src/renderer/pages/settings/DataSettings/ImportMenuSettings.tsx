@@ -1,3 +1,6 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, RowFlex } from '@cherrystudio/ui'
 import {
   SettingDivider,
@@ -7,8 +10,6 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ImportPopup from './ImportPopup'
 

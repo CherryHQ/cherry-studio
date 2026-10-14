@@ -1,5 +1,6 @@
-import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 import { type BaseConfigItem, isOptionsConfigItem, type OptionItem } from '../baseConfigItem'
 import { imageGenerationToFields } from '../imageGenerationToFields'
@@ -20,7 +21,7 @@ function staticOptions(item: BaseConfigItem | undefined): OptionItem[] {
 describe('imageGenerationToFields', () => {
   it('emits nothing for undefined or empty descriptors', () => {
     expect(imageGenerationToFields(undefined)).toEqual([])
-    expect(imageGenerationToFields({ modes: {} } as ImageGenerationSupport)).toEqual([])
+    expect(imageGenerationToFields({ modes: {} })).toEqual([])
   })
 
   it('gpt-image-1: size enum (chips) + numImages slider + quality/moderation/background selects', () => {

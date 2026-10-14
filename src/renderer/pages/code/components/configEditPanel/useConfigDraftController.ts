@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
 import {
   cliConfigConnectionMatchesProvider,
@@ -16,8 +19,6 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   createDraftSnapshot,
@@ -31,8 +32,10 @@ import type { ClaudeModelMode, ConfigDraft, ConfigEditPanelProps } from './types
 
 const logger = loggerService.withContext('useConfigDraftController')
 
-interface ConfigDraftControllerOptions
-  extends Pick<ConfigEditPanelProps, 'cliTool' | 'provider' | 'providerConfig' | 'isCurrentProvider' | 'onSubmit'> {
+interface ConfigDraftControllerOptions extends Pick<
+  ConfigEditPanelProps,
+  'cliTool' | 'provider' | 'providerConfig' | 'isCurrentProvider' | 'onSubmit'
+> {
   apiKeys?: Parameters<typeof cliConfigConnectionMatchesProvider>[3]
   onClose: () => void
   /** Present when editing the Cherry gateway provider — drives gateway-addressed drafts + matching. */

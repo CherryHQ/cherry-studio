@@ -1,8 +1,9 @@
-import { getAppLanguage, SUPPORTED_LANGUAGES, t } from '@main/i18n'
-import { defaultLanguage } from '@shared/utils/languages'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { getAppLanguage, SUPPORTED_LANGUAGES, t } from '@main/i18n'
+import { defaultLanguage } from '@shared/utils/languages'
 
 describe('main i18n', () => {
   beforeEach(() => {
@@ -18,6 +19,34 @@ describe('main i18n', () => {
     it('falls back to the system locale (app.getLocale) when no preference is set', () => {
       // The shared electron mock returns 'en-US' from app.getLocale().
       expect(getAppLanguage()).toBe('en-US')
+    })
+
+    it.each([
+      ['de', 'de-DE'],
+      ['fr', 'fr-FR'],
+      ['ja', 'ja-JP'],
+      ['ru', 'ru-RU']
+    ] as const)('maps the language-only system locale %s to %s', (systemLocale, expected) => {
+      vi.mocked(app.getLocale).mockReturnValueOnce(systemLocale)
+      expect(getAppLanguage()).toBe(expected)
+    })
+
+    it.each([
+      ['zh-HK', 'zh-TW'],
+      ['zh-MO', 'zh-TW'],
+      ['zh-Hant', 'zh-TW'],
+      ['zh-Hant-CN', 'zh-TW'],
+      ['zh-Hans-TW', 'zh-CN'],
+      ['zh-SG', 'zh-CN'],
+      ['zh', 'zh-CN']
+    ] as const)('maps the Chinese system locale %s to %s', (systemLocale, expected) => {
+      vi.mocked(app.getLocale).mockReturnValueOnce(systemLocale)
+      expect(getAppLanguage()).toBe(expected)
+    })
+
+    it('uses the Traditional Chinese recovery dialog for a Hong Kong system locale', () => {
+      vi.mocked(app.getLocale).mockReturnValueOnce('zh-HK')
+      expect(t('dialog.migration_database_unavailable.title')).toBe('資料庫無法使用')
     })
 
     it('falls back to the default language when the system locale is not in the catalog', () => {

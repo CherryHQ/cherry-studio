@@ -24,6 +24,7 @@ export {
   type TooltipProps,
   TooltipProvider,
   TooltipRoot,
+  TooltipSurface,
   TooltipTrigger
 } from './primitives/tooltip'
 

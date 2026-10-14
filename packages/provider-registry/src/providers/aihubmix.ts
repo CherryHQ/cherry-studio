@@ -6,16 +6,19 @@ const claudeWebToolModels = [
   'claude-haiku-4',
   'claude-3-5-haiku',
   'claude-3-5-sonnet',
-  'claude-3-7-sonnet'
+  'claude-3-7-sonnet',
+  'claude-opus-5',
+  'claude-fable-5'
 ]
 const geminiWebToolModels = [
   'gemini-2',
   'gemini-3',
+  'gemini-4-argon',
   'gemini-flash-latest',
   'gemini-pro-latest',
   'gemini-flash-lite-latest'
 ]
-const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
+const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'gpt-6', 'o3', 'o4']
 
 export default defineProvider({
   id: 'aihubmix',

@@ -1,5 +1,6 @@
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
+
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 
 import { transformModel, transformProvider } from '../ProviderModelMappings'
 
@@ -318,7 +319,7 @@ describe('ProviderModelMappings', () => {
             authType: 'apiKey',
             region: 'us-east-1'
           }
-        } as never
+        }
       )
 
       expect(result.authConfig).toEqual({ type: 'api-key-aws', region: 'us-east-1' })
