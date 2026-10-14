@@ -793,11 +793,13 @@ function mockDeferredAnimationFrames() {
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((promiseResolve) => {
+  let reject!: (reason: Error) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
     resolve = promiseResolve
+    reject = promiseReject
   })
 
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 describe('edit dialogs', () => {
@@ -823,6 +825,75 @@ describe('edit dialogs', () => {
       await user.click(within(panel).getByRole('button', { name: 'Manage Global Prompts' }))
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       await waitFor(() => expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts'))
+    }
+  )
+
+  it.each(['agent', 'assistant'] as const)(
+    'waits for a pending %s save before navigating to global prompts',
+    async (type) => {
+      const user = userEvent.setup()
+      const save = createDeferred<AgentDetail | Assistant>()
+      const update = type === 'agent' ? updateAgentMock : updateAssistantMock
+      update.mockImplementationOnce(() => save.promise)
+      function Host() {
+        const [open, setOpen] = useState(true)
+        return type === 'agent' ? (
+          <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} />
+        ) : (
+          <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} />
+        )
+      }
+      render(<Host />)
+      await user.type(screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name'), ' edited')
+      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+      const frames = mockDeferredAnimationFrames()
+      try {
+        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await waitFor(() => expect(update).toHaveBeenCalled())
+        frames.flushAllFrames()
+        expect(openSettingsTabMock).not.toHaveBeenCalled()
+        expect(screen.getByRole('dialog')).toBeVisible()
+
+        await act(async () => save.resolve(type === 'agent' ? AGENT : ASSISTANT))
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+        frames.flushAllFrames()
+        expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
+      } finally {
+        frames.restore()
+      }
+    }
+  )
+
+  it.each(['agent', 'assistant'] as const)(
+    'keeps the %s editor visible when the save before global prompt navigation fails',
+    async (type) => {
+      const user = userEvent.setup()
+      const save = createDeferred<AgentDetail | Assistant>()
+      const update = type === 'agent' ? updateAgentMock : updateAssistantMock
+      update.mockImplementationOnce(() => save.promise)
+      function Host() {
+        const [open, setOpen] = useState(true)
+        return type === 'agent' ? (
+          <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} />
+        ) : (
+          <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} />
+        )
+      }
+      render(<Host />)
+      await user.type(screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name'), ' edited')
+      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+      const frames = mockDeferredAnimationFrames()
+      try {
+        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await waitFor(() => expect(update).toHaveBeenCalled())
+        await act(async () => save.reject(new Error('Network down')))
+        expect(await screen.findByText('Save failed')).toBeVisible()
+        frames.flushAllFrames()
+        expect(screen.getByRole('dialog')).toBeVisible()
+        expect(openSettingsTabMock).not.toHaveBeenCalled()
+      } finally {
+        frames.restore()
+      }
     }
   )
 

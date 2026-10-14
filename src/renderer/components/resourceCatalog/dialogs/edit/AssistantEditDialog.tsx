@@ -325,26 +325,22 @@ function AssistantEditDialogContent({
     onSave: persist
   })
 
-  // On close with a pending edit, flush through the same serialized save queue and
-  // only close once it settles — so a failed final save stays visible instead of
-  // being silently dropped, and we never race a second concurrent save.
-  const handleOpenChange = (next: boolean) => {
+  // Keep failed saves visible and gate settings navigation on successful closure.
+  const handleOpenChange = async (next: boolean): Promise<boolean> => {
     if (next || !canPersist) {
       onOpenChange(next)
-      return
+      return true
     }
     if (failedSaveKeyRef.current === changeKey) {
       toast.error(saveFailedMessage)
       onOpenChange(false)
-      return
+      return true
     }
-    void (async () => {
-      await flush()
-      if (failedSaveKeyRef.current !== null) return
-      onOpenChange(false)
-    })()
+    await flush()
+    if (failedSaveKeyRef.current !== null) return false
+    onOpenChange(false)
+    return true
   }
-  // Route the settings-navigate close through handleOpenChange so it flushes too.
   const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
 
   const handleCreateGroup = async (name: string) => {
