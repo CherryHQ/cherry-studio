@@ -122,6 +122,38 @@ describe('listLiveDetachedBackgroundTasks', () => {
     }
   )
 
+  it('reports an empty inventory when the Agents root is confirmed absent', async () => {
+    // A fresh install has no Agents directory yet: that is the one absence restore may act on.
+    getPathMock.mockReturnValue(path.join(agentsRoot, 'missing'))
+
+    await expect(listLiveDetachedBackgroundTasks()).resolves.toEqual([])
+  })
+
+  it('does not report an empty inventory when the Agents root cannot be read', async () => {
+    // Restore treats empty as "no live detached task" and deletes every record it holds, so a read
+    // failure — which proves nothing about what is running — must reach it as a failure.
+    const notADirectory = path.join(agentsRoot, 'agents-file')
+    await writeFile(notADirectory, 'placeholder')
+    getPathMock.mockReturnValue(notADirectory)
+
+    await expect(listLiveDetachedBackgroundTasks()).rejects.toThrow('Failed to inventory detached background tasks')
+  })
+
+  it('does not report an empty inventory when an agent task directory cannot be read', async () => {
+    await rm(storageDir, { recursive: true })
+    await writeFile(storageDir, 'placeholder')
+
+    await expect(listLiveDetachedBackgroundTasks()).rejects.toThrow()
+  })
+
+  it('does not report an empty inventory when a task record cannot be read', async () => {
+    // A record that exists but cannot be parsed may still describe live work; reading this as
+    // "no tasks" would let promotion delete its record and index out from under the process.
+    await writeFile(path.join(storageDir, 'bt-corrupt.json'), '{ not json')
+
+    await expect(listLiveDetachedBackgroundTasks()).rejects.toThrow('Failed to read background task record')
+  })
+
   it.skipIf(process.platform === 'win32')('reports a task whose group still holds a live member as live', async () => {
     // Same absence of a sentinel, but a worker is still running inside the group: promotion would
     // delete the record while real work continues, so the restore must still be refused.
