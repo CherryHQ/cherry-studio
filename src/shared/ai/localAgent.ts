@@ -336,15 +336,7 @@ export interface LocalAgentDetection {
   terminalPath?: string
 }
 
-export const LocalAgentAuthMethodSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  type: z.enum(['agent', 'terminal']).default('agent')
-})
-export type LocalAgentAuthMethod = z.infer<typeof LocalAgentAuthMethodSchema>
-
 export const LocalAgentModelCatalogSchema = z.object({
-  authMethods: z.array(LocalAgentAuthMethodSchema).optional(),
   models: z.array(z.object({ id: z.string().min(1), name: z.string() })),
   activeModel: z.object({ id: z.string(), name: z.string().optional() }).optional()
 })
@@ -354,7 +346,6 @@ export const LocalAgentProtocolInfoSchema = z.object({
   protocolVersion: z.number(),
   agent: z.object({ name: z.string(), version: z.string(), title: z.string().optional() }).optional(),
   capabilities: z.record(z.string(), z.unknown()),
-  authMethods: z.array(LocalAgentAuthMethodSchema),
   verified: z.array(z.enum(['handshake', 'session', 'prompt']))
 })
 export type LocalAgentProtocolInfo = z.infer<typeof LocalAgentProtocolInfoSchema>

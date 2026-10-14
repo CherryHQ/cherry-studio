@@ -79,13 +79,6 @@ export class AcpConnection extends LocalConnection {
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly toolInputs = new Map<string, LocalAcpTool>()
 
-  async authenticate(methodId: string): Promise<void> {
-    const method = this.localSessionInfo.protocolInfo?.authMethods.find((method) => method.id === methodId)
-    if (!this.connection || !method) throw new Error('Unsupported authentication method')
-    if (method.type !== 'agent') throw new Error('This authentication method requires external setup')
-    await this.connection.agent.request('authenticate', { methodId })
-  }
-
   async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
     this.abort.signal.throwIfAborted()
@@ -331,11 +324,6 @@ export class AcpConnection extends LocalConnection {
           }
         : undefined,
       capabilities: response.agentCapabilities ?? {},
-      authMethods: (response.authMethods ?? []).map((method) => ({
-        id: method.id,
-        name: method.name,
-        type: ('type' in method && method.type === 'terminal') || method._meta?.['terminal-auth'] ? 'terminal' : 'agent'
-      })),
       verified: ['handshake']
     }
     logger.info('ACP handshake completed', {

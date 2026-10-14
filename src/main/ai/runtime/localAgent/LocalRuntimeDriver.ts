@@ -70,8 +70,7 @@ export async function listLocalAgentModels(config: LocalAgentConfiguration): Pro
     await startWithTimeout(live, application.getPath('cherry.bin'), undefined, 'models')
     return {
       models: live.localSessionInfo.models,
-      activeModel: live.localSessionInfo.activeModel,
-      authMethods: live.localSessionInfo.protocolInfo?.authMethods
+      activeModel: live.localSessionInfo.activeModel
     }
   } finally {
     await live.close()

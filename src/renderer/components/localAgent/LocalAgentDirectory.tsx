@@ -63,7 +63,6 @@ import type { CodeCli } from '@shared/types/codeCli'
 
 import { AgentServiceCard } from './AgentServiceCard'
 import { LocalAgentAdvancedSettings } from './LocalAgentAdvancedSettings'
-import { LocalAgentLogin } from './LocalAgentLogin'
 import { LocalAgentModelList } from './LocalAgentModelList'
 import { LocalAgentWebUiActions } from './LocalAgentWebUiActions'
 
@@ -405,9 +404,7 @@ function LocalAgentDetails({
   >()
   const {
     catalog,
-    freshCatalog,
     loading: modelsLoading,
-    refreshError: modelsRefreshError,
     refresh: refreshModels
   } = useLocalAgentModelCatalog(
     preset?.id ?? agent?.id ?? 'custom-new',
@@ -773,33 +770,6 @@ function LocalAgentDetails({
                       )}
                       {terminalButton}
                       <LocalAgentWebUiActions config={initial} disabled={busy || !available} />
-                      {initial.protocol === 'acp' && (
-                        <LocalAgentLogin
-                          config={initial}
-                          authMethods={freshCatalog?.authMethods ?? catalog?.authMethods}
-                          modelsLoading={modelsLoading}
-                          authenticationError={modelsRefreshError ?? (freshCatalog ? undefined : result.message)}
-                          sessionReady={!!freshCatalog && !modelsRefreshError}
-                          onRefresh={refreshModels}
-                          available={!!(detection?.path || initial.executableOverride)}
-                          disabled={busy || (!detection?.path && !initial.executableOverride)}
-                          helpUrl={preset?.helpUrl}
-                          onAuthenticated={async (localRuntime) => {
-                            setConnection(undefined)
-                            const updated = await persistLocalRuntime(localRuntime)
-                            if (!updated) throw new Error(t('common.error'))
-                            try {
-                              setResult({ ok: true, message: t('local_agents.auth_completed') })
-                              if (JSON.stringify(localRuntime.env) === JSON.stringify(initial.env))
-                                await refreshModels()
-                            } catch (error) {
-                              showError(error)
-                            } finally {
-                              await onSaved(updated.id)
-                            }
-                          }}
-                        />
-                      )}
                       {initial.enabled && (
                         <Button
                           variant="outline"

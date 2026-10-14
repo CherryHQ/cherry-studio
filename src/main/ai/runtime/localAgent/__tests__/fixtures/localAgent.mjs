@@ -132,39 +132,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
                 ...(scenario === 'audio' ? { audio: true } : {}),
                 ...(scenario === 'embedded-files' ? { embeddedContext: true } : {})
               }
-            },
-            authMethods: scenario.startsWith('auth-')
-              ? [
-                  {
-                    id: 'oauth-personal',
-                    name: 'Google',
-                    ...(scenario === 'auth-terminal' ? { type: 'terminal', args: ['--login'] } : {}),
-                    ...(scenario === 'auth-legacy-terminal'
-                      ? { _meta: { 'terminal-auth': { command: 'fixture' } } }
-                      : {})
-                  }
-                ]
-              : []
+            }
           }
         : { userAgent: 'fixture' }
     )
-  } else if (method === 'authenticate') {
-    if (scenario === 'auth-pending') return
-    if (scenario === 'auth-rejected' || scenario === 'auth-secret') {
-      process.stdout.write(
-        JSON.stringify({
-          jsonrpc: '2.0',
-          id,
-          error: {
-            code: -32000,
-            message:
-              scenario === 'auth-secret'
-                ? `Rejected ${process.env.GEMINI_API_KEY}`
-                : 'Account is not available in your location'
-          }
-        }) + '\n'
-      )
-    } else reply(id, {})
   } else if (method === 'session/new' || method === 'session/load' || method === 'session/resume') {
     if (method === 'session/resume' && scenario === 'resume-error') {
       return emit({ id, error: { code: -32603, message: 'Native session was not found' } })

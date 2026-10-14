@@ -12,7 +12,6 @@ import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { AcpConnection } from '../AcpConnection'
 import { CodexConnection } from '../CodexConnection'
-import { LocalAgentAuthService } from '../LocalAgentAuthService'
 import { listLocalAgentModels } from '../LocalRuntimeDriver'
 
 const managedFiles = vi.hoisted(() => ({ read: vi.fn(), getPhysicalPath: vi.fn() }))
@@ -77,64 +76,6 @@ describe('local protocol processes', () => {
         .join('')
     return { connection, events, drained, text }
   }
-
-  it('redacts a supplied API key from native authentication failures before crossing IPC', async () => {
-    const service = new LocalAgentAuthService()
-    await expect(
-      service.authenticate(
-        'redaction-test',
-        {
-          protocol: 'acp',
-          enabled: true,
-          executableOverride: process.execPath,
-          args: [fixture, 'acp', 'auth-secret'],
-          env: { GEMINI_API_KEY: 'fixture-private-key' }
-        },
-        'oauth-personal'
-      )
-    ).rejects.toThrow('Rejected <redacted>')
-  })
-
-  it.each(['auth-terminal', 'auth-legacy-terminal'])(
-    'does not report terminal setup as completed authentication: %s',
-    async (scenario) => {
-      const { connection } = create('acp', scenario)
-      await connection.start(cwd, undefined, true)
-      expect(connection.localSessionInfo.protocolInfo?.authMethods).toEqual([
-        { id: 'oauth-personal', name: 'Google', type: 'terminal' }
-      ])
-      await expect((connection as AcpConnection).authenticate('oauth-personal')).rejects.toThrow(
-        'requires external setup'
-      )
-      const log = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
-      expect(log).not.toContain('"method":"authenticate"')
-    }
-  )
-
-  it('authenticates with advertised native IDs without creating a conversation', async () => {
-    const { connection } = create('acp', 'auth-success')
-    await connection.start(cwd, undefined, true)
-    await (connection as AcpConnection).authenticate('oauth-personal')
-    const wire = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
-    expect(wire).toContain('"methodId":"oauth-personal"')
-    expect(wire).not.toContain('session/new')
-    await expect((connection as AcpConnection).authenticate('unknown')).rejects.toThrow(
-      'Unsupported authentication method'
-    )
-  })
-
-  it('preserves authentication failures and interrupts pending login when closed', async () => {
-    const { connection } = create('acp', 'auth-rejected')
-    await connection.start(cwd, undefined, true)
-    await expect((connection as AcpConnection).authenticate('oauth-personal')).rejects.toThrow(
-      'not available in your location'
-    )
-    const pending = create('acp', 'auth-pending').connection as AcpConnection
-    await pending.start(cwd, undefined, true)
-    const rejected = expect(pending.authenticate('oauth-personal')).rejects.toThrow()
-    await pending.close()
-    await rejected
-  })
 
   it.each(['normal', 'embedded-files'])('sends image bytes and native file content in order (%s)', async (scenario) => {
     const { connection } = create('acp', scenario)
@@ -603,7 +544,6 @@ describe('local protocol processes', () => {
       protocolVersion: 1,
       agent: { name: 'fixture', version: '1.0' },
       capabilities: { loadSession: true, promptCapabilities: { image: true } },
-      authMethods: [],
       verified: ['handshake']
     })
   })

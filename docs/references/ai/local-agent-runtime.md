@@ -11,12 +11,12 @@ sources:
 
 # Local Agent Runtime
 
-Code Mate manages local Agent installation, authentication, models and advanced
+Code Mate manages local Agent installation, models and advanced
 configuration. One model list combines native Agent models with compatible Cherry
 provider models. Selecting a model applies its connection and native default for
 both chat and terminal use; there is no separate provider configuration panel.
 Settings → Agent Services reuses the complete Code Mate page, including installation,
-authentication, model selection and CLI configuration. Both entrances share the same
+model selection and CLI configuration. Both entrances share the same
 Agent list and configuration; selecting an Agent stays within the current entrance.
 CLI-only tools (OpenClaw and DeepSeek Harness) use the same grouped model list and
 program layout. Selecting a model saves its provider and model for the next managed
@@ -101,7 +101,7 @@ rendered again. Modern model configuration takes precedence when both model
 interfaces are advertised; a failed model selection is not silently ignored.
 
 Connection checks expose `protocolInfo`: protocol version, reported agent identity,
-advertised capabilities, authentication method names, and completed verification
+advertised capabilities and completed verification
 stages. A handshake-only check records only `handshake`; a live session adds
 `session`, then `prompt` after a protocol prompt response. These stages do not
 certify tool execution, cancellation or recovery, and are not persisted as a
@@ -375,24 +375,15 @@ Protocol references: [ACP](https://agentclientprotocol.com/protocol/overview),
 [Codex App Server](https://developers.openai.com/codex/app-server), and
 [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview).
 
-### ACP sign-in
+### CLI sign-in
 
-Agent Service settings offer sign-in for installed ACP agents. An explicit click
-probes the agent's advertised authentication methods; selecting a method calls
-ACP `authenticate` without creating a conversation. Successful authentication
-refreshes connection information and the model catalog. Agents with no advertised
-methods retain their external sign-in instructions. The chat model menu links to
-the corresponding settings entry when authentication is required.
+Sign in through the Agent's native CLI. Code Mate provides a terminal entry for
+supported Agents and keeps their existing credentials and environment configuration.
+Cherry does not provide an in-app sign-in dialog, query account status, or send ACP
+`authenticate` requests.
 
-Authentication processes belong to `LocalAgentAuthService`: cancellation, panel
-unmount, application shutdown, and a five-minute timeout close the connection.
-Account eligibility errors remain failures; protocol handshake alone does not
-certify authentication or model access.
-
-For Antigravity, selecting Gemini API key opens a masked required input and
-persists `GEMINI_API_KEY` in the Agent's existing environment configuration after
-authentication. Agent Platform accepts `GOOGLE_API_KEY`, or
-`GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` with externally configured ADC.
-Enterprise OAuth reads `gcp.project` and `gcp.location` from the CLI's own settings;
-the dialog explains this prerequisite without rewriting the CLI configuration.
-An authentication response is not proof of API-key validity or paid model access.
+After signing in, refresh the model list in Code Mate or the chat model selector.
+Authentication and account eligibility failures remain visible after an explicit
+check or refresh. The chat model menu links to Code Mate, where users can open the
+terminal or the Agent's help page. A successful protocol handshake does not certify
+account authentication or model access.

@@ -13,7 +13,6 @@ import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSuppor
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
-import { getLocalAgentAuthStatus } from '@main/ai/runtime/localAgent/authStatus'
 import { detectLocalAgents, openLocalAgentTerminal } from '@main/ai/runtime/localAgent/launch'
 import { checkLocalAgent, listLocalAgentModels } from '@main/ai/runtime/localAgent/LocalRuntimeDriver'
 import { selectLocalAgentModel } from '@main/ai/runtime/localAgent/selectModel'
@@ -187,10 +186,6 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.codebuddy_web.stop': () => application.get('CodeBuddyWebUiService').stop(),
   'ai.local_agents.open_terminal': openLocalAgentTerminal,
   'ai.local_agents.check': checkLocalAgent,
-  'ai.local_agents.auth_status': getLocalAgentAuthStatus,
-  'ai.local_agents.authenticate': ({ requestId, config, methodId }) =>
-    application.get('LocalAgentAuthService').authenticate(requestId, config, methodId),
-  'ai.local_agents.cancel_auth': ({ requestId }) => application.get('LocalAgentAuthService').cancel(requestId),
   'ai.local_agents.models': listLocalAgentModels,
   'ai.local_agents.select_model': ({ agentId, nativeModel, ...selection }) =>
     selectLocalAgentModel(agentId, nativeModel, selection),
